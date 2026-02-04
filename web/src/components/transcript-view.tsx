@@ -1,9 +1,24 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import AnsiToHtml from 'ansi-to-html'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import {
+	Bot,
+	ChevronDown,
+	ChevronRight,
+	FileCode,
+	FileSearch,
+	FilePlus,
+	FolderSearch,
+	Globe,
+	Pencil,
+	Play,
+	Search,
+	Terminal,
+	Zap,
+} from 'lucide-react'
 import { useRef, useState, useMemo } from 'react'
 import type { TranscriptEntry, TranscriptContentBlock } from '@/lib/types'
 import { cn, truncate } from '@/lib/utils'
+import type { LucideIcon } from 'lucide-react'
 
 // ANSI to HTML converter - vibrant colors for dark backgrounds
 const ansiConverter = new AnsiToHtml({
@@ -34,23 +49,24 @@ function AnsiText({ text }: { text: string }) {
 	return <span dangerouslySetInnerHTML={{ __html: html }} />
 }
 
-// Tool-specific styling - terminal aesthetic
-const TOOL_STYLES: Record<string, { color: string; icon: string }> = {
-	Bash: { color: 'text-orange-400', icon: '$' },
-	Read: { color: 'text-cyan-400', icon: '📖' },
-	Edit: { color: 'text-yellow-400', icon: '✏' },
-	Write: { color: 'text-green-400', icon: '📝' },
-	Glob: { color: 'text-purple-400', icon: '🔍' },
-	Grep: { color: 'text-purple-400', icon: '🔎' },
-	WebFetch: { color: 'text-blue-400', icon: '🌐' },
-	WebSearch: { color: 'text-blue-400', icon: '🔍' },
-	Task: { color: 'text-pink-400', icon: '🤖' },
-	LSP: { color: 'text-indigo-400', icon: '⚡' },
-	default: { color: 'text-event-tool', icon: '►' },
+// Tool-specific styling - terminal aesthetic with Lucide icons
+const TOOL_STYLES: Record<string, { color: string; Icon: LucideIcon }> = {
+	Bash: { color: 'text-orange-400', Icon: Terminal },
+	Read: { color: 'text-cyan-400', Icon: FileCode },
+	Edit: { color: 'text-yellow-400', Icon: Pencil },
+	Write: { color: 'text-green-400', Icon: FilePlus },
+	Glob: { color: 'text-purple-400', Icon: FolderSearch },
+	Grep: { color: 'text-purple-400', Icon: FileSearch },
+	WebFetch: { color: 'text-blue-400', Icon: Globe },
+	WebSearch: { color: 'text-blue-400', Icon: Search },
+	Task: { color: 'text-pink-400', Icon: Bot },
+	LSP: { color: 'text-indigo-400', Icon: Zap },
 }
 
+const DEFAULT_TOOL_STYLE = { color: 'text-event-tool', Icon: Play }
+
 function getToolStyle(name: string) {
-	return TOOL_STYLES[name] || TOOL_STYLES.default
+	return TOOL_STYLES[name] || DEFAULT_TOOL_STYLE
 }
 
 function Collapsible({
@@ -179,10 +195,15 @@ function ToolLine({
 			summary = JSON.stringify(input).slice(0, 60)
 	}
 
+	const { Icon } = style
+
 	return (
 		<div className="font-mono text-xs">
 			<div className="flex items-center gap-2">
-				<span className={cn('w-16 shrink-0', style.color)}>{style.icon} {name}</span>
+				<span className={cn('w-20 shrink-0 flex items-center gap-1', style.color)}>
+					<Icon className="w-3 h-3" />
+					{name}
+				</span>
 				<span className="text-foreground/80 truncate">{summary}</span>
 			</div>
 			{details && <Collapsible label="output">{details}</Collapsible>}
