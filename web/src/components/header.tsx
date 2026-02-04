@@ -1,14 +1,12 @@
 import { Badge } from '@/components/ui/badge'
 import { useSessionsStore } from '@/hooks/use-sessions'
 
-const ASCII_LOGO = `
- ██████╗██╗      █████╗ ██╗   ██╗██████╗ ███████╗
+const ASCII_LOGO = `\u00A0██████╗██╗      █████╗ ██╗   ██╗██████╗ ███████╗
 ██╔════╝██║     ██╔══██╗██║   ██║██╔══██╗██╔════╝
 ██║     ██║     ███████║██║   ██║██║  ██║█████╗
 ██║     ██║     ██╔══██║██║   ██║██║  ██║██╔══╝
 ╚██████╗███████╗██║  ██║╚██████╔╝██████╔╝███████╗
- ╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝
-`.trim()
+\u00A0╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝`
 
 export function Header() {
 	const { sessions, isConnected } = useSessionsStore()
@@ -20,7 +18,7 @@ export function Header() {
 	return (
 		<header className="border border-border p-3 sm:p-4 font-mono">
 			{/* Desktop: Full ASCII logo */}
-			<pre className="hidden md:block text-primary text-xs leading-tight">{ASCII_LOGO}</pre>
+			<pre className="hidden md:block text-primary text-xs leading-tight whitespace-pre">{ASCII_LOGO}</pre>
 
 			{/* Mobile: Compact title */}
 			<div className="md:hidden text-primary font-bold text-lg">CLAUDE CONCENTRATOR</div>
