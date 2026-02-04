@@ -47,13 +47,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 	},
 }))
 
-const API_BASE = '/api'
-
-export async function fetchSessions(): Promise<Session[]> {
-	const res = await fetch(`${API_BASE}/sessions`)
-	if (!res.ok) throw new Error('Failed to fetch sessions')
-	return res.json()
-}
+const API_BASE = ''
 
 export async function fetchSessionEvents(sessionId: string): Promise<HookEvent[]> {
 	const res = await fetch(`${API_BASE}/sessions/${sessionId}/events?limit=200`)
@@ -62,7 +56,7 @@ export async function fetchSessionEvents(sessionId: string): Promise<HookEvent[]
 }
 
 export async function fetchTranscript(sessionId: string): Promise<TranscriptEntry[]> {
-	const res = await fetch(`${API_BASE}/sessions/${sessionId}/transcript?limit=30`)
+	const res = await fetch(`${API_BASE}/sessions/${sessionId}/transcript?limit=500`)
 	if (!res.ok) return []
 	return res.json()
 }

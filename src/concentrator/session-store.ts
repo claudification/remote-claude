@@ -18,6 +18,25 @@ export interface SessionStoreOptions {
   enablePersistence?: boolean;
 }
 
+// Message types for dashboard subscribers
+export interface DashboardMessage {
+  type: "session_update" | "session_created" | "session_ended" | "event" | "sessions_list";
+  sessionId?: string;
+  session?: SessionSummary;
+  sessions?: SessionSummary[];
+  event?: HookEvent;
+}
+
+export interface SessionSummary {
+  id: string;
+  cwd: string;
+  model?: string;
+  startedAt: number;
+  lastActivity: number;
+  status: Session["status"];
+  eventCount: number;
+}
+
 export interface SessionStore {
   createSession: (
     id: string,
@@ -33,10 +52,14 @@ export interface SessionStore {
   updateActivity: (sessionId: string) => void;
   endSession: (sessionId: string, reason: string) => void;
   removeSession: (sessionId: string) => void;
-  getSessionEvents: (sessionId: string, limit?: number) => HookEvent[];
+  getSessionEvents: (sessionId: string, limit?: number, since?: number) => HookEvent[];
   setSessionSocket: (sessionId: string, ws: ServerWebSocket<unknown>) => void;
   getSessionSocket: (sessionId: string) => ServerWebSocket<unknown> | undefined;
   removeSessionSocket: (sessionId: string) => void;
+  // Dashboard subscriber methods
+  addSubscriber: (ws: ServerWebSocket<unknown>) => void;
+  removeSubscriber: (ws: ServerWebSocket<unknown>) => void;
+  getSubscriberCount: () => number;
   saveState: () => Promise<void>;
   clearState: () => Promise<void>;
 }
@@ -56,6 +79,33 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 
   const sessions = new Map<string, Session>();
   const sessionSockets = new Map<string, ServerWebSocket<unknown>>();
+  const dashboardSubscribers = new Set<ServerWebSocket<unknown>>();
+
+  // Helper to create session summary for broadcasting
+  function toSessionSummary(session: Session): SessionSummary {
+    return {
+      id: session.id,
+      cwd: session.cwd,
+      model: session.model,
+      startedAt: session.startedAt,
+      lastActivity: session.lastActivity,
+      status: session.status,
+      eventCount: session.events.length,
+    };
+  }
+
+  // Broadcast message to all dashboard subscribers
+  function broadcast(message: DashboardMessage): void {
+    const json = JSON.stringify(message);
+    for (const ws of dashboardSubscribers) {
+      try {
+        ws.send(json);
+      } catch {
+        // Remove dead connections
+        dashboardSubscribers.delete(ws);
+      }
+    }
+  }
 
   // Load persisted state on startup
   if (enablePersistence) {
@@ -168,6 +218,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       events: [],
     };
     sessions.set(id, session);
+
+    // Broadcast to dashboard subscribers
+    broadcast({
+      type: "session_created",
+      sessionId: id,
+      session: toSessionSummary(session),
+    });
+
     return session;
   }
 
@@ -212,6 +270,20 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           session.model = data.model;
         }
       }
+
+      // Broadcast event to dashboard subscribers
+      broadcast({
+        type: "event",
+        sessionId,
+        event,
+      });
+
+      // Also broadcast session update (for lastActivity, eventCount changes)
+      broadcast({
+        type: "session_update",
+        sessionId,
+        session: toSessionSummary(session),
+      });
     }
   }
 
@@ -229,6 +301,13 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     const session = sessions.get(sessionId);
     if (session) {
       session.status = "ended";
+
+      // Broadcast to dashboard subscribers
+      broadcast({
+        type: "session_ended",
+        sessionId,
+        session: toSessionSummary(session),
+      });
     }
   }
 
@@ -236,14 +315,22 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     sessions.delete(sessionId);
   }
 
-  function getSessionEvents(sessionId: string, limit?: number): HookEvent[] {
+  function getSessionEvents(sessionId: string, limit?: number, since?: number): HookEvent[] {
     const session = sessions.get(sessionId);
     if (!session) return [];
 
-    if (limit) {
-      return session.events.slice(-limit);
+    let events = session.events;
+
+    // Filter by timestamp if since is provided
+    if (since) {
+      events = events.filter(e => e.timestamp > since);
     }
-    return session.events;
+
+    // Apply limit (from the end)
+    if (limit && events.length > limit) {
+      return events.slice(-limit);
+    }
+    return events;
   }
 
   function setSessionSocket(sessionId: string, ws: ServerWebSocket<unknown>): void {
@@ -256,6 +343,30 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 
   function removeSessionSocket(sessionId: string): void {
     sessionSockets.delete(sessionId);
+  }
+
+  // Dashboard subscriber management
+  function addSubscriber(ws: ServerWebSocket<unknown>): void {
+    dashboardSubscribers.add(ws);
+
+    // Send current sessions list immediately upon subscription
+    const sessionsList = Array.from(sessions.values()).map(toSessionSummary);
+    try {
+      ws.send(JSON.stringify({
+        type: "sessions_list",
+        sessions: sessionsList,
+      }));
+    } catch {
+      dashboardSubscribers.delete(ws);
+    }
+  }
+
+  function removeSubscriber(ws: ServerWebSocket<unknown>): void {
+    dashboardSubscribers.delete(ws);
+  }
+
+  function getSubscriberCount(): number {
+    return dashboardSubscribers.size;
   }
 
   return {
@@ -272,6 +383,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     setSessionSocket,
     getSessionSocket,
     removeSessionSocket,
+    addSubscriber,
+    removeSubscriber,
+    getSubscriberCount,
     saveState,
     clearState,
   };

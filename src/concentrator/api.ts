@@ -232,7 +232,8 @@ export function createApiHandler(options: ApiOptions) {
     if (eventsMatch && req.method === "GET") {
       const sessionId = eventsMatch[1];
       const limit = parseInt(url.searchParams.get("limit") || "0", 10);
-      const events = sessionStore.getSessionEvents(sessionId, limit || undefined);
+      const since = parseInt(url.searchParams.get("since") || "0", 10);
+      const events = sessionStore.getSessionEvents(sessionId, limit || undefined, since || undefined);
 
       if (events.length === 0 && !sessionStore.getSession(sessionId)) {
         return new Response(JSON.stringify({ error: "Session not found" }), {

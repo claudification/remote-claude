@@ -60,8 +60,19 @@ export function SessionList() {
 	const { sessions } = useSessionsStore()
 
 	const sorted = [...sessions].sort((a, b) => {
-		if (a.status === 'active' && b.status !== 'active') return -1
-		if (a.status !== 'active' && b.status === 'active') return 1
+		const aActive = a.status === 'active'
+		const bActive = b.status === 'active'
+
+		// Active sessions first
+		if (aActive && !bActive) return -1
+		if (!aActive && bActive) return 1
+
+		// Within active: sort by path name (alphabetical, stable)
+		if (aActive && bActive) {
+			return a.cwd.localeCompare(b.cwd)
+		}
+
+		// Within inactive: sort by last activity (most recent first)
 		return b.lastActivity - a.lastActivity
 	})
 

@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { cn, formatAge, formatModel } from '@/lib/utils'
-import { EventItem } from './event-detail'
+import { EventsView } from './events-view'
 import { TranscriptView } from './transcript-view'
 
 type Tab = 'transcript' | 'events'
@@ -13,7 +13,6 @@ export function SessionDetail() {
 	const [follow, setFollow] = useState(true)
 	const [inputValue, setInputValue] = useState('')
 	const [isSending, setIsSending] = useState(false)
-	const scrollRef = useRef<HTMLDivElement>(null)
 	const inputRef = useRef<HTMLInputElement>(null)
 
 	const sessions = useSessionsStore(state => state.sessions)
@@ -25,13 +24,6 @@ export function SessionDetail() {
 	const session = sessions.find(s => s.id === selectedSessionId)
 	const events = selectedSessionId ? allEvents[selectedSessionId] || [] : []
 	const transcript = selectedSessionId ? allTranscripts[selectedSessionId] || [] : []
-
-	// Auto-scroll to bottom when content changes (if follow enabled)
-	useEffect(() => {
-		if (follow && scrollRef.current) {
-			scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-		}
-	}, [follow, transcript, events, activeTab])
 
 	if (!session) {
 		return (
@@ -154,18 +146,16 @@ export function SessionDetail() {
 			</div>
 
 			{/* Content */}
-			<div ref={scrollRef} className="flex-1 overflow-y-auto p-3 sm:p-4">
-				{activeTab === 'transcript' && <TranscriptView entries={transcript} />}
-				{activeTab === 'events' && (
-					<div>
-						{events.length === 0 ? (
-							<div className="text-muted-foreground text-center py-10">No events yet</div>
-						) : (
-							[...events].reverse().map((event, i) => <EventItem key={i} event={event} />)
-						)}
-					</div>
-				)}
-			</div>
+			{activeTab === 'transcript' && (
+				<div className="flex-1 min-h-0 p-3 sm:p-4">
+					<TranscriptView entries={transcript} follow={follow} />
+				</div>
+			)}
+			{activeTab === 'events' && (
+				<div className="flex-1 min-h-0 p-3 sm:p-4">
+					<EventsView events={events} follow={follow} />
+				</div>
+			)}
 
 			{/* Input box */}
 			{canSendInput && (

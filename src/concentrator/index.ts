@@ -173,6 +173,7 @@ async function main() {
 
     interface WsData {
       sessionId?: string;
+      isDashboard?: boolean;
     }
 
     Bun.serve<WsData>({
@@ -271,6 +272,15 @@ async function main() {
                 }
                 break;
               }
+              case "subscribe": {
+                // Dashboard client subscribing to updates
+                ws.data.isDashboard = true;
+                sessionStore.addSubscriber(ws);
+                if (verbose) {
+                  console.log(`[dashboard] Subscriber connected (total: ${sessionStore.getSubscriberCount()})`);
+                }
+                break;
+              }
             }
           } catch (error) {
             ws.send(
@@ -282,6 +292,16 @@ async function main() {
           }
         },
         close(ws) {
+          // Handle dashboard subscriber disconnection
+          if (ws.data.isDashboard) {
+            sessionStore.removeSubscriber(ws);
+            if (verbose) {
+              console.log(`[dashboard] Subscriber disconnected (total: ${sessionStore.getSubscriberCount()})`);
+            }
+            return;
+          }
+
+          // Handle rclaude session disconnection
           const sessionId = ws.data.sessionId;
           if (sessionId) {
             // Remove socket tracking

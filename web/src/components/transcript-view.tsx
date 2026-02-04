@@ -1,3 +1,5 @@
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { useRef } from 'react'
 import type { TranscriptEntry } from '@/lib/types'
 import { truncate } from '@/lib/utils'
 import { Markdown } from './markdown'
@@ -111,10 +113,34 @@ export function TranscriptItem({ entry }: { entry: TranscriptEntry }) {
 	return null
 }
 
-export function TranscriptView({ entries }: { entries: TranscriptEntry[] }) {
+interface TranscriptViewProps {
+	entries: TranscriptEntry[]
+	follow?: boolean
+}
+
+export function TranscriptView({ entries, follow = false }: TranscriptViewProps) {
+	const parentRef = useRef<HTMLDivElement>(null)
 	const filtered = entries.filter(e => e.type === 'assistant' || e.type === 'user')
 
-	if (filtered.length === 0) {
+	// Also filter out entries with no displayable content
+	const displayable = filtered.filter(hasDisplayableContent)
+
+	const virtualizer = useVirtualizer({
+		count: displayable.length,
+		getScrollElement: () => parentRef.current,
+		estimateSize: () => 120, // Estimate average item height
+		overscan: 5,
+	})
+
+	// Auto-scroll to bottom when follow is enabled and content changes
+	const prevCountRef = useRef(displayable.length)
+	if (follow && displayable.length > prevCountRef.current && parentRef.current) {
+		// Scroll to last item
+		virtualizer.scrollToIndex(displayable.length - 1, { align: 'end' })
+	}
+	prevCountRef.current = displayable.length
+
+	if (displayable.length === 0) {
 		return (
 			<div className="text-muted-foreground text-center py-10">
 				<pre className="text-xs">
@@ -134,10 +160,31 @@ export function TranscriptView({ entries }: { entries: TranscriptEntry[] }) {
 	}
 
 	return (
-		<div className="space-y-1">
-			{filtered.map((entry, i) => (
-				<TranscriptItem key={i} entry={entry} />
-			))}
+		<div ref={parentRef} className="h-full overflow-y-auto">
+			<div
+				style={{
+					height: `${virtualizer.getTotalSize()}px`,
+					width: '100%',
+					position: 'relative',
+				}}
+			>
+				{virtualizer.getVirtualItems().map(virtualItem => (
+					<div
+						key={virtualItem.key}
+						data-index={virtualItem.index}
+						ref={virtualizer.measureElement}
+						style={{
+							position: 'absolute',
+							top: 0,
+							left: 0,
+							width: '100%',
+							transform: `translateY(${virtualItem.start}px)`,
+						}}
+					>
+						<TranscriptItem entry={displayable[virtualItem.index]} />
+					</div>
+				))}
+			</div>
 		</div>
 	)
 }

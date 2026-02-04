@@ -18,6 +18,7 @@
 	"dependencies": {
 		"@fontsource/geist": "latest",
 		"@fontsource/geist-mono": "latest",
+		"@tanstack/react-virtual": "^3.13.18",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"date-fns": "latest",
