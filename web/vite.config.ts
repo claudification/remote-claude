@@ -20,10 +20,13 @@ export default defineConfig({
 	server: {
 		port: parseInt(process.env.PORT || '3456', 10),
 		proxy: {
-			'/api': {
+			'/sessions': {
 				target: 'http://localhost:9999',
 				changeOrigin: true,
-				rewrite: path => path.replace(/^\/api/, ''),
+			},
+			'/health': {
+				target: 'http://localhost:9999',
+				changeOrigin: true,
 			},
 			'/ws': {
 				target: 'ws://localhost:9999',

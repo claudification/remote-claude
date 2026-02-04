@@ -35,10 +35,14 @@ export type HookEventType =
 	| 'PermissionRequest'
 
 export interface TranscriptContentBlock {
-	type: 'text' | 'tool_use' | 'thinking' | string
+	type: 'text' | 'tool_use' | 'thinking' | 'tool_result' | string
 	text?: string
 	name?: string
+	id?: string // tool_use id
 	input?: Record<string, unknown>
+	// For tool_result blocks
+	tool_use_id?: string
+	content?: string | unknown
 }
 
 export interface TranscriptEntry {
@@ -49,6 +53,13 @@ export interface TranscriptEntry {
 		content?: string | TranscriptContentBlock[]
 	}
 	data?: Record<string, unknown>
+	// Rich tool result data from Claude Code
+	toolUseResult?: {
+		filePath?: string
+		oldString?: string
+		newString?: string
+		structuredPatch?: Array<{ oldStart: number; oldLines: number; newStart: number; newLines: number; lines: string[] }>
+	}
 }
 
 export type WSMessage =

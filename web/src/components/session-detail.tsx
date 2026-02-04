@@ -1,12 +1,48 @@
-import { useRef, useState } from 'react'
+import { Bell, X } from 'lucide-react'
+import { useRef, useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { cn, formatAge, formatModel } from '@/lib/utils'
+import type { HookEvent } from '@/lib/types'
 import { EventsView } from './events-view'
 import { TranscriptView } from './transcript-view'
 
 type Tab = 'transcript' | 'events'
+
+// Find the latest notification that hasn't been "dismissed" by subsequent activity
+function getActiveNotification(events: HookEvent[]): HookEvent | null {
+	if (events.length === 0) return null
+
+	// Find the most recent notification
+	let lastNotification: HookEvent | null = null
+	let lastNotificationIndex = -1
+
+	for (let i = events.length - 1; i >= 0; i--) {
+		if (events[i].hookEvent === 'Notification') {
+			lastNotification = events[i]
+			lastNotificationIndex = i
+			break
+		}
+	}
+
+	if (!lastNotification) return null
+
+	// Check if there's been activity AFTER the notification that would dismiss it
+	// Activity that dismisses: PreToolUse, PostToolUse, UserPromptSubmit (new work starting)
+	for (let i = lastNotificationIndex + 1; i < events.length; i++) {
+		const event = events[i]
+		if (
+			event.hookEvent === 'PreToolUse' ||
+			event.hookEvent === 'PostToolUse' ||
+			event.hookEvent === 'UserPromptSubmit'
+		) {
+			return null // Notification is "stale" - activity resumed
+		}
+	}
+
+	return lastNotification
+}
 
 export function SessionDetail() {
 	const [activeTab, setActiveTab] = useState<Tab>('transcript')
@@ -24,6 +60,10 @@ export function SessionDetail() {
 	const session = sessions.find(s => s.id === selectedSessionId)
 	const events = selectedSessionId ? allEvents[selectedSessionId] || [] : []
 	const transcript = selectedSessionId ? allTranscripts[selectedSessionId] || [] : []
+
+	// HOOKS MUST BE BEFORE EARLY RETURNS - React rules!
+	const activeNotification = useMemo(() => getActiveNotification(events), [events])
+	const [dismissedNotificationId, setDismissedNotificationId] = useState<string | null>(null)
 
 	if (!session) {
 		return (
@@ -45,6 +85,12 @@ export function SessionDetail() {
 	}
 
 	const model = events.find(e => e.hookEvent === 'SessionStart' && e.data?.model)?.data?.model as string | undefined
+
+	// Show notification if it's active and not manually dismissed
+	const notificationToShow =
+		activeNotification && activeNotification.timestamp.toString() !== dismissedNotificationId
+			? activeNotification
+			: null
 
 	async function handleSendInput() {
 		if (!selectedSessionId || !inputValue.trim() || isSending) return
@@ -103,6 +149,34 @@ export function SessionDetail() {
 					<dd className="text-foreground">{session.eventCount}</dd>
 				</dl>
 			</div>
+
+			{/* Notification Banner */}
+			{notificationToShow && (
+				<div className="mx-3 sm:mx-4 mt-3 p-3 bg-amber-500/20 border border-amber-500/50 flex items-start gap-3">
+					<Bell className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+					<div className="flex-1 min-w-0">
+						<div className="text-amber-200 text-xs font-bold uppercase tracking-wider mb-1">
+							{(notificationToShow.data?.notification_type as string) || 'Notification'}
+						</div>
+						<div className="text-amber-100/90 text-sm">
+							{(notificationToShow.data?.message as string) || 'Awaiting input...'}
+						</div>
+						{notificationToShow.data?.title && (
+							<div className="text-amber-200/70 text-[10px] mt-1">
+								{String(notificationToShow.data.title)}
+							</div>
+						)}
+					</div>
+					<button
+						type="button"
+						onClick={() => setDismissedNotificationId(notificationToShow.timestamp.toString())}
+						className="text-amber-400 hover:text-amber-200 p-1"
+						title="Dismiss"
+					>
+						<X className="w-4 h-4" />
+					</button>
+				</div>
+			)}
 
 			{/* Tabs with follow checkbox */}
 			<div className="flex items-center border-b border-border">
