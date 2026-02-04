@@ -3,3 +3,6 @@ bin/
 *.log
 .DS_Store
 *.bun-build
+.*.bun-build
+package-lock.json
+*.tsbuildinfo
