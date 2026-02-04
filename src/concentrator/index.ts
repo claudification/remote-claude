@@ -16,6 +16,7 @@ interface Args {
   cacheDir?: string;
   clearCache: boolean;
   noPersistence: boolean;
+  webDir?: string;
 }
 
 function parseArgs(): Args {
@@ -26,6 +27,7 @@ function parseArgs(): Args {
   let cacheDir: string | undefined;
   let clearCache = false;
   let noPersistence = false;
+  let webDir: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -42,13 +44,15 @@ function parseArgs(): Args {
       clearCache = true;
     } else if (arg === "--no-persistence") {
       noPersistence = true;
+    } else if (arg === "--web-dir" || arg === "-w") {
+      webDir = args[++i];
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
     }
   }
 
-  return { port, apiPort, verbose, cacheDir, clearCache, noPersistence };
+  return { port, apiPort, verbose, cacheDir, clearCache, noPersistence, webDir };
 }
 
 function printHelp() {
@@ -64,6 +68,7 @@ OPTIONS:
   -p, --port <port>      WebSocket port (default: ${DEFAULT_CONCENTRATOR_PORT})
   --api-port <port>      REST API port (default: same as WebSocket)
   -v, --verbose          Enable verbose logging
+  -w, --web-dir <dir>    Serve web dashboard from directory
   --cache-dir <dir>      Session cache directory (default: ~/.cache/concentrator)
   --clear-cache          Clear session cache and exit
   --no-persistence       Disable session persistence
@@ -99,7 +104,7 @@ function formatTime(ms: number): string {
 }
 
 async function main() {
-  const { port, apiPort, verbose, cacheDir, clearCache, noPersistence } = parseArgs();
+  const { port, apiPort, verbose, cacheDir, clearCache, noPersistence, webDir } = parseArgs();
 
   const sessionStore = createSessionStore({
     cacheDir,
@@ -153,7 +158,7 @@ async function main() {
   });
 
   // Create REST API server (on same or different port)
-  const apiHandler = createApiHandler({ sessionStore });
+  const apiHandler = createApiHandler({ sessionStore, webDir });
 
   if (apiPort && apiPort !== port) {
     // Separate API server
@@ -297,12 +302,14 @@ async function main() {
     });
   }
 
+  const webDirDisplay = webDir ? webDir.padEnd(55) : "Built-in UI".padEnd(55);
   console.log(`
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  CLAUDE CONCENTRATOR                                                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  WebSocket:  ws://localhost:${String(port).padEnd(5)}                                          │
 │  REST API:   http://localhost:${String(apiPort || port).padEnd(5)}                                        │
+│  Dashboard:  ${webDirDisplay} │
 │  Verbose:    ${verbose ? "ON " : "OFF"}                                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 `);

@@ -3,10 +3,14 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "wrapper": "bun run src/wrapper/index.ts",
-    "concentrator": "bun run src/concentrator/index.ts",
-    "build": "bun build src/wrapper/index.ts --outfile bin/rclaude --target bun && bun build src/concentrator/index.ts --outfile bin/concentrator --target bun",
-    "typecheck": "tsc --noEmit"
+    "dev:wrapper": "bun run src/wrapper/index.ts",
+    "dev:concentrator": "bun run src/concentrator/index.ts",
+    "dev:web": "cd web && bun run dev",
+    "build": "bun run build:web && bun run build:wrapper && bun run build:concentrator",
+    "build:web": "cd web && bun run build",
+    "build:wrapper": "bun build src/wrapper/index.ts --compile --minify --outfile bin/rclaude",
+    "build:concentrator": "bun run scripts/build-concentrator.ts",
+    "typecheck": "tsc --noEmit && cd web && bun run typecheck"
   },
   "bin": {
     "rclaude": "./bin/rclaude",

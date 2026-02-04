@@ -36,7 +36,7 @@ export function SessionDetail() {
 	if (!session) {
 		return (
 			<div className="flex items-center justify-center h-full text-muted-foreground">
-				<pre className="text-xs">
+				<pre className="text-xs" style={{ lineHeight: 0.95 }}>
 					{`
 ┌───────────────────────────┐
 │                           │

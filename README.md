@@ -145,10 +145,15 @@ All Claude CLI arguments pass through transparently.
 OPTIONS:
   -p, --port <port>      WebSocket/API port (default: 9999)
   -v, --verbose          Enable verbose logging
+  -w, --web-dir <dir>    Serve web dashboard from directory (e.g., ./web/dist)
   --cache-dir <dir>      Session cache directory (default: ~/.cache/concentrator)
   --clear-cache          Clear session cache and exit
   --no-persistence       Disable session persistence
   -h, --help             Show help
+
+EXAMPLES:
+  ./bin/concentrator -v                          # With verbose logging
+  ./bin/concentrator -v --web-dir ./web/dist     # Serve web dashboard
 ```
 
 ### rclaude
@@ -247,20 +252,25 @@ remote-claude/
 ## Development
 
 ```bash
-# Run wrapper in dev mode
-bun run wrapper
-
-# Run concentrator in dev mode
-bun run concentrator
+# Run in dev mode (hot reload)
+bun run dev:wrapper              # Wrapper
+bun run dev:concentrator         # Concentrator
+bun run dev:web                  # Web dashboard (Vite dev server)
 
 # Type check
 bun run typecheck
 
-# Build binaries
+# Build everything (web + binaries)
 bun run build
 
-# Web dashboard dev server
-cd web && bun run dev
+# Build individual components
+bun run build:web                # Web dashboard -> web/dist/
+bun run build:wrapper            # rclaude -> bin/rclaude
+bun run build:concentrator       # concentrator -> bin/concentrator
+
+# Run built binaries
+./bin/concentrator -v --web-dir ./web/dist
+./bin/rclaude
 ```
 
 ## Environment Variables
