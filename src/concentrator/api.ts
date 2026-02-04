@@ -211,7 +211,7 @@ export function createApiHandler(options: ApiOptions) {
       }
 
       // SPA fallback - serve index.html for unknown paths (except API routes)
-      if (!path.startsWith("/sessions") && !path.startsWith("/health") && !path.startsWith("/api")) {
+      if (!path.startsWith("/sessions") && !path.startsWith("/health") && !path.startsWith("/api") && !path.startsWith("/file")) {
         const indexHtml = embeddedFiles.get("index.html");
         if (indexHtml) {
           return new Response(indexHtml, {
@@ -242,7 +242,7 @@ export function createApiHandler(options: ApiOptions) {
         }
 
         // SPA fallback - serve index.html for unknown paths (except API routes)
-        if (!path.startsWith("/sessions") && !path.startsWith("/health") && !path.startsWith("/api")) {
+        if (!path.startsWith("/sessions") && !path.startsWith("/health") && !path.startsWith("/api") && !path.startsWith("/file")) {
           const indexFile = Bun.file(`${webDir}/index.html`);
           if (await indexFile.exists()) {
             return new Response(indexFile, {
