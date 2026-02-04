@@ -1,4 +1,4 @@
-import { Bell, X } from 'lucide-react'
+import { Bell, ChevronDown, ChevronRight, X } from 'lucide-react'
 import { useRef, useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -49,6 +49,7 @@ export function SessionDetail() {
 	const [follow, setFollow] = useState(true)
 	const [inputValue, setInputValue] = useState('')
 	const [isSending, setIsSending] = useState(false)
+	const [infoExpanded, setInfoExpanded] = useState(false)
 	const inputRef = useRef<HTMLInputElement>(null)
 
 	const sessions = useSessionsStore(state => state.sessions)
@@ -118,36 +119,54 @@ export function SessionDetail() {
 
 	return (
 		<div className="h-full flex flex-col">
-			{/* Session Info */}
-			<div className="p-3 sm:p-4 border-b border-border">
-				<h3 className="text-accent text-xs uppercase tracking-wider mb-3">Session Info</h3>
-				<dl className="grid grid-cols-[80px_1fr] sm:grid-cols-[100px_1fr] gap-x-2 sm:gap-x-4 gap-y-1 text-xs">
-					<dt className="text-muted-foreground">ID</dt>
-					<dd className="text-foreground break-all font-mono text-[10px]">{session.id}</dd>
-					<dt className="text-muted-foreground">Status</dt>
-					<dd>
-						<span
-							className={cn(
-								'px-2 py-0.5 text-[10px] uppercase font-bold',
-								session.status === 'active' && 'bg-active text-background',
-								session.status === 'idle' && 'bg-idle text-background',
-								session.status === 'ended' && 'bg-ended text-foreground',
-							)}
-						>
-							{session.status}
+			{/* Session Info - Collapsible */}
+			<div className="border-b border-border">
+				<button
+					type="button"
+					onClick={() => setInfoExpanded(!infoExpanded)}
+					className="w-full p-3 sm:p-4 flex items-center gap-2 hover:bg-muted/30 transition-colors"
+				>
+					{infoExpanded ? (
+						<ChevronDown className="w-3 h-3 text-muted-foreground" />
+					) : (
+						<ChevronRight className="w-3 h-3 text-muted-foreground" />
+					)}
+					<span className="text-accent text-xs uppercase tracking-wider">Session Info</span>
+					{!infoExpanded && (
+						<span className="text-muted-foreground text-[10px] ml-2">
+							{session.cwd.split('/').slice(-2).join('/')} · {formatModel(model || session.model)}
 						</span>
-					</dd>
-					<dt className="text-muted-foreground">CWD</dt>
-					<dd className="text-foreground break-all">{session.cwd}</dd>
-					<dt className="text-muted-foreground">Model</dt>
-					<dd className="text-foreground">{formatModel(model || session.model)}</dd>
-					<dt className="text-muted-foreground">Started</dt>
-					<dd className="text-foreground">{new Date(session.startedAt).toLocaleString()}</dd>
-					<dt className="text-muted-foreground">Activity</dt>
-					<dd className="text-foreground">{formatAge(session.lastActivity)}</dd>
-					<dt className="text-muted-foreground">Events</dt>
-					<dd className="text-foreground">{session.eventCount}</dd>
-				</dl>
+					)}
+				</button>
+				{infoExpanded && (
+					<dl className="px-3 sm:px-4 pb-3 sm:pb-4 grid grid-cols-[80px_1fr] sm:grid-cols-[100px_1fr] gap-x-2 sm:gap-x-4 gap-y-1 text-xs">
+						<dt className="text-muted-foreground">ID</dt>
+						<dd className="text-foreground break-all font-mono text-[10px]">{session.id}</dd>
+						<dt className="text-muted-foreground">Status</dt>
+						<dd>
+							<span
+								className={cn(
+									'px-2 py-0.5 text-[10px] uppercase font-bold',
+									session.status === 'active' && 'bg-active text-background',
+									session.status === 'idle' && 'bg-idle text-background',
+									session.status === 'ended' && 'bg-ended text-foreground',
+								)}
+							>
+								{session.status}
+							</span>
+						</dd>
+						<dt className="text-muted-foreground">CWD</dt>
+						<dd className="text-foreground break-all">{session.cwd}</dd>
+						<dt className="text-muted-foreground">Model</dt>
+						<dd className="text-foreground">{formatModel(model || session.model)}</dd>
+						<dt className="text-muted-foreground">Started</dt>
+						<dd className="text-foreground">{new Date(session.startedAt).toLocaleString()}</dd>
+						<dt className="text-muted-foreground">Activity</dt>
+						<dd className="text-foreground">{formatAge(session.lastActivity)}</dd>
+						<dt className="text-muted-foreground">Events</dt>
+						<dd className="text-foreground">{session.eventCount}</dd>
+					</dl>
+				)}
 			</div>
 
 			{/* Notification Banner */}
@@ -161,7 +180,7 @@ export function SessionDetail() {
 						<div className="text-amber-100/90 text-sm">
 							{(notificationToShow.data?.message as string) || 'Awaiting input...'}
 						</div>
-						{notificationToShow.data?.title && (
+						{notificationToShow.data?.title != null && (
 							<div className="text-amber-200/70 text-[10px] mt-1">
 								{String(notificationToShow.data.title)}
 							</div>
