@@ -5,12 +5,171 @@
  */
 
 import { randomUUID } from "crypto";
+import { realpathSync, existsSync } from "fs";
+import { dirname, join } from "path";
 import { writeMergedSettings, cleanupSettings } from "./settings-merge";
 import { spawnClaude, setupTerminalPassthrough, type PtyProcess } from "./pty-spawn";
 import { startLocalServer, stopLocalServer } from "./local-server";
 import { createWsClient, type WsClient } from "./ws-client";
 import { DEFAULT_CONCENTRATOR_URL } from "../shared/protocol";
 import type { HookEvent } from "../shared/protocol";
+
+const DEBUG = !!process.env.RCLAUDE_DEBUG;
+
+function debug(msg: string) {
+  if (DEBUG) console.error(`[rclaude] ${msg}`);
+}
+
+/**
+ * Find the concentrator binary
+ * Priority: CONCENTRATOR_PATH env -> same dir as rclaude -> PATH
+ */
+function findConcentratorBinary(): string | null {
+  // 1. Check env var
+  if (process.env.CONCENTRATOR_PATH) {
+    if (existsSync(process.env.CONCENTRATOR_PATH)) {
+      return process.env.CONCENTRATOR_PATH;
+    }
+    debug(`CONCENTRATOR_PATH set but not found: ${process.env.CONCENTRATOR_PATH}`);
+  }
+
+  // 2. Check same directory as rclaude (resolve symlinks)
+  try {
+    // Use process.execPath for compiled Bun executables (process.argv[1] points to $bunfs)
+    const execPath = process.execPath;
+    const realPath = realpathSync(execPath);
+    const binDir = dirname(realPath);
+    const sameDirPath = join(binDir, "concentrator");
+    debug(`Checking same dir as ${realPath}: ${sameDirPath}`);
+    if (existsSync(sameDirPath)) {
+      return sameDirPath;
+    }
+  } catch (err) {
+    debug(`Error resolving rclaude path: ${err}`);
+  }
+
+  // 3. Check PATH using `which`
+  try {
+    const result = Bun.spawnSync(["which", "concentrator"]);
+    if (result.success && result.stdout) {
+      const path = result.stdout.toString().trim();
+      if (path && existsSync(path)) {
+        debug(`Found in PATH: ${path}`);
+        return path;
+      }
+    }
+  } catch {
+    // which not available or failed
+  }
+
+  debug("Concentrator binary not found");
+  return null;
+}
+
+/**
+ * Find web directory for concentrator
+ * Priority: CONCENTRATOR_WEB_DIR env -> web/dist relative to binary
+ */
+function findWebDir(concentratorPath: string): string | null {
+  // 1. Check env var
+  if (process.env.CONCENTRATOR_WEB_DIR) {
+    if (existsSync(process.env.CONCENTRATOR_WEB_DIR)) {
+      return process.env.CONCENTRATOR_WEB_DIR;
+    }
+    debug(`CONCENTRATOR_WEB_DIR set but not found: ${process.env.CONCENTRATOR_WEB_DIR}`);
+  }
+
+  // 2. Check web/dist relative to concentrator binary
+  try {
+    const realPath = realpathSync(concentratorPath);
+    const binDir = dirname(realPath);
+    const webDistPath = join(binDir, "..", "web", "dist");
+    if (existsSync(webDistPath)) {
+      return webDistPath;
+    }
+    // Also check sibling to bin/
+    const webDistPath2 = join(binDir, "..", "web", "dist");
+    if (existsSync(webDistPath2)) {
+      return webDistPath2;
+    }
+  } catch {
+    // Ignore errors
+  }
+
+  return null;
+}
+
+/**
+ * Check if concentrator is running
+ */
+async function isConcentratorReady(url: string): Promise<boolean> {
+  try {
+    const httpUrl = url.replace("ws://", "http://").replace("wss://", "https://");
+    const resp = await fetch(`${httpUrl}/health`, {
+      signal: AbortSignal.timeout(200),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ensure concentrator is running, start it if needed
+ */
+async function ensureConcentrator(url: string): Promise<boolean> {
+  // Already running?
+  if (await isConcentratorReady(url)) {
+    debug("Concentrator already running");
+    return true;
+  }
+
+  // Find binary
+  const concentratorPath = findConcentratorBinary();
+  if (!concentratorPath) {
+    debug("Could not find concentrator binary");
+    return false;
+  }
+
+  // Build args
+  const args: string[] = [];
+  const webDir = findWebDir(concentratorPath);
+  if (webDir) {
+    args.push("--web-dir", webDir);
+    debug(`Using web dir: ${webDir}`);
+  }
+
+  // Spawn detached
+  debug(`Starting concentrator: ${concentratorPath} ${args.join(" ")}`);
+  try {
+    const proc = Bun.spawn([concentratorPath, ...args], {
+      detached: true,
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    proc.unref();
+  } catch (err) {
+    debug(`Failed to spawn concentrator: ${err}`);
+    return false;
+  }
+
+  // Poll until ready (max 3 seconds)
+  for (let i = 0; i < 30; i++) {
+    await Bun.sleep(100);
+    if (await isConcentratorReady(url)) {
+      debug("Concentrator started successfully");
+      return true;
+    }
+  }
+
+  // Maybe someone else started it?
+  if (await isConcentratorReady(url)) {
+    debug("Concentrator ready (started by another process)");
+    return true;
+  }
+
+  debug("Concentrator did not start in time");
+  return false;
+}
 
 function printHelp() {
   console.log(`
@@ -61,6 +220,11 @@ async function main() {
     }
   }
 
+  // Ensure concentrator is running (unless --no-concentrator)
+  if (!noConcentrator) {
+    await ensureConcentrator(concentratorUrl);
+  }
+
   // Internal ID for local server validation (not sent to concentrator)
   const internalId = randomUUID();
   const cwd = process.cwd();
@@ -82,9 +246,7 @@ async function main() {
       cwd,
       args: claudeArgs,
       onConnected() {
-        if (process.env.RCLAUDE_DEBUG) {
-          console.error(`[rclaude] Connected to concentrator (session: ${sessionId.slice(0, 8)}...)`);
-        }
+        debug(`Connected to concentrator (session: ${sessionId.slice(0, 8)}...)`)
         // Flush queued events
         for (const event of eventQueue) {
           wsClient?.sendHookEvent({ ...event, sessionId });
@@ -92,14 +254,10 @@ async function main() {
         eventQueue.length = 0;
       },
       onDisconnected() {
-        if (process.env.RCLAUDE_DEBUG) {
-          console.error(`[rclaude] Disconnected from concentrator`);
-        }
+        debug("Disconnected from concentrator");
       },
       onError(error) {
-        if (process.env.RCLAUDE_DEBUG) {
-          console.error(`[rclaude] Concentrator error:`, error.message);
-        }
+        debug(`Concentrator error: ${error.message}`);
       },
       onInput(input) {
         if (!ptyProcess) return;
@@ -111,9 +269,7 @@ async function main() {
         setTimeout(() => {
           ptyProcess?.write("\r");
         }, 50);
-        if (process.env.RCLAUDE_DEBUG) {
-          console.error(`[rclaude] Sent to PTY: ${JSON.stringify(trimmed)} then \\r`);
-        }
+        debug(`Sent to PTY: ${JSON.stringify(trimmed)} then \\r`);
       },
     });
   }
@@ -127,9 +283,7 @@ async function main() {
         const data = event.data as Record<string, unknown>;
         if (data.session_id && typeof data.session_id === "string") {
           claudeSessionId = data.session_id;
-          if (process.env.RCLAUDE_DEBUG) {
-            console.error(`[rclaude] Got Claude session ID: ${claudeSessionId.slice(0, 8)}...`);
-          }
+          debug(`Got Claude session ID: ${claudeSessionId.slice(0, 8)}...`);
           // Now connect to concentrator with the real ID
           connectToConcentrator(claudeSessionId);
         }
@@ -146,9 +300,7 @@ async function main() {
         eventQueue.push(event);
       }
 
-      if (process.env.RCLAUDE_DEBUG) {
-        console.error(`[rclaude] Hook: ${event.hookEvent}`);
-      }
+      debug(`Hook: ${event.hookEvent}`);
     },
   });
 
