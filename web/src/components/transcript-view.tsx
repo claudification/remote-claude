@@ -309,7 +309,7 @@ function GroupView({
 			</div>
 
 			{/* Content */}
-			<div className={cn('pl-4 border-l-2', borderColor, 'space-y-2')}>
+			<div className="pl-4 space-y-2">
 				{/* Thinking (collapsed by default) */}
 				{allThinking.length > 0 && (
 					<Collapsible label={`thinking (${allThinking.length})`}>
