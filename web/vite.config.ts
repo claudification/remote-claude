@@ -28,6 +28,10 @@ export default defineConfig({
 				target: 'http://localhost:9999',
 				changeOrigin: true,
 			},
+			'/file': {
+				target: 'http://localhost:9999',
+				changeOrigin: true,
+			},
 			'/ws': {
 				target: 'ws://localhost:9999',
 				ws: true,
