@@ -74,9 +74,13 @@ export async function startLocalServer(
             data = { session_id: sessionId };
           }
 
+          // Extract Claude's session_id from data if present, otherwise use internal
+          const claudeSessionId = (data as Record<string, unknown>).session_id;
+          const effectiveSessionId = typeof claudeSessionId === "string" ? claudeSessionId : sessionId;
+
           const event: HookEvent = {
             type: "hook",
-            sessionId,
+            sessionId: effectiveSessionId,
             hookEvent: eventType,
             timestamp: Date.now(),
             data,

@@ -66,13 +66,23 @@ export function createWsServer(options: WsServerOptions): WsServer {
               const meta = data as SessionMeta;
               ws.data.sessionId = meta.sessionId;
 
-              // Create session in store
-              sessionStore.createSession(
-                meta.sessionId,
-                meta.cwd,
-                meta.model,
-                meta.args
-              );
+              // Check if session already exists (resume case)
+              const existingSession = sessionStore.getSession(meta.sessionId);
+              if (existingSession) {
+                // Resume existing session
+                sessionStore.resumeSession(meta.sessionId);
+              } else {
+                // Create new session
+                sessionStore.createSession(
+                  meta.sessionId,
+                  meta.cwd,
+                  meta.model,
+                  meta.args
+                );
+              }
+
+              // Track socket for this session (for sending input)
+              sessionStore.setSessionSocket(meta.sessionId, ws);
 
               onSessionStart?.(meta.sessionId, meta);
 

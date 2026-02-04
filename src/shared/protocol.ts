@@ -47,7 +47,13 @@ export interface ConcentratorError {
   message: string;
 }
 
-export type ConcentratorMessage = Ack | ConcentratorError;
+export interface SendInput {
+  type: "input";
+  sessionId: string;
+  input: string;
+}
+
+export type ConcentratorMessage = Ack | ConcentratorError | SendInput;
 
 // Hook event types from Claude Code
 export type HookEventType =
@@ -157,6 +163,7 @@ export interface Session {
   cwd: string;
   model?: string;
   args?: string[];
+  transcriptPath?: string;
   startedAt: number;
   lastActivity: number;
   status: "active" | "idle" | "ended";

@@ -4,7 +4,7 @@
  */
 
 import type { SessionStore } from "./session-store";
-import type { Session } from "../shared/protocol";
+import type { Session, SendInput } from "../shared/protocol";
 import { UI_HTML } from "./ui";
 
 export interface ApiOptions {
@@ -57,7 +57,7 @@ export function createApiHandler(options: ApiOptions) {
     // CORS headers
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     };
 
@@ -133,6 +133,116 @@ export function createApiHandler(options: ApiOptions) {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Get session transcript (tail)
+    const transcriptMatch = path.match(/^\/sessions\/([^/]+)\/transcript$/);
+    if (transcriptMatch && req.method === "GET") {
+      const sessionId = transcriptMatch[1];
+      const session = sessionStore.getSession(sessionId);
+
+      if (!session) {
+        return new Response(JSON.stringify({ error: "Session not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!session.transcriptPath) {
+        return new Response(JSON.stringify({ error: "No transcript path available" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      try {
+        const file = Bun.file(session.transcriptPath);
+        if (!(await file.exists())) {
+          return new Response(JSON.stringify({ error: "Transcript file not found" }), {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const text = await file.text();
+        const lines = text.trim().split("\n").filter(Boolean);
+
+        // Parse JSONL - get last N entries
+        const limit = parseInt(url.searchParams.get("limit") || "20", 10);
+        const entries = lines.slice(-limit).map((line) => {
+          try {
+            return JSON.parse(line);
+          } catch {
+            return null;
+          }
+        }).filter(Boolean);
+
+        return new Response(JSON.stringify(entries, null, 2), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: `Failed to read transcript: ${error}` }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // Send input to session
+    const inputMatch = path.match(/^\/sessions\/([^/]+)\/input$/);
+    if (inputMatch && req.method === "POST") {
+      const sessionId = inputMatch[1];
+      const session = sessionStore.getSession(sessionId);
+
+      if (!session) {
+        return new Response(JSON.stringify({ error: "Session not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (session.status === "ended") {
+        return new Response(JSON.stringify({ error: "Session has ended" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const ws = sessionStore.getSessionSocket(sessionId);
+      if (!ws) {
+        return new Response(JSON.stringify({ error: "Session not connected" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      try {
+        const body = await req.json() as { input: string };
+        if (!body.input || typeof body.input !== "string") {
+          return new Response(JSON.stringify({ error: "Missing input field" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const inputMsg: SendInput = {
+          type: "input",
+          sessionId,
+          input: body.input,
+        };
+        ws.send(JSON.stringify(inputMsg));
+
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: `Failed to send input: ${error}` }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     return new Response(JSON.stringify({ error: "Not found" }), {

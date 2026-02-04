@@ -4,7 +4,7 @@
  * Aggregates sessions from multiple rclaude instances
  */
 
-import { createSessionStore } from "./session-store";
+import { createSessionStore, type SessionStoreOptions } from "./session-store";
 import { createWsServer } from "./ws-server";
 import { createApiHandler } from "./api";
 import { DEFAULT_CONCENTRATOR_PORT } from "../shared/protocol";
@@ -13,6 +13,9 @@ interface Args {
   port: number;
   apiPort?: number;
   verbose: boolean;
+  cacheDir?: string;
+  clearCache: boolean;
+  noPersistence: boolean;
 }
 
 function parseArgs(): Args {
@@ -20,6 +23,9 @@ function parseArgs(): Args {
   let port = DEFAULT_CONCENTRATOR_PORT;
   let apiPort: number | undefined;
   let verbose = false;
+  let cacheDir: string | undefined;
+  let clearCache = false;
+  let noPersistence = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -30,13 +36,19 @@ function parseArgs(): Args {
       apiPort = parseInt(args[++i], 10);
     } else if (arg === "--verbose" || arg === "-v") {
       verbose = true;
+    } else if (arg === "--cache-dir") {
+      cacheDir = args[++i];
+    } else if (arg === "--clear-cache") {
+      clearCache = true;
+    } else if (arg === "--no-persistence") {
+      noPersistence = true;
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
     }
   }
 
-  return { port, apiPort, verbose };
+  return { port, apiPort, verbose, cacheDir, clearCache, noPersistence };
 }
 
 function printHelp() {
@@ -52,6 +64,9 @@ OPTIONS:
   -p, --port <port>      WebSocket port (default: ${DEFAULT_CONCENTRATOR_PORT})
   --api-port <port>      REST API port (default: same as WebSocket)
   -v, --verbose          Enable verbose logging
+  --cache-dir <dir>      Session cache directory (default: ~/.cache/concentrator)
+  --clear-cache          Clear session cache and exit
+  --no-persistence       Disable session persistence
   -h, --help             Show this help message
 
 ENDPOINTS:
@@ -59,16 +74,18 @@ ENDPOINTS:
     ws://localhost:${DEFAULT_CONCENTRATOR_PORT}/      Connect session
 
   REST API:
-    GET /sessions                List all sessions
-    GET /sessions?active=true    List active sessions only
-    GET /sessions/:id            Get session details
-    GET /sessions/:id/events     Get session events
-    GET /health                  Health check
+    GET  /sessions                List all sessions
+    GET  /sessions?active=true    List active sessions only
+    GET  /sessions/:id            Get session details
+    GET  /sessions/:id/events     Get session events
+    POST /sessions/:id/input      Send input to session
+    GET  /health                  Health check
 
 EXAMPLES:
   concentrator                   # Start on default port
   concentrator -p 8080           # Start on port 8080
   concentrator -v                # Start with verbose logging
+  concentrator --clear-cache     # Clear cached sessions
 `);
 }
 
@@ -81,10 +98,31 @@ function formatTime(ms: number): string {
   return `${hours}h ${minutes % 60}m`;
 }
 
-function main() {
-  const { port, apiPort, verbose } = parseArgs();
+async function main() {
+  const { port, apiPort, verbose, cacheDir, clearCache, noPersistence } = parseArgs();
 
-  const sessionStore = createSessionStore();
+  const sessionStore = createSessionStore({
+    cacheDir,
+    enablePersistence: !noPersistence,
+  });
+
+  // Handle --clear-cache
+  if (clearCache) {
+    await sessionStore.clearState();
+    console.log("Cache cleared.");
+    process.exit(0);
+  }
+
+  // Save state on shutdown
+  process.on("SIGINT", async () => {
+    console.log("\n[shutdown] Saving state...");
+    await sessionStore.saveState();
+    process.exit(0);
+  });
+  process.on("SIGTERM", async () => {
+    await sessionStore.saveState();
+    process.exit(0);
+  });
 
   // Create WebSocket server
   const wsServer = createWsServer({
@@ -165,17 +203,33 @@ function main() {
             switch (data.type) {
               case "meta": {
                 ws.data.sessionId = data.sessionId;
-                sessionStore.createSession(
-                  data.sessionId,
-                  data.cwd,
-                  data.model,
-                  data.args
-                );
-                if (verbose) {
-                  console.log(
-                    `[+] Session started: ${data.sessionId.slice(0, 8)}... (${data.cwd})`
+
+                // Check if session exists (resume case)
+                const existingSession = sessionStore.getSession(data.sessionId);
+                if (existingSession) {
+                  sessionStore.resumeSession(data.sessionId);
+                  if (verbose) {
+                    console.log(
+                      `[~] Session resumed: ${data.sessionId.slice(0, 8)}... (${data.cwd})`
+                    );
+                  }
+                } else {
+                  sessionStore.createSession(
+                    data.sessionId,
+                    data.cwd,
+                    data.model,
+                    data.args
                   );
+                  if (verbose) {
+                    console.log(
+                      `[+] Session started: ${data.sessionId.slice(0, 8)}... (${data.cwd})`
+                    );
+                  }
                 }
+
+                // Track socket for input forwarding
+                sessionStore.setSessionSocket(data.sessionId, ws);
+
                 ws.send(JSON.stringify({ type: "ack", eventId: data.sessionId }));
                 break;
               }
@@ -225,6 +279,9 @@ function main() {
         close(ws) {
           const sessionId = ws.data.sessionId;
           if (sessionId) {
+            // Remove socket tracking
+            sessionStore.removeSessionSocket(sessionId);
+
             const session = sessionStore.getSession(sessionId);
             if (session && session.status !== "ended") {
               sessionStore.endSession(sessionId, "connection_closed");

@@ -22,6 +22,7 @@ export interface WsClientOptions {
   onConnected?: () => void;
   onDisconnected?: () => void;
   onError?: (error: Error) => void;
+  onInput?: (input: string) => void;
 }
 
 export interface WsClient {
@@ -45,6 +46,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onConnected,
     onDisconnected,
     onError,
+    onInput,
   } = options;
 
   let ws: WebSocket | null = null;
@@ -122,9 +124,18 @@ export function createWsClient(options: WsClientOptions): WsClient {
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data as string) as ConcentratorMessage;
-          // Handle acks or errors from concentrator if needed
-          if (message.type === "error") {
-            onError?.(new Error(message.message));
+          // Handle messages from concentrator
+          switch (message.type) {
+            case "error":
+              onError?.(new Error(message.message));
+              break;
+            case "input":
+              // Forward input to PTY
+              onInput?.(message.input);
+              break;
+            case "ack":
+              // Acknowledgements - no action needed
+              break;
           }
         } catch {
           // Ignore parse errors

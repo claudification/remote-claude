@@ -1,10 +1,22 @@
 /**
  * Session Store
- * In-memory session registry with event storage
+ * In-memory session registry with event storage and optional persistence
  */
 
+import type { ServerWebSocket } from "bun";
 import type { Session, HookEvent } from "../shared/protocol";
 import { IDLE_TIMEOUT_MS } from "../shared/protocol";
+import { existsSync, mkdirSync, unlinkSync, readFileSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
+
+const DEFAULT_CACHE_DIR = join(homedir(), ".cache", "concentrator");
+const CACHE_FILENAME = "sessions.json";
+
+export interface SessionStoreOptions {
+  cacheDir?: string;
+  enablePersistence?: boolean;
+}
 
 export interface SessionStore {
   createSession: (
@@ -13,6 +25,7 @@ export interface SessionStore {
     model?: string,
     args?: string[]
   ) => Session;
+  resumeSession: (id: string) => void;
   getSession: (id: string) => Session | undefined;
   getAllSessions: () => Session[];
   getActiveSessions: () => Session[];
@@ -21,15 +34,35 @@ export interface SessionStore {
   endSession: (sessionId: string, reason: string) => void;
   removeSession: (sessionId: string) => void;
   getSessionEvents: (sessionId: string, limit?: number) => HookEvent[];
+  setSessionSocket: (sessionId: string, ws: ServerWebSocket<unknown>) => void;
+  getSessionSocket: (sessionId: string) => ServerWebSocket<unknown> | undefined;
+  removeSessionSocket: (sessionId: string) => void;
+  saveState: () => Promise<void>;
+  clearState: () => Promise<void>;
+}
+
+interface PersistedState {
+  version: number;
+  savedAt: number;
+  sessions: Array<Omit<Session, "events"> & { eventCount: number }>;
 }
 
 /**
- * Create an in-memory session store
+ * Create a session store with optional persistence
  */
-export function createSessionStore(): SessionStore {
-  const sessions = new Map<string, Session>();
+export function createSessionStore(options: SessionStoreOptions = {}): SessionStore {
+  const { cacheDir = DEFAULT_CACHE_DIR, enablePersistence = true } = options;
+  const cachePath = join(cacheDir, CACHE_FILENAME);
 
-  // Periodically mark idle sessions
+  const sessions = new Map<string, Session>();
+  const sessionSockets = new Map<string, ServerWebSocket<unknown>>();
+
+  // Load persisted state on startup
+  if (enablePersistence) {
+    loadStateSync();
+  }
+
+  // Periodically mark idle sessions and save state
   setInterval(() => {
     const now = Date.now();
     for (const session of sessions.values()) {
@@ -38,6 +71,85 @@ export function createSessionStore(): SessionStore {
       }
     }
   }, 10000);
+
+  // Auto-save state periodically (every 30 seconds)
+  if (enablePersistence) {
+    setInterval(() => {
+      saveState().catch(() => {});
+    }, 30000);
+  }
+
+  function loadStateSync(): void {
+    try {
+      if (!existsSync(cachePath)) return;
+
+      const text = readFileSync(cachePath, "utf-8");
+      const state = JSON.parse(text) as PersistedState;
+
+      if (state.version !== 1) return;
+
+      // Restore sessions (without events, mark as ended since we don't know their state)
+      for (const sessionData of state.sessions) {
+        const session: Session = {
+          ...sessionData,
+          events: [],
+          // Mark restored sessions as ended unless they reconnect
+          status: "ended",
+        };
+        sessions.set(session.id, session);
+      }
+
+      console.log(`[cache] Loaded ${state.sessions.length} sessions from cache`);
+    } catch {
+      // Ignore load errors
+    }
+  }
+
+  async function saveState(): Promise<void> {
+    if (!enablePersistence) return;
+
+    try {
+      // Ensure cache directory exists
+      if (!existsSync(cacheDir)) {
+        mkdirSync(cacheDir, { recursive: true });
+      }
+
+      // Persist sessions without events (to keep file size small)
+      const sessionsToSave = Array.from(sessions.values()).map((s) => ({
+        id: s.id,
+        cwd: s.cwd,
+        model: s.model,
+        args: s.args,
+        transcriptPath: s.transcriptPath,
+        startedAt: s.startedAt,
+        lastActivity: s.lastActivity,
+        status: s.status,
+        eventCount: s.events.length,
+      }));
+
+      const state: PersistedState = {
+        version: 1,
+        savedAt: Date.now(),
+        sessions: sessionsToSave,
+      };
+
+      await Bun.write(cachePath, JSON.stringify(state, null, 2));
+    } catch (error) {
+      console.error(`[cache] Failed to save state: ${error}`);
+    }
+  }
+
+  async function clearState(): Promise<void> {
+    try {
+      if (existsSync(cachePath)) {
+        unlinkSync(cachePath);
+        console.log(`[cache] Cleared cache at ${cachePath}`);
+      }
+      sessions.clear();
+    } catch (error) {
+      console.error(`[cache] Failed to clear state: ${error}`);
+    }
+  }
 
   function createSession(
     id: string,
@@ -57,6 +169,14 @@ export function createSessionStore(): SessionStore {
     };
     sessions.set(id, session);
     return session;
+  }
+
+  function resumeSession(id: string): void {
+    const session = sessions.get(id);
+    if (session) {
+      session.status = "active";
+      session.lastActivity = Date.now();
+    }
   }
 
   function getSession(id: string): Session | undefined {
@@ -80,6 +200,17 @@ export function createSessionStore(): SessionStore {
       session.lastActivity = Date.now();
       if (session.status === "idle") {
         session.status = "active";
+      }
+
+      // Extract transcript_path and model from SessionStart events
+      if (event.hookEvent === "SessionStart" && event.data) {
+        const data = event.data as Record<string, unknown>;
+        if (data.transcript_path && typeof data.transcript_path === "string") {
+          session.transcriptPath = data.transcript_path;
+        }
+        if (data.model && typeof data.model === "string" && !session.model) {
+          session.model = data.model;
+        }
       }
     }
   }
@@ -115,8 +246,21 @@ export function createSessionStore(): SessionStore {
     return session.events;
   }
 
+  function setSessionSocket(sessionId: string, ws: ServerWebSocket<unknown>): void {
+    sessionSockets.set(sessionId, ws);
+  }
+
+  function getSessionSocket(sessionId: string): ServerWebSocket<unknown> | undefined {
+    return sessionSockets.get(sessionId);
+  }
+
+  function removeSessionSocket(sessionId: string): void {
+    sessionSockets.delete(sessionId);
+  }
+
   return {
     createSession,
+    resumeSession,
     getSession,
     getAllSessions,
     getActiveSessions,
@@ -125,5 +269,10 @@ export function createSessionStore(): SessionStore {
     endSession,
     removeSession,
     getSessionEvents,
+    setSessionSocket,
+    getSessionSocket,
+    removeSessionSocket,
+    saveState,
+    clearState,
   };
 }
