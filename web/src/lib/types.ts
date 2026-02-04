@@ -45,6 +45,13 @@ export interface TranscriptContentBlock {
 	content?: string | unknown
 }
 
+export interface TranscriptImage {
+	hash: string
+	ext: string
+	url: string
+	originalPath: string
+}
+
 export interface TranscriptEntry {
 	type: string
 	timestamp?: string
@@ -60,6 +67,8 @@ export interface TranscriptEntry {
 		newString?: string
 		structuredPatch?: Array<{ oldStart: number; oldLines: number; newStart: number; newLines: number; lines: string[] }>
 	}
+	// Images detected in this entry (added by concentrator)
+	images?: TranscriptImage[]
 }
 
 export type WSMessage =

@@ -7,6 +7,80 @@ import type { SessionStore } from "./session-store";
 import type { Session, SendInput } from "../shared/protocol";
 import { UI_HTML } from "./ui";
 
+// Image hash registry - maps hash to local file path
+const imageRegistry = new Map<string, string>();
+
+// Simple hash function for file paths
+function hashPath(path: string): string {
+  let hash = 0;
+  for (let i = 0; i < path.length; i++) {
+    const char = path.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(36);
+}
+
+/**
+ * Register an image path and return its hash
+ */
+export function registerImage(path: string): string {
+  const hash = hashPath(path);
+  imageRegistry.set(hash, path);
+  return hash;
+}
+
+/**
+ * Get image path from hash
+ */
+export function getImagePath(hash: string): string | undefined {
+  return imageRegistry.get(hash);
+}
+
+// Image extensions we recognize
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'heic', 'svg'];
+
+/**
+ * Process a transcript entry to find and register images
+ * Returns the entry with an `images` field added containing registered image info
+ */
+function processImagesInEntry(entry: any): any {
+  const images: Array<{ hash: string; ext: string; url: string; originalPath: string }> = [];
+
+  // Pattern: [Image: source: /path/to/file.ext]
+  const imagePattern = /\[Image:\s*source:\s*([^\]]+)\]/gi;
+
+  function scanValue(value: any): void {
+    if (typeof value === 'string') {
+      let match;
+      while ((match = imagePattern.exec(value)) !== null) {
+        const imagePath = match[1].trim();
+        const ext = imagePath.split('.').pop()?.toLowerCase() || 'png';
+        if (IMAGE_EXTENSIONS.includes(ext)) {
+          const hash = registerImage(imagePath);
+          images.push({
+            hash,
+            ext,
+            url: `/file/${hash}.${ext}`,
+            originalPath: imagePath,
+          });
+        }
+      }
+    } else if (Array.isArray(value)) {
+      value.forEach(scanValue);
+    } else if (value && typeof value === 'object') {
+      Object.values(value).forEach(scanValue);
+    }
+  }
+
+  scanValue(entry);
+
+  if (images.length > 0) {
+    return { ...entry, images };
+  }
+  return entry;
+}
+
 export interface ApiOptions {
   sessionStore: SessionStore;
   webDir?: string;
@@ -43,9 +117,14 @@ function getMimeType(path: string): string {
     png: "image/png",
     jpg: "image/jpeg",
     jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    avif: "image/avif",
+    heic: "image/heic",
     ico: "image/x-icon",
     woff: "font/woff",
     woff2: "font/woff2",
+    pdf: "application/pdf",
   };
   return mimeTypes[ext || ""] || "application/octet-stream";
 }
@@ -193,6 +272,44 @@ export function createApiHandler(options: ApiOptions) {
       });
     }
 
+    // Serve registered images by hash: /file/{hash}.ext
+    const fileMatch = path.match(/^\/file\/([a-z0-9]+)(?:\.[a-z]+)?$/i);
+    if (fileMatch && req.method === "GET") {
+      const hash = fileMatch[1];
+      const imagePath = getImagePath(hash);
+
+      if (!imagePath) {
+        return new Response(JSON.stringify({ error: "Image not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      try {
+        const file = Bun.file(imagePath);
+        if (!(await file.exists())) {
+          return new Response(JSON.stringify({ error: "File not found on disk" }), {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        return new Response(file, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": getMimeType(imagePath),
+            "Cache-Control": "public, max-age=3600",
+          },
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: `Failed to serve file: ${error}` }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // List all sessions
     if (path === "/sessions" && req.method === "GET") {
       const activeOnly = url.searchParams.get("active") === "true";
@@ -290,7 +407,10 @@ export function createApiHandler(options: ApiOptions) {
           }
         }).filter(Boolean);
 
-        return new Response(JSON.stringify(entries, null, 2), {
+        // Process entries to find and register images
+        const processedEntries = entries.map((entry: any) => processImagesInEntry(entry));
+
+        return new Response(JSON.stringify(processedEntries, null, 2), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

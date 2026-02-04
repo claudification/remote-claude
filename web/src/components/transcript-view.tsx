@@ -271,8 +271,14 @@ function GroupView({
 	const allText: string[] = []
 	const allThinking: string[] = []
 	const allTools: Array<{ tool: TranscriptContentBlock; result?: string; extra?: Record<string, unknown> }> = []
+	const allImages: Array<{ hash: string; ext: string; url: string; originalPath: string }> = []
 
 	for (const entry of group.entries) {
+		// Collect images from entry
+		if (entry.images) {
+			allImages.push(...entry.images)
+		}
+
 		const content = entry.message?.content
 		if (typeof content === 'string') {
 			allText.push(content)
@@ -323,6 +329,29 @@ function GroupView({
 				{allText.length > 0 && (
 					<div className="text-sm whitespace-pre-wrap break-words">
 						{allText.join('\n\n')}
+					</div>
+				)}
+
+				{/* Images */}
+				{allImages.length > 0 && (
+					<div className="flex flex-wrap gap-2 pt-2">
+						{allImages.map((img) => (
+							<a
+								key={img.hash}
+								href={img.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="block"
+								title={img.originalPath}
+							>
+								<img
+									src={img.url}
+									alt={img.originalPath.split('/').pop() || 'image'}
+									className="max-w-xs max-h-48 rounded border border-border hover:border-primary transition-colors"
+									loading="lazy"
+								/>
+							</a>
+						))}
 					</div>
 				)}
 
