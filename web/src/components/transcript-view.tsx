@@ -19,6 +19,7 @@ import { useRef, useState, useMemo } from 'react'
 import type { TranscriptEntry, TranscriptContentBlock } from '@/lib/types'
 import { cn, truncate } from '@/lib/utils'
 import type { LucideIcon } from 'lucide-react'
+import { Markdown } from './markdown'
 
 // ANSI to HTML converter - vibrant colors for dark backgrounds
 const ansiConverter = new AnsiToHtml({
@@ -348,8 +349,8 @@ function GroupView({
 
 				{/* Text content */}
 				{allText.length > 0 && (
-					<div className="text-sm whitespace-pre-wrap break-words">
-						{allText.join('\n\n')}
+					<div className="text-sm">
+						<Markdown>{allText.join('\n\n')}</Markdown>
 					</div>
 				)}
 
