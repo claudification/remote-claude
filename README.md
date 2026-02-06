@@ -57,7 +57,7 @@ Run Claude Code in multiple terminals, see all sessions in one place, send input
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) runtime
+- [Bun](https://bun.sh) runtime (v1.2+ required)
 - [Claude Code](https://claude.ai/code) CLI installed
 
 ### Installation
@@ -66,30 +66,18 @@ Run Claude Code in multiple terminals, see all sessions in one place, send input
 git clone https://github.com/claudification/remote-claude.git
 cd remote-claude
 bun install
-bun run build
+cd web && bun install && cd ..
+bun run install-cli
 ```
 
-### Install to PATH (Optional)
+This builds everything and installs `rclaude` and `concentrator` to `~/.local/bin`.
 
-Install binaries to `~/.local/bin` for global access:
+Make sure `~/.local/bin` is in your PATH:
 
 ```bash
-# Create ~/.local/bin if needed
-mkdir -p ~/.local/bin
-
-# Install binaries
-cp bin/rclaude ~/.local/bin/
-cp bin/concentrator ~/.local/bin/
-
-# Ensure ~/.local/bin is in PATH (add to ~/.zshrc or ~/.bashrc)
+# Add to ~/.zshrc or ~/.bashrc if not already present
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
-```
-
-Or use the one-liner:
-
-```bash
-mkdir -p ~/.local/bin && cp bin/{rclaude,concentrator} ~/.local/bin/ && echo 'rclaude and concentrator installed to ~/.local/bin'
 ```
 
 Now you can run `rclaude` and `concentrator` from anywhere.
