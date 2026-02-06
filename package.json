@@ -10,7 +10,8 @@
     "build:web": "cd web && bun run build",
     "build:wrapper": "bun build src/wrapper/index.ts --compile --minify --outfile bin/rclaude",
     "build:concentrator": "bun run scripts/build-concentrator.ts",
-    "typecheck": "tsc --noEmit && cd web && bun run typecheck"
+    "typecheck": "tsc --noEmit && cd web && bun run typecheck",
+    "install-cli": "bun run build && mkdir -p ~/.local/bin && cp bin/rclaude bin/concentrator ~/.local/bin/ && echo 'Installed rclaude and concentrator to ~/.local/bin'"
   },
   "bin": {
     "rclaude": "./bin/rclaude",
