@@ -19,11 +19,15 @@ export function Header() {
 
 	return (
 		<header className="border border-border p-3 sm:p-4 font-mono">
-			{/* Desktop: Full ASCII logo */}
-			<pre className="hidden md:block text-primary text-xs leading-tight whitespace-pre">{ASCII_LOGO}</pre>
+			{/* Full ASCII logo: shown on md+ width AND 600px+ height */}
+			<pre className="hidden md:block [@media(max-height:599px)]:!hidden text-primary text-xs leading-tight whitespace-pre">
+				{ASCII_LOGO}
+			</pre>
 
-			{/* Mobile: Compact title */}
-			<div className="md:hidden text-primary font-bold text-lg">CLAUDE CONCENTRATOR</div>
+			{/* Compact title: shown on small width OR short screens */}
+			<div className="md:hidden [@media(max-height:599px)]:!block text-primary font-bold text-lg">
+				CLAUDE CONCENTRATOR
+			</div>
 
 			{/* Stats row */}
 			<div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm">
