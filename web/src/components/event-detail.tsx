@@ -5,6 +5,7 @@ function getEventColor(hookEvent: string): string {
 	switch (hookEvent) {
 		case 'SessionStart':
 		case 'SessionEnd':
+		case 'Setup':
 			return 'border-event-session text-event-session'
 		case 'PreToolUse':
 		case 'PostToolUse':
@@ -14,6 +15,13 @@ function getEventColor(hookEvent: string): string {
 			return 'border-event-prompt text-event-prompt'
 		case 'Stop':
 			return 'border-event-stop text-event-stop'
+		case 'SubagentStart':
+		case 'SubagentStop':
+			return 'border-pink-400 text-pink-400'
+		case 'TeammateIdle':
+			return 'border-purple-400 text-purple-400'
+		case 'TaskCompleted':
+			return 'border-green-400 text-green-400'
 		default:
 			return 'border-event-notification text-event-notification'
 	}
@@ -108,6 +116,93 @@ function renderEventContent(event: HookEvent) {
 							<span>{String(data.notification_type)}</span>
 						</div>
 					) : null}
+				</div>
+			)
+
+		case 'SubagentStart':
+			return (
+				<div className="mt-2 text-xs space-y-1 bg-background/50 p-2 rounded">
+					<div>
+						<span className="text-muted-foreground">agent: </span>
+						<span className="text-pink-400 font-bold">{String(data.agent_type || 'unknown')}</span>
+					</div>
+					<div>
+						<span className="text-muted-foreground">id: </span>
+						<span className="font-mono text-[10px]">{String(data.agent_id || '')}</span>
+					</div>
+				</div>
+			)
+
+		case 'SubagentStop':
+			return (
+				<div className="mt-2 text-xs space-y-1 bg-background/50 p-2 rounded">
+					<div>
+						<span className="text-muted-foreground">agent: </span>
+						<span className="font-mono text-[10px]">{String(data.agent_id || '')}</span>
+					</div>
+					{data.agent_type ? (
+						<div>
+							<span className="text-muted-foreground">type: </span>
+							<span className="text-pink-400">{String(data.agent_type)}</span>
+						</div>
+					) : null}
+				</div>
+			)
+
+		case 'TeammateIdle':
+			return (
+				<div className="mt-2 text-xs space-y-1 bg-background/50 p-2 rounded">
+					{data.agent_name ? (
+						<div>
+							<span className="text-muted-foreground">name: </span>
+							<span className="text-purple-400 font-bold">{String(data.agent_name)}</span>
+						</div>
+					) : null}
+					{data.team_name ? (
+						<div>
+							<span className="text-muted-foreground">team: </span>
+							<span>{String(data.team_name)}</span>
+						</div>
+					) : null}
+					<div>
+						<span className="text-muted-foreground">id: </span>
+						<span className="font-mono text-[10px]">{String(data.agent_id || '')}</span>
+					</div>
+				</div>
+			)
+
+		case 'TaskCompleted':
+			return (
+				<div className="mt-2 text-xs space-y-1 bg-background/50 p-2 rounded">
+					{data.task_subject ? (
+						<div>
+							<span className="text-muted-foreground">task: </span>
+							<span className="text-green-400 font-bold">{String(data.task_subject)}</span>
+						</div>
+					) : null}
+					{data.owner ? (
+						<div>
+							<span className="text-muted-foreground">owner: </span>
+							<span>{String(data.owner)}</span>
+						</div>
+					) : null}
+					{data.team_name ? (
+						<div>
+							<span className="text-muted-foreground">team: </span>
+							<span>{String(data.team_name)}</span>
+						</div>
+					) : null}
+					<div>
+						<span className="text-muted-foreground">id: </span>
+						<span className="font-mono text-[10px]">{String(data.task_id || '')}</span>
+					</div>
+				</div>
+			)
+
+		case 'Setup':
+			return (
+				<div className="mt-2 text-xs bg-background/50 p-2 rounded">
+					<span className="text-muted-foreground">session initialized</span>
 				</div>
 			)
 

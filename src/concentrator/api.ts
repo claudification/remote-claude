@@ -4,7 +4,7 @@
  */
 
 import type { SessionStore } from "./session-store";
-import type { Session, SendInput } from "../shared/protocol";
+import type { Session, SendInput, TeamInfo } from "../shared/protocol";
 import { UI_HTML } from "./ui";
 
 // Image hash registry - maps hash to local file path
@@ -137,6 +137,9 @@ interface SessionSummary {
   startedAt: number;
   lastActivity: number;
   eventCount: number;
+  activeSubagentCount: number;
+  totalSubagentCount: number;
+  team?: TeamInfo;
   lastEvent?: {
     hookEvent: string;
     timestamp: number;
@@ -159,6 +162,9 @@ export function createApiHandler(options: ApiOptions) {
       startedAt: session.startedAt,
       lastActivity: session.lastActivity,
       eventCount: session.events.length,
+      activeSubagentCount: session.subagents.filter(a => a.status === "running").length,
+      totalSubagentCount: session.subagents.length,
+      team: session.team,
       lastEvent: lastEvent
         ? {
             hookEvent: lastEvent.hookEvent,
@@ -360,6 +366,25 @@ export function createApiHandler(options: ApiOptions) {
       }
 
       return new Response(JSON.stringify(events, null, 2), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Get session subagents
+    const subagentsMatch = path.match(/^\/sessions\/([^/]+)\/subagents$/);
+    if (subagentsMatch && req.method === "GET") {
+      const sessionId = subagentsMatch[1];
+      const session = sessionStore.getSession(sessionId);
+
+      if (!session) {
+        return new Response(JSON.stringify({ error: "Session not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify(session.subagents, null, 2), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

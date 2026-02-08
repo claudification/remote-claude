@@ -68,7 +68,10 @@ export type HookEventType =
   | "SubagentStart"
   | "SubagentStop"
   | "PreCompact"
-  | "PermissionRequest";
+  | "PermissionRequest"
+  | "TeammateIdle"
+  | "TaskCompleted"
+  | "Setup";
 
 // Hook event data structures (based on Claude Code hook system)
 export interface SessionStartData {
@@ -129,6 +132,29 @@ export interface SubagentStopData {
   session_id: string;
   agent_id: string;
   transcript?: string;
+  agent_type?: string;
+  agent_transcript_path?: string;
+  stop_hook_active?: boolean;
+}
+
+export interface TeammateIdleData {
+  session_id: string;
+  agent_id: string;
+  agent_name?: string;
+  team_name?: string;
+}
+
+export interface TaskCompletedData {
+  session_id: string;
+  task_id: string;
+  task_subject?: string;
+  owner?: string;
+  team_name?: string;
+}
+
+export interface SetupData {
+  session_id: string;
+  [key: string]: unknown;
 }
 
 export interface PreCompactData {
@@ -155,7 +181,26 @@ export type HookEventData =
   | SubagentStopData
   | PreCompactData
   | PermissionRequestData
+  | TeammateIdleData
+  | TaskCompletedData
+  | SetupData
   | Record<string, unknown>;
+
+// Sub-agent tracking
+export interface SubagentInfo {
+  agentId: string;
+  agentType: string;
+  startedAt: number;
+  stoppedAt?: number;
+  status: "running" | "stopped";
+  transcriptPath?: string;
+}
+
+// Team tracking
+export interface TeamInfo {
+  teamName: string;
+  role: "lead" | "teammate";
+}
 
 // Session state in concentrator
 export interface Session {
@@ -168,6 +213,8 @@ export interface Session {
   lastActivity: number;
   status: "active" | "idle" | "ended";
   events: HookEvent[];
+  subagents: SubagentInfo[];
+  team?: TeamInfo;
 }
 
 // Configuration

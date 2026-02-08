@@ -14,6 +14,8 @@ export function Header() {
 	const active = sessions.filter(s => s.status === 'active').length
 	const idle = sessions.filter(s => s.status === 'idle').length
 	const ended = sessions.filter(s => s.status === 'ended').length
+	const totalAgents = sessions.reduce((sum, s) => sum + (s.activeSubagentCount || 0), 0)
+	const teamCount = sessions.filter(s => s.team).length
 
 	return (
 		<header className="border border-border p-3 sm:p-4 font-mono">
@@ -39,6 +41,16 @@ export function Header() {
 					<Badge variant="outline" className="bg-ended/20 text-ended border-ended/50 text-xs">
 						{ended} ended
 					</Badge>
+					{totalAgents > 0 && (
+						<Badge variant="outline" className="bg-pink-400/20 text-pink-400 border-pink-400/50 text-xs">
+							{totalAgents} agent{totalAgents !== 1 ? 's' : ''}
+						</Badge>
+					)}
+					{teamCount > 0 && (
+						<Badge variant="outline" className="bg-purple-400/20 text-purple-400 border-purple-400/50 text-xs">
+							{teamCount} team{teamCount !== 1 ? 's' : ''}
+						</Badge>
+					)}
 				</div>
 
 				<span className="hidden sm:inline text-muted-foreground">|</span>
