@@ -1,3 +1,17 @@
+export interface SubagentInfo {
+	agentId: string
+	agentType: string
+	startedAt: number
+	stoppedAt?: number
+	status: 'running' | 'stopped'
+	transcriptPath?: string
+}
+
+export interface TeamInfo {
+	teamName: string
+	role: 'lead' | 'teammate'
+}
+
 export interface Session {
 	id: string
 	cwd: string
@@ -6,6 +20,9 @@ export interface Session {
 	startedAt: number
 	lastActivity: number
 	eventCount: number
+	activeSubagentCount: number
+	totalSubagentCount: number
+	team?: TeamInfo
 	lastEvent?: {
 		hookEvent: string
 		timestamp: number
@@ -33,6 +50,9 @@ export type HookEventType =
 	| 'SubagentStop'
 	| 'PreCompact'
 	| 'PermissionRequest'
+	| 'TeammateIdle'
+	| 'TaskCompleted'
+	| 'Setup'
 
 export interface TranscriptContentBlock {
 	type: 'text' | 'tool_use' | 'thinking' | 'tool_result' | string

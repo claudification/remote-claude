@@ -30,6 +30,9 @@ interface ClaudeSettings {
     SubagentStop?: HookMatcher[];
     PreCompact?: HookMatcher[];
     PermissionRequest?: HookMatcher[];
+    TeammateIdle?: HookMatcher[];
+    TaskCompleted?: HookMatcher[];
+    Setup?: HookMatcher[];
   };
   [key: string]: unknown;
 }
@@ -47,6 +50,9 @@ const HOOK_EVENTS = [
   "SubagentStop",
   "PreCompact",
   "PermissionRequest",
+  "TeammateIdle",
+  "TaskCompleted",
+  "Setup",
 ] as const;
 
 /**

@@ -4,7 +4,7 @@
  */
 
 import type { ServerWebSocket } from "bun";
-import type { Session, HookEvent } from "../shared/protocol";
+import type { Session, HookEvent, SubagentInfo, TeamInfo } from "../shared/protocol";
 import { IDLE_TIMEOUT_MS } from "../shared/protocol";
 import { existsSync, mkdirSync, unlinkSync, readFileSync } from "fs";
 import { homedir } from "os";
@@ -35,6 +35,9 @@ export interface SessionSummary {
   lastActivity: number;
   status: Session["status"];
   eventCount: number;
+  activeSubagentCount: number;
+  totalSubagentCount: number;
+  team?: TeamInfo;
 }
 
 export interface SessionStore {
@@ -91,6 +94,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       lastActivity: session.lastActivity,
       status: session.status,
       eventCount: session.events.length,
+      activeSubagentCount: session.subagents.filter(a => a.status === "running").length,
+      totalSubagentCount: session.subagents.length,
+      team: session.team,
     };
   }
 
@@ -143,6 +149,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         const session: Session = {
           ...sessionData,
           events: [],
+          subagents: (sessionData as any).subagents || [],
+          team: (sessionData as any).team,
           // Mark restored sessions as ended unless they reconnect
           status: "ended",
         };
@@ -175,6 +183,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         lastActivity: s.lastActivity,
         status: s.status,
         eventCount: s.events.length,
+        subagents: s.subagents,
+        team: s.team,
       }));
 
       const state: PersistedState = {
@@ -216,6 +226,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       lastActivity: Date.now(),
       status: "active",
       events: [],
+      subagents: [],
     };
     sessions.set(id, session);
 
@@ -268,6 +279,41 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         }
         if (data.model && typeof data.model === "string" && !session.model) {
           session.model = data.model;
+        }
+      }
+
+      // Track sub-agent lifecycle
+      if (event.hookEvent === "SubagentStart" && event.data) {
+        const data = event.data as Record<string, unknown>;
+        const agentId = String(data.agent_id || "");
+        if (agentId) {
+          session.subagents.push({
+            agentId,
+            agentType: String(data.agent_type || "unknown"),
+            startedAt: event.timestamp,
+            status: "running",
+          });
+        }
+      }
+
+      if (event.hookEvent === "SubagentStop" && event.data) {
+        const data = event.data as Record<string, unknown>;
+        const agentId = String(data.agent_id || "");
+        const agent = session.subagents.find(a => a.agentId === agentId);
+        if (agent) {
+          agent.stoppedAt = event.timestamp;
+          agent.status = "stopped";
+          if (data.agent_transcript_path && typeof data.agent_transcript_path === "string") {
+            agent.transcriptPath = data.agent_transcript_path;
+          }
+        }
+      }
+
+      // Detect team membership from TeammateIdle events
+      if (event.hookEvent === "TeammateIdle" && event.data) {
+        const data = event.data as Record<string, unknown>;
+        if (data.team_name && typeof data.team_name === "string" && !session.team) {
+          session.team = { teamName: data.team_name, role: "lead" };
         }
       }
 
