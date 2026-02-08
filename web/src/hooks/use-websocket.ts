@@ -13,6 +13,9 @@ interface SessionSummary {
 	lastActivity: number
 	status: Session['status']
 	eventCount: number
+	activeSubagentCount?: number
+	totalSubagentCount?: number
+	team?: { teamName: string; role: 'lead' | 'teammate' }
 }
 
 interface DashboardMessage {
@@ -41,6 +44,9 @@ export function useWebSocket() {
 		lastActivity: summary.lastActivity,
 		status: summary.status,
 		eventCount: summary.eventCount,
+		activeSubagentCount: summary.activeSubagentCount ?? 0,
+		totalSubagentCount: summary.totalSubagentCount ?? 0,
+		team: summary.team,
 	}), [])
 
 	const connect = useCallback(() => {

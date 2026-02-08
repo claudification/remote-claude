@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { HookEvent, Session, TranscriptEntry } from '@/lib/types'
+import type { HookEvent, Session, SubagentInfo, TranscriptEntry } from '@/lib/types'
 
 interface SessionsState {
 	sessions: Session[]
@@ -57,6 +57,12 @@ export async function fetchSessionEvents(sessionId: string): Promise<HookEvent[]
 
 export async function fetchTranscript(sessionId: string): Promise<TranscriptEntry[]> {
 	const res = await fetch(`${API_BASE}/sessions/${sessionId}/transcript?limit=500`)
+	if (!res.ok) return []
+	return res.json()
+}
+
+export async function fetchSubagents(sessionId: string): Promise<SubagentInfo[]> {
+	const res = await fetch(`${API_BASE}/sessions/${sessionId}/subagents`)
 	if (!res.ok) return []
 	return res.json()
 }

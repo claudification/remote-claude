@@ -51,6 +51,16 @@ function SessionItem({ session }: { session: Session }) {
 				<span className="text-muted-foreground">{formatAge(session.lastActivity)}</span>
 				<span className="text-muted-foreground">{session.eventCount} events</span>
 				<span className="text-event-tool">{formatModel(model || session.model)}</span>
+				{session.activeSubagentCount > 0 && (
+					<span className="px-1.5 py-0.5 bg-pink-400/20 text-pink-400 border border-pink-400/50 text-[10px] font-bold">
+						{session.activeSubagentCount} agent{session.activeSubagentCount !== 1 ? 's' : ''}
+					</span>
+				)}
+				{session.team && (
+					<span className="px-1.5 py-0.5 bg-purple-400/20 text-purple-400 border border-purple-400/50 text-[10px] font-bold uppercase">
+						{session.team.role === 'lead' ? 'LEAD' : 'TEAM'} {session.team.teamName}
+					</span>
+				)}
 			</div>
 		</button>
 	)
