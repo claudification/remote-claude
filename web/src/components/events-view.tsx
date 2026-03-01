@@ -21,10 +21,18 @@ export function EventsView({ events, follow = false }: EventsViewProps) {
 		overscan: 5,
 	})
 
-	// Auto-scroll to top (newest) when follow is enabled and content changes
+	// Auto-scroll to top (newest) when follow is enabled
 	const prevCountRef = useRef(reversed.length)
+	const initialScrollDone = useRef(false)
+
+	// Scroll to top (newest) on initial load when follow is enabled
+	if (follow && !initialScrollDone.current && reversed.length > 0 && parentRef.current) {
+		virtualizer.scrollToIndex(0, { align: 'start' })
+		initialScrollDone.current = true
+	}
+
+	// Scroll to top (newest) when new items arrive
 	if (follow && reversed.length > prevCountRef.current && parentRef.current) {
-		// Scroll to first item (newest event)
 		virtualizer.scrollToIndex(0, { align: 'start' })
 	}
 	prevCountRef.current = reversed.length

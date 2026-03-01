@@ -409,6 +409,15 @@ export function TranscriptView({ entries, follow = false }: TranscriptViewProps)
 	})
 
 	const prevCountRef = useRef(groups.length)
+	const initialScrollDone = useRef(false)
+
+	// Scroll to end on initial load when follow is enabled
+	if (follow && !initialScrollDone.current && groups.length > 0 && parentRef.current) {
+		virtualizer.scrollToIndex(groups.length - 1, { align: 'end' })
+		initialScrollDone.current = true
+	}
+
+	// Scroll to end when new items arrive
 	if (follow && groups.length > prevCountRef.current && parentRef.current) {
 		virtualizer.scrollToIndex(groups.length - 1, { align: 'end' })
 	}
