@@ -62,10 +62,16 @@ const marked = new Marked(
 	}),
 )
 
+// Open all links in new tab
+const renderer = new marked.Renderer()
+renderer.link = ({ href, text }) =>
+	`<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`
+
 // Configure marked options
 marked.setOptions({
 	gfm: true,
 	breaks: true,
+	renderer,
 })
 
 interface MarkdownProps {
