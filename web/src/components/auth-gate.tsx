@@ -122,6 +122,41 @@ function InviteRegistration({ token, onSuccess }: { token: string; onSuccess: (n
 	)
 }
 
+function InviteInput({ onSubmit }: { onSubmit: (token: string) => void }) {
+	const [value, setValue] = useState('')
+
+	function handleSubmit(e: React.FormEvent) {
+		e.preventDefault()
+		const input = value.trim()
+		if (!input) return
+		// Extract token from full URL or bare token
+		const urlMatch = input.match(/[#?/]invite[/=](.+?)(?:[&#]|$)/)
+		onSubmit(urlMatch ? urlMatch[1] : input)
+	}
+
+	return (
+		<form onSubmit={handleSubmit} className="space-y-2">
+			<label className="text-muted-foreground text-[10px] uppercase tracking-wider">Have an invite?</label>
+			<div className="flex gap-2">
+				<input
+					type="text"
+					value={value}
+					onChange={e => setValue(e.target.value)}
+					placeholder="Paste invite URL or code"
+					className="flex-1 bg-muted/30 border border-border px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
+				/>
+				<button
+					type="submit"
+					disabled={!value.trim()}
+					className="px-3 py-2 bg-muted/50 border border-border text-xs font-bold text-primary hover:bg-muted disabled:opacity-30 transition-colors"
+				>
+					GO
+				</button>
+			</div>
+		</form>
+	)
+}
+
 function LoginView({ onSuccess }: { onSuccess: (name: string) => void }) {
 	const [status, setStatus] = useState<'idle' | 'authenticating' | 'error'>('idle')
 	const [error, setError] = useState('')
@@ -177,13 +212,31 @@ function LoginView({ onSuccess }: { onSuccess: (name: string) => void }) {
 	)
 }
 
+function extractInviteToken(): string | null {
+	// Check hash: #/invite/TOKEN
+	const hashMatch = window.location.hash.match(/^#\/invite\/(.+)$/)
+	if (hashMatch) return hashMatch[1]
+	// Check query param: ?invite=TOKEN
+	const params = new URLSearchParams(window.location.search)
+	const qToken = params.get('invite')
+	if (qToken) return qToken
+	return null
+}
+
 export function AuthGate({ children }: { children: ReactNode }) {
 	const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
 	const [loading, setLoading] = useState(true)
+	const [inviteToken, setInviteToken] = useState<string | null>(extractInviteToken)
 
-	// Check for invite token in hash
-	const hashMatch = window.location.hash.match(/^#\/invite\/(.+)$/)
-	const inviteToken = hashMatch ? hashMatch[1] : null
+	// Listen for hash changes (user pastes invite URL while page is open)
+	useEffect(() => {
+		function onHashChange() {
+			const token = extractInviteToken()
+			if (token) setInviteToken(token)
+		}
+		window.addEventListener('hashchange', onHashChange)
+		return () => window.removeEventListener('hashchange', onHashChange)
+	}, [])
 
 	useEffect(() => {
 		fetchAuthStatus()
@@ -192,9 +245,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
 	}, [])
 
 	function handleAuthSuccess(name: string) {
-		// Clear invite hash if present
+		// Clear invite hash/params if present
 		if (inviteToken) {
 			window.location.hash = ''
+			setInviteToken(null)
 		}
 		setAuthStatus({ authenticated: true, name, hasUsers: true })
 	}
@@ -218,7 +272,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
 						<pre className="bg-muted/30 p-3 text-foreground overflow-x-auto">
 							{'concentrator-cli create-invite --name yourname'}
 						</pre>
-						<p>Then open the invite link in your browser to register.</p>
+						<p>Then open the invite link, or paste it below:</p>
+					</div>
+					<div className="mt-4">
+						<InviteInput onSubmit={setInviteToken} />
 					</div>
 				</div>
 			</div>
@@ -255,6 +312,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
  ╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝`}
 				</pre>
 				<LoginView onSuccess={handleAuthSuccess} />
+				<div className="mt-6 pt-4 border-t border-border">
+					<InviteInput onSubmit={setInviteToken} />
+				</div>
 			</div>
 		</div>
 	)
