@@ -217,6 +217,47 @@ export interface Session {
   team?: TeamInfo;
 }
 
+// Agent -> Concentrator messages
+export interface AgentIdentify {
+  type: "agent_identify";
+}
+
+export interface ReviveResult {
+  type: "revive_result";
+  sessionId: string;
+  success: boolean;
+  error?: string;
+  tmuxSession?: string;
+  continued: boolean; // true if --continue worked, false if fresh session
+}
+
+export type AgentMessage = AgentIdentify | ReviveResult;
+
+// Concentrator -> Agent messages
+export interface ReviveSession {
+  type: "revive";
+  sessionId: string;
+  cwd: string;
+}
+
+export interface AgentQuit {
+  type: "quit";
+  reason?: string;
+}
+
+export interface AgentReject {
+  type: "agent_reject";
+  reason: string;
+}
+
+export type ConcentratorAgentMessage = ReviveSession | AgentQuit | AgentReject;
+
+// Dashboard broadcast: agent status
+export interface AgentStatus {
+  type: "agent_status";
+  connected: boolean;
+}
+
 // Configuration
 export const DEFAULT_CONCENTRATOR_URL = "ws://localhost:9999";
 export const DEFAULT_CONCENTRATOR_PORT = 9999;

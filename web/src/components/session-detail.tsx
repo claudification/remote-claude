@@ -2,7 +2,7 @@ import { Bell, ChevronDown, ChevronRight, X } from 'lucide-react'
 import { useRef, useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
+import { reviveSession, sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { cn, formatAge, formatModel } from '@/lib/utils'
 import type { HookEvent } from '@/lib/types'
 import { EventsView } from './events-view'
@@ -50,6 +50,8 @@ export function SessionDetail() {
 	const [follow, setFollow] = useState(true)
 	const [inputValue, setInputValue] = useState('')
 	const [isSending, setIsSending] = useState(false)
+	const [isReviving, setIsReviving] = useState(false)
+	const [reviveError, setReviveError] = useState<string | null>(null)
 	const [infoExpanded, setInfoExpanded] = useState(false)
 	const inputRef = useRef<HTMLInputElement>(null)
 
@@ -57,6 +59,7 @@ export function SessionDetail() {
 	const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
 	const allEvents = useSessionsStore(state => state.events)
 	const allTranscripts = useSessionsStore(state => state.transcripts)
+	const agentConnected = useSessionsStore(state => state.agentConnected)
 
 	// Derive values from raw state (no new object creation in selector)
 	const session = sessions.find(s => s.id === selectedSessionId)
@@ -117,6 +120,21 @@ export function SessionDetail() {
 	}
 
 	const canSendInput = session?.status === 'active' || session?.status === 'idle'
+	const canRevive = session?.status === 'ended' && agentConnected
+
+	async function handleRevive() {
+		if (!selectedSessionId || isReviving) return
+		setIsReviving(true)
+		setReviveError(null)
+		try {
+			const result = await reviveSession(selectedSessionId)
+			if (!result.success) {
+				setReviveError(result.error || 'Revive failed')
+			}
+		} finally {
+			setIsReviving(false)
+		}
+	}
 
 	return (
 		<div className="h-full flex flex-col overflow-hidden">
@@ -299,6 +317,34 @@ export function SessionDetail() {
 						</Button>
 					</div>
 					<p className="text-[10px] text-muted-foreground mt-1">Press Enter to send</p>
+				</div>
+			)}
+
+			{/* Revive button for ended sessions */}
+			{session?.status === 'ended' && (
+				<div className="shrink-0 p-3 border-t border-border">
+					{canRevive ? (
+						<div>
+							<Button
+								onClick={handleRevive}
+								disabled={isReviving}
+								size="sm"
+								className="w-full text-xs bg-active/20 text-active border border-active/50 hover:bg-active/30"
+							>
+								{isReviving ? 'Reviving...' : 'Revive Session'}
+							</Button>
+							{reviveError && (
+								<p className="text-[10px] text-red-400 mt-1">{reviveError}</p>
+							)}
+							<p className="text-[10px] text-muted-foreground mt-1">
+								Spawns new rclaude in tmux at {session.cwd.split('/').slice(-2).join('/')}
+							</p>
+						</div>
+					) : (
+						<p className="text-[10px] text-muted-foreground text-center">
+							{agentConnected ? 'Session ended' : 'No host agent connected -- revive unavailable'}
+						</p>
+					)}
 				</div>
 			)}
 		</div>

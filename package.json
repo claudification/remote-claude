@@ -6,18 +6,20 @@
     "dev:wrapper": "bun run src/wrapper/index.ts",
     "dev:concentrator": "bun run src/concentrator/index.ts",
     "dev:web": "cd web && bun run dev",
-    "build": "bun run build:web && bun run build:wrapper && bun run build:concentrator && bun run build:cli",
+    "build": "bun run build:web && bun run build:wrapper && bun run build:concentrator && bun run build:cli && bun run build:agent",
     "build:cli": "bun build src/concentrator/cli.ts --compile --minify --outfile bin/concentrator-cli",
+    "build:agent": "bun build src/agent/index.ts --compile --minify --outfile bin/rclaude-agent",
     "build:web": "cd web && bun run build",
     "build:wrapper": "bun build src/wrapper/index.ts --compile --minify --outfile bin/rclaude",
     "build:concentrator": "bun run scripts/build-concentrator.ts",
     "typecheck": "tsc --noEmit && cd web && bun run typecheck",
-    "install-cli": "bun run build && mkdir -p ~/.local/bin && cp bin/rclaude bin/concentrator bin/concentrator-cli ~/.local/bin/ && echo 'Installed rclaude, concentrator, and concentrator-cli to ~/.local/bin'"
+    "install-cli": "bun run build && mkdir -p ~/.local/bin && cp bin/rclaude bin/concentrator bin/concentrator-cli bin/rclaude-agent ~/.local/bin/ && cp scripts/revive-session.sh ~/.local/bin/ && echo 'Installed rclaude, concentrator, concentrator-cli, rclaude-agent, and revive-session.sh to ~/.local/bin'"
   },
   "bin": {
     "rclaude": "./bin/rclaude",
     "concentrator": "./bin/concentrator",
-    "concentrator-cli": "./bin/concentrator-cli"
+    "concentrator-cli": "./bin/concentrator-cli",
+    "rclaude-agent": "./bin/rclaude-agent"
   },
   "devDependencies": {
     "@types/bun": "^1.3.10",

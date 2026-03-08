@@ -262,6 +262,7 @@ async function main() {
     interface WsData {
       sessionId?: string;
       isDashboard?: boolean;
+      isAgent?: boolean;
     }
 
     Bun.serve<WsData>({
@@ -372,8 +373,33 @@ async function main() {
                 // Dashboard client subscribing to updates
                 ws.data.isDashboard = true;
                 sessionStore.addSubscriber(ws);
+                // Send current agent status
+                ws.send(JSON.stringify({ type: "agent_status", connected: sessionStore.hasAgent() }));
                 if (verbose) {
                   console.log(`[dashboard] Subscriber connected (total: ${sessionStore.getSubscriberCount()})`);
+                }
+                break;
+              }
+              case "agent_identify": {
+                // Host agent connecting (exclusive - only one allowed)
+                const accepted = sessionStore.setAgent(ws);
+                if (accepted) {
+                  ws.data.isAgent = true;
+                  ws.send(JSON.stringify({ type: "ack", eventId: "agent" }));
+                  if (verbose) {
+                    console.log("[agent] Host agent connected");
+                  }
+                } else {
+                  ws.send(JSON.stringify({ type: "agent_reject", reason: "Another agent is already connected" }));
+                  ws.close(4409, "Agent already connected");
+                }
+                break;
+              }
+              case "revive_result": {
+                // Agent reporting result of a revive command
+                if (verbose) {
+                  const ok = data.success ? "OK" : "FAIL";
+                  console.log(`[agent] Revive ${data.sessionId?.slice(0, 8)}... ${ok}${data.error ? ` (${data.error})` : ""}`);
                 }
                 break;
               }
@@ -388,6 +414,15 @@ async function main() {
           }
         },
         close(ws) {
+          // Handle agent disconnection
+          if (ws.data.isAgent) {
+            sessionStore.removeAgent(ws);
+            if (verbose) {
+              console.log("[agent] Host agent disconnected");
+            }
+            return;
+          }
+
           // Handle dashboard subscriber disconnection
           if (ws.data.isDashboard) {
             sessionStore.removeSubscriber(ws);

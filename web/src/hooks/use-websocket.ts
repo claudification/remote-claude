@@ -19,11 +19,12 @@ interface SessionSummary {
 }
 
 interface DashboardMessage {
-	type: 'sessions_list' | 'session_created' | 'session_ended' | 'session_update' | 'event'
+	type: 'sessions_list' | 'session_created' | 'session_ended' | 'session_update' | 'event' | 'agent_status'
 	sessionId?: string
 	session?: SessionSummary
 	sessions?: SessionSummary[]
 	event?: HookEvent
+	connected?: boolean
 }
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
@@ -33,7 +34,7 @@ export function useWebSocket() {
 	const wsRef = useRef<WebSocket | null>(null)
 	const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-	const { setSessions, setConnected, setError } = useSessionsStore()
+	const { setSessions, setConnected, setAgentConnected, setError } = useSessionsStore()
 
 	// Convert SessionSummary to Session (for store compatibility)
 	const toSession = useCallback((summary: SessionSummary): Session => ({
@@ -136,6 +137,12 @@ export function useWebSocket() {
 							}
 							break
 						}
+						case 'agent_status': {
+							if (msg.connected !== undefined) {
+								setAgentConnected(msg.connected)
+							}
+							break
+						}
 					}
 				} catch {
 					// Ignore parse errors
@@ -145,7 +152,7 @@ export function useWebSocket() {
 			// Connection failed, will retry
 			setConnected(false)
 		}
-	}, [setConnected, setSessions, toSession])
+	}, [setConnected, setAgentConnected, setSessions, toSession])
 
 	// Connect on mount
 	useEffect(() => {

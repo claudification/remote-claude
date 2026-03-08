@@ -7,6 +7,7 @@ interface SessionsState {
 	events: Record<string, HookEvent[]>
 	transcripts: Record<string, TranscriptEntry[]>
 	isConnected: boolean
+	agentConnected: boolean
 	error: string | null
 
 	setSessions: (sessions: Session[]) => void
@@ -14,6 +15,7 @@ interface SessionsState {
 	setEvents: (sessionId: string, events: HookEvent[]) => void
 	setTranscript: (sessionId: string, entries: TranscriptEntry[]) => void
 	setConnected: (connected: boolean) => void
+	setAgentConnected: (connected: boolean) => void
 	setError: (error: string | null) => void
 
 	getSelectedSession: () => Session | undefined
@@ -27,6 +29,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 	events: {},
 	transcripts: {},
 	isConnected: false,
+	agentConnected: false,
 	error: null,
 
 	setSessions: sessions => set({ sessions }),
@@ -35,6 +38,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 	setTranscript: (sessionId, entries) =>
 		set(state => ({ transcripts: { ...state.transcripts, [sessionId]: entries } })),
 	setConnected: connected => set({ isConnected: connected }),
+	setAgentConnected: connected => set({ agentConnected: connected }),
 	setError: error => set({ error }),
 
 	getSelectedSession: () => {
@@ -69,6 +73,15 @@ export async function fetchSubagents(sessionId: string): Promise<SubagentInfo[]>
 	const res = await fetch(`${API_BASE}/sessions/${sessionId}/subagents`)
 	if (!res.ok) return []
 	return res.json()
+}
+
+export async function reviveSession(sessionId: string): Promise<{ success: boolean; error?: string }> {
+	const res = await fetch(`${API_BASE}/sessions/${sessionId}/revive`, { method: 'POST' })
+	if (!res.ok) {
+		const data = await res.json().catch(() => ({ error: 'Request failed' }))
+		return { success: false, error: data.error || `HTTP ${res.status}` }
+	}
+	return { success: true }
 }
 
 export async function sendInput(sessionId: string, input: string): Promise<boolean> {

@@ -20,11 +20,12 @@ export interface SessionStoreOptions {
 
 // Message types for dashboard subscribers
 export interface DashboardMessage {
-  type: "session_update" | "session_created" | "session_ended" | "event" | "sessions_list";
+  type: "session_update" | "session_created" | "session_ended" | "event" | "sessions_list" | "agent_status";
   sessionId?: string;
   session?: SessionSummary;
   sessions?: SessionSummary[];
   event?: HookEvent;
+  connected?: boolean;
 }
 
 export interface SessionSummary {
@@ -63,6 +64,11 @@ export interface SessionStore {
   addSubscriber: (ws: ServerWebSocket<unknown>) => void;
   removeSubscriber: (ws: ServerWebSocket<unknown>) => void;
   getSubscriberCount: () => number;
+  // Agent methods (exclusive single agent connection)
+  setAgent: (ws: ServerWebSocket<unknown>) => boolean;
+  getAgent: () => ServerWebSocket<unknown> | undefined;
+  removeAgent: (ws: ServerWebSocket<unknown>) => void;
+  hasAgent: () => boolean;
   saveState: () => Promise<void>;
   clearState: () => Promise<void>;
 }
@@ -83,6 +89,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   const sessions = new Map<string, Session>();
   const sessionSockets = new Map<string, ServerWebSocket<unknown>>();
   const dashboardSubscribers = new Set<ServerWebSocket<unknown>>();
+  let agentSocket: ServerWebSocket<unknown> | undefined;
 
   // Helper to create session summary for broadcasting
   function toSessionSummary(session: Session): SessionSummary {
@@ -420,6 +427,29 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     return dashboardSubscribers.size;
   }
 
+  // Agent management (exclusive single connection)
+  function setAgent(ws: ServerWebSocket<unknown>): boolean {
+    if (agentSocket) return false; // reject - already connected
+    agentSocket = ws;
+    broadcast({ type: "agent_status", connected: true });
+    return true;
+  }
+
+  function getAgent(): ServerWebSocket<unknown> | undefined {
+    return agentSocket;
+  }
+
+  function removeAgent(ws: ServerWebSocket<unknown>): void {
+    if (agentSocket === ws) {
+      agentSocket = undefined;
+      broadcast({ type: "agent_status", connected: false });
+    }
+  }
+
+  function hasAgent(): boolean {
+    return !!agentSocket;
+  }
+
   return {
     createSession,
     resumeSession,
@@ -437,6 +467,10 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     addSubscriber,
     removeSubscriber,
     getSubscriberCount,
+    setAgent,
+    getAgent,
+    removeAgent,
+    hasAgent,
     saveState,
     clearState,
   };

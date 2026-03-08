@@ -11,7 +11,7 @@ const ASCII_LOGO = `\u00A0██████╗██╗      █████╗
 
 export function Header() {
 	const [expanded, setExpanded] = useState(false)
-	const { sessions, isConnected } = useSessionsStore()
+	const { sessions, isConnected, agentConnected } = useSessionsStore()
 
 	const active = sessions.filter(s => s.status === 'active').length
 	const idle = sessions.filter(s => s.status === 'idle').length
@@ -60,7 +60,10 @@ export function Header() {
 				<span className="text-muted-foreground">|</span>
 
 				<span className={`text-xs sm:text-sm ${isConnected ? 'text-active' : 'text-destructive'}`}>
-					{isConnected ? '● Connected' : '○ Disconnected'}
+					{isConnected ? '● WS' : '○ WS'}
+				</span>
+				<span className={`text-xs sm:text-sm ${agentConnected ? 'text-active' : 'text-muted-foreground'}`}>
+					{agentConnected ? '● Agent' : '○ Agent'}
 				</span>
 			</div>
 		</header>

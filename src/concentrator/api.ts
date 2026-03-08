@@ -599,6 +599,76 @@ export function createApiHandler(options: ApiOptions) {
       }
     }
 
+    // POST /sessions/:id/revive - Revive an inactive session via host agent
+    const reviveMatch = path.match(/^\/sessions\/([^/]+)\/revive$/);
+    if (req.method === "POST" && reviveMatch) {
+      const sessionId = reviveMatch[1];
+      const session = sessionStore.getSession(sessionId);
+      if (!session) {
+        return new Response(JSON.stringify({ error: "Session not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      if (session.status === "active") {
+        return new Response(JSON.stringify({ error: "Session is already active" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const agent = sessionStore.getAgent();
+      if (!agent) {
+        return new Response(JSON.stringify({ error: "No host agent connected" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      try {
+        agent.send(JSON.stringify({
+          type: "revive",
+          sessionId,
+          cwd: session.cwd,
+        }));
+
+        return new Response(JSON.stringify({ success: true, message: "Revive command sent to agent" }), {
+          status: 202,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: `Failed to send revive: ${error}` }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // GET /agent/status - Check if host agent is connected
+    if (req.method === "GET" && path === "/agent/status") {
+      return new Response(JSON.stringify({ connected: sessionStore.hasAgent() }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // POST /agent/quit - Tell the host agent to exit
+    if (req.method === "POST" && path === "/agent/quit") {
+      const agent = sessionStore.getAgent();
+      if (!agent) {
+        return new Response(JSON.stringify({ error: "No agent connected" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      agent.send(JSON.stringify({ type: "quit", reason: "Requested via API" }));
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,
       headers: { "Content-Type": "application/json" },
