@@ -289,34 +289,35 @@ function GroupView({
 	const time = group.timestamp ? new Date(group.timestamp).toLocaleTimeString('en-US', { hour12: false }) : ''
 	const isUser = group.type === 'user'
 
-	// Collect all content from all entries in group
-	const allText: string[] = []
-	const allThinking: string[] = []
-	const allTools: Array<{ tool: TranscriptContentBlock; result?: string; extra?: Record<string, unknown> }> = []
-	const allImages: Array<{ hash: string; ext: string; url: string; originalPath: string }> = []
+	// Build ordered list of renderable items preserving chronological order
+	type RenderItem =
+		| { kind: 'text'; text: string }
+		| { kind: 'thinking'; text: string }
+		| { kind: 'tool'; tool: TranscriptContentBlock; result?: string; extra?: Record<string, unknown> }
+		| { kind: 'images'; images: Array<{ hash: string; ext: string; url: string; originalPath: string }> }
+
+	const items: RenderItem[] = []
 
 	for (const entry of group.entries) {
-		// Collect images from entry
-		if (entry.images) {
-			allImages.push(...entry.images)
+		if (entry.images?.length) {
+			items.push({ kind: 'images', images: entry.images })
 		}
 
 		const content = entry.message?.content
 		if (typeof content === 'string') {
-			allText.push(content)
+			if (content.trim()) items.push({ kind: 'text', text: content })
 		} else if (Array.isArray(content)) {
 			for (const block of content) {
 				if (block.type === 'text' && block.text) {
-					// Ensure text is a string
 					const text = typeof block.text === 'string' ? block.text : JSON.stringify(block.text)
-					if (text.trim()) allText.push(text)
+					if (text.trim()) items.push({ kind: 'text', text })
 				} else if (block.type === 'thinking' && block.text) {
 					const text = typeof block.text === 'string' ? block.text : JSON.stringify(block.text)
-					if (text.trim()) allThinking.push(text)
+					if (text.trim()) items.push({ kind: 'thinking', text })
 				} else if (block.type === 'tool_use') {
 					const id = block.id
 					const res = id ? resultMap.get(id) : undefined
-					allTools.push({ tool: block, result: res?.result, extra: res?.extra })
+					items.push({ kind: 'tool', tool: block, result: res?.result, extra: res?.extra })
 				}
 			}
 		}
@@ -336,55 +337,50 @@ function GroupView({
 				<span className={cn('flex-1 text-[10px] overflow-hidden', borderColor)}>{'─'.repeat(40)}</span>
 			</div>
 
-			{/* Content */}
+			{/* Content - rendered in chronological order */}
 			<div className="pl-4 space-y-2">
-				{/* Thinking (collapsed by default) */}
-				{allThinking.length > 0 && (
-					<Collapsible label={`thinking (${allThinking.length})`}>
-						<div className="text-muted-foreground/60 italic text-xs whitespace-pre-wrap">
-							{truncate(allThinking.join('\n\n'), 500)}
-						</div>
-					</Collapsible>
-				)}
-
-				{/* Text content */}
-				{allText.length > 0 && (
-					<div className="text-sm">
-						<Markdown>{allText.join('\n\n')}</Markdown>
-					</div>
-				)}
-
-				{/* Images */}
-				{allImages.length > 0 && (
-					<div className="flex flex-wrap gap-2 pt-2">
-						{allImages.map((img) => (
-							<a
-								key={img.hash}
-								href={img.url}
-								target="_blank"
-								rel="noopener noreferrer"
-								className="block"
-								title={img.originalPath}
-							>
-								<img
-									src={img.url}
-									alt={img.originalPath.split('/').pop() || 'image'}
-									className="max-w-xs max-h-48 rounded border border-border hover:border-primary transition-colors"
-									loading="lazy"
-								/>
-							</a>
-						))}
-					</div>
-				)}
-
-				{/* Tool calls - compact list */}
-				{allTools.length > 0 && (
-					<div className="space-y-1 pt-1">
-						{allTools.map((t, i) => (
-							<ToolLine key={i} tool={t.tool} result={t.result} toolUseResult={t.extra} />
-						))}
-					</div>
-				)}
+				{items.map((item, i) => {
+					switch (item.kind) {
+						case 'thinking':
+							return (
+								<Collapsible key={i} label="thinking">
+									<div className="text-muted-foreground/60 italic text-xs whitespace-pre-wrap">
+										{truncate(item.text, 500)}
+									</div>
+								</Collapsible>
+							)
+						case 'text':
+							return (
+								<div key={i} className="text-sm">
+									<Markdown>{item.text}</Markdown>
+								</div>
+							)
+						case 'images':
+							return (
+								<div key={i} className="flex flex-wrap gap-2 pt-2">
+									{item.images.map((img) => (
+										<a
+											key={img.hash}
+											href={img.url}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="block"
+											title={img.originalPath}
+										>
+											<img
+												src={img.url}
+												alt={img.originalPath.split('/').pop() || 'image'}
+												className="max-w-xs max-h-48 rounded border border-border hover:border-primary transition-colors"
+												loading="lazy"
+											/>
+										</a>
+									))}
+								</div>
+							)
+						case 'tool':
+							return <ToolLine key={i} tool={item.tool} result={item.result} toolUseResult={item.extra} />
+					}
+				})}
 			</div>
 		</div>
 	)
