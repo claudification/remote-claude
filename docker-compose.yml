@@ -3,6 +3,9 @@ services:
     build: .
     container_name: concentrator
     restart: unless-stopped
+    environment:
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
     ports:
       - "${PORT:-9999}:9999"
     volumes:

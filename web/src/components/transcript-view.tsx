@@ -108,21 +108,43 @@ function getToolStyle(name: string) {
 	return TOOL_STYLES[name] || (name.startsWith('mcp__') ? MCP_TOOL_STYLE : DEFAULT_TOOL_STYLE)
 }
 
+// Module-level state that survives virtualizer unmount/remount cycles
+const expandedState = new Set<string>()
+const defaultOpenApplied = new Set<string>()
+
 function Collapsible({
+	id,
 	label,
 	defaultOpen = false,
 	children,
 }: {
+	id?: string
 	label: string
 	defaultOpen?: boolean
 	children: React.ReactNode
 }) {
-	const [open, setOpen] = useState(defaultOpen)
+	// Apply defaultOpen only once per unique id (not on every remount)
+	if (id && defaultOpen && !defaultOpenApplied.has(id)) {
+		defaultOpenApplied.add(id)
+		expandedState.add(id)
+	}
+
+	const [open, setOpen] = useState(() => id ? expandedState.has(id) : defaultOpen)
+
+	function toggle() {
+		const next = !open
+		setOpen(next)
+		if (id) {
+			if (next) expandedState.add(id)
+			else expandedState.delete(id)
+		}
+	}
+
 	return (
 		<div className="mt-1">
 			<button
 				type="button"
-				onClick={() => setOpen(!open)}
+				onClick={toggle}
 				className="flex items-center gap-1 text-muted-foreground hover:text-foreground text-[10px] font-mono"
 			>
 				{open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
@@ -381,7 +403,7 @@ function ToolLine({
 					extra={toolUseResult}
 				/>
 			</div>
-			{details && <Collapsible label="output">{details}</Collapsible>}
+			{details && <Collapsible id={tool.id ? `tool-${tool.id}` : undefined} label="output" defaultOpen={name === 'Edit'}>{details}</Collapsible>}
 		</div>
 	)
 }

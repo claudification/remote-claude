@@ -2,6 +2,7 @@ import { Menu } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { AuthGate } from '@/components/auth-gate'
 import { Header } from '@/components/header'
+import { JsonInspectorDialog } from '@/components/json-inspector'
 import { SessionDetail } from '@/components/session-detail'
 import { SessionList } from '@/components/session-list'
 import { SessionSwitcher } from '@/components/session-switcher'
@@ -159,6 +160,9 @@ function Dashboard() {
 					onClose={() => useSessionsStore.getState().setShowSwitcher(false)}
 				/>
 			)}
+
+			{/* Global JSON inspector dialog (survives virtualizer remounts) */}
+			<JsonInspectorDialog />
 		</div>
 	)
 }

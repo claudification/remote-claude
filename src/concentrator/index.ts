@@ -13,6 +13,7 @@ import { DEFAULT_CONCENTRATOR_PORT } from "../shared/protocol";
 import { addAllowedRoot, addPathMapping, getAllowedRoots } from "./path-jail";
 import { initAuth, reloadState } from "./auth";
 import { requireAuth, handleAuthRoute, setRclaudeSecret } from "./auth-routes";
+import { initPush, sendPushToAll, isConfigured as isPushConfigured } from "./push";
 
 interface Args {
   port: number;
@@ -27,6 +28,8 @@ interface Args {
   rpId?: string;
   origins: string[];
   rclaudeSecret?: string;
+  vapidPublicKey?: string;
+  vapidPrivateKey?: string;
 }
 
 function parseArgs(): Args {
@@ -43,6 +46,8 @@ function parseArgs(): Args {
   let rpId: string | undefined;
   const origins: string[] = [];
   let rclaudeSecret: string | undefined;
+  let vapidPublicKey: string | undefined;
+  let vapidPrivateKey: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -81,10 +86,12 @@ function parseArgs(): Args {
     }
   }
 
-  // Env fallback for secret
+  // Env fallbacks
   if (!rclaudeSecret) rclaudeSecret = process.env.RCLAUDE_SECRET;
+  vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+  vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
 
-  return { port, apiPort, verbose, cacheDir, clearCache, noPersistence, webDir, allowedRoots, pathMaps, rpId, origins, rclaudeSecret };
+  return { port, apiPort, verbose, cacheDir, clearCache, noPersistence, webDir, allowedRoots, pathMaps, rpId, origins, rclaudeSecret, vapidPublicKey, vapidPrivateKey };
 }
 
 function printHelp() {
@@ -140,7 +147,7 @@ function formatTime(ms: number): string {
 }
 
 async function main() {
-  const { port, apiPort, verbose, cacheDir, clearCache, noPersistence, webDir, allowedRoots: extraRoots, pathMaps, rpId, origins, rclaudeSecret } = parseArgs();
+  const { port, apiPort, verbose, cacheDir, clearCache, noPersistence, webDir, allowedRoots: extraRoots, pathMaps, rpId, origins, rclaudeSecret, vapidPublicKey, vapidPrivateKey } = parseArgs();
 
   // rclaude secret is required - no open WebSocket ingest
   if (!rclaudeSecret) {
@@ -183,6 +190,18 @@ async function main() {
     rpId: rpId || "localhost",
     expectedOrigins: origins.length > 0 ? origins : defaultOrigins,
   });
+
+  // Initialize web push (optional - needs VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY env vars)
+  if (vapidPublicKey && vapidPrivateKey) {
+    initPush({
+      vapidPublicKey,
+      vapidPrivateKey,
+      vapidSubject: origins.length > 0 ? origins[0] : `http://localhost:${port}`,
+    });
+    console.log(`[push] Web Push configured (VAPID key: ${vapidPublicKey.slice(0, 12)}...)`);
+  } else {
+    console.log("[push] Web Push disabled (set VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY to enable)");
+  }
 
   const sessionStore = createSessionStore({
     cacheDir,
@@ -242,11 +261,40 @@ async function main() {
           `[*] ${sessionId.slice(0, 8)}... ${event.hookEvent}${suffix}`
         );
       }
+
+      // Auto-send push notification on Notification hook events
+      if (event.hookEvent === "Notification" && isPushConfigured()) {
+        const session = sessionStore.getSession(sessionId);
+        const cwd = session?.cwd?.split("/").slice(-2).join("/") || sessionId.slice(0, 8);
+        const d = event.data as Record<string, unknown>;
+        const message = (d?.message as string) || "Awaiting input...";
+        const notifType = (d?.notification_type as string) || "Notification";
+        sendPushToAll({
+          title: `${notifType} - ${cwd}`,
+          body: message,
+          sessionId,
+          tag: `notification-${sessionId}`,
+        }).catch(() => {});
+      }
+
+      // Auto-send push on session Stop (Claude finished working)
+      if (event.hookEvent === "Stop" && isPushConfigured()) {
+        const session = sessionStore.getSession(sessionId);
+        const cwd = session?.cwd?.split("/").slice(-2).join("/") || sessionId.slice(0, 8);
+        const d = event.data as Record<string, unknown>;
+        const reason = (d?.stop_hook_reason as string) || "completed";
+        sendPushToAll({
+          title: `Session stopped - ${cwd}`,
+          body: reason,
+          sessionId,
+          tag: `stop-${sessionId}`,
+        }).catch(() => {});
+      }
     },
   });
 
   // Create REST API server (on same or different port)
-  const apiHandler = createApiHandler({ sessionStore, webDir });
+  const apiHandler = createApiHandler({ sessionStore, webDir, vapidPublicKey, rclaudeSecret });
 
   if (apiPort && apiPort !== port) {
     // Separate API server

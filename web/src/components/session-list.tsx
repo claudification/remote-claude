@@ -3,18 +3,23 @@ import { fetchSessionEvents, fetchTranscript, useSessionsStore } from '@/hooks/u
 import type { Session } from '@/lib/types'
 import { cn, formatAge, formatModel, lastPathSegments } from '@/lib/utils'
 
-function StatusBadge({ status }: { status: Session['status'] }) {
+function StatusIndicator({ status }: { status: Session['status'] }) {
+	if (status === 'ended') {
+		return (
+			<span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-ended text-foreground">
+				ended
+			</span>
+		)
+	}
 	return (
 		<span
 			className={cn(
-				'px-2 py-0.5 text-[10px] uppercase font-bold',
-				status === 'active' && 'bg-active text-background',
-				status === 'idle' && 'bg-idle text-background',
-				status === 'ended' && 'bg-ended text-foreground',
+				'w-2 h-2 rounded-full shrink-0',
+				status === 'active' && 'bg-active',
+				status === 'idle' && 'bg-idle',
 			)}
-		>
-			{status}
-		</span>
+			title={status}
+		/>
 	)
 }
 
@@ -71,7 +76,7 @@ function SessionItem({ session }: { session: Session }) {
 			)}
 			{/* Status row */}
 			<div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
-				<StatusBadge status={session.status} />
+				<StatusIndicator status={session.status} />
 				<span className="text-muted-foreground">{formatAge(session.lastActivity)}</span>
 				<span className="text-muted-foreground">{session.eventCount} events</span>
 				<span className="text-event-tool">{formatModel(model || session.model)}</span>

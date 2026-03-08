@@ -10,6 +10,8 @@ export interface PtyOptions {
   settingsPath: string;
   sessionId: string;
   localServerPort: number;
+  concentratorUrl?: string;
+  concentratorSecret?: string;
   cwd?: string;
   env?: Record<string, string>;
   onData?: (data: string) => void;
@@ -38,7 +40,7 @@ function getTerminalSize(): { cols: number; rows: number } {
  * Spawn claude process with PTY
  */
 export function spawnClaude(options: PtyOptions): PtyProcess {
-  const { args, settingsPath, sessionId, localServerPort, cwd, env, onData, onExit } =
+  const { args, settingsPath, sessionId, localServerPort, concentratorUrl, concentratorSecret, cwd, env, onData, onExit } =
     options;
 
   const { cols, rows } = getTerminalSize();
@@ -54,6 +56,8 @@ export function spawnClaude(options: PtyOptions): PtyProcess {
       ...env,
       RCLAUDE_SESSION_ID: sessionId,
       RCLAUDE_PORT: String(localServerPort),
+      ...(concentratorUrl ? { RCLAUDE_CONCENTRATOR_URL: concentratorUrl } : {}),
+      ...(concentratorSecret ? { RCLAUDE_SECRET: concentratorSecret } : {}),
       // Pin task list to session ID so tasks persist to ~/.claude/tasks/{sessionId}/
       CLAUDE_CODE_TASK_LIST_ID: sessionId,
       // Ensure color output
