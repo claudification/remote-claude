@@ -87,11 +87,6 @@ function findWebDir(concentratorPath: string): string | null {
     if (existsSync(webDistPath)) {
       return webDistPath;
     }
-    // Also check sibling to bin/
-    const webDistPath2 = join(binDir, "..", "web", "dist");
-    if (existsSync(webDistPath2)) {
-      return webDistPath2;
-    }
   } catch {
     // Ignore errors
   }
@@ -192,6 +187,10 @@ function setTerminalTitle(cwd: string) {
         : right;
     }
   }
+
+  // Strip control characters to prevent terminal escape injection
+  title = title.replace(/[\x00-\x1f\x7f]/g, "");
+  if (!title) return;
 
   process.title = title;
   process.stdout.write(`\x1b]2;${title}\x07`);
@@ -328,14 +327,10 @@ async function main() {
         }
       }
 
-      // Forward to concentrator (or queue if not connected yet)
+      // Forward to concentrator, or queue until session ID + WS are ready
       if (claudeSessionId && wsClient?.isConnected()) {
         wsClient.sendHookEvent({ ...event, sessionId: claudeSessionId });
-      } else if (claudeSessionId) {
-        // Connected but WS not ready yet - queue it
-        eventQueue.push(event);
       } else {
-        // Don't have session ID yet - queue it
         eventQueue.push(event);
       }
 

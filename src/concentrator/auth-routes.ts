@@ -12,6 +12,7 @@ import {
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
 import type { AuthenticatorTransportFuture } from "@simplewebauthn/server";
+import { timingSafeEqual } from "crypto";
 import {
   validateInvite,
   consumeInvite,
@@ -38,6 +39,11 @@ export function setRclaudeSecret(secret: string): void {
   rclaudeSecret = secret;
 }
 
+function safeStringEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
 const SESSION_COOKIE_NAME = "concentrator-session";
 const SESSION_MAX_AGE_S = 7 * 24 * 60 * 60; // 7 days
 
@@ -49,7 +55,8 @@ function jsonResponse(data: unknown, status = 200, headers: Record<string, strin
 }
 
 function setCookie(signedToken: string): string {
-  return `${SESSION_COOKIE_NAME}=${signedToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_S}`;
+  const secure = getExpectedOrigins().some(o => o.startsWith("https://"));
+  return `${SESSION_COOKIE_NAME}=${signedToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_S}${secure ? "; Secure" : ""}`;
 }
 
 function clearCookie(): string {
@@ -108,7 +115,7 @@ export function requireAuth(req: Request): Response | null {
   // WebSocket: rclaude authenticates with shared secret, dashboard with session cookie/token
   if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
     const secret = url.searchParams.get("secret");
-    if (rclaudeSecret && secret === rclaudeSecret) return null;
+    if (rclaudeSecret && secret && safeStringEqual(secret, rclaudeSecret)) return null;
     if (getAuthenticatedUser(req)) return null;
     const token = url.searchParams.get("token");
     if (token && validateSession(token)) return null;
@@ -120,9 +127,13 @@ export function requireAuth(req: Request): Response | null {
 
   if (isAuthenticated) return null;
 
-  // Not authenticated - serve SPA for HTML navigation (login UI), block everything else
+  // Not authenticated - only allow SPA HTML navigation for non-API paths
+  // API paths (/sessions, /file, etc.) must NEVER fall through without auth
   const accept = req.headers.get("accept") || "";
-  if (accept.includes("text/html") && !url.pathname.startsWith("/auth/")) {
+  const isApiPath = url.pathname.startsWith("/sessions")
+    || url.pathname.startsWith("/file")
+    || url.pathname.startsWith("/auth/");
+  if (accept.includes("text/html") && !isApiPath) {
     return null; // SPA handles showing login screen
   }
 
