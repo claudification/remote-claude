@@ -7,7 +7,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { randomBytes, createHmac } from "crypto";
+import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import type {
   AuthenticatorTransportFuture,
 } from "@simplewebauthn/server";
@@ -290,11 +290,7 @@ export function validateSession(signedToken: string): { name: string } | null {
 
   // Constant-time comparison
   if (sig.length !== expectedSig.length) return null;
-  let match = true;
-  for (let i = 0; i < sig.length; i++) {
-    if (sig[i] !== expectedSig[i]) match = false;
-  }
-  if (!match) return null;
+  if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) return null;
 
   const session = state.sessions[token];
   if (!session) return null;

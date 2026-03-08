@@ -246,15 +246,9 @@ export function createApiHandler(options: ApiOptions) {
     const url = new URL(req.url);
     const path = url.pathname;
 
-    // CORS headers
-    const corsHeaders = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    };
-
+    // No CORS - same-origin only
     if (req.method === "OPTIONS") {
-      return new Response(null, { headers: corsHeaders });
+      return new Response(null, { status: 204 });
     }
 
     // Serve embedded web dashboard if available
@@ -265,7 +259,7 @@ export function createApiHandler(options: ApiOptions) {
         if (indexHtml) {
           return new Response(indexHtml, {
             status: 200,
-            headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" },
+            headers: { "Content-Type": "text/html; charset=utf-8" },
           });
         }
       }
@@ -277,7 +271,7 @@ export function createApiHandler(options: ApiOptions) {
         return new Response(asset, {
           status: 200,
           headers: {
-            ...corsHeaders,
+
             "Content-Type": getMimeType(assetPath),
             "Cache-Control": assetPath.startsWith("lib/") ? "public, max-age=31536000, immutable" : "no-cache",
           },
@@ -290,7 +284,7 @@ export function createApiHandler(options: ApiOptions) {
         if (indexHtml) {
           return new Response(indexHtml, {
             status: 200,
-            headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" },
+            headers: { "Content-Type": "text/html; charset=utf-8" },
           });
         }
       }
@@ -312,7 +306,7 @@ export function createApiHandler(options: ApiOptions) {
           return new Response(file, {
             status: 200,
             headers: {
-              ...corsHeaders,
+  
               "Content-Type": getMimeType(filePath),
               "Cache-Control": isAsset ? "public, max-age=31536000, immutable" : "no-cache",
             },
@@ -325,7 +319,7 @@ export function createApiHandler(options: ApiOptions) {
           if (await indexFile.exists()) {
             return new Response(indexFile, {
               status: 200,
-              headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" },
+              headers: { "Content-Type": "text/html; charset=utf-8" },
             });
           }
         }
@@ -346,7 +340,7 @@ export function createApiHandler(options: ApiOptions) {
     if (path === "/health") {
       return new Response("ok", {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "text/plain" },
+        headers: { "Content-Type": "text/plain" },
       });
     }
 
@@ -359,7 +353,7 @@ export function createApiHandler(options: ApiOptions) {
       if (!source) {
         return new Response(JSON.stringify({ error: "Image not found" }), {
           status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
 
@@ -368,7 +362,7 @@ export function createApiHandler(options: ApiOptions) {
         return new Response(source.bytes, {
           status: 200,
           headers: {
-            ...corsHeaders,
+
             "Content-Type": source.mediaType,
             "Cache-Control": "public, max-age=86400",
           },
@@ -380,7 +374,7 @@ export function createApiHandler(options: ApiOptions) {
       if (!safePath) {
         return new Response(JSON.stringify({ error: "Access denied" }), {
           status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
 
@@ -389,14 +383,14 @@ export function createApiHandler(options: ApiOptions) {
         if (!(await file.exists())) {
           return new Response(JSON.stringify({ error: "File not found on disk" }), {
             status: 404,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json" },
           });
         }
 
         return new Response(file, {
           status: 200,
           headers: {
-            ...corsHeaders,
+
             "Content-Type": getMimeType(safePath),
             "Cache-Control": "public, max-age=3600",
           },
@@ -404,7 +398,7 @@ export function createApiHandler(options: ApiOptions) {
       } catch (error) {
         return new Response(JSON.stringify({ error: `Failed to serve file: ${error}` }), {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
     }
@@ -420,7 +414,7 @@ export function createApiHandler(options: ApiOptions) {
 
       return new Response(JSON.stringify(summaries, null, 2), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -433,13 +427,13 @@ export function createApiHandler(options: ApiOptions) {
       if (!session) {
         return new Response(JSON.stringify({ error: "Session not found" }), {
           status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
 
       return new Response(JSON.stringify(sessionToSummary(session), null, 2), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -454,13 +448,13 @@ export function createApiHandler(options: ApiOptions) {
       if (events.length === 0 && !sessionStore.getSession(sessionId)) {
         return new Response(JSON.stringify({ error: "Session not found" }), {
           status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
 
       return new Response(JSON.stringify(events, null, 2), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -473,13 +467,13 @@ export function createApiHandler(options: ApiOptions) {
       if (!session) {
         return new Response(JSON.stringify({ error: "Session not found" }), {
           status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
 
       return new Response(JSON.stringify(session.subagents, null, 2), {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -492,14 +486,14 @@ export function createApiHandler(options: ApiOptions) {
       if (!session) {
         return new Response(JSON.stringify({ error: "Session not found" }), {
           status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
 
       if (!session.transcriptPath) {
         return new Response(JSON.stringify({ error: "No transcript path available" }), {
           status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
 
@@ -508,7 +502,7 @@ export function createApiHandler(options: ApiOptions) {
       if (!safeTranscriptPath) {
         return new Response(JSON.stringify({ error: "Access denied" }), {
           status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
 
@@ -517,7 +511,7 @@ export function createApiHandler(options: ApiOptions) {
         if (!(await file.exists())) {
           return new Response(JSON.stringify({ error: "Transcript file not found" }), {
             status: 404,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json" },
           });
         }
 
@@ -539,12 +533,12 @@ export function createApiHandler(options: ApiOptions) {
 
         return new Response(JSON.stringify(processedEntries, null, 2), {
           status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       } catch (error) {
         return new Response(JSON.stringify({ error: `Failed to read transcript: ${error}` }), {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
     }
@@ -558,14 +552,14 @@ export function createApiHandler(options: ApiOptions) {
       if (!session) {
         return new Response(JSON.stringify({ error: "Session not found" }), {
           status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
 
       if (session.status === "ended") {
         return new Response(JSON.stringify({ error: "Session has ended" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
 
@@ -573,7 +567,7 @@ export function createApiHandler(options: ApiOptions) {
       if (!ws) {
         return new Response(JSON.stringify({ error: "Session not connected" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
 
@@ -582,7 +576,7 @@ export function createApiHandler(options: ApiOptions) {
         if (!body.input || typeof body.input !== "string") {
           return new Response(JSON.stringify({ error: "Missing input field" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json" },
           });
         }
 
@@ -595,19 +589,19 @@ export function createApiHandler(options: ApiOptions) {
 
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       } catch (error) {
         return new Response(JSON.stringify({ error: `Failed to send input: ${error}` }), {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
         });
       }
     }
 
     return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
     });
   };
 }
