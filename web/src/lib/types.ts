@@ -91,6 +91,8 @@ export type HookEventType =
 export interface TranscriptContentBlock {
 	type: 'text' | 'tool_use' | 'thinking' | 'tool_result' | string
 	text?: string
+	thinking?: string // thinking blocks use 'thinking' field instead of 'text'
+	signature?: string
 	name?: string
 	id?: string // tool_use id
 	input?: Record<string, unknown>

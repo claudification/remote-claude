@@ -53,12 +53,22 @@ function Dashboard() {
 		}
 	}, [selectedSessionId])
 
-	// Global Ctrl+K session switcher - works EVERYWHERE (dashboard + terminal)
+	// Global keyboard shortcuts - work EVERYWHERE (dashboard + terminal)
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
+			// Ctrl+K - session switcher
 			if (e.ctrlKey && e.key === 'k') {
 				e.preventDefault()
 				useSessionsStore.getState().toggleSwitcher()
+			}
+			// Ctrl+Shift+T - open TTY for current session
+			if (e.ctrlKey && e.shiftKey && e.key === 'T') {
+				e.preventDefault()
+				const store = useSessionsStore.getState()
+				const session = store.sessions.find(s => s.id === store.selectedSessionId)
+				if (session && canTerminal(session) && !store.showTerminal) {
+					store.openTerminal(session.id)
+				}
 			}
 		}
 		window.addEventListener('keydown', handleKeyDown)

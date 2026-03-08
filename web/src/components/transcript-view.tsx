@@ -435,7 +435,7 @@ function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
 		if (Array.isArray(content)) {
 			const hasContent = content.some(c =>
 				(c.type === 'text' && c.text?.trim()) ||
-				(c.type === 'thinking' && c.text?.trim()) ||
+				(c.type === 'thinking' && (c.thinking?.trim() || c.text?.trim())) ||
 				c.type === 'tool_use'
 			)
 			if (!hasContent) continue
@@ -456,9 +456,11 @@ function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
 function GroupView({
 	group,
 	resultMap,
+	showThinking = false,
 }: {
 	group: DisplayGroup
 	resultMap: Map<string, { result: string; extra?: Record<string, unknown> }>
+	showThinking?: boolean
 }) {
 	const time = group.timestamp ? new Date(group.timestamp).toLocaleTimeString('en-US', { hour12: false }) : ''
 	const isUser = group.type === 'user'
@@ -485,8 +487,9 @@ function GroupView({
 				if (block.type === 'text' && block.text) {
 					const text = typeof block.text === 'string' ? block.text : JSON.stringify(block.text)
 					if (text.trim()) items.push({ kind: 'text', text })
-				} else if (block.type === 'thinking' && block.text) {
-					const text = typeof block.text === 'string' ? block.text : JSON.stringify(block.text)
+				} else if (block.type === 'thinking' && (block.thinking || block.text)) {
+					const raw = block.thinking || block.text
+					const text = typeof raw === 'string' ? raw : JSON.stringify(raw)
 					if (text.trim()) items.push({ kind: 'thinking', text })
 				} else if (block.type === 'tool_use') {
 					const id = block.id
@@ -516,12 +519,14 @@ function GroupView({
 				{items.map((item, i) => {
 					switch (item.kind) {
 						case 'thinking':
+							if (!showThinking) return null
 							return (
-								<Collapsible key={i} label="thinking">
-									<div className="text-muted-foreground/60 italic text-xs whitespace-pre-wrap">
-										{truncate(item.text, 500)}
+								<div key={i} className="border-l-2 border-purple-400/40 pl-3 py-1">
+									<div className="text-[10px] text-purple-400/70 uppercase font-bold tracking-wider mb-1">thinking</div>
+									<div className="text-sm opacity-75">
+										<Markdown>{item.text}</Markdown>
 									</div>
-								</Collapsible>
+								</div>
 							)
 						case 'text':
 							return (
@@ -563,9 +568,10 @@ function GroupView({
 interface TranscriptViewProps {
 	entries: TranscriptEntry[]
 	follow?: boolean
+	showThinking?: boolean
 }
 
-export function TranscriptView({ entries, follow = false }: TranscriptViewProps) {
+export function TranscriptView({ entries, follow = false, showThinking = false }: TranscriptViewProps) {
 	const parentRef = useRef<HTMLDivElement>(null)
 
 	const resultMap = useMemo(() => buildResultMap(entries), [entries])
@@ -630,7 +636,7 @@ export function TranscriptView({ entries, follow = false }: TranscriptViewProps)
 							transform: `translateY(${virtualItem.start}px)`,
 						}}
 					>
-						<GroupView group={groups[virtualItem.index]} resultMap={resultMap} />
+						<GroupView group={groups[virtualItem.index]} resultMap={resultMap} showThinking={showThinking} />
 					</div>
 				))}
 			</div>

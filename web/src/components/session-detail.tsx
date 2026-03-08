@@ -1,5 +1,5 @@
 import { Bell, ChevronDown, ChevronRight, Terminal, X } from 'lucide-react'
-import { useState, useMemo, useEffect } from 'react'
+import { useRef, useState, useMemo, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { reviveSession, sendInput, useSessionsStore } from '@/hooks/use-sessions'
@@ -52,10 +52,13 @@ function getActiveNotification(events: HookEvent[]): HookEvent | null {
 export function SessionDetail() {
 	const [activeTab, setActiveTab] = useState<Tab>('transcript')
 	const [follow, setFollow] = useState(true)
+	const [showThinking, setShowThinking] = useState(false)
 	const [inputValue, setInputValue] = useState('')
 	const [isSending, setIsSending] = useState(false)
-	const [isReviving, setIsReviving] = useState(false)
+	const [reviveState, setReviveState] = useState<'idle' | 'sending' | 'waiting' | 'error'>('idle')
 	const [reviveError, setReviveError] = useState<string | null>(null)
+	const [reviveCountdown, setReviveCountdown] = useState(0)
+	const reviveStartRef = useRef(0) // timestamp when revive started, to ignore pre-existing sessions
 	const [infoExpanded, setInfoExpanded] = useState(false)
 	const showTerminal = useSessionsStore(state => state.showTerminal)
 	const setShowTerminal = useSessionsStore(state => state.setShowTerminal)
@@ -82,6 +85,39 @@ export function SessionDetail() {
 	// HOOKS MUST BE BEFORE EARLY RETURNS - React rules!
 	const activeNotification = useMemo(() => getActiveNotification(events), [events])
 	const [dismissedNotificationId, setDismissedNotificationId] = useState<string | null>(null)
+
+	// Countdown timer while waiting for revived session
+	useEffect(() => {
+		if (reviveState !== 'waiting') return
+		if (reviveCountdown <= 0) {
+			setReviveState('error')
+			setReviveError('Timed out - no session connected within 30s')
+			return
+		}
+		const t = setTimeout(() => setReviveCountdown(c => c - 1), 1000)
+		return () => clearTimeout(t)
+	}, [reviveState, reviveCountdown])
+
+	// Watch for new session connecting in same cwd (revive success)
+	const reviveCwd = session?.cwd
+	const reviveSessionId = session?.id
+	useEffect(() => {
+		if (reviveState !== 'waiting' || !reviveCwd || !reviveSessionId) return
+		const reviveTime = reviveStartRef.current
+		if (reviveTime === 0) return
+		const newSession = sessions.find(s =>
+			s.id !== reviveSessionId &&
+			s.cwd === reviveCwd &&
+			(s.status === 'active' || s.status === 'idle') &&
+			s.startedAt > reviveTime
+		)
+		if (newSession) {
+			setReviveState('idle')
+			setReviveCountdown(0)
+			reviveStartRef.current = 0
+			useSessionsStore.getState().selectSession(newSession.id)
+		}
+	}, [reviveState, reviveCwd, reviveSessionId, sessions])
 
 	if (!session) {
 		return (
@@ -129,16 +165,23 @@ export function SessionDetail() {
 	const canRevive = session?.status === 'ended' && agentConnected
 
 	async function handleRevive() {
-		if (!selectedSessionId || isReviving) return
-		setIsReviving(true)
+		if (!selectedSessionId || reviveState !== 'idle') return
+		setReviveState('sending')
 		setReviveError(null)
 		try {
 			const result = await reviveSession(selectedSessionId)
 			if (!result.success) {
 				setReviveError(result.error || 'Revive failed')
+				setReviveState('error')
+				return
 			}
-		} finally {
-			setIsReviving(false)
+			// Signal sent - now wait for new session to connect
+			reviveStartRef.current = Date.now()
+			setReviveState('waiting')
+			setReviveCountdown(30)
+		} catch {
+			setReviveError('Network error')
+			setReviveState('error')
 		}
 	}
 
@@ -321,23 +364,36 @@ export function SessionDetail() {
 					)}
 					<div className="w-px h-4 bg-border" />
 				</div>
-				<div className="pr-3 flex items-center gap-2">
-					<Checkbox
-						id="follow"
-						checked={follow}
-						onCheckedChange={checked => setFollow(checked === true)}
-						className="h-3.5 w-3.5"
-					/>
-					<label htmlFor="follow" className="text-[10px] text-muted-foreground cursor-pointer select-none">
-						follow
-					</label>
+				<div className="pr-3 flex items-center gap-3">
+					<div className="flex items-center gap-1.5">
+						<Checkbox
+							id="thinking"
+							checked={showThinking}
+							onCheckedChange={checked => setShowThinking(checked === true)}
+							className="h-3.5 w-3.5"
+						/>
+						<label htmlFor="thinking" className="text-[10px] text-muted-foreground cursor-pointer select-none">
+							thinking
+						</label>
+					</div>
+					<div className="flex items-center gap-1.5">
+						<Checkbox
+							id="follow"
+							checked={follow}
+							onCheckedChange={checked => setFollow(checked === true)}
+							className="h-3.5 w-3.5"
+						/>
+						<label htmlFor="follow" className="text-[10px] text-muted-foreground cursor-pointer select-none">
+							follow
+						</label>
+					</div>
 				</div>
 			</div>
 
 			{/* Content */}
 			{activeTab === 'transcript' && (
 				<div className="flex-1 min-h-0 overflow-hidden">
-					<TranscriptView entries={transcript} follow={follow} />
+					<TranscriptView entries={transcript} follow={follow} showThinking={showThinking} />
 				</div>
 			)}
 			{activeTab === 'events' && (
@@ -398,19 +454,31 @@ export function SessionDetail() {
 					{canRevive ? (
 						<div>
 							<Button
-								onClick={handleRevive}
-								disabled={isReviving}
+								onClick={reviveState === 'error' ? () => { setReviveState('idle'); setReviveError(null) } : handleRevive}
+								disabled={reviveState === 'sending' || reviveState === 'waiting'}
 								size="sm"
-								className="w-full text-xs bg-active/20 text-active border border-active/50 hover:bg-active/30"
+								className={cn(
+									'w-full text-xs border',
+									reviveState === 'waiting'
+										? 'bg-amber-400/20 text-amber-400 border-amber-400/50'
+										: reviveState === 'error'
+											? 'bg-red-400/20 text-red-400 border-red-400/50 hover:bg-red-400/30'
+											: 'bg-active/20 text-active border-active/50 hover:bg-active/30',
+								)}
 							>
-								{isReviving ? 'Reviving...' : 'Revive Session'}
+								{reviveState === 'sending' && 'Sending signal...'}
+								{reviveState === 'waiting' && `Waiting for connection... ${reviveCountdown}s`}
+								{reviveState === 'error' && 'Retry'}
+								{reviveState === 'idle' && 'Revive Session'}
 							</Button>
 							{reviveError && (
 								<p className="text-[10px] text-red-400 mt-1">{reviveError}</p>
 							)}
-							<p className="text-[10px] text-muted-foreground mt-1">
-								Spawns new rclaude in tmux at {session.cwd.split('/').slice(-2).join('/')}
-							</p>
+							{reviveState === 'idle' && (
+								<p className="text-[10px] text-muted-foreground mt-1">
+									Spawns new rclaude in tmux at {session.cwd.split('/').slice(-2).join('/')}
+								</p>
+							)}
 						</div>
 					) : (
 						<p className="text-[10px] text-muted-foreground text-center">

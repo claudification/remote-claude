@@ -92,6 +92,11 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 			if (e.ctrlKey && e.key === ',') return false
 			// Ctrl+Shift+Q - close
 			if (e.ctrlKey && e.shiftKey && e.key === 'Q') return false
+			// Shift+Enter - send \n (newline) instead of \r (xterm sends \r for both Enter and Shift+Enter)
+			if (e.shiftKey && e.key === 'Enter' && e.type === 'keydown') {
+				sendWsMessage({ type: 'terminal_data', sessionId, data: '\n' })
+				return false
+			}
 			// When switcher is open, eat all keys so they don't go to PTY
 			if (useSessionsStore.getState().showSwitcher) return false
 			return true
@@ -116,9 +121,7 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 		terminal.write('\x1bc\x1b[2J\x1b[H\x1b[?25l')
 
 		const dataDisposable = terminal.onData(data => {
-			// Shift+Enter in xterm.js sends ESC[13;2u (CSI u) - translate to \n for Claude Code
-			const translated = data === '\x1b[13;2u' ? '\n' : data
-			sendWsMessage({ type: 'terminal_data', sessionId, data: translated })
+			sendWsMessage({ type: 'terminal_data', sessionId, data })
 		})
 
 		const handler = (msg: TerminalMessage) => {
@@ -294,7 +297,7 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 				{/* Actions */}
 				<div className="flex items-center gap-1 px-2 shrink-0">
 					<span className="text-[10px] font-mono mr-1 hidden sm:inline" style={{ color: currentTheme.brightBlack }}>
-						^K switch  ^, settings  ^Q close
+						^K switch  ^, settings  ^⇧Q close
 					</span>
 					<button
 						type="button"
