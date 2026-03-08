@@ -199,6 +199,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         cwd: s.cwd,
         model: s.model,
         args: s.args,
+        capabilities: s.capabilities,
         transcriptPath: s.transcriptPath,
         startedAt: s.startedAt,
         lastActivity: s.lastActivity,
