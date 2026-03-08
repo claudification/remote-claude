@@ -144,6 +144,7 @@ async function main() {
   let wsClient: WsClient | null = null;
   let ptyProcess: PtyProcess | null = null;
   let terminalAttached = false;
+  let savedTerminalSize: { cols: number; rows: number } | null = null;
 
   // Queue events until we have the real session ID
   const eventQueue: HookEvent[] = [];
@@ -195,15 +196,26 @@ async function main() {
       },
       onTerminalAttach(cols, rows) {
         terminalAttached = true;
-        debug(`Terminal attached (${cols}x${rows})`);
-        // Optionally resize PTY to match remote viewer
+        // Save local terminal size before remote viewer takes over
+        savedTerminalSize = {
+          cols: process.stdout.columns || 80,
+          rows: process.stdout.rows || 24,
+        };
+        debug(`Terminal attached (${cols}x${rows}), saved local size (${savedTerminalSize.cols}x${savedTerminalSize.rows})`);
         if (ptyProcess) {
           ptyProcess.resize(cols, rows);
         }
       },
       onTerminalDetach() {
         terminalAttached = false;
-        debug("Terminal detached");
+        // Restore local terminal size
+        if (savedTerminalSize && ptyProcess) {
+          ptyProcess.resize(savedTerminalSize.cols, savedTerminalSize.rows);
+          debug(`Terminal detached, restored to ${savedTerminalSize.cols}x${savedTerminalSize.rows}`);
+          savedTerminalSize = null;
+        } else {
+          debug("Terminal detached");
+        }
       },
       onTerminalResize(cols, rows) {
         if (ptyProcess) {
