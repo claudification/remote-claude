@@ -121,6 +121,13 @@
 	border-color: var(--border);
 }
 
+html, body, #root {
+	height: 100dvh;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+}
+
 body {
 	background-color: var(--background);
 	color: var(--foreground);

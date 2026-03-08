@@ -119,9 +119,9 @@ export function SessionDetail() {
 	const canSendInput = session?.status === 'active' || session?.status === 'idle'
 
 	return (
-		<div className="h-full flex flex-col">
+		<div className="h-full flex flex-col overflow-hidden">
 			{/* Session Info - Collapsible */}
-			<div className="border-b border-border">
+			<div className="shrink-0 border-b border-border max-h-[30vh] overflow-y-auto">
 				<button
 					type="button"
 					onClick={() => setInfoExpanded(!infoExpanded)}
@@ -172,7 +172,7 @@ export function SessionDetail() {
 
 			{/* Notification Banner */}
 			{notificationToShow && (
-				<div className="mx-3 sm:mx-4 mt-3 p-3 bg-amber-500/20 border border-amber-500/50 flex items-start gap-3">
+				<div className="shrink-0 mx-3 sm:mx-4 mt-3 p-3 bg-amber-500/20 border border-amber-500/50 flex items-start gap-3">
 					<Bell className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 animate-pulse" />
 					<div className="flex-1 min-w-0">
 						<div className="text-amber-200 text-xs font-bold uppercase tracking-wider mb-1">
@@ -199,7 +199,7 @@ export function SessionDetail() {
 			)}
 
 			{/* Tabs with follow checkbox */}
-			<div className="flex items-center border-b border-border">
+			<div className="shrink-0 flex items-center border-b border-border">
 				<button
 					type="button"
 					onClick={() => setActiveTab('transcript')}
@@ -260,24 +260,24 @@ export function SessionDetail() {
 
 			{/* Content */}
 			{activeTab === 'transcript' && (
-				<div className="flex-1 min-h-0 p-3 sm:p-4">
+				<div className="flex-1 min-h-0 overflow-hidden">
 					<TranscriptView entries={transcript} follow={follow} />
 				</div>
 			)}
 			{activeTab === 'events' && (
-				<div className="flex-1 min-h-0 p-3 sm:p-4">
+				<div className="flex-1 min-h-0 overflow-hidden">
 					<EventsView events={events} follow={follow} />
 				</div>
 			)}
 			{activeTab === 'agents' && selectedSessionId && (
-				<div className="flex-1 min-h-0 p-3 sm:p-4">
+				<div className="flex-1 min-h-0 overflow-hidden p-3 sm:p-4">
 					<SubagentView sessionId={selectedSessionId} />
 				</div>
 			)}
 
 			{/* Input box */}
 			{canSendInput && (
-				<div className="p-3 border-t border-border">
+				<div className="shrink-0 p-3 border-t border-border">
 					<div className="flex gap-2">
 						<input
 							ref={inputRef}

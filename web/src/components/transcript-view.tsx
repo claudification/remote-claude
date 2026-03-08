@@ -2,23 +2,36 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import AnsiToHtml from 'ansi-to-html'
 import {
 	Bot,
+	Bookmark,
 	ChevronDown,
 	ChevronRight,
+	CircleCheck,
+	CircleHelp,
+	CircleStop,
+	ClipboardList,
 	FileCode,
 	FileSearch,
 	FilePlus,
 	FolderSearch,
 	Globe,
+	ListTodo,
+	Route,
+	Notebook,
 	Pencil,
 	Play,
+	Plug,
 	Search,
+	ScrollText,
+	Sparkles,
 	Terminal,
+	Users,
 	Zap,
 } from 'lucide-react'
-import { useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import type { TranscriptEntry, TranscriptContentBlock } from '@/lib/types'
 import { cn, truncate } from '@/lib/utils'
 import type { LucideIcon } from 'lucide-react'
+import { JsonInspector } from './json-inspector'
 import { Markdown } from './markdown'
 
 // ANSI to HTML converter - vibrant colors for dark backgrounds
@@ -52,22 +65,47 @@ function AnsiText({ text }: { text: string }) {
 
 // Tool-specific styling - terminal aesthetic with Lucide icons
 const TOOL_STYLES: Record<string, { color: string; Icon: LucideIcon }> = {
+	// File operations
 	Bash: { color: 'text-orange-400', Icon: Terminal },
 	Read: { color: 'text-cyan-400', Icon: FileCode },
 	Edit: { color: 'text-yellow-400', Icon: Pencil },
 	Write: { color: 'text-green-400', Icon: FilePlus },
 	Glob: { color: 'text-purple-400', Icon: FolderSearch },
 	Grep: { color: 'text-purple-400', Icon: FileSearch },
+	NotebookEdit: { color: 'text-yellow-400', Icon: Notebook },
+	// Web
 	WebFetch: { color: 'text-blue-400', Icon: Globe },
 	WebSearch: { color: 'text-blue-400', Icon: Search },
+	// Agents & tasks
+	Agent: { color: 'text-pink-400', Icon: Bot },
 	Task: { color: 'text-pink-400', Icon: Bot },
+	TaskCreate: { color: 'text-emerald-400', Icon: ListTodo },
+	TaskUpdate: { color: 'text-emerald-400', Icon: CircleCheck },
+	TaskOutput: { color: 'text-emerald-400', Icon: ScrollText },
+	TaskStop: { color: 'text-red-400', Icon: CircleStop },
+	TaskList: { color: 'text-emerald-400', Icon: ClipboardList },
+	TodoWrite: { color: 'text-emerald-400', Icon: ListTodo },
+	// Interactive
+	AskUserQuestion: { color: 'text-amber-400', Icon: CircleHelp },
+	Skill: { color: 'text-teal-400', Icon: Sparkles },
+	ToolSearch: { color: 'text-teal-400', Icon: Search },
+	// Planning
+	EnterPlanMode: { color: 'text-sky-400', Icon: Route },
+	ExitPlanMode: { color: 'text-sky-400', Icon: Route },
+	// System
 	LSP: { color: 'text-indigo-400', Icon: Zap },
+	SendMessage: { color: 'text-pink-400', Icon: Users },
+	TeamCreate: { color: 'text-pink-400', Icon: Users },
+	TeamDelete: { color: 'text-red-400', Icon: Users },
+	// Bookmarks
+	Bookmark: { color: 'text-amber-400', Icon: Bookmark },
 }
 
 const DEFAULT_TOOL_STYLE = { color: 'text-event-tool', Icon: Play }
+const MCP_TOOL_STYLE = { color: 'text-teal-400', Icon: Plug }
 
 function getToolStyle(name: string) {
-	return TOOL_STYLES[name] || DEFAULT_TOOL_STYLE
+	return TOOL_STYLES[name] || (name.startsWith('mcp__') ? MCP_TOOL_STYLE : DEFAULT_TOOL_STYLE)
 }
 
 function Collapsible({
@@ -186,26 +224,163 @@ function ToolLine({
 			}
 			break
 		}
-		case 'Task': {
+		case 'Task':
+		case 'Agent': {
 			const desc = input.description as string
 			const agent = input.subagent_type as string
-			summary = `${agent}: ${desc}`
+			const prompt = input.prompt as string
+			summary = agent ? `${agent}: ${desc}` : desc
+			if (prompt) {
+				details = (
+					<pre className="text-[10px] text-muted-foreground max-h-32 overflow-auto whitespace-pre-wrap">
+						{truncate(prompt, 2000)}
+					</pre>
+				)
+			}
 			break
 		}
-		default:
-			summary = JSON.stringify(input).slice(0, 60)
+		case 'AskUserQuestion': {
+			const questions = input.questions as Array<{ question: string; header?: string; options?: Array<{ label: string }> }>
+			if (questions?.length) {
+				const q0 = questions[0].question
+				summary = q0.length > 60 ? q0.slice(0, 60) + '...' : q0
+				details = (
+					<div className="text-[10px] font-mono space-y-1 mt-1">
+						{questions.map((q, qi) => (
+							<div key={qi}>
+								{q.header && <span className="text-amber-400/70">[{q.header}] </span>}
+								<span className="text-foreground/80">{q.question}</span>
+								{q.options && (
+									<div className="ml-2 text-muted-foreground">
+										{q.options.map((o, oi) => (
+											<div key={oi} className="text-amber-400/50">{'>'} {o.label}</div>
+										))}
+									</div>
+								)}
+							</div>
+						))}
+					</div>
+				)
+			}
+			break
+		}
+		case 'ToolSearch': {
+			const query = input.query as string
+			summary = query
+			break
+		}
+		case 'Agent': {
+			const desc = input.description as string
+			const agent = input.subagent_type as string
+			summary = agent ? `${agent}: ${desc}` : desc
+			break
+		}
+		case 'TaskCreate': {
+			const desc = input.description as string
+			summary = desc?.length > 60 ? desc.slice(0, 60) + '...' : desc
+			break
+		}
+		case 'TaskUpdate': {
+			const taskId = input.id as string
+			const status = input.status as string
+			summary = `${status} ${taskId ? '#' + taskId : ''}`
+			break
+		}
+		case 'TaskOutput':
+		case 'TaskList':
+		case 'TaskStop': {
+			const taskId = (input.id || input.task_id) as string
+			summary = taskId ? `#${taskId}` : ''
+			if (result) {
+				details = (
+					<pre className="text-[10px] text-muted-foreground max-h-24 overflow-auto">
+						{truncate(result, 500)}
+					</pre>
+				)
+			}
+			break
+		}
+		case 'TodoWrite': {
+			const todos = input.todos as Array<{ content: string; status?: string }>
+			if (todos?.length) {
+				summary = `${todos.length} item${todos.length !== 1 ? 's' : ''}`
+				details = (
+					<div className="text-[10px] font-mono text-muted-foreground">
+						{todos.slice(0, 10).map((t, i) => (
+							<div key={i}>
+								<span className={t.status === 'completed' ? 'text-green-400' : 'text-foreground/60'}>
+									{t.status === 'completed' ? '[x]' : '[ ]'}
+								</span>{' '}
+								{t.content}
+							</div>
+						))}
+						{todos.length > 10 && <div>... +{todos.length - 10} more</div>}
+					</div>
+				)
+			}
+			break
+		}
+		case 'Skill': {
+			const skill = input.skill as string
+			const args = input.args as string
+			summary = args ? `${skill} ${args}` : skill
+			break
+		}
+		case 'EnterPlanMode':
+			summary = 'entering plan mode'
+			break
+		case 'ExitPlanMode':
+			summary = 'exiting plan mode'
+			break
+		case 'NotebookEdit': {
+			const cellId = input.cell_id as string
+			summary = cellId ? `cell ${cellId}` : 'edit'
+			break
+		}
+		case 'SendMessage': {
+			const msg = input.message as string
+			summary = msg?.length > 60 ? msg.slice(0, 60) + '...' : msg
+			break
+		}
+		case 'TeamCreate':
+		case 'TeamDelete': {
+			const teamName = input.name as string
+			summary = teamName || ''
+			break
+		}
+		default: {
+			// MCP tools (mcp__server__tool) - show tool name cleanly
+			if (name.startsWith('mcp__')) {
+				const parts = name.split('__')
+				const server = parts[1] || ''
+				const tool = parts.slice(2).join('__') || ''
+				summary = `${server}/${tool}`
+			} else {
+				summary = JSON.stringify(input).slice(0, 60)
+			}
+		}
 	}
 
 	const { Icon } = style
+	// Clean display name: strip mcp__ prefix, shorten long names
+	const displayName = name.startsWith('mcp__')
+		? name.split('__').slice(2).join('/') || name.split('__')[1] || name
+		: name
 
 	return (
 		<div className="font-mono text-xs">
 			<div className="flex items-center gap-2">
-				<span className={cn('w-20 shrink-0 flex items-center gap-1', style.color)}>
-					<Icon className="w-3 h-3" />
-					{name}
+				<span className={cn('shrink-0 flex items-center gap-1', style.color)} title={name}>
+					<Icon className="w-3 h-3 shrink-0" />
+					<span className="truncate max-w-[120px]">{displayName}</span>
 				</span>
-				<span className="text-foreground/80 truncate">{summary}</span>
+				<span className="text-foreground/80 truncate flex-1">{summary}</span>
+				<JsonInspector
+					title={name}
+					data={input}
+					result={result}
+					extra={toolUseResult}
+				/>
 			</div>
 			{details && <Collapsible label="output">{details}</Collapsible>}
 		</div>
@@ -405,19 +580,19 @@ export function TranscriptView({ entries, follow = false }: TranscriptViewProps)
 	})
 
 	const prevCountRef = useRef(groups.length)
-	const initialScrollDone = useRef(false)
 
-	// Scroll to end on initial load when follow is enabled
-	if (follow && !initialScrollDone.current && groups.length > 0 && parentRef.current) {
-		virtualizer.scrollToIndex(groups.length - 1, { align: 'end' })
-		initialScrollDone.current = true
-	}
-
-	// Scroll to end when new items arrive
-	if (follow && groups.length > prevCountRef.current && parentRef.current) {
-		virtualizer.scrollToIndex(groups.length - 1, { align: 'end' })
-	}
-	prevCountRef.current = groups.length
+	// Scroll to end when follow is enabled and new items arrive (or on initial load)
+	useEffect(() => {
+		if (!follow || groups.length === 0) return
+		// Scroll on initial load or when new groups arrive
+		if (groups.length !== prevCountRef.current || prevCountRef.current === 0) {
+			// Small delay to let virtualizer measure
+			requestAnimationFrame(() => {
+				virtualizer.scrollToIndex(groups.length - 1, { align: 'end' })
+			})
+		}
+		prevCountRef.current = groups.length
+	}, [follow, groups.length, virtualizer])
 
 	if (groups.length === 0) {
 		return (
@@ -435,7 +610,7 @@ export function TranscriptView({ entries, follow = false }: TranscriptViewProps)
 	}
 
 	return (
-		<div ref={parentRef} className="h-full overflow-y-auto">
+		<div ref={parentRef} className="h-full overflow-y-auto p-3 sm:p-4">
 			<div
 				style={{
 					height: `${virtualizer.getTotalSize()}px`,

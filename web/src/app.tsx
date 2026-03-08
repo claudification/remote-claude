@@ -52,7 +52,7 @@ function Dashboard() {
 	}, [selectedSessionId])
 
 	return (
-		<div className="h-screen flex flex-col p-2 sm:p-4 max-w-[1400px] mx-auto overflow-hidden">
+		<div className="h-full flex flex-col p-2 sm:p-4 max-w-[1400px] mx-auto overflow-hidden">
 			{/* Error indicator */}
 			{error && (
 				errorExpanded ? (
@@ -102,16 +102,16 @@ function Dashboard() {
 			<div className="flex gap-4 flex-1 min-h-0">
 				{/* Desktop sidebar */}
 				<div className="hidden lg:flex w-[350px] shrink-0 border border-border overflow-hidden flex-col">
-					<div className="p-3 border-b border-border bg-card text-primary font-bold text-sm">[ SESSIONS ]</div>
-					<div className="flex-1 overflow-y-auto p-2">
+					<div className="shrink-0 p-3 border-b border-border bg-card text-primary font-bold text-sm">[ SESSIONS ]</div>
+					<div className="flex-1 min-h-0 overflow-y-auto p-2">
 						<SessionList />
 					</div>
 				</div>
 
 				{/* Detail panel */}
 				<div className="flex-1 border border-border overflow-hidden flex flex-col min-w-0">
-					<div className="p-3 border-b border-border bg-card text-primary font-bold text-sm">[ DETAILS ]</div>
-					<div className="flex-1 overflow-hidden">
+					<div className="shrink-0 p-3 border-b border-border bg-card text-primary font-bold text-sm">[ DETAILS ]</div>
+					<div className="flex-1 min-h-0 overflow-hidden">
 						<SessionDetail />
 					</div>
 				</div>

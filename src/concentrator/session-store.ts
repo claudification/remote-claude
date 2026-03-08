@@ -124,6 +124,11 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     for (const session of sessions.values()) {
       if (session.status === "active" && now - session.lastActivity > IDLE_TIMEOUT_MS) {
         session.status = "idle";
+        broadcast({
+          type: "session_update",
+          sessionId: session.id,
+          session: toSessionSummary(session),
+        });
       }
     }
   }, 10000);
