@@ -182,6 +182,7 @@ USAGE:
 
 OPTIONS:
   --concentrator <url>   Concentrator WebSocket URL (default: ${DEFAULT_CONCENTRATOR_URL})
+  --rclaude-secret <s>   Shared secret for concentrator auth (or RCLAUDE_SECRET env)
   --no-concentrator      Run without forwarding to concentrator
   --rclaude-help         Show this help message
 
@@ -202,6 +203,7 @@ async function main() {
   const args = process.argv.slice(2);
 
   let concentratorUrl = DEFAULT_CONCENTRATOR_URL;
+  let concentratorSecret = process.env.RCLAUDE_SECRET;
   let noConcentrator = false;
   const claudeArgs: string[] = [];
 
@@ -213,6 +215,8 @@ async function main() {
       process.exit(0);
     } else if (arg === "--concentrator") {
       concentratorUrl = args[++i] || DEFAULT_CONCENTRATOR_URL;
+    } else if (arg === "--rclaude-secret") {
+      concentratorSecret = args[++i];
     } else if (arg === "--no-concentrator") {
       noConcentrator = true;
     } else {
@@ -242,6 +246,7 @@ async function main() {
 
     wsClient = createWsClient({
       concentratorUrl,
+      concentratorSecret,
       sessionId,
       cwd,
       args: claudeArgs,

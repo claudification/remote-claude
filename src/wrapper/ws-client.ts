@@ -15,6 +15,7 @@ import { DEFAULT_CONCENTRATOR_URL } from "../shared/protocol";
 
 export interface WsClientOptions {
   concentratorUrl?: string;
+  concentratorSecret?: string;
   sessionId: string;
   cwd: string;
   model?: string;
@@ -39,6 +40,7 @@ export interface WsClient {
 export function createWsClient(options: WsClientOptions): WsClient {
   const {
     concentratorUrl = DEFAULT_CONCENTRATOR_URL,
+    concentratorSecret,
     sessionId,
     cwd,
     model,
@@ -59,7 +61,10 @@ export function createWsClient(options: WsClientOptions): WsClient {
 
   function connect() {
     try {
-      ws = new WebSocket(concentratorUrl);
+      const wsUrl = concentratorSecret
+        ? `${concentratorUrl}${concentratorUrl.includes("?") ? "&" : "?"}secret=${encodeURIComponent(concentratorSecret)}`
+        : concentratorUrl;
+      ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         connected = true;

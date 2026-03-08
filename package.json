@@ -6,19 +6,24 @@
     "dev:wrapper": "bun run src/wrapper/index.ts",
     "dev:concentrator": "bun run src/concentrator/index.ts",
     "dev:web": "cd web && bun run dev",
-    "build": "bun run build:web && bun run build:wrapper && bun run build:concentrator",
+    "build": "bun run build:web && bun run build:wrapper && bun run build:concentrator && bun run build:cli",
+    "build:cli": "bun build src/concentrator/cli.ts --compile --minify --outfile bin/concentrator-cli",
     "build:web": "cd web && bun run build",
     "build:wrapper": "bun build src/wrapper/index.ts --compile --minify --outfile bin/rclaude",
     "build:concentrator": "bun run scripts/build-concentrator.ts",
     "typecheck": "tsc --noEmit && cd web && bun run typecheck",
-    "install-cli": "bun run build && mkdir -p ~/.local/bin && cp bin/rclaude bin/concentrator ~/.local/bin/ && echo 'Installed rclaude and concentrator to ~/.local/bin'"
+    "install-cli": "bun run build && mkdir -p ~/.local/bin && cp bin/rclaude bin/concentrator bin/concentrator-cli ~/.local/bin/ && echo 'Installed rclaude, concentrator, and concentrator-cli to ~/.local/bin'"
   },
   "bin": {
     "rclaude": "./bin/rclaude",
-    "concentrator": "./bin/concentrator"
+    "concentrator": "./bin/concentrator",
+    "concentrator-cli": "./bin/concentrator-cli"
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "^1.3.10",
     "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "^13.2.3"
   }
 }

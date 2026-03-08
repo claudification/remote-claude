@@ -6,3 +6,4 @@ bin/
 .*.bun-build
 package-lock.json
 *.tsbuildinfo
+.env

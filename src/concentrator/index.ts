@@ -4,10 +4,15 @@
  * Aggregates sessions from multiple rclaude instances
  */
 
-import { createSessionStore, type SessionStoreOptions } from "./session-store";
+import { writeFileSync } from "fs";
+import { join } from "path";
+import { createSessionStore } from "./session-store";
 import { createWsServer } from "./ws-server";
 import { createApiHandler } from "./api";
 import { DEFAULT_CONCENTRATOR_PORT } from "../shared/protocol";
+import { addAllowedRoot, addPathMapping, getAllowedRoots } from "./path-jail";
+import { initAuth, reloadState } from "./auth";
+import { requireAuth, handleAuthRoute, setRclaudeSecret } from "./auth-routes";
 
 interface Args {
   port: number;
@@ -17,6 +22,11 @@ interface Args {
   clearCache: boolean;
   noPersistence: boolean;
   webDir?: string;
+  allowedRoots: string[];
+  pathMaps: Array<{ from: string; to: string }>;
+  rpId?: string;
+  origins: string[];
+  rclaudeSecret?: string;
 }
 
 function parseArgs(): Args {
@@ -28,6 +38,11 @@ function parseArgs(): Args {
   let clearCache = false;
   let noPersistence = false;
   let webDir: string | undefined;
+  const allowedRoots: string[] = [];
+  const pathMaps: Array<{ from: string; to: string }> = [];
+  let rpId: string | undefined;
+  const origins: string[] = [];
+  let rclaudeSecret: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -46,13 +61,30 @@ function parseArgs(): Args {
       noPersistence = true;
     } else if (arg === "--web-dir" || arg === "-w") {
       webDir = args[++i];
+    } else if (arg === "--allow-root") {
+      allowedRoots.push(args[++i]);
+    } else if (arg === "--rp-id") {
+      rpId = args[++i];
+    } else if (arg === "--origin") {
+      origins.push(args[++i]);
+    } else if (arg === "--rclaude-secret") {
+      rclaudeSecret = args[++i];
+    } else if (arg === "--path-map") {
+      const mapping = args[++i];
+      const sep = mapping.indexOf(":");
+      if (sep > 0) {
+        pathMaps.push({ from: mapping.slice(0, sep), to: mapping.slice(sep + 1) });
+      }
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
     }
   }
 
-  return { port, apiPort, verbose, cacheDir, clearCache, noPersistence, webDir };
+  // Env fallback for secret
+  if (!rclaudeSecret) rclaudeSecret = process.env.RCLAUDE_SECRET;
+
+  return { port, apiPort, verbose, cacheDir, clearCache, noPersistence, webDir, allowedRoots, pathMaps, rpId, origins, rclaudeSecret };
 }
 
 function printHelp() {
@@ -72,6 +104,10 @@ OPTIONS:
   --cache-dir <dir>      Session cache directory (default: ~/.cache/concentrator)
   --clear-cache          Clear session cache and exit
   --no-persistence       Disable session persistence
+  --allow-root <dir>     Add allowed filesystem root (repeatable)
+  --rp-id <domain>       WebAuthn relying party ID (default: localhost)
+  --origin <url>         Allowed WebAuthn origin (repeatable, default: http://localhost:PORT)
+  --rclaude-secret <s>   Shared secret for rclaude WebSocket auth (or RCLAUDE_SECRET env)
   -h, --help             Show this help message
 
 ENDPOINTS:
@@ -104,7 +140,49 @@ function formatTime(ms: number): string {
 }
 
 async function main() {
-  const { port, apiPort, verbose, cacheDir, clearCache, noPersistence, webDir } = parseArgs();
+  const { port, apiPort, verbose, cacheDir, clearCache, noPersistence, webDir, allowedRoots: extraRoots, pathMaps, rpId, origins, rclaudeSecret } = parseArgs();
+
+  // rclaude secret is required - no open WebSocket ingest
+  if (!rclaudeSecret) {
+    console.error("ERROR: --rclaude-secret or RCLAUDE_SECRET is required");
+    process.exit(1);
+  }
+  setRclaudeSecret(rclaudeSecret);
+
+  // Configure path jail - register allowed filesystem roots
+  // Auto-detect ~/.claude for transcript access
+  const homeDir = process.env.HOME || process.env.USERPROFILE || "/root";
+  const claudeDir = `${homeDir}/.claude`;
+  addAllowedRoot(claudeDir);
+
+  // Add web dir if specified
+  if (webDir) addAllowedRoot(webDir);
+
+  // Add any extra roots from --allow-root flags
+  for (const root of extraRoots) {
+    addAllowedRoot(root);
+  }
+
+  // Register path mappings (host path -> container path)
+  for (const { from, to } of pathMaps) {
+    addPathMapping(from, to);
+  }
+
+  if (verbose) {
+    console.log(`[jail] Allowed roots: ${getAllowedRoots().join(", ")}`);
+    if (pathMaps.length > 0) {
+      console.log(`[jail] Path mappings: ${pathMaps.map(m => `${m.from} -> ${m.to}`).join(", ")}`);
+    }
+  }
+
+  // Initialize passkey auth
+  const authCacheDir = cacheDir || `${homeDir}/.cache/concentrator`;
+  const defaultOrigins = [`http://localhost:${port}`];
+  initAuth({
+    cacheDir: authCacheDir,
+    rpId: rpId || "localhost",
+    expectedOrigins: origins.length > 0 ? origins : defaultOrigins,
+  });
 
   const sessionStore = createSessionStore({
     cacheDir,
@@ -128,6 +206,16 @@ async function main() {
     await sessionStore.saveState();
     process.exit(0);
   });
+  process.on("SIGHUP", () => {
+    reloadState();
+    console.log("[auth] Reloaded auth state from disk (SIGHUP)");
+  });
+
+  // Write PID file so CLI can send signals
+  if (cacheDir) {
+    const pidFile = join(cacheDir, "concentrator.pid");
+    writeFileSync(pidFile, String(process.pid));
+  }
 
   // Create WebSocket server
   const wsServer = createWsServer({
@@ -178,7 +266,15 @@ async function main() {
 
     Bun.serve<WsData>({
       port,
-      fetch(req, server) {
+      async fetch(req, server) {
+        // Auth routes first (login, register, status)
+        const authResponse = await handleAuthRoute(req);
+        if (authResponse) return authResponse;
+
+        // Auth middleware (blocks unauthenticated access when users exist)
+        const authBlock = requireAuth(req);
+        if (authBlock) return authBlock;
+
         const url = new URL(req.url);
 
         // WebSocket upgrade for /ws or /

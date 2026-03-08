@@ -6,6 +6,7 @@
 import type { SessionStore } from "./session-store";
 import type { Session, SendInput, TeamInfo } from "../shared/protocol";
 import { UI_HTML } from "./ui";
+import { resolveInJail } from "./path-jail";
 
 // Image hash registry - maps hash to local file path
 const imageRegistry = new Map<string, string>();
@@ -233,8 +234,12 @@ export function createApiHandler(options: ApiOptions) {
       const filePath = path === "/" ? "/index.html" : path;
       const fullPath = `${webDir}${filePath}`;
 
-      try {
-        const file = Bun.file(fullPath);
+      // Path jail check - web files must stay within webDir
+      const safeWebPath = resolveInJail(fullPath);
+      if (!safeWebPath) {
+        // Fall through to other handlers instead of 403 (SPA routing)
+      } else try {
+        const file = Bun.file(safeWebPath);
         if (await file.exists()) {
           const isAsset = filePath.startsWith("/assets/") || filePath.startsWith("/lib/");
           return new Response(file, {
@@ -291,8 +296,17 @@ export function createApiHandler(options: ApiOptions) {
         });
       }
 
+      // Path jail check - image path must resolve within allowed roots
+      const safePath = resolveInJail(imagePath);
+      if (!safePath) {
+        return new Response(JSON.stringify({ error: "Access denied" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       try {
-        const file = Bun.file(imagePath);
+        const file = Bun.file(safePath);
         if (!(await file.exists())) {
           return new Response(JSON.stringify({ error: "File not found on disk" }), {
             status: 404,
@@ -304,7 +318,7 @@ export function createApiHandler(options: ApiOptions) {
           status: 200,
           headers: {
             ...corsHeaders,
-            "Content-Type": getMimeType(imagePath),
+            "Content-Type": getMimeType(safePath),
             "Cache-Control": "public, max-age=3600",
           },
         });
@@ -410,8 +424,17 @@ export function createApiHandler(options: ApiOptions) {
         });
       }
 
+      // Path jail check - transcript must resolve within allowed roots
+      const safeTranscriptPath = resolveInJail(session.transcriptPath);
+      if (!safeTranscriptPath) {
+        return new Response(JSON.stringify({ error: "Access denied" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       try {
-        const file = Bun.file(session.transcriptPath);
+        const file = Bun.file(safeTranscriptPath);
         if (!(await file.exists())) {
           return new Response(JSON.stringify({ error: "Transcript file not found" }), {
             status: 404,
