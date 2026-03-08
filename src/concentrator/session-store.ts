@@ -4,7 +4,7 @@
  */
 
 import type { ServerWebSocket } from "bun";
-import type { Session, HookEvent, SubagentInfo, TeamInfo } from "../shared/protocol";
+import type { Session, HookEvent, SubagentInfo, TeamInfo, WrapperCapability } from "../shared/protocol";
 import { IDLE_TIMEOUT_MS } from "../shared/protocol";
 import { existsSync, mkdirSync, unlinkSync, readFileSync } from "fs";
 import { homedir } from "os";
@@ -32,6 +32,7 @@ export interface SessionSummary {
   id: string;
   cwd: string;
   model?: string;
+  capabilities?: WrapperCapability[];
   startedAt: number;
   lastActivity: number;
   status: Session["status"];
@@ -46,7 +47,8 @@ export interface SessionStore {
     id: string,
     cwd: string,
     model?: string,
-    args?: string[]
+    args?: string[],
+    capabilities?: WrapperCapability[]
   ) => Session;
   resumeSession: (id: string) => void;
   getSession: (id: string) => Session | undefined;
@@ -60,6 +62,11 @@ export interface SessionStore {
   setSessionSocket: (sessionId: string, ws: ServerWebSocket<unknown>) => void;
   getSessionSocket: (sessionId: string) => ServerWebSocket<unknown> | undefined;
   removeSessionSocket: (sessionId: string) => void;
+  // Terminal viewer methods
+  setTerminalViewer: (sessionId: string, ws: ServerWebSocket<unknown>) => void;
+  getTerminalViewer: (sessionId: string) => ServerWebSocket<unknown> | undefined;
+  clearTerminalViewer: (sessionId: string) => void;
+  clearTerminalViewerBySocket: (ws: ServerWebSocket<unknown>) => void;
   // Dashboard subscriber methods
   addSubscriber: (ws: ServerWebSocket<unknown>) => void;
   removeSubscriber: (ws: ServerWebSocket<unknown>) => void;
@@ -88,6 +95,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 
   const sessions = new Map<string, Session>();
   const sessionSockets = new Map<string, ServerWebSocket<unknown>>();
+  const terminalViewers = new Map<string, ServerWebSocket<unknown>>();
   const dashboardSubscribers = new Set<ServerWebSocket<unknown>>();
   let agentSocket: ServerWebSocket<unknown> | undefined;
 
@@ -97,6 +105,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       id: session.id,
       cwd: session.cwd,
       model: session.model,
+      capabilities: session.capabilities,
       startedAt: session.startedAt,
       lastActivity: session.lastActivity,
       status: session.status,
@@ -227,13 +236,15 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     id: string,
     cwd: string,
     model?: string,
-    args?: string[]
+    args?: string[],
+    capabilities?: WrapperCapability[]
   ): Session {
     const session: Session = {
       id,
       cwd,
       model,
       args,
+      capabilities,
       startedAt: Date.now(),
       lastActivity: Date.now(),
       status: "active",
@@ -403,6 +414,27 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     sessionSockets.delete(sessionId);
   }
 
+  // Terminal viewer management
+  function setTerminalViewer(sessionId: string, ws: ServerWebSocket<unknown>): void {
+    terminalViewers.set(sessionId, ws);
+  }
+
+  function getTerminalViewer(sessionId: string): ServerWebSocket<unknown> | undefined {
+    return terminalViewers.get(sessionId);
+  }
+
+  function clearTerminalViewer(sessionId: string): void {
+    terminalViewers.delete(sessionId);
+  }
+
+  function clearTerminalViewerBySocket(ws: ServerWebSocket<unknown>): void {
+    for (const [sessionId, viewer] of terminalViewers) {
+      if (viewer === ws) {
+        terminalViewers.delete(sessionId);
+      }
+    }
+  }
+
   // Dashboard subscriber management
   function addSubscriber(ws: ServerWebSocket<unknown>): void {
     dashboardSubscribers.add(ws);
@@ -464,6 +496,10 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     setSessionSocket,
     getSessionSocket,
     removeSessionSocket,
+    setTerminalViewer,
+    getTerminalViewer,
+    clearTerminalViewer,
+    clearTerminalViewerBySocket,
     addSubscriber,
     removeSubscriber,
     getSubscriberCount,

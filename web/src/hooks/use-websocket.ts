@@ -3,12 +3,13 @@
  */
 import { useEffect, useRef, useCallback } from 'react'
 import { useSessionsStore } from './use-sessions'
-import type { HookEvent, Session } from '@/lib/types'
+import type { HookEvent, Session, WrapperCapability } from '@/lib/types'
 
 interface SessionSummary {
 	id: string
 	cwd: string
 	model?: string
+	capabilities?: WrapperCapability[]
 	startedAt: number
 	lastActivity: number
 	status: Session['status']
@@ -19,12 +20,14 @@ interface SessionSummary {
 }
 
 interface DashboardMessage {
-	type: 'sessions_list' | 'session_created' | 'session_ended' | 'session_update' | 'event' | 'agent_status'
+	type: string
 	sessionId?: string
 	session?: SessionSummary
 	sessions?: SessionSummary[]
 	event?: HookEvent
 	connected?: boolean
+	data?: string
+	error?: string
 }
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
@@ -34,13 +37,14 @@ export function useWebSocket() {
 	const wsRef = useRef<WebSocket | null>(null)
 	const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-	const { setSessions, setConnected, setAgentConnected, setError } = useSessionsStore()
+	const { setSessions, setConnected, setAgentConnected, setError, setWs } = useSessionsStore()
 
 	// Convert SessionSummary to Session (for store compatibility)
 	const toSession = useCallback((summary: SessionSummary): Session => ({
 		id: summary.id,
 		cwd: summary.cwd,
 		model: summary.model,
+		capabilities: summary.capabilities,
 		startedAt: summary.startedAt,
 		lastActivity: summary.lastActivity,
 		status: summary.status,
@@ -61,12 +65,14 @@ export function useWebSocket() {
 			ws.onopen = () => {
 				setConnected(true)
 				setError(null)
+				setWs(ws)
 				// Subscribe to dashboard updates
 				ws.send(JSON.stringify({ type: 'subscribe' }))
 			}
 
 			ws.onclose = (e) => {
 				setConnected(false)
+				setWs(null)
 				wsRef.current = null
 
 				if (e.code === 1008 || e.code === 4401) {
@@ -91,6 +97,13 @@ export function useWebSocket() {
 			ws.onmessage = event => {
 				try {
 					const msg = JSON.parse(event.data) as DashboardMessage
+
+					// Route terminal messages to terminal handler
+					if (msg.type === 'terminal_data' || msg.type === 'terminal_error') {
+						const handler = useSessionsStore.getState().terminalHandler
+						handler?.({ type: msg.type as 'terminal_data' | 'terminal_error', sessionId: msg.sessionId || '', data: msg.data, error: msg.error })
+						return
+					}
 
 					switch (msg.type) {
 						case 'sessions_list': {
@@ -152,7 +165,7 @@ export function useWebSocket() {
 			// Connection failed, will retry
 			setConnected(false)
 		}
-	}, [setConnected, setAgentConnected, setSessions, toSession])
+	}, [setConnected, setAgentConnected, setSessions, setWs, toSession])
 
 	// Connect on mount
 	useEffect(() => {

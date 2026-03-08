@@ -85,6 +85,7 @@ OPTIONS:
   --concentrator <url>   Concentrator WebSocket URL (default: ${DEFAULT_CONCENTRATOR_URL})
   --rclaude-secret <s>   Shared secret for concentrator auth (or RCLAUDE_SECRET env)
   --no-concentrator      Run without forwarding to concentrator
+  --no-terminal          Disable remote terminal capability
   --rclaude-help         Show this help message
 
 All other arguments are passed through to claude.
@@ -106,6 +107,7 @@ async function main() {
   let concentratorUrl = DEFAULT_CONCENTRATOR_URL;
   let concentratorSecret = process.env.RCLAUDE_SECRET;
   let noConcentrator = false;
+  let noTerminal = false;
   const claudeArgs: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
@@ -120,6 +122,8 @@ async function main() {
       concentratorSecret = args[++i];
     } else if (arg === "--no-concentrator") {
       noConcentrator = true;
+    } else if (arg === "--no-terminal") {
+      noTerminal = true;
     } else {
       claudeArgs.push(arg);
     }
@@ -139,6 +143,7 @@ async function main() {
   let claudeSessionId: string | null = null;
   let wsClient: WsClient | null = null;
   let ptyProcess: PtyProcess | null = null;
+  let terminalAttached = false;
 
   // Queue events until we have the real session ID
   const eventQueue: HookEvent[] = [];
@@ -146,12 +151,16 @@ async function main() {
   function connectToConcentrator(sessionId: string) {
     if (noConcentrator || wsClient) return;
 
+    // Build capabilities list
+    const capabilities = noTerminal ? [] : ["terminal" as const];
+
     wsClient = createWsClient({
       concentratorUrl,
       concentratorSecret,
       sessionId,
       cwd,
       args: claudeArgs,
+      capabilities,
       onConnected() {
         debug(`Connected to concentrator (session: ${sessionId.slice(0, 8)}...)`)
         // Flush queued events
@@ -177,6 +186,30 @@ async function main() {
           ptyProcess?.write("\r");
         }, 50);
         debug(`Sent to PTY: ${JSON.stringify(trimmed)} then \\r`);
+      },
+      onTerminalInput(data) {
+        // Raw keystrokes from browser terminal - write directly to PTY
+        if (ptyProcess) {
+          ptyProcess.write(data);
+        }
+      },
+      onTerminalAttach(cols, rows) {
+        terminalAttached = true;
+        debug(`Terminal attached (${cols}x${rows})`);
+        // Optionally resize PTY to match remote viewer
+        if (ptyProcess) {
+          ptyProcess.resize(cols, rows);
+        }
+      },
+      onTerminalDetach() {
+        terminalAttached = false;
+        debug("Terminal detached");
+      },
+      onTerminalResize(cols, rows) {
+        if (ptyProcess) {
+          ptyProcess.resize(cols, rows);
+        }
+        debug(`Terminal resized to ${cols}x${rows}`);
       },
     });
   }
@@ -219,6 +252,12 @@ async function main() {
     settingsPath,
     sessionId: internalId,
     localServerPort,
+    onData(data) {
+      // Forward PTY output to remote terminal viewer when attached
+      if (terminalAttached && claudeSessionId && wsClient?.isConnected()) {
+        wsClient.sendTerminalData(data);
+      }
+    },
     onExit(code) {
       // Send session end to concentrator
       if (claudeSessionId) {

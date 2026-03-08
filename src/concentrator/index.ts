@@ -311,6 +311,10 @@ async function main() {
                 const existingSession = sessionStore.getSession(data.sessionId);
                 if (existingSession) {
                   sessionStore.resumeSession(data.sessionId);
+                  // Update capabilities on reconnect
+                  if (data.capabilities) {
+                    existingSession.capabilities = data.capabilities;
+                  }
                   if (verbose) {
                     console.log(
                       `[~] Session resumed: ${data.sessionId.slice(0, 8)}... (${data.cwd})`
@@ -321,7 +325,8 @@ async function main() {
                     data.sessionId,
                     data.cwd,
                     data.model,
-                    data.args
+                    data.args,
+                    data.capabilities
                   );
                   if (verbose) {
                     console.log(
@@ -403,6 +408,63 @@ async function main() {
                 }
                 break;
               }
+
+              // Terminal relay: dashboard -> rclaude
+              case "terminal_attach": {
+                const sessionSocket = sessionStore.getSessionSocket(data.sessionId);
+                if (sessionSocket) {
+                  sessionStore.setTerminalViewer(data.sessionId, ws);
+                  sessionSocket.send(JSON.stringify(data));
+                  if (verbose) {
+                    console.log(`[terminal] Attached to ${data.sessionId.slice(0, 8)}... (${data.cols}x${data.rows})`);
+                  }
+                } else {
+                  ws.send(JSON.stringify({ type: "terminal_error", sessionId: data.sessionId, error: "Session not connected" }));
+                }
+                break;
+              }
+              case "terminal_detach": {
+                sessionStore.clearTerminalViewer(data.sessionId);
+                const sessionSocket = sessionStore.getSessionSocket(data.sessionId);
+                if (sessionSocket) {
+                  sessionSocket.send(JSON.stringify(data));
+                }
+                if (verbose) {
+                  console.log(`[terminal] Detached from ${data.sessionId.slice(0, 8)}...`);
+                }
+                break;
+              }
+              case "terminal_data": {
+                if (ws.data.isDashboard) {
+                  // Dashboard -> rclaude (user keystrokes)
+                  const sessionSocket = sessionStore.getSessionSocket(data.sessionId);
+                  if (sessionSocket) {
+                    sessionSocket.send(JSON.stringify(data));
+                  }
+                } else if (ws.data.sessionId) {
+                  // rclaude -> dashboard (PTY output)
+                  const viewer = sessionStore.getTerminalViewer(data.sessionId || ws.data.sessionId);
+                  if (viewer) {
+                    viewer.send(JSON.stringify(data));
+                  }
+                }
+                break;
+              }
+              case "terminal_resize": {
+                const sessionSocket = sessionStore.getSessionSocket(data.sessionId);
+                if (sessionSocket) {
+                  sessionSocket.send(JSON.stringify(data));
+                }
+                break;
+              }
+              case "terminal_error": {
+                // rclaude -> dashboard
+                const viewer = sessionStore.getTerminalViewer(data.sessionId);
+                if (viewer) {
+                  viewer.send(JSON.stringify(data));
+                }
+                break;
+              }
             }
           } catch (error) {
             ws.send(
@@ -425,6 +487,8 @@ async function main() {
 
           // Handle dashboard subscriber disconnection
           if (ws.data.isDashboard) {
+            // If this dashboard was viewing a terminal, send detach to rclaude
+            sessionStore.clearTerminalViewerBySocket(ws);
             sessionStore.removeSubscriber(ws);
             if (verbose) {
               console.log(`[dashboard] Subscriber disconnected (total: ${sessionStore.getSubscriberCount()})`);
@@ -435,6 +499,15 @@ async function main() {
           // Handle rclaude session disconnection
           const sessionId = ws.data.sessionId;
           if (sessionId) {
+            // Notify terminal viewer if any
+            const viewer = sessionStore.getTerminalViewer(sessionId);
+            if (viewer) {
+              try {
+                viewer.send(JSON.stringify({ type: "terminal_error", sessionId, error: "Session disconnected" }));
+              } catch {}
+              sessionStore.clearTerminalViewer(sessionId);
+            }
+
             // Remove socket tracking
             sessionStore.removeSessionSocket(sessionId);
 

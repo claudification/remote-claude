@@ -12,10 +12,13 @@ export interface TeamInfo {
 	role: 'lead' | 'teammate'
 }
 
+export type WrapperCapability = 'terminal'
+
 export interface Session {
 	id: string
 	cwd: string
 	model?: string
+	capabilities?: WrapperCapability[]
 	status: 'active' | 'idle' | 'ended'
 	startedAt: number
 	lastActivity: number

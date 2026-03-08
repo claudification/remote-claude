@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, ChevronRight, X } from 'lucide-react'
+import { Bell, ChevronDown, ChevronRight, Terminal, X } from 'lucide-react'
 import { useRef, useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -8,6 +8,7 @@ import type { HookEvent } from '@/lib/types'
 import { EventsView } from './events-view'
 import { SubagentView } from './subagent-view'
 import { TranscriptView } from './transcript-view'
+import { WebTerminal } from './web-terminal'
 
 type Tab = 'transcript' | 'events' | 'agents'
 
@@ -53,6 +54,7 @@ export function SessionDetail() {
 	const [isReviving, setIsReviving] = useState(false)
 	const [reviveError, setReviveError] = useState<string | null>(null)
 	const [infoExpanded, setInfoExpanded] = useState(false)
+	const [showTerminal, setShowTerminal] = useState(false)
 	const inputRef = useRef<HTMLInputElement>(null)
 
 	const sessions = useSessionsStore(state => state.sessions)
@@ -120,6 +122,7 @@ export function SessionDetail() {
 	}
 
 	const canSendInput = session?.status === 'active' || session?.status === 'idle'
+	const hasTerminal = canSendInput && session?.capabilities?.includes('terminal')
 	const canRevive = session?.status === 'ended' && agentConnected
 
 	async function handleRevive() {
@@ -262,8 +265,22 @@ export function SessionDetail() {
 					</button>
 				)}
 
-				{/* Follow checkbox - pushed to right */}
+				{/* Terminal + Follow - pushed to right */}
 				<div className="ml-auto pr-3 flex items-center gap-2">
+					{hasTerminal && (
+						<button
+							type="button"
+							onClick={() => setShowTerminal(true)}
+							className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-muted-foreground hover:text-accent transition-colors"
+							title="Open terminal"
+						>
+							<Terminal className="w-3 h-3" />
+							TTY
+						</button>
+					)}
+					<div className="w-px h-4 bg-border" />
+				</div>
+				<div className="pr-3 flex items-center gap-2">
 					<Checkbox
 						id="follow"
 						checked={follow}
@@ -318,6 +335,11 @@ export function SessionDetail() {
 					</div>
 					<p className="text-[10px] text-muted-foreground mt-1">Press Enter to send</p>
 				</div>
+			)}
+
+			{/* Terminal overlay */}
+			{showTerminal && selectedSessionId && hasTerminal && (
+				<WebTerminal sessionId={selectedSessionId} onClose={() => setShowTerminal(false)} />
 			)}
 
 			{/* Revive button for ended sessions */}

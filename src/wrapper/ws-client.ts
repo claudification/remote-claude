@@ -10,6 +10,8 @@ import type {
   SessionEnd,
   HookEvent,
   Heartbeat,
+  TerminalData,
+  WrapperCapability,
 } from "../shared/protocol";
 import { DEFAULT_CONCENTRATOR_URL } from "../shared/protocol";
 
@@ -23,13 +25,19 @@ export interface WsClientOptions {
   onConnected?: () => void;
   onDisconnected?: () => void;
   onError?: (error: Error) => void;
+  capabilities?: WrapperCapability[];
   onInput?: (input: string) => void;
+  onTerminalAttach?: (cols: number, rows: number) => void;
+  onTerminalDetach?: () => void;
+  onTerminalInput?: (data: string) => void;
+  onTerminalResize?: (cols: number, rows: number) => void;
 }
 
 export interface WsClient {
   send: (message: WrapperMessage) => void;
   sendHookEvent: (event: HookEvent) => void;
   sendSessionEnd: (reason: string) => void;
+  sendTerminalData: (data: string) => void;
   close: () => void;
   isConnected: () => boolean;
 }
@@ -48,7 +56,12 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onConnected,
     onDisconnected,
     onError,
+    capabilities,
     onInput,
+    onTerminalAttach,
+    onTerminalDetach,
+    onTerminalInput,
+    onTerminalResize,
   } = options;
 
   let ws: WebSocket | null = null;
@@ -70,13 +83,14 @@ export function createWsClient(options: WsClientOptions): WsClient {
         connected = true;
         reconnectAttempts = 0;
 
-        // Send session metadata
+        // Send session metadata with capabilities
         const meta: SessionMeta = {
           type: "meta",
           sessionId,
           cwd,
           startedAt: Date.now(),
           model,
+          capabilities,
           args,
         };
         ws!.send(JSON.stringify(meta));
@@ -138,6 +152,19 @@ export function createWsClient(options: WsClientOptions): WsClient {
               // Forward input to PTY
               onInput?.(message.input);
               break;
+            case "terminal_attach":
+              onTerminalAttach?.(message.cols, message.rows);
+              break;
+            case "terminal_detach":
+              onTerminalDetach?.();
+              break;
+            case "terminal_data":
+              // Raw terminal input from browser (keystrokes, no mangling)
+              onTerminalInput?.(message.data);
+              break;
+            case "terminal_resize":
+              onTerminalResize?.(message.cols, message.rows);
+              break;
             case "ack":
               // Acknowledgements - no action needed
               break;
@@ -180,6 +207,15 @@ export function createWsClient(options: WsClientOptions): WsClient {
     send(endMsg);
   }
 
+  function sendTerminalData(data: string) {
+    const msg: TerminalData = {
+      type: "terminal_data",
+      sessionId,
+      data,
+    };
+    send(msg);
+  }
+
   function close() {
     shouldReconnect = false;
     if (heartbeatInterval) {
@@ -204,6 +240,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     send,
     sendHookEvent,
     sendSessionEnd,
+    sendTerminalData,
     close,
     isConnected,
   };

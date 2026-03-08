@@ -12,6 +12,9 @@ export interface HookEvent {
   data: HookEventData;
 }
 
+// Capabilities that rclaude declares on connect
+export type WrapperCapability = "terminal";
+
 export interface SessionMeta {
   type: "meta";
   sessionId: string;
@@ -19,6 +22,7 @@ export interface SessionMeta {
   startedAt: number;
   model?: string;
   args?: string[];
+  capabilities?: WrapperCapability[];
 }
 
 export interface SessionEnd {
@@ -34,7 +38,39 @@ export interface Heartbeat {
   timestamp: number;
 }
 
-export type WrapperMessage = HookEvent | SessionMeta | SessionEnd | Heartbeat;
+// Terminal streaming messages (browser <-> concentrator <-> rclaude)
+export interface TerminalAttach {
+  type: "terminal_attach";
+  sessionId: string;
+  cols: number;
+  rows: number;
+}
+
+export interface TerminalDetach {
+  type: "terminal_detach";
+  sessionId: string;
+}
+
+export interface TerminalData {
+  type: "terminal_data";
+  sessionId: string;
+  data: string;
+}
+
+export interface TerminalResize {
+  type: "terminal_resize";
+  sessionId: string;
+  cols: number;
+  rows: number;
+}
+
+export interface TerminalError {
+  type: "terminal_error";
+  sessionId: string;
+  error: string;
+}
+
+export type WrapperMessage = HookEvent | SessionMeta | SessionEnd | Heartbeat | TerminalData | TerminalError;
 
 // Concentrator -> Wrapper messages
 export interface Ack {
@@ -53,7 +89,7 @@ export interface SendInput {
   input: string;
 }
 
-export type ConcentratorMessage = Ack | ConcentratorError | SendInput;
+export type ConcentratorMessage = Ack | ConcentratorError | SendInput | TerminalAttach | TerminalDetach | TerminalData | TerminalResize;
 
 // Hook event types from Claude Code
 export type HookEventType =
@@ -208,6 +244,7 @@ export interface Session {
   cwd: string;
   model?: string;
   args?: string[];
+  capabilities?: WrapperCapability[];
   transcriptPath?: string;
   startedAt: number;
   lastActivity: number;

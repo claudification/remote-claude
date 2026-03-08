@@ -1,6 +1,13 @@
 import { create } from 'zustand'
 import type { HookEvent, Session, SubagentInfo, TranscriptEntry } from '@/lib/types'
 
+export interface TerminalMessage {
+	type: 'terminal_data' | 'terminal_error'
+	sessionId: string
+	data?: string
+	error?: string
+}
+
 interface SessionsState {
 	sessions: Session[]
 	selectedSessionId: string | null
@@ -9,6 +16,8 @@ interface SessionsState {
 	isConnected: boolean
 	agentConnected: boolean
 	error: string | null
+	ws: WebSocket | null
+	terminalHandler: ((msg: TerminalMessage) => void) | null
 
 	setSessions: (sessions: Session[]) => void
 	selectSession: (id: string | null) => void
@@ -17,6 +26,9 @@ interface SessionsState {
 	setConnected: (connected: boolean) => void
 	setAgentConnected: (connected: boolean) => void
 	setError: (error: string | null) => void
+	setWs: (ws: WebSocket | null) => void
+	setTerminalHandler: (handler: ((msg: TerminalMessage) => void) | null) => void
+	sendWsMessage: (msg: Record<string, unknown>) => void
 
 	getSelectedSession: () => Session | undefined
 	getSelectedEvents: () => HookEvent[]
@@ -31,6 +43,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 	isConnected: false,
 	agentConnected: false,
 	error: null,
+	ws: null,
+	terminalHandler: null,
 
 	setSessions: sessions => set({ sessions }),
 	selectSession: id => set({ selectedSessionId: id }),
@@ -40,6 +54,14 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 	setConnected: connected => set({ isConnected: connected }),
 	setAgentConnected: connected => set({ agentConnected: connected }),
 	setError: error => set({ error }),
+	setWs: ws => set({ ws }),
+	setTerminalHandler: handler => set({ terminalHandler: handler }),
+	sendWsMessage: msg => {
+		const { ws } = get()
+		if (ws?.readyState === WebSocket.OPEN) {
+			ws.send(JSON.stringify(msg))
+		}
+	},
 
 	getSelectedSession: () => {
 		const { sessions, selectedSessionId } = get()
