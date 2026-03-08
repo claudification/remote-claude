@@ -7,6 +7,7 @@ import { SessionList } from '@/components/session-list'
 import { SessionSwitcher } from '@/components/session-switcher'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { canTerminal } from '@/lib/types'
 import { fetchSessionEvents, fetchTranscript, useSessionsStore } from '@/hooks/use-sessions'
 import { useWebSocket } from '@/hooks/use-websocket'
 
@@ -67,7 +68,7 @@ function Dashboard() {
 	function handleSwitcherSelect(id: string) {
 		const store = useSessionsStore.getState()
 		const session = store.sessions.find(s => s.id === id)
-		if (session && (session.status === 'active' || session.status === 'idle') && session.capabilities?.includes('terminal')) {
+		if (session && canTerminal(session)) {
 			store.openTerminal(id)
 		} else {
 			store.selectSession(id)

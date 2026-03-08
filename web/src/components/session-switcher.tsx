@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { cn, lastPathSegments, formatAge } from '@/lib/utils'
-import type { Session } from '@/lib/types'
+import { canTerminal, type Session } from '@/lib/types'
 
 interface SessionSwitcherProps {
 	onSelect: (sessionId: string) => void
@@ -68,12 +68,8 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 		}
 	}
 
-	function hasTerminal(s: Session) {
-		return (s.status === 'active' || s.status === 'idle') && s.capabilities?.includes('terminal')
-	}
-
 	function statusIndicator(s: Session) {
-		if (hasTerminal(s)) return '\u25B6' // ▶ terminal available
+		if (canTerminal(s)) return '\u25B6' // ▶ terminal available
 		if (s.id === selectedSessionId) return '\u25C9' // ◉ current
 		if (s.status === 'active') return '\u25CF' // ●
 		if (s.status === 'idle') return '\u25CB' // ○
@@ -81,7 +77,7 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 	}
 
 	function statusColor(s: Session) {
-		if (hasTerminal(s)) return s.status === 'active' ? 'text-[#9ece6a]' : 'text-[#e0af68]'
+		if (canTerminal(s)) return s.status === 'active' ? 'text-[#9ece6a]' : 'text-[#e0af68]'
 		if (s.id === selectedSessionId) return 'text-[#7aa2f7]'
 		if (s.status === 'active') return 'text-[#9ece6a]'
 		if (s.status === 'idle') return 'text-[#e0af68]'
@@ -89,7 +85,7 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 	}
 
 	function actionLabel(s: Session) {
-		if (hasTerminal(s)) return s.id === selectedSessionId ? 'TTY (current)' : 'TTY'
+		if (canTerminal(s)) return s.id === selectedSessionId ? 'TTY (current)' : 'TTY'
 		if (s.status === 'ended') return 'revive'
 		return ''
 	}
@@ -148,7 +144,7 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 							{actionLabel(session) && (
 								<span className={cn(
 									'text-[10px]',
-									hasTerminal(session) ? 'text-[#9ece6a]' : 'text-[#565f89]',
+									canTerminal(session) ? 'text-[#9ece6a]' : 'text-[#565f89]',
 								)}>
 									{actionLabel(session)}
 								</span>

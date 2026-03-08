@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { reviveSession, sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { cn, formatAge, formatModel } from '@/lib/utils'
-import type { HookEvent } from '@/lib/types'
+import { canTerminal, type HookEvent } from '@/lib/types'
 import { EventsView } from './events-view'
 import { SubagentView } from './subagent-view'
 import { TranscriptView } from './transcript-view'
@@ -123,7 +123,7 @@ export function SessionDetail() {
 	}
 
 	const canSendInput = session?.status === 'active' || session?.status === 'idle'
-	const hasTerminal = canSendInput && session?.capabilities?.includes('terminal')
+	const hasTerminal = session ? canTerminal(session) : false
 	const canRevive = session?.status === 'ended' && agentConnected
 
 	async function handleRevive() {

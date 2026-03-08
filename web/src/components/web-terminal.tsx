@@ -5,6 +5,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 import { Settings, X, WifiOff } from 'lucide-react'
 import { useSessionsStore, type TerminalMessage } from '@/hooks/use-sessions'
+import { canTerminal } from '@/lib/types'
 import { lastPathSegments } from '@/lib/utils'
 import { TerminalToolbar } from './terminal-toolbar'
 import {
@@ -197,10 +198,8 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 	const showDisconnected = !isConnected || !!terminalError
 	const currentTheme = getTheme(settings.themeId)
 
-	// Terminal-capable active/idle sessions for tabs
-	const terminalSessions = sessions.filter(
-		s => (s.status === 'active' || s.status === 'idle') && s.capabilities?.includes('terminal'),
-	)
+	// Terminal-capable sessions for tabs
+	const terminalSessions = sessions.filter(canTerminal)
 
 	return (
 		<div className="fixed inset-0 z-50 flex flex-col overflow-hidden" style={{ background: currentTheme.background }}>
