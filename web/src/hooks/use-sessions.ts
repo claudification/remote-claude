@@ -19,10 +19,13 @@ interface SessionsState {
 	ws: WebSocket | null
 	terminalHandler: ((msg: TerminalMessage) => void) | null
 	showTerminal: boolean
+	showSwitcher: boolean
 
 	setSessions: (sessions: Session[]) => void
 	selectSession: (id: string | null) => void
 	setShowTerminal: (show: boolean) => void
+	setShowSwitcher: (show: boolean) => void
+	toggleSwitcher: () => void
 	openTerminal: (sessionId: string) => void
 	setEvents: (sessionId: string, events: HookEvent[]) => void
 	setTranscript: (sessionId: string, entries: TranscriptEntry[]) => void
@@ -49,11 +52,14 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 	ws: null,
 	terminalHandler: null,
 	showTerminal: false,
+	showSwitcher: false,
 
 	setSessions: sessions => set({ sessions }),
 	selectSession: id => set({ selectedSessionId: id }),
 	setShowTerminal: show => set({ showTerminal: show }),
-	openTerminal: sessionId => set({ selectedSessionId: sessionId, showTerminal: true }),
+	setShowSwitcher: show => set({ showSwitcher: show }),
+	toggleSwitcher: () => set(state => ({ showSwitcher: !state.showSwitcher })),
+	openTerminal: sessionId => set({ selectedSessionId: sessionId, showTerminal: true, showSwitcher: false }),
 	setEvents: (sessionId, events) => set(state => ({ events: { ...state.events, [sessionId]: events } })),
 	setTranscript: (sessionId, entries) =>
 		set(state => ({ transcripts: { ...state.transcripts, [sessionId]: entries } })),

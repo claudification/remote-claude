@@ -17,7 +17,6 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 
 	// Show all sessions - active ones for terminal, ended ones for revive
 	const allSessions = [...sessions].sort((a, b) => {
-		// Active/idle first, then ended, sorted by last activity
 		const statusOrder = { active: 0, idle: 1, ended: 2 }
 		const sDiff = statusOrder[a.status] - statusOrder[b.status]
 		if (sDiff !== 0) return sDiff
@@ -46,7 +45,6 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 		inputRef.current?.focus()
 	}, [])
 
-	// Close on Escape, navigate with arrows, select with Enter
 	function handleKeyDown(e: React.KeyboardEvent) {
 		switch (e.key) {
 			case 'Escape':
@@ -70,7 +68,12 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 		}
 	}
 
+	function hasTerminal(s: Session) {
+		return (s.status === 'active' || s.status === 'idle') && s.capabilities?.includes('terminal')
+	}
+
 	function statusIndicator(s: Session) {
+		if (hasTerminal(s)) return '\u25B6' // ▶ terminal available
 		if (s.id === selectedSessionId) return '\u25C9' // ◉ current
 		if (s.status === 'active') return '\u25CF' // ●
 		if (s.status === 'idle') return '\u25CB' // ○
@@ -78,10 +81,17 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 	}
 
 	function statusColor(s: Session) {
+		if (hasTerminal(s)) return s.status === 'active' ? 'text-[#9ece6a]' : 'text-[#e0af68]'
 		if (s.id === selectedSessionId) return 'text-[#7aa2f7]'
 		if (s.status === 'active') return 'text-[#9ece6a]'
 		if (s.status === 'idle') return 'text-[#e0af68]'
 		return 'text-[#565f89]'
+	}
+
+	function actionLabel(s: Session) {
+		if (hasTerminal(s)) return s.id === selectedSessionId ? 'TTY (current)' : 'TTY'
+		if (s.status === 'ended') return 'revive'
+		return ''
 	}
 
 	return (
@@ -101,7 +111,7 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 							setActiveIndex(0)
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="Jump to session..."
+						placeholder="Switch terminal..."
 						className="w-full bg-transparent text-sm text-[#a9b1d6] placeholder:text-[#565f89] outline-none"
 						autoComplete="off"
 						spellCheck={false}
@@ -135,8 +145,13 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 									{session.model && <span>{session.model.replace('claude-', '').replace(/-\d{8}$/, '')}</span>}
 								</div>
 							</div>
-							{session.id === selectedSessionId && (
-								<span className="text-[10px] text-[#7aa2f7]">current</span>
+							{actionLabel(session) && (
+								<span className={cn(
+									'text-[10px]',
+									hasTerminal(session) ? 'text-[#9ece6a]' : 'text-[#565f89]',
+								)}>
+									{actionLabel(session)}
+								</span>
 							)}
 						</button>
 					))}
@@ -148,7 +163,7 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 						<kbd className="px-1 py-0.5 bg-[#33467c]/30 rounded">↑↓</kbd> navigate
 					</span>
 					<span>
-						<kbd className="px-1 py-0.5 bg-[#33467c]/30 rounded">⏎</kbd> select
+						<kbd className="px-1 py-0.5 bg-[#33467c]/30 rounded">⏎</kbd> open terminal
 					</span>
 					<span>
 						<kbd className="px-1 py-0.5 bg-[#33467c]/30 rounded">esc</kbd> close
