@@ -171,6 +171,40 @@ async function ensureConcentrator(url: string): Promise<boolean> {
   return false;
 }
 
+/**
+ * Set terminal title via OSC 2 escape sequence (shows in tmux window name)
+ * Uses last 2 path segments, max 20 chars, right segment takes priority
+ */
+function setTerminalTitle(cwd: string) {
+  const segments = cwd.split("/").filter(Boolean);
+  const last2 = segments.slice(-2);
+  let title = last2.join("/");
+
+  if (title.length > 20) {
+    // Right segment is most significant - keep it, truncate left
+    const right = last2[last2.length - 1];
+    if (right.length >= 20) {
+      title = right.slice(0, 20);
+    } else if (last2.length > 1) {
+      const budget = 20 - right.length - 1; // -1 for the slash
+      title = budget > 0
+        ? last2[0].slice(0, budget) + "/" + right
+        : right;
+    }
+  }
+
+  process.title = title;
+  process.stdout.write(`\x1b]2;${title}\x07`);
+
+  // Direct tmux rename (automatic-rename overrides OSC 2 on macOS)
+  if (process.env.TMUX) {
+    try {
+      Bun.spawnSync(["tmux", "rename-window", title]);
+      Bun.spawnSync(["tmux", "set-option", "-w", "automatic-rename", "off"]);
+    } catch {}
+  }
+}
+
 function printHelp() {
   console.log(`
 rclaude - Claude Code Session Wrapper
@@ -311,6 +345,9 @@ async function main() {
 
   // Generate merged settings with hook injection
   const settingsPath = await writeMergedSettings(internalId, localServerPort);
+
+  // Set terminal title to last 2 path segments (shows in tmux)
+  setTerminalTitle(cwd);
 
   // Spawn claude with PTY
   ptyProcess = spawnClaude({
