@@ -329,11 +329,16 @@ async function main() {
   setTerminalTitle(cwd);
 
   // Spawn claude with PTY
+  // Convert WS URL to HTTP for tools/scripts that need to call the concentrator REST API
+  const concentratorHttpUrl = noConcentrator ? undefined : concentratorUrl.replace("ws://", "http://").replace("wss://", "https://");
+
   ptyProcess = spawnClaude({
     args: claudeArgs,
     settingsPath,
     sessionId: internalId,
     localServerPort,
+    concentratorUrl: concentratorHttpUrl,
+    concentratorSecret,
     onData(data) {
       // Forward PTY output to remote terminal viewer when attached
       if (terminalAttached && claudeSessionId && wsClient?.isConnected()) {

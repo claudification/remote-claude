@@ -7,6 +7,7 @@ import type { SessionStore } from "./session-store";
 import type { Session, SendInput, TeamInfo } from "../shared/protocol";
 import { UI_HTML } from "./ui";
 import { resolveInJail } from "./path-jail";
+import { addSubscription, removeSubscription, sendPushToAll, getSubscriptionCount, isConfigured as isPushConfigured } from "./push";
 
 // Image registries
 // File registry: hash -> filesystem path (for [Image: source: /path] references)
@@ -152,6 +153,8 @@ function processImagesInEntry(entry: any): any {
 export interface ApiOptions {
   sessionStore: SessionStore;
   webDir?: string;
+  vapidPublicKey?: string;
+  rclaudeSecret?: string;
 }
 
 // Build a map of embedded files for quick lookup
@@ -218,7 +221,7 @@ interface SessionSummary {
  * Create API request handler
  */
 export function createApiHandler(options: ApiOptions) {
-  const { sessionStore, webDir } = options;
+  const { sessionStore, webDir, vapidPublicKey, rclaudeSecret } = options;
 
   function sessionToSummary(session: Session): SessionSummary {
     const lastEvent = session.events[session.events.length - 1];
@@ -684,6 +687,126 @@ export function createApiHandler(options: ApiOptions) {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
+    }
+
+    // GET /api/push/vapid - return VAPID public key for push subscription
+    if (req.method === "GET" && path === "/api/push/vapid") {
+      if (!vapidPublicKey) {
+        return new Response(JSON.stringify({ error: "Push not configured" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ publicKey: vapidPublicKey, subscriptions: getSubscriptionCount() }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // POST /api/push/subscribe - register push subscription
+    if (req.method === "POST" && path === "/api/push/subscribe") {
+      try {
+        const body = await req.json() as { subscription: { endpoint: string; keys: { p256dh: string; auth: string } } };
+        if (!body.subscription?.endpoint || !body.subscription?.keys) {
+          return new Response(JSON.stringify({ error: "Invalid subscription" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        addSubscription(body.subscription, req.headers.get("user-agent") || undefined);
+        return new Response(JSON.stringify({ success: true, total: getSubscriptionCount() }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch {
+        return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // POST /api/push/unsubscribe - remove push subscription
+    if (req.method === "POST" && path === "/api/push/unsubscribe") {
+      try {
+        const body = await req.json() as { endpoint: string };
+        if (!body.endpoint) {
+          return new Response(JSON.stringify({ error: "Missing endpoint" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        removeSubscription(body.endpoint);
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch {
+        return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // POST /api/push/send - send push notification (auth'd with rclaude secret)
+    if (req.method === "POST" && path === "/api/push/send") {
+      // Auth: require rclaude secret as Bearer token
+      const authHeader = req.headers.get("authorization");
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+      if (!rclaudeSecret || !token || token !== rclaudeSecret) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      if (!isPushConfigured()) {
+        return new Response(JSON.stringify({ error: "Push not configured (no VAPID keys)" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      try {
+        const rawBody = await req.text();
+        if (!rawBody) {
+          return new Response(JSON.stringify({ error: "Empty request body" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        let body: { title: string; body: string; sessionId?: string; tag?: string };
+        try {
+          body = JSON.parse(rawBody);
+        } catch (parseErr) {
+          return new Response(JSON.stringify({ error: "Invalid JSON", received: rawBody.slice(0, 200) }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        if (!body.title && !body.body) {
+          return new Response(JSON.stringify({ error: "Need title or body" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        const result = await sendPushToAll({
+          title: body.title || "rclaude",
+          body: body.body || "",
+          sessionId: body.sessionId,
+          tag: body.tag,
+        });
+        return new Response(JSON.stringify({ success: true, ...result }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: `Send failed: ${error}` }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
     }
 
     return new Response(JSON.stringify({ error: "Not found" }), {

@@ -111,6 +111,7 @@ export function requireAuth(req: Request): Response | null {
 
   // Static assets must be public - SPA handles auth UI client-side
   if (url.pathname === "/manifest.json" || url.pathname === "/favicon.svg"
+    || url.pathname === "/sw.js"
     || url.pathname.startsWith("/icon-") || url.pathname === "/apple-touch-icon.png"
     || url.pathname.startsWith("/assets/")) return null;
 
@@ -127,16 +128,21 @@ export function requireAuth(req: Request): Response | null {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  // Everything else requires authentication
+  // Everything else requires authentication (cookie or Bearer token)
   const isAuthenticated = getAuthenticatedUser(req);
-
   if (isAuthenticated) return null;
+
+  // Allow Bearer token auth with rclaude secret (for API calls from scripts)
+  const authHeader = req.headers.get("authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (rclaudeSecret && bearerToken && safeStringEqual(bearerToken, rclaudeSecret)) return null;
 
   // Not authenticated - only allow SPA HTML navigation for non-API paths
   // API paths (/sessions, /file, etc.) must NEVER fall through without auth
   const accept = req.headers.get("accept") || "";
   const isApiPath = url.pathname.startsWith("/sessions")
     || url.pathname.startsWith("/file")
+    || url.pathname.startsWith("/api/")
     || url.pathname.startsWith("/auth/");
   if (accept.includes("text/html") && !isApiPath) {
     return null; // SPA handles showing login screen

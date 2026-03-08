@@ -172,3 +172,106 @@ export async function sendInput(sessionId: string, input: string): Promise<boole
 	})
 	return res.ok
 }
+
+// Push notification subscription
+export async function subscribeToPush(): Promise<{ success: boolean; error?: string }> {
+	try {
+		// Check browser support
+		if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+			return { success: false, error: 'Push notifications not supported' }
+		}
+
+		// Get VAPID public key from server
+		console.log('[push] Fetching VAPID key...')
+		const vapidRes = await fetch(`${API_BASE}/api/push/vapid`)
+		if (!vapidRes.ok) {
+			console.error('[push] VAPID fetch failed:', vapidRes.status)
+			return { success: false, error: 'Push not configured on server' }
+		}
+		const { publicKey } = await vapidRes.json()
+		console.log('[push] Got VAPID key:', publicKey?.slice(0, 12) + '...')
+
+		// Register service worker
+		console.log('[push] Registering service worker...')
+		const registration = await navigator.serviceWorker.register('/sw.js')
+		await navigator.serviceWorker.ready
+		console.log('[push] Service worker ready')
+
+		// Request notification permission
+		const permission = await Notification.requestPermission()
+		console.log('[push] Permission:', permission)
+		if (permission !== 'granted') {
+			return { success: false, error: `Permission ${permission}` }
+		}
+
+		// Subscribe to push
+		console.log('[push] Subscribing to push manager...')
+		const subscription = await registration.pushManager.subscribe({
+			userVisibleOnly: true,
+			applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+		})
+		console.log('[push] Got subscription:', subscription.endpoint.slice(0, 50) + '...')
+
+		// Send subscription to server
+		const subRes = await fetch(`${API_BASE}/api/push/subscribe`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ subscription: subscription.toJSON() }),
+		})
+		console.log('[push] Subscribe response:', subRes.status)
+
+		if (!subRes.ok) {
+			return { success: false, error: 'Failed to register subscription' }
+		}
+
+		return { success: true }
+	} catch (error: any) {
+		console.error('[push] Subscribe error:', error)
+		return { success: false, error: error?.message || 'Unknown error' }
+	}
+}
+
+export async function getPushStatus(): Promise<{ supported: boolean; subscribed: boolean; permission: string }> {
+	const supported = 'serviceWorker' in navigator && 'PushManager' in window
+	if (!supported) return { supported, subscribed: false, permission: 'unsupported' }
+
+	const permission = Notification.permission
+	let subscribed = false
+
+	try {
+		const registration = await navigator.serviceWorker.getRegistration('/sw.js')
+		if (registration) {
+			const sub = await registration.pushManager.getSubscription()
+			if (sub) {
+				// Browser has a subscription - verify server knows about it too
+				// by re-sending it (idempotent). This handles the case where
+				// the browser subscribed but the server POST failed.
+				try {
+					const res = await fetch(`${API_BASE}/api/push/subscribe`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ subscription: sub.toJSON() }),
+					})
+					subscribed = res.ok
+					console.log('[push] Re-synced subscription to server:', res.status)
+				} catch {
+					// Server unreachable - still show as subscribed locally
+					subscribed = true
+				}
+			}
+		}
+	} catch {}
+
+	return { supported, subscribed, permission }
+}
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+	const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+	const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+	const rawData = window.atob(base64)
+	const outputArray = new Uint8Array(rawData.length)
+	for (let i = 0; i < rawData.length; ++i) {
+		outputArray[i] = rawData.charCodeAt(i)
+	}
+	return outputArray
+}
