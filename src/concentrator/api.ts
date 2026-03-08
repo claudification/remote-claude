@@ -8,73 +8,140 @@ import type { Session, SendInput, TeamInfo } from "../shared/protocol";
 import { UI_HTML } from "./ui";
 import { resolveInJail } from "./path-jail";
 
-// Image hash registry - maps hash to local file path
-const imageRegistry = new Map<string, string>();
+// Image registries
+// File registry: hash -> filesystem path (for [Image: source: /path] references)
+const fileRegistry = new Map<string, string>();
+// Blob registry: hash -> { bytes, mediaType } (for inline base64 images from transcript)
+const blobRegistry = new Map<string, { bytes: Uint8Array; mediaType: string }>();
 
-// Simple hash function for file paths
-function hashPath(path: string): string {
+function hashString(input: string): string {
   let hash = 0;
-  for (let i = 0; i < path.length; i++) {
-    const char = path.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) - hash) + input.charCodeAt(i);
+    hash = hash & hash;
   }
   return Math.abs(hash).toString(36);
 }
 
-/**
- * Register an image path and return its hash
- */
-export function registerImage(path: string): string {
-  const hash = hashPath(path);
-  imageRegistry.set(hash, path);
+function registerFilePath(path: string): string {
+  const hash = hashString(path);
+  fileRegistry.set(hash, path);
   return hash;
 }
 
-/**
- * Get image path from hash
- */
-export function getImagePath(hash: string): string | undefined {
-  return imageRegistry.get(hash);
+function registerBlob(data: string, mediaType: string): string {
+  // Hash the first 200 chars + length for speed (full base64 strings can be huge)
+  const key = `${data.length}:${data.slice(0, 200)}`;
+  const hash = hashString(key);
+  if (!blobRegistry.has(hash)) {
+    const bytes = Buffer.from(data, "base64");
+    blobRegistry.set(hash, { bytes: new Uint8Array(bytes), mediaType });
+  }
+  return hash;
+}
+
+function getImageSource(hash: string): { type: "file"; path: string } | { type: "blob"; bytes: Uint8Array; mediaType: string } | null {
+  const blob = blobRegistry.get(hash);
+  if (blob) return { type: "blob", ...blob };
+  const path = fileRegistry.get(hash);
+  if (path) return { type: "file", path };
+  return null;
 }
 
 // Image extensions we recognize
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'heic', 'svg'];
 
+// Map media_type to extension
+function mediaTypeToExt(mediaType: string): string {
+  const map: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/avif": "avif",
+    "image/heic": "heic",
+    "image/svg+xml": "svg",
+  };
+  return map[mediaType] || "png";
+}
+
 /**
- * Process a transcript entry to find and register images
- * Returns the entry with an `images` field added containing registered image info
+ * Process a transcript entry to find and register images.
+ * Handles two sources:
+ * 1. Inline base64 image blocks (type: "image", source.type: "base64") - always available
+ * 2. File path references ([Image: source: /path/to/file.ext]) - needs filesystem access
+ *
+ * Returns the entry with `images` field added and base64 data stripped to save bandwidth.
  */
 function processImagesInEntry(entry: any): any {
   const images: Array<{ hash: string; ext: string; url: string; originalPath: string }> = [];
+  let modified = false;
 
-  // Pattern: [Image: source: /path/to/file.ext]
+  // 1. Extract inline base64 image blocks from message content
+  const content = entry?.message?.content;
+  if (Array.isArray(content)) {
+    for (let i = 0; i < content.length; i++) {
+      const block = content[i];
+      if (
+        block?.type === "image" &&
+        block?.source?.type === "base64" &&
+        block?.source?.data &&
+        block?.source?.media_type
+      ) {
+        const mediaType = block.source.media_type as string;
+        const ext = mediaTypeToExt(mediaType);
+        const hash = registerBlob(block.source.data, mediaType);
+        images.push({
+          hash,
+          ext,
+          url: `/file/${hash}.${ext}`,
+          originalPath: `inline:${mediaType}`,
+        });
+        // Replace the heavy base64 block with a lightweight placeholder
+        // so we don't send megabytes of base64 back to the dashboard
+        if (!modified) {
+          // Clone entry + content array on first modification
+          entry = { ...entry, message: { ...entry.message, content: [...content] } };
+          modified = true;
+        }
+        entry.message.content[i] = {
+          type: "text",
+          text: `[Image: ${hash}.${ext}]`,
+        };
+      }
+    }
+  }
+
+  // 2. Scan for file path references: [Image: source: /path/to/file.ext]
   const imagePattern = /\[Image:\s*source:\s*([^\]]+)\]/gi;
 
-  function scanValue(value: any): void {
+  function scanText(value: any): void {
     if (typeof value === 'string') {
       let match;
       while ((match = imagePattern.exec(value)) !== null) {
         const imagePath = match[1].trim();
         const ext = imagePath.split('.').pop()?.toLowerCase() || 'png';
         if (IMAGE_EXTENSIONS.includes(ext)) {
-          const hash = registerImage(imagePath);
-          images.push({
-            hash,
-            ext,
-            url: `/file/${hash}.${ext}`,
-            originalPath: imagePath,
-          });
+          const hash = registerFilePath(imagePath);
+          // Don't add duplicate if we already have this hash from base64
+          if (!images.some(img => img.hash === hash)) {
+            images.push({
+              hash,
+              ext,
+              url: `/file/${hash}.${ext}`,
+              originalPath: imagePath,
+            });
+          }
         }
       }
     } else if (Array.isArray(value)) {
-      value.forEach(scanValue);
+      value.forEach(scanText);
     } else if (value && typeof value === 'object') {
-      Object.values(value).forEach(scanValue);
+      Object.values(value).forEach(scanText);
     }
   }
 
-  scanValue(entry);
+  scanText(entry);
 
   if (images.length > 0) {
     return { ...entry, images };
@@ -287,17 +354,29 @@ export function createApiHandler(options: ApiOptions) {
     const fileMatch = path.match(/^\/file\/([a-z0-9]+)(?:\.[a-z]+)?$/i);
     if (fileMatch && req.method === "GET") {
       const hash = fileMatch[1];
-      const imagePath = getImagePath(hash);
+      const source = getImageSource(hash);
 
-      if (!imagePath) {
+      if (!source) {
         return new Response(JSON.stringify({ error: "Image not found" }), {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Path jail check - image path must resolve within allowed roots
-      const safePath = resolveInJail(imagePath);
+      // Inline blob - serve directly from memory (no filesystem needed)
+      if (source.type === "blob") {
+        return new Response(source.bytes, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": source.mediaType,
+            "Cache-Control": "public, max-age=86400",
+          },
+        });
+      }
+
+      // File path - resolve through path jail
+      const safePath = resolveInJail(source.path);
       if (!safePath) {
         return new Response(JSON.stringify({ error: "Access denied" }), {
           status: 403,
