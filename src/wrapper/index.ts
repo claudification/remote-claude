@@ -5,8 +5,6 @@
  */
 
 import { randomUUID } from "crypto";
-import { realpathSync, existsSync } from "fs";
-import { dirname, join } from "path";
 import { writeMergedSettings, cleanupSettings } from "./settings-merge";
 import { spawnClaude, setupTerminalPassthrough, type PtyProcess } from "./pty-spawn";
 import { startLocalServer, stopLocalServer } from "./local-server";
@@ -18,80 +16,6 @@ const DEBUG = !!process.env.RCLAUDE_DEBUG;
 
 function debug(msg: string) {
   if (DEBUG) console.error(`[rclaude] ${msg}`);
-}
-
-/**
- * Find the concentrator binary
- * Priority: CONCENTRATOR_PATH env -> same dir as rclaude -> PATH
- */
-function findConcentratorBinary(): string | null {
-  // 1. Check env var
-  if (process.env.CONCENTRATOR_PATH) {
-    if (existsSync(process.env.CONCENTRATOR_PATH)) {
-      return process.env.CONCENTRATOR_PATH;
-    }
-    debug(`CONCENTRATOR_PATH set but not found: ${process.env.CONCENTRATOR_PATH}`);
-  }
-
-  // 2. Check same directory as rclaude (resolve symlinks)
-  try {
-    // Use process.execPath for compiled Bun executables (process.argv[1] points to $bunfs)
-    const execPath = process.execPath;
-    const realPath = realpathSync(execPath);
-    const binDir = dirname(realPath);
-    const sameDirPath = join(binDir, "concentrator");
-    debug(`Checking same dir as ${realPath}: ${sameDirPath}`);
-    if (existsSync(sameDirPath)) {
-      return sameDirPath;
-    }
-  } catch (err) {
-    debug(`Error resolving rclaude path: ${err}`);
-  }
-
-  // 3. Check PATH using `which`
-  try {
-    const result = Bun.spawnSync(["which", "concentrator"]);
-    if (result.success && result.stdout) {
-      const path = result.stdout.toString().trim();
-      if (path && existsSync(path)) {
-        debug(`Found in PATH: ${path}`);
-        return path;
-      }
-    }
-  } catch {
-    // which not available or failed
-  }
-
-  debug("Concentrator binary not found");
-  return null;
-}
-
-/**
- * Find web directory for concentrator
- * Priority: CONCENTRATOR_WEB_DIR env -> web/dist relative to binary
- */
-function findWebDir(concentratorPath: string): string | null {
-  // 1. Check env var
-  if (process.env.CONCENTRATOR_WEB_DIR) {
-    if (existsSync(process.env.CONCENTRATOR_WEB_DIR)) {
-      return process.env.CONCENTRATOR_WEB_DIR;
-    }
-    debug(`CONCENTRATOR_WEB_DIR set but not found: ${process.env.CONCENTRATOR_WEB_DIR}`);
-  }
-
-  // 2. Check web/dist relative to concentrator binary
-  try {
-    const realPath = realpathSync(concentratorPath);
-    const binDir = dirname(realPath);
-    const webDistPath = join(binDir, "..", "web", "dist");
-    if (existsSync(webDistPath)) {
-      return webDistPath;
-    }
-  } catch {
-    // Ignore errors
-  }
-
-  return null;
 }
 
 /**
@@ -109,62 +33,6 @@ async function isConcentratorReady(url: string): Promise<boolean> {
   }
 }
 
-/**
- * Ensure concentrator is running, start it if needed
- */
-async function ensureConcentrator(url: string): Promise<boolean> {
-  // Already running?
-  if (await isConcentratorReady(url)) {
-    debug("Concentrator already running");
-    return true;
-  }
-
-  // Find binary
-  const concentratorPath = findConcentratorBinary();
-  if (!concentratorPath) {
-    debug("Could not find concentrator binary");
-    return false;
-  }
-
-  // Build args
-  const args: string[] = [];
-  const webDir = findWebDir(concentratorPath);
-  if (webDir) {
-    args.push("--web-dir", webDir);
-    debug(`Using web dir: ${webDir}`);
-  }
-
-  // Spawn detached
-  debug(`Starting concentrator: ${concentratorPath} ${args.join(" ")}`);
-  try {
-    const proc = Bun.spawn([concentratorPath, ...args], {
-      detached: true,
-      stdio: ["ignore", "ignore", "ignore"],
-    });
-    proc.unref();
-  } catch (err) {
-    debug(`Failed to spawn concentrator: ${err}`);
-    return false;
-  }
-
-  // Poll until ready (max 3 seconds)
-  for (let i = 0; i < 30; i++) {
-    await Bun.sleep(100);
-    if (await isConcentratorReady(url)) {
-      debug("Concentrator started successfully");
-      return true;
-    }
-  }
-
-  // Maybe someone else started it?
-  if (await isConcentratorReady(url)) {
-    debug("Concentrator ready (started by another process)");
-    return true;
-  }
-
-  debug("Concentrator did not start in time");
-  return false;
-}
 
 /**
  * Set terminal title via OSC 2 escape sequence (shows in tmux window name)
@@ -257,9 +125,10 @@ async function main() {
     }
   }
 
-  // Ensure concentrator is running (unless --no-concentrator)
-  if (!noConcentrator) {
-    await ensureConcentrator(concentratorUrl);
+  // Check if concentrator is reachable (unless --no-concentrator)
+  if (!noConcentrator && !(await isConcentratorReady(concentratorUrl))) {
+    debug("Concentrator not reachable - running without it");
+    noConcentrator = true;
   }
 
   // Internal ID for local server validation (not sent to concentrator)
