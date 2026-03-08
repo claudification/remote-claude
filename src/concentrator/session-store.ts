@@ -285,6 +285,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     if (session) {
       session.status = "active";
       session.lastActivity = Date.now();
+      // Reset subagents - restarted session won't have old agents
+      session.subagents = [];
     }
   }
 
