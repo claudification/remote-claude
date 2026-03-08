@@ -7,7 +7,6 @@ import { Settings, X, WifiOff } from 'lucide-react'
 import { useSessionsStore, type TerminalMessage } from '@/hooks/use-sessions'
 import { lastPathSegments } from '@/lib/utils'
 import { TerminalToolbar } from './terminal-toolbar'
-import { SessionSwitcher } from './session-switcher'
 import {
 	TerminalSettingsPanel,
 	loadTerminalSettings,
@@ -23,9 +22,6 @@ interface WebTerminalProps {
 	onSwitchSession: (sessionId: string) => void
 }
 
-// Ref to track switcher state for the xterm key handler (can't use React state in there)
-let switcherOpenRef = false
-
 export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminalProps) {
 	const terminalRef = useRef<HTMLDivElement>(null)
 	const xtermRef = useRef<Terminal | null>(null)
@@ -34,15 +30,10 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 	const sendWsMessage = useSessionsStore(state => state.sendWsMessage)
 	const setTerminalHandler = useSessionsStore(state => state.setTerminalHandler)
 	const isConnected = useSessionsStore(state => state.isConnected)
+	const showSwitcher = useSessionsStore(state => state.showSwitcher)
 	const [terminalError, setTerminalError] = useState<string | null>(null)
 	const [showSettings, setShowSettings] = useState(false)
-	const [showSwitcher, setShowSwitcher] = useState(false)
 	const [settings, setSettings] = useState<TerminalSettings>(loadTerminalSettings)
-
-	// Keep module-level ref in sync
-	useEffect(() => {
-		switcherOpenRef = showSwitcher
-	}, [showSwitcher])
 
 	const sendData = useCallback(
 		(data: string) => {
@@ -92,16 +83,16 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 		const fitAddon = new FitAddon()
 		terminal.loadAddon(fitAddon)
 
-		// Intercept global shortcuts before xterm processes them
+		// Intercept shortcuts before xterm sends them to PTY
 		terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-			// Ctrl+K - session switcher (don't send to PTY)
+			// Ctrl+K - global switcher (handled by app.tsx)
 			if (e.ctrlKey && e.key === 'k') return false
-			// Ctrl+, - settings (don't send to PTY)
+			// Ctrl+, - settings
 			if (e.ctrlKey && e.key === ',') return false
-			// Ctrl+Shift+Q - close (don't send to PTY)
+			// Ctrl+Shift+Q - close
 			if (e.ctrlKey && e.shiftKey && e.key === 'Q') return false
 			// When switcher is open, eat all keys so they don't go to PTY
-			if (switcherOpenRef) return false
+			if (useSessionsStore.getState().showSwitcher) return false
 			return true
 		})
 
@@ -162,7 +153,7 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 		sendWsMessage({ type: 'terminal_attach', sessionId, cols, rows })
 	}, [isConnected, sessionId, sendWsMessage])
 
-	// Global keyboard shortcuts
+	// Terminal-local shortcuts (Ctrl+, for settings, Ctrl+Shift+Q for close)
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
 			if (e.ctrlKey && e.shiftKey && e.key === 'Q') {
@@ -172,19 +163,13 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 			if (e.ctrlKey && e.key === ',') {
 				e.preventDefault()
 				setShowSettings(prev => !prev)
-				setShowSwitcher(false)
-			}
-			if (e.ctrlKey && e.key === 'k') {
-				e.preventDefault()
-				setShowSwitcher(prev => !prev)
-				setShowSettings(false)
 			}
 		}
 		window.addEventListener('keydown', handleKeyDown)
 		return () => window.removeEventListener('keydown', handleKeyDown)
 	}, [onClose])
 
-	// Prevent wheel events from bubbling to window (scroll containment)
+	// Prevent wheel/touch events from bubbling to window (scroll containment)
 	useEffect(() => {
 		const el = terminalRef.current
 		if (!el) return
@@ -208,13 +193,6 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 			xtermRef.current?.focus()
 		}
 	}, [showSwitcher, showSettings])
-
-	function handleSwitchSession(targetSessionId: string) {
-		setShowSwitcher(false)
-		if (targetSessionId !== sessionId) {
-			onSwitchSession(targetSessionId)
-		}
-	}
 
 	const showDisconnected = !isConnected || !!terminalError
 	const currentTheme = getTheme(settings.themeId)
@@ -267,7 +245,7 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 					</span>
 					<button
 						type="button"
-						onClick={() => { setShowSwitcher(prev => !prev); setShowSettings(false) }}
+						onClick={() => useSessionsStore.getState().toggleSwitcher()}
 						className="p-1 transition-colors"
 						style={{ color: showSwitcher ? currentTheme.blue : currentTheme.brightBlack }}
 						title="Switch session (Ctrl+K)"
@@ -276,7 +254,7 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 					</button>
 					<button
 						type="button"
-						onClick={() => { setShowSettings(prev => !prev); setShowSwitcher(false) }}
+						onClick={() => setShowSettings(prev => !prev)}
 						className="p-1 transition-colors"
 						style={{ color: showSettings ? currentTheme.blue : currentTheme.brightBlack }}
 						title="Settings (Ctrl+,)"
@@ -320,14 +298,6 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 					/>
 				)}
 			</div>
-
-			{/* Session switcher overlay */}
-			{showSwitcher && (
-				<SessionSwitcher
-					onSelect={handleSwitchSession}
-					onClose={() => setShowSwitcher(false)}
-				/>
-			)}
 
 			{/* Shortcut toolbar */}
 			<TerminalToolbar onSend={sendData} />

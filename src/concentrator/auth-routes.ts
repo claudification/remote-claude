@@ -109,9 +109,10 @@ export function requireAuth(req: Request): Response | null {
   // Health check always accessible (for Docker healthcheck / monitoring)
   if (url.pathname === "/health") return null;
 
-  // PWA manifest + icons must be public (browsers fetch without cookies)
+  // Static assets must be public - SPA handles auth UI client-side
   if (url.pathname === "/manifest.json" || url.pathname === "/favicon.svg"
-    || url.pathname.startsWith("/icon-") || url.pathname === "/apple-touch-icon.png") return null;
+    || url.pathname.startsWith("/icon-") || url.pathname === "/apple-touch-icon.png"
+    || url.pathname.startsWith("/assets/")) return null;
 
   // Specific auth routes needed for login/registration flow (no cookie yet)
   if (PUBLIC_AUTH_ROUTES.has(url.pathname)) return null;

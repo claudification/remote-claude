@@ -13,8 +13,7 @@ import { useWebSocket } from '@/hooks/use-websocket'
 function Dashboard() {
 	const [sheetOpen, setSheetOpen] = useState(false)
 	const [errorExpanded, setErrorExpanded] = useState(false)
-	const [showSwitcher, setShowSwitcher] = useState(false)
-	const { selectedSessionId, setEvents, setTranscript, error, showTerminal } = useSessionsStore()
+	const { selectedSessionId, setEvents, setTranscript, error, showSwitcher } = useSessionsStore()
 
 	// Auto-expand on new error, auto-collapse after 4s
 	useEffect(() => {
@@ -53,17 +52,28 @@ function Dashboard() {
 		}
 	}, [selectedSessionId])
 
-	// Global Ctrl+K session switcher (works outside terminal too)
+	// Global Ctrl+K session switcher - works EVERYWHERE (dashboard + terminal)
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
-			if (e.ctrlKey && e.key === 'k' && !showTerminal) {
+			if (e.ctrlKey && e.key === 'k') {
 				e.preventDefault()
-				setShowSwitcher(prev => !prev)
+				useSessionsStore.getState().toggleSwitcher()
 			}
 		}
 		window.addEventListener('keydown', handleKeyDown)
 		return () => window.removeEventListener('keydown', handleKeyDown)
-	}, [showTerminal])
+	}, [])
+
+	function handleSwitcherSelect(id: string) {
+		const store = useSessionsStore.getState()
+		const session = store.sessions.find(s => s.id === id)
+		if (session && (session.status === 'active' || session.status === 'idle') && session.capabilities?.includes('terminal')) {
+			store.openTerminal(id)
+		} else {
+			store.selectSession(id)
+			store.setShowSwitcher(false)
+		}
+	}
 
 	return (
 		<div className="h-full flex flex-col p-2 sm:p-4 max-w-[1400px] mx-auto overflow-hidden">
@@ -131,20 +141,11 @@ function Dashboard() {
 				</div>
 			</div>
 
-			{/* Global session switcher (Ctrl+K outside terminal) */}
+			{/* Global session switcher (Ctrl+K from anywhere) */}
 			{showSwitcher && (
 				<SessionSwitcher
-					onSelect={id => {
-						setShowSwitcher(false)
-						const store = useSessionsStore.getState()
-						const session = store.sessions.find(s => s.id === id)
-						if (session && (session.status === 'active' || session.status === 'idle') && session.capabilities?.includes('terminal')) {
-							store.openTerminal(id)
-						} else {
-							store.selectSession(id)
-						}
-					}}
-					onClose={() => setShowSwitcher(false)}
+					onSelect={handleSwitcherSelect}
+					onClose={() => useSessionsStore.getState().setShowSwitcher(false)}
 				/>
 			)}
 		</div>
