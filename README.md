@@ -6,7 +6,7 @@
 /_/   \___/_/ /_/ /_/\____/\__/\___/   \___/_/\__,_/\__,_/\__,_/\___/
 
         ┌─────────────────────────────────────────────────────┐
-        │  DISTRIBUTED SESSION MONITORING FOR CLAUDE CODE    │
+        │  DISTRIBUTED SESSION MONITORING FOR CLAUDE CODE     │
         └─────────────────────────────────────────────────────┘
 ```
 
@@ -343,6 +343,222 @@ remote-claude/
 ├── Dockerfile                # Multi-stage build
 ├── docker-compose.yml        # Production deployment
 └── .env.example              # Configuration template
+```
+
+## Shell Integration
+
+### Wrapper function (`cc` / `ccc`)
+
+Instead of calling `rclaude` directly, wrap it in a shell function that handles permissions, tmux integration, and fallback to plain `claude` when rclaude isn't installed.
+
+Add to your `~/.zshrc` or `~/.bashrc`:
+
+```bash
+# Claude Code with rclaude integration
+# Usage: cc [--safe] [--tmux] [--no-tmux] [--no-rclaude] [claude args...]
+cc() {
+  local safe_mode=false
+  local tmux_mode=false
+  local no_rclaude=false
+  local named_session=""
+  local args=()
+
+  # Check for project-specific tmux session name
+  # Set via: cc-set-tmux-name my-project
+  if [[ -f ".claude/settings.local.json" ]]; then
+    named_session=$(jq -r '.["tmux-session-name"] // empty' .claude/settings.local.json 2>/dev/null)
+    if [[ -n "$named_session" ]]; then
+      tmux_mode=true
+    fi
+  fi
+
+  # Parse our flags, pass everything else to claude
+  for arg in "$@"; do
+    case "$arg" in
+      --safe)       safe_mode=true ;;
+      --tmux)       tmux_mode=true ;;
+      --no-tmux)    tmux_mode=false; named_session="" ;;
+      --no-rclaude) no_rclaude=true ;;
+      *)            args+=("$arg") ;;
+    esac
+  done
+
+  # rclaude by default, fall back to claude
+  local base_cmd="rclaude"
+  if [[ "$no_rclaude" == true ]] || ! command -v rclaude &>/dev/null; then
+    base_cmd="claude"
+  fi
+
+  # Skip permissions by default (--safe to disable)
+  local cmd="$base_cmd"
+  if [[ "$safe_mode" == false ]]; then
+    cmd="$cmd --dangerously-skip-permissions"
+  fi
+
+  # Append remaining args
+  if [[ ${#args[@]} -gt 0 ]]; then
+    cmd="$cmd ${args[@]}"
+  fi
+
+  # Non-tmux: just run it
+  if [[ "$tmux_mode" == false ]]; then
+    eval "$cmd"
+    return
+  fi
+
+  # --- tmux mode ---
+
+  # Skip tmux wrapping inside IDE terminals
+  if [[ "$TERM_PROGRAM" == "vscode" ]] || [[ "$TERMINAL_EMULATOR" == "JetBrains-JediTerm" ]]; then
+    echo "Warning: tmux mode ignored in IDE terminal"
+    eval "$cmd"
+    return
+  fi
+
+  # Already inside tmux
+  if [[ -n "$TMUX" ]]; then
+    if [[ -n "$named_session" ]]; then
+      local current_session=$(tmux display-message -p '#S')
+      if [[ "$current_session" != "$named_session" ]]; then
+        if ! tmux has-session -t "$named_session" 2>/dev/null; then
+          tmux new-session -d -s "$named_session" -c "$PWD" -n "$named_session" "$cmd"
+        fi
+        tmux switch-client -t "$named_session"
+        return
+      fi
+    fi
+    eval "$cmd"
+    return
+  fi
+
+  # Outside tmux - create session
+  if [[ -n "$named_session" ]]; then
+    if ! tmux has-session -t "$named_session" 2>/dev/null; then
+      tmux new-session -d -s "$named_session" -c "$PWD" -n "$named_session" "$cmd"
+    fi
+    tmux attach -t "$named_session"
+  else
+    local session_name="claude-$$"
+    tmux new-session -d -s "$session_name" -c "$PWD" "$cmd"
+    tmux attach -t "$session_name"
+  fi
+}
+
+# Quick alias: cc in continue mode
+ccc() { cc -c "$@"; }
+```
+
+**Flags:**
+
+| Flag | Effect |
+|------|--------|
+| `--safe` | Don't skip permissions (interactive approval mode) |
+| `--tmux` | Force tmux wrapping even without project config |
+| `--no-tmux` | Disable tmux wrapping even if project config exists |
+| `--no-rclaude` | Use plain `claude` instead of `rclaude` |
+
+**Examples:**
+
+```bash
+cc                          # rclaude with skip-permissions
+cc --safe                   # rclaude with permission prompts
+cc --tmux                   # launch in dedicated tmux session
+cc -p "fix the build"       # non-interactive prompt
+cc --no-rclaude             # plain claude, no concentrator
+ccc                         # continue previous session (cc -c)
+```
+
+### Per-project tmux sessions
+
+You can assign a named tmux session to any project. When you run `cc` in that directory, it auto-creates (or reattaches to) a dedicated tmux session.
+
+```bash
+# Helper to set session name for current project
+cc-set-tmux-name() {
+  local name="$1"
+  if [[ -z "$name" ]]; then
+    echo "Usage: cc-set-tmux-name <session-name>"
+    return 1
+  fi
+  mkdir -p .claude
+  local f=".claude/settings.local.json"
+  [[ -f "$f" ]] || echo '{}' > "$f"
+  local tmp=$(mktemp)
+  jq --arg name "$name" '.["tmux-session-name"] = $name' "$f" > "$tmp" && mv "$tmp" "$f"
+  echo "Set tmux-session-name to: $name"
+}
+```
+
+```bash
+cd ~/projects/my-api
+cc-set-tmux-name my-api     # writes to .claude/settings.local.json
+cc                           # auto-creates tmux session "my-api"
+```
+
+Now every `cc` in that project directory opens the same tmux session. Switching between projects = switching tmux sessions.
+
+## tmux Configuration
+
+rclaude sets the tmux window title to the last 2 path segments of the working directory (max 20 chars), so you can distinguish multiple sessions at a glance.
+
+**Required tmux settings** -- add to `~/.tmux.conf`:
+
+```tmux
+# Let applications set window titles (required for rclaude)
+setw -g allow-rename on
+
+# Auto-rename shows the running program name when no app title is set
+setw -g automatic-rename on
+```
+
+**Recommended tmux config** for a good Claude Code experience:
+
+```tmux
+# -- general --
+set -g default-terminal "screen-256color"
+set -s escape-time 10                     # faster key sequences
+set -sg repeat-time 600                   # increase repeat timeout
+set -s focus-events on
+set -g history-limit 5000                 # generous scrollback
+
+# -- display --
+set -g base-index 1                       # start windows at 1
+setw -g pane-base-index 1                 # panes too
+
+setw -g automatic-rename on              # rename to current program
+setw -g allow-rename on                  # let rclaude set window title
+set -g renumber-windows on               # no gaps in window numbers
+
+set -g set-titles on                      # set terminal title
+set -g status-interval 10                 # refresh status every 10s
+
+# -- navigation --
+bind - split-window -v                    # split horizontal
+bind _ split-window -h                    # split vertical
+
+# vim-style pane navigation
+bind -r h select-pane -L
+bind -r j select-pane -D
+bind -r k select-pane -U
+bind -r l select-pane -R
+
+# pane resizing
+bind -r H resize-pane -L 2
+bind -r J resize-pane -D 2
+bind -r K resize-pane -U 2
+bind -r L resize-pane -R 2
+```
+
+**What it looks like with multiple sessions:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1:my-api  2:frontend  3:infra  4:zsh                      │
+│                                                             │
+│  Each rclaude window shows its project directory instead    │
+│  of "rclaude" -- making it easy to find the right session   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Development
