@@ -20,7 +20,6 @@ import {
   addCredential,
   storeChallenge,
   getChallenge,
-  getAllUsers,
   findUserByCredentialId,
   updateCredentialCounter,
   createSession,
@@ -245,18 +244,9 @@ export async function handleAuthRoute(req: Request): Promise<Response | null> {
 
   // --- Authentication: generate options ---
   if (path === "/auth/login/options" && req.method === "POST") {
-    // Get all non-revoked credentials for discoverable auth
-    const users = getAllUsers().filter(u => !u.revoked && u.credentials.length > 0);
-    const allowCredentials = users.flatMap(u =>
-      u.credentials.map(c => ({
-        id: c.credentialId,
-        transports: c.transports,
-      }))
-    );
-
     const options = await generateAuthenticationOptions({
       rpID: getRpId(),
-      allowCredentials: allowCredentials.length > 0 ? allowCredentials : undefined,
+      allowCredentials: [], // Empty = discoverable credentials mode (no QR code)
       userVerification: "preferred",
     });
 
