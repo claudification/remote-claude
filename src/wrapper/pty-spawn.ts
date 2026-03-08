@@ -42,6 +42,7 @@ export function spawnClaude(options: PtyOptions): PtyProcess {
     options;
 
   const { cols, rows } = getTerminalSize();
+  const utf8Decoder = new TextDecoder("utf-8", { fatal: false });
 
   // Build command args - inject --settings before other args
   const claudeArgs = ["--settings", settingsPath, ...args];
@@ -55,7 +56,9 @@ export function spawnClaude(options: PtyOptions): PtyProcess {
       RCLAUDE_PORT: String(localServerPort),
       // Ensure color output
       FORCE_COLOR: "1",
-      TERM: process.env.TERM || "xterm-256color",
+      // Force xterm-256color regardless of outer shell (tmux sets screen-256color)
+      // Remote viewer is xterm.js which IS xterm - must match
+      TERM: "xterm-256color",
     },
     terminal: {
       cols,
@@ -63,8 +66,8 @@ export function spawnClaude(options: PtyOptions): PtyProcess {
       data(_terminal, data) {
         // Write to stdout
         process.stdout.write(data);
-        // Optional callback for ANSI tracking
-        onData?.(data.toString());
+        // Decode with streaming TextDecoder to handle split UTF-8 sequences
+        onData?.(utf8Decoder.decode(data, { stream: true }));
       },
     },
     onExit(_proc, exitCode, _signalCode, _error) {

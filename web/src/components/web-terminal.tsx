@@ -111,6 +111,10 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 		xtermRef.current = terminal
 		fitAddonRef.current = fitAddon
 
+		// Prime xterm.js with a clean state before PTY data flows in
+		// RIS (reset) + clear + cursor home + show cursor
+		terminal.write('\x1bc\x1b[2J\x1b[H\x1b[?25h')
+
 		const dataDisposable = terminal.onData(data => {
 			sendWsMessage({ type: 'terminal_data', sessionId, data })
 		})
