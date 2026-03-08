@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { fetchSessionEvents, fetchTranscript, useSessionsStore } from '@/hooks/use-sessions'
 import type { Session } from '@/lib/types'
 import { cn, formatAge, formatModel, lastPathSegments } from '@/lib/utils'
@@ -68,23 +69,13 @@ function SessionItem({ session }: { session: Session }) {
 
 export function SessionList() {
 	const { sessions } = useSessionsStore()
+	const [showInactive, setShowInactive] = useState(false)
 
-	const sorted = [...sessions].sort((a, b) => {
-		const aActive = a.status === 'active'
-		const bActive = b.status === 'active'
+	const active = sessions.filter(s => s.status === 'active' || s.status === 'idle')
+	const inactive = sessions.filter(s => s.status !== 'active' && s.status !== 'idle')
 
-		// Active sessions first
-		if (aActive && !bActive) return -1
-		if (!aActive && bActive) return 1
-
-		// Within active: sort by path name (alphabetical, stable)
-		if (aActive && bActive) {
-			return a.cwd.localeCompare(b.cwd)
-		}
-
-		// Within inactive: sort by last activity (most recent first)
-		return b.lastActivity - a.lastActivity
-	})
+	const sorted = [...active].sort((a, b) => a.cwd.localeCompare(b.cwd))
+	const sortedInactive = [...inactive].sort((a, b) => b.lastActivity - a.lastActivity)
 
 	if (sessions.length === 0) {
 		return (
@@ -104,6 +95,20 @@ export function SessionList() {
 	return (
 		<div className="space-y-2">
 			{sorted.map(session => (
+				<SessionItem key={session.id} session={session} />
+			))}
+			{inactive.length > 0 && (
+				<label className="flex items-center gap-2 px-2 py-1.5 text-muted-foreground text-xs cursor-pointer select-none">
+					<input
+						type="checkbox"
+						checked={showInactive}
+						onChange={e => setShowInactive(e.target.checked)}
+						className="accent-primary"
+					/>
+					show inactive ({inactive.length})
+				</label>
+			)}
+			{showInactive && sortedInactive.map(session => (
 				<SessionItem key={session.id} session={session} />
 			))}
 		</div>
