@@ -339,7 +339,13 @@ export function SessionDetail() {
 
 			{/* Terminal overlay */}
 			{showTerminal && selectedSessionId && hasTerminal && (
-				<WebTerminal sessionId={selectedSessionId} onClose={() => setShowTerminal(false)} />
+				<WebTerminal
+					sessionId={selectedSessionId}
+					onClose={() => setShowTerminal(false)}
+					onSwitchSession={id => {
+						useSessionsStore.getState().selectSession(id)
+					}}
+				/>
 			)}
 
 			{/* Revive button for ended sessions */}
