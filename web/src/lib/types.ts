@@ -14,9 +14,9 @@ export interface TeamInfo {
 
 export type WrapperCapability = 'terminal'
 
-/** Check if a session can open a terminal. Assumes terminal capability if capabilities not declared (pre-capability sessions). */
+/** Check if a session can open a terminal. Requires explicit terminal capability. */
 export function canTerminal(s: Session): boolean {
-	return (s.status === 'active' || s.status === 'idle') && (!s.capabilities || s.capabilities.includes('terminal'))
+	return (s.status === 'active' || s.status === 'idle') && !!s.capabilities?.includes('terminal')
 }
 
 export interface Session {

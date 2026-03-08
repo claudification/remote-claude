@@ -39,11 +39,13 @@ function SessionItem({ session }: { session: Session }) {
 			onClick={handleClick}
 			className={cn(
 				'w-full text-left p-3 border transition-colors',
-				isSelected ? 'border-accent bg-accent/10' : 'border-border hover:border-primary hover:bg-card',
+				isSelected
+					? 'border-accent bg-accent/15 ring-1 ring-accent/50 shadow-[0_0_8px_rgba(122,162,247,0.15)]'
+					: 'border-border hover:border-primary hover:bg-card',
 			)}
 		>
 			{/* Path - most important */}
-			<div className="text-primary font-bold text-sm">{lastPathSegments(session.cwd)}</div>
+			<div className={cn('font-bold text-sm', isSelected ? 'text-accent' : 'text-primary')}>{lastPathSegments(session.cwd)}</div>
 			{/* Session ID - small */}
 			<div className="text-muted-foreground text-[10px] mt-0.5 font-mono">{session.id.slice(0, 8)}</div>
 			{/* Status row */}
@@ -74,8 +76,8 @@ export function SessionList() {
 	const active = sessions.filter(s => s.status === 'active' || s.status === 'idle')
 	const inactive = sessions.filter(s => s.status !== 'active' && s.status !== 'idle')
 
-	const sorted = [...active].sort((a, b) => a.cwd.localeCompare(b.cwd))
-	const sortedInactive = [...inactive].sort((a, b) => b.lastActivity - a.lastActivity)
+	const sorted = [...active].sort((a, b) => b.startedAt - a.startedAt)
+	const sortedInactive = [...inactive].sort((a, b) => b.startedAt - a.startedAt)
 
 	if (sessions.length === 0) {
 		return (

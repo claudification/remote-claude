@@ -15,13 +15,10 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 	const [activeIndex, setActiveIndex] = useState(0)
 	const inputRef = useRef<HTMLInputElement>(null)
 
-	// Show all sessions - active ones for terminal, ended ones for revive
-	const allSessions = [...sessions].sort((a, b) => {
-		const statusOrder = { active: 0, idle: 1, ended: 2 }
-		const sDiff = statusOrder[a.status] - statusOrder[b.status]
-		if (sDiff !== 0) return sDiff
-		return b.lastActivity - a.lastActivity
-	})
+	// Hide ended sessions if an active/idle session exists in the same cwd
+	const activeCwds = new Set(sessions.filter(s => s.status !== 'ended').map(s => s.cwd))
+	const deduplicated = sessions.filter(s => s.status !== 'ended' || !activeCwds.has(s.cwd))
+	const allSessions = [...deduplicated].sort((a, b) => b.startedAt - a.startedAt)
 
 	const filtered = filter
 		? allSessions.filter(s => {

@@ -116,12 +116,38 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 		terminal.write('\x1bc\x1b[2J\x1b[H\x1b[?25l')
 
 		const dataDisposable = terminal.onData(data => {
-			sendWsMessage({ type: 'terminal_data', sessionId, data })
+			// Shift+Enter in xterm.js sends ESC[13;2u (CSI u) - translate to \n for Claude Code
+			const translated = data === '\x1b[13;2u' ? '\n' : data
+			sendWsMessage({ type: 'terminal_data', sessionId, data: translated })
 		})
 
 		const handler = (msg: TerminalMessage) => {
 			if (msg.sessionId !== sessionId) return
 			if (msg.type === 'terminal_data' && msg.data) {
+				// Debug: detect characters that cause line offset issues
+				const d = msg.data
+				for (let i = 0; i < d.length; i++) {
+					const code = d.charCodeAt(i)
+					// U+FFFD replacement char = encoding broke somewhere
+					if (code === 0xfffd) {
+						const hex = [...d.substring(Math.max(0, i - 3), i + 3)].map(c => 'U+' + c.charCodeAt(0).toString(16).padStart(4, '0')).join(' ')
+						console.warn(`[term] REPLACEMENT CHAR at ${i}/${d.length}, nearby: ${hex}`)
+					}
+					// Lone surrogates = broken string
+					if (code >= 0xd800 && code <= 0xdfff) {
+						const isHigh = code <= 0xdbff
+						const next = d.charCodeAt(i + 1)
+						if (isHigh && !(next >= 0xdc00 && next <= 0xdfff)) {
+							console.warn(`[term] LONE SURROGATE U+${code.toString(16)} at ${i}/${d.length}`)
+						} else if (!isHigh) {
+							console.warn(`[term] ORPHAN LOW SURROGATE U+${code.toString(16)} at ${i}/${d.length}`)
+						}
+					}
+					// Zero-width chars that shouldn't be in terminal data
+					if (code === 0xfeff || code === 0x200b || code === 0x200c || code === 0x200d || code === 0x2060) {
+						console.warn(`[term] ZERO-WIDTH U+${code.toString(16)} at ${i}/${d.length}`)
+					}
+				}
 				terminal.write(msg.data)
 			} else if (msg.type === 'terminal_error') {
 				setTerminalError(msg.error || 'Connection lost')

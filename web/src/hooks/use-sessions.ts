@@ -41,6 +41,33 @@ interface SessionsState {
 	getSelectedTranscript: () => TranscriptEntry[]
 }
 
+function updateHash(fragment: string) {
+	const next = fragment ? `#${fragment}` : ''
+	if (window.location.hash !== next) {
+		history.replaceState(null, '', next || window.location.pathname)
+	}
+}
+
+let hashApplied = false
+
+export function applyHashRoute() {
+	if (hashApplied) return
+	hashApplied = true
+
+	const hash = window.location.hash.slice(1)
+	if (!hash) return
+
+	const [mode, sessionId] = hash.split('/')
+	if (!sessionId) return
+
+	const store = useSessionsStore.getState()
+	if (mode === 'terminal') {
+		store.openTerminal(sessionId)
+	} else if (mode === 'session') {
+		store.selectSession(sessionId)
+	}
+}
+
 export const useSessionsStore = create<SessionsState>((set, get) => ({
 	sessions: [],
 	selectedSessionId: null,
@@ -55,11 +82,23 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 	showSwitcher: false,
 
 	setSessions: sessions => set({ sessions }),
-	selectSession: id => set({ selectedSessionId: id }),
-	setShowTerminal: show => set({ showTerminal: show }),
+	selectSession: id => {
+		set({ selectedSessionId: id })
+		updateHash(id ? `session/${id}` : '')
+	},
+	setShowTerminal: show => {
+		set({ showTerminal: show })
+		if (!show) {
+			const { selectedSessionId } = get()
+			updateHash(selectedSessionId ? `session/${selectedSessionId}` : '')
+		}
+	},
 	setShowSwitcher: show => set({ showSwitcher: show }),
 	toggleSwitcher: () => set(state => ({ showSwitcher: !state.showSwitcher })),
-	openTerminal: sessionId => set({ selectedSessionId: sessionId, showTerminal: true, showSwitcher: false }),
+	openTerminal: sessionId => {
+		set({ selectedSessionId: sessionId, showTerminal: true, showSwitcher: false })
+		updateHash(`terminal/${sessionId}`)
+	},
 	setEvents: (sessionId, events) => set(state => ({ events: { ...state.events, [sessionId]: events } })),
 	setTranscript: (sessionId, entries) =>
 		set(state => ({ transcripts: { ...state.transcripts, [sessionId]: entries } })),

@@ -2,7 +2,7 @@
  * WebSocket hook for real-time updates from concentrator
  */
 import { useEffect, useRef, useCallback } from 'react'
-import { useSessionsStore } from './use-sessions'
+import { applyHashRoute, useSessionsStore } from './use-sessions'
 import type { HookEvent, Session, WrapperCapability } from '@/lib/types'
 
 interface SessionSummary {
@@ -110,6 +110,8 @@ export function useWebSocket() {
 							// Initial load - full sessions list
 							if (msg.sessions) {
 								setSessions(msg.sessions.map(toSession))
+								// Apply hash route after sessions are loaded (deep link support)
+								applyHashRoute()
 							}
 							break
 						}

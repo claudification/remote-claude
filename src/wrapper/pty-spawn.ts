@@ -67,7 +67,9 @@ export function spawnClaude(options: PtyOptions): PtyProcess {
         // Write to stdout
         process.stdout.write(data);
         // Decode with streaming TextDecoder to handle split UTF-8 sequences
-        onData?.(utf8Decoder.decode(data, { stream: true }));
+        // Strip U+FFFD replacement chars (invalid bytes from PTY binary output)
+        const decoded = utf8Decoder.decode(data, { stream: true });
+        onData?.(decoded.indexOf("\uFFFD") >= 0 ? decoded.replaceAll("\uFFFD", "") : decoded);
       },
     },
     onExit(_proc, exitCode, _signalCode, _error) {
