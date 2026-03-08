@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { useSessionsStore } from '@/hooks/use-sessions'
 
@@ -9,6 +10,7 @@ const ASCII_LOGO = `\u00A0██████╗██╗      █████╗
 \u00A0╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝`
 
 export function Header() {
+	const [expanded, setExpanded] = useState(false)
 	const { sessions, isConnected } = useSessionsStore()
 
 	const active = sessions.filter(s => s.status === 'active').length
@@ -18,23 +20,21 @@ export function Header() {
 	const teamCount = sessions.filter(s => s.team).length
 
 	return (
-		<header className="border border-border p-3 sm:p-4 font-mono">
-			{/* Full ASCII logo: shown on md+ width AND 600px+ height */}
-			<pre className="hidden md:block [@media(max-height:599px)]:!hidden text-primary text-xs leading-tight whitespace-pre">
-				{ASCII_LOGO}
-			</pre>
+		<header
+			className="border border-border p-2 sm:p-3 font-mono cursor-pointer select-none"
+			onClick={() => setExpanded(!expanded)}
+		>
+			{expanded && (
+				<pre className="hidden md:block text-primary text-xs leading-tight whitespace-pre mb-2">
+					{ASCII_LOGO}
+				</pre>
+			)}
 
-			{/* Compact title: shown on small width OR short screens */}
-			<div className="md:hidden [@media(max-height:599px)]:!block text-primary font-bold text-lg">
-				CLAUDE CONCENTRATOR
-			</div>
+			{/* Stats row - always visible */}
+			<div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm">
+				<span className="text-primary font-bold">CONCENTRATOR</span>
+				<span className="text-muted-foreground">|</span>
 
-			{/* Stats row */}
-			<div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm">
-				<span className="hidden sm:inline text-accent">CONCENTRATOR</span>
-				<span className="hidden sm:inline text-muted-foreground">|</span>
-
-				{/* Session counts as badges on mobile, inline on desktop */}
 				<div className="flex items-center gap-1 sm:gap-2">
 					<Badge variant="outline" className="bg-active/20 text-active border-active/50 text-xs">
 						{active} active
@@ -57,9 +57,8 @@ export function Header() {
 					)}
 				</div>
 
-				<span className="hidden sm:inline text-muted-foreground">|</span>
+				<span className="text-muted-foreground">|</span>
 
-				{/* Connection status */}
 				<span className={`text-xs sm:text-sm ${isConnected ? 'text-active' : 'text-destructive'}`}>
 					{isConnected ? '● Connected' : '○ Disconnected'}
 				</span>
