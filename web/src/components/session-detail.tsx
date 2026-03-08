@@ -54,7 +54,8 @@ export function SessionDetail() {
 	const [isReviving, setIsReviving] = useState(false)
 	const [reviveError, setReviveError] = useState<string | null>(null)
 	const [infoExpanded, setInfoExpanded] = useState(false)
-	const [showTerminal, setShowTerminal] = useState(false)
+	const showTerminal = useSessionsStore(state => state.showTerminal)
+	const setShowTerminal = useSessionsStore(state => state.setShowTerminal)
 	const inputRef = useRef<HTMLInputElement>(null)
 
 	const sessions = useSessionsStore(state => state.sessions)
@@ -343,7 +344,7 @@ export function SessionDetail() {
 					sessionId={selectedSessionId}
 					onClose={() => setShowTerminal(false)}
 					onSwitchSession={id => {
-						useSessionsStore.getState().selectSession(id)
+						useSessionsStore.getState().openTerminal(id)
 					}}
 				/>
 			)}

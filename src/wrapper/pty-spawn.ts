@@ -21,6 +21,7 @@ export interface PtyProcess {
   write: (data: string) => void;
   resize: (cols: number, rows: number) => void;
   kill: (signal?: NodeJS.Signals) => void;
+  redraw: () => void;
 }
 
 /**
@@ -81,6 +82,13 @@ export function spawnClaude(options: PtyOptions): PtyProcess {
     },
     kill(signal: NodeJS.Signals = "SIGTERM") {
       proc.kill(signal);
+    },
+    redraw() {
+      // Send SIGWINCH to force the application to repaint the screen
+      // Works with Claude Code (ink/React), vim, htop, etc.
+      if (proc.pid) {
+        process.kill(proc.pid, "SIGWINCH");
+      }
     },
   };
 }

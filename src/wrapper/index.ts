@@ -204,6 +204,9 @@ async function main() {
         debug(`Terminal attached (${cols}x${rows}), saved local size (${savedTerminalSize.cols}x${savedTerminalSize.rows})`);
         if (ptyProcess) {
           ptyProcess.resize(cols, rows);
+          // Force full screen repaint so remote viewer sees current state
+          // Small delay to let resize settle before SIGWINCH
+          setTimeout(() => ptyProcess?.redraw(), 50);
         }
       },
       onTerminalDetach() {

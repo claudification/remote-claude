@@ -5,6 +5,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 import { Settings, X, WifiOff } from 'lucide-react'
 import { useSessionsStore, type TerminalMessage } from '@/hooks/use-sessions'
+import { lastPathSegments } from '@/lib/utils'
 import { TerminalToolbar } from './terminal-toolbar'
 import { SessionSwitcher } from './session-switcher'
 import {
@@ -29,6 +30,7 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 	const terminalRef = useRef<HTMLDivElement>(null)
 	const xtermRef = useRef<Terminal | null>(null)
 	const fitAddonRef = useRef<FitAddon | null>(null)
+	const sessions = useSessionsStore(state => state.sessions)
 	const sendWsMessage = useSessionsStore(state => state.sendWsMessage)
 	const setTerminalHandler = useSessionsStore(state => state.setTerminalHandler)
 	const isConnected = useSessionsStore(state => state.isConnected)
@@ -182,6 +184,24 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 		return () => window.removeEventListener('keydown', handleKeyDown)
 	}, [onClose])
 
+	// Prevent wheel events from bubbling to window (scroll containment)
+	useEffect(() => {
+		const el = terminalRef.current
+		if (!el) return
+		function stopWheel(e: WheelEvent) {
+			e.stopPropagation()
+		}
+		function stopTouch(e: TouchEvent) {
+			e.stopPropagation()
+		}
+		el.addEventListener('wheel', stopWheel, { passive: true })
+		el.addEventListener('touchmove', stopTouch, { passive: true })
+		return () => {
+			el.removeEventListener('wheel', stopWheel)
+			el.removeEventListener('touchmove', stopTouch)
+		}
+	}, [])
+
 	// Re-focus terminal when switcher/settings close
 	useEffect(() => {
 		if (!showSwitcher && !showSettings) {
@@ -199,21 +219,50 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 	const showDisconnected = !isConnected || !!terminalError
 	const currentTheme = getTheme(settings.themeId)
 
+	// Terminal-capable active/idle sessions for tabs
+	const terminalSessions = sessions.filter(
+		s => (s.status === 'active' || s.status === 'idle') && s.capabilities?.includes('terminal'),
+	)
+
 	return (
-		<div className="fixed inset-0 z-50 flex flex-col" style={{ background: currentTheme.background }}>
-			{/* Header bar */}
+		<div className="fixed inset-0 z-50 flex flex-col overflow-hidden" style={{ background: currentTheme.background }}>
+			{/* Header bar with session tabs */}
 			<div
-				className="shrink-0 flex items-center justify-between px-3 py-1.5 border-b"
+				className="shrink-0 flex items-center border-b"
 				style={{ background: currentTheme.black, borderColor: currentTheme.brightBlack }}
 			>
-				<div className="flex items-center gap-2">
-					{showDisconnected && <WifiOff className="w-3 h-3" style={{ color: currentTheme.red }} />}
-					<span className="text-[10px] font-mono" style={{ color: currentTheme.brightBlack }}>
-						TERMINAL - {sessionId.slice(0, 8)}...
-					</span>
+				{/* Session tabs */}
+				<div className="flex items-center overflow-x-auto min-w-0 flex-1">
+					{terminalSessions.map(s => (
+						<button
+							key={s.id}
+							type="button"
+							onClick={() => { if (s.id !== sessionId) onSwitchSession(s.id) }}
+							className="shrink-0 px-3 py-1.5 text-[10px] font-mono border-r transition-colors flex items-center gap-1.5"
+							style={{
+								borderColor: `${currentTheme.brightBlack}60`,
+								background: s.id === sessionId ? currentTheme.background : 'transparent',
+								color: s.id === sessionId ? currentTheme.foreground : currentTheme.brightBlack,
+							}}
+							title={s.cwd}
+						>
+							<span
+								className="w-1.5 h-1.5 rounded-full shrink-0"
+								style={{ background: s.status === 'active' ? currentTheme.green : currentTheme.yellow }}
+							/>
+							{lastPathSegments(s.cwd, 2)}
+						</button>
+					))}
+					{terminalSessions.length === 0 && (
+						<span className="px-3 py-1.5 text-[10px] font-mono" style={{ color: currentTheme.brightBlack }}>
+							{showDisconnected && <WifiOff className="w-3 h-3 inline mr-1.5" />}
+							TERMINAL - {sessionId.slice(0, 8)}
+						</span>
+					)}
 				</div>
-				<div className="flex items-center gap-1">
-					<span className="text-[10px] font-mono mr-2" style={{ color: currentTheme.brightBlack }}>
+				{/* Actions */}
+				<div className="flex items-center gap-1 px-2 shrink-0">
+					<span className="text-[10px] font-mono mr-1 hidden sm:inline" style={{ color: currentTheme.brightBlack }}>
 						^K switch  ^, settings  ^Q close
 					</span>
 					<button
@@ -260,8 +309,8 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 			)}
 
 			{/* Terminal area */}
-			<div className="relative flex-1 min-h-0">
-				<div ref={terminalRef} className="absolute inset-0 p-1" />
+			<div className="relative flex-1 min-h-0" style={{ overscrollBehavior: 'contain' }}>
+				<div ref={terminalRef} className="absolute inset-0 p-1" style={{ overscrollBehavior: 'contain' }} />
 
 				{showSettings && (
 					<TerminalSettingsPanel
