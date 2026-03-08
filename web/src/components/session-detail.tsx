@@ -1,17 +1,18 @@
 import { Bell, ChevronDown, ChevronRight, Terminal, X } from 'lucide-react'
-import { useRef, useState, useMemo } from 'react'
+import { useRef, useState, useMemo, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { reviveSession, sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { cn, formatAge, formatModel } from '@/lib/utils'
 import { canTerminal, type HookEvent } from '@/lib/types'
+import { BgTasksView } from './bg-tasks-view'
 import { EventsView } from './events-view'
 import { SubagentView } from './subagent-view'
 import { TasksView } from './tasks-view'
 import { TranscriptView } from './transcript-view'
 import { WebTerminal } from './web-terminal'
 
-type Tab = 'transcript' | 'events' | 'agents' | 'tasks'
+type Tab = 'transcript' | 'events' | 'agents' | 'tasks' | 'bg'
 
 // Find the latest notification that hasn't been "dismissed" by subsequent activity
 function getActiveNotification(events: HookEvent[]): HookEvent | null {
@@ -57,7 +58,16 @@ export function SessionDetail() {
 	const [infoExpanded, setInfoExpanded] = useState(false)
 	const showTerminal = useSessionsStore(state => state.showTerminal)
 	const setShowTerminal = useSessionsStore(state => state.setShowTerminal)
+	const requestedTab = useSessionsStore(state => state.requestedTab)
 	const inputRef = useRef<HTMLInputElement>(null)
+
+	// Apply requested tab from external navigation (badge clicks)
+	useEffect(() => {
+		if (requestedTab) {
+			setActiveTab(requestedTab as Tab)
+			useSessionsStore.setState({ requestedTab: null })
+		}
+	}, [requestedTab])
 
 	const sessions = useSessionsStore(state => state.sessions)
 	const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
@@ -285,6 +295,25 @@ export function SessionDetail() {
 						)}
 					</button>
 				)}
+				{session.bgTasks.length > 0 && (
+					<button
+						type="button"
+						onClick={() => setActiveTab('bg')}
+						className={cn(
+							'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
+							activeTab === 'bg'
+								? 'border-accent text-accent'
+								: 'border-transparent text-muted-foreground hover:text-foreground',
+						)}
+					>
+						BG
+						{session.runningBgTaskCount > 0 && (
+							<span className="ml-1.5 px-1.5 py-0.5 bg-emerald-400/20 text-emerald-400 text-[10px] font-bold">
+								{session.runningBgTaskCount}
+							</span>
+						)}
+					</button>
+				)}
 
 				{/* Terminal + Follow - pushed to right */}
 				<div className="ml-auto pr-3 flex items-center gap-2">
@@ -333,6 +362,11 @@ export function SessionDetail() {
 			{activeTab === 'tasks' && selectedSessionId && (
 				<div className="flex-1 min-h-0 overflow-hidden">
 					<TasksView sessionId={selectedSessionId} pendingCount={session.pendingTaskCount} />
+				</div>
+			)}
+			{activeTab === 'bg' && selectedSessionId && (
+				<div className="flex-1 min-h-0 overflow-hidden">
+					<BgTasksView sessionId={selectedSessionId} />
 				</div>
 			)}
 

@@ -20,9 +20,11 @@ interface SessionsState {
 	terminalHandler: ((msg: TerminalMessage) => void) | null
 	showTerminal: boolean
 	showSwitcher: boolean
+	requestedTab: string | null
 
 	setSessions: (sessions: Session[]) => void
 	selectSession: (id: string | null) => void
+	openTab: (sessionId: string, tab: string) => void
 	setShowTerminal: (show: boolean) => void
 	setShowSwitcher: (show: boolean) => void
 	toggleSwitcher: () => void
@@ -80,11 +82,16 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 	terminalHandler: null,
 	showTerminal: false,
 	showSwitcher: false,
+	requestedTab: null,
 
 	setSessions: sessions => set({ sessions }),
 	selectSession: id => {
-		set({ selectedSessionId: id })
+		set({ selectedSessionId: id, requestedTab: null })
 		updateHash(id ? `session/${id}` : '')
+	},
+	openTab: (sessionId, tab) => {
+		set({ selectedSessionId: sessionId, requestedTab: tab })
+		updateHash(`session/${sessionId}`)
 	},
 	setShowTerminal: show => {
 		set({ showTerminal: show })

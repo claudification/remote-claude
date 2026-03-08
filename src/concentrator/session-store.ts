@@ -43,6 +43,7 @@ export interface SessionSummary {
   pendingTaskCount: number;
   activeTasks: Array<{ id: string; subject: string }>;
   runningBgTaskCount: number;
+  bgTasks: Array<{ taskId: string; command: string; description: string; startedAt: number; completedAt?: number; status: "running" | "completed" | "killed" }>;
   teammates: Array<{ name: string; status: TeammateInfo["status"]; currentTaskSubject?: string; completedTaskCount: number }>;
   team?: TeamInfo;
 }
@@ -124,6 +125,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         .filter(t => t.status === "in_progress")
         .map(t => ({ id: t.id, subject: t.subject })),
       runningBgTaskCount: session.bgTasks.filter(t => t.status === "running").length,
+      bgTasks: session.bgTasks.map(t => ({
+        taskId: t.taskId,
+        command: t.command,
+        description: t.description,
+        startedAt: t.startedAt,
+        completedAt: t.completedAt,
+        status: t.status,
+      })),
       teammates: session.teammates.map(t => ({
         name: t.name,
         status: t.status,

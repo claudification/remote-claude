@@ -19,7 +19,7 @@ function StatusBadge({ status }: { status: Session['status'] }) {
 }
 
 function SessionItem({ session }: { session: Session }) {
-	const { selectedSessionId, selectSession, setEvents, setTranscript, events } = useSessionsStore()
+	const { selectedSessionId, selectSession, openTab, setEvents, setTranscript, events } = useSessionsStore()
 	const isSelected = selectedSessionId === session.id
 	const cachedEvents = events[session.id] || []
 	const model = cachedEvents.find(e => e.hookEvent === 'SessionStart' && e.data?.model)?.data?.model as
@@ -81,12 +81,18 @@ function SessionItem({ session }: { session: Session }) {
 					</span>
 				)}
 				{session.pendingTaskCount > 0 && (
-					<span className="px-1.5 py-0.5 bg-amber-400/20 text-amber-400 border border-amber-400/50 text-[10px] font-bold">
+					<span
+						className="px-1.5 py-0.5 bg-amber-400/20 text-amber-400 border border-amber-400/50 text-[10px] font-bold cursor-pointer hover:bg-amber-400/30"
+						onClick={e => { e.stopPropagation(); openTab(session.id, 'tasks') }}
+					>
 						[{session.pendingTaskCount}] task{session.pendingTaskCount !== 1 ? 's' : ''}
 					</span>
 				)}
 				{session.runningBgTaskCount > 0 && (
-					<span className="px-1.5 py-0.5 bg-emerald-400/20 text-emerald-400 border border-emerald-400/50 text-[10px] font-bold">
+					<span
+						className="px-1.5 py-0.5 bg-emerald-400/20 text-emerald-400 border border-emerald-400/50 text-[10px] font-bold cursor-pointer hover:bg-emerald-400/30"
+						onClick={e => { e.stopPropagation(); openTab(session.id, 'bg') }}
+					>
 						[{session.runningBgTaskCount}] bg
 					</span>
 				)}

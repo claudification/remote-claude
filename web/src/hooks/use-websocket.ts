@@ -20,6 +20,7 @@ interface SessionSummary {
 	pendingTaskCount?: number
 	activeTasks?: Array<{ id: string; subject: string }>
 	runningBgTaskCount?: number
+	bgTasks?: Array<{ taskId: string; command: string; description: string; startedAt: number; completedAt?: number; status: 'running' | 'completed' | 'killed' }>
 	teammates?: Array<{ name: string; status: 'idle' | 'working' | 'stopped'; currentTaskSubject?: string; completedTaskCount: number }>
 	team?: { teamName: string; role: 'lead' | 'teammate' }
 }
@@ -60,6 +61,7 @@ export function useWebSocket() {
 		pendingTaskCount: summary.pendingTaskCount ?? 0,
 		activeTasks: summary.activeTasks ?? [],
 		runningBgTaskCount: summary.runningBgTaskCount ?? 0,
+		bgTasks: summary.bgTasks ?? [],
 		teammates: summary.teammates ?? [],
 		team: summary.team,
 	}), [])

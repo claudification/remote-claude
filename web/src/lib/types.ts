@@ -30,6 +30,15 @@ export interface TaskInfo {
 	updatedAt: number
 }
 
+export interface BgTaskSummary {
+	taskId: string
+	command: string
+	description: string
+	startedAt: number
+	completedAt?: number
+	status: 'running' | 'completed' | 'killed'
+}
+
 export interface Session {
 	id: string
 	cwd: string
@@ -45,6 +54,7 @@ export interface Session {
 	pendingTaskCount: number
 	activeTasks: Array<{ id: string; subject: string }>
 	runningBgTaskCount: number
+	bgTasks: BgTaskSummary[]
 	teammates: Array<{ name: string; status: 'idle' | 'working' | 'stopped'; currentTaskSubject?: string; completedTaskCount: number }>
 	team?: TeamInfo
 	lastEvent?: {
