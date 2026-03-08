@@ -1,0 +1,42 @@
+services:
+  concentrator:
+    build: .
+    container_name: concentrator
+    restart: unless-stopped
+    ports:
+      - "${PORT:-9999}:9999"
+    volumes:
+      # Session cache + auth data (read-write)
+      - concentrator-data:/data/cache
+      # Claude transcripts (read-only)
+      - ${CLAUDE_DIR:-~/.claude}:/data/transcripts:ro
+    command:
+      - "--web-dir"
+      - "/srv/web"
+      - "--cache-dir"
+      - "/data/cache"
+      - "--allow-root"
+      - "/data/transcripts"
+      - "--rp-id"
+      - "${RP_ID:-localhost}"
+      - "--origin"
+      - "${ORIGIN:-http://localhost:9999}"
+      - "--rclaude-secret"
+      - "${RCLAUDE_SECRET}"
+      - "--path-map"
+      - "${CLAUDE_DIR:-~/.claude}:/data/transcripts"
+      - "--verbose"
+    networks:
+      - caddy
+    labels:
+      # Caddy reverse proxy labels (caddy-docker-proxy)
+      caddy: "${CADDY_HOST:-}"
+      caddy.import: "tls_cloudflare"
+      caddy.reverse_proxy: "{{upstreams 9999}}"
+
+volumes:
+  concentrator-data:
+
+networks:
+  caddy:
+    external: true
