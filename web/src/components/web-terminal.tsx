@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 import { Settings, X, WifiOff } from 'lucide-react'
@@ -83,6 +84,11 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 
 		const fitAddon = new FitAddon()
 		terminal.loadAddon(fitAddon)
+
+		// Unicode 11 for correct character width calculation (matches VS Code)
+		const unicode11 = new Unicode11Addon()
+		terminal.loadAddon(unicode11)
+		terminal.unicode.activeVersion = '11'
 
 		// Intercept shortcuts before xterm sends them to PTY
 		terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {

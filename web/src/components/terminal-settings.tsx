@@ -248,16 +248,19 @@ export const THEMES: Record<string, TerminalTheme> = {
 	},
 }
 
+// Nerd Font fallback for special glyphs (status bar icons, powerline, etc.)
+const NF = ', "Symbols Nerd Font Mono", "Symbols Nerd Font", monospace'
+
 export const FONTS = [
-	{ id: 'geist-mono', name: 'Geist Mono', family: '"Geist Mono", monospace' },
-	{ id: 'jetbrains', name: 'JetBrains Mono', family: '"JetBrains Mono", monospace' },
-	{ id: 'fira-code', name: 'Fira Code', family: '"Fira Code", monospace' },
-	{ id: 'cascadia', name: 'Cascadia Code', family: '"Cascadia Code", monospace' },
-	{ id: 'source-code', name: 'Source Code Pro', family: '"Source Code Pro", monospace' },
-	{ id: 'ibm-plex', name: 'IBM Plex Mono', family: '"IBM Plex Mono", monospace' },
-	{ id: 'hack', name: 'Hack', family: '"Hack", monospace' },
-	{ id: 'menlo', name: 'Menlo', family: '"Menlo", "Monaco", monospace' },
-	{ id: 'system', name: 'System Mono', family: 'ui-monospace, monospace' },
+	{ id: 'geist-mono', name: 'Geist Mono', family: `"Geist Mono"${NF}` },
+	{ id: 'jetbrains', name: 'JetBrains Mono', family: `"JetBrains Mono"${NF}` },
+	{ id: 'fira-code', name: 'Fira Code', family: `"Fira Code"${NF}` },
+	{ id: 'cascadia', name: 'Cascadia Code', family: `"Cascadia Code"${NF}` },
+	{ id: 'source-code', name: 'Source Code Pro', family: `"Source Code Pro"${NF}` },
+	{ id: 'ibm-plex', name: 'IBM Plex Mono', family: `"IBM Plex Mono"${NF}` },
+	{ id: 'hack', name: 'Hack', family: `"Hack"${NF}` },
+	{ id: 'menlo', name: 'Menlo', family: `"Menlo", "Monaco"${NF}` },
+	{ id: 'system', name: 'System Mono', family: `ui-monospace${NF}` },
 ]
 
 export const FONT_SIZES = [10, 11, 12, 13, 14, 15, 16, 18, 20]
