@@ -134,12 +134,28 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     loadStateSync();
   }
 
-  // Periodically mark idle sessions and save state
+  // Periodically mark idle sessions, clean stale agents, and save state
   setInterval(() => {
     const now = Date.now();
+    const STALE_AGENT_MS = 10 * 60 * 1000; // 10 minutes
     for (const session of sessions.values()) {
+      let changed = false;
+
       if (session.status === "active" && now - session.lastActivity > IDLE_TIMEOUT_MS) {
         session.status = "idle";
+        changed = true;
+      }
+
+      // Clean up stale "running" agents (SubagentStop may have been missed)
+      for (const agent of session.subagents) {
+        if (agent.status === "running" && now - agent.startedAt > STALE_AGENT_MS && now - session.lastActivity > STALE_AGENT_MS) {
+          agent.status = "stopped";
+          agent.stoppedAt = now;
+          changed = true;
+        }
+      }
+
+      if (changed) {
         broadcast({
           type: "session_update",
           sessionId: session.id,
@@ -371,6 +387,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     const session = sessions.get(sessionId);
     if (session) {
       session.status = "ended";
+
+      // Mark all running subagents as stopped (SubagentStop hook may not fire)
+      for (const agent of session.subagents) {
+        if (agent.status === "running") {
+          agent.status = "stopped";
+          agent.stoppedAt = Date.now();
+        }
+      }
 
       // Broadcast to dashboard subscribers
       broadcast({
