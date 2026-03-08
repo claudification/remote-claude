@@ -5,12 +5,15 @@
  */
 
 import { randomUUID } from "crypto";
+import { existsSync, readdirSync, readFileSync } from "fs";
+import { join } from "path";
+import { homedir } from "os";
 import { writeMergedSettings, cleanupSettings } from "./settings-merge";
 import { spawnClaude, setupTerminalPassthrough, type PtyProcess } from "./pty-spawn";
 import { startLocalServer, stopLocalServer } from "./local-server";
 import { createWsClient, type WsClient } from "./ws-client";
 import { DEFAULT_CONCENTRATOR_URL } from "../shared/protocol";
-import type { HookEvent } from "../shared/protocol";
+import type { HookEvent, TaskInfo, TasksUpdate } from "../shared/protocol";
 
 const DEBUG = !!process.env.RCLAUDE_DEBUG;
 
@@ -145,9 +148,71 @@ async function main() {
   let ptyProcess: PtyProcess | null = null;
   let terminalAttached = false;
   let savedTerminalSize: { cols: number; rows: number } | null = null;
+  let taskPollTimer: ReturnType<typeof setInterval> | null = null;
+  let lastTasksJson = "";
 
   // Queue events until we have the real session ID
   const eventQueue: HookEvent[] = [];
+
+  /**
+   * Poll ~/.claude/tasks/ for task state changes
+   * Checks both claudeSessionId (--continue reuses its own ID) and internalId (fresh sessions)
+   */
+  function startTaskPolling(sessionId: string) {
+    if (taskPollTimer) return;
+    const tasksBase = join(homedir(), ".claude", "tasks");
+    // claudeSessionId = what Claude actually uses; internalId = what we set CLAUDE_CODE_TASK_LIST_ID to
+    const candidateDirs = [
+      claudeSessionId ? join(tasksBase, claudeSessionId) : null,
+      join(tasksBase, internalId),
+    ].filter(Boolean) as string[];
+
+    taskPollTimer = setInterval(() => {
+      if (!wsClient?.isConnected()) return;
+
+      try {
+        // Find first candidate dir that exists and has task files
+        let tasksDir: string | null = null;
+        for (const dir of candidateDirs) {
+          if (existsSync(dir)) { tasksDir = dir; break; }
+        }
+        if (!tasksDir) return;
+        const files = readdirSync(tasksDir).filter(f => f.endsWith(".json")).sort();
+        if (files.length === 0) return;
+
+        const tasks: TaskInfo[] = [];
+        for (const file of files) {
+          try {
+            const raw = readFileSync(join(tasksDir, file), "utf-8");
+            const task = JSON.parse(raw);
+            tasks.push({
+              id: String(task.id || ""),
+              subject: String(task.subject || ""),
+              description: task.description ? String(task.description) : undefined,
+              status: task.status || "pending",
+              blockedBy: Array.isArray(task.blockedBy) ? task.blockedBy.map(String) : undefined,
+              blocks: Array.isArray(task.blocks) ? task.blocks.map(String) : undefined,
+              owner: task.owner ? String(task.owner) : undefined,
+              updatedAt: Date.now(),
+            });
+          } catch {
+            // Skip malformed task files
+          }
+        }
+
+        // Only send if changed
+        const json = JSON.stringify(tasks);
+        if (json !== lastTasksJson) {
+          lastTasksJson = json;
+          const msg: TasksUpdate = { type: "tasks_update", sessionId, tasks };
+          wsClient?.send(msg);
+          debug(`Tasks updated: ${tasks.length} tasks`);
+        }
+      } catch {
+        // Ignore polling errors
+      }
+    }, 3000);
+  }
 
   function connectToConcentrator(sessionId: string) {
     if (noConcentrator || wsClient) return;
@@ -169,6 +234,8 @@ async function main() {
           wsClient?.sendHookEvent({ ...event, sessionId });
         }
         eventQueue.length = 0;
+        // Start polling task files
+        startTaskPolling(sessionId);
       },
       onDisconnected() {
         debug("Disconnected from concentrator");
@@ -291,6 +358,7 @@ async function main() {
 
   // Cleanup function
   function cleanup() {
+    if (taskPollTimer) clearInterval(taskPollTimer);
     cleanupTerminal();
     stopLocalServer(localServer);
     wsClient?.close();

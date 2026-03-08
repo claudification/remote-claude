@@ -19,6 +19,17 @@ export function canTerminal(s: Session): boolean {
 	return (s.status === 'active' || s.status === 'idle') && !!s.capabilities?.includes('terminal')
 }
 
+export interface TaskInfo {
+	id: string
+	subject: string
+	description?: string
+	status: 'pending' | 'in_progress' | 'completed' | 'deleted'
+	blockedBy?: string[]
+	blocks?: string[]
+	owner?: string
+	updatedAt: number
+}
+
 export interface Session {
 	id: string
 	cwd: string
@@ -30,6 +41,11 @@ export interface Session {
 	eventCount: number
 	activeSubagentCount: number
 	totalSubagentCount: number
+	taskCount: number
+	pendingTaskCount: number
+	activeTasks: Array<{ id: string; subject: string }>
+	runningBgTaskCount: number
+	teammates: Array<{ name: string; status: 'idle' | 'working' | 'stopped'; currentTaskSubject?: string; completedTaskCount: number }>
 	team?: TeamInfo
 	lastEvent?: {
 		hookEvent: string

@@ -7,10 +7,11 @@ import { cn, formatAge, formatModel } from '@/lib/utils'
 import { canTerminal, type HookEvent } from '@/lib/types'
 import { EventsView } from './events-view'
 import { SubagentView } from './subagent-view'
+import { TasksView } from './tasks-view'
 import { TranscriptView } from './transcript-view'
 import { WebTerminal } from './web-terminal'
 
-type Tab = 'transcript' | 'events' | 'agents'
+type Tab = 'transcript' | 'events' | 'agents' | 'tasks'
 
 // Find the latest notification that hasn't been "dismissed" by subsequent activity
 function getActiveNotification(events: HookEvent[]): HookEvent | null {
@@ -265,6 +266,25 @@ export function SessionDetail() {
 						)}
 					</button>
 				)}
+				{session.taskCount > 0 && (
+					<button
+						type="button"
+						onClick={() => setActiveTab('tasks')}
+						className={cn(
+							'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
+							activeTab === 'tasks'
+								? 'border-accent text-accent'
+								: 'border-transparent text-muted-foreground hover:text-foreground',
+						)}
+					>
+						Tasks
+						{session.pendingTaskCount > 0 && (
+							<span className="ml-1.5 px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] font-bold">
+								{session.pendingTaskCount}
+							</span>
+						)}
+					</button>
+				)}
 
 				{/* Terminal + Follow - pushed to right */}
 				<div className="ml-auto pr-3 flex items-center gap-2">
@@ -308,6 +328,11 @@ export function SessionDetail() {
 			{activeTab === 'agents' && selectedSessionId && (
 				<div className="flex-1 min-h-0 overflow-hidden p-3 sm:p-4">
 					<SubagentView sessionId={selectedSessionId} />
+				</div>
+			)}
+			{activeTab === 'tasks' && selectedSessionId && (
+				<div className="flex-1 min-h-0 overflow-hidden">
+					<TasksView sessionId={selectedSessionId} pendingCount={session.pendingTaskCount} />
 				</div>
 			)}
 
