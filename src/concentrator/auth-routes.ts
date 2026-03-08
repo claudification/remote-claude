@@ -217,7 +217,7 @@ export async function handleAuthRoute(req: Request): Promise<Response | null> {
       }
 
       const storedCred: StoredCredential = {
-        credentialId: Buffer.from(credential.id).toString("base64url"),
+        credentialId: credential.id,
         publicKey: Buffer.from(credential.publicKey).toString("base64url"),
         counter: credential.counter,
         transports: response.response?.transports as AuthenticatorTransportFuture[] | undefined,
@@ -285,7 +285,7 @@ export async function handleAuthRoute(req: Request): Promise<Response | null> {
         expectedRPID: getRpId(),
         expectedOrigin: getExpectedOrigins(),
         credential: {
-          id: credential.credentialId,
+          id: credentialId,
           publicKey: Buffer.from(credential.publicKey, "base64url"),
           counter: credential.counter,
           transports: credential.transports,
