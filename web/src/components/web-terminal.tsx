@@ -200,21 +200,45 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 		return () => window.removeEventListener('keydown', handleKeyDown)
 	}, [onClose])
 
-	// Prevent wheel/touch events from bubbling to window (scroll containment)
+	// Prevent scroll events from leaking to parent page
+	// position:fixed removes the body from scroll flow entirely (overflow:hidden alone fails on iOS Safari)
 	useEffect(() => {
-		const el = terminalRef.current
-		if (!el) return
-		function stopWheel(e: WheelEvent) {
-			e.stopPropagation()
+		const body = document.body
+		const scrollY = window.scrollY
+		const prev = {
+			position: body.style.position,
+			top: body.style.top,
+			left: body.style.left,
+			right: body.style.right,
+			overflow: body.style.overflow,
 		}
-		function stopTouch(e: TouchEvent) {
-			e.stopPropagation()
-		}
-		el.addEventListener('wheel', stopWheel, { passive: true })
-		el.addEventListener('touchmove', stopTouch, { passive: true })
+		body.style.position = 'fixed'
+		body.style.top = `-${scrollY}px`
+		body.style.left = '0'
+		body.style.right = '0'
+		body.style.overflow = 'hidden'
 		return () => {
-			el.removeEventListener('wheel', stopWheel)
-			el.removeEventListener('touchmove', stopTouch)
+			body.style.position = prev.position
+			body.style.top = prev.top
+			body.style.left = prev.left
+			body.style.right = prev.right
+			body.style.overflow = prev.overflow
+			window.scrollTo(0, scrollY)
+		}
+	}, [])
+
+	// Catch wheel events that xterm doesn't consume (at scroll bounds)
+	// xterm calls stopPropagation when it scrolls, so only leaked events bubble here
+	useEffect(() => {
+		const el = terminalRef.current?.closest('[data-terminal-overlay]') as HTMLElement | null
+		if (!el) return
+		function block(e: WheelEvent) { e.preventDefault() }
+		function blockTouch(e: TouchEvent) { e.preventDefault() }
+		el.addEventListener('wheel', block, { passive: false })
+		el.addEventListener('touchmove', blockTouch, { passive: false })
+		return () => {
+			el.removeEventListener('wheel', block)
+			el.removeEventListener('touchmove', blockTouch)
 		}
 	}, [])
 
@@ -232,7 +256,7 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 	const terminalSessions = sessions.filter(canTerminal)
 
 	return (
-		<div className="fixed inset-0 z-50 flex flex-col overflow-hidden" style={{ background: currentTheme.background }}>
+		<div data-terminal-overlay className="fixed inset-0 z-50 flex flex-col overflow-hidden" style={{ background: currentTheme.background, overscrollBehavior: 'none' }}>
 			{/* Header bar with session tabs */}
 			<div
 				className="shrink-0 flex items-center border-b"
@@ -316,8 +340,8 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 			)}
 
 			{/* Terminal area */}
-			<div className="relative flex-1 min-h-0" style={{ overscrollBehavior: 'contain' }}>
-				<div ref={terminalRef} className="absolute inset-0 p-1" style={{ overscrollBehavior: 'contain' }} />
+			<div className="relative flex-1 min-h-0 overflow-hidden" style={{ overscrollBehavior: 'contain' }}>
+				<div ref={terminalRef} className="absolute inset-0 p-1 overflow-hidden" style={{ overscrollBehavior: 'contain' }} />
 
 				{showSettings && (
 					<TerminalSettingsPanel

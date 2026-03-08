@@ -232,6 +232,12 @@ body {
 	background: oklch(0.6 0.2 20 / 0.1);
 }
 
+/* Hide native iOS caret on xterm.js hidden textarea */
+.xterm .xterm-helper-textarea {
+	caret-color: transparent;
+	color: transparent;
+}
+
 /* Hacker-style markdown prose */
 .prose-hacker {
 	h1, h2, h3, h4, h5, h6 {

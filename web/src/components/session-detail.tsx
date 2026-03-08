@@ -1,5 +1,5 @@
 import { Bell, ChevronDown, ChevronRight, Terminal, X } from 'lucide-react'
-import { useRef, useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { reviveSession, sendInput, useSessionsStore } from '@/hooks/use-sessions'
@@ -7,6 +7,7 @@ import { cn, formatAge, formatModel } from '@/lib/utils'
 import { canTerminal, type HookEvent } from '@/lib/types'
 import { BgTasksView } from './bg-tasks-view'
 import { EventsView } from './events-view'
+import { MarkdownInput } from './markdown-input'
 import { SubagentView } from './subagent-view'
 import { TasksView } from './tasks-view'
 import { TranscriptView } from './transcript-view'
@@ -59,8 +60,6 @@ export function SessionDetail() {
 	const showTerminal = useSessionsStore(state => state.showTerminal)
 	const setShowTerminal = useSessionsStore(state => state.setShowTerminal)
 	const requestedTab = useSessionsStore(state => state.requestedTab)
-	const inputRef = useRef<HTMLInputElement>(null)
-
 	// Apply requested tab from external navigation (badge clicks)
 	useEffect(() => {
 		if (requestedTab) {
@@ -119,17 +118,9 @@ export function SessionDetail() {
 			const success = await sendInput(selectedSessionId, inputValue)
 			if (success) {
 				setInputValue('')
-				inputRef.current?.focus()
 			}
 		} finally {
 			setIsSending(false)
-		}
-	}
-
-	function handleKeyDown(e: React.KeyboardEvent) {
-		if (e.key === 'Enter' && !e.shiftKey) {
-			e.preventDefault()
-			handleSendInput()
 		}
 	}
 
@@ -373,27 +364,20 @@ export function SessionDetail() {
 			{/* Input box */}
 			{canSendInput && (
 				<div className="shrink-0 p-3 border-t border-border">
-					<div className="flex gap-2">
-						<input
-							ref={inputRef}
-							type="text"
+					<div className="flex gap-2 items-end">
+						<MarkdownInput
 							value={inputValue}
-							onChange={e => setInputValue(e.target.value)}
-							onKeyDown={handleKeyDown}
-							placeholder="Send input to session..."
+							onChange={setInputValue}
+							onSubmit={handleSendInput}
 							disabled={isSending}
-							className={cn(
-								'flex-1 bg-input border border-border rounded px-3 py-2',
-								'text-xs font-mono text-foreground placeholder:text-muted-foreground',
-								'focus:outline-none focus:ring-1 focus:ring-ring',
-								'disabled:opacity-50',
-							)}
+							placeholder="Send input to session..."
+							className="flex-1"
 						/>
-						<Button onClick={handleSendInput} disabled={isSending || !inputValue.trim()} size="sm" className="text-xs">
+						<Button onClick={handleSendInput} disabled={isSending || !inputValue.trim()} size="sm" className="text-xs shrink-0">
 							{isSending ? '...' : 'Send'}
 						</Button>
 					</div>
-					<p className="text-[10px] text-muted-foreground mt-1">Press Enter to send</p>
+					<p className="text-[10px] text-muted-foreground mt-1">Enter to send, Shift+Enter for new line</p>
 				</div>
 			)}
 
