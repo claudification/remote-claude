@@ -26,14 +26,14 @@ interface DashboardMessage {
 	event?: HookEvent
 }
 
-const WS_URL = `ws://${window.location.host}/ws`
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
 const RECONNECT_DELAY_MS = 2000
 
 export function useWebSocket() {
 	const wsRef = useRef<WebSocket | null>(null)
 	const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-	const { setSessions, setConnected } = useSessionsStore()
+	const { setSessions, setConnected, setError } = useSessionsStore()
 
 	// Convert SessionSummary to Session (for store compatibility)
 	const toSession = useCallback((summary: SessionSummary): Session => ({
@@ -59,13 +59,20 @@ export function useWebSocket() {
 
 			ws.onopen = () => {
 				setConnected(true)
+				setError(null)
 				// Subscribe to dashboard updates
 				ws.send(JSON.stringify({ type: 'subscribe' }))
 			}
 
-			ws.onclose = () => {
+			ws.onclose = (e) => {
 				setConnected(false)
 				wsRef.current = null
+
+				if (e.code === 1008 || e.code === 4401) {
+					setError(`WebSocket rejected: ${e.reason || 'Unauthorized'}`)
+				} else if (e.code !== 1000) {
+					setError(`WebSocket closed (${e.code}${e.reason ? ': ' + e.reason : ''})`)
+				}
 
 				// Schedule reconnection
 				if (!reconnectTimeoutRef.current) {
@@ -77,7 +84,7 @@ export function useWebSocket() {
 			}
 
 			ws.onerror = () => {
-				// Will trigger onclose
+				setError(`WebSocket connection failed: ${WS_URL}`)
 			}
 
 			ws.onmessage = event => {

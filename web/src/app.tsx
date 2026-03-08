@@ -1,5 +1,6 @@
 import { Menu } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { AuthGate } from '@/components/auth-gate'
 import { Header } from '@/components/header'
 import { SessionDetail } from '@/components/session-detail'
 import { SessionList } from '@/components/session-list'
@@ -8,9 +9,18 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { fetchSessionEvents, fetchTranscript, useSessionsStore } from '@/hooks/use-sessions'
 import { useWebSocket } from '@/hooks/use-websocket'
 
-export function App() {
+function Dashboard() {
 	const [sheetOpen, setSheetOpen] = useState(false)
-	const { selectedSessionId, setEvents, setTranscript } = useSessionsStore()
+	const [errorExpanded, setErrorExpanded] = useState(false)
+	const { selectedSessionId, setEvents, setTranscript, error } = useSessionsStore()
+
+	// Auto-expand on new error, auto-collapse after 4s
+	useEffect(() => {
+		if (!error) { setErrorExpanded(false); return }
+		setErrorExpanded(true)
+		const t = setTimeout(() => setErrorExpanded(false), 4000)
+		return () => clearTimeout(t)
+	}, [error])
 
 	// Connect to WebSocket for real-time session updates
 	useWebSocket()
@@ -43,6 +53,26 @@ export function App() {
 
 	return (
 		<div className="h-screen flex flex-col p-2 sm:p-4 max-w-[1400px] mx-auto overflow-hidden">
+			{/* Error indicator */}
+			{error && (
+				errorExpanded ? (
+					<div
+						className="mb-2 px-3 py-2 border border-red-500/50 bg-red-500/10 text-red-400 font-mono text-xs shrink-0 cursor-pointer"
+						onClick={() => setErrorExpanded(false)}
+					>
+						[ERROR] {error}
+					</div>
+				) : (
+					<div
+						className="mb-1 flex items-center gap-1.5 cursor-pointer shrink-0"
+						onClick={() => setErrorExpanded(true)}
+					>
+						<span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+						<span className="text-red-400 font-mono text-[10px]">ERR</span>
+					</div>
+				)
+			)}
+
 			{/* Header with mobile menu */}
 			<div className="flex items-center gap-2 mb-4 shrink-0">
 				{/* Mobile menu button */}
@@ -87,5 +117,13 @@ export function App() {
 				</div>
 			</div>
 		</div>
+	)
+}
+
+export function App() {
+	return (
+		<AuthGate>
+			<Dashboard />
+		</AuthGate>
 	)
 }

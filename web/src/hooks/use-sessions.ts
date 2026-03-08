@@ -7,12 +7,14 @@ interface SessionsState {
 	events: Record<string, HookEvent[]>
 	transcripts: Record<string, TranscriptEntry[]>
 	isConnected: boolean
+	error: string | null
 
 	setSessions: (sessions: Session[]) => void
 	selectSession: (id: string | null) => void
 	setEvents: (sessionId: string, events: HookEvent[]) => void
 	setTranscript: (sessionId: string, entries: TranscriptEntry[]) => void
 	setConnected: (connected: boolean) => void
+	setError: (error: string | null) => void
 
 	getSelectedSession: () => Session | undefined
 	getSelectedEvents: () => HookEvent[]
@@ -25,6 +27,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 	events: {},
 	transcripts: {},
 	isConnected: false,
+	error: null,
 
 	setSessions: sessions => set({ sessions }),
 	selectSession: id => set({ selectedSessionId: id }),
@@ -32,6 +35,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 	setTranscript: (sessionId, entries) =>
 		set(state => ({ transcripts: { ...state.transcripts, [sessionId]: entries } })),
 	setConnected: connected => set({ isConnected: connected }),
+	setError: error => set({ error }),
 
 	getSelectedSession: () => {
 		const { sessions, selectedSessionId } = get()
