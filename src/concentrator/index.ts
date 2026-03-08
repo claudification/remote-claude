@@ -465,6 +465,16 @@ async function main() {
                 }
                 break;
               }
+              case "tasks_update": {
+                const sessionId = ws.data.sessionId || data.sessionId;
+                if (sessionId) {
+                  sessionStore.updateTasks(sessionId, data.tasks || []);
+                  if (verbose) {
+                    console.log(`[*] ${sessionId.slice(0, 8)}... tasks_update (${(data.tasks || []).length} tasks)`);
+                  }
+                }
+                break;
+              }
             }
           } catch (error) {
             ws.send(

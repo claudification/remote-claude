@@ -70,7 +70,13 @@ export interface TerminalError {
   error: string;
 }
 
-export type WrapperMessage = HookEvent | SessionMeta | SessionEnd | Heartbeat | TerminalData | TerminalError;
+export interface TasksUpdate {
+  type: "tasks_update";
+  sessionId: string;
+  tasks: TaskInfo[];
+}
+
+export type WrapperMessage = HookEvent | SessionMeta | SessionEnd | Heartbeat | TerminalData | TerminalError | TasksUpdate;
 
 // Concentrator -> Wrapper messages
 export interface Ack {
@@ -238,7 +244,40 @@ export interface TeamInfo {
   role: "lead" | "teammate";
 }
 
+export interface TeammateInfo {
+  agentId: string;
+  name: string;
+  teamName: string;
+  status: "idle" | "working" | "stopped";
+  startedAt: number;
+  stoppedAt?: number;
+  currentTaskId?: string;
+  currentTaskSubject?: string;
+  completedTaskCount: number;
+}
+
+// Background command tracking
+export interface BgTaskInfo {
+  taskId: string;
+  command: string;
+  description: string;
+  startedAt: number;
+  completedAt?: number;
+  status: "running" | "completed" | "killed";
+}
+
 // Session state in concentrator
+export interface TaskInfo {
+  id: string;
+  subject: string;
+  description?: string;
+  status: "pending" | "in_progress" | "completed" | "deleted";
+  blockedBy?: string[];
+  blocks?: string[];
+  owner?: string;
+  updatedAt: number;
+}
+
 export interface Session {
   id: string;
   cwd: string;
@@ -251,6 +290,9 @@ export interface Session {
   status: "active" | "idle" | "ended";
   events: HookEvent[];
   subagents: SubagentInfo[];
+  tasks: TaskInfo[];
+  bgTasks: BgTaskInfo[];
+  teammates: TeammateInfo[];
   team?: TeamInfo;
 }
 

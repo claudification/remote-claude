@@ -54,6 +54,8 @@ export function spawnClaude(options: PtyOptions): PtyProcess {
       ...env,
       RCLAUDE_SESSION_ID: sessionId,
       RCLAUDE_PORT: String(localServerPort),
+      // Pin task list to session ID so tasks persist to ~/.claude/tasks/{sessionId}/
+      CLAUDE_CODE_TASK_LIST_ID: sessionId,
       // Ensure color output
       FORCE_COLOR: "1",
       // Force xterm-256color regardless of outer shell (tmux sets screen-256color)

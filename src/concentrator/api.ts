@@ -645,6 +645,23 @@ export function createApiHandler(options: ApiOptions) {
       }
     }
 
+    // GET /sessions/:id/tasks - Get session task list
+    const tasksMatch = path.match(/^\/sessions\/([^/]+)\/tasks$/);
+    if (tasksMatch && req.method === "GET") {
+      const sessionId = tasksMatch[1];
+      const session = sessionStore.getSession(sessionId);
+      if (!session) {
+        return new Response(JSON.stringify({ error: "Session not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify(session.tasks, null, 2), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // GET /agent/status - Check if host agent is connected
     if (req.method === "GET" && path === "/agent/status") {
       return new Response(JSON.stringify({ connected: sessionStore.hasAgent() }), {

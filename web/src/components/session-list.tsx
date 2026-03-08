@@ -46,8 +46,29 @@ function SessionItem({ session }: { session: Session }) {
 		>
 			{/* Path - most important */}
 			<div className={cn('font-bold text-sm', isSelected ? 'text-accent' : 'text-primary')}>{lastPathSegments(session.cwd)}</div>
-			{/* Session ID - small */}
-			<div className="text-muted-foreground text-[10px] mt-0.5 font-mono">{session.id.slice(0, 8)}</div>
+			{/* Active tasks - inline below name */}
+			{/* Active tasks + working teammates - inline below name */}
+			{(session.activeTasks.length > 0 || session.teammates.some(t => t.status === 'working')) && (
+				<div className="mt-1 space-y-0.5">
+					{session.activeTasks.slice(0, 3).map(task => (
+						<div key={task.id} className="text-[11px] text-active/80 font-mono truncate pl-1">
+							<span className="text-active mr-1">{'\u25B8'}</span>
+							{task.subject}
+						</div>
+					))}
+					{session.activeTasks.length > 3 && (
+						<div className="text-[10px] text-muted-foreground pl-1 font-mono">
+							+{session.activeTasks.length - 3} more
+						</div>
+					)}
+					{session.teammates.filter(t => t.status === 'working').map(t => (
+						<div key={t.name} className="text-[11px] text-purple-400/80 font-mono truncate pl-1">
+							<span className="text-purple-400 mr-1">{'\u2691'}</span>
+							{t.name}{t.currentTaskSubject ? `: ${t.currentTaskSubject}` : ''}
+						</div>
+					))}
+				</div>
+			)}
 			{/* Status row */}
 			<div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
 				<StatusBadge status={session.status} />
@@ -59,9 +80,20 @@ function SessionItem({ session }: { session: Session }) {
 						{session.activeSubagentCount} agent{session.activeSubagentCount !== 1 ? 's' : ''}
 					</span>
 				)}
+				{session.pendingTaskCount > 0 && (
+					<span className="px-1.5 py-0.5 bg-amber-400/20 text-amber-400 border border-amber-400/50 text-[10px] font-bold">
+						[{session.pendingTaskCount}] task{session.pendingTaskCount !== 1 ? 's' : ''}
+					</span>
+				)}
+				{session.runningBgTaskCount > 0 && (
+					<span className="px-1.5 py-0.5 bg-emerald-400/20 text-emerald-400 border border-emerald-400/50 text-[10px] font-bold">
+						[{session.runningBgTaskCount}] bg
+					</span>
+				)}
 				{session.team && (
 					<span className="px-1.5 py-0.5 bg-purple-400/20 text-purple-400 border border-purple-400/50 text-[10px] font-bold uppercase">
 						{session.team.role === 'lead' ? 'LEAD' : 'TEAM'} {session.team.teamName}
+						{session.teammates.length > 0 && ` (${session.teammates.filter(t => t.status !== 'stopped').length}/${session.teammates.length})`}
 					</span>
 				)}
 			</div>

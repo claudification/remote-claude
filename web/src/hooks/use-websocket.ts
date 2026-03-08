@@ -16,6 +16,11 @@ interface SessionSummary {
 	eventCount: number
 	activeSubagentCount?: number
 	totalSubagentCount?: number
+	taskCount?: number
+	pendingTaskCount?: number
+	activeTasks?: Array<{ id: string; subject: string }>
+	runningBgTaskCount?: number
+	teammates?: Array<{ name: string; status: 'idle' | 'working' | 'stopped'; currentTaskSubject?: string; completedTaskCount: number }>
 	team?: { teamName: string; role: 'lead' | 'teammate' }
 }
 
@@ -51,6 +56,11 @@ export function useWebSocket() {
 		eventCount: summary.eventCount,
 		activeSubagentCount: summary.activeSubagentCount ?? 0,
 		totalSubagentCount: summary.totalSubagentCount ?? 0,
+		taskCount: summary.taskCount ?? 0,
+		pendingTaskCount: summary.pendingTaskCount ?? 0,
+		activeTasks: summary.activeTasks ?? [],
+		runningBgTaskCount: summary.runningBgTaskCount ?? 0,
+		teammates: summary.teammates ?? [],
 		team: summary.team,
 	}), [])
 

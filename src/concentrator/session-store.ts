@@ -4,7 +4,7 @@
  */
 
 import type { ServerWebSocket } from "bun";
-import type { Session, HookEvent, SubagentInfo, TeamInfo, WrapperCapability } from "../shared/protocol";
+import type { Session, HookEvent, TaskInfo, TeamInfo, TeammateInfo, WrapperCapability } from "../shared/protocol";
 import { IDLE_TIMEOUT_MS } from "../shared/protocol";
 import { existsSync, mkdirSync, unlinkSync, readFileSync } from "fs";
 import { homedir } from "os";
@@ -39,6 +39,11 @@ export interface SessionSummary {
   eventCount: number;
   activeSubagentCount: number;
   totalSubagentCount: number;
+  taskCount: number;
+  pendingTaskCount: number;
+  activeTasks: Array<{ id: string; subject: string }>;
+  runningBgTaskCount: number;
+  teammates: Array<{ name: string; status: TeammateInfo["status"]; currentTaskSubject?: string; completedTaskCount: number }>;
   team?: TeamInfo;
 }
 
@@ -59,6 +64,7 @@ export interface SessionStore {
   endSession: (sessionId: string, reason: string) => void;
   removeSession: (sessionId: string) => void;
   getSessionEvents: (sessionId: string, limit?: number, since?: number) => HookEvent[];
+  updateTasks: (sessionId: string, tasks: TaskInfo[]) => void;
   setSessionSocket: (sessionId: string, ws: ServerWebSocket<unknown>) => void;
   getSessionSocket: (sessionId: string) => ServerWebSocket<unknown> | undefined;
   removeSessionSocket: (sessionId: string) => void;
@@ -112,6 +118,18 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       eventCount: session.events.length,
       activeSubagentCount: session.subagents.filter(a => a.status === "running").length,
       totalSubagentCount: session.subagents.length,
+      taskCount: session.tasks.length,
+      pendingTaskCount: session.tasks.filter(t => t.status === "pending" || t.status === "in_progress").length,
+      activeTasks: session.tasks
+        .filter(t => t.status === "in_progress")
+        .map(t => ({ id: t.id, subject: t.subject })),
+      runningBgTaskCount: session.bgTasks.filter(t => t.status === "running").length,
+      teammates: session.teammates.map(t => ({
+        name: t.name,
+        status: t.status,
+        currentTaskSubject: t.currentTaskSubject,
+        completedTaskCount: t.completedTaskCount,
+      })),
       team: session.team,
     };
   }
@@ -187,6 +205,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           ...sessionData,
           events: [],
           subagents: (sessionData as any).subagents || [],
+          tasks: (sessionData as any).tasks || [],
+          bgTasks: (sessionData as any).bgTasks || [],
+          teammates: (sessionData as any).teammates || [],
           team: (sessionData as any).team,
           // Mark restored sessions as ended unless they reconnect
           status: "ended",
@@ -222,6 +243,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         status: s.status,
         eventCount: s.events.length,
         subagents: s.subagents,
+        tasks: s.tasks,
+        bgTasks: s.bgTasks,
+        teammates: s.teammates,
         team: s.team,
       }));
 
@@ -267,6 +291,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       status: "active",
       events: [],
       subagents: [],
+      tasks: [],
+      bgTasks: [],
+      teammates: [],
     };
     sessions.set(id, session);
 
@@ -351,11 +378,117 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         }
       }
 
+      // Track background Bash commands
+      if (event.hookEvent === "PostToolUse" && event.data) {
+        const data = event.data as Record<string, unknown>;
+        const toolName = data.tool_name as string;
+        const input = (data.tool_input || {}) as Record<string, unknown>;
+        const responseObj = data.tool_response;
+        // tool_response can be a string OR an object - normalize to string for pattern matching
+        const response = typeof responseObj === "object" && responseObj !== null
+          ? JSON.stringify(responseObj)
+          : String(responseObj || "");
+
+        if (toolName === "Bash") {
+          // Detect background commands - tool_response is an object with backgroundTaskId
+          const bgTaskId = typeof responseObj === "object" && responseObj !== null
+            ? (responseObj as Record<string, unknown>).backgroundTaskId as string | undefined
+            : undefined;
+          // Fallback: match "with ID: xxx" in string response (user Ctrl+B backgrounded)
+          const idMatch = !bgTaskId ? response.match(/with ID: (\S+)/) : null;
+          const taskId = bgTaskId || idMatch?.[1];
+
+          if (taskId) {
+            session.bgTasks.push({
+              taskId,
+              command: String(input.command || "").slice(0, 100),
+              description: String(input.description || ""),
+              startedAt: event.timestamp,
+              status: "running",
+            });
+          }
+        }
+
+        // Detect TaskOutput/TaskStop to mark bg tasks as completed
+        if (toolName === "TaskOutput" || toolName === "TaskStop") {
+          const taskId = String(input.task_id || input.taskId || "");
+          const bgTask = session.bgTasks.find(t => t.taskId === taskId);
+          if (bgTask && bgTask.status === "running") {
+            bgTask.completedAt = event.timestamp;
+            bgTask.status = toolName === "TaskStop" ? "killed" : "completed";
+          }
+        }
+      }
+
       // Detect team membership from TeammateIdle events
       if (event.hookEvent === "TeammateIdle" && event.data) {
         const data = event.data as Record<string, unknown>;
-        if (data.team_name && typeof data.team_name === "string" && !session.team) {
-          session.team = { teamName: data.team_name, role: "lead" };
+        const teamName = String(data.team_name || "");
+        const agentId = String(data.agent_id || "");
+        const agentName = String(data.agent_name || agentId.slice(0, 8));
+
+        if (teamName && !session.team) {
+          session.team = { teamName, role: "lead" };
+        }
+
+        if (agentId) {
+          let teammate = session.teammates.find(t => t.agentId === agentId);
+          if (!teammate) {
+            teammate = {
+              agentId,
+              name: agentName,
+              teamName,
+              status: "idle",
+              startedAt: event.timestamp,
+              completedTaskCount: 0,
+            };
+            session.teammates.push(teammate);
+          }
+          teammate.status = "idle";
+          teammate.currentTaskId = undefined;
+          teammate.currentTaskSubject = undefined;
+        }
+      }
+
+      // Track teammate work from SubagentStart (teammates are agents)
+      if (event.hookEvent === "SubagentStart" && event.data) {
+        const data = event.data as Record<string, unknown>;
+        const agentId = String(data.agent_id || "");
+        const teammate = session.teammates.find(t => t.agentId === agentId);
+        if (teammate) {
+          teammate.status = "working";
+        }
+      }
+
+      // Track teammate stop
+      if (event.hookEvent === "SubagentStop" && event.data) {
+        const data = event.data as Record<string, unknown>;
+        const agentId = String(data.agent_id || "");
+        const teammate = session.teammates.find(t => t.agentId === agentId);
+        if (teammate) {
+          teammate.status = "stopped";
+          teammate.stoppedAt = event.timestamp;
+        }
+      }
+
+      // Track task completion by teammates
+      if (event.hookEvent === "TaskCompleted" && event.data) {
+        const data = event.data as Record<string, unknown>;
+        const owner = String(data.owner || "");
+        const teamName = String(data.team_name || "");
+
+        if (teamName && !session.team) {
+          session.team = { teamName, role: "lead" };
+        }
+
+        // Find teammate by name match (owner is the agent name)
+        const teammate = session.teammates.find(t => t.name === owner);
+        if (teammate) {
+          teammate.completedTaskCount++;
+          teammate.currentTaskId = undefined;
+          teammate.currentTaskSubject = undefined;
+          // Back to idle after completing
+          teammate.status = "idle";
         }
       }
 
@@ -395,6 +528,22 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         if (agent.status === "running") {
           agent.status = "stopped";
           agent.stoppedAt = Date.now();
+        }
+      }
+
+      // Mark all teammates as stopped
+      for (const teammate of session.teammates) {
+        if (teammate.status !== "stopped") {
+          teammate.status = "stopped";
+          teammate.stoppedAt = Date.now();
+        }
+      }
+
+      // Mark all running bg tasks as killed
+      for (const bgTask of session.bgTasks) {
+        if (bgTask.status === "running") {
+          bgTask.status = "killed";
+          bgTask.completedAt = Date.now();
         }
       }
 
@@ -482,6 +631,19 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     dashboardSubscribers.delete(ws);
   }
 
+  function updateTasks(sessionId: string, tasks: TaskInfo[]): void {
+    const session = sessions.get(sessionId);
+    if (!session) return;
+
+    session.tasks = tasks;
+    // Broadcast updated session summary
+    broadcast({
+      type: "session_update",
+      sessionId,
+      session: toSessionSummary(session),
+    });
+  }
+
   function getSubscriberCount(): number {
     return dashboardSubscribers.size;
   }
@@ -517,6 +679,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     getActiveSessions,
     addEvent,
     updateActivity,
+    updateTasks,
     endSession,
     removeSession,
     getSessionEvents,

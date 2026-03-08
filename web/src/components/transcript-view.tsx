@@ -269,27 +269,26 @@ function ToolLine({
 			summary = query
 			break
 		}
-		case 'Agent': {
-			const desc = input.description as string
-			const agent = input.subagent_type as string
-			summary = agent ? `${agent}: ${desc}` : desc
-			break
-		}
 		case 'TaskCreate': {
 			const desc = input.description as string
 			summary = desc?.length > 60 ? desc.slice(0, 60) + '...' : desc
 			break
 		}
 		case 'TaskUpdate': {
-			const taskId = input.id as string
-			const status = input.status as string
-			summary = `${status} ${taskId ? '#' + taskId : ''}`
+			const taskId = (input.taskId || input.id || input.task_id) as string | undefined
+			const status = (input.status || input.state) as string | undefined
+			const parts: string[] = []
+			if (taskId) parts.push(`#${taskId}`)
+			if (status) parts.push(status)
+			if (input.addBlockedBy) parts.push('blockedBy')
+			if (input.description) parts.push(String(input.description).slice(0, 50))
+			summary = parts.join(' ') || 'update'
 			break
 		}
 		case 'TaskOutput':
 		case 'TaskList':
 		case 'TaskStop': {
-			const taskId = (input.id || input.task_id) as string
+			const taskId = (input.taskId || input.id || input.task_id) as string
 			summary = taskId ? `#${taskId}` : ''
 			if (result) {
 				details = (
