@@ -595,6 +595,21 @@ async function main() {
                 break
               }
 
+              case 'diag': {
+                const sessionId = ws.data.sessionId || data.sessionId
+                if (sessionId && Array.isArray(data.entries)) {
+                  const session = sessionStore.getSession(sessionId)
+                  if (session) {
+                    session.diagLog.push(...data.entries)
+                    // Cap at 500 entries
+                    if (session.diagLog.length > 500) {
+                      session.diagLog.splice(0, session.diagLog.length - 500)
+                    }
+                  }
+                }
+                break
+              }
+
               // Transcript streaming: rclaude -> concentrator (cache + forward to dashboard)
               case 'transcript_entries': {
                 const sessionId = ws.data.sessionId || data.sessionId

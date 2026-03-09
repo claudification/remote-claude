@@ -72,6 +72,12 @@ export interface TerminalError {
   error: string
 }
 
+export interface DiagLog {
+  type: 'diag'
+  sessionId: string
+  entries: Array<{ t: number; type: string; msg: string; args?: unknown }>
+}
+
 export interface TasksUpdate {
   type: 'tasks_update'
   sessionId: string
@@ -366,12 +372,14 @@ export interface Session {
   lastActivity: number
   status: 'active' | 'idle' | 'ended'
   compacting?: boolean
+  compactedAt?: number
   events: HookEvent[]
   subagents: SubagentInfo[]
   tasks: TaskInfo[]
   bgTasks: BgTaskInfo[]
   teammates: TeammateInfo[]
   team?: TeamInfo
+  diagLog: Array<{ t: number; type: string; msg: string; args?: unknown }>
 }
 
 // Agent -> Concentrator messages

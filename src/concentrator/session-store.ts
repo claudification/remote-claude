@@ -47,6 +47,7 @@ export interface SessionSummary {
   lastActivity: number
   status: Session['status']
   compacting?: boolean
+  compactedAt?: number
   eventCount: number
   activeSubagentCount: number
   totalSubagentCount: number
@@ -175,6 +176,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       lastActivity: session.lastActivity,
       status: session.status,
       compacting: session.compacting || undefined,
+      compactedAt: session.compactedAt,
       eventCount: session.events.length,
       activeSubagentCount: session.subagents.filter(a => a.status === 'running').length,
       totalSubagentCount: session.subagents.length,
@@ -302,6 +304,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           })),
           teammates: (sessionData as any).teammates || [],
           team: (sessionData as any).team,
+          diagLog: (sessionData as any).diagLog || [],
           // Mark restored sessions as ended unless they reconnect
           status: 'ended',
         }
@@ -340,6 +343,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         bgTasks: s.bgTasks,
         teammates: s.teammates,
         team: s.team,
+        diagLog: [],
       }))
 
       const state: PersistedState = {
@@ -386,6 +390,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       subagents: [],
       tasks: [],
       bgTasks: [],
+      diagLog: [],
       teammates: [],
     }
     sessions.set(id, session)
@@ -457,6 +462,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         session.compacting = true
       } else if (session.compacting) {
         session.compacting = false
+        session.compactedAt = Date.now()
       }
 
       // Capture agent description from PreToolUse(Agent) tool calls
@@ -831,6 +837,37 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       } else {
         transcriptCache.set(sessionId, existing)
       }
+    }
+
+    // Detect bg task completions from <task-notification> in user transcript entries
+    const session = sessions.get(sessionId)
+    if (session && session.bgTasks.some(t => t.status === 'running')) {
+      for (const entry of entries) {
+        if (entry.type !== 'user') continue
+        const msg = entry.message as Record<string, unknown> | undefined
+        const content = msg?.content
+        const text = typeof content === 'string'
+          ? content
+          : Array.isArray(content)
+            ? content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join('')
+            : ''
+        if (!text.includes('<task-notification>')) continue
+
+        // Extract task IDs and statuses
+        const re = /<task-id>([^<]+)<\/task-id>[\s\S]*?<status>([^<]+)<\/status>/g
+        let match: RegExpExecArray | null
+        while ((match = re.exec(text)) !== null) {
+          const taskId = match[1]
+          const status = match[2]
+          const bgTask = session.bgTasks.find(t => t.taskId === taskId && t.status === 'running')
+          if (bgTask) {
+            bgTask.status = status === 'completed' ? 'completed' : 'killed'
+            bgTask.completedAt = Date.now()
+          }
+        }
+      }
+      // Broadcast updated session if any bg tasks changed
+      broadcast({ type: 'session_update', sessionId, session: toSessionSummary(session) })
     }
   }
 

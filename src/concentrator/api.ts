@@ -673,6 +673,46 @@ export function createApiHandler(options: ApiOptions) {
       }
     }
 
+    // GET /sessions/:id/diag - Raw session diagnostics dump
+    const diagMatch = path.match(/^\/sessions\/([^/]+)\/diag$/)
+    if (diagMatch && req.method === 'GET') {
+      const sessionId = diagMatch[1]
+      const session = sessionStore.getSession(sessionId)
+      if (!session) {
+        return new Response(JSON.stringify({ error: 'Session not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      const transcriptCount = sessionStore.getTranscriptEntries(sessionId).length
+      const diag = {
+        id: sessionId,
+        cwd: session.cwd,
+        model: session.model,
+        status: session.status,
+        capabilities: session.capabilities,
+        version: session.version,
+        buildTime: session.buildTime,
+        startedAt: session.startedAt,
+        lastActivity: session.lastActivity,
+        compacting: session.compacting,
+        compactedAt: session.compactedAt,
+        eventCount: session.events.length,
+        transcriptCacheEntries: transcriptCount,
+        subagents: session.subagents,
+        tasks: session.tasks,
+        bgTasks: session.bgTasks,
+        teammates: session.teammates,
+        team: session.team,
+        args: session.args,
+        diagLog: session.diagLog,
+      }
+      return new Response(JSON.stringify(diag, null, 2), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
     // GET /sessions/:id/tasks - Get session task list
     const tasksMatch = path.match(/^\/sessions\/([^/]+)\/tasks$/)
     if (tasksMatch && req.method === 'GET') {
