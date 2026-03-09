@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdtemp, rm, writeFile, appendFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { TranscriptEntry } from '../shared/protocol'
 import { createTranscriptWatcher } from './transcript-watcher'
 
@@ -110,11 +110,7 @@ describe('TranscriptWatcher', () => {
 
   it('skips malformed JSON lines', async () => {
     const validEntry = { type: 'user', message: { content: 'valid' } }
-    const content = [
-      'not valid json',
-      JSON.stringify(validEntry),
-      '{ broken: }',
-    ].join('\n') + '\n'
+    const content = ['not valid json', JSON.stringify(validEntry), '{ broken: }'].join('\n') + '\n'
 
     await writeFile(testFile, content)
 

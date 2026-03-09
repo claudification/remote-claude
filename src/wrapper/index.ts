@@ -5,18 +5,18 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync, appendFileSync } from 'node:fs'
+import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { readFile } from 'node:fs/promises'
+import { type FSWatcher as ChokidarWatcher, watch as chokidarWatch } from 'chokidar'
 import type { HookEvent, TaskInfo, TasksUpdate, TranscriptEntry } from '../shared/protocol'
-import { createTranscriptWatcher, type TranscriptWatcher } from './transcript-watcher'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
 import { startLocalServer, stopLocalServer } from './local-server'
 import { type PtyProcess, setupTerminalPassthrough, spawnClaude } from './pty-spawn'
 import { cleanupSettings, writeMergedSettings } from './settings-merge'
+import { createTranscriptWatcher, type TranscriptWatcher } from './transcript-watcher'
 import { createWsClient, type WsClient } from './ws-client'
-import { watch as chokidarWatch, type FSWatcher as ChokidarWatcher } from 'chokidar'
 
 const DEBUG = !!process.env.RCLAUDE_DEBUG
 const DEBUG_LOG = process.env.RCLAUDE_DEBUG_LOG || (DEBUG ? '/tmp/rclaude-debug.log' : '')
@@ -25,7 +25,9 @@ function debug(msg: string) {
   if (!DEBUG) return
   const line = `[${new Date().toISOString()}] ${msg}\n`
   if (DEBUG_LOG) {
-    try { appendFileSync(DEBUG_LOG, line) } catch {}
+    try {
+      appendFileSync(DEBUG_LOG, line)
+    } catch {}
   } else {
     console.error(`[rclaude] ${msg}`)
   }
@@ -179,67 +181,70 @@ async function main() {
   const eventQueue: HookEvent[] = []
 
   /**
-   * Watch ~/.claude/tasks/ for task state changes using chokidar
-   * Checks both claudeSessionId and internalId for task directories
+   * Read and send current task state.
+   * Called by chokidar watcher on changes and on reconnect.
    */
-  function startTaskWatching(sessionId: string) {
+  let taskCandidateDirs: string[] = []
+
+  function readAndSendTasks() {
+    if (!wsClient?.isConnected() || !claudeSessionId) return
+    try {
+      let tasksDir: string | null = null
+      for (const dir of taskCandidateDirs) {
+        if (existsSync(dir)) {
+          tasksDir = dir
+          break
+        }
+      }
+      if (!tasksDir) return
+      const files = readdirSync(tasksDir)
+        .filter(f => f.endsWith('.json'))
+        .sort()
+      if (files.length === 0) return
+
+      const tasks: TaskInfo[] = []
+      for (const file of files) {
+        try {
+          const raw = readFileSync(join(tasksDir, file), 'utf-8')
+          const task = JSON.parse(raw)
+          tasks.push({
+            id: String(task.id || ''),
+            subject: String(task.subject || ''),
+            description: task.description ? String(task.description) : undefined,
+            status: task.status || 'pending',
+            blockedBy: Array.isArray(task.blockedBy) ? task.blockedBy.map(String) : undefined,
+            blocks: Array.isArray(task.blocks) ? task.blocks.map(String) : undefined,
+            owner: task.owner ? String(task.owner) : undefined,
+            updatedAt: task.updatedAt || Date.now(),
+          })
+        } catch {
+          // Skip malformed task files
+        }
+      }
+
+      const json = JSON.stringify(tasks)
+      if (json !== lastTasksJson) {
+        lastTasksJson = json
+        const msg: TasksUpdate = { type: 'tasks_update', sessionId: claudeSessionId, tasks }
+        wsClient?.send(msg)
+        debug(`Tasks updated: ${tasks.length} tasks`)
+      }
+    } catch {
+      // Ignore read errors
+    }
+  }
+
+  /**
+   * Watch ~/.claude/tasks/ for task state changes using chokidar
+   */
+  function startTaskWatching() {
     if (taskWatcher) return
     const tasksBase = join(homedir(), '.claude', 'tasks')
-    const candidateDirs = [
-      claudeSessionId ? join(tasksBase, claudeSessionId) : null,
-      join(tasksBase, internalId),
-    ].filter(Boolean) as string[]
+    taskCandidateDirs = [claudeSessionId ? join(tasksBase, claudeSessionId) : null, join(tasksBase, internalId)].filter(
+      Boolean,
+    ) as string[]
 
-    function readAndSendTasks() {
-      if (!wsClient?.isConnected()) return
-      try {
-        let tasksDir: string | null = null
-        for (const dir of candidateDirs) {
-          if (existsSync(dir)) {
-            tasksDir = dir
-            break
-          }
-        }
-        if (!tasksDir) return
-        const files = readdirSync(tasksDir)
-          .filter(f => f.endsWith('.json'))
-          .sort()
-        if (files.length === 0) return
-
-        const tasks: TaskInfo[] = []
-        for (const file of files) {
-          try {
-            const raw = readFileSync(join(tasksDir, file), 'utf-8')
-            const task = JSON.parse(raw)
-            tasks.push({
-              id: String(task.id || ''),
-              subject: String(task.subject || ''),
-              description: task.description ? String(task.description) : undefined,
-              status: task.status || 'pending',
-              blockedBy: Array.isArray(task.blockedBy) ? task.blockedBy.map(String) : undefined,
-              blocks: Array.isArray(task.blocks) ? task.blocks.map(String) : undefined,
-              owner: task.owner ? String(task.owner) : undefined,
-              updatedAt: task.updatedAt || Date.now(),
-            })
-          } catch {
-            // Skip malformed task files
-          }
-        }
-
-        const json = JSON.stringify(tasks)
-        if (json !== lastTasksJson) {
-          lastTasksJson = json
-          const msg: TasksUpdate = { type: 'tasks_update', sessionId, tasks }
-          wsClient?.send(msg)
-          debug(`Tasks updated: ${tasks.length} tasks`)
-        }
-      } catch {
-        // Ignore read errors
-      }
-    }
-
-    // Watch all candidate dirs with chokidar
-    const watchPaths = candidateDirs.map(d => join(d, '*.json'))
+    const watchPaths = taskCandidateDirs.map(d => join(d, '*.json'))
     taskWatcher = chokidarWatch(watchPaths, {
       ignoreInitial: false,
       awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
@@ -247,7 +252,7 @@ async function main() {
     taskWatcher.on('add', readAndSendTasks)
     taskWatcher.on('change', readAndSendTasks)
     taskWatcher.on('unlink', readAndSendTasks)
-    debug(`Task watcher started for ${candidateDirs.length} dirs`)
+    debug(`Task watcher started for ${taskCandidateDirs.length} dirs`)
   }
 
   function connectToConcentrator(sessionId: string) {
@@ -271,7 +276,15 @@ async function main() {
         }
         eventQueue.length = 0
         // Start polling task files
-        startTaskWatching(sessionId)
+        startTaskWatching()
+        // Re-send transcript on reconnect (concentrator may have restarted)
+        if (transcriptWatcher) {
+          debug('Re-sending transcript on reconnect')
+          transcriptWatcher.resend().catch(err => debug(`Resend failed: ${err}`))
+        }
+        // Re-send tasks immediately
+        lastTasksJson = ''
+        readAndSendTasks()
       },
       onDisconnected() {
         debug('Disconnected from concentrator')
@@ -389,11 +402,14 @@ async function main() {
       },
     })
 
-    transcriptWatcher.start(transcriptPath).then(() => {
-      debug(`Transcript watcher started OK: ${transcriptPath}`)
-    }).catch(err => {
-      debug(`Failed to start transcript watcher: ${err}`)
-    })
+    transcriptWatcher
+      .start(transcriptPath)
+      .then(() => {
+        debug(`Transcript watcher started OK: ${transcriptPath}`)
+      })
+      .catch(err => {
+        debug(`Failed to start transcript watcher: ${err}`)
+      })
   }
 
   function startSubagentWatcher(agentId: string, transcriptPath: string) {
@@ -414,14 +430,17 @@ async function main() {
     })
 
     subagentWatchers.set(agentId, watcher)
-    watcher.start(transcriptPath).then(() => {
-      // File is complete - stop watching, free the fd
-      watcher.stop()
-      subagentWatchers.delete(agentId)
-      debug(`Subagent transcript read complete, watcher closed: ${agentId.slice(0, 7)}`)
-    }).catch(err => {
-      debug(`Failed to start subagent watcher: ${err}`)
-    })
+    watcher
+      .start(transcriptPath)
+      .then(() => {
+        // File is complete - stop watching, free the fd
+        watcher.stop()
+        subagentWatchers.delete(agentId)
+        debug(`Subagent transcript read complete, watcher closed: ${agentId.slice(0, 7)}`)
+      })
+      .catch(err => {
+        debug(`Failed to start subagent watcher: ${err}`)
+      })
     debug(`Reading subagent transcript: ${agentId.slice(0, 7)}`)
   }
 
@@ -432,7 +451,9 @@ async function main() {
       // Extract Claude's real session ID from SessionStart
       if (event.hookEvent === 'SessionStart' && event.data) {
         const data = event.data as Record<string, unknown>
-        debug(`SessionStart data keys: ${Object.keys(data).join(', ')} | source=${data.source} | session_id=${String(data.session_id).slice(0, 8)}`)
+        debug(
+          `SessionStart data keys: ${Object.keys(data).join(', ')} | source=${data.source} | session_id=${String(data.session_id).slice(0, 8)}`,
+        )
         if (data.session_id && typeof data.session_id === 'string') {
           const newSessionId = data.session_id
           const sessionChanged = claudeSessionId !== newSessionId
