@@ -1,0 +1,16 @@
+# Caddyfile for standalone concentrator with auto TLS
+#
+# Usage with docker-compose.standalone.yml:
+#   1. Copy to Caddyfile: cp Caddyfile.example Caddyfile
+#   2. Replace YOUR_DOMAIN with your actual domain
+#   3. Uncomment the caddy service in docker-compose.standalone.yml
+#   4. Set CADDY_HOST in .env
+#   5. docker compose -f docker-compose.standalone.yml up -d
+#
+# Requirements:
+#   - DNS A record pointing YOUR_DOMAIN to this machine
+#   - Ports 80 and 443 open (Let's Encrypt validation + HTTPS)
+
+YOUR_DOMAIN {
+	reverse_proxy concentrator:9999
+}

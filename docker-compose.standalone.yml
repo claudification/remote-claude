@@ -1,0 +1,63 @@
+# Standalone concentrator with optional Caddy TLS
+#
+# Usage:
+#   docker compose -f docker-compose.standalone.yml up -d
+#
+# For HTTPS with auto TLS:
+#   Set CADDY_HOST in .env and uncomment the caddy service below
+#
+# Required .env vars:
+#   RCLAUDE_SECRET - shared secret for rclaude authentication
+#
+# Optional .env vars:
+#   PORT           - external port (default: 9999)
+#   CADDY_HOST     - hostname for TLS (e.g. concentrator.example.com)
+#   RP_ID          - WebAuthn relying party domain (default: localhost)
+#   ORIGIN         - WebAuthn origin URL (default: http://localhost:9999)
+
+services:
+  concentrator:
+    build: .
+    container_name: concentrator
+    restart: unless-stopped
+    ports:
+      - "${PORT:-9999}:9999"
+    volumes:
+      - concentrator-data:/data/cache
+      - ./web/dist:/srv/web:ro
+    command:
+      - "--web-dir"
+      - "/srv/web"
+      - "--cache-dir"
+      - "/data/cache"
+      - "--rp-id"
+      - "${RP_ID:-localhost}"
+      - "--origin"
+      - "${ORIGIN:-http://localhost:9999}"
+      - "--rclaude-secret"
+      - "${RCLAUDE_SECRET}"
+      - "--verbose"
+
+  # ─── Optional: Caddy reverse proxy with auto TLS ──────────────
+  # Uncomment to enable HTTPS with automatic Let's Encrypt certs.
+  # Requires CADDY_HOST set in .env and DNS pointing to this machine.
+  #
+  # caddy:
+  #   image: caddy:2-alpine
+  #   container_name: caddy
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #     - "443:443/udp"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy-data:/data
+  #     - caddy-config:/config
+  #   depends_on:
+  #     - concentrator
+
+volumes:
+  concentrator-data:
+  # caddy-data:
+  # caddy-config:
