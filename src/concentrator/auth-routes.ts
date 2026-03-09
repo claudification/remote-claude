@@ -112,7 +112,7 @@ export function requireAuth(req: Request): Response | null {
   // Static assets must be public - SPA handles auth UI client-side
   if (
     url.pathname === '/manifest.json' ||
-    url.pathname === '/favicon.svg' ||
+    url.pathname === '/favicon.ico' ||
     url.pathname === '/sw.js' ||
     url.pathname.startsWith('/icon-') ||
     url.pathname === '/apple-touch-icon.png' ||

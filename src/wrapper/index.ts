@@ -468,10 +468,22 @@ async function main() {
           if (!wsClient) {
             connectToConcentrator(claudeSessionId)
           } else if (sessionChanged) {
-            // Session ID changed - must reconnect so concentrator maps us correctly
-            debug(`Session ID changed, reconnecting to concentrator`)
+            // Session ID changed (e.g. /resume) - end old session cleanly, then reconnect
+            debug(`Session ID changed, ending old session and reconnecting`)
+            wsClient.sendSessionEnd('session_switch')
             wsClient.close()
             wsClient = null
+
+            // Clean up all subagent watchers from old session
+            for (const [agentId, watcher] of subagentWatchers) {
+              debug(`Stopping orphaned subagent watcher: ${agentId.slice(0, 7)}`)
+              watcher.stop()
+            }
+            subagentWatchers.clear()
+
+            // Reset task state for new session
+            lastTasksJson = ''
+
             connectToConcentrator(claudeSessionId)
           }
 
