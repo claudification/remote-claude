@@ -5,3 +5,6 @@ bin
 .git
 *.md
 .claude
+.*.bun-build
+*.bun-build
+.agent.pid
