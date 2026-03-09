@@ -18,6 +18,7 @@ const PRIMARY_SHORTCUTS: ShortcutButton[] = [
   { label: '\u2191', data: '\x1b[A', title: 'Up arrow' },
   { label: '\u2193', data: '\x1b[B', title: 'Down arrow' },
   { label: '\u21B5', data: '\r', title: 'Enter' },
+  { label: '\u2398', data: '__PASTE__', title: 'Paste from clipboard' },
 ]
 
 const CLAUDE_SHORTCUTS: ShortcutButton[] = [
@@ -35,7 +36,16 @@ export function TerminalToolbar({ onSend }: TerminalToolbarProps) {
   const [showClaude, setShowClaude] = useState(false)
   const [activeModifier, setActiveModifier] = useState<Modifier | null>(null)
 
-  function handleShortcut(data: string) {
+  async function handleShortcut(data: string) {
+    if (data === '__PASTE__') {
+      try {
+        const text = await navigator.clipboard.readText()
+        if (text) onSend(text)
+      } catch {
+        // Clipboard permission denied or unavailable
+      }
+      return
+    }
     onSend(data)
   }
 

@@ -46,12 +46,14 @@ export interface SessionSummary {
   startedAt: number
   lastActivity: number
   status: Session['status']
+  compacting?: boolean
   eventCount: number
   activeSubagentCount: number
   totalSubagentCount: number
   subagents: Array<{
     agentId: string
     agentType: string
+    description?: string
     status: 'running' | 'stopped'
     startedAt: number
     stoppedAt?: number
@@ -151,6 +153,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   const dashboardSubscribers = new Set<ServerWebSocket<unknown>>()
   let agentSocket: ServerWebSocket<unknown> | undefined
 
+  // Pending agent descriptions: PreToolUse(Agent) pushes, SubagentStart pops
+  const pendingAgentDescriptions = new Map<string, string[]>()
+
   // Transcript cache: sessionId -> entries (ring buffer, max 500 per session)
   const MAX_TRANSCRIPT_ENTRIES = 500
   const transcriptCache = new Map<string, TranscriptEntry[]>()
@@ -169,12 +174,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       startedAt: session.startedAt,
       lastActivity: session.lastActivity,
       status: session.status,
+      compacting: session.compacting || undefined,
       eventCount: session.events.length,
       activeSubagentCount: session.subagents.filter(a => a.status === 'running').length,
       totalSubagentCount: session.subagents.length,
       subagents: session.subagents.map(a => ({
         agentId: a.agentId,
         agentType: a.agentType,
+        description: a.description,
         status: a.status,
         startedAt: a.startedAt,
         stoppedAt: a.stoppedAt,
@@ -445,14 +452,37 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         }
       }
 
+      // Track compacting state
+      if (event.hookEvent === 'PreCompact') {
+        session.compacting = true
+      } else if (session.compacting) {
+        session.compacting = false
+      }
+
+      // Capture agent description from PreToolUse(Agent) tool calls
+      if (event.hookEvent === 'PreToolUse' && event.data) {
+        const data = event.data as Record<string, unknown>
+        if (data.tool_name === 'Agent' && data.tool_input) {
+          const input = data.tool_input as Record<string, unknown>
+          if (input.description && typeof input.description === 'string') {
+            const queue = pendingAgentDescriptions.get(sessionId) || []
+            queue.push(input.description)
+            pendingAgentDescriptions.set(sessionId, queue)
+          }
+        }
+      }
+
       // Track sub-agent lifecycle
       if (event.hookEvent === 'SubagentStart' && event.data) {
         const data = event.data as Record<string, unknown>
         const agentId = String(data.agent_id || '')
         if (agentId && !session.subagents.some(a => a.agentId === agentId)) {
+          const queue = pendingAgentDescriptions.get(sessionId)
+          const description = queue?.shift()
           session.subagents.push({
             agentId,
             agentType: String(data.agent_type || 'unknown'),
+            description,
             startedAt: event.timestamp,
             status: 'running',
             events: [],

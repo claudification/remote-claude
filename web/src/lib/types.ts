@@ -1,6 +1,7 @@
 export interface SubagentInfo {
   agentId: string
   agentType: string
+  description?: string
   startedAt: number
   stoppedAt?: number
   status: 'running' | 'stopped'
@@ -46,6 +47,7 @@ export interface Session {
   model?: string
   capabilities?: WrapperCapability[]
   status: 'active' | 'idle' | 'ended'
+  compacting?: boolean
   startedAt: number
   lastActivity: number
   eventCount: number
@@ -54,6 +56,7 @@ export interface Session {
   subagents: Array<{
     agentId: string
     agentType: string
+    description?: string
     status: 'running' | 'stopped'
     startedAt: number
     stoppedAt?: number

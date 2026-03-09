@@ -13,12 +13,14 @@ interface SessionSummary {
   startedAt: number
   lastActivity: number
   status: Session['status']
+  compacting?: boolean
   eventCount: number
   activeSubagentCount?: number
   totalSubagentCount?: number
   subagents?: Array<{
     agentId: string
     agentType: string
+    description?: string
     status: 'running' | 'stopped'
     startedAt: number
     stoppedAt?: number
@@ -81,6 +83,7 @@ export function useWebSocket() {
       startedAt: summary.startedAt,
       lastActivity: summary.lastActivity,
       status: summary.status,
+      compacting: summary.compacting,
       eventCount: summary.eventCount,
       activeSubagentCount: summary.activeSubagentCount ?? 0,
       totalSubagentCount: summary.totalSubagentCount ?? 0,
