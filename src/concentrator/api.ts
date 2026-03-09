@@ -13,8 +13,19 @@ import { getAllProjectSettings, setProjectSettings, deleteProjectSettings } from
 // Image registries
 // File registry: hash -> filesystem path (for [Image: source: /path] references)
 const fileRegistry = new Map<string, string>();
-// Blob registry: hash -> { bytes, mediaType } (for inline base64 images from transcript)
-const blobRegistry = new Map<string, { bytes: Uint8Array; mediaType: string }>();
+// Blob registry: hash -> { bytes, mediaType, createdAt } (for inline base64 images from transcript)
+const blobRegistry = new Map<string, { bytes: Uint8Array; mediaType: string; createdAt: number }>();
+
+// Purge blobs older than 24 hours every hour
+const BLOB_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [hash, entry] of blobRegistry) {
+    if (now - entry.createdAt > BLOB_MAX_AGE_MS) {
+      blobRegistry.delete(hash);
+    }
+  }
+}, 60 * 60 * 1000);
 
 function hashString(input: string): string {
   let hash = 0;
@@ -37,7 +48,7 @@ function registerBlob(data: string, mediaType: string): string {
   const hash = hashString(key);
   if (!blobRegistry.has(hash)) {
     const bytes = Buffer.from(data, "base64");
-    blobRegistry.set(hash, { bytes: new Uint8Array(bytes), mediaType });
+    blobRegistry.set(hash, { bytes: new Uint8Array(bytes), mediaType, createdAt: Date.now() });
   }
   return hash;
 }
@@ -896,11 +907,16 @@ export function createApiHandler(options: ApiOptions) {
         const key = `${bytes.length}:${Array.from(bytes.slice(0, 200)).join(",")}`;
         const hash = hashString(key);
         if (!blobRegistry.has(hash)) {
-          blobRegistry.set(hash, { bytes, mediaType });
+          blobRegistry.set(hash, { bytes, mediaType, createdAt: Date.now() });
         }
 
         const ext = mediaType.split("/")[1]?.replace("jpeg", "jpg") || "png";
-        const url = `/file/${hash}.${ext}`;
+        const filePath = `/file/${hash}.${ext}`;
+
+        // Build absolute URL from request Host header so Claude can fetch it
+        const host = req.headers.get("host") || "localhost:9999";
+        const proto = req.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
+        const url = `${proto}://${host}${filePath}`;
 
         return new Response(JSON.stringify({ hash, url, filename, mediaType }), {
           status: 200,

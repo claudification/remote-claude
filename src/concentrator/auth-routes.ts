@@ -115,6 +115,9 @@ export function requireAuth(req: Request): Response | null {
     || url.pathname.startsWith("/icon-") || url.pathname === "/apple-touch-icon.png"
     || url.pathname.startsWith("/assets/")) return null;
 
+  // Uploaded files are public (Claude needs to fetch them without auth)
+  if (url.pathname.startsWith("/file/")) return null;
+
   // Specific auth routes needed for login/registration flow (no cookie yet)
   if (PUBLIC_AUTH_ROUTES.has(url.pathname)) return null;
 
@@ -141,7 +144,6 @@ export function requireAuth(req: Request): Response | null {
   // API paths (/sessions, /file, etc.) must NEVER fall through without auth
   const accept = req.headers.get("accept") || "";
   const isApiPath = url.pathname.startsWith("/sessions")
-    || url.pathname.startsWith("/file")
     || url.pathname.startsWith("/api/")
     || url.pathname.startsWith("/auth/");
   if (accept.includes("text/html") && !isApiPath) {

@@ -20,16 +20,25 @@ Run Claude Code in multiple terminals, see all sessions in one place, send input
 
 - **Multi-session monitoring** - See all Claude Code sessions across terminals
 - **Real-time event streaming** - Watch tool calls, prompts, and responses live
-- **Remote input** - Send commands to any session from the web dashboard
+- **Remote input** - Markdown-capable input with file upload (paste/drag-drop images)
+- **Web terminal** - Full xterm.js terminal with popout windows (shift+click TTY badge)
+- **Syntax-highlighted diffs** - Shiki-powered diff rendering in transcript view
 - **Sub-agent tracking** - Visualize spawned agents, their types, and lifecycle
+- **Background task tracking** - See running Bash commands and task lists per session
 - **Team detection** - See which sessions are part of coordinated teams
+- **Project settings** - Custom label, icon, and color per project path
+- **Push notifications** - PWA push notifications when sessions need attention
+- **Session revival** - Revive idle sessions via host agent + tmux
 - **Passkey authentication** - WebAuthn passkeys, CLI-only invite creation, no passwords
 - **Path-jailed file access** - Transcript/image serving locked to allowed directories
 - **Session persistence** - Sessions survive concentrator restarts
 - **Session resume** - Resumed Claude sessions show as the same session
 - **Transcript viewer** - Markdown-rendered conversation history with syntax highlighting
+- **Deep link routing** - Direct URL links to sessions and views
 - **Docker-ready** - Dockerfile + compose with health checks and Caddy integration
+- **Frontend hot-reload** - Docker volume mount lets you rebuild web without restarting container
 - **Mobile-friendly UI** - Responsive design with Tokyo Night color scheme
+- **Readline shortcuts** - Ctrl+A/E/K/U/W in the input field
 
 ## Architecture
 
@@ -74,7 +83,7 @@ bun install && cd web && bun install && cd ..
 bun run install-cli
 ```
 
-Installs `rclaude`, `concentrator`, and `concentrator-cli` to `~/.local/bin`.
+Installs `rclaude`, `rclaude-agent`, `concentrator`, and `concentrator-cli` to `~/.local/bin`.
 
 ```bash
 # Ensure ~/.local/bin is in PATH
@@ -164,9 +173,13 @@ docker compose up -d
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `CLAUDE_DIR` | Host path to `.claude` directory (mounted read-only) | `~/.claude` |
+| `RCLAUDE_SECRET` | Shared secret for rclaude WebSocket auth | *(required)* |
 | `RP_ID` | WebAuthn relying party ID (your domain, no protocol) | `localhost` |
 | `ORIGIN` | Allowed WebAuthn origin (full URL) | `http://localhost:9999` |
 | `CADDY_HOST` | Caddy reverse proxy hostname (for caddy-docker-proxy) | *(empty)* |
+| `VAPID_PUBLIC_KEY` | VAPID public key for push notifications | *(optional)* |
+| `VAPID_PRIVATE_KEY` | VAPID private key for push notifications | *(optional)* |
+| `PORT` | External port mapping | `9999` |
 
 ### With Caddy reverse proxy
 
@@ -176,6 +189,14 @@ The compose file includes labels for [caddy-docker-proxy](https://github.com/luc
 RP_ID=concentrator.example.com
 ORIGIN=https://concentrator.example.com
 CADDY_HOST=concentrator.example.com
+```
+
+### Frontend hot-reload
+
+The Docker compose mounts `./web/dist` over the baked-in frontend assets. Rebuild the frontend on the host and changes appear immediately -- no container restart needed:
+
+```bash
+bun run build:web    # Rebuilds web/dist/, served instantly by the container
 ```
 
 ### Health check
@@ -215,16 +236,18 @@ All filesystem access (transcripts, images, web assets) is locked down by a path
 concentrator [OPTIONS]
 
 OPTIONS:
-  -p, --port <port>      WebSocket/API port (default: 9999)
-  -v, --verbose          Enable verbose logging
-  -w, --web-dir <dir>    Serve web dashboard from directory
-  --cache-dir <dir>      Session cache directory (default: ~/.cache/concentrator)
-  --clear-cache          Clear session cache and exit
-  --no-persistence       Disable session persistence
-  --allow-root <dir>     Add allowed filesystem root (repeatable)
-  --rp-id <domain>       WebAuthn relying party ID (default: localhost)
-  --origin <url>         Allowed WebAuthn origin (repeatable)
-  -h, --help             Show help
+  -p, --port <port>        WebSocket/API port (default: 9999)
+  -v, --verbose            Enable verbose logging
+  -w, --web-dir <dir>      Serve web dashboard from directory
+  --cache-dir <dir>        Session cache directory (default: ~/.cache/concentrator)
+  --clear-cache            Clear session cache and exit
+  --no-persistence         Disable session persistence
+  --allow-root <dir>       Add allowed filesystem root (repeatable)
+  --rp-id <domain>         WebAuthn relying party ID (default: localhost)
+  --origin <url>           Allowed WebAuthn origin (repeatable)
+  --rclaude-secret <s>     Shared secret for rclaude WebSocket auth
+  --path-map <host:cont>   Map host paths to container paths (for Docker)
+  -h, --help               Show help
 ```
 
 ### rclaude
@@ -234,7 +257,9 @@ rclaude [OPTIONS] [CLAUDE_ARGS...]
 
 OPTIONS:
   --concentrator <url>   Concentrator WebSocket URL (default: ws://localhost:9999)
+  --rclaude-secret <s>   Shared secret for concentrator auth (or RCLAUDE_SECRET env)
   --no-concentrator      Run without forwarding to concentrator
+  --no-terminal          Disable remote terminal capability
   --rclaude-help         Show rclaude help
 
 All other arguments pass through to claude CLI.
@@ -282,10 +307,23 @@ curl http://localhost:9999/sessions/:id/subagents
 # Get session transcript (last 20 entries)
 curl http://localhost:9999/sessions/:id/transcript
 
+# Get background tasks (running Bash commands)
+curl http://localhost:9999/sessions/:id/tasks
+
 # Send input to session
 curl -X POST http://localhost:9999/sessions/:id/input \
   -H "Content-Type: application/json" \
   -d '{"input": "hello world"}'
+
+# Upload a file (returns URL for use in input)
+curl -X POST http://localhost:9999/api/files \
+  -F "file=@screenshot.png"
+
+# Project settings (label/icon/color per project path)
+curl http://localhost:9999/api/project-settings
+curl -X PUT http://localhost:9999/api/project-settings \
+  -H "Content-Type: application/json" \
+  -d '{"cwd": "/home/user/project", "label": "My API", "icon": "rocket", "color": "#ff6600"}'
 ```
 
 ## Hook Events
@@ -313,11 +351,12 @@ curl -X POST http://localhost:9999/sessions/:id/input \
 remote-claude/
 ├── bin/                       # Built binaries
 │   ├── rclaude               # Wrapper CLI
+│   ├── rclaude-agent         # Host agent for session revival
 │   ├── concentrator          # Aggregation server
 │   └── concentrator-cli      # Passkey management CLI
 ├── src/
 │   ├── wrapper/              # rclaude implementation
-│   │   ├── index.ts          # CLI entry point + auto-start concentrator
+│   │   ├── index.ts          # CLI entry point
 │   │   ├── pty-spawn.ts      # PTY subprocess management
 │   │   ├── ws-client.ts      # WebSocket client with reconnection
 │   │   ├── local-server.ts   # Hook callback receiver
@@ -325,21 +364,32 @@ remote-claude/
 │   ├── concentrator/         # Server implementation
 │   │   ├── index.ts          # Server entry point
 │   │   ├── session-store.ts  # Session registry + persistence
-│   │   ├── api.ts            # REST API routes
+│   │   ├── api.ts            # REST API + file upload
 │   │   ├── auth.ts           # WebAuthn passkey auth core
 │   │   ├── auth-routes.ts    # Auth HTTP endpoints
 │   │   ├── path-jail.ts      # Filesystem access control
+│   │   ├── push.ts           # Web Push notifications (VAPID)
+│   │   ├── project-settings.ts # Per-project label/icon/color
 │   │   └── cli.ts            # CLI tool entry point
+│   ├── agent/                # Host agent for session revival
 │   └── shared/
 │       └── protocol.ts       # WebSocket protocol types
 ├── web/                      # React dashboard
 │   └── src/
 │       ├── components/       # UI components
 │       │   ├── auth-gate.tsx  # Login/registration gate
-│       │   ├── subagent-view.tsx # Agent tree visualization
+│       │   ├── web-terminal.tsx # xterm.js remote terminal
+│       │   ├── transcript-view.tsx # Shiki-highlighted transcript
+│       │   ├── markdown-input.tsx  # Markdown editor with file upload
+│       │   ├── project-settings-editor.tsx # Project customization
+│       │   ├── tasks-view.tsx # Task list view
+│       │   ├── bg-tasks-view.tsx # Background tasks view
 │       │   └── ...
 │       ├── hooks/            # React hooks + API
 │       └── styles/           # Tokyo Night theme
+├── scripts/
+│   ├── build.sh              # Build script (--deploy for Docker)
+│   └── rclaude-notify.sh     # Push notification helper
 ├── Dockerfile                # Multi-stage build
 ├── docker-compose.yml        # Production deployment
 └── .env.example              # Configuration template
@@ -580,6 +630,7 @@ bun run build:web                # Web -> web/dist/
 bun run build:wrapper            # rclaude -> bin/rclaude
 bun run build:concentrator       # concentrator -> bin/concentrator
 bun run build:cli                # concentrator-cli -> bin/concentrator-cli
+bun run build:agent              # rclaude-agent -> bin/rclaude-agent
 ```
 
 ## Tech Stack
@@ -588,6 +639,9 @@ bun run build:cli                # concentrator-cli -> bin/concentrator-cli
 - **Backend**: TypeScript, WebSocket, REST API
 - **Auth**: WebAuthn / FIDO2 passkeys via [@simplewebauthn](https://simplewebauthn.dev/)
 - **Frontend**: React 19, Vite 7, Tailwind CSS v4, shadcn/ui
+- **Terminal**: [xterm.js](https://xtermjs.org/) with fit addon
+- **Syntax**: [Shiki](https://shiki.matsu.io/) for diff/code highlighting
+- **Push**: Web Push API with VAPID (via [web-push](https://github.com/web-push-libs/web-push))
 - **Theme**: Tokyo Night color palette
 
 ## License

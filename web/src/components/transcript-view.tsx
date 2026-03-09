@@ -296,6 +296,21 @@ function escapeHtml(str: string): string {
 	return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+// Strip common home/project prefixes to show a useful relative-ish path
+// /Users/jonas/projects/remote-claude/src/foo.ts -> src/foo.ts
+// /home/user/app/lib/bar.ts -> lib/bar.ts
+function shortPath(fullPath: string): string {
+	if (!fullPath) return fullPath
+	// Strip /Users/*/projects/*/ or /home/*/ prefixes
+	const stripped = fullPath.replace(/^\/(?:Users|home)\/[^/]+\/(?:projects\/[^/]+\/)?/, '')
+	// If nothing was stripped (different pattern), show last 3 segments
+	if (stripped === fullPath && fullPath.startsWith('/')) {
+		const parts = fullPath.split('/')
+		return parts.length > 3 ? parts.slice(-3).join('/') : fullPath
+	}
+	return stripped
+}
+
 // Compact tool display - one line summary with expandable details
 function ToolLine({
 	tool,
@@ -329,12 +344,12 @@ function ToolLine({
 		}
 		case 'Read': {
 			const path = input.file_path as string
-			summary = path?.split('/').pop() || path
+			summary = shortPath(path) || path
 			break
 		}
 		case 'Edit': {
 			const path = input.file_path as string
-			summary = path?.split('/').pop() || path
+			summary = shortPath(path) || path
 			const patches = (toolUseResult as any)?.structuredPatch
 			if (patches?.length) {
 				details = <DiffView patches={patches} filePath={path} />
@@ -344,7 +359,7 @@ function ToolLine({
 		case 'Write': {
 			const path = input.file_path as string
 			const content = input.content as string
-			summary = `${path?.split('/').pop()} (${content?.length || 0} chars)`
+			summary = `${shortPath(path)} (${content?.length || 0} chars)`
 			break
 		}
 		case 'WebSearch': {

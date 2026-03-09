@@ -22,6 +22,8 @@ function getEventColor(hookEvent: string): string {
 			return 'border-purple-400 text-purple-400'
 		case 'TaskCompleted':
 			return 'border-green-400 text-green-400'
+		case 'PreCompact':
+			return 'border-yellow-400 text-yellow-400'
 		default:
 			return 'border-event-notification text-event-notification'
 	}
