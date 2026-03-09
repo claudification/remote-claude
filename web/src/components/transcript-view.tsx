@@ -155,29 +155,145 @@ function Collapsible({
 	)
 }
 
-// Render a diff view for Edit operations
-function DiffView({ patches }: { patches: Array<{ oldStart: number; lines: string[] }> }) {
+// Syntax-highlighted diff view for Edit operations
+// Uses Shiki (lazy-loaded) to highlight code, with diff line backgrounds overlaid
+
+import { useState as useSyntaxState } from 'react'
+
+// Lazy singleton highlighter
+let highlighterPromise: Promise<any> | null = null
+
+const EAGER_LANGS = ['javascript', 'typescript', 'tsx', 'jsx', 'shellscript', 'html', 'astro', 'css', 'json', 'yaml', 'markdown']
+
+function getHighlighter() {
+	if (!highlighterPromise) {
+		highlighterPromise = import('shiki/bundle/web').then(m =>
+			m.createHighlighter({
+				themes: ['tokyo-night'],
+				langs: EAGER_LANGS,
+			})
+		)
+	}
+	return highlighterPromise
+}
+
+// Lazy-load a language into the highlighter if not already loaded
+async function ensureLang(lang: string): Promise<boolean> {
+	const hl = await getHighlighter()
+	const loaded = hl.getLoadedLanguages() as string[]
+	if (loaded.includes(lang)) return true
+	try {
+		const mod = await import('shiki/bundle/web')
+		const available = mod.bundledLanguagesInfo.map((l: any) => l.id)
+		if (!available.includes(lang)) return false
+		await hl.loadLanguage(lang)
+		return true
+	} catch {
+		return false
+	}
+}
+
+// File extension -> shiki language id
+const EXT_TO_LANG: Record<string, string> = {
+	ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx',
+	py: 'python', rb: 'ruby', rs: 'rust', go: 'go',
+	java: 'java', c: 'c', cpp: 'cpp', h: 'cpp', hpp: 'cpp',
+	css: 'css', scss: 'scss', less: 'less', sass: 'sass',
+	html: 'html', htm: 'html', vue: 'vue', svelte: 'svelte', astro: 'astro',
+	json: 'json', jsonc: 'jsonc', json5: 'json5', yaml: 'yaml', yml: 'yaml',
+	xml: 'xml', svg: 'xml', toml: 'toml',
+	md: 'markdown', mdx: 'mdx',
+	sql: 'sql', graphql: 'graphql', gql: 'graphql',
+	sh: 'shellscript', bash: 'shellscript', zsh: 'shellscript',
+	php: 'php', r: 'r', coffee: 'coffee',
+	pug: 'pug', hbs: 'handlebars',
+}
+
+function langFromPath(filePath: string): string | undefined {
+	const ext = filePath.split('.').pop()?.toLowerCase()
+	return ext ? EXT_TO_LANG[ext] : undefined
+}
+
+function DiffView({ patches, filePath }: { patches: Array<{ oldStart: number; lines: string[] }>; filePath?: string }) {
+	const [highlighted, setHighlighted] = useSyntaxState<Map<string, string> | null>(null)
+
+	useEffect(() => {
+		const lang = filePath ? langFromPath(filePath) : undefined
+		if (!lang) return
+
+		// Collect all code lines (strip diff prefix) for batch highlighting
+		const codeLines: string[] = []
+		for (const patch of patches) {
+			for (const line of patch.lines) {
+				// Strip diff prefix (+/-/space) to get actual code
+				codeLines.push(line.slice(1))
+			}
+		}
+		if (codeLines.length === 0) return
+
+		ensureLang(lang).then(async ok => {
+			if (!ok) return
+			const highlighter = await getHighlighter()
+			const lineMap = new Map<string, string>()
+			try {
+				const code = codeLines.join('\n')
+				const tokens = highlighter.codeToTokens(code, { lang, theme: 'tokyo-night' })
+				tokens.tokens.forEach((lineTokens: any[], idx: number) => {
+					const html = lineTokens
+						.map((t: any) => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`)
+						.join('')
+					lineMap.set(codeLines[idx], html)
+				})
+			} catch {
+				// Highlighting failed - fall back to plain
+			}
+			setHighlighted(lineMap)
+		}).catch(() => {})
+	}, [patches, filePath])
+
 	return (
 		<pre className="text-[10px] font-mono overflow-x-auto">
 			{patches.map((patch, i) => (
 				<div key={i}>
 					<div className="text-muted-foreground">@@ {patch.oldStart} @@</div>
-					{patch.lines.map((line, j) => (
-						<div
-							key={j}
-							className={cn(
-								line.startsWith('+') && 'text-green-400 bg-green-500/10',
-								line.startsWith('-') && 'text-red-400 bg-red-500/10',
-								!line.startsWith('+') && !line.startsWith('-') && 'text-muted-foreground',
-							)}
-						>
-							{line}
-						</div>
-					))}
+					{patch.lines.map((line, j) => {
+						const prefix = line[0] || ' '
+						const content = line.slice(1)
+						const syntaxHtml = highlighted?.get(content)
+						return (
+							<div
+								key={j}
+								className={cn(
+									prefix === '+' && 'bg-green-500/10',
+									prefix === '-' && 'bg-red-500/10',
+								)}
+							>
+								<span className={cn(
+									prefix === '+' && 'text-green-400',
+									prefix === '-' && 'text-red-400',
+									prefix !== '+' && prefix !== '-' && 'text-muted-foreground',
+								)}>
+									{prefix}
+								</span>
+								{syntaxHtml
+									? <span dangerouslySetInnerHTML={{ __html: syntaxHtml }} />
+									: <span className={cn(
+											prefix === '+' && 'text-green-400',
+											prefix === '-' && 'text-red-400',
+											prefix !== '+' && prefix !== '-' && 'text-muted-foreground',
+										)}>{content}</span>
+								}
+							</div>
+						)
+					})}
 				</div>
 			))}
 		</pre>
 	)
+}
+
+function escapeHtml(str: string): string {
+	return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 // Compact tool display - one line summary with expandable details
@@ -221,7 +337,7 @@ function ToolLine({
 			summary = path?.split('/').pop() || path
 			const patches = (toolUseResult as any)?.structuredPatch
 			if (patches?.length) {
-				details = <DiffView patches={patches} />
+				details = <DiffView patches={patches} filePath={path} />
 			}
 			break
 		}

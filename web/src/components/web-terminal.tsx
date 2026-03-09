@@ -64,13 +64,16 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession, popout }: Web
 	}
 
 	// Set window title in popout mode
+	const projectSettings = useSessionsStore(state => state.projectSettings)
 	useEffect(() => {
 		if (!popout) return
 		const session = sessions.find(s => s.id === sessionId)
 		if (session) {
-			document.title = `TTY: ${session.cwd.split('/').pop() || sessionId.slice(0, 8)}`
+			const ps = projectSettings[session.cwd]
+			const name = ps?.label || session.cwd.split('/').pop() || sessionId.slice(0, 8)
+			document.title = `TTY: ${name}`
 		}
-	}, [popout, sessionId, sessions])
+	}, [popout, sessionId, sessions, projectSettings])
 
 	// Main terminal setup
 	useEffect(() => {
