@@ -180,6 +180,17 @@ async function main() {
   // Queue events until we have the real session ID
   const eventQueue: HookEvent[] = []
 
+  // Diagnostic log - sends structured debug entries to concentrator
+  function diag(type: string, msg: string, args?: unknown) {
+    debug(`[diag] ${type}: ${msg}${args ? ` ${JSON.stringify(args)}` : ''}`)
+    if (!wsClient?.isConnected() || !claudeSessionId) return
+    wsClient.send({
+      type: 'diag',
+      sessionId: claudeSessionId,
+      entries: [{ t: Date.now(), type, msg, args }],
+    } as any)
+  }
+
   /**
    * Read and send current task state.
    * Called by chokidar watcher on changes and on reconnect.
@@ -250,7 +261,7 @@ async function main() {
     taskWatcher.on('add', readAndSendTasks)
     taskWatcher.on('change', readAndSendTasks)
     taskWatcher.on('unlink', readAndSendTasks)
-    debug(`Task watcher started for ${taskCandidateDirs.length} dirs`)
+    diag('watch', 'Task watcher started', taskCandidateDirs)
   }
 
   function connectToConcentrator(sessionId: string) {
@@ -267,7 +278,7 @@ async function main() {
       args: claudeArgs,
       capabilities,
       onConnected() {
-        debug(`Connected to concentrator (session: ${sessionId.slice(0, 8)}...)`)
+        diag('ws', 'Connected to concentrator', { sessionId })
         // Flush queued events
         for (const event of eventQueue) {
           wsClient?.sendHookEvent({ ...event, sessionId })
@@ -292,19 +303,36 @@ async function main() {
       },
       onInput(input) {
         if (!ptyProcess) return
-        // Strip trailing whitespace
-        const trimmed = input.replace(/[\r\n]+$/, '').replace(/\n/g, '\\\n')
-        // Send text first
-        ptyProcess.write(trimmed)
-        // Then send Enter key separately after a tiny delay
-        // Send two \r with a gap - sometimes the first one gets swallowed by Claude Code
-        setTimeout(() => {
-          ptyProcess?.write('\r')
+        const trimmed = input.replace(/[\r\n]+$/, '')
+        const lines = trimmed.split('\n')
+
+        if (lines.length === 1) {
+          // Single line: write + Enter
+          ptyProcess.write(trimmed)
           setTimeout(() => {
             ptyProcess?.write('\r')
-          }, 100)
-        }, 50)
-        debug(`Sent to PTY: ${JSON.stringify(trimmed)} then 2x\\r`)
+            setTimeout(() => ptyProcess?.write('\r'), 100)
+          }, 50)
+        } else {
+          // Multiline: chunk line-by-line inside bracketed paste, then submit
+          ptyProcess.write('\x1b[200~')
+          lines.forEach((line, i) => {
+            setTimeout(() => {
+              if (!ptyProcess) return
+              ptyProcess.write(i > 0 ? `\n${line}` : line)
+              if (i === lines.length - 1) {
+                setTimeout(() => {
+                  ptyProcess?.write('\x1b[201~')
+                  setTimeout(() => {
+                    ptyProcess?.write('\r')
+                    setTimeout(() => ptyProcess?.write('\r'), 150)
+                  }, 100)
+                }, 20)
+              }
+            }, i * 20)
+          })
+        }
+        debug(`Sent to PTY: ${lines.length} lines, ${trimmed.length} chars`)
       },
       onTerminalInput(data) {
         // Raw keystrokes from browser terminal - write directly to PTY
@@ -409,10 +437,10 @@ async function main() {
     transcriptWatcher
       .start(transcriptPath)
       .then(() => {
-        debug(`Transcript watcher started OK: ${transcriptPath}`)
+        diag('watch', 'Transcript watcher started', transcriptPath)
       })
       .catch(err => {
-        debug(`Failed to start transcript watcher: ${err}`)
+        diag('error', 'Transcript watcher failed to start', { path: transcriptPath, error: String(err) })
       })
   }
 
@@ -462,7 +490,11 @@ async function main() {
           const newSessionId = data.session_id
           const sessionChanged = claudeSessionId !== newSessionId
           claudeSessionId = newSessionId
-          debug(`Got Claude session ID: ${claudeSessionId.slice(0, 8)}... (changed: ${sessionChanged})`)
+          diag('session', sessionChanged ? 'Session ID changed' : 'Session ID confirmed', {
+            sessionId: claudeSessionId,
+            prev: sessionChanged ? claudeSessionId : undefined,
+            internalId,
+          })
 
           // Connect (or reconnect) to concentrator with the correct session ID
           if (!wsClient) {
@@ -481,8 +513,12 @@ async function main() {
             }
             subagentWatchers.clear()
 
-            // Reset task state for new session
+            // Reset task watcher for new session directory
             lastTasksJson = ''
+            if (taskWatcher) {
+              taskWatcher.close()
+              taskWatcher = null
+            }
 
             connectToConcentrator(claudeSessionId)
           }
