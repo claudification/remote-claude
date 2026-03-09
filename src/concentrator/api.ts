@@ -519,6 +519,19 @@ export function createApiHandler(options: ApiOptions) {
         })
       }
 
+      const limit = parseInt(url.searchParams.get('limit') || '20', 10)
+
+      // Serve from transcript cache if available (streamed from rclaude)
+      if (sessionStore.hasTranscriptCache(sessionId)) {
+        const entries = sessionStore.getTranscriptEntries(sessionId, limit)
+        const processedEntries = entries.map((entry: any) => processImagesInEntry(entry))
+        return new Response(JSON.stringify(processedEntries, null, 2), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+
+      // Fallback: read from filesystem (backward compat for non-streaming rclaude)
       if (!session.transcriptPath) {
         return new Response(JSON.stringify({ error: 'No transcript path available' }), {
           status: 404,
@@ -548,7 +561,6 @@ export function createApiHandler(options: ApiOptions) {
         const lines = text.trim().split('\n').filter(Boolean)
 
         // Parse JSONL - get last N entries
-        const limit = parseInt(url.searchParams.get('limit') || '20', 10)
         const entries = lines
           .slice(-limit)
           .map(line => {
@@ -589,6 +601,19 @@ export function createApiHandler(options: ApiOptions) {
         })
       }
 
+      const limit = parseInt(url.searchParams.get('limit') || '100', 10)
+
+      // Serve from cache if available (streamed from rclaude)
+      if (sessionStore.hasSubagentTranscriptCache(sessionId, agentId)) {
+        const entries = sessionStore.getSubagentTranscriptEntries(sessionId, agentId, limit)
+        const processedEntries = entries.map((entry: any) => processImagesInEntry(entry))
+        return new Response(JSON.stringify(processedEntries, null, 2), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+
+      // Fallback: read from filesystem
       const agent = session.subagents.find(a => a.agentId === agentId)
 
       // Derive transcript path: use agent's explicit path, or construct from parent session's path
@@ -623,7 +648,6 @@ export function createApiHandler(options: ApiOptions) {
 
         const text = await file.text()
         const lines = text.trim().split('\n').filter(Boolean)
-        const limit = parseInt(url.searchParams.get('limit') || '100', 10)
         const entries = lines
           .slice(-limit)
           .map(line => {

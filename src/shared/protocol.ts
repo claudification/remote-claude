@@ -76,6 +76,33 @@ export interface TasksUpdate {
   tasks: TaskInfo[]
 }
 
+// Transcript streaming: rclaude -> concentrator
+export interface TranscriptEntries {
+  type: 'transcript_entries'
+  sessionId: string
+  entries: TranscriptEntry[]
+  isInitial: boolean // true for initial batch on connect, false for incremental
+}
+
+export interface SubagentTranscript {
+  type: 'subagent_transcript'
+  sessionId: string
+  agentId: string
+  entries: TranscriptEntry[]
+  isInitial: boolean
+}
+
+export interface FileResponse {
+  type: 'file_response'
+  requestId: string
+  data?: string // base64
+  mediaType?: string
+  error?: string
+}
+
+// A single JSONL transcript entry (opaque to protocol - the concentrator just stores/forwards it)
+export type TranscriptEntry = Record<string, unknown>
+
 export type WrapperMessage =
   | HookEvent
   | SessionMeta
@@ -84,6 +111,9 @@ export type WrapperMessage =
   | TerminalData
   | TerminalError
   | TasksUpdate
+  | TranscriptEntries
+  | SubagentTranscript
+  | FileResponse
 
 // Concentrator -> Wrapper messages
 export interface Ack {
@@ -102,6 +132,26 @@ export interface SendInput {
   input: string
 }
 
+// Transcript streaming: concentrator -> rclaude
+export interface TranscriptRequest {
+  type: 'transcript_request'
+  sessionId: string
+  limit?: number
+}
+
+export interface SubagentTranscriptRequest {
+  type: 'subagent_transcript_request'
+  sessionId: string
+  agentId: string
+  limit?: number
+}
+
+export interface FileRequest {
+  type: 'file_request'
+  requestId: string
+  path: string
+}
+
 export type ConcentratorMessage =
   | Ack
   | ConcentratorError
@@ -110,6 +160,9 @@ export type ConcentratorMessage =
   | TerminalDetach
   | TerminalData
   | TerminalResize
+  | TranscriptRequest
+  | SubagentTranscriptRequest
+  | FileRequest
 
 // Hook event types from Claude Code
 export type HookEventType =

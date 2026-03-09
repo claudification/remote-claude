@@ -5,11 +5,15 @@
 
 import type {
   ConcentratorMessage,
+  FileResponse,
   Heartbeat,
   HookEvent,
   SessionEnd,
   SessionMeta,
+  SubagentTranscript,
   TerminalData,
+  TranscriptEntries,
+  TranscriptEntry,
   WrapperCapability,
   WrapperMessage,
 } from '../shared/protocol'
@@ -31,6 +35,9 @@ export interface WsClientOptions {
   onTerminalDetach?: () => void
   onTerminalInput?: (data: string) => void
   onTerminalResize?: (cols: number, rows: number) => void
+  onTranscriptRequest?: (limit?: number) => void
+  onSubagentTranscriptRequest?: (agentId: string, limit?: number) => void
+  onFileRequest?: (requestId: string, path: string) => void
 }
 
 export interface WsClient {
@@ -38,6 +45,9 @@ export interface WsClient {
   sendHookEvent: (event: HookEvent) => void
   sendSessionEnd: (reason: string) => void
   sendTerminalData: (data: string) => void
+  sendTranscriptEntries: (entries: TranscriptEntry[], isInitial: boolean) => void
+  sendSubagentTranscript: (agentId: string, entries: TranscriptEntry[], isInitial: boolean) => void
+  sendFileResponse: (requestId: string, data?: string, mediaType?: string, error?: string) => void
   close: () => void
   isConnected: () => boolean
 }
@@ -62,6 +72,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onTerminalDetach,
     onTerminalInput,
     onTerminalResize,
+    onTranscriptRequest,
+    onSubagentTranscriptRequest,
+    onFileRequest,
   } = options
 
   let ws: WebSocket | null = null
@@ -165,6 +178,15 @@ export function createWsClient(options: WsClientOptions): WsClient {
             case 'terminal_resize':
               onTerminalResize?.(message.cols, message.rows)
               break
+            case 'transcript_request':
+              onTranscriptRequest?.(message.limit)
+              break
+            case 'subagent_transcript_request':
+              onSubagentTranscriptRequest?.(message.agentId, message.limit)
+              break
+            case 'file_request':
+              onFileRequest?.(message.requestId, message.path)
+              break
             case 'ack':
               // Acknowledgements - no action needed
               break
@@ -216,6 +238,38 @@ export function createWsClient(options: WsClientOptions): WsClient {
     send(msg)
   }
 
+  function sendTranscriptEntries(entries: TranscriptEntry[], isInitial: boolean) {
+    const msg: TranscriptEntries = {
+      type: 'transcript_entries',
+      sessionId,
+      entries,
+      isInitial,
+    }
+    send(msg)
+  }
+
+  function sendSubagentTranscript(agentId: string, entries: TranscriptEntry[], isInitial: boolean) {
+    const msg: SubagentTranscript = {
+      type: 'subagent_transcript',
+      sessionId,
+      agentId,
+      entries,
+      isInitial,
+    }
+    send(msg)
+  }
+
+  function sendFileResponse(requestId: string, data?: string, mediaType?: string, error?: string) {
+    const msg: FileResponse = {
+      type: 'file_response',
+      requestId,
+      data,
+      mediaType,
+      error,
+    }
+    send(msg)
+  }
+
   function close() {
     shouldReconnect = false
     if (heartbeatInterval) {
@@ -241,6 +295,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
     sendHookEvent,
     sendSessionEnd,
     sendTerminalData,
+    sendTranscriptEntries,
+    sendSubagentTranscript,
+    sendFileResponse,
     close,
     isConnected,
   }

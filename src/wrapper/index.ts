@@ -8,7 +8,9 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import type { HookEvent, TaskInfo, TasksUpdate } from '../shared/protocol'
+import { createTranscriptWatcher, type TranscriptWatcher } from './transcript-watcher'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
 import { startLocalServer, stopLocalServer } from './local-server'
 import { type PtyProcess, setupTerminalPassthrough, spawnClaude } from './pty-spawn'
@@ -100,6 +102,21 @@ EXAMPLES:
 `)
 }
 
+function extToMediaType(ext: string): string {
+  const map: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+    bmp: 'image/bmp',
+    ico: 'image/x-icon',
+    avif: 'image/avif',
+  }
+  return map[ext] || 'application/octet-stream'
+}
+
 async function main() {
   // Parse our specific args, pass the rest to claude
   const args = process.argv.slice(2)
@@ -147,6 +164,8 @@ async function main() {
   let savedTerminalSize: { cols: number; rows: number } | null = null
   let taskPollTimer: ReturnType<typeof setInterval> | null = null
   let lastTasksJson = ''
+  let transcriptWatcher: TranscriptWatcher | null = null
+  const subagentWatchers = new Map<string, TranscriptWatcher>()
 
   // Queue events until we have the real session ID
   const eventQueue: HookEvent[] = []
@@ -301,7 +320,64 @@ async function main() {
         }
         debug(`Terminal resized to ${cols}x${rows}`)
       },
+      onFileRequest(requestId, path) {
+        // Read file from local filesystem and respond
+        readFile(path)
+          .then(buf => {
+            const ext = path.split('.').pop()?.toLowerCase() || ''
+            const mediaType = extToMediaType(ext)
+            wsClient?.sendFileResponse(requestId, buf.toString('base64'), mediaType)
+            debug(`File response: ${path} (${buf.length} bytes)`)
+          })
+          .catch(err => {
+            wsClient?.sendFileResponse(requestId, undefined, undefined, String(err))
+            debug(`File request failed: ${path} - ${err}`)
+          })
+      },
     })
+  }
+
+  function startTranscriptWatcher(transcriptPath: string) {
+    if (transcriptWatcher) return // already watching
+
+    transcriptWatcher = createTranscriptWatcher({
+      onEntries(entries, isInitial) {
+        if (claudeSessionId && wsClient?.isConnected()) {
+          wsClient.sendTranscriptEntries(entries, isInitial)
+          debug(`Sent ${entries.length} transcript entries (initial: ${isInitial})`)
+        }
+      },
+      onError(err) {
+        debug(`Transcript watcher error: ${err.message}`)
+      },
+    })
+
+    transcriptWatcher.start(transcriptPath).catch(err => {
+      debug(`Failed to start transcript watcher: ${err}`)
+    })
+    debug(`Watching transcript: ${transcriptPath}`)
+  }
+
+  function startSubagentWatcher(agentId: string, transcriptPath: string) {
+    if (subagentWatchers.has(agentId)) return
+
+    const watcher = createTranscriptWatcher({
+      onEntries(entries, isInitial) {
+        if (claudeSessionId && wsClient?.isConnected()) {
+          wsClient.sendSubagentTranscript(agentId, entries, isInitial)
+          debug(`Sent ${entries.length} subagent transcript entries for ${agentId.slice(0, 7)}`)
+        }
+      },
+      onError(err) {
+        debug(`Subagent watcher error (${agentId.slice(0, 7)}): ${err.message}`)
+      },
+    })
+
+    subagentWatchers.set(agentId, watcher)
+    watcher.start(transcriptPath).catch(err => {
+      debug(`Failed to start subagent watcher: ${err}`)
+    })
+    debug(`Watching subagent transcript: ${agentId.slice(0, 7)}`)
   }
 
   // Start local HTTP server for hook callbacks
@@ -316,6 +392,21 @@ async function main() {
           debug(`Got Claude session ID: ${claudeSessionId.slice(0, 8)}...`)
           // Now connect to concentrator with the real ID
           connectToConcentrator(claudeSessionId)
+
+          // Start transcript watcher if we have a transcript path
+          if (data.transcript_path && typeof data.transcript_path === 'string') {
+            startTranscriptWatcher(data.transcript_path)
+          }
+        }
+      }
+
+      // Watch subagent transcripts when they start
+      if (event.hookEvent === 'SubagentStop' && event.data) {
+        const data = event.data as Record<string, unknown>
+        const agentId = String(data.agent_id || '')
+        const transcriptPath = data.agent_transcript_path as string | undefined
+        if (agentId && transcriptPath) {
+          startSubagentWatcher(agentId, transcriptPath)
         }
       }
 
@@ -374,6 +465,9 @@ async function main() {
   // Cleanup function
   function cleanup() {
     if (taskPollTimer) clearInterval(taskPollTimer)
+    transcriptWatcher?.stop()
+    for (const watcher of subagentWatchers.values()) watcher.stop()
+    subagentWatchers.clear()
     cleanupTerminal()
     stopLocalServer(localServer)
     wsClient?.close()

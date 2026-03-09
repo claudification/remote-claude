@@ -7,7 +7,15 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerWebSocket } from 'bun'
-import type { HookEvent, Session, TaskInfo, TeamInfo, TeammateInfo, WrapperCapability } from '../shared/protocol'
+import type {
+  HookEvent,
+  Session,
+  TaskInfo,
+  TeamInfo,
+  TeammateInfo,
+  TranscriptEntry,
+  WrapperCapability,
+} from '../shared/protocol'
 import { IDLE_TIMEOUT_MS } from '../shared/protocol'
 
 const DEFAULT_CACHE_DIR = join(homedir(), '.cache', 'concentrator')
@@ -89,6 +97,13 @@ export interface SessionStore {
   setSessionSocket: (sessionId: string, ws: ServerWebSocket<unknown>) => void
   getSessionSocket: (sessionId: string) => ServerWebSocket<unknown> | undefined
   removeSessionSocket: (sessionId: string) => void
+  // Transcript cache methods
+  addTranscriptEntries: (sessionId: string, entries: TranscriptEntry[], isInitial: boolean) => void
+  getTranscriptEntries: (sessionId: string, limit?: number) => TranscriptEntry[]
+  hasTranscriptCache: (sessionId: string) => boolean
+  addSubagentTranscriptEntries: (sessionId: string, agentId: string, entries: TranscriptEntry[], isInitial: boolean) => void
+  getSubagentTranscriptEntries: (sessionId: string, agentId: string, limit?: number) => TranscriptEntry[]
+  hasSubagentTranscriptCache: (sessionId: string, agentId: string) => boolean
   // Terminal viewer methods (multiple viewers per session)
   addTerminalViewer: (sessionId: string, ws: ServerWebSocket<unknown>) => void
   getTerminalViewers: (sessionId: string) => Set<ServerWebSocket<unknown>>
@@ -127,6 +142,12 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   const terminalViewers = new Map<string, Set<ServerWebSocket<unknown>>>()
   const dashboardSubscribers = new Set<ServerWebSocket<unknown>>()
   let agentSocket: ServerWebSocket<unknown> | undefined
+
+  // Transcript cache: sessionId -> entries (ring buffer, max 500 per session)
+  const MAX_TRANSCRIPT_ENTRIES = 500
+  const transcriptCache = new Map<string, TranscriptEntry[]>()
+  // Subagent transcript cache: `${sessionId}:${agentId}` -> entries
+  const subagentTranscriptCache = new Map<string, TranscriptEntry[]>()
 
   // Helper to create session summary for broadcasting
   function toSessionSummary(session: Session): SessionSummary {
@@ -752,6 +773,67 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     return !!agentSocket
   }
 
+  // Transcript cache methods
+  function addTranscriptEntries(sessionId: string, entries: TranscriptEntry[], isInitial: boolean): void {
+    if (isInitial) {
+      // Initial batch replaces everything (watcher read the full file)
+      transcriptCache.set(sessionId, entries.slice(-MAX_TRANSCRIPT_ENTRIES))
+    } else {
+      const existing = transcriptCache.get(sessionId) || []
+      existing.push(...entries)
+      // Trim to max
+      if (existing.length > MAX_TRANSCRIPT_ENTRIES) {
+        transcriptCache.set(sessionId, existing.slice(-MAX_TRANSCRIPT_ENTRIES))
+      } else {
+        transcriptCache.set(sessionId, existing)
+      }
+    }
+  }
+
+  function getTranscriptEntries(sessionId: string, limit?: number): TranscriptEntry[] {
+    const entries = transcriptCache.get(sessionId) || []
+    if (limit && entries.length > limit) {
+      return entries.slice(-limit)
+    }
+    return entries
+  }
+
+  function hasTranscriptCache(sessionId: string): boolean {
+    return transcriptCache.has(sessionId)
+  }
+
+  function addSubagentTranscriptEntries(
+    sessionId: string,
+    agentId: string,
+    entries: TranscriptEntry[],
+    isInitial: boolean,
+  ): void {
+    const key = `${sessionId}:${agentId}`
+    if (isInitial) {
+      subagentTranscriptCache.set(key, entries.slice(-MAX_TRANSCRIPT_ENTRIES))
+    } else {
+      const existing = subagentTranscriptCache.get(key) || []
+      existing.push(...entries)
+      if (existing.length > MAX_TRANSCRIPT_ENTRIES) {
+        subagentTranscriptCache.set(key, existing.slice(-MAX_TRANSCRIPT_ENTRIES))
+      } else {
+        subagentTranscriptCache.set(key, existing)
+      }
+    }
+  }
+
+  function getSubagentTranscriptEntries(sessionId: string, agentId: string, limit?: number): TranscriptEntry[] {
+    const entries = subagentTranscriptCache.get(`${sessionId}:${agentId}`) || []
+    if (limit && entries.length > limit) {
+      return entries.slice(-limit)
+    }
+    return entries
+  }
+
+  function hasSubagentTranscriptCache(sessionId: string, agentId: string): boolean {
+    return subagentTranscriptCache.has(`${sessionId}:${agentId}`)
+  }
+
   return {
     createSession,
     resumeSession,
@@ -780,6 +862,12 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     getAgent,
     removeAgent,
     hasAgent,
+    addTranscriptEntries,
+    getTranscriptEntries,
+    hasTranscriptCache,
+    addSubagentTranscriptEntries,
+    getSubagentTranscriptEntries,
+    hasSubagentTranscriptCache,
     saveState,
     clearState,
   }

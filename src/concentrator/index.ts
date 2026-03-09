@@ -585,6 +585,132 @@ async function main() {
                 }
                 break
               }
+
+              // Transcript streaming: rclaude -> concentrator (cache + forward to dashboard)
+              case 'transcript_entries': {
+                const sessionId = ws.data.sessionId || data.sessionId
+                if (sessionId) {
+                  sessionStore.addTranscriptEntries(sessionId, data.entries || [], data.isInitial || false)
+                  // Broadcast to dashboard subscribers
+                  const msg = JSON.stringify(data)
+                  for (const sub of sessionStore.getSubscribers()) {
+                    try {
+                      sub.send(msg)
+                    } catch {}
+                  }
+                  if (verbose) {
+                    console.log(
+                      `[transcript] ${sessionId.slice(0, 8)}... ${(data.entries || []).length} entries (initial: ${data.isInitial})`,
+                    )
+                  }
+                }
+                break
+              }
+              case 'subagent_transcript': {
+                const sessionId = ws.data.sessionId || data.sessionId
+                if (sessionId && data.agentId) {
+                  sessionStore.addSubagentTranscriptEntries(
+                    sessionId,
+                    data.agentId,
+                    data.entries || [],
+                    data.isInitial || false,
+                  )
+                  // Broadcast to dashboard subscribers
+                  const msg = JSON.stringify(data)
+                  for (const sub of sessionStore.getSubscribers()) {
+                    try {
+                      sub.send(msg)
+                    } catch {}
+                  }
+                  if (verbose) {
+                    console.log(
+                      `[transcript] ${sessionId.slice(0, 8)}... subagent ${data.agentId.slice(0, 7)} ${(data.entries || []).length} entries`,
+                    )
+                  }
+                }
+                break
+              }
+              case 'file_response': {
+                // rclaude responding to a file request - forward to whoever requested it
+                // For now, file_response goes to all dashboard subscribers
+                // (the dashboard tracks requestId to know if it's for them)
+                const msg = JSON.stringify(data)
+                for (const sub of sessionStore.getSubscribers()) {
+                  try {
+                    sub.send(msg)
+                  } catch {}
+                }
+                break
+              }
+
+              // Transcript streaming: dashboard -> rclaude (request cached or proxied transcript)
+              case 'transcript_request': {
+                if (data.sessionId) {
+                  // Serve from cache if available
+                  if (sessionStore.hasTranscriptCache(data.sessionId)) {
+                    const entries = sessionStore.getTranscriptEntries(data.sessionId, data.limit)
+                    ws.send(
+                      JSON.stringify({
+                        type: 'transcript_entries',
+                        sessionId: data.sessionId,
+                        entries,
+                        isInitial: true,
+                      }),
+                    )
+                  } else {
+                    // Forward request to rclaude so it can send transcript
+                    const sessionSocket = sessionStore.getSessionSocket(data.sessionId)
+                    if (sessionSocket) {
+                      sessionSocket.send(JSON.stringify(data))
+                    }
+                  }
+                }
+                break
+              }
+              case 'subagent_transcript_request': {
+                if (data.sessionId && data.agentId) {
+                  if (sessionStore.hasSubagentTranscriptCache(data.sessionId, data.agentId)) {
+                    const entries = sessionStore.getSubagentTranscriptEntries(
+                      data.sessionId,
+                      data.agentId,
+                      data.limit,
+                    )
+                    ws.send(
+                      JSON.stringify({
+                        type: 'subagent_transcript',
+                        sessionId: data.sessionId,
+                        agentId: data.agentId,
+                        entries,
+                        isInitial: true,
+                      }),
+                    )
+                  } else {
+                    const sessionSocket = sessionStore.getSessionSocket(data.sessionId)
+                    if (sessionSocket) {
+                      sessionSocket.send(JSON.stringify(data))
+                    }
+                  }
+                }
+                break
+              }
+              case 'file_request': {
+                // Dashboard requesting a file - proxy to rclaude
+                if (data.sessionId) {
+                  const sessionSocket = sessionStore.getSessionSocket(data.sessionId)
+                  if (sessionSocket) {
+                    sessionSocket.send(JSON.stringify(data))
+                  } else {
+                    ws.send(
+                      JSON.stringify({
+                        type: 'file_response',
+                        requestId: data.requestId,
+                        error: 'Session not connected',
+                      }),
+                    )
+                  }
+                }
+                break
+              }
             }
           } catch (error) {
             ws.send(
