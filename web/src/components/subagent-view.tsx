@@ -114,8 +114,8 @@ export function SubagentView({ sessionId }: { sessionId: string }) {
   const selectSubagent = useSessionsStore(state => state.selectSubagent)
 
   return (
-    <div className="h-full overflow-y-auto font-mono text-xs">
-      <div className="text-muted-foreground mb-1">{'┌── AGENTS ─────────────────────────'}</div>
+    <div className="h-full overflow-y-auto font-mono text-xs leading-tight">
+      <div className="text-muted-foreground mb-0.5">{'┌── AGENTS ─────────────────────────'}</div>
 
       {subagents.map((agent, i) => {
         const isLast = i === subagents.length - 1
@@ -126,11 +126,11 @@ export function SubagentView({ sessionId }: { sessionId: string }) {
 
         return (
           <div key={agent.agentId}>
-            <div className="flex items-center gap-2 hover:bg-muted/20 rounded px-1 -mx-1 py-0.5">
+            <div className="flex items-center gap-1.5 hover:bg-muted/20 rounded px-1 -mx-1 py-px">
               <button
                 type="button"
                 onClick={() => hasEvents && setExpandedAgent(isExpanded ? null : agent.agentId)}
-                className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                className="flex items-center gap-1.5 flex-1 min-w-0 text-left"
               >
                 <span className="text-muted-foreground">{prefix}</span>
                 {hasEvents ? (
@@ -183,7 +183,7 @@ export function SubagentView({ sessionId }: { sessionId: string }) {
         )
       })}
 
-      <div className="text-muted-foreground mt-2 border-t border-border pt-1.5">
+      <div className="text-muted-foreground mt-1 border-t border-border pt-1">
         {subagents.length} total | {running} running | {stopped} stopped
       </div>
     </div>
