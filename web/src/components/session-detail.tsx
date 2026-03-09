@@ -1,5 +1,5 @@
 import { ArrowLeft, Bell, ChevronDown, ChevronRight, Terminal, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { fetchSubagentTranscript, reviveSession, sendInput, useSessionsStore } from '@/hooks/use-sessions'
@@ -63,12 +63,56 @@ function ScrollToBottomButton({ onClick, label = 'scroll to bottom' }: { onClick
   )
 }
 
+// Isolated input bar - typing here does NOT rerender transcript/events
+const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
+  const [inputValue, setInputValue] = useState('')
+  const [isSending, setIsSending] = useState(false)
+
+  async function handleSend() {
+    if (!inputValue.trim() || isSending) return
+    setIsSending(true)
+    try {
+      const success = await sendInput(sessionId, inputValue)
+      if (success) setInputValue('')
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  return (
+    <div className="shrink-0 p-3 border-t border-border">
+      <div className="flex gap-2 items-end">
+        <MarkdownInput
+          value={inputValue}
+          onChange={setInputValue}
+          onSubmit={handleSend}
+          disabled={isSending}
+          placeholder="Send input to session..."
+          className="flex-1"
+        />
+        <button
+          type="button"
+          onClick={handleSend}
+          disabled={isSending || !inputValue.trim()}
+          className={cn(
+            'shrink-0 px-4 py-2 text-xs font-bold font-mono border transition-colors',
+            inputValue.trim() && !isSending
+              ? 'bg-accent text-accent-foreground border-accent hover:bg-accent/80'
+              : 'bg-muted text-muted-foreground border-border cursor-not-allowed',
+          )}
+        >
+          {isSending ? '...' : 'SEND'}
+        </button>
+      </div>
+      <p className="text-[10px] text-muted-foreground mt-1">Enter to send, Shift+Enter for new line</p>
+    </div>
+  )
+})
+
 export function SessionDetail() {
   const [activeTab, setActiveTab] = useState<Tab>('transcript')
   const [follow, setFollow] = useState(true)
   const [showThinking, setShowThinking] = useState(false)
-  const [inputValue, setInputValue] = useState('')
-  const [isSending, setIsSending] = useState(false)
   const [reviveState, setReviveState] = useState<'idle' | 'sending' | 'waiting' | 'error'>('idle')
   const [reviveError, setReviveError] = useState<string | null>(null)
   const [reviveCountdown, setReviveCountdown] = useState(0)
@@ -201,20 +245,6 @@ export function SessionDetail() {
     activeNotification && activeNotification.timestamp.toString() !== dismissedNotificationId
       ? activeNotification
       : null
-
-  async function handleSendInput() {
-    if (!selectedSessionId || !inputValue.trim() || isSending) return
-
-    setIsSending(true)
-    try {
-      const success = await sendInput(selectedSessionId, inputValue)
-      if (success) {
-        setInputValue('')
-      }
-    } finally {
-      setIsSending(false)
-    }
-  }
 
   const canSendInput = session?.status === 'active' || session?.status === 'idle'
   const hasTerminal = session ? canTerminal(session) : false
@@ -545,30 +575,8 @@ export function SessionDetail() {
         </>
       )}
 
-      {/* Input box */}
-      {canSendInput && (
-        <div className="shrink-0 p-3 border-t border-border">
-          <div className="flex gap-2 items-end">
-            <MarkdownInput
-              value={inputValue}
-              onChange={setInputValue}
-              onSubmit={handleSendInput}
-              disabled={isSending}
-              placeholder="Send input to session..."
-              className="flex-1"
-            />
-            <Button
-              onClick={handleSendInput}
-              disabled={isSending || !inputValue.trim()}
-              size="sm"
-              className="text-xs shrink-0"
-            >
-              {isSending ? '...' : 'Send'}
-            </Button>
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-1">Enter to send, Shift+Enter for new line</p>
-        </div>
-      )}
+      {/* Input box - isolated to prevent transcript rerenders on typing */}
+      {canSendInput && selectedSessionId && <InputBar sessionId={selectedSessionId} />}
 
       {/* Terminal overlay */}
       {showTerminal && selectedSessionId && hasTerminal && (

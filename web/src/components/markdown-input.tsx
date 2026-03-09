@@ -531,8 +531,7 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
       {/* Highlight layer - renders colored markdown behind textarea */}
       <div
         ref={highlightRef}
-        className={cn('absolute inset-0 px-3 py-2 pointer-events-none', textClasses, 'overflow-hidden text-foreground')}
-        style={{ right: '3.5rem' }}
+        className={cn('absolute inset-0 pl-3 pr-14 py-2 pointer-events-none', textClasses, 'overflow-hidden text-foreground')}
         aria-hidden="true"
         dangerouslySetInnerHTML={{ __html: highlightMarkdown(value) }}
       />
