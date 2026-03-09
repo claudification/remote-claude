@@ -74,6 +74,28 @@ marked.setOptions({
 	renderer,
 })
 
+// Override GFM strikethrough to require double tildes only (~~text~~)
+// Default marked GFM also matches single ~text~ which breaks paths like ~/foo
+marked.use({
+	extensions: [{
+		name: 'del',
+		level: 'inline',
+		start(src: string) {
+			return src.indexOf('~~')
+		},
+		tokenizer(src: string) {
+			const match = src.match(/^~~(?!~)([\s\S]+?)~~(?!~)/)
+			if (match) {
+				return { type: 'del', raw: match[0], text: match[1], tokens: [] }
+			}
+			return undefined
+		},
+		renderer(token: any) {
+			return `<del>${this.parser.parseInline(token.tokens)}</del>`
+		},
+	}],
+})
+
 interface MarkdownProps {
 	children: string
 }
