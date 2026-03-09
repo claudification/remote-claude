@@ -11,8 +11,6 @@ services:
     volumes:
       # Session cache + auth data (read-write)
       - concentrator-data:/data/cache
-      # Claude transcripts (read-only)
-      - ${CLAUDE_DIR:-~/.claude}:/data/transcripts:ro
       # Frontend assets (mount over baked-in copy for hot rebuilds: bun run build:web)
       - ./web/dist:/srv/web:ro
     command:
@@ -20,16 +18,12 @@ services:
       - "/srv/web"
       - "--cache-dir"
       - "/data/cache"
-      - "--allow-root"
-      - "/data/transcripts"
       - "--rp-id"
       - "${RP_ID:-localhost}"
       - "--origin"
       - "${ORIGIN:-http://localhost:9999}"
       - "--rclaude-secret"
       - "${RCLAUDE_SECRET}"
-      - "--path-map"
-      - "${CLAUDE_DIR:-~/.claude}:/data/transcripts"
       - "--verbose"
     networks:
       - caddy
