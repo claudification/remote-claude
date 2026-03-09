@@ -6,6 +6,7 @@ import { fetchSubagentTranscript, reviveSession, sendInput, useSessionsStore } f
 import { canTerminal, type HookEvent, type TranscriptEntry } from '@/lib/types'
 import { cn, formatAge, formatModel } from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
+import { DiagView } from './diag-view'
 import { EventsView } from './events-view'
 import { MarkdownInput } from './markdown-input'
 import { renderProjectIcon } from './project-settings-editor'
@@ -14,7 +15,7 @@ import { TasksView } from './tasks-view'
 import { TranscriptView } from './transcript-view'
 import { WebTerminal } from './web-terminal'
 
-type Tab = 'transcript' | 'events' | 'agents' | 'tasks'
+type Tab = 'transcript' | 'events' | 'agents' | 'tasks' | 'diag'
 
 // Find the latest notification that hasn't been "dismissed" by subsequent activity
 function getActiveNotification(events: HookEvent[]): HookEvent | null {
@@ -80,8 +81,8 @@ const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <div className="shrink-0 p-3 border-t border-border">
-      <div className="flex gap-2 items-end">
+    <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border bg-background z-10">
+      <div className="flex gap-2 items-stretch">
         <MarkdownInput
           value={inputValue}
           onChange={setInputValue}
@@ -89,6 +90,7 @@ const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
           disabled={isSending}
           placeholder="Send input to session..."
           className="flex-1"
+          autoFocus
         />
         <button
           type="button"
@@ -272,7 +274,7 @@ export function SessionDetail() {
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden relative">
       {/* Session Info - Collapsible */}
       <div className="shrink-0 border-b border-border max-h-[30vh] overflow-y-auto">
         <button
@@ -482,6 +484,18 @@ export function SessionDetail() {
                 )}
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setActiveTab('diag')}
+              className={cn(
+                'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
+                activeTab === 'diag'
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Diag
+            </button>
             {/* Terminal + Follow - pushed to right */}
             <div className="ml-auto pr-3 flex items-center gap-2">
               {hasTerminal && (
@@ -533,15 +547,17 @@ export function SessionDetail() {
             </div>
           </div>
 
-          {/* Content */}
+          {/* Content - pb-20 reserves space for the absolutely-positioned input bar */}
           {activeTab === 'transcript' && (
-            <div className="flex-1 min-h-0 overflow-hidden relative">
+            <div className={cn('flex-1 min-h-0 overflow-hidden relative', canSendInput && 'pb-20')}>
               <TranscriptView
                 key={selectedSessionId}
                 entries={transcript}
                 follow={follow}
                 showThinking={showThinking}
                 onUserScroll={disableFollow}
+                compacting={session.compacting}
+                compactedAt={session.compactedAt}
               />
               {!follow && transcript.length > 0 && <ScrollToBottomButton onClick={enableFollow} />}
             </div>
@@ -572,11 +588,14 @@ export function SessionDetail() {
               <TasksView sessionId={selectedSessionId} pendingCount={session.pendingTaskCount} />
             </div>
           )}
+          {activeTab === 'diag' && selectedSessionId && (
+            <DiagView sessionId={selectedSessionId} />
+          )}
         </>
       )}
 
       {/* Input box - isolated to prevent transcript rerenders on typing */}
-      {canSendInput && selectedSessionId && <InputBar sessionId={selectedSessionId} />}
+      {canSendInput && activeTab === 'transcript' && selectedSessionId && <InputBar sessionId={selectedSessionId} />}
 
       {/* Terminal overlay */}
       {showTerminal && selectedSessionId && hasTerminal && (
