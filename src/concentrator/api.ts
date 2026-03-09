@@ -864,6 +864,56 @@ export function createApiHandler(options: ApiOptions) {
       }
     }
 
+    // POST /api/files - upload a file, returns URL for Claude
+    if (req.method === "POST" && path === "/api/files") {
+      try {
+        const contentType = req.headers.get("content-type") || "";
+        let bytes: Uint8Array;
+        let mediaType: string;
+        let filename = "image";
+
+        if (contentType.includes("multipart/form-data")) {
+          const formData = await req.formData();
+          const file = formData.get("file") as File | null;
+          if (!file) {
+            return new Response(JSON.stringify({ error: "No file in form data" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          bytes = new Uint8Array(await file.arrayBuffer());
+          mediaType = file.type || "image/png";
+          filename = file.name || "image";
+        } else {
+          // Raw binary upload with Content-Type header
+          bytes = new Uint8Array(await req.arrayBuffer());
+          mediaType = contentType.split(";")[0] || "image/png";
+          const ext = mediaType.split("/")[1]?.replace("jpeg", "jpg") || "png";
+          filename = `paste.${ext}`;
+        }
+
+        // Hash and register
+        const key = `${bytes.length}:${Array.from(bytes.slice(0, 200)).join(",")}`;
+        const hash = hashString(key);
+        if (!blobRegistry.has(hash)) {
+          blobRegistry.set(hash, { bytes, mediaType });
+        }
+
+        const ext = mediaType.split("/")[1]?.replace("jpeg", "jpg") || "png";
+        const url = `/file/${hash}.${ext}`;
+
+        return new Response(JSON.stringify({ hash, url, filename, mediaType }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: `Upload failed: ${error}` }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
     return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,
       headers: { "Content-Type": "application/json" },

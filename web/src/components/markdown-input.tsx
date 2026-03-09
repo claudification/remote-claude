@@ -229,6 +229,59 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 		onChange(e.target.value)
 	}
 
+	async function uploadFile(file: File) {
+		const ta = textareaRef.current
+		const pos = ta?.selectionStart ?? value.length
+
+		const placeholder = `![uploading ${file.name || 'file'}...]`
+		const before = value.slice(0, pos)
+		const after = value.slice(pos)
+		onChange(before + placeholder + after)
+
+		try {
+			const formData = new FormData()
+			formData.append('file', file, file.name || 'paste.png')
+			const res = await fetch('/api/files', { method: 'POST', body: formData })
+			if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
+			const { url, filename } = await res.json()
+
+			const mdLink = `![${filename}](${url})`
+			// Read current value from textarea (onChange is not a state setter)
+			const current = textareaRef.current?.value ?? ''
+			onChange(current.replace(placeholder, mdLink))
+		} catch {
+			const current = textareaRef.current?.value ?? ''
+			onChange(current.replace(placeholder, `![upload failed]`))
+		}
+	}
+
+	async function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+		const items = e.clipboardData?.items
+		if (!items) return
+
+		for (const item of items) {
+			if (item.type.startsWith('image/') || item.type.startsWith('application/')) {
+				e.preventDefault()
+				const file = item.getAsFile()
+				if (file) uploadFile(file)
+				return
+			}
+		}
+	}
+
+	function handleDrop(e: React.DragEvent<HTMLTextAreaElement>) {
+		e.preventDefault()
+		const files = e.dataTransfer?.files
+		if (!files?.length) return
+		for (const file of files) {
+			uploadFile(file)
+		}
+	}
+
+	function handleDragOver(e: React.DragEvent<HTMLTextAreaElement>) {
+		e.preventDefault()
+	}
+
 	function handleFocus() {
 		if (isMobile) {
 			setExpanded(true)
@@ -308,7 +361,10 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 						value={value}
 						onChange={handleInput}
 						onKeyDown={handleKeyDown}
-						onScroll={syncScroll}
+						onPaste={handlePaste}
+					onDrop={handleDrop}
+					onDragOver={handleDragOver}
+					onScroll={syncScroll}
 						disabled={disabled}
 						placeholder={placeholder}
 						autoFocus
