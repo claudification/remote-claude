@@ -654,9 +654,10 @@ function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
     const content = entry.message?.content
     if (!content) continue
 
-    // Skip tool_result-only user entries (these are rendered with tool_use)
+    // Skip user entries that are tool_result containers (rendered with tool_use)
+    // This includes mixed entries with tool_result + text (e.g. background task notifications)
     if (entry.type === 'user' && Array.isArray(content)) {
-      if (content.every(c => c.type === 'tool_result')) continue
+      if (content.some(c => c.type === 'tool_result')) continue
     }
 
     // Skip empty string content

@@ -92,20 +92,18 @@ async function readUserSettings(): Promise<ClaudeSettings> {
 }
 
 /**
- * Create hook matcher for forwarding to local server via native HTTP hook
- * Claude Code POSTs the hook JSON body directly - no curl/shell needed
+ * Create hook matcher for forwarding to local server
+ * NOTE: HTTP hooks (type: "http") don't fire for SessionStart in Claude Code 2.1.71,
+ * which means we never get the session ID and can't connect to the concentrator.
+ * Using command+curl until this is resolved upstream.
  */
 function createHookMatcher(hookEvent: string, port: number, sessionId: string): HookMatcher {
   return {
     matcher: '', // Match all
     hooks: [
       {
-        type: 'http',
-        url: `http://127.0.0.1:${port}/hook/${hookEvent}`,
-        timeout: 5,
-        headers: {
-          'X-Session-Id': sessionId,
-        },
+        type: 'command',
+        command: `curl -s -X POST "http://127.0.0.1:${port}/hook/${hookEvent}" -H "Content-Type: application/json" -H "X-Session-Id: ${sessionId}" -d @-`,
       },
     ],
   }
@@ -156,8 +154,11 @@ export async function generateMergedSettings(sessionId: string, port: number): P
     ourHooks[event] = [createHookMatcher(event, port, sessionId)]
   }
 
+  // Whitelist our local hook server URLs for HTTP hooks
+  const allowedHttpHookUrls = [`http://127.0.0.1:${port}/*`]
+
   // Merge with user's settings (our hooks first, then user's)
-  return deepMerge(userSettings, { hooks: ourHooks })
+  return deepMerge(userSettings, { hooks: ourHooks, allowedHttpHookUrls })
 }
 
 /**
