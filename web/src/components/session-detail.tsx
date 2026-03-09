@@ -556,8 +556,6 @@ export function SessionDetail() {
                 follow={follow}
                 showThinking={showThinking}
                 onUserScroll={disableFollow}
-                compacting={session.compacting}
-                compactedAt={session.compactedAt}
               />
               {!follow && transcript.length > 0 && <ScrollToBottomButton onClick={enableFollow} />}
             </div>

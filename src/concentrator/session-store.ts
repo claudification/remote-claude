@@ -457,12 +457,28 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         }
       }
 
-      // Track compacting state
+      // Track compacting state + inject synthetic transcript markers
       if (event.hookEvent === 'PreCompact') {
         session.compacting = true
+        const marker = { type: 'compacting', timestamp: new Date().toISOString() }
+        addTranscriptEntries(sessionId, [marker], false)
+        broadcast({
+          type: 'transcript_entries',
+          sessionId,
+          entries: [marker],
+          isInitial: false,
+        } as any)
       } else if (session.compacting) {
         session.compacting = false
         session.compactedAt = Date.now()
+        const marker = { type: 'compacted', timestamp: new Date().toISOString() }
+        addTranscriptEntries(sessionId, [marker], false)
+        broadcast({
+          type: 'transcript_entries',
+          sessionId,
+          entries: [marker],
+          isInitial: false,
+        } as any)
       }
 
       // Capture agent description from PreToolUse(Agent) tool calls

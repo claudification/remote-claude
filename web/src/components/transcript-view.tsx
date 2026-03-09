@@ -722,7 +722,7 @@ function parseTaskNotifications(text: string): TaskNotification[] {
 
 // Group consecutive assistant entries (they often have multiple tool calls)
 interface DisplayGroup {
-  type: 'user' | 'assistant' | 'system'
+  type: 'user' | 'assistant' | 'system' | 'compacting' | 'compacted'
   timestamp: string
   entries: TranscriptEntry[]
   notifications?: TaskNotification[]
@@ -733,6 +733,13 @@ function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
   let current: DisplayGroup | null = null
 
   for (const entry of entries) {
+    // Compaction markers - break group chain and insert as-is
+    if (entry.type === 'compacting' || entry.type === 'compacted') {
+      current = null
+      groups.push({ type: entry.type as 'compacting' | 'compacted', timestamp: entry.timestamp || '', entries: [entry] })
+      continue
+    }
+
     // Only process user and assistant entries
     if (entry.type !== 'user' && entry.type !== 'assistant') continue
 
@@ -970,36 +977,15 @@ interface TranscriptViewProps {
   follow?: boolean
   showThinking?: boolean
   onUserScroll?: () => void
-  compacting?: boolean
-  compactedAt?: number | null
 }
 
-export function TranscriptView({ entries, follow = false, showThinking = false, onUserScroll, compacting, compactedAt }: TranscriptViewProps) {
+export function TranscriptView({ entries, follow = false, showThinking = false, onUserScroll }: TranscriptViewProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   // Ref kills the scroll timer synchronously (before React re-renders)
   const followKilledRef = useRef(false)
 
   const resultMap = useMemo(() => buildResultMap(entries), [entries])
-  const rawGroups = useMemo(() => groupEntries(entries), [entries])
-
-  // Inject compacted divider at start / compacting banner at end as synthetic groups
-  const groups = useMemo(() => {
-    const result: (DisplayGroup | { type: 'compacted_divider' } | { type: 'compacting_banner' })[] = []
-
-    // Compacted divider goes at the top - everything before it was compacted away
-    if (compactedAt && !compacting) {
-      result.push({ type: 'compacted_divider' })
-    }
-
-    result.push(...rawGroups)
-
-    // Compacting banner at the end (it's happening now)
-    if (compacting) {
-      result.push({ type: 'compacting_banner' })
-    }
-
-    return result
-  }, [rawGroups, compacting, compactedAt])
+  const groups = useMemo(() => groupEntries(entries), [entries])
 
   const virtualizer = useVirtualizer({
     count: groups.length,
@@ -1081,11 +1067,10 @@ export function TranscriptView({ entries, follow = false, showThinking = false, 
             }}
           >
             {(() => {
-              const item = groups[virtualItem.index]
-              if (item.type === 'compacted_divider') return <CompactedDivider />
-              if (item.type === 'compacting_banner') return <CompactingBanner />
-              if ('entries' in item) return <GroupView group={item} resultMap={resultMap} showThinking={showThinking} />
-              return null
+              const group = groups[virtualItem.index]
+              if (group.type === 'compacted') return <CompactedDivider />
+              if (group.type === 'compacting') return <CompactingBanner />
+              return <GroupView group={group} resultMap={resultMap} showThinking={showThinking} />
             })()}
           </div>
         ))}
