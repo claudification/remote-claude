@@ -523,10 +523,10 @@ export function createApiHandler(options: ApiOptions) {
 
       // Serve from transcript cache (streamed from rclaude over WS)
       if (!sessionStore.hasTranscriptCache(sessionId)) {
-        return new Response(
-          JSON.stringify({ error: 'No transcript in cache (rclaude not streaming yet?)' }),
-          { status: 404, headers: { 'Content-Type': 'application/json' } },
-        )
+        return new Response(JSON.stringify({ error: 'No transcript in cache (rclaude not streaming yet?)' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       const entries = sessionStore.getTranscriptEntries(sessionId, limit)
@@ -555,10 +555,10 @@ export function createApiHandler(options: ApiOptions) {
 
       // Serve from cache (streamed from rclaude over WS)
       if (!sessionStore.hasSubagentTranscriptCache(sessionId, agentId)) {
-        return new Response(
-          JSON.stringify({ error: 'No subagent transcript in cache (rclaude not streaming yet?)' }),
-          { status: 404, headers: { 'Content-Type': 'application/json' } },
-        )
+        return new Response(JSON.stringify({ error: 'No subagent transcript in cache (rclaude not streaming yet?)' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       const entries = sessionStore.getSubagentTranscriptEntries(sessionId, agentId, limit)

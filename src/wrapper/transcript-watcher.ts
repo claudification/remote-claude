@@ -4,8 +4,8 @@
  * processes inline images (extract base64 -> blob hash), and emits entries.
  */
 
-import { watch as chokidarWatch, type FSWatcher as ChokidarWatcher } from 'chokidar'
-import { open, stat, type FileHandle } from 'node:fs/promises'
+import { type FileHandle, open, stat } from 'node:fs/promises'
+import { type FSWatcher as ChokidarWatcher, watch as chokidarWatch } from 'chokidar'
 import type { TranscriptEntry } from '../shared/protocol'
 
 export interface TranscriptWatcherOptions {
@@ -17,6 +17,7 @@ export interface TranscriptWatcherOptions {
 export interface TranscriptWatcher {
   start: (path: string) => Promise<void>
   stop: () => void
+  resend: () => Promise<void>
   getEntryCount: () => number
 }
 
@@ -143,9 +144,22 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
     }
   }
 
+  async function resend(): Promise<void> {
+    if (!filePath || stopped) return
+    debug?.(`resend: re-reading full file from offset 0`)
+    // Re-read entire file from start, emit as initial
+    const savedOffset = offset
+    offset = 0
+    partial = ''
+    reading = false
+    pendingRead = false
+    await readNewLines(true)
+    debug?.(`resend: done, offset now ${offset} (was ${savedOffset})`)
+  }
+
   function getEntryCount(): number {
     return entryCount
   }
 
-  return { start, stop, getEntryCount }
+  return { start, stop, resend, getEntryCount }
 }
