@@ -1,6 +1,6 @@
 import { Bell, BellOff, Settings } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { SettingsPage } from '@/components/settings-page'
+import { SettingsDialog } from '@/components/settings-page'
 import { Badge } from '@/components/ui/badge'
 import { getPushStatus, subscribeToPush, useSessionsStore } from '@/hooks/use-sessions'
 
@@ -123,7 +123,7 @@ export function Header() {
         </button>
       </div>
 
-      {showSettings && <SettingsPage onClose={() => setShowSettings(false)} />}
+      <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
     </header>
   )
 }

@@ -1,5 +1,6 @@
-import { Bell, BellOff, X } from 'lucide-react'
+import { Bell, BellOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { getPushStatus, subscribeToPush } from '@/hooks/use-sessions'
 
 interface DashboardPrefs {
@@ -36,20 +37,21 @@ export function usePrefs() {
   return { prefs, update }
 }
 
-export function SettingsPage({ onClose }: { onClose: () => void }) {
+export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { prefs, update } = usePrefs()
   const [pushState, setPushState] = useState<
     'loading' | 'unsupported' | 'prompt' | 'subscribing' | 'subscribed' | 'denied'
   >('loading')
 
   useEffect(() => {
+    if (!open) return
     getPushStatus().then(status => {
       if (!status.supported) setPushState('unsupported')
       else if (status.subscribed) setPushState('subscribed')
       else if (status.permission === 'denied') setPushState('denied')
       else setPushState('prompt')
     })
-  }, [])
+  }, [open])
 
   async function handlePushToggle() {
     if (pushState === 'subscribing') return
@@ -59,22 +61,9 @@ export function SettingsPage({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-start justify-center pt-[10vh] overflow-y-auto"
-      onClick={e => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div className="w-full max-w-md border border-border bg-background p-6 relative">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-3 right-3 text-muted-foreground hover:text-foreground"
-        >
-          <X className="w-4 h-4" />
-        </button>
-
-        <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-6">Settings</h2>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogTitle className="uppercase tracking-wider mb-6">Settings</DialogTitle>
 
         {/* Push Notifications */}
         <section className="mb-6">
@@ -158,7 +147,7 @@ export function SettingsPage({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         </section>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
