@@ -41,6 +41,10 @@ interface ClaudeSettings {
     PermissionRequest?: HookMatcher[]
     TeammateIdle?: HookMatcher[]
     TaskCompleted?: HookMatcher[]
+    InstructionsLoaded?: HookMatcher[]
+    ConfigChange?: HookMatcher[]
+    WorktreeCreate?: HookMatcher[]
+    WorktreeRemove?: HookMatcher[]
     Setup?: HookMatcher[]
   }
   [key: string]: unknown
@@ -61,6 +65,10 @@ const HOOK_EVENTS = [
   'PermissionRequest',
   'TeammateIdle',
   'TaskCompleted',
+  'InstructionsLoaded',
+  'ConfigChange',
+  'WorktreeCreate',
+  'WorktreeRemove',
   'Setup',
 ] as const
 

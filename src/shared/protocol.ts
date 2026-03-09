@@ -127,6 +127,10 @@ export type HookEventType =
   | 'PermissionRequest'
   | 'TeammateIdle'
   | 'TaskCompleted'
+  | 'InstructionsLoaded'
+  | 'ConfigChange'
+  | 'WorktreeCreate'
+  | 'WorktreeRemove'
   | 'Setup'
 
 // Hook event data structures (based on Claude Code hook system)
