@@ -62,6 +62,7 @@ export interface Session {
   taskCount: number
   pendingTaskCount: number
   activeTasks: Array<{ id: string; subject: string }>
+  pendingTasks: Array<{ id: string; subject: string }>
   runningBgTaskCount: number
   bgTasks: BgTaskSummary[]
   teammates: Array<{

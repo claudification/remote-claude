@@ -2,7 +2,7 @@
  * WebSocket hook for real-time updates from concentrator
  */
 import { useCallback, useEffect, useRef } from 'react'
-import type { HookEvent, Session, WrapperCapability } from '@/lib/types'
+import type { HookEvent, Session, TaskInfo, TranscriptEntry, WrapperCapability } from '@/lib/types'
 import { applyHashRoute, useSessionsStore } from './use-sessions'
 
 interface SessionSummary {
@@ -27,6 +27,7 @@ interface SessionSummary {
   taskCount?: number
   pendingTaskCount?: number
   activeTasks?: Array<{ id: string; subject: string }>
+  pendingTasks?: Array<{ id: string; subject: string }>
   runningBgTaskCount?: number
   bgTasks?: Array<{
     taskId: string
@@ -54,6 +55,11 @@ interface DashboardMessage {
   connected?: boolean
   data?: string
   error?: string
+  // Transcript streaming
+  entries?: TranscriptEntry[]
+  isInitial?: boolean
+  // Task updates
+  tasks?: TaskInfo[]
 }
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
@@ -82,6 +88,7 @@ export function useWebSocket() {
       taskCount: summary.taskCount ?? 0,
       pendingTaskCount: summary.pendingTaskCount ?? 0,
       activeTasks: summary.activeTasks ?? [],
+      pendingTasks: summary.pendingTasks ?? [],
       runningBgTaskCount: summary.runningBgTaskCount ?? 0,
       bgTasks: summary.bgTasks ?? [],
       teammates: summary.teammates ?? [],
@@ -190,6 +197,28 @@ export function useWebSocket() {
                     },
                   }
                 })
+              }
+              break
+            }
+            case 'transcript_entries': {
+              if (msg.sessionId && msg.entries?.length) {
+                useSessionsStore.setState(state => {
+                  const existing = state.transcripts[msg.sessionId!] || []
+                  return {
+                    transcripts: {
+                      ...state.transcripts,
+                      [msg.sessionId!]: msg.isInitial ? msg.entries! : [...existing, ...msg.entries!],
+                    },
+                  }
+                })
+              }
+              break
+            }
+            case 'tasks_update': {
+              if (msg.sessionId && msg.tasks) {
+                useSessionsStore.setState(state => ({
+                  tasks: { ...state.tasks, [msg.sessionId!]: msg.tasks! },
+                }))
               }
               break
             }

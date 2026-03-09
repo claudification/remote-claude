@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSessionsStore } from '@/hooks/use-sessions'
 import type { TaskInfo } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -22,44 +23,33 @@ const statusLabels: Record<string, string> = {
 }
 
 export function TasksView({ sessionId, pendingCount }: TasksViewProps) {
-  const [tasks, setTasks] = useState<TaskInfo[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // Tasks from store (pushed via WS)
+  const storeTasks = useSessionsStore(state => state.tasks[sessionId])
+  const [initialTasks, setInitialTasks] = useState<TaskInfo[] | null>(null)
   const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set())
 
+  // Fetch initial tasks via HTTP (WS push handles subsequent updates)
   useEffect(() => {
     let cancelled = false
-
-    async function fetchTasks() {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await fetch(`/sessions/${sessionId}/tasks`)
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const data = await res.json()
-        if (!cancelled) setTasks(data)
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to fetch tasks')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    fetchTasks()
-    // Poll every 5s for updates
-    const interval = setInterval(fetchTasks, 5000)
+    fetch(`/sessions/${sessionId}/tasks`)
+      .then(res => (res.ok ? res.json() : []))
+      .then(data => {
+        if (!cancelled) setInitialTasks(data)
+      })
+      .catch(() => {
+        if (!cancelled) setInitialTasks([])
+      })
     return () => {
       cancelled = true
-      clearInterval(interval)
     }
   }, [sessionId])
 
-  if (loading && tasks.length === 0) {
-    return <div className="text-xs text-muted-foreground p-4">Loading tasks...</div>
-  }
+  // Use store tasks if available (real-time), fall back to initial HTTP fetch
+  const tasks: TaskInfo[] = storeTasks || initialTasks || []
+  const loading = !storeTasks && !initialTasks
 
-  if (error) {
-    return <div className="text-xs text-red-400 p-4">Error: {error}</div>
+  if (loading) {
+    return <div className="text-xs text-muted-foreground p-4">Loading tasks...</div>
   }
 
   if (tasks.length === 0) {

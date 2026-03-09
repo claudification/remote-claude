@@ -58,6 +58,7 @@ export interface SessionSummary {
   taskCount: number
   pendingTaskCount: number
   activeTasks: Array<{ id: string; subject: string }>
+  pendingTasks: Array<{ id: string; subject: string }>
   runningBgTaskCount: number
   bgTasks: Array<{
     taskId: string
@@ -101,7 +102,12 @@ export interface SessionStore {
   addTranscriptEntries: (sessionId: string, entries: TranscriptEntry[], isInitial: boolean) => void
   getTranscriptEntries: (sessionId: string, limit?: number) => TranscriptEntry[]
   hasTranscriptCache: (sessionId: string) => boolean
-  addSubagentTranscriptEntries: (sessionId: string, agentId: string, entries: TranscriptEntry[], isInitial: boolean) => void
+  addSubagentTranscriptEntries: (
+    sessionId: string,
+    agentId: string,
+    entries: TranscriptEntry[],
+    isInitial: boolean,
+  ) => void
   getSubagentTranscriptEntries: (sessionId: string, agentId: string, limit?: number) => TranscriptEntry[]
   hasSubagentTranscriptCache: (sessionId: string, agentId: string) => boolean
   // Terminal viewer methods (multiple viewers per session)
@@ -173,6 +179,10 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       taskCount: session.tasks.length,
       pendingTaskCount: session.tasks.filter(t => t.status === 'pending' || t.status === 'in_progress').length,
       activeTasks: session.tasks.filter(t => t.status === 'in_progress').map(t => ({ id: t.id, subject: t.subject })),
+      pendingTasks: session.tasks
+        .filter(t => t.status === 'pending')
+        .slice(0, 4)
+        .map(t => ({ id: t.id, subject: t.subject })),
       runningBgTaskCount: session.bgTasks.filter(t => t.status === 'running').length,
       bgTasks: session.bgTasks.map(t => ({
         taskId: t.taskId,
