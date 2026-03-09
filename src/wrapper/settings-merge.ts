@@ -6,10 +6,19 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-interface Hook {
+interface CommandHook {
   type: 'command'
   command: string
 }
+
+interface HttpHook {
+  type: 'http'
+  url: string
+  timeout?: number
+  headers?: Record<string, string>
+}
+
+type Hook = CommandHook | HttpHook
 
 interface HookMatcher {
   matcher: string
@@ -75,18 +84,20 @@ async function readUserSettings(): Promise<ClaudeSettings> {
 }
 
 /**
- * Create hook matcher for forwarding to local server
+ * Create hook matcher for forwarding to local server via native HTTP hook
+ * Claude Code POSTs the hook JSON body directly - no curl/shell needed
  */
 function createHookMatcher(hookEvent: string, port: number, sessionId: string): HookMatcher {
-  // Use curl to POST hook data to our local server
-  const command = `curl -s -X POST "http://127.0.0.1:${port}/hook/${hookEvent}" -H "Content-Type: application/json" -H "X-Session-Id: ${sessionId}" -d @-`
-
   return {
     matcher: '', // Match all
     hooks: [
       {
-        type: 'command',
-        command,
+        type: 'http',
+        url: `http://127.0.0.1:${port}/hook/${hookEvent}`,
+        timeout: 5,
+        headers: {
+          'X-Session-Id': sessionId,
+        },
       },
     ],
   }
