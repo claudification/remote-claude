@@ -354,24 +354,23 @@ async function main() {
 
   const TRANSCRIPT_CHUNK_SIZE = 200
 
-  function sendTranscriptEntriesChunked(entries: TranscriptEntry[], isInitial: boolean) {
+  function sendTranscriptEntriesChunked(entries: TranscriptEntry[], isInitial: boolean, agentId?: string) {
     if (!claudeSessionId || !wsClient?.isConnected()) {
       debug(`Cannot send ${entries.length} entries: sessionId=${!!claudeSessionId} ws=${wsClient?.isConnected()}`)
       return
     }
+    const send = (chunk: TranscriptEntry[], initial: boolean) =>
+      agentId
+        ? wsClient!.sendSubagentTranscript(agentId, chunk, initial)
+        : wsClient!.sendTranscriptEntries(chunk, initial)
+
     if (entries.length <= TRANSCRIPT_CHUNK_SIZE) {
-      wsClient.sendTranscriptEntries(entries, isInitial)
-      debug(`Sent ${entries.length} transcript entries (initial: ${isInitial})`)
+      send(entries, isInitial)
       return
     }
-    // Chunk large batches to avoid blowing up the WS
-    let sent = 0
     for (let i = 0; i < entries.length; i += TRANSCRIPT_CHUNK_SIZE) {
-      const chunk = entries.slice(i, i + TRANSCRIPT_CHUNK_SIZE)
-      wsClient.sendTranscriptEntries(chunk, isInitial && i === 0)
-      sent++
+      send(entries.slice(i, i + TRANSCRIPT_CHUNK_SIZE), isInitial && i === 0)
     }
-    debug(`Sent ${entries.length} transcript entries in ${sent} chunks (initial: ${isInitial})`)
   }
 
   function startTranscriptWatcher(transcriptPath: string) {
@@ -400,11 +399,12 @@ async function main() {
   function startSubagentWatcher(agentId: string, transcriptPath: string) {
     if (subagentWatchers.has(agentId)) return
 
+    // Subagent transcripts are complete at SubagentStop time - read once, send, close
     const watcher = createTranscriptWatcher({
       debug: DEBUG ? (msg: string) => debug(`[tw:${agentId.slice(0, 7)}] ${msg}`) : undefined,
       onEntries(entries, isInitial) {
         if (claudeSessionId && wsClient?.isConnected()) {
-          wsClient.sendSubagentTranscript(agentId, entries, isInitial)
+          sendTranscriptEntriesChunked(entries, isInitial, agentId)
           debug(`Sent ${entries.length} subagent transcript entries for ${agentId.slice(0, 7)}`)
         }
       },
@@ -414,10 +414,15 @@ async function main() {
     })
 
     subagentWatchers.set(agentId, watcher)
-    watcher.start(transcriptPath).catch(err => {
+    watcher.start(transcriptPath).then(() => {
+      // File is complete - stop watching, free the fd
+      watcher.stop()
+      subagentWatchers.delete(agentId)
+      debug(`Subagent transcript read complete, watcher closed: ${agentId.slice(0, 7)}`)
+    }).catch(err => {
       debug(`Failed to start subagent watcher: ${err}`)
     })
-    debug(`Watching subagent transcript: ${agentId.slice(0, 7)}`)
+    debug(`Reading subagent transcript: ${agentId.slice(0, 7)}`)
   }
 
   // Start local HTTP server for hook callbacks
@@ -475,7 +480,7 @@ async function main() {
       if (event.hookEvent === 'SubagentStop' && event.data) {
         const data = event.data as Record<string, unknown>
         const agentId = String(data.agent_id || '')
-        const transcriptPath = data.agent_transcript_path as string | undefined
+        const transcriptPath = typeof data.agent_transcript_path === 'string' ? data.agent_transcript_path : undefined
         debug(`SubagentStop: agent=${agentId.slice(0, 7)} transcript=${transcriptPath || 'NONE'}`)
         if (agentId && transcriptPath) {
           startSubagentWatcher(agentId, transcriptPath)

@@ -33,11 +33,15 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
   let entryCount = 0
   let partial = '' // leftover bytes from incomplete last line
   let reading = false
+  let pendingRead = false
   let stopped = false
   let filePath = ''
 
   async function readNewLines(isInitial: boolean): Promise<void> {
-    if (reading || stopped || !fileHandle) return
+    if (reading || stopped || !fileHandle) {
+      if (reading && !stopped) pendingRead = true
+      return
+    }
     reading = true
 
     try {
@@ -49,7 +53,7 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
 
       debug?.(`readNewLines: size=${size} offset=${offset} toRead=${size - offset}`)
 
-      const buf = Buffer.alloc(size - offset)
+      const buf = Buffer.allocUnsafe(size - offset)
       const { bytesRead } = await fileHandle.read(buf, 0, buf.length, offset)
       if (bytesRead === 0) {
         debug?.(`readNewLines: 0 bytes read despite size delta`)
@@ -89,6 +93,10 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
       }
     } finally {
       reading = false
+      if (pendingRead) {
+        pendingRead = false
+        readNewLines(false)
+      }
     }
   }
 

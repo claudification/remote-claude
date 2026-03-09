@@ -435,7 +435,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       if (event.hookEvent === 'SubagentStart' && event.data) {
         const data = event.data as Record<string, unknown>
         const agentId = String(data.agent_id || '')
-        if (agentId) {
+        if (agentId && !session.subagents.some(a => a.agentId === agentId)) {
           session.subagents.push({
             agentId,
             agentType: String(data.agent_type || 'unknown'),
