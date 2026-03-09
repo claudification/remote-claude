@@ -941,4 +941,4 @@ export const UI_HTML = `<!DOCTYPE html>
     });
   </script>
 </body>
-</html>`;
+</html>`

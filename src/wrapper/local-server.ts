@@ -3,14 +3,14 @@
  * Receives hook callbacks from claude via curl POST
  */
 
-import type { Server } from "bun";
-import type { HookEvent, HookEventType, HookEventData } from "../shared/protocol";
+import type { Server } from 'bun'
+import type { HookEvent, HookEventData, HookEventType } from '../shared/protocol'
 
-type HttpServer = Server<unknown>;
+type HttpServer = Server<unknown>
 
 export interface LocalServerOptions {
-  sessionId: string;
-  onHookEvent: (event: HookEvent) => void;
+  sessionId: string
+  onHookEvent: (event: HookEvent) => void
 }
 
 /**
@@ -22,89 +22,87 @@ async function findAvailablePort(startPort: number): Promise<number> {
       const server = Bun.serve({
         port,
         fetch() {
-          return new Response("test");
+          return new Response('test')
         },
-      });
-      server.stop();
-      return port;
+      })
+      server.stop()
+      return port
     } catch {
       // Port in use, try next
     }
   }
-  throw new Error("No available port found");
+  throw new Error('No available port found')
 }
 
 /**
  * Create and start the local HTTP server for hook callbacks
  */
-export async function startLocalServer(
-  options: LocalServerOptions
-): Promise<{ server: HttpServer; port: number }> {
-  const { sessionId, onHookEvent } = options;
+export async function startLocalServer(options: LocalServerOptions): Promise<{ server: HttpServer; port: number }> {
+  const { sessionId, onHookEvent } = options
 
-  const port = await findAvailablePort(19000 + Math.floor(Math.random() * 1000));
+  const port = await findAvailablePort(19000 + Math.floor(Math.random() * 1000))
 
   const server = Bun.serve({
     port,
     async fetch(req) {
-      const url = new URL(req.url);
+      const url = new URL(req.url)
 
       // Health check endpoint
-      if (url.pathname === "/health") {
-        return new Response("ok", { status: 200 });
+      if (url.pathname === '/health') {
+        return new Response('ok', { status: 200 })
       }
 
       // Hook event endpoint: POST /hook/:eventType
-      if (req.method === "POST" && url.pathname.startsWith("/hook/")) {
-        const eventType = url.pathname.slice(6) as HookEventType; // Remove "/hook/"
-        const reqSessionId = req.headers.get("X-Session-Id");
+      if (req.method === 'POST' && url.pathname.startsWith('/hook/')) {
+        const eventType = url.pathname.slice(6) as HookEventType // Remove "/hook/"
+        const reqSessionId = req.headers.get('X-Session-Id')
 
         // Validate session ID
         if (reqSessionId && reqSessionId !== sessionId) {
-          return new Response("Session ID mismatch", { status: 403 });
+          return new Response('Session ID mismatch', { status: 403 })
         }
 
         try {
-          const body = await req.text();
-          let data: HookEventData;
+          const body = await req.text()
+          let data: HookEventData
 
           if (body.trim()) {
-            data = JSON.parse(body) as HookEventData;
+            data = JSON.parse(body) as HookEventData
           } else {
-            data = { session_id: sessionId };
+            data = { session_id: sessionId }
           }
 
           // Extract Claude's session_id from data if present, otherwise use internal
-          const claudeSessionId = (data as Record<string, unknown>).session_id;
-          const effectiveSessionId = typeof claudeSessionId === "string" ? claudeSessionId : sessionId;
+          const claudeSessionId = (data as Record<string, unknown>).session_id
+          const effectiveSessionId = typeof claudeSessionId === 'string' ? claudeSessionId : sessionId
 
           const event: HookEvent = {
-            type: "hook",
+            type: 'hook',
             sessionId: effectiveSessionId,
             hookEvent: eventType,
             timestamp: Date.now(),
             data,
-          };
+          }
 
-          onHookEvent(event);
+          onHookEvent(event)
 
-          return new Response("ok", { status: 200 });
+          return new Response('ok', { status: 200 })
         } catch (error) {
-          console.error(`Error processing hook ${eventType}:`, error);
-          return new Response("Error processing hook", { status: 500 });
+          console.error(`Error processing hook ${eventType}:`, error)
+          return new Response('Error processing hook', { status: 500 })
         }
       }
 
-      return new Response("Not found", { status: 404 });
+      return new Response('Not found', { status: 404 })
     },
-  });
+  })
 
-  return { server, port };
+  return { server, port }
 }
 
 /**
  * Stop the local server
  */
 export function stopLocalServer(server: HttpServer): void {
-  server.stop(true);
+  server.stop(true)
 }

@@ -3,46 +3,46 @@
  * Manages VAPID keys, push subscriptions, and sending notifications
  */
 
-import webpush from "web-push";
+import webpush from 'web-push'
 
 interface PushSubscriptionData {
-  endpoint: string;
+  endpoint: string
   keys: {
-    p256dh: string;
-    auth: string;
-  };
+    p256dh: string
+    auth: string
+  }
 }
 
 interface StoredSubscription {
-  subscription: PushSubscriptionData;
-  createdAt: number;
-  userAgent?: string;
+  subscription: PushSubscriptionData
+  createdAt: number
+  userAgent?: string
 }
 
-let vapidConfigured = false;
-const subscriptions = new Map<string, StoredSubscription>(); // keyed by endpoint
+let vapidConfigured = false
+const subscriptions = new Map<string, StoredSubscription>() // keyed by endpoint
 
 export interface PushConfig {
-  vapidPublicKey: string;
-  vapidPrivateKey: string;
-  vapidSubject?: string; // mailto: or https: URL
+  vapidPublicKey: string
+  vapidPrivateKey: string
+  vapidSubject?: string // mailto: or https: URL
 }
 
 export function initPush(config: PushConfig): void {
   webpush.setVapidDetails(
-    config.vapidSubject || "mailto:push@rclaude.local",
+    config.vapidSubject || 'mailto:push@rclaude.local',
     config.vapidPublicKey,
     config.vapidPrivateKey,
-  );
-  vapidConfigured = true;
+  )
+  vapidConfigured = true
 }
 
 export function isConfigured(): boolean {
-  return vapidConfigured;
+  return vapidConfigured
 }
 
 export function getVapidPublicKey(config: PushConfig): string {
-  return config.vapidPublicKey;
+  return config.vapidPublicKey
 }
 
 export function addSubscription(sub: PushSubscriptionData, userAgent?: string): void {
@@ -50,55 +50,55 @@ export function addSubscription(sub: PushSubscriptionData, userAgent?: string): 
     subscription: sub,
     createdAt: Date.now(),
     userAgent,
-  });
+  })
 }
 
 export function removeSubscription(endpoint: string): void {
-  subscriptions.delete(endpoint);
+  subscriptions.delete(endpoint)
 }
 
 export function getSubscriptionCount(): number {
-  return subscriptions.size;
+  return subscriptions.size
 }
 
 export interface PushPayload {
-  title: string;
-  body: string;
-  sessionId?: string;
-  tag?: string; // dedup key - same tag replaces previous notification
-  data?: Record<string, unknown>;
+  title: string
+  body: string
+  sessionId?: string
+  tag?: string // dedup key - same tag replaces previous notification
+  data?: Record<string, unknown>
 }
 
 export async function sendPushToAll(payload: PushPayload): Promise<{ sent: number; failed: number }> {
-  if (!vapidConfigured) return { sent: 0, failed: 0 };
+  if (!vapidConfigured) return { sent: 0, failed: 0 }
 
-  const jsonPayload = JSON.stringify(payload);
-  let sent = 0;
-  let failed = 0;
-  const staleEndpoints: string[] = [];
+  const jsonPayload = JSON.stringify(payload)
+  let sent = 0
+  let failed = 0
+  const staleEndpoints: string[] = []
 
   const promises = Array.from(subscriptions.values()).map(async ({ subscription }) => {
     try {
       await webpush.sendNotification(subscription, jsonPayload, {
         TTL: 60, // seconds
-        urgency: "high",
-      });
-      sent++;
+        urgency: 'high',
+      })
+      sent++
     } catch (error: any) {
       // 404 or 410 = subscription expired/unsubscribed
       if (error?.statusCode === 404 || error?.statusCode === 410) {
-        staleEndpoints.push(subscription.endpoint);
+        staleEndpoints.push(subscription.endpoint)
       }
-      failed++;
+      failed++
     }
-  });
+  })
 
-  await Promise.all(promises);
+  await Promise.all(promises)
 
   // Clean up stale subscriptions
   for (const endpoint of staleEndpoints) {
-    subscriptions.delete(endpoint);
+    subscriptions.delete(endpoint)
   }
 
-  return { sent, failed };
+  return { sent, failed }
 }

@@ -1,14 +1,14 @@
 import { ArrowLeft, Bell, ChevronDown, ChevronRight, Terminal, X } from 'lucide-react'
-import { useRef, useState, useMemo, useEffect } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { reviveSession, sendInput, fetchSubagentTranscript, useSessionsStore } from '@/hooks/use-sessions'
-import { cn, formatAge, formatModel } from '@/lib/utils'
+import { fetchSubagentTranscript, reviveSession, sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { canTerminal, type HookEvent, type TranscriptEntry } from '@/lib/types'
-import { renderProjectIcon } from './project-settings-editor'
+import { cn, formatAge, formatModel } from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
 import { EventsView } from './events-view'
 import { MarkdownInput } from './markdown-input'
+import { renderProjectIcon } from './project-settings-editor'
 import { SubagentView } from './subagent-view'
 import { TasksView } from './tasks-view'
 import { TranscriptView } from './transcript-view'
@@ -18,147 +18,153 @@ type Tab = 'transcript' | 'events' | 'agents' | 'tasks'
 
 // Find the latest notification that hasn't been "dismissed" by subsequent activity
 function getActiveNotification(events: HookEvent[]): HookEvent | null {
-	if (events.length === 0) return null
+  if (events.length === 0) return null
 
-	// Find the most recent notification
-	let lastNotification: HookEvent | null = null
-	let lastNotificationIndex = -1
+  // Find the most recent notification
+  let lastNotification: HookEvent | null = null
+  let lastNotificationIndex = -1
 
-	for (let i = events.length - 1; i >= 0; i--) {
-		if (events[i].hookEvent === 'Notification') {
-			lastNotification = events[i]
-			lastNotificationIndex = i
-			break
-		}
-	}
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].hookEvent === 'Notification') {
+      lastNotification = events[i]
+      lastNotificationIndex = i
+      break
+    }
+  }
 
-	if (!lastNotification) return null
+  if (!lastNotification) return null
 
-	// Check if there's been activity AFTER the notification that would dismiss it
-	// Activity that dismisses: PreToolUse, PostToolUse, UserPromptSubmit (new work starting)
-	for (let i = lastNotificationIndex + 1; i < events.length; i++) {
-		const event = events[i]
-		if (
-			event.hookEvent === 'PreToolUse' ||
-			event.hookEvent === 'PostToolUse' ||
-			event.hookEvent === 'UserPromptSubmit'
-		) {
-			return null // Notification is "stale" - activity resumed
-		}
-	}
+  // Check if there's been activity AFTER the notification that would dismiss it
+  // Activity that dismisses: PreToolUse, PostToolUse, UserPromptSubmit (new work starting)
+  for (let i = lastNotificationIndex + 1; i < events.length; i++) {
+    const event = events[i]
+    if (
+      event.hookEvent === 'PreToolUse' ||
+      event.hookEvent === 'PostToolUse' ||
+      event.hookEvent === 'UserPromptSubmit'
+    ) {
+      return null // Notification is "stale" - activity resumed
+    }
+  }
 
-	return lastNotification
+  return lastNotification
 }
 
 export function SessionDetail() {
-	const [activeTab, setActiveTab] = useState<Tab>('transcript')
-	const [follow, setFollow] = useState(true)
-	const [showThinking, setShowThinking] = useState(false)
-	const [inputValue, setInputValue] = useState('')
-	const [isSending, setIsSending] = useState(false)
-	const [reviveState, setReviveState] = useState<'idle' | 'sending' | 'waiting' | 'error'>('idle')
-	const [reviveError, setReviveError] = useState<string | null>(null)
-	const [reviveCountdown, setReviveCountdown] = useState(0)
-	const reviveStartRef = useRef(0) // timestamp when revive started, to ignore pre-existing sessions
-	const [infoExpanded, setInfoExpanded] = useState(false)
-	const showTerminal = useSessionsStore(state => state.showTerminal)
-	const setShowTerminal = useSessionsStore(state => state.setShowTerminal)
-	const requestedTab = useSessionsStore(state => state.requestedTab)
-	// Apply requested tab from external navigation (badge clicks)
-	useEffect(() => {
-		if (requestedTab) {
-			setActiveTab(requestedTab as Tab)
-			useSessionsStore.setState({ requestedTab: null })
-		}
-	}, [requestedTab])
+  const [activeTab, setActiveTab] = useState<Tab>('transcript')
+  const [follow, setFollow] = useState(true)
+  const [showThinking, setShowThinking] = useState(false)
+  const [inputValue, setInputValue] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const [reviveState, setReviveState] = useState<'idle' | 'sending' | 'waiting' | 'error'>('idle')
+  const [reviveError, setReviveError] = useState<string | null>(null)
+  const [reviveCountdown, setReviveCountdown] = useState(0)
+  const reviveStartRef = useRef(0) // timestamp when revive started, to ignore pre-existing sessions
+  const [infoExpanded, setInfoExpanded] = useState(false)
+  const showTerminal = useSessionsStore(state => state.showTerminal)
+  const setShowTerminal = useSessionsStore(state => state.setShowTerminal)
+  const requestedTab = useSessionsStore(state => state.requestedTab)
+  // Apply requested tab from external navigation (badge clicks)
+  useEffect(() => {
+    if (requestedTab) {
+      setActiveTab(requestedTab as Tab)
+      useSessionsStore.setState({ requestedTab: null })
+    }
+  }, [requestedTab])
 
-	const sessions = useSessionsStore(state => state.sessions)
-	const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
-	const allEvents = useSessionsStore(state => state.events)
-	const allTranscripts = useSessionsStore(state => state.transcripts)
-	const agentConnected = useSessionsStore(state => state.agentConnected)
-	const projectSettings = useSessionsStore(state => state.projectSettings)
-	const selectedSubagentId = useSessionsStore(state => state.selectedSubagentId)
-	const selectSubagent = useSessionsStore(state => state.selectSubagent)
+  const sessions = useSessionsStore(state => state.sessions)
+  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
+  const allEvents = useSessionsStore(state => state.events)
+  const allTranscripts = useSessionsStore(state => state.transcripts)
+  const agentConnected = useSessionsStore(state => state.agentConnected)
+  const projectSettings = useSessionsStore(state => state.projectSettings)
+  const selectedSubagentId = useSessionsStore(state => state.selectedSubagentId)
+  const selectSubagent = useSessionsStore(state => state.selectSubagent)
 
-	// Derive values from raw state (no new object creation in selector)
-	const session = sessions.find(s => s.id === selectedSessionId)
-	const events = selectedSessionId ? allEvents[selectedSessionId] || [] : []
-	const transcript = selectedSessionId ? allTranscripts[selectedSessionId] || [] : []
+  // Derive values from raw state (no new object creation in selector)
+  const session = sessions.find(s => s.id === selectedSessionId)
+  const events = selectedSessionId ? allEvents[selectedSessionId] || [] : []
+  const transcript = selectedSessionId ? allTranscripts[selectedSessionId] || [] : []
 
-	// Subagent transcript state
-	const [subagentTranscript, setSubagentTranscript] = useState<TranscriptEntry[]>([])
-	const [subagentLoading, setSubagentLoading] = useState(false)
+  // Subagent transcript state
+  const [subagentTranscript, setSubagentTranscript] = useState<TranscriptEntry[]>([])
+  const [subagentLoading, setSubagentLoading] = useState(false)
 
-	// Fetch subagent transcript when selectedSubagentId changes
-	useEffect(() => {
-		if (!selectedSessionId || !selectedSubagentId) {
-			setSubagentTranscript([])
-			return
-		}
-		let cancelled = false
-		setSubagentLoading(true)
-		fetchSubagentTranscript(selectedSessionId, selectedSubagentId).then(entries => {
-			if (!cancelled) {
-				setSubagentTranscript(entries)
-				setSubagentLoading(false)
-			}
-		})
-		// Poll for updates while agent is running
-		const agent = session?.subagents.find(a => a.agentId === selectedSubagentId)
-		if (agent?.status === 'running') {
-			const interval = setInterval(() => {
-				fetchSubagentTranscript(selectedSessionId, selectedSubagentId).then(entries => {
-					if (!cancelled) setSubagentTranscript(entries)
-				})
-			}, 3000)
-			return () => { cancelled = true; clearInterval(interval) }
-		}
-		return () => { cancelled = true }
-	}, [selectedSessionId, selectedSubagentId, session?.subagents])
+  // Fetch subagent transcript when selectedSubagentId changes
+  useEffect(() => {
+    if (!selectedSessionId || !selectedSubagentId) {
+      setSubagentTranscript([])
+      return
+    }
+    let cancelled = false
+    setSubagentLoading(true)
+    fetchSubagentTranscript(selectedSessionId, selectedSubagentId).then(entries => {
+      if (!cancelled) {
+        setSubagentTranscript(entries)
+        setSubagentLoading(false)
+      }
+    })
+    // Poll for updates while agent is running
+    const agent = session?.subagents.find(a => a.agentId === selectedSubagentId)
+    if (agent?.status === 'running') {
+      const interval = setInterval(() => {
+        fetchSubagentTranscript(selectedSessionId, selectedSubagentId).then(entries => {
+          if (!cancelled) setSubagentTranscript(entries)
+        })
+      }, 3000)
+      return () => {
+        cancelled = true
+        clearInterval(interval)
+      }
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [selectedSessionId, selectedSubagentId, session?.subagents])
 
-	// HOOKS MUST BE BEFORE EARLY RETURNS - React rules!
-	const activeNotification = useMemo(() => getActiveNotification(events), [events])
-	const [dismissedNotificationId, setDismissedNotificationId] = useState<string | null>(null)
+  // HOOKS MUST BE BEFORE EARLY RETURNS - React rules!
+  const activeNotification = useMemo(() => getActiveNotification(events), [events])
+  const [dismissedNotificationId, setDismissedNotificationId] = useState<string | null>(null)
 
-	// Countdown timer while waiting for revived session
-	useEffect(() => {
-		if (reviveState !== 'waiting') return
-		if (reviveCountdown <= 0) {
-			setReviveState('error')
-			setReviveError('Timed out - no session connected within 30s')
-			return
-		}
-		const t = setTimeout(() => setReviveCountdown(c => c - 1), 1000)
-		return () => clearTimeout(t)
-	}, [reviveState, reviveCountdown])
+  // Countdown timer while waiting for revived session
+  useEffect(() => {
+    if (reviveState !== 'waiting') return
+    if (reviveCountdown <= 0) {
+      setReviveState('error')
+      setReviveError('Timed out - no session connected within 30s')
+      return
+    }
+    const t = setTimeout(() => setReviveCountdown(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [reviveState, reviveCountdown])
 
-	// Watch for new session connecting in same cwd (revive success)
-	const reviveCwd = session?.cwd
-	const reviveSessionId = session?.id
-	useEffect(() => {
-		if (reviveState !== 'waiting' || !reviveCwd || !reviveSessionId) return
-		const reviveTime = reviveStartRef.current
-		if (reviveTime === 0) return
-		const newSession = sessions.find(s =>
-			s.id !== reviveSessionId &&
-			s.cwd === reviveCwd &&
-			(s.status === 'active' || s.status === 'idle') &&
-			s.startedAt > reviveTime
-		)
-		if (newSession) {
-			setReviveState('idle')
-			setReviveCountdown(0)
-			reviveStartRef.current = 0
-			useSessionsStore.getState().selectSession(newSession.id)
-		}
-	}, [reviveState, reviveCwd, reviveSessionId, sessions])
+  // Watch for new session connecting in same cwd (revive success)
+  const reviveCwd = session?.cwd
+  const reviveSessionId = session?.id
+  useEffect(() => {
+    if (reviveState !== 'waiting' || !reviveCwd || !reviveSessionId) return
+    const reviveTime = reviveStartRef.current
+    if (reviveTime === 0) return
+    const newSession = sessions.find(
+      s =>
+        s.id !== reviveSessionId &&
+        s.cwd === reviveCwd &&
+        (s.status === 'active' || s.status === 'idle') &&
+        s.startedAt > reviveTime,
+    )
+    if (newSession) {
+      setReviveState('idle')
+      setReviveCountdown(0)
+      reviveStartRef.current = 0
+      useSessionsStore.getState().selectSession(newSession.id)
+    }
+  }, [reviveState, reviveCwd, reviveSessionId, sessions])
 
-	if (!session) {
-		return (
-			<div className="flex items-center justify-center h-full text-muted-foreground">
-				<pre className="text-xs" style={{ lineHeight: 0.95 }}>
-					{`
+  if (!session) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        <pre className="text-xs" style={{ lineHeight: 0.95 }}>
+          {`
 ┌───────────────────────────┐
 │                           │
 │   Select a session to     │
@@ -168,407 +174,429 @@ export function SessionDetail() {
 │                           │
 └───────────────────────────┘
 `.trim()}
-				</pre>
-			</div>
-		)
-	}
+        </pre>
+      </div>
+    )
+  }
 
-	const model = events.find(e => e.hookEvent === 'SessionStart' && e.data?.model)?.data?.model as string | undefined
+  const model = events.find(e => e.hookEvent === 'SessionStart' && e.data?.model)?.data?.model as string | undefined
 
-	// Show notification if it's active and not manually dismissed
-	const notificationToShow =
-		activeNotification && activeNotification.timestamp.toString() !== dismissedNotificationId
-			? activeNotification
-			: null
+  // Show notification if it's active and not manually dismissed
+  const notificationToShow =
+    activeNotification && activeNotification.timestamp.toString() !== dismissedNotificationId
+      ? activeNotification
+      : null
 
-	async function handleSendInput() {
-		if (!selectedSessionId || !inputValue.trim() || isSending) return
+  async function handleSendInput() {
+    if (!selectedSessionId || !inputValue.trim() || isSending) return
 
-		setIsSending(true)
-		try {
-			const success = await sendInput(selectedSessionId, inputValue)
-			if (success) {
-				setInputValue('')
-			}
-		} finally {
-			setIsSending(false)
-		}
-	}
+    setIsSending(true)
+    try {
+      const success = await sendInput(selectedSessionId, inputValue)
+      if (success) {
+        setInputValue('')
+      }
+    } finally {
+      setIsSending(false)
+    }
+  }
 
-	const canSendInput = session?.status === 'active' || session?.status === 'idle'
-	const hasTerminal = session ? canTerminal(session) : false
-	const canRevive = session?.status === 'ended' && agentConnected
+  const canSendInput = session?.status === 'active' || session?.status === 'idle'
+  const hasTerminal = session ? canTerminal(session) : false
+  const canRevive = session?.status === 'ended' && agentConnected
 
-	async function handleRevive() {
-		if (!selectedSessionId || reviveState !== 'idle') return
-		setReviveState('sending')
-		setReviveError(null)
-		try {
-			const result = await reviveSession(selectedSessionId)
-			if (!result.success) {
-				setReviveError(result.error || 'Revive failed')
-				setReviveState('error')
-				return
-			}
-			// Signal sent - now wait for new session to connect
-			reviveStartRef.current = Date.now()
-			setReviveState('waiting')
-			setReviveCountdown(30)
-		} catch {
-			setReviveError('Network error')
-			setReviveState('error')
-		}
-	}
+  async function handleRevive() {
+    if (!selectedSessionId || reviveState !== 'idle') return
+    setReviveState('sending')
+    setReviveError(null)
+    try {
+      const result = await reviveSession(selectedSessionId)
+      if (!result.success) {
+        setReviveError(result.error || 'Revive failed')
+        setReviveState('error')
+        return
+      }
+      // Signal sent - now wait for new session to connect
+      reviveStartRef.current = Date.now()
+      setReviveState('waiting')
+      setReviveCountdown(30)
+    } catch {
+      setReviveError('Network error')
+      setReviveState('error')
+    }
+  }
 
-	return (
-		<div className="h-full flex flex-col overflow-hidden">
-			{/* Session Info - Collapsible */}
-			<div className="shrink-0 border-b border-border max-h-[30vh] overflow-y-auto">
-				<button
-					type="button"
-					onClick={() => setInfoExpanded(!infoExpanded)}
-					className="w-full p-3 sm:p-4 flex items-center gap-2 hover:bg-muted/30 transition-colors"
-				>
-					{infoExpanded ? (
-						<ChevronDown className="w-3 h-3 text-muted-foreground" />
-					) : (
-						<ChevronRight className="w-3 h-3 text-muted-foreground" />
-					)}
-					<span className="text-accent text-xs uppercase tracking-wider">Session Info</span>
-					{!infoExpanded && (() => {
-						const ps = projectSettings[session.cwd]
-						return (
-							<span className="text-muted-foreground text-[10px] ml-2 inline-flex items-center gap-1">
-								{ps?.icon && <span style={ps?.color ? { color: ps.color } : undefined}>{renderProjectIcon(ps.icon, 'w-3 h-3')}</span>}
-								<span style={ps?.color ? { color: ps.color } : undefined}>{ps?.label || session.cwd.split('/').slice(-2).join('/')}</span>
-								<span>{' · '}{formatModel(model || session.model)}</span>
-							</span>
-						)
-					})()}
-				</button>
-				{infoExpanded && (
-					<dl className="px-3 sm:px-4 pb-3 sm:pb-4 grid grid-cols-[80px_1fr] sm:grid-cols-[100px_1fr] gap-x-2 sm:gap-x-4 gap-y-1 text-xs">
-						<dt className="text-muted-foreground">ID</dt>
-						<dd className="text-foreground break-all font-mono text-[10px]">{session.id}</dd>
-						<dt className="text-muted-foreground">Status</dt>
-						<dd>
-							<span
-								className={cn(
-									'px-2 py-0.5 text-[10px] uppercase font-bold',
-									session.status === 'active' && 'bg-active text-background',
-									session.status === 'idle' && 'bg-idle text-background',
-									session.status === 'ended' && 'bg-ended text-foreground',
-								)}
-							>
-								{session.status}
-							</span>
-						</dd>
-						<dt className="text-muted-foreground">CWD</dt>
-						<dd className="text-foreground break-all">{session.cwd}</dd>
-						<dt className="text-muted-foreground">Model</dt>
-						<dd className="text-foreground">{formatModel(model || session.model)}</dd>
-						<dt className="text-muted-foreground">Started</dt>
-						<dd className="text-foreground">{new Date(session.startedAt).toLocaleString()}</dd>
-						<dt className="text-muted-foreground">Activity</dt>
-						<dd className="text-foreground">{formatAge(session.lastActivity)}</dd>
-						<dt className="text-muted-foreground">Events</dt>
-						<dd className="text-foreground">{session.eventCount}</dd>
-					</dl>
-				)}
-			</div>
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Session Info - Collapsible */}
+      <div className="shrink-0 border-b border-border max-h-[30vh] overflow-y-auto">
+        <button
+          type="button"
+          onClick={() => setInfoExpanded(!infoExpanded)}
+          className="w-full p-3 sm:p-4 flex items-center gap-2 hover:bg-muted/30 transition-colors"
+        >
+          {infoExpanded ? (
+            <ChevronDown className="w-3 h-3 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="w-3 h-3 text-muted-foreground" />
+          )}
+          <span className="text-accent text-xs uppercase tracking-wider">Session Info</span>
+          {!infoExpanded &&
+            (() => {
+              const ps = projectSettings[session.cwd]
+              return (
+                <span className="text-muted-foreground text-[10px] ml-2 inline-flex items-center gap-1">
+                  {ps?.icon && (
+                    <span style={ps?.color ? { color: ps.color } : undefined}>
+                      {renderProjectIcon(ps.icon, 'w-3 h-3')}
+                    </span>
+                  )}
+                  <span style={ps?.color ? { color: ps.color } : undefined}>
+                    {ps?.label || session.cwd.split('/').slice(-2).join('/')}
+                  </span>
+                  <span>
+                    {' · '}
+                    {formatModel(model || session.model)}
+                  </span>
+                </span>
+              )
+            })()}
+        </button>
+        {infoExpanded && (
+          <dl className="px-3 sm:px-4 pb-3 sm:pb-4 grid grid-cols-[80px_1fr] sm:grid-cols-[100px_1fr] gap-x-2 sm:gap-x-4 gap-y-1 text-xs">
+            <dt className="text-muted-foreground">ID</dt>
+            <dd className="text-foreground break-all font-mono text-[10px]">{session.id}</dd>
+            <dt className="text-muted-foreground">Status</dt>
+            <dd>
+              <span
+                className={cn(
+                  'px-2 py-0.5 text-[10px] uppercase font-bold',
+                  session.status === 'active' && 'bg-active text-background',
+                  session.status === 'idle' && 'bg-idle text-background',
+                  session.status === 'ended' && 'bg-ended text-foreground',
+                )}
+              >
+                {session.status}
+              </span>
+            </dd>
+            <dt className="text-muted-foreground">CWD</dt>
+            <dd className="text-foreground break-all">{session.cwd}</dd>
+            <dt className="text-muted-foreground">Model</dt>
+            <dd className="text-foreground">{formatModel(model || session.model)}</dd>
+            <dt className="text-muted-foreground">Started</dt>
+            <dd className="text-foreground">{new Date(session.startedAt).toLocaleString()}</dd>
+            <dt className="text-muted-foreground">Activity</dt>
+            <dd className="text-foreground">{formatAge(session.lastActivity)}</dd>
+            <dt className="text-muted-foreground">Events</dt>
+            <dd className="text-foreground">{session.eventCount}</dd>
+          </dl>
+        )}
+      </div>
 
-			{/* Subagent Detail View - replaces entire panel content */}
-			{selectedSubagentId && (() => {
-				const agent = session.subagents.find(a => a.agentId === selectedSubagentId)
-				return (
-					<>
-						<div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border bg-pink-400/5">
-							<button
-								type="button"
-								onClick={() => selectSubagent(null)}
-								className="flex items-center gap-1 text-xs text-pink-400 hover:text-pink-300 transition-colors"
-							>
-								<ArrowLeft className="w-3 h-3" />
-								Back
-							</button>
-							<div className="w-px h-4 bg-border" />
-							<span className="text-xs text-pink-400 font-bold">
-								{agent?.agentType || 'agent'}
-							</span>
-							<span className="text-[10px] text-pink-400/50 font-mono">
-								{selectedSubagentId.slice(0, 8)}
-							</span>
-							{agent && (
-								<span className={cn(
-									'ml-auto px-1.5 py-0.5 text-[10px] uppercase font-bold',
-									agent.status === 'running' ? 'bg-active text-background' : 'bg-ended text-foreground',
-								)}>
-									{agent.status}
-								</span>
-							)}
-						</div>
-						<div className="flex-1 min-h-0 overflow-hidden">
-							{subagentLoading && subagentTranscript.length === 0 ? (
-								<div className="flex items-center justify-center h-full text-muted-foreground text-xs">
-									Loading transcript...
-								</div>
-							) : subagentTranscript.length === 0 ? (
-								<div className="flex items-center justify-center h-full text-muted-foreground text-xs">
-									No transcript entries yet
-								</div>
-							) : (
-								<TranscriptView entries={subagentTranscript} follow={follow} showThinking={showThinking} />
-							)}
-						</div>
-					</>
-				)
-			})()}
+      {/* Subagent Detail View - replaces entire panel content */}
+      {selectedSubagentId &&
+        (() => {
+          const agent = session.subagents.find(a => a.agentId === selectedSubagentId)
+          return (
+            <>
+              <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border bg-pink-400/5">
+                <button
+                  type="button"
+                  onClick={() => selectSubagent(null)}
+                  className="flex items-center gap-1 text-xs text-pink-400 hover:text-pink-300 transition-colors"
+                >
+                  <ArrowLeft className="w-3 h-3" />
+                  Back
+                </button>
+                <div className="w-px h-4 bg-border" />
+                <span className="text-xs text-pink-400 font-bold">{agent?.agentType || 'agent'}</span>
+                <span className="text-[10px] text-pink-400/50 font-mono">{selectedSubagentId.slice(0, 8)}</span>
+                {agent && (
+                  <span
+                    className={cn(
+                      'ml-auto px-1.5 py-0.5 text-[10px] uppercase font-bold',
+                      agent.status === 'running' ? 'bg-active text-background' : 'bg-ended text-foreground',
+                    )}
+                  >
+                    {agent.status}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                {subagentLoading && subagentTranscript.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-muted-foreground text-xs">
+                    Loading transcript...
+                  </div>
+                ) : subagentTranscript.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-muted-foreground text-xs">
+                    No transcript entries yet
+                  </div>
+                ) : (
+                  <TranscriptView entries={subagentTranscript} follow={follow} showThinking={showThinking} />
+                )}
+              </div>
+            </>
+          )
+        })()}
 
-			{/* Normal session view */}
-			{!selectedSubagentId && (
-			<>
-			{/* Notification Banner */}
-			{notificationToShow && (
-				<div className="shrink-0 mx-3 sm:mx-4 mt-3 p-3 bg-amber-500/20 border border-amber-500/50 flex items-start gap-3">
-					<Bell className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 animate-pulse" />
-					<div className="flex-1 min-w-0">
-						<div className="text-amber-200 text-xs font-bold uppercase tracking-wider mb-1">
-							{(notificationToShow.data?.notification_type as string) || 'Notification'}
-						</div>
-						<div className="text-amber-100/90 text-sm">
-							{(notificationToShow.data?.message as string) || 'Awaiting input...'}
-						</div>
-						{notificationToShow.data?.title != null && (
-							<div className="text-amber-200/70 text-[10px] mt-1">
-								{String(notificationToShow.data.title)}
-							</div>
-						)}
-					</div>
-					<button
-						type="button"
-						onClick={() => setDismissedNotificationId(notificationToShow.timestamp.toString())}
-						className="text-amber-400 hover:text-amber-200 p-1"
-						title="Dismiss"
-					>
-						<X className="w-4 h-4" />
-					</button>
-				</div>
-			)}
+      {/* Normal session view */}
+      {!selectedSubagentId && (
+        <>
+          {/* Notification Banner */}
+          {notificationToShow && (
+            <div className="shrink-0 mx-3 sm:mx-4 mt-3 p-3 bg-amber-500/20 border border-amber-500/50 flex items-start gap-3">
+              <Bell className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+              <div className="flex-1 min-w-0">
+                <div className="text-amber-200 text-xs font-bold uppercase tracking-wider mb-1">
+                  {(notificationToShow.data?.notification_type as string) || 'Notification'}
+                </div>
+                <div className="text-amber-100/90 text-sm">
+                  {(notificationToShow.data?.message as string) || 'Awaiting input...'}
+                </div>
+                {notificationToShow.data?.title != null && (
+                  <div className="text-amber-200/70 text-[10px] mt-1">{String(notificationToShow.data.title)}</div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setDismissedNotificationId(notificationToShow.timestamp.toString())}
+                className="text-amber-400 hover:text-amber-200 p-1"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
-			{/* Tabs with follow checkbox */}
-			<div className="shrink-0 flex items-center border-b border-border">
-				<button
-					type="button"
-					onClick={() => setActiveTab('transcript')}
-					className={cn(
-						'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
-						activeTab === 'transcript'
-							? 'border-accent text-accent'
-							: 'border-transparent text-muted-foreground hover:text-foreground',
-					)}
-				>
-					Transcript
-				</button>
-				<button
-					type="button"
-					onClick={() => setActiveTab('events')}
-					className={cn(
-						'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
-						activeTab === 'events'
-							? 'border-accent text-accent'
-							: 'border-transparent text-muted-foreground hover:text-foreground',
-					)}
-				>
-					Events
-				</button>
-				{(session.totalSubagentCount > 0 || session.activeSubagentCount > 0 || session.bgTasks.length > 0) && (
-					<button
-						type="button"
-						onClick={() => setActiveTab('agents')}
-						className={cn(
-							'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
-							activeTab === 'agents'
-								? 'border-accent text-accent'
-								: 'border-transparent text-muted-foreground hover:text-foreground',
-						)}
-					>
-						Agents
-						{(session.activeSubagentCount > 0 || session.runningBgTaskCount > 0) && (
-							<span className="ml-1.5 px-1.5 py-0.5 bg-active/20 text-active text-[10px] font-bold">
-								{session.activeSubagentCount + session.runningBgTaskCount}
-							</span>
-						)}
-					</button>
-				)}
-				{session.taskCount > 0 && (
-					<button
-						type="button"
-						onClick={() => setActiveTab('tasks')}
-						className={cn(
-							'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
-							activeTab === 'tasks'
-								? 'border-accent text-accent'
-								: 'border-transparent text-muted-foreground hover:text-foreground',
-						)}
-					>
-						Tasks
-						{session.pendingTaskCount > 0 && (
-							<span className="ml-1.5 px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] font-bold">
-								{session.pendingTaskCount}
-							</span>
-						)}
-					</button>
-				)}
-					{/* Terminal + Follow - pushed to right */}
-				<div className="ml-auto pr-3 flex items-center gap-2">
-					{hasTerminal && (
-						<button
-							type="button"
-							onClick={e => {
-								if (e.shiftKey && selectedSessionId) {
-									window.open(`/#popout-terminal/${selectedSessionId}`, '_blank', 'width=900,height=600,menubar=no,toolbar=no')
-								} else {
-									setShowTerminal(true)
-								}
-							}}
-							className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-muted-foreground hover:text-accent transition-colors"
-							title="Open terminal (Shift+click to pop out)"
-						>
-							<Terminal className="w-3 h-3" />
-							TTY
-						</button>
-					)}
-					<div className="w-px h-4 bg-border" />
-				</div>
-				<div className="pr-3 flex items-center gap-3">
-					<div className="flex items-center gap-1.5">
-						<Checkbox
-							id="thinking"
-							checked={showThinking}
-							onCheckedChange={checked => setShowThinking(checked === true)}
-							className="h-3.5 w-3.5"
-						/>
-						<label htmlFor="thinking" className="text-[10px] text-muted-foreground cursor-pointer select-none">
-							thinking
-						</label>
-					</div>
-					<div className="flex items-center gap-1.5">
-						<Checkbox
-							id="follow"
-							checked={follow}
-							onCheckedChange={checked => setFollow(checked === true)}
-							className="h-3.5 w-3.5"
-						/>
-						<label htmlFor="follow" className="text-[10px] text-muted-foreground cursor-pointer select-none">
-							follow
-						</label>
-					</div>
-				</div>
-			</div>
+          {/* Tabs with follow checkbox */}
+          <div className="shrink-0 flex items-center border-b border-border">
+            <button
+              type="button"
+              onClick={() => setActiveTab('transcript')}
+              className={cn(
+                'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
+                activeTab === 'transcript'
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Transcript
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('events')}
+              className={cn(
+                'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
+                activeTab === 'events'
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Events
+            </button>
+            {(session.totalSubagentCount > 0 || session.activeSubagentCount > 0 || session.bgTasks.length > 0) && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('agents')}
+                className={cn(
+                  'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
+                  activeTab === 'agents'
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+              >
+                Agents
+                {(session.activeSubagentCount > 0 || session.runningBgTaskCount > 0) && (
+                  <span className="ml-1.5 px-1.5 py-0.5 bg-active/20 text-active text-[10px] font-bold">
+                    {session.activeSubagentCount + session.runningBgTaskCount}
+                  </span>
+                )}
+              </button>
+            )}
+            {session.taskCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('tasks')}
+                className={cn(
+                  'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
+                  activeTab === 'tasks'
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+              >
+                Tasks
+                {session.pendingTaskCount > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] font-bold">
+                    {session.pendingTaskCount}
+                  </span>
+                )}
+              </button>
+            )}
+            {/* Terminal + Follow - pushed to right */}
+            <div className="ml-auto pr-3 flex items-center gap-2">
+              {hasTerminal && (
+                <button
+                  type="button"
+                  onClick={e => {
+                    if (e.shiftKey && selectedSessionId) {
+                      window.open(
+                        `/#popout-terminal/${selectedSessionId}`,
+                        '_blank',
+                        'width=900,height=600,menubar=no,toolbar=no',
+                      )
+                    } else {
+                      setShowTerminal(true)
+                    }
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-muted-foreground hover:text-accent transition-colors"
+                  title="Open terminal (Shift+click to pop out)"
+                >
+                  <Terminal className="w-3 h-3" />
+                  TTY
+                </button>
+              )}
+              <div className="w-px h-4 bg-border" />
+            </div>
+            <div className="pr-3 flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="thinking"
+                  checked={showThinking}
+                  onCheckedChange={checked => setShowThinking(checked === true)}
+                  className="h-3.5 w-3.5"
+                />
+                <label htmlFor="thinking" className="text-[10px] text-muted-foreground cursor-pointer select-none">
+                  thinking
+                </label>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="follow"
+                  checked={follow}
+                  onCheckedChange={checked => setFollow(checked === true)}
+                  className="h-3.5 w-3.5"
+                />
+                <label htmlFor="follow" className="text-[10px] text-muted-foreground cursor-pointer select-none">
+                  follow
+                </label>
+              </div>
+            </div>
+          </div>
 
-			{/* Content */}
-			{activeTab === 'transcript' && (
-				<div className="flex-1 min-h-0 overflow-hidden">
-					<TranscriptView entries={transcript} follow={follow} showThinking={showThinking} />
-				</div>
-			)}
-			{activeTab === 'events' && (
-				<div className="flex-1 min-h-0 overflow-hidden">
-					<EventsView events={events} follow={follow} />
-				</div>
-			)}
-			{activeTab === 'agents' && selectedSessionId && (
-				<div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-4">
-					<SubagentView sessionId={selectedSessionId} />
-					{session.bgTasks.length > 0 && (
-						<>
-							<div className="border-t border-border pt-3">
-								<h3 className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-2">Background Tasks</h3>
-							</div>
-							<BgTasksView sessionId={selectedSessionId} />
-						</>
-					)}
-				</div>
-			)}
-			{activeTab === 'tasks' && selectedSessionId && (
-				<div className="flex-1 min-h-0 overflow-hidden">
-					<TasksView sessionId={selectedSessionId} pendingCount={session.pendingTaskCount} />
-				</div>
-			)}
+          {/* Content */}
+          {activeTab === 'transcript' && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <TranscriptView entries={transcript} follow={follow} showThinking={showThinking} />
+            </div>
+          )}
+          {activeTab === 'events' && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <EventsView events={events} follow={follow} />
+            </div>
+          )}
+          {activeTab === 'agents' && selectedSessionId && (
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-4">
+              <SubagentView sessionId={selectedSessionId} />
+              {session.bgTasks.length > 0 && (
+                <>
+                  <div className="border-t border-border pt-3">
+                    <h3 className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-2">
+                      Background Tasks
+                    </h3>
+                  </div>
+                  <BgTasksView sessionId={selectedSessionId} />
+                </>
+              )}
+            </div>
+          )}
+          {activeTab === 'tasks' && selectedSessionId && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <TasksView sessionId={selectedSessionId} pendingCount={session.pendingTaskCount} />
+            </div>
+          )}
+        </>
+      )}
 
-			</>
-			)}
+      {/* Input box */}
+      {canSendInput && (
+        <div className="shrink-0 p-3 border-t border-border">
+          <div className="flex gap-2 items-end">
+            <MarkdownInput
+              value={inputValue}
+              onChange={setInputValue}
+              onSubmit={handleSendInput}
+              disabled={isSending}
+              placeholder="Send input to session..."
+              className="flex-1"
+            />
+            <Button
+              onClick={handleSendInput}
+              disabled={isSending || !inputValue.trim()}
+              size="sm"
+              className="text-xs shrink-0"
+            >
+              {isSending ? '...' : 'Send'}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">Enter to send, Shift+Enter for new line</p>
+        </div>
+      )}
 
-			{/* Input box */}
-			{canSendInput && (
-				<div className="shrink-0 p-3 border-t border-border">
-					<div className="flex gap-2 items-end">
-						<MarkdownInput
-							value={inputValue}
-							onChange={setInputValue}
-							onSubmit={handleSendInput}
-							disabled={isSending}
-							placeholder="Send input to session..."
-							className="flex-1"
-						/>
-						<Button onClick={handleSendInput} disabled={isSending || !inputValue.trim()} size="sm" className="text-xs shrink-0">
-							{isSending ? '...' : 'Send'}
-						</Button>
-					</div>
-					<p className="text-[10px] text-muted-foreground mt-1">Enter to send, Shift+Enter for new line</p>
-				</div>
-			)}
+      {/* Terminal overlay */}
+      {showTerminal && selectedSessionId && hasTerminal && (
+        <WebTerminal
+          sessionId={selectedSessionId}
+          onClose={() => setShowTerminal(false)}
+          onSwitchSession={id => {
+            useSessionsStore.getState().openTerminal(id)
+          }}
+        />
+      )}
 
-			{/* Terminal overlay */}
-			{showTerminal && selectedSessionId && hasTerminal && (
-				<WebTerminal
-					sessionId={selectedSessionId}
-					onClose={() => setShowTerminal(false)}
-					onSwitchSession={id => {
-						useSessionsStore.getState().openTerminal(id)
-					}}
-				/>
-			)}
-
-			{/* Revive button for ended sessions */}
-			{session?.status === 'ended' && (
-				<div className="shrink-0 p-3 border-t border-border">
-					{canRevive ? (
-						<div>
-							<Button
-								onClick={reviveState === 'error' ? () => { setReviveState('idle'); setReviveError(null) } : handleRevive}
-								disabled={reviveState === 'sending' || reviveState === 'waiting'}
-								size="sm"
-								className={cn(
-									'w-full text-xs border',
-									reviveState === 'waiting'
-										? 'bg-amber-400/20 text-amber-400 border-amber-400/50'
-										: reviveState === 'error'
-											? 'bg-red-400/20 text-red-400 border-red-400/50 hover:bg-red-400/30'
-											: 'bg-active/20 text-active border-active/50 hover:bg-active/30',
-								)}
-							>
-								{reviveState === 'sending' && 'Sending signal...'}
-								{reviveState === 'waiting' && `Waiting for connection... ${reviveCountdown}s`}
-								{reviveState === 'error' && 'Retry'}
-								{reviveState === 'idle' && 'Revive Session'}
-							</Button>
-							{reviveError && (
-								<p className="text-[10px] text-red-400 mt-1">{reviveError}</p>
-							)}
-							{reviveState === 'idle' && (
-								<p className="text-[10px] text-muted-foreground mt-1">
-									Spawns new rclaude in tmux at {session.cwd.split('/').slice(-2).join('/')}
-								</p>
-							)}
-						</div>
-					) : (
-						<p className="text-[10px] text-muted-foreground text-center">
-							{agentConnected ? 'Session ended' : 'No host agent connected -- revive unavailable'}
-						</p>
-					)}
-				</div>
-			)}
-		</div>
-	)
+      {/* Revive button for ended sessions */}
+      {session?.status === 'ended' && (
+        <div className="shrink-0 p-3 border-t border-border">
+          {canRevive ? (
+            <div>
+              <Button
+                onClick={
+                  reviveState === 'error'
+                    ? () => {
+                        setReviveState('idle')
+                        setReviveError(null)
+                      }
+                    : handleRevive
+                }
+                disabled={reviveState === 'sending' || reviveState === 'waiting'}
+                size="sm"
+                className={cn(
+                  'w-full text-xs border',
+                  reviveState === 'waiting'
+                    ? 'bg-amber-400/20 text-amber-400 border-amber-400/50'
+                    : reviveState === 'error'
+                      ? 'bg-red-400/20 text-red-400 border-red-400/50 hover:bg-red-400/30'
+                      : 'bg-active/20 text-active border-active/50 hover:bg-active/30',
+                )}
+              >
+                {reviveState === 'sending' && 'Sending signal...'}
+                {reviveState === 'waiting' && `Waiting for connection... ${reviveCountdown}s`}
+                {reviveState === 'error' && 'Retry'}
+                {reviveState === 'idle' && 'Revive Session'}
+              </Button>
+              {reviveError && <p className="text-[10px] text-red-400 mt-1">{reviveError}</p>}
+              {reviveState === 'idle' && (
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Spawns new rclaude in tmux at {session.cwd.split('/').slice(-2).join('/')}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-[10px] text-muted-foreground text-center">
+              {agentConnected ? 'Session ended' : 'No host agent connected -- revive unavailable'}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }

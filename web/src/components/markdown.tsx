@@ -41,69 +41,70 @@ hljs.registerLanguage('yml', yaml)
 
 // Create marked instance with syntax highlighting
 const marked = new Marked(
-	markedHighlight({
-		emptyLangClass: 'hljs',
-		langPrefix: 'hljs language-',
-		highlight(code, lang) {
-			if (lang && hljs.getLanguage(lang)) {
-				try {
-					return hljs.highlight(code, { language: lang }).value
-				} catch {
-					// Fall through to auto-detect
-				}
-			}
-			// Auto-detect language
-			try {
-				return hljs.highlightAuto(code).value
-			} catch {
-				return code
-			}
-		},
-	}),
+  markedHighlight({
+    emptyLangClass: 'hljs',
+    langPrefix: 'hljs language-',
+    highlight(code, lang) {
+      if (lang && hljs.getLanguage(lang)) {
+        try {
+          return hljs.highlight(code, { language: lang }).value
+        } catch {
+          // Fall through to auto-detect
+        }
+      }
+      // Auto-detect language
+      try {
+        return hljs.highlightAuto(code).value
+      } catch {
+        return code
+      }
+    },
+  }),
 )
 
 // Open all links in new tab
 const renderer = new marked.Renderer()
-renderer.link = ({ href, text }) =>
-	`<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`
+renderer.link = ({ href, text }) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`
 
 // Configure marked options
 marked.setOptions({
-	gfm: true,
-	breaks: true,
-	renderer,
+  gfm: true,
+  breaks: true,
+  renderer,
 })
 
 // Override GFM strikethrough to require double tildes only (~~text~~)
 // Default marked GFM also matches single ~text~ which breaks paths like ~/foo
 marked.use({
-	extensions: [{
-		name: 'del',
-		level: 'inline',
-		start(src: string) {
-			return src.indexOf('~~')
-		},
-		tokenizer(src: string) {
-			const match = src.match(/^~~(?!~)([\s\S]+?)~~(?!~)/)
-			if (match) {
-				return { type: 'del', raw: match[0], text: match[1], tokens: [] }
-			}
-			return undefined
-		},
-		renderer(token: any) {
-			return `<del>${this.parser.parseInline(token.tokens)}</del>`
-		},
-	}],
+  extensions: [
+    {
+      name: 'del',
+      level: 'inline',
+      start(src: string) {
+        return src.indexOf('~~')
+      },
+      tokenizer(src: string) {
+        const match = src.match(/^~~(?!~)([\s\S]+?)~~(?!~)/)
+        if (match) {
+          return { type: 'del', raw: match[0], text: match[1], tokens: [] }
+        }
+        return undefined
+      },
+      renderer(token: any) {
+        return `<del>${this.parser.parseInline(token.tokens)}</del>`
+      },
+    },
+  ],
 })
 
 interface MarkdownProps {
-	children: string
+  children: string
 }
 
 export function Markdown({ children }: MarkdownProps) {
-	const html = useMemo(() => {
-		return marked.parse(children) as string
-	}, [children])
+  const html = useMemo(() => {
+    return marked.parse(children) as string
+  }, [children])
 
-	return <div className="prose-hacker" dangerouslySetInnerHTML={{ __html: html }} />
+  return <div className="prose-hacker" dangerouslySetInnerHTML={{ __html: html }} />
 }

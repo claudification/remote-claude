@@ -3,79 +3,90 @@
  * Provides endpoints for querying session data
  */
 
-import type { SessionStore } from "./session-store";
-import type { Session, SendInput, TeamInfo } from "../shared/protocol";
-import { UI_HTML } from "./ui";
-import { resolveInJail } from "./path-jail";
-import { addSubscription, removeSubscription, sendPushToAll, getSubscriptionCount, isConfigured as isPushConfigured } from "./push";
-import { getAllProjectSettings, setProjectSettings, deleteProjectSettings } from "./project-settings";
+import type { SendInput, Session, TeamInfo } from '../shared/protocol'
+import { resolveInJail } from './path-jail'
+import { deleteProjectSettings, getAllProjectSettings, setProjectSettings } from './project-settings'
+import {
+  addSubscription,
+  getSubscriptionCount,
+  isConfigured as isPushConfigured,
+  removeSubscription,
+  sendPushToAll,
+} from './push'
+import type { SessionStore } from './session-store'
+import { UI_HTML } from './ui'
 
 // Image registries
 // File registry: hash -> filesystem path (for [Image: source: /path] references)
-const fileRegistry = new Map<string, string>();
+const fileRegistry = new Map<string, string>()
 // Blob registry: hash -> { bytes, mediaType, createdAt } (for inline base64 images from transcript)
-const blobRegistry = new Map<string, { bytes: Uint8Array; mediaType: string; createdAt: number }>();
+const blobRegistry = new Map<string, { bytes: Uint8Array; mediaType: string; createdAt: number }>()
 
 // Purge blobs older than 24 hours every hour
-const BLOB_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-setInterval(() => {
-  const now = Date.now();
-  for (const [hash, entry] of blobRegistry) {
-    if (now - entry.createdAt > BLOB_MAX_AGE_MS) {
-      blobRegistry.delete(hash);
+const BLOB_MAX_AGE_MS = 24 * 60 * 60 * 1000
+setInterval(
+  () => {
+    const now = Date.now()
+    for (const [hash, entry] of blobRegistry) {
+      if (now - entry.createdAt > BLOB_MAX_AGE_MS) {
+        blobRegistry.delete(hash)
+      }
     }
-  }
-}, 60 * 60 * 1000);
+  },
+  60 * 60 * 1000,
+)
 
 function hashString(input: string): string {
-  let hash = 0;
+  let hash = 0
   for (let i = 0; i < input.length; i++) {
-    hash = ((hash << 5) - hash) + input.charCodeAt(i);
-    hash = hash & hash;
+    hash = (hash << 5) - hash + input.charCodeAt(i)
+    hash = hash & hash
   }
-  return Math.abs(hash).toString(36);
+  return Math.abs(hash).toString(36)
 }
 
 function registerFilePath(path: string): string {
-  const hash = hashString(path);
-  fileRegistry.set(hash, path);
-  return hash;
+  const hash = hashString(path)
+  fileRegistry.set(hash, path)
+  return hash
 }
 
 function registerBlob(data: string, mediaType: string): string {
   // Hash the first 200 chars + length for speed (full base64 strings can be huge)
-  const key = `${data.length}:${data.slice(0, 200)}`;
-  const hash = hashString(key);
+  const key = `${data.length}:${data.slice(0, 200)}`
+  const hash = hashString(key)
   if (!blobRegistry.has(hash)) {
-    const bytes = Buffer.from(data, "base64");
-    blobRegistry.set(hash, { bytes: new Uint8Array(bytes), mediaType, createdAt: Date.now() });
+    const bytes = Buffer.from(data, 'base64')
+    blobRegistry.set(hash, { bytes: new Uint8Array(bytes), mediaType, createdAt: Date.now() })
   }
-  return hash;
+  return hash
 }
 
-function getImageSource(hash: string): { type: "file"; path: string } | { type: "blob"; bytes: Uint8Array; mediaType: string } | null {
-  const blob = blobRegistry.get(hash);
-  if (blob) return { type: "blob", ...blob };
-  const path = fileRegistry.get(hash);
-  if (path) return { type: "file", path };
-  return null;
+function getImageSource(
+  hash: string,
+): { type: 'file'; path: string } | { type: 'blob'; bytes: Uint8Array; mediaType: string } | null {
+  const blob = blobRegistry.get(hash)
+  if (blob) return { type: 'blob', ...blob }
+  const path = fileRegistry.get(hash)
+  if (path) return { type: 'file', path }
+  return null
 }
 
 // Image extensions we recognize
-const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'heic', 'svg'];
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'heic', 'svg']
 
 // Map media_type to extension
 function mediaTypeToExt(mediaType: string): string {
   const map: Record<string, string> = {
-    "image/png": "png",
-    "image/jpeg": "jpg",
-    "image/gif": "gif",
-    "image/webp": "webp",
-    "image/avif": "avif",
-    "image/heic": "heic",
-    "image/svg+xml": "svg",
-  };
-  return map[mediaType] || "png";
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'image/avif': 'avif',
+    'image/heic': 'heic',
+    'image/svg+xml': 'svg',
+  }
+  return map[mediaType] || 'png'
 }
 
 /**
@@ -87,55 +98,55 @@ function mediaTypeToExt(mediaType: string): string {
  * Returns the entry with `images` field added and base64 data stripped to save bandwidth.
  */
 function processImagesInEntry(entry: any): any {
-  const images: Array<{ hash: string; ext: string; url: string; originalPath: string }> = [];
-  let modified = false;
+  const images: Array<{ hash: string; ext: string; url: string; originalPath: string }> = []
+  let modified = false
 
   // 1. Extract inline base64 image blocks from message content
-  const content = entry?.message?.content;
+  const content = entry?.message?.content
   if (Array.isArray(content)) {
     for (let i = 0; i < content.length; i++) {
-      const block = content[i];
+      const block = content[i]
       if (
-        block?.type === "image" &&
-        block?.source?.type === "base64" &&
+        block?.type === 'image' &&
+        block?.source?.type === 'base64' &&
         block?.source?.data &&
         block?.source?.media_type
       ) {
-        const mediaType = block.source.media_type as string;
-        const ext = mediaTypeToExt(mediaType);
-        const hash = registerBlob(block.source.data, mediaType);
+        const mediaType = block.source.media_type as string
+        const ext = mediaTypeToExt(mediaType)
+        const hash = registerBlob(block.source.data, mediaType)
         images.push({
           hash,
           ext,
           url: `/file/${hash}.${ext}`,
           originalPath: `inline:${mediaType}`,
-        });
+        })
         // Replace the heavy base64 block with a lightweight placeholder
         // so we don't send megabytes of base64 back to the dashboard
         if (!modified) {
           // Clone entry + content array on first modification
-          entry = { ...entry, message: { ...entry.message, content: [...content] } };
-          modified = true;
+          entry = { ...entry, message: { ...entry.message, content: [...content] } }
+          modified = true
         }
         entry.message.content[i] = {
-          type: "text",
+          type: 'text',
           text: `[Image: ${hash}.${ext}]`,
-        };
+        }
       }
     }
   }
 
   // 2. Scan for file path references: [Image: source: /path/to/file.ext]
-  const imagePattern = /\[Image:\s*source:\s*([^\]]+)\]/gi;
+  const imagePattern = /\[Image:\s*source:\s*([^\]]+)\]/gi
 
   function scanText(value: any): void {
     if (typeof value === 'string') {
-      let match;
+      let match
       while ((match = imagePattern.exec(value)) !== null) {
-        const imagePath = match[1].trim();
-        const ext = imagePath.split('.').pop()?.toLowerCase() || 'png';
+        const imagePath = match[1].trim()
+        const ext = imagePath.split('.').pop()?.toLowerCase() || 'png'
         if (IMAGE_EXTENSIONS.includes(ext)) {
-          const hash = registerFilePath(imagePath);
+          const hash = registerFilePath(imagePath)
           // Don't add duplicate if we already have this hash from base64
           if (!images.some(img => img.hash === hash)) {
             images.push({
@@ -143,100 +154,98 @@ function processImagesInEntry(entry: any): any {
               ext,
               url: `/file/${hash}.${ext}`,
               originalPath: imagePath,
-            });
+            })
           }
         }
       }
     } else if (Array.isArray(value)) {
-      value.forEach(scanText);
+      value.forEach(scanText)
     } else if (value && typeof value === 'object') {
-      Object.values(value).forEach(scanText);
+      Object.values(value).forEach(scanText)
     }
   }
 
-  scanText(entry);
+  scanText(entry)
 
   if (images.length > 0) {
-    return { ...entry, images };
+    return { ...entry, images }
   }
-  return entry;
+  return entry
 }
 
 export interface ApiOptions {
-  sessionStore: SessionStore;
-  webDir?: string;
-  vapidPublicKey?: string;
-  rclaudeSecret?: string;
+  sessionStore: SessionStore
+  webDir?: string
+  vapidPublicKey?: string
+  rclaudeSecret?: string
 }
 
 // Build a map of embedded files for quick lookup
-type EmbeddedBlob = Blob & { name: string };
-const embeddedFiles = new Map<string, Blob>();
-const hasEmbeddedWeb = typeof Bun !== "undefined" && (Bun.embeddedFiles as EmbeddedBlob[])?.length > 0;
+type EmbeddedBlob = Blob & { name: string }
+const embeddedFiles = new Map<string, Blob>()
+const hasEmbeddedWeb = typeof Bun !== 'undefined' && (Bun.embeddedFiles as EmbeddedBlob[])?.length > 0
 
 if (hasEmbeddedWeb) {
   for (const blob of Bun.embeddedFiles as EmbeddedBlob[]) {
     // Remove hash from filename: "index-a1b2c3d4.html" -> "index.html"
-    const name = blob.name.replace(/-[a-f0-9]+\./, ".");
-    embeddedFiles.set(name, blob);
+    const name = blob.name.replace(/-[a-f0-9]+\./, '.')
+    embeddedFiles.set(name, blob)
     // Also map with lib/ prefix for assets
-    if (blob.name.startsWith("lib/") || blob.name.includes("/lib/")) {
-      const libPath = blob.name.includes("/lib/")
-        ? blob.name.substring(blob.name.indexOf("/lib/") + 1)
-        : blob.name;
-      embeddedFiles.set(libPath, blob);
+    if (blob.name.startsWith('lib/') || blob.name.includes('/lib/')) {
+      const libPath = blob.name.includes('/lib/') ? blob.name.substring(blob.name.indexOf('/lib/') + 1) : blob.name
+      embeddedFiles.set(libPath, blob)
     }
   }
 }
 
 function getMimeType(path: string): string {
-  const ext = path.split(".").pop()?.toLowerCase();
+  const ext = path.split('.').pop()?.toLowerCase()
   const mimeTypes: Record<string, string> = {
-    html: "text/html; charset=utf-8",
-    css: "text/css; charset=utf-8",
-    js: "application/javascript; charset=utf-8",
-    json: "application/json; charset=utf-8",
-    svg: "image/svg+xml",
-    png: "image/png",
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    gif: "image/gif",
-    webp: "image/webp",
-    avif: "image/avif",
-    heic: "image/heic",
-    ico: "image/x-icon",
-    woff: "font/woff",
-    woff2: "font/woff2",
-    pdf: "application/pdf",
-  };
-  return mimeTypes[ext || ""] || "application/octet-stream";
+    html: 'text/html; charset=utf-8',
+    css: 'text/css; charset=utf-8',
+    js: 'application/javascript; charset=utf-8',
+    json: 'application/json; charset=utf-8',
+    svg: 'image/svg+xml',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    avif: 'image/avif',
+    heic: 'image/heic',
+    ico: 'image/x-icon',
+    woff: 'font/woff',
+    woff2: 'font/woff2',
+    pdf: 'application/pdf',
+  }
+  return mimeTypes[ext || ''] || 'application/octet-stream'
 }
 
 interface SessionSummary {
-  id: string;
-  cwd: string;
-  model?: string;
-  status: Session["status"];
-  startedAt: number;
-  lastActivity: number;
-  eventCount: number;
-  activeSubagentCount: number;
-  totalSubagentCount: number;
-  team?: TeamInfo;
+  id: string
+  cwd: string
+  model?: string
+  status: Session['status']
+  startedAt: number
+  lastActivity: number
+  eventCount: number
+  activeSubagentCount: number
+  totalSubagentCount: number
+  team?: TeamInfo
   lastEvent?: {
-    hookEvent: string;
-    timestamp: number;
-  };
+    hookEvent: string
+    timestamp: number
+  }
 }
 
 /**
  * Create API request handler
  */
 export function createApiHandler(options: ApiOptions) {
-  const { sessionStore, webDir, vapidPublicKey, rclaudeSecret } = options;
+  const { sessionStore, webDir, vapidPublicKey, rclaudeSecret } = options
 
   function sessionToSummary(session: Session): SessionSummary {
-    const lastEvent = session.events[session.events.length - 1];
+    const lastEvent = session.events[session.events.length - 1]
     return {
       id: session.id,
       cwd: session.cwd,
@@ -245,7 +254,7 @@ export function createApiHandler(options: ApiOptions) {
       startedAt: session.startedAt,
       lastActivity: session.lastActivity,
       eventCount: session.events.length,
-      activeSubagentCount: session.subagents.filter(a => a.status === "running").length,
+      activeSubagentCount: session.subagents.filter(a => a.status === 'running').length,
       totalSubagentCount: session.subagents.length,
       team: session.team,
       lastEvent: lastEvent
@@ -254,855 +263,874 @@ export function createApiHandler(options: ApiOptions) {
             timestamp: lastEvent.timestamp,
           }
         : undefined,
-    };
+    }
   }
 
   return async function handleRequest(req: Request): Promise<Response> {
-    const url = new URL(req.url);
-    const path = url.pathname;
+    const url = new URL(req.url)
+    const path = url.pathname
 
     // No CORS - same-origin only
-    if (req.method === "OPTIONS") {
-      return new Response(null, { status: 204 });
+    if (req.method === 'OPTIONS') {
+      return new Response(null, { status: 204 })
     }
 
     // Serve embedded web dashboard if available
-    if (hasEmbeddedWeb && req.method === "GET") {
+    if (hasEmbeddedWeb && req.method === 'GET') {
       // Serve index.html at root
-      if (path === "/" || path === "/index.html") {
-        const indexHtml = embeddedFiles.get("index.html");
+      if (path === '/' || path === '/index.html') {
+        const indexHtml = embeddedFiles.get('index.html')
         if (indexHtml) {
           return new Response(indexHtml, {
             status: 200,
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-          });
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          })
         }
       }
 
       // Serve other embedded assets
-      const assetPath = path.startsWith("/") ? path.slice(1) : path;
-      const asset = embeddedFiles.get(assetPath);
+      const assetPath = path.startsWith('/') ? path.slice(1) : path
+      const asset = embeddedFiles.get(assetPath)
       if (asset) {
         return new Response(asset, {
           status: 200,
           headers: {
-
-            "Content-Type": getMimeType(assetPath),
-            "Cache-Control": assetPath.startsWith("lib/") ? "public, max-age=31536000, immutable" : "no-cache",
+            'Content-Type': getMimeType(assetPath),
+            'Cache-Control': assetPath.startsWith('lib/') ? 'public, max-age=31536000, immutable' : 'no-cache',
           },
-        });
+        })
       }
 
       // SPA fallback - serve index.html for unknown paths (except API routes)
-      if (!path.startsWith("/sessions") && !path.startsWith("/health") && !path.startsWith("/api") && !path.startsWith("/file")) {
-        const indexHtml = embeddedFiles.get("index.html");
+      if (
+        !path.startsWith('/sessions') &&
+        !path.startsWith('/health') &&
+        !path.startsWith('/api') &&
+        !path.startsWith('/file')
+      ) {
+        const indexHtml = embeddedFiles.get('index.html')
         if (indexHtml) {
           return new Response(indexHtml, {
             status: 200,
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-          });
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          })
         }
       }
     }
 
     // Serve from webDir if specified
-    if (webDir && req.method === "GET") {
-      const filePath = path === "/" ? "/index.html" : path;
-      const fullPath = `${webDir}${filePath}`;
+    if (webDir && req.method === 'GET') {
+      const filePath = path === '/' ? '/index.html' : path
+      const fullPath = `${webDir}${filePath}`
 
       // Path jail check - web files must stay within webDir
-      const safeWebPath = resolveInJail(fullPath);
+      const safeWebPath = resolveInJail(fullPath)
       if (!safeWebPath) {
         // Fall through to other handlers instead of 403 (SPA routing)
-      } else try {
-        const file = Bun.file(safeWebPath);
-        if (await file.exists()) {
-          const isAsset = filePath.startsWith("/assets/") || filePath.startsWith("/lib/");
-          return new Response(file, {
-            status: 200,
-            headers: {
-  
-              "Content-Type": getMimeType(filePath),
-              "Cache-Control": isAsset ? "public, max-age=31536000, immutable" : "no-cache",
-            },
-          });
-        }
-
-        // SPA fallback - serve index.html for unknown paths (except API routes)
-        if (!path.startsWith("/sessions") && !path.startsWith("/health") && !path.startsWith("/api") && !path.startsWith("/file")) {
-          const indexFile = Bun.file(`${webDir}/index.html`);
-          if (await indexFile.exists()) {
-            return new Response(indexFile, {
+      } else
+        try {
+          const file = Bun.file(safeWebPath)
+          if (await file.exists()) {
+            const isAsset = filePath.startsWith('/assets/') || filePath.startsWith('/lib/')
+            return new Response(file, {
               status: 200,
-              headers: { "Content-Type": "text/html; charset=utf-8" },
-            });
+              headers: {
+                'Content-Type': getMimeType(filePath),
+                'Cache-Control': isAsset ? 'public, max-age=31536000, immutable' : 'no-cache',
+              },
+            })
           }
+
+          // SPA fallback - serve index.html for unknown paths (except API routes)
+          if (
+            !path.startsWith('/sessions') &&
+            !path.startsWith('/health') &&
+            !path.startsWith('/api') &&
+            !path.startsWith('/file')
+          ) {
+            const indexFile = Bun.file(`${webDir}/index.html`)
+            if (await indexFile.exists()) {
+              return new Response(indexFile, {
+                status: 200,
+                headers: { 'Content-Type': 'text/html; charset=utf-8' },
+              })
+            }
+          }
+        } catch {
+          // File not found, continue to other handlers
         }
-      } catch {
-        // File not found, continue to other handlers
-      }
     }
 
     // Fallback UI at root (when no embedded web or webDir)
-    if ((path === "/" || path === "/ui") && req.method === "GET" && !hasEmbeddedWeb && !webDir) {
+    if ((path === '/' || path === '/ui') && req.method === 'GET' && !hasEmbeddedWeb && !webDir) {
       return new Response(UI_HTML, {
         status: 200,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      })
     }
 
     // Health check
-    if (path === "/health") {
-      return new Response("ok", {
+    if (path === '/health') {
+      return new Response('ok', {
         status: 200,
-        headers: { "Content-Type": "text/plain" },
-      });
+        headers: { 'Content-Type': 'text/plain' },
+      })
     }
 
     // Serve registered images by hash: /file/{hash}.ext
-    const fileMatch = path.match(/^\/file\/([a-z0-9]+)(?:\.[a-z]+)?$/i);
-    if (fileMatch && req.method === "GET") {
-      const hash = fileMatch[1];
-      const source = getImageSource(hash);
+    const fileMatch = path.match(/^\/file\/([a-z0-9]+)(?:\.[a-z]+)?$/i)
+    if (fileMatch && req.method === 'GET') {
+      const hash = fileMatch[1]
+      const source = getImageSource(hash)
 
       if (!source) {
-        return new Response(JSON.stringify({ error: "Image not found" }), {
+        return new Response(JSON.stringify({ error: 'Image not found' }), {
           status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       // Inline blob - serve directly from memory (no filesystem needed)
-      if (source.type === "blob") {
+      if (source.type === 'blob') {
         return new Response(source.bytes, {
           status: 200,
           headers: {
-
-            "Content-Type": source.mediaType,
-            "Cache-Control": "public, max-age=86400",
+            'Content-Type': source.mediaType,
+            'Cache-Control': 'public, max-age=86400',
           },
-        });
+        })
       }
 
       // File path - resolve through path jail
-      const safePath = resolveInJail(source.path);
+      const safePath = resolveInJail(source.path)
       if (!safePath) {
-        return new Response(JSON.stringify({ error: "Access denied" }), {
+        return new Response(JSON.stringify({ error: 'Access denied' }), {
           status: 403,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       try {
-        const file = Bun.file(safePath);
+        const file = Bun.file(safePath)
         if (!(await file.exists())) {
-          return new Response(JSON.stringify({ error: "File not found on disk" }), {
+          return new Response(JSON.stringify({ error: 'File not found on disk' }), {
             status: 404,
-            headers: { "Content-Type": "application/json" },
-          });
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
 
         return new Response(file, {
           status: 200,
           headers: {
-
-            "Content-Type": getMimeType(safePath),
-            "Cache-Control": "public, max-age=3600",
+            'Content-Type': getMimeType(safePath),
+            'Cache-Control': 'public, max-age=3600',
           },
-        });
+        })
       } catch (error) {
         return new Response(JSON.stringify({ error: `Failed to serve file: ${error}` }), {
           status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
     }
 
     // List all sessions
-    if (path === "/sessions" && req.method === "GET") {
-      const activeOnly = url.searchParams.get("active") === "true";
-      const sessions = activeOnly
-        ? sessionStore.getActiveSessions()
-        : sessionStore.getAllSessions();
+    if (path === '/sessions' && req.method === 'GET') {
+      const activeOnly = url.searchParams.get('active') === 'true'
+      const sessions = activeOnly ? sessionStore.getActiveSessions() : sessionStore.getAllSessions()
 
-      const summaries = sessions.map(sessionToSummary);
+      const summaries = sessions.map(sessionToSummary)
 
       return new Response(JSON.stringify(summaries, null, 2), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     // Get session by ID
-    const sessionMatch = path.match(/^\/sessions\/([^/]+)$/);
-    if (sessionMatch && req.method === "GET") {
-      const sessionId = sessionMatch[1];
-      const session = sessionStore.getSession(sessionId);
+    const sessionMatch = path.match(/^\/sessions\/([^/]+)$/)
+    if (sessionMatch && req.method === 'GET') {
+      const sessionId = sessionMatch[1]
+      const session = sessionStore.getSession(sessionId)
 
       if (!session) {
-        return new Response(JSON.stringify({ error: "Session not found" }), {
+        return new Response(JSON.stringify({ error: 'Session not found' }), {
           status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       return new Response(JSON.stringify(sessionToSummary(session), null, 2), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     // Get session events
-    const eventsMatch = path.match(/^\/sessions\/([^/]+)\/events$/);
-    if (eventsMatch && req.method === "GET") {
-      const sessionId = eventsMatch[1];
-      const limit = parseInt(url.searchParams.get("limit") || "0", 10);
-      const since = parseInt(url.searchParams.get("since") || "0", 10);
-      const events = sessionStore.getSessionEvents(sessionId, limit || undefined, since || undefined);
+    const eventsMatch = path.match(/^\/sessions\/([^/]+)\/events$/)
+    if (eventsMatch && req.method === 'GET') {
+      const sessionId = eventsMatch[1]
+      const limit = parseInt(url.searchParams.get('limit') || '0', 10)
+      const since = parseInt(url.searchParams.get('since') || '0', 10)
+      const events = sessionStore.getSessionEvents(sessionId, limit || undefined, since || undefined)
 
       if (events.length === 0 && !sessionStore.getSession(sessionId)) {
-        return new Response(JSON.stringify({ error: "Session not found" }), {
+        return new Response(JSON.stringify({ error: 'Session not found' }), {
           status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       return new Response(JSON.stringify(events, null, 2), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     // Get session subagents
-    const subagentsMatch = path.match(/^\/sessions\/([^/]+)\/subagents$/);
-    if (subagentsMatch && req.method === "GET") {
-      const sessionId = subagentsMatch[1];
-      const session = sessionStore.getSession(sessionId);
+    const subagentsMatch = path.match(/^\/sessions\/([^/]+)\/subagents$/)
+    if (subagentsMatch && req.method === 'GET') {
+      const sessionId = subagentsMatch[1]
+      const session = sessionStore.getSession(sessionId)
 
       if (!session) {
-        return new Response(JSON.stringify({ error: "Session not found" }), {
+        return new Response(JSON.stringify({ error: 'Session not found' }), {
           status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       return new Response(JSON.stringify(session.subagents, null, 2), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     // Get session transcript (tail)
-    const transcriptMatch = path.match(/^\/sessions\/([^/]+)\/transcript$/);
-    if (transcriptMatch && req.method === "GET") {
-      const sessionId = transcriptMatch[1];
-      const session = sessionStore.getSession(sessionId);
+    const transcriptMatch = path.match(/^\/sessions\/([^/]+)\/transcript$/)
+    if (transcriptMatch && req.method === 'GET') {
+      const sessionId = transcriptMatch[1]
+      const session = sessionStore.getSession(sessionId)
 
       if (!session) {
-        return new Response(JSON.stringify({ error: "Session not found" }), {
+        return new Response(JSON.stringify({ error: 'Session not found' }), {
           status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       if (!session.transcriptPath) {
-        return new Response(JSON.stringify({ error: "No transcript path available" }), {
+        return new Response(JSON.stringify({ error: 'No transcript path available' }), {
           status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       // Path jail check - transcript must resolve within allowed roots
-      const safeTranscriptPath = resolveInJail(session.transcriptPath);
+      const safeTranscriptPath = resolveInJail(session.transcriptPath)
       if (!safeTranscriptPath) {
-        return new Response(JSON.stringify({ error: "Access denied" }), {
+        return new Response(JSON.stringify({ error: 'Access denied' }), {
           status: 403,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       try {
-        const file = Bun.file(safeTranscriptPath);
+        const file = Bun.file(safeTranscriptPath)
         if (!(await file.exists())) {
-          return new Response(JSON.stringify({ error: "Transcript file not found" }), {
+          return new Response(JSON.stringify({ error: 'Transcript file not found' }), {
             status: 404,
-            headers: { "Content-Type": "application/json" },
-          });
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
 
-        const text = await file.text();
-        const lines = text.trim().split("\n").filter(Boolean);
+        const text = await file.text()
+        const lines = text.trim().split('\n').filter(Boolean)
 
         // Parse JSONL - get last N entries
-        const limit = parseInt(url.searchParams.get("limit") || "20", 10);
-        const entries = lines.slice(-limit).map((line) => {
-          try {
-            return JSON.parse(line);
-          } catch {
-            return null;
-          }
-        }).filter(Boolean);
+        const limit = parseInt(url.searchParams.get('limit') || '20', 10)
+        const entries = lines
+          .slice(-limit)
+          .map(line => {
+            try {
+              return JSON.parse(line)
+            } catch {
+              return null
+            }
+          })
+          .filter(Boolean)
 
         // Process entries to find and register images
-        const processedEntries = entries.map((entry: any) => processImagesInEntry(entry));
+        const processedEntries = entries.map((entry: any) => processImagesInEntry(entry))
 
         return new Response(JSON.stringify(processedEntries, null, 2), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       } catch (error) {
         return new Response(JSON.stringify({ error: `Failed to read transcript: ${error}` }), {
           status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
     }
 
     // Get subagent transcript
-    const subagentTranscriptMatch = path.match(/^\/sessions\/([^/]+)\/subagents\/([^/]+)\/transcript$/);
-    if (subagentTranscriptMatch && req.method === "GET") {
-      const sessionId = subagentTranscriptMatch[1];
-      const agentId = subagentTranscriptMatch[2];
-      const session = sessionStore.getSession(sessionId);
+    const subagentTranscriptMatch = path.match(/^\/sessions\/([^/]+)\/subagents\/([^/]+)\/transcript$/)
+    if (subagentTranscriptMatch && req.method === 'GET') {
+      const sessionId = subagentTranscriptMatch[1]
+      const agentId = subagentTranscriptMatch[2]
+      const session = sessionStore.getSession(sessionId)
 
       if (!session) {
-        return new Response(JSON.stringify({ error: "Session not found" }), {
+        return new Response(JSON.stringify({ error: 'Session not found' }), {
           status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
-      const agent = session.subagents.find(a => a.agentId === agentId);
+      const agent = session.subagents.find(a => a.agentId === agentId)
 
       // Derive transcript path: use agent's explicit path, or construct from parent session's path
-      let transcriptPath = agent?.transcriptPath;
+      let transcriptPath = agent?.transcriptPath
       if (!transcriptPath && session.transcriptPath) {
-        const dir = session.transcriptPath.replace(/\/[^/]+$/, "");
-        transcriptPath = `${dir}/subagents/agent-${agentId}.jsonl`;
+        const dir = session.transcriptPath.replace(/\/[^/]+$/, '')
+        transcriptPath = `${dir}/subagents/agent-${agentId}.jsonl`
       }
       if (!transcriptPath) {
-        return new Response(JSON.stringify({ error: "No transcript available for this agent" }), {
+        return new Response(JSON.stringify({ error: 'No transcript available for this agent' }), {
           status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
-      const safePath = resolveInJail(transcriptPath);
+      const safePath = resolveInJail(transcriptPath)
       if (!safePath) {
-        return new Response(JSON.stringify({ error: "Access denied" }), {
+        return new Response(JSON.stringify({ error: 'Access denied' }), {
           status: 403,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       try {
-        const file = Bun.file(safePath);
+        const file = Bun.file(safePath)
         if (!(await file.exists())) {
-          return new Response(JSON.stringify({ error: "Transcript file not found" }), {
+          return new Response(JSON.stringify({ error: 'Transcript file not found' }), {
             status: 404,
-            headers: { "Content-Type": "application/json" },
-          });
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
 
-        const text = await file.text();
-        const lines = text.trim().split("\n").filter(Boolean);
-        const limit = parseInt(url.searchParams.get("limit") || "100", 10);
-        const entries = lines.slice(-limit).map((line) => {
-          try { return JSON.parse(line); } catch { return null; }
-        }).filter(Boolean);
+        const text = await file.text()
+        const lines = text.trim().split('\n').filter(Boolean)
+        const limit = parseInt(url.searchParams.get('limit') || '100', 10)
+        const entries = lines
+          .slice(-limit)
+          .map(line => {
+            try {
+              return JSON.parse(line)
+            } catch {
+              return null
+            }
+          })
+          .filter(Boolean)
 
-        const processedEntries = entries.map((entry: any) => processImagesInEntry(entry));
+        const processedEntries = entries.map((entry: any) => processImagesInEntry(entry))
 
         return new Response(JSON.stringify(processedEntries, null, 2), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       } catch (error) {
         return new Response(JSON.stringify({ error: `Failed to read transcript: ${error}` }), {
           status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
     }
 
     // Send input to session
-    const inputMatch = path.match(/^\/sessions\/([^/]+)\/input$/);
-    if (inputMatch && req.method === "POST") {
-      const sessionId = inputMatch[1];
-      const session = sessionStore.getSession(sessionId);
+    const inputMatch = path.match(/^\/sessions\/([^/]+)\/input$/)
+    if (inputMatch && req.method === 'POST') {
+      const sessionId = inputMatch[1]
+      const session = sessionStore.getSession(sessionId)
 
       if (!session) {
-        return new Response(JSON.stringify({ error: "Session not found" }), {
+        return new Response(JSON.stringify({ error: 'Session not found' }), {
           status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
-      if (session.status === "ended") {
-        return new Response(JSON.stringify({ error: "Session has ended" }), {
+      if (session.status === 'ended') {
+        return new Response(JSON.stringify({ error: 'Session has ended' }), {
           status: 400,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
-      const ws = sessionStore.getSessionSocket(sessionId);
+      const ws = sessionStore.getSessionSocket(sessionId)
       if (!ws) {
-        return new Response(JSON.stringify({ error: "Session not connected" }), {
+        return new Response(JSON.stringify({ error: 'Session not connected' }), {
           status: 400,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       try {
-        const body = await req.json() as { input: string };
-        if (!body.input || typeof body.input !== "string") {
-          return new Response(JSON.stringify({ error: "Missing input field" }), {
+        const body = (await req.json()) as { input: string }
+        if (!body.input || typeof body.input !== 'string') {
+          return new Response(JSON.stringify({ error: 'Missing input field' }), {
             status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
 
         const inputMsg: SendInput = {
-          type: "input",
+          type: 'input',
           sessionId,
           input: body.input,
-        };
-        ws.send(JSON.stringify(inputMsg));
+        }
+        ws.send(JSON.stringify(inputMsg))
 
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       } catch (error) {
         return new Response(JSON.stringify({ error: `Failed to send input: ${error}` }), {
           status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
     }
 
     // POST /sessions/:id/revive - Revive an inactive session via host agent
-    const reviveMatch = path.match(/^\/sessions\/([^/]+)\/revive$/);
-    if (req.method === "POST" && reviveMatch) {
-      const sessionId = reviveMatch[1];
-      const session = sessionStore.getSession(sessionId);
+    const reviveMatch = path.match(/^\/sessions\/([^/]+)\/revive$/)
+    if (req.method === 'POST' && reviveMatch) {
+      const sessionId = reviveMatch[1]
+      const session = sessionStore.getSession(sessionId)
       if (!session) {
-        return new Response(JSON.stringify({ error: "Session not found" }), {
+        return new Response(JSON.stringify({ error: 'Session not found' }), {
           status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
-      if (session.status === "active") {
-        return new Response(JSON.stringify({ error: "Session is already active" }), {
+      if (session.status === 'active') {
+        return new Response(JSON.stringify({ error: 'Session is already active' }), {
           status: 400,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
-      const agent = sessionStore.getAgent();
+      const agent = sessionStore.getAgent()
       if (!agent) {
-        return new Response(JSON.stringify({ error: "No host agent connected" }), {
+        return new Response(JSON.stringify({ error: 'No host agent connected' }), {
           status: 503,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       try {
-        agent.send(JSON.stringify({
-          type: "revive",
-          sessionId,
-          cwd: session.cwd,
-        }));
+        agent.send(
+          JSON.stringify({
+            type: 'revive',
+            sessionId,
+            cwd: session.cwd,
+          }),
+        )
 
-        return new Response(JSON.stringify({ success: true, message: "Revive command sent to agent" }), {
+        return new Response(JSON.stringify({ success: true, message: 'Revive command sent to agent' }), {
           status: 202,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       } catch (error) {
         return new Response(JSON.stringify({ error: `Failed to send revive: ${error}` }), {
           status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
     }
 
     // GET /sessions/:id/tasks - Get session task list
-    const tasksMatch = path.match(/^\/sessions\/([^/]+)\/tasks$/);
-    if (tasksMatch && req.method === "GET") {
-      const sessionId = tasksMatch[1];
-      const session = sessionStore.getSession(sessionId);
+    const tasksMatch = path.match(/^\/sessions\/([^/]+)\/tasks$/)
+    if (tasksMatch && req.method === 'GET') {
+      const sessionId = tasksMatch[1]
+      const session = sessionStore.getSession(sessionId)
       if (!session) {
-        return new Response(JSON.stringify({ error: "Session not found" }), {
+        return new Response(JSON.stringify({ error: 'Session not found' }), {
           status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
       return new Response(JSON.stringify(session.tasks, null, 2), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     // GET /agent/status - Check if host agent is connected
-    if (req.method === "GET" && path === "/agent/status") {
+    if (req.method === 'GET' && path === '/agent/status') {
       return new Response(JSON.stringify({ connected: sessionStore.hasAgent() }), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     // POST /agent/quit - Tell the host agent to exit
-    if (req.method === "POST" && path === "/agent/quit") {
-      const agent = sessionStore.getAgent();
+    if (req.method === 'POST' && path === '/agent/quit') {
+      const agent = sessionStore.getAgent()
       if (!agent) {
-        return new Response(JSON.stringify({ error: "No agent connected" }), {
+        return new Response(JSON.stringify({ error: 'No agent connected' }), {
           status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
-      agent.send(JSON.stringify({ type: "quit", reason: "Requested via API" }));
+      agent.send(JSON.stringify({ type: 'quit', reason: 'Requested via API' }))
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     // GET /api/push/vapid - return VAPID public key for push subscription
-    if (req.method === "GET" && path === "/api/push/vapid") {
+    if (req.method === 'GET' && path === '/api/push/vapid') {
       if (!vapidPublicKey) {
-        return new Response(JSON.stringify({ error: "Push not configured" }), {
+        return new Response(JSON.stringify({ error: 'Push not configured' }), {
           status: 503,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
       return new Response(JSON.stringify({ publicKey: vapidPublicKey, subscriptions: getSubscriptionCount() }), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     // POST /api/push/subscribe - register push subscription
-    if (req.method === "POST" && path === "/api/push/subscribe") {
+    if (req.method === 'POST' && path === '/api/push/subscribe') {
       try {
-        const body = await req.json() as { subscription: { endpoint: string; keys: { p256dh: string; auth: string } } };
-        if (!body.subscription?.endpoint || !body.subscription?.keys) {
-          return new Response(JSON.stringify({ error: "Invalid subscription" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+        const body = (await req.json()) as {
+          subscription: { endpoint: string; keys: { p256dh: string; auth: string } }
         }
-        addSubscription(body.subscription, req.headers.get("user-agent") || undefined);
+        if (!body.subscription?.endpoint || !body.subscription?.keys) {
+          return new Response(JSON.stringify({ error: 'Invalid subscription' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        addSubscription(body.subscription, req.headers.get('user-agent') || undefined)
         return new Response(JSON.stringify({ success: true, total: getSubscriptionCount() }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       } catch {
-        return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+        return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
           status: 400,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
     }
 
     // POST /api/push/unsubscribe - remove push subscription
-    if (req.method === "POST" && path === "/api/push/unsubscribe") {
+    if (req.method === 'POST' && path === '/api/push/unsubscribe') {
       try {
-        const body = await req.json() as { endpoint: string };
+        const body = (await req.json()) as { endpoint: string }
         if (!body.endpoint) {
-          return new Response(JSON.stringify({ error: "Missing endpoint" }), {
+          return new Response(JSON.stringify({ error: 'Missing endpoint' }), {
             status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
-        removeSubscription(body.endpoint);
+        removeSubscription(body.endpoint)
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       } catch {
-        return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+        return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
           status: 400,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
     }
 
     // POST /api/push/send - send push notification (auth'd with rclaude secret)
-    if (req.method === "POST" && path === "/api/push/send") {
+    if (req.method === 'POST' && path === '/api/push/send') {
       // Auth: require rclaude secret as Bearer token
-      const authHeader = req.headers.get("authorization");
-      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+      const authHeader = req.headers.get('authorization')
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
       if (!rclaudeSecret || !token || token !== rclaudeSecret) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       if (!isPushConfigured()) {
-        return new Response(JSON.stringify({ error: "Push not configured (no VAPID keys)" }), {
+        return new Response(JSON.stringify({ error: 'Push not configured (no VAPID keys)' }), {
           status: 503,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       try {
-        const rawBody = await req.text();
+        const rawBody = await req.text()
         if (!rawBody) {
-          return new Response(JSON.stringify({ error: "Empty request body" }), {
+          return new Response(JSON.stringify({ error: 'Empty request body' }), {
             status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
-        let body: { title: string; body: string; sessionId?: string; tag?: string };
+        let body: { title: string; body: string; sessionId?: string; tag?: string }
         try {
-          body = JSON.parse(rawBody);
-        } catch (parseErr) {
-          return new Response(JSON.stringify({ error: "Invalid JSON", received: rawBody.slice(0, 200) }), {
+          body = JSON.parse(rawBody)
+        } catch (_parseErr) {
+          return new Response(JSON.stringify({ error: 'Invalid JSON', received: rawBody.slice(0, 200) }), {
             status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
         if (!body.title && !body.body) {
-          return new Response(JSON.stringify({ error: "Need title or body" }), {
+          return new Response(JSON.stringify({ error: 'Need title or body' }), {
             status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
         const result = await sendPushToAll({
-          title: body.title || "rclaude",
-          body: body.body || "",
+          title: body.title || 'rclaude',
+          body: body.body || '',
           sessionId: body.sessionId,
           tag: body.tag,
-        });
+        })
         return new Response(JSON.stringify({ success: true, ...result }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       } catch (error) {
         return new Response(JSON.stringify({ error: `Send failed: ${error}` }), {
           status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
     }
 
     // GET /api/settings/projects - get all project settings
-    if (req.method === "GET" && path === "/api/settings/projects") {
+    if (req.method === 'GET' && path === '/api/settings/projects') {
       return new Response(JSON.stringify(getAllProjectSettings()), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     // POST /api/settings/projects - update project settings
-    if (req.method === "POST" && path === "/api/settings/projects") {
+    if (req.method === 'POST' && path === '/api/settings/projects') {
       try {
-        const body = await req.json() as { cwd: string; settings: { label?: string; icon?: string; color?: string } };
+        const body = (await req.json()) as { cwd: string; settings: { label?: string; icon?: string; color?: string } }
         if (!body.cwd) {
-          return new Response(JSON.stringify({ error: "Missing cwd" }), {
+          return new Response(JSON.stringify({ error: 'Missing cwd' }), {
             status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
-        setProjectSettings(body.cwd, body.settings || {});
+        setProjectSettings(body.cwd, body.settings || {})
         return new Response(JSON.stringify({ success: true, settings: getAllProjectSettings() }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       } catch (error) {
         return new Response(JSON.stringify({ error: `Failed: ${error}` }), {
           status: 400,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
     }
 
     // DELETE /api/settings/projects - delete project settings
-    if (req.method === "DELETE" && path === "/api/settings/projects") {
+    if (req.method === 'DELETE' && path === '/api/settings/projects') {
       try {
-        const body = await req.json() as { cwd: string };
+        const body = (await req.json()) as { cwd: string }
         if (!body.cwd) {
-          return new Response(JSON.stringify({ error: "Missing cwd" }), {
+          return new Response(JSON.stringify({ error: 'Missing cwd' }), {
             status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
-        deleteProjectSettings(body.cwd);
+        deleteProjectSettings(body.cwd)
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       } catch (error) {
         return new Response(JSON.stringify({ error: `Failed: ${error}` }), {
           status: 400,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
     }
 
     // POST /api/files - upload a file, returns URL for Claude
-    if (req.method === "POST" && path === "/api/files") {
+    if (req.method === 'POST' && path === '/api/files') {
       try {
-        const contentType = req.headers.get("content-type") || "";
-        let bytes: Uint8Array;
-        let mediaType: string;
-        let filename = "image";
+        const contentType = req.headers.get('content-type') || ''
+        let bytes: Uint8Array
+        let mediaType: string
+        let filename = 'image'
 
-        if (contentType.includes("multipart/form-data")) {
-          const formData = await req.formData();
-          const file = formData.get("file") as File | null;
+        if (contentType.includes('multipart/form-data')) {
+          const formData = await req.formData()
+          const file = formData.get('file') as File | null
           if (!file) {
-            return new Response(JSON.stringify({ error: "No file in form data" }), {
+            return new Response(JSON.stringify({ error: 'No file in form data' }), {
               status: 400,
-              headers: { "Content-Type": "application/json" },
-            });
+              headers: { 'Content-Type': 'application/json' },
+            })
           }
-          bytes = new Uint8Array(await file.arrayBuffer());
-          mediaType = file.type || "image/png";
-          filename = file.name || "image";
+          bytes = new Uint8Array(await file.arrayBuffer())
+          mediaType = file.type || 'image/png'
+          filename = file.name || 'image'
         } else {
           // Raw binary upload with Content-Type header
-          bytes = new Uint8Array(await req.arrayBuffer());
-          mediaType = contentType.split(";")[0] || "image/png";
-          const ext = mediaType.split("/")[1]?.replace("jpeg", "jpg") || "png";
-          filename = `paste.${ext}`;
+          bytes = new Uint8Array(await req.arrayBuffer())
+          mediaType = contentType.split(';')[0] || 'image/png'
+          const ext = mediaType.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
+          filename = `paste.${ext}`
         }
 
         // Hash and register
-        const key = `${bytes.length}:${Array.from(bytes.slice(0, 200)).join(",")}`;
-        const hash = hashString(key);
+        const key = `${bytes.length}:${Array.from(bytes.slice(0, 200)).join(',')}`
+        const hash = hashString(key)
         if (!blobRegistry.has(hash)) {
-          blobRegistry.set(hash, { bytes, mediaType, createdAt: Date.now() });
+          blobRegistry.set(hash, { bytes, mediaType, createdAt: Date.now() })
         }
 
-        const ext = mediaType.split("/")[1]?.replace("jpeg", "jpg") || "png";
-        const filePath = `/file/${hash}.${ext}`;
+        const ext = mediaType.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
+        const filePath = `/file/${hash}.${ext}`
 
         // Build absolute URL from request Host header so Claude can fetch it
-        const host = req.headers.get("host") || "localhost:9999";
-        const proto = req.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
-        const url = `${proto}://${host}${filePath}`;
+        const host = req.headers.get('host') || 'localhost:9999'
+        const proto = req.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
+        const url = `${proto}://${host}${filePath}`
 
         return new Response(JSON.stringify({ hash, url, filename, mediaType }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       } catch (error) {
         return new Response(JSON.stringify({ error: `Upload failed: ${error}` }), {
           status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
     }
 
     // POST /api/transcribe - transcribe audio via Whisper + refine with Haiku
-    if (path === "/api/transcribe" && req.method === "POST") {
-      const openrouterKey = process.env.OPENROUTER_API_KEY;
+    if (path === '/api/transcribe' && req.method === 'POST') {
+      const openrouterKey = process.env.OPENROUTER_API_KEY
       if (!openrouterKey) {
-        return new Response(JSON.stringify({ error: "OPENROUTER_API_KEY not configured" }), {
+        return new Response(JSON.stringify({ error: 'OPENROUTER_API_KEY not configured' }), {
           status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
 
       try {
-        const body = await req.json() as { audioUrl?: string; context?: string };
+        const body = (await req.json()) as { audioUrl?: string; context?: string }
         if (!body.audioUrl) {
-          return new Response(JSON.stringify({ error: "audioUrl required" }), {
+          return new Response(JSON.stringify({ error: 'audioUrl required' }), {
             status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
 
         // Fetch the audio file
-        const audioRes = await fetch(body.audioUrl);
-        if (!audioRes.ok) throw new Error(`Failed to fetch audio: ${audioRes.status}`);
-        const audioBlob = await audioRes.arrayBuffer();
-        const audioBase64 = Buffer.from(audioBlob).toString("base64");
+        const audioRes = await fetch(body.audioUrl)
+        if (!audioRes.ok) throw new Error(`Failed to fetch audio: ${audioRes.status}`)
+        const audioBlob = await audioRes.arrayBuffer()
+        const audioBase64 = Buffer.from(audioBlob).toString('base64')
 
         // Detect media type from URL or response
-        const contentType = audioRes.headers.get("content-type") || "audio/webm";
+        const contentType = audioRes.headers.get('content-type') || 'audio/webm'
 
         // Step 1: Whisper transcription via OpenRouter (Groq)
-        const whisperRes = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
-          method: "POST",
+        const whisperRes = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
+          method: 'POST',
           headers: {
-            "Authorization": `Bearer ${openrouterKey}`,
-            "Content-Type": "application/json",
+            Authorization: `Bearer ${openrouterKey}`,
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: "openai/whisper-large-v3",
+            model: 'openai/whisper-large-v3',
             file: `data:${contentType};base64,${audioBase64}`,
           }),
-        });
+        })
 
         if (!whisperRes.ok) {
-          const err = await whisperRes.text();
-          throw new Error(`Whisper failed: ${whisperRes.status} ${err}`);
+          const err = await whisperRes.text()
+          throw new Error(`Whisper failed: ${whisperRes.status} ${err}`)
         }
 
-        const whisperData = await whisperRes.json() as { text?: string };
-        const rawText = whisperData.text || "";
+        const whisperData = (await whisperRes.json()) as { text?: string }
+        const rawText = whisperData.text || ''
 
         if (!rawText.trim()) {
-          return new Response(JSON.stringify({ raw: "", refined: "" }), {
+          return new Response(JSON.stringify({ raw: '', refined: '' }), {
             status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
 
         // Step 2: Haiku refinement
         const contextHint = body.context
           ? `\n\nRecent conversation context (for fixing domain-specific terms):\n${body.context}`
-          : "";
+          : ''
 
-        const refineRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
+        const refineRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
           headers: {
-            "Authorization": `Bearer ${openrouterKey}`,
-            "Content-Type": "application/json",
+            Authorization: `Bearer ${openrouterKey}`,
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: "anthropic/claude-haiku-4-5-20251001",
+            model: 'anthropic/claude-haiku-4-5-20251001',
             messages: [
               {
-                role: "system",
+                role: 'system',
                 content: `You are refining a voice-transcribed message intended as a prompt for a coding AI assistant. Fix misspellings, punctuation, and technical terms. Preserve the user's intent exactly. Do not add or remove meaning. Convert spoken patterns to written form. Output ONLY the refined text, nothing else.${contextHint}`,
               },
-              { role: "user", content: rawText },
+              { role: 'user', content: rawText },
             ],
             max_tokens: 2048,
           }),
-        });
+        })
 
         if (!refineRes.ok) {
           // Refinement failed - return raw text anyway
           return new Response(JSON.stringify({ raw: rawText, refined: rawText }), {
             status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
 
-        const refineData = await refineRes.json() as { choices?: Array<{ message?: { content?: string } }> };
-        const refined = refineData.choices?.[0]?.message?.content?.trim() || rawText;
+        const refineData = (await refineRes.json()) as { choices?: Array<{ message?: { content?: string } }> }
+        const refined = refineData.choices?.[0]?.message?.content?.trim() || rawText
 
         return new Response(JSON.stringify({ raw: rawText, refined }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       } catch (error) {
         return new Response(JSON.stringify({ error: `Transcription failed: ${error}` }), {
           status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
     }
 
-    return new Response(JSON.stringify({ error: "Not found" }), {
+    return new Response(JSON.stringify({ error: 'Not found' }), {
       status: 404,
-      headers: { "Content-Type": "application/json" },
-    });
-  };
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
 }
