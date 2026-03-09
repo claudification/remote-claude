@@ -14,6 +14,7 @@ interface SessionSummary {
   lastActivity: number
   status: Session['status']
   compacting?: boolean
+  compactedAt?: number
   eventCount: number
   activeSubagentCount?: number
   totalSubagentCount?: number
@@ -84,6 +85,7 @@ export function useWebSocket() {
       lastActivity: summary.lastActivity,
       status: summary.status,
       compacting: summary.compacting,
+      compactedAt: summary.compactedAt,
       eventCount: summary.eventCount,
       activeSubagentCount: summary.activeSubagentCount ?? 0,
       totalSubagentCount: summary.totalSubagentCount ?? 0,

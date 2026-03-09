@@ -9,6 +9,7 @@ interface MarkdownInputProps {
   disabled?: boolean
   placeholder?: string
   className?: string
+  autoFocus?: boolean
 }
 
 const MOBILE_BREAKPOINT = 640 // sm breakpoint
@@ -65,12 +66,19 @@ function highlightMarkdown(text: string): string {
   return html
 }
 
-export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder, className }: MarkdownInputProps) {
+export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder, className, autoFocus }: MarkdownInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const highlightRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isMobile = useIsMobile()
+
+  // Auto-focus on mount (non-mobile only - avoids keyboard popup)
+  useEffect(() => {
+    if (autoFocus && !isMobile) {
+      requestAnimationFrame(() => textareaRef.current?.focus())
+    }
+  }, [autoFocus, isMobile])
   const [expanded, setExpanded] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [recording, setRecording] = useState(false)
@@ -93,8 +101,8 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
       return
     }
 
-    // Cap at 40vh
-    const maxHeight = window.innerHeight * 0.4
+    // Cap at 120px (~5 lines) to prevent layout reflow jerk in transcript above
+    const maxHeight = 120
     const newHeight = Math.min(textarea.scrollHeight, maxHeight)
     textarea.style.height = `${newHeight}px`
 

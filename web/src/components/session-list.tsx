@@ -351,7 +351,8 @@ export function SessionList() {
   }
 
   const active = sessions.filter(s => (s.status === 'active' || s.status === 'idle') && matchesFilter(s))
-  const inactive = sessions.filter(s => s.status !== 'active' && s.status !== 'idle' && matchesFilter(s))
+  const activeCwds = new Set(active.map(s => s.cwd))
+  const inactive = sessions.filter(s => s.status !== 'active' && s.status !== 'idle' && !activeCwds.has(s.cwd) && matchesFilter(s))
 
   const sorted = [...active].sort((a, b) => b.startedAt - a.startedAt)
   const sortedInactive = [...inactive].sort((a, b) => b.startedAt - a.startedAt)

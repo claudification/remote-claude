@@ -32,6 +32,7 @@ interface SessionsState {
   showTerminal: boolean
   showSwitcher: boolean
   requestedTab: string | null
+  newDataSeq: number
 
   setSessions: (sessions: Session[]) => void
   selectSession: (id: string | null) => void
@@ -100,6 +101,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   showTerminal: false,
   showSwitcher: false,
   requestedTab: null,
+  newDataSeq: 0,
 
   setSessions: sessions => set({ sessions }),
   selectSession: id => {
@@ -126,9 +128,10 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     set({ selectedSessionId: sessionId, showTerminal: true, showSwitcher: false })
     updateHash(`terminal/${sessionId}`)
   },
-  setEvents: (sessionId, events) => set(state => ({ events: { ...state.events, [sessionId]: events } })),
+  setEvents: (sessionId, events) =>
+    set(state => ({ events: { ...state.events, [sessionId]: events }, newDataSeq: state.newDataSeq + 1 })),
   setTranscript: (sessionId, entries) =>
-    set(state => ({ transcripts: { ...state.transcripts, [sessionId]: entries } })),
+    set(state => ({ transcripts: { ...state.transcripts, [sessionId]: entries }, newDataSeq: state.newDataSeq + 1 })),
   setTasks: (sessionId, tasks) => set(state => ({ tasks: { ...state.tasks, [sessionId]: tasks } })),
   setProjectSettings: settings => set({ projectSettings: settings }),
   setConnected: connected => set({ isConnected: connected }),

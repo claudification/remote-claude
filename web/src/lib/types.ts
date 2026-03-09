@@ -48,6 +48,7 @@ export interface Session {
   capabilities?: WrapperCapability[]
   status: 'active' | 'idle' | 'ended'
   compacting?: boolean
+  compactedAt?: number
   startedAt: number
   lastActivity: number
   eventCount: number
