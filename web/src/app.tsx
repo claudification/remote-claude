@@ -1,5 +1,5 @@
 import { Command, Menu } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AuthGate } from '@/components/auth-gate'
 import { Header } from '@/components/header'
 import { JsonInspectorDialog } from '@/components/json-inspector'
@@ -13,10 +13,44 @@ import { fetchProjectSettings, fetchSessionEvents, fetchTranscript, useSessionsS
 import { useWebSocket } from '@/hooks/use-websocket'
 import { canTerminal } from '@/lib/types'
 
+// Swipe-right from left edge to open session list (mobile)
+function useSwipeToOpen(onOpen: () => void) {
+  const touchRef = useRef<{ startX: number; startY: number; startTime: number } | null>(null)
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0]
+    // Only track swipes starting from the left 40px edge
+    if (touch.clientX > 40) return
+    touchRef.current = { startX: touch.clientX, startY: touch.clientY, startTime: Date.now() }
+  }, [])
+
+  const onTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (!touchRef.current) return
+      const touch = e.changedTouches[0]
+      const { startX, startY, startTime } = touchRef.current
+      touchRef.current = null
+
+      const dx = touch.clientX - startX
+      const dy = Math.abs(touch.clientY - startY)
+      const elapsed = Date.now() - startTime
+
+      // Must be: rightward, mostly horizontal, fast enough, long enough
+      if (dx > 60 && dy < dx * 0.5 && elapsed < 500) {
+        onOpen()
+      }
+    },
+    [onOpen],
+  )
+
+  return { onTouchStart, onTouchEnd }
+}
+
 function Dashboard() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [errorExpanded, setErrorExpanded] = useState(false)
   const { selectedSessionId, setEvents, setTranscript, error, showSwitcher } = useSessionsStore()
+  const swipeHandlers = useSwipeToOpen(() => setSheetOpen(true))
 
   // Auto-expand on new error, auto-collapse after 4s
   useEffect(() => {
@@ -97,7 +131,7 @@ function Dashboard() {
   }
 
   return (
-    <div className="h-full flex flex-col p-2 sm:p-4 max-w-[1400px] mx-auto overflow-hidden">
+    <div className="h-full flex flex-col p-2 sm:p-4 max-w-[1400px] mx-auto overflow-hidden" {...swipeHandlers}>
       {/* Error indicator */}
       {error &&
         (errorExpanded ? (
