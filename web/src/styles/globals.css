@@ -136,6 +136,12 @@ body {
 	line-height: 1.6;
 }
 
+/* Prevent scroll chaining on touch devices */
+.overflow-y-auto, .overflow-auto {
+	overscroll-behavior: contain;
+	-webkit-overflow-scrolling: touch;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
 	width: 8px;
