@@ -930,6 +930,109 @@ export function createApiHandler(options: ApiOptions) {
       }
     }
 
+    // POST /api/transcribe - transcribe audio via Whisper + refine with Haiku
+    if (path === "/api/transcribe" && req.method === "POST") {
+      const openrouterKey = process.env.OPENROUTER_API_KEY;
+      if (!openrouterKey) {
+        return new Response(JSON.stringify({ error: "OPENROUTER_API_KEY not configured" }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      try {
+        const body = await req.json() as { audioUrl?: string; context?: string };
+        if (!body.audioUrl) {
+          return new Response(JSON.stringify({ error: "audioUrl required" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        // Fetch the audio file
+        const audioRes = await fetch(body.audioUrl);
+        if (!audioRes.ok) throw new Error(`Failed to fetch audio: ${audioRes.status}`);
+        const audioBlob = await audioRes.arrayBuffer();
+        const audioBase64 = Buffer.from(audioBlob).toString("base64");
+
+        // Detect media type from URL or response
+        const contentType = audioRes.headers.get("content-type") || "audio/webm";
+
+        // Step 1: Whisper transcription via OpenRouter (Groq)
+        const whisperRes = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${openrouterKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "openai/whisper-large-v3",
+            file: `data:${contentType};base64,${audioBase64}`,
+          }),
+        });
+
+        if (!whisperRes.ok) {
+          const err = await whisperRes.text();
+          throw new Error(`Whisper failed: ${whisperRes.status} ${err}`);
+        }
+
+        const whisperData = await whisperRes.json() as { text?: string };
+        const rawText = whisperData.text || "";
+
+        if (!rawText.trim()) {
+          return new Response(JSON.stringify({ raw: "", refined: "" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        // Step 2: Haiku refinement
+        const contextHint = body.context
+          ? `\n\nRecent conversation context (for fixing domain-specific terms):\n${body.context}`
+          : "";
+
+        const refineRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${openrouterKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "anthropic/claude-haiku-4-5-20251001",
+            messages: [
+              {
+                role: "system",
+                content: `You are refining a voice-transcribed message intended as a prompt for a coding AI assistant. Fix misspellings, punctuation, and technical terms. Preserve the user's intent exactly. Do not add or remove meaning. Convert spoken patterns to written form. Output ONLY the refined text, nothing else.${contextHint}`,
+              },
+              { role: "user", content: rawText },
+            ],
+            max_tokens: 2048,
+          }),
+        });
+
+        if (!refineRes.ok) {
+          // Refinement failed - return raw text anyway
+          return new Response(JSON.stringify({ raw: rawText, refined: rawText }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        const refineData = await refineRes.json() as { choices?: Array<{ message?: { content?: string } }> };
+        const refined = refineData.choices?.[0]?.message?.content?.trim() || rawText;
+
+        return new Response(JSON.stringify({ raw: rawText, refined }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: `Transcription failed: ${error}` }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
     return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,
       headers: { "Content-Type": "application/json" },

@@ -1,4 +1,4 @@
-import { Paperclip } from 'lucide-react'
+import { Paperclip, Mic } from 'lucide-react'
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -74,6 +74,10 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 	const isMobile = useIsMobile()
 	const [expanded, setExpanded] = useState(false)
 	const [dragOver, setDragOver] = useState(false)
+	const [recording, setRecording] = useState(false)
+	const [transcribing, setTranscribing] = useState(false)
+	const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+	const audioChunksRef = useRef<Blob[]>([])
 
 	// Auto-resize textarea to fit content
 	const autoResize = useCallback(() => {
@@ -300,6 +304,86 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 		e.target.value = '' // reset so same file can be picked again
 	}
 
+	async function startRecording() {
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+			const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+				? 'audio/webm;codecs=opus'
+				: 'audio/mp4' // Safari fallback
+			const recorder = new MediaRecorder(stream, { mimeType })
+			audioChunksRef.current = []
+
+			recorder.ondataavailable = (e) => {
+				if (e.data.size > 0) audioChunksRef.current.push(e.data)
+			}
+
+			recorder.onstop = async () => {
+				stream.getTracks().forEach(t => t.stop())
+				const blob = new Blob(audioChunksRef.current, { type: mimeType })
+				if (blob.size < 1000) return // too short, ignore
+				await transcribeAudio(blob, mimeType)
+			}
+
+			recorder.start(250) // collect in 250ms chunks
+			mediaRecorderRef.current = recorder
+			setRecording(true)
+		} catch {
+			// Permission denied or no mic
+		}
+	}
+
+	function stopRecording() {
+		if (mediaRecorderRef.current?.state === 'recording') {
+			mediaRecorderRef.current.stop()
+			mediaRecorderRef.current = null
+		}
+		setRecording(false)
+	}
+
+	function toggleRecording() {
+		if (recording) {
+			stopRecording()
+		} else {
+			startRecording()
+		}
+	}
+
+	async function transcribeAudio(blob: Blob, mimeType: string) {
+		setTranscribing(true)
+		try {
+			// Upload audio to file service
+			const ext = mimeType.includes('webm') ? 'webm' : 'mp4'
+			const formData = new FormData()
+			formData.append('file', blob, `voice.${ext}`)
+			const uploadRes = await fetch('/api/files', { method: 'POST', body: formData })
+			if (!uploadRes.ok) throw new Error('Upload failed')
+			const { url: audioUrl } = await uploadRes.json()
+
+			// Call transcription endpoint with optional context
+			const res = await fetch('/api/transcribe', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ audioUrl }),
+			})
+			if (!res.ok) throw new Error('Transcription failed')
+			const { refined } = await res.json()
+
+			if (refined?.trim()) {
+				// Insert at cursor or append
+				const ta = textareaRef.current
+				const pos = ta?.selectionStart ?? value.length
+				const before = value.slice(0, pos)
+				const after = value.slice(pos)
+				const spacer = before.length > 0 && !before.endsWith(' ') && !before.endsWith('\n') ? ' ' : ''
+				onChange(before + spacer + refined + after)
+			}
+		} catch {
+			// Transcription failed silently
+		} finally {
+			setTranscribing(false)
+		}
+	}
+
 	function handleFocus() {
 		if (isMobile) {
 			setExpanded(true)
@@ -345,20 +429,55 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 					>
 						Cancel
 					</button>
-					<button
-						type="button"
-						onClick={handleSubmit}
-						disabled={disabled || !value.trim()}
-						className={cn(
-							'text-sm font-bold px-4 py-1.5 rounded',
-							value.trim()
-								? 'bg-accent text-accent-foreground'
-								: 'bg-muted text-muted-foreground',
-						)}
-					>
-						Send
-					</button>
+					<div className="flex items-center gap-2">
+						<button
+							type="button"
+							onClick={toggleRecording}
+							className={cn(
+								'transition-colors p-1',
+								recording
+									? 'text-red-400 animate-pulse'
+									: transcribing
+										? 'text-yellow-400 animate-pulse'
+										: 'text-muted-foreground hover:text-accent',
+							)}
+							title={recording ? 'Stop recording' : transcribing ? 'Transcribing...' : 'Voice input'}
+							disabled={transcribing}
+							style={{ touchAction: 'manipulation' }}
+						>
+							<Mic className="w-4 h-4" />
+						</button>
+						<button
+							type="button"
+							onClick={() => fileInputRef.current?.click()}
+							className="text-muted-foreground hover:text-accent transition-colors p-1"
+							title="Attach file"
+						>
+							<Paperclip className="w-4 h-4" />
+						</button>
+						<button
+							type="button"
+							onClick={handleSubmit}
+							disabled={disabled || !value.trim()}
+							className={cn(
+								'text-sm font-bold px-4 py-1.5 rounded',
+								value.trim()
+									? 'bg-accent text-accent-foreground'
+									: 'bg-muted text-muted-foreground',
+							)}
+						>
+							Send
+						</button>
+					</div>
 				</div>
+				{/* Hidden file input for attachment */}
+				<input
+					ref={fileInputRef}
+					type="file"
+					accept="image/*,application/pdf,.txt,.md,.json,.csv,.xml,.yaml,.yml,.toml"
+					onChange={handleFileInput}
+					className="hidden"
+				/>
 				{/* Editor area */}
 				<div className="relative flex-1 min-h-0">
 					{/* Highlight layer */}
@@ -417,7 +536,7 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 					textClasses,
 					'overflow-hidden text-foreground',
 				)}
-				style={{ right: '2rem' }}
+				style={{ right: '3.5rem' }}
 				aria-hidden="true"
 				dangerouslySetInnerHTML={{ __html: highlightMarkdown(value) }}
 			/>
@@ -437,7 +556,7 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 				placeholder={placeholder}
 				rows={1}
 				className={cn(
-					'relative w-full bg-transparent border border-border rounded pl-3 pr-8 py-2 resize-none',
+					'relative w-full bg-transparent border border-border rounded pl-3 pr-14 py-2 resize-none',
 					textClasses,
 					'text-transparent caret-foreground selection:bg-accent/30 selection:text-foreground',
 					'focus:outline-none focus:ring-1 focus:ring-ring',
@@ -446,15 +565,34 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 				)}
 				style={{ minHeight: '2.25rem' }}
 			/>
-			{/* Attachment button */}
-			<button
-				type="button"
-				onClick={() => fileInputRef.current?.click()}
-				className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-accent transition-colors p-0.5"
-				title="Attach file (or paste/drop image)"
-			>
-				<Paperclip className="w-3.5 h-3.5" />
-			</button>
+			{/* Action buttons */}
+			<div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+				<button
+					type="button"
+					onClick={toggleRecording}
+					className={cn(
+						'transition-colors p-0.5',
+						recording
+							? 'text-red-400 animate-pulse'
+							: transcribing
+								? 'text-yellow-400 animate-pulse'
+								: 'text-muted-foreground hover:text-accent',
+					)}
+					title={recording ? 'Stop recording' : transcribing ? 'Transcribing...' : 'Voice input (tap to record)'}
+					disabled={transcribing}
+					style={{ touchAction: 'manipulation' }}
+				>
+					<Mic className="w-3.5 h-3.5" />
+				</button>
+				<button
+					type="button"
+					onClick={() => fileInputRef.current?.click()}
+					className="text-muted-foreground hover:text-accent transition-colors p-0.5"
+					title="Attach file (or paste/drop image)"
+				>
+					<Paperclip className="w-3.5 h-3.5" />
+				</button>
+			</div>
 			<input
 				ref={fileInputRef}
 				type="file"

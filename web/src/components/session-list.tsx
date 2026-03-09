@@ -94,8 +94,19 @@ function SessionItem({ session }: { session: Session }) {
 					<span className="text-muted-foreground">{session.eventCount} events</span>
 					<span className="text-event-tool">{formatModel(model || session.model)}</span>
 					{session.activeSubagentCount > 0 && (
-						<span className="px-1.5 py-0.5 bg-pink-400/20 text-pink-400 border border-pink-400/50 text-[10px] font-bold">
+						<span
+							className="px-1.5 py-0.5 bg-pink-400/20 text-pink-400 border border-pink-400/50 text-[10px] font-bold cursor-pointer hover:bg-pink-400/30"
+							onClick={e => { e.stopPropagation(); openTab(session.id, 'agents') }}
+						>
 							{session.activeSubagentCount} agent{session.activeSubagentCount !== 1 ? 's' : ''}
+						</span>
+					)}
+					{session.totalSubagentCount > 0 && session.activeSubagentCount === 0 && (
+						<span
+							className="px-1.5 py-0.5 bg-pink-400/10 text-pink-400/50 border border-pink-400/30 text-[10px] font-bold cursor-pointer hover:bg-pink-400/20"
+							onClick={e => { e.stopPropagation(); openTab(session.id, 'agents') }}
+						>
+							{session.totalSubagentCount} agent{session.totalSubagentCount !== 1 ? 's' : ''}
 						</span>
 					)}
 					{session.pendingTaskCount > 0 && (

@@ -236,6 +236,7 @@ export interface SubagentInfo {
   stoppedAt?: number;
   status: "running" | "stopped";
   transcriptPath?: string;
+  events: HookEvent[];
 }
 
 // Team tracking

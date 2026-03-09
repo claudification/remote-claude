@@ -213,7 +213,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         const session: Session = {
           ...sessionData,
           events: [],
-          subagents: (sessionData as any).subagents || [],
+          subagents: ((sessionData as any).subagents || []).map((a: any) => ({ ...a, events: a.events || [] })),
           tasks: (sessionData as any).tasks || [],
           bgTasks: (sessionData as any).bgTasks || [],
           teammates: (sessionData as any).teammates || [],
@@ -349,6 +349,18 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         session.status = "active";
       }
 
+      // Correlate hook events to subagents: if the hook's session_id differs
+      // from the parent session ID, it came from a subagent context
+      const hookSessionId = (event.data as Record<string, unknown>)?.session_id;
+      if (typeof hookSessionId === "string" && hookSessionId !== session.id) {
+        const subagent = session.subagents.find(
+          a => a.agentId === hookSessionId && a.status === "running"
+        );
+        if (subagent) {
+          subagent.events.push(event);
+        }
+      }
+
       // Extract transcript_path and model from SessionStart events
       if (event.hookEvent === "SessionStart" && event.data) {
         const data = event.data as Record<string, unknown>;
@@ -370,6 +382,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
             agentType: String(data.agent_type || "unknown"),
             startedAt: event.timestamp,
             status: "running",
+            events: [],
           });
         }
       }

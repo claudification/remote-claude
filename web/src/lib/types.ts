@@ -5,6 +5,7 @@ export interface SubagentInfo {
 	stoppedAt?: number
 	status: 'running' | 'stopped'
 	transcriptPath?: string
+	events: HookEvent[]
 }
 
 export interface TeamInfo {
