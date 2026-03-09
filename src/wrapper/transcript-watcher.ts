@@ -4,13 +4,14 @@
  * processes inline images (extract base64 -> blob hash), and emits entries.
  */
 
-import { watch, type FSWatcher } from 'node:fs'
+import { watch as chokidarWatch, type FSWatcher as ChokidarWatcher } from 'chokidar'
 import { open, stat, type FileHandle } from 'node:fs/promises'
 import type { TranscriptEntry } from '../shared/protocol'
 
 export interface TranscriptWatcherOptions {
   onEntries: (entries: TranscriptEntry[], isInitial: boolean) => void
   onError?: (error: Error) => void
+  debug?: (msg: string) => void
 }
 
 export interface TranscriptWatcher {
@@ -24,17 +25,16 @@ export interface TranscriptWatcher {
  * Reads from the last known offset, parses new lines, emits entries.
  */
 export function createTranscriptWatcher(options: TranscriptWatcherOptions): TranscriptWatcher {
-  const { onEntries, onError } = options
+  const { onEntries, onError, debug } = options
 
   let fileHandle: FileHandle | null = null
-  let fsWatcher: FSWatcher | null = null
+  let watcher: ChokidarWatcher | null = null
   let offset = 0
   let entryCount = 0
   let partial = '' // leftover bytes from incomplete last line
   let reading = false
   let stopped = false
   let filePath = ''
-  let pollTimer: ReturnType<typeof setInterval> | null = null
 
   async function readNewLines(isInitial: boolean): Promise<void> {
     if (reading || stopped || !fileHandle) return
@@ -47,9 +47,12 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
         return
       }
 
+      debug?.(`readNewLines: size=${size} offset=${offset} toRead=${size - offset}`)
+
       const buf = Buffer.alloc(size - offset)
       const { bytesRead } = await fileHandle.read(buf, 0, buf.length, offset)
       if (bytesRead === 0) {
+        debug?.(`readNewLines: 0 bytes read despite size delta`)
         reading = false
         return
       }
@@ -68,13 +71,17 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
         try {
           entries.push(JSON.parse(trimmed) as TranscriptEntry)
         } catch {
-          // Skip malformed lines
+          debug?.(`readNewLines: malformed JSON line (${trimmed.length} chars)`)
         }
       }
 
+      debug?.(`readNewLines: ${lines.length} lines, ${entries.length} entries, partial=${partial.length} chars`)
+
       if (entries.length > 0) {
         entryCount += entries.length
-        onEntries(entries, isInitial)
+        // On initial read, only send the tail - concentrator ring buffer caps at 500 anyway
+        const toSend = isInitial && entries.length > 500 ? entries.slice(-500) : entries
+        onEntries(toSend, isInitial)
       }
     } catch (err) {
       if (!stopped) {
@@ -92,22 +99,9 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
     partial = ''
     entryCount = 0
 
-    // Wait for file to exist (it may not exist yet when SessionStart fires)
-    let attempts = 0
-    while (attempts < 30 && !stopped) {
-      try {
-        await stat(path)
-        break
-      } catch {
-        attempts++
-        await new Promise(r => setTimeout(r, 500))
-      }
-    }
-
-    if (stopped) return
-
     try {
       fileHandle = await open(path, 'r')
+      debug?.(`File opened OK`)
     } catch (err) {
       onError?.(err instanceof Error ? err : new Error(`Cannot open transcript: ${err}`))
       return
@@ -115,34 +109,25 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
 
     // Read existing content as initial batch
     await readNewLines(true)
+    debug?.(`Initial read done, entryCount=${entryCount}`)
 
-    // Watch for changes
-    try {
-      fsWatcher = watch(path, () => {
-        readNewLines(false)
-      })
-      fsWatcher.on('error', () => {
-        // File might be renamed/deleted, ignore
-      })
-    } catch {
-      // fs.watch not available or path issues - fall back to polling only
-    }
-
-    // Poll as backup (fs.watch can miss events on some filesystems)
-    pollTimer = setInterval(() => {
+    // Watch for changes with chokidar
+    watcher = chokidarWatch(path, {
+      ignoreInitial: true,
+      awaitWriteFinish: { stabilityThreshold: 50, pollInterval: 25 },
+    })
+    watcher.on('change', () => {
+      debug?.(`chokidar change event`)
       readNewLines(false)
-    }, 1000)
+    })
+    debug?.(`Chokidar watcher setup OK`)
   }
 
   function stop(): void {
     stopped = true
-    if (pollTimer) {
-      clearInterval(pollTimer)
-      pollTimer = null
-    }
-    if (fsWatcher) {
-      fsWatcher.close()
-      fsWatcher = null
+    if (watcher) {
+      watcher.close()
+      watcher = null
     }
     if (fileHandle) {
       fileHandle.close().catch(() => {})

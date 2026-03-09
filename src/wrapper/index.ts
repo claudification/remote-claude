@@ -5,22 +5,30 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, appendFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
-import type { HookEvent, TaskInfo, TasksUpdate } from '../shared/protocol'
+import type { HookEvent, TaskInfo, TasksUpdate, TranscriptEntry } from '../shared/protocol'
 import { createTranscriptWatcher, type TranscriptWatcher } from './transcript-watcher'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
 import { startLocalServer, stopLocalServer } from './local-server'
 import { type PtyProcess, setupTerminalPassthrough, spawnClaude } from './pty-spawn'
 import { cleanupSettings, writeMergedSettings } from './settings-merge'
 import { createWsClient, type WsClient } from './ws-client'
+import { watch as chokidarWatch, type FSWatcher as ChokidarWatcher } from 'chokidar'
 
 const DEBUG = !!process.env.RCLAUDE_DEBUG
+const DEBUG_LOG = process.env.RCLAUDE_DEBUG_LOG || (DEBUG ? '/tmp/rclaude-debug.log' : '')
 
 function debug(msg: string) {
-  if (DEBUG) console.error(`[rclaude] ${msg}`)
+  if (!DEBUG) return
+  const line = `[${new Date().toISOString()}] ${msg}\n`
+  if (DEBUG_LOG) {
+    try { appendFileSync(DEBUG_LOG, line) } catch {}
+  } else {
+    console.error(`[rclaude] ${msg}`)
+  }
 }
 
 /**
@@ -162,7 +170,7 @@ async function main() {
   let ptyProcess: PtyProcess | null = null
   let terminalAttached = false
   let savedTerminalSize: { cols: number; rows: number } | null = null
-  let taskPollTimer: ReturnType<typeof setInterval> | null = null
+  let taskWatcher: ChokidarWatcher | null = null
   let lastTasksJson = ''
   let transcriptWatcher: TranscriptWatcher | null = null
   const subagentWatchers = new Map<string, TranscriptWatcher>()
@@ -171,23 +179,20 @@ async function main() {
   const eventQueue: HookEvent[] = []
 
   /**
-   * Poll ~/.claude/tasks/ for task state changes
-   * Checks both claudeSessionId (--continue reuses its own ID) and internalId (fresh sessions)
+   * Watch ~/.claude/tasks/ for task state changes using chokidar
+   * Checks both claudeSessionId and internalId for task directories
    */
-  function startTaskPolling(sessionId: string) {
-    if (taskPollTimer) return
+  function startTaskWatching(sessionId: string) {
+    if (taskWatcher) return
     const tasksBase = join(homedir(), '.claude', 'tasks')
-    // claudeSessionId = what Claude actually uses; internalId = what we set CLAUDE_CODE_TASK_LIST_ID to
     const candidateDirs = [
       claudeSessionId ? join(tasksBase, claudeSessionId) : null,
       join(tasksBase, internalId),
     ].filter(Boolean) as string[]
 
-    taskPollTimer = setInterval(() => {
+    function readAndSendTasks() {
       if (!wsClient?.isConnected()) return
-
       try {
-        // Find first candidate dir that exists and has task files
         let tasksDir: string | null = null
         for (const dir of candidateDirs) {
           if (existsSync(dir)) {
@@ -214,14 +219,13 @@ async function main() {
               blockedBy: Array.isArray(task.blockedBy) ? task.blockedBy.map(String) : undefined,
               blocks: Array.isArray(task.blocks) ? task.blocks.map(String) : undefined,
               owner: task.owner ? String(task.owner) : undefined,
-              updatedAt: Date.now(),
+              updatedAt: task.updatedAt || Date.now(),
             })
           } catch {
             // Skip malformed task files
           }
         }
 
-        // Only send if changed
         const json = JSON.stringify(tasks)
         if (json !== lastTasksJson) {
           lastTasksJson = json
@@ -230,9 +234,20 @@ async function main() {
           debug(`Tasks updated: ${tasks.length} tasks`)
         }
       } catch {
-        // Ignore polling errors
+        // Ignore read errors
       }
-    }, 3000)
+    }
+
+    // Watch all candidate dirs with chokidar
+    const watchPaths = candidateDirs.map(d => join(d, '*.json'))
+    taskWatcher = chokidarWatch(watchPaths, {
+      ignoreInitial: false,
+      awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
+    })
+    taskWatcher.on('add', readAndSendTasks)
+    taskWatcher.on('change', readAndSendTasks)
+    taskWatcher.on('unlink', readAndSendTasks)
+    debug(`Task watcher started for ${candidateDirs.length} dirs`)
   }
 
   function connectToConcentrator(sessionId: string) {
@@ -256,7 +271,7 @@ async function main() {
         }
         eventQueue.length = 0
         // Start polling task files
-        startTaskPolling(sessionId)
+        startTaskWatching(sessionId)
       },
       onDisconnected() {
         debug('Disconnected from concentrator')
@@ -337,6 +352,28 @@ async function main() {
     })
   }
 
+  const TRANSCRIPT_CHUNK_SIZE = 200
+
+  function sendTranscriptEntriesChunked(entries: TranscriptEntry[], isInitial: boolean) {
+    if (!claudeSessionId || !wsClient?.isConnected()) {
+      debug(`Cannot send ${entries.length} entries: sessionId=${!!claudeSessionId} ws=${wsClient?.isConnected()}`)
+      return
+    }
+    if (entries.length <= TRANSCRIPT_CHUNK_SIZE) {
+      wsClient.sendTranscriptEntries(entries, isInitial)
+      debug(`Sent ${entries.length} transcript entries (initial: ${isInitial})`)
+      return
+    }
+    // Chunk large batches to avoid blowing up the WS
+    let sent = 0
+    for (let i = 0; i < entries.length; i += TRANSCRIPT_CHUNK_SIZE) {
+      const chunk = entries.slice(i, i + TRANSCRIPT_CHUNK_SIZE)
+      wsClient.sendTranscriptEntries(chunk, isInitial && i === 0)
+      sent++
+    }
+    debug(`Sent ${entries.length} transcript entries in ${sent} chunks (initial: ${isInitial})`)
+  }
+
   function startTranscriptWatcher(transcriptPath: string) {
     if (transcriptWatcher) {
       debug(`Transcript watcher already running, skipping`)
@@ -344,13 +381,9 @@ async function main() {
     }
 
     transcriptWatcher = createTranscriptWatcher({
+      debug: DEBUG ? (msg: string) => debug(`[tw] ${msg}`) : undefined,
       onEntries(entries, isInitial) {
-        if (claudeSessionId && wsClient?.isConnected()) {
-          wsClient.sendTranscriptEntries(entries, isInitial)
-          debug(`Sent ${entries.length} transcript entries (initial: ${isInitial})`)
-        } else {
-          debug(`Cannot send ${entries.length} entries: sessionId=${!!claudeSessionId} ws=${wsClient?.isConnected()}`)
-        }
+        sendTranscriptEntriesChunked(entries, isInitial)
       },
       onError(err) {
         debug(`Transcript watcher error: ${err.message}`)
@@ -368,6 +401,7 @@ async function main() {
     if (subagentWatchers.has(agentId)) return
 
     const watcher = createTranscriptWatcher({
+      debug: DEBUG ? (msg: string) => debug(`[tw:${agentId.slice(0, 7)}] ${msg}`) : undefined,
       onEntries(entries, isInitial) {
         if (claudeSessionId && wsClient?.isConnected()) {
           wsClient.sendSubagentTranscript(agentId, entries, isInitial)
@@ -393,22 +427,46 @@ async function main() {
       // Extract Claude's real session ID from SessionStart
       if (event.hookEvent === 'SessionStart' && event.data) {
         const data = event.data as Record<string, unknown>
-        debug(`SessionStart data keys: ${Object.keys(data).join(', ')}`)
+        debug(`SessionStart data keys: ${Object.keys(data).join(', ')} | source=${data.source} | session_id=${String(data.session_id).slice(0, 8)}`)
         if (data.session_id && typeof data.session_id === 'string') {
-          claudeSessionId = data.session_id
-          debug(`Got Claude session ID: ${claudeSessionId.slice(0, 8)}...`)
-          // Now connect to concentrator with the real ID
-          connectToConcentrator(claudeSessionId)
+          const newSessionId = data.session_id
+          const sessionChanged = claudeSessionId !== newSessionId
+          claudeSessionId = newSessionId
+          debug(`Got Claude session ID: ${claudeSessionId.slice(0, 8)}... (changed: ${sessionChanged})`)
 
-          // Start transcript watcher if we have a transcript path
+          // Connect (or reconnect) to concentrator with the correct session ID
+          if (!wsClient) {
+            connectToConcentrator(claudeSessionId)
+          } else if (sessionChanged) {
+            // Session ID changed - must reconnect so concentrator maps us correctly
+            debug(`Session ID changed, reconnecting to concentrator`)
+            wsClient.close()
+            wsClient = null
+            connectToConcentrator(claudeSessionId)
+          }
+
+          // Start/restart transcript watcher if path is available and session changed
           if (data.transcript_path && typeof data.transcript_path === 'string') {
-            debug(`Starting transcript watcher: ${data.transcript_path}`)
-            startTranscriptWatcher(data.transcript_path)
+            const transcriptPath = data.transcript_path
+            // Only start watcher if the transcript file actually exists
+            // (first SessionStart from --settings gives a bogus session ID whose file never exists)
+            if (existsSync(transcriptPath)) {
+              if (sessionChanged || !transcriptWatcher) {
+                if (transcriptWatcher) {
+                  debug(`Stopping old transcript watcher (session changed)`)
+                  transcriptWatcher.stop()
+                  transcriptWatcher = null
+                }
+                debug(`Starting transcript watcher: ${transcriptPath}`)
+                startTranscriptWatcher(transcriptPath)
+              } else {
+                debug(`Transcript watcher already running for correct session`)
+              }
+            } else {
+              debug(`Skipping transcript watcher - file does not exist yet: ${transcriptPath}`)
+            }
           } else {
             debug(`WARNING: No transcript_path in SessionStart data!`)
-            // Try to derive it from session_id (Claude stores at ~/.claude/projects/*/SESSION_ID.jsonl)
-            const claudeDir = join(homedir(), '.claude', 'projects')
-            debug(`Will need transcript_path from hook data or manual discovery in ${claudeDir}`)
           }
         }
       }
@@ -478,7 +536,7 @@ async function main() {
 
   // Cleanup function
   function cleanup() {
-    if (taskPollTimer) clearInterval(taskPollTimer)
+    if (taskWatcher) taskWatcher.close()
     transcriptWatcher?.stop()
     for (const watcher of subagentWatchers.values()) watcher.stop()
     subagentWatchers.clear()
