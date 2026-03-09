@@ -282,6 +282,11 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession, popout }: Web
       data-terminal-overlay
       className="fixed inset-0 z-50 flex flex-col overflow-hidden"
       style={{ background: currentTheme.background, overscrollBehavior: 'none' }}
+      onClick={e => {
+        // Re-focus terminal when clicking anywhere in the overlay (not on buttons/inputs)
+        if ((e.target as HTMLElement).closest('button, input, select, textarea')) return
+        xtermRef.current?.focus()
+      }}
     >
       {/* Header bar with session tabs */}
       <div
