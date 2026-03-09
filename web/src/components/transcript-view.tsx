@@ -980,7 +980,37 @@ export function TranscriptView({ entries, follow = false, showThinking = false, 
   const followKilledRef = useRef(false)
 
   const resultMap = useMemo(() => buildResultMap(entries), [entries])
-  const groups = useMemo(() => groupEntries(entries), [entries])
+  const rawGroups = useMemo(() => groupEntries(entries), [entries])
+
+  // Inject compacted divider / compacting banner as synthetic groups
+  const groups = useMemo(() => {
+    const result: (DisplayGroup | { type: 'compacted_divider' } | { type: 'compacting_banner' })[] = []
+    let dividerInserted = false
+
+    for (const group of rawGroups) {
+      // Insert compacted divider at the right timestamp position
+      if (compactedAt && !compacting && !dividerInserted) {
+        const groupTime = group.timestamp ? new Date(group.timestamp).getTime() : 0
+        if (groupTime >= compactedAt) {
+          result.push({ type: 'compacted_divider' })
+          dividerInserted = true
+        }
+      }
+      result.push(group)
+    }
+
+    // If compactedAt but divider not yet inserted (all entries are before it), put at end
+    if (compactedAt && !compacting && !dividerInserted) {
+      result.push({ type: 'compacted_divider' })
+    }
+
+    // Compacting banner always at the end (it's happening now)
+    if (compacting) {
+      result.push({ type: 'compacting_banner' })
+    }
+
+    return result
+  }, [rawGroups, compacting, compactedAt])
 
   const virtualizer = useVirtualizer({
     count: groups.length,
@@ -1061,13 +1091,16 @@ export function TranscriptView({ entries, follow = false, showThinking = false, 
               transform: `translateY(${virtualItem.start}px)`,
             }}
           >
-            <GroupView group={groups[virtualItem.index]} resultMap={resultMap} showThinking={showThinking} />
+            {(() => {
+              const item = groups[virtualItem.index]
+              if (item.type === 'compacted_divider') return <CompactedDivider />
+              if (item.type === 'compacting_banner') return <CompactingBanner />
+              if ('entries' in item) return <GroupView group={item} resultMap={resultMap} showThinking={showThinking} />
+              return null
+            })()}
           </div>
         ))}
       </div>
-      {/* Compaction indicators - rendered after virtualizer content */}
-      {compactedAt && !compacting && <CompactedDivider />}
-      {compacting && <CompactingBanner />}
     </div>
   )
 }
