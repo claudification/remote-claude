@@ -818,21 +818,18 @@ export function TranscriptView({ entries, follow = false, showThinking = false, 
     overscan: 5,
   })
 
-  // Disable follow on user scroll-up: listen for wheel/touch (always user-initiated)
+  // Disable follow on any user scroll: wheel/touch are always user-initiated
   useEffect(() => {
     const el = parentRef.current
     if (!el || !follow) return
-    function handleWheel(e: WheelEvent) {
-      if (e.deltaY < 0) onUserScroll?.()
-    }
-    function handleTouch() {
+    function handleUserScroll() {
       onUserScroll?.()
     }
-    el.addEventListener('wheel', handleWheel, { passive: true })
-    el.addEventListener('touchstart', handleTouch, { passive: true })
+    el.addEventListener('wheel', handleUserScroll, { passive: true })
+    el.addEventListener('touchstart', handleUserScroll, { passive: true })
     return () => {
-      el.removeEventListener('wheel', handleWheel)
-      el.removeEventListener('touchstart', handleTouch)
+      el.removeEventListener('wheel', handleUserScroll)
+      el.removeEventListener('touchstart', handleUserScroll)
     }
   }, [follow, onUserScroll])
 
