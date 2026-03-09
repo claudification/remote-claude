@@ -115,9 +115,15 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 		return () => window.removeEventListener('resize', autoResize)
 	}, [autoResize])
 
-	// Lock body scroll when expanded
+	// Track visual viewport height (shrinks when keyboard opens on iOS)
+	const [viewportHeight, setViewportHeight] = useState<number | null>(null)
+
 	useEffect(() => {
-		if (!expanded) return
+		if (!expanded) {
+			setViewportHeight(null)
+			return
+		}
+
 		const body = document.body
 		const scrollY = window.scrollY
 		const prev = {
@@ -132,6 +138,31 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 		body.style.left = '0'
 		body.style.right = '0'
 		body.style.overflow = 'hidden'
+
+		// Use visualViewport to track actual visible area (excludes keyboard)
+		const vv = window.visualViewport
+		if (vv) {
+			const update = () => {
+				setViewportHeight(vv.height)
+				// Pin to top - offset by viewport offset (iOS scrolls the page up when keyboard opens)
+				document.documentElement.style.setProperty('--vv-offset', `${vv.offsetTop}px`)
+			}
+			update()
+			vv.addEventListener('resize', update)
+			vv.addEventListener('scroll', update)
+			return () => {
+				vv.removeEventListener('resize', update)
+				vv.removeEventListener('scroll', update)
+				document.documentElement.style.removeProperty('--vv-offset')
+				body.style.position = prev.position
+				body.style.top = prev.top
+				body.style.left = prev.left
+				body.style.right = prev.right
+				body.style.overflow = prev.overflow
+				window.scrollTo(0, scrollY)
+			}
+		}
+
 		return () => {
 			body.style.position = prev.position
 			body.style.top = prev.top
@@ -143,6 +174,7 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 	}, [expanded])
 
 	function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+		const ta = textareaRef.current
 		// In expanded (mobile) mode: Enter = newline, no keyboard submit
 		// In inline (desktop) mode: Enter = submit, Shift+Enter = newline
 		if (!expanded && e.key === 'Enter' && !e.shiftKey) {
@@ -153,6 +185,43 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 		if (e.key === 'Escape' && expanded) {
 			e.preventDefault()
 			setExpanded(false)
+		}
+
+		// Readline-style keybindings
+		if (e.ctrlKey && ta) {
+			const pos = ta.selectionStart
+			const v = value
+
+			// Ctrl+U - kill line before cursor
+			if (e.key === 'u') {
+				e.preventDefault()
+				const lineStart = v.lastIndexOf('\n', pos - 1) + 1
+				onChange(v.slice(0, lineStart) + v.slice(pos))
+				requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = lineStart })
+			}
+			// Ctrl+W - delete word before cursor
+			if (e.key === 'w') {
+				e.preventDefault()
+				let i = pos - 1
+				while (i >= 0 && /\s/.test(v[i])) i--
+				while (i >= 0 && !/\s/.test(v[i])) i--
+				const wordStart = i + 1
+				onChange(v.slice(0, wordStart) + v.slice(pos))
+				requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = wordStart })
+			}
+			// Ctrl+A - move to start of line
+			if (e.key === 'a') {
+				e.preventDefault()
+				const lineStart = v.lastIndexOf('\n', pos - 1) + 1
+				ta.selectionStart = ta.selectionEnd = lineStart
+			}
+			// Ctrl+E - move to end of line
+			if (e.key === 'e') {
+				e.preventDefault()
+				let lineEnd = v.indexOf('\n', pos)
+				if (lineEnd === -1) lineEnd = v.length
+				ta.selectionStart = ta.selectionEnd = lineEnd
+			}
 		}
 	}
 
@@ -186,12 +255,16 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 		: 'text-xs font-mono whitespace-pre-wrap break-words'
 
 	// iOS auto-zooms inputs with font-size < 16px. Root is 13px so rem units are broken for this.
-	const expandedFontSize = expanded ? { fontSize: '18px', lineHeight: '1.5' } : undefined
+	// Use 16px on inline (prevents zoom on focus) and 19px expanded (comfortable typing)
+	const expandedFontSize = expanded ? { fontSize: '19px', lineHeight: '1.5' } : { fontSize: '16px' }
 
 	// Expanded mobile compose mode
 	if (expanded) {
+		const composeHeight = viewportHeight ? `${viewportHeight}px` : '100dvh'
+		const composeTop = viewportHeight ? 'var(--vv-offset, 0px)' : '0px'
+
 		return (
-			<div className="fixed inset-x-0 top-0 z-50 flex flex-col bg-background" style={{ touchAction: 'manipulation', height: '100dvh' }}>
+			<div className="fixed inset-x-0 z-50 flex flex-col bg-background" style={{ touchAction: 'manipulation', height: composeHeight, top: composeTop }}>
 				{/* Header bar */}
 				<div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-border">
 					<button

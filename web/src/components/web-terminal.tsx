@@ -21,9 +21,10 @@ interface WebTerminalProps {
 	sessionId: string
 	onClose: () => void
 	onSwitchSession: (sessionId: string) => void
+	popout?: boolean
 }
 
-export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminalProps) {
+export function WebTerminal({ sessionId, onClose, onSwitchSession, popout }: WebTerminalProps) {
 	const terminalRef = useRef<HTMLDivElement>(null)
 	const xtermRef = useRef<Terminal | null>(null)
 	const fitAddonRef = useRef<FitAddon | null>(null)
@@ -61,6 +62,15 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession }: WebTerminal
 			sendWsMessage({ type: 'terminal_resize', sessionId, cols, rows })
 		}
 	}
+
+	// Set window title in popout mode
+	useEffect(() => {
+		if (!popout) return
+		const session = sessions.find(s => s.id === sessionId)
+		if (session) {
+			document.title = `TTY: ${session.cwd.split('/').pop() || sessionId.slice(0, 8)}`
+		}
+	}, [popout, sessionId, sessions])
 
 	// Main terminal setup
 	useEffect(() => {

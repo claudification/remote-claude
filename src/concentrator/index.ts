@@ -14,6 +14,7 @@ import { addAllowedRoot, addPathMapping, getAllowedRoots } from "./path-jail";
 import { initAuth, reloadState } from "./auth";
 import { requireAuth, handleAuthRoute, setRclaudeSecret } from "./auth-routes";
 import { initPush, sendPushToAll, isConfigured as isPushConfigured } from "./push";
+import { initProjectSettings } from "./project-settings";
 
 interface Args {
   port: number;
@@ -190,6 +191,9 @@ async function main() {
     rpId: rpId || "localhost",
     expectedOrigins: origins.length > 0 ? origins : defaultOrigins,
   });
+
+  // Initialize project settings
+  initProjectSettings(authCacheDir);
 
   // Initialize web push (optional - needs VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY env vars)
   if (vapidPublicKey && vapidPrivateKey) {

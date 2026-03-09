@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { HookEvent, Session, SubagentInfo, TranscriptEntry } from '@/lib/types'
+import type { HookEvent, ProjectSettings, ProjectSettingsMap, Session, SubagentInfo, TranscriptEntry } from '@/lib/types'
 
 export interface TerminalMessage {
 	type: 'terminal_data' | 'terminal_error'
@@ -13,6 +13,7 @@ interface SessionsState {
 	selectedSessionId: string | null
 	events: Record<string, HookEvent[]>
 	transcripts: Record<string, TranscriptEntry[]>
+	projectSettings: ProjectSettingsMap
 	isConnected: boolean
 	agentConnected: boolean
 	error: string | null
@@ -31,6 +32,7 @@ interface SessionsState {
 	openTerminal: (sessionId: string) => void
 	setEvents: (sessionId: string, events: HookEvent[]) => void
 	setTranscript: (sessionId: string, entries: TranscriptEntry[]) => void
+	setProjectSettings: (settings: ProjectSettingsMap) => void
 	setConnected: (connected: boolean) => void
 	setAgentConnected: (connected: boolean) => void
 	setError: (error: string | null) => void
@@ -75,6 +77,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 	selectedSessionId: null,
 	events: {},
 	transcripts: {},
+	projectSettings: {},
 	isConnected: false,
 	agentConnected: false,
 	error: null,
@@ -109,6 +112,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 	setEvents: (sessionId, events) => set(state => ({ events: { ...state.events, [sessionId]: events } })),
 	setTranscript: (sessionId, entries) =>
 		set(state => ({ transcripts: { ...state.transcripts, [sessionId]: entries } })),
+	setProjectSettings: settings => set({ projectSettings: settings }),
 	setConnected: connected => set({ isConnected: connected }),
 	setAgentConnected: connected => set({ agentConnected: connected }),
 	setError: error => set({ error }),
@@ -263,6 +267,35 @@ export async function getPushStatus(): Promise<{ supported: boolean; subscribed:
 	} catch {}
 
 	return { supported, subscribed, permission }
+}
+
+// Project settings API
+export async function fetchProjectSettings(): Promise<ProjectSettingsMap> {
+	const res = await fetch(`${API_BASE}/api/settings/projects`)
+	if (!res.ok) return {}
+	return res.json()
+}
+
+export async function updateProjectSettings(cwd: string, settings: ProjectSettings): Promise<ProjectSettingsMap | null> {
+	const res = await fetch(`${API_BASE}/api/settings/projects`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ cwd, settings }),
+	})
+	if (!res.ok) return null
+	const data = await res.json()
+	return data.settings
+}
+
+export async function deleteProjectSettings(cwd: string): Promise<ProjectSettingsMap | null> {
+	const res = await fetch(`${API_BASE}/api/settings/projects`, {
+		method: 'DELETE',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ cwd }),
+	})
+	if (!res.ok) return null
+	const data = await res.json()
+	return data.settings
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {

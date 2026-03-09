@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { cn, lastPathSegments, formatAge } from '@/lib/utils'
 import { canTerminal, type Session } from '@/lib/types'
+import { renderProjectIcon } from './project-settings-editor'
 
 interface SessionSwitcherProps {
 	onSelect: (sessionId: string) => void
@@ -11,6 +12,7 @@ interface SessionSwitcherProps {
 export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 	const sessions = useSessionsStore(state => state.sessions)
 	const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
+	const projectSettings = useSessionsStore(state => state.projectSettings)
 	const [filter, setFilter] = useState('')
 	const [activeIndex, setActiveIndex] = useState(0)
 	const inputRef = useRef<HTMLInputElement>(null)
@@ -22,7 +24,8 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 
 	const filtered = filter
 		? allSessions.filter(s => {
-				const haystack = `${s.cwd} ${s.id} ${s.model || ''} ${s.status}`.toLowerCase()
+				const ps = projectSettings[s.cwd]
+				const haystack = `${s.cwd} ${ps?.label || ''} ${s.id} ${s.model || ''} ${s.status}`.toLowerCase()
 				return filter
 					.toLowerCase()
 					.split(/\s+/)
@@ -131,7 +134,12 @@ export function SessionSwitcher({ onSelect, onClose }: SessionSwitcherProps) {
 						>
 							<span className={cn('text-sm', statusColor(session))}>{statusIndicator(session)}</span>
 							<div className="flex-1 min-w-0">
-								<div className="text-xs text-[#a9b1d6] truncate">{lastPathSegments(session.cwd, 3)}</div>
+								<div className="text-xs text-[#a9b1d6] truncate flex items-center gap-1.5">
+									{projectSettings[session.cwd]?.icon && <span style={projectSettings[session.cwd]?.color ? { color: projectSettings[session.cwd].color } : undefined}>{renderProjectIcon(projectSettings[session.cwd].icon!, 'w-3 h-3 inline')}</span>}
+									<span style={projectSettings[session.cwd]?.color ? { color: projectSettings[session.cwd].color } : undefined}>
+										{projectSettings[session.cwd]?.label || lastPathSegments(session.cwd, 3)}
+									</span>
+								</div>
 								<div className="text-[10px] text-[#565f89] flex items-center gap-2">
 									<span>{session.id.slice(0, 8)}</span>
 									<span>{formatAge(session.lastActivity)}</span>

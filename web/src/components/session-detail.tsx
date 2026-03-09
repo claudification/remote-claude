@@ -5,6 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { reviveSession, sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { cn, formatAge, formatModel } from '@/lib/utils'
 import { canTerminal, type HookEvent } from '@/lib/types'
+import { renderProjectIcon } from './project-settings-editor'
 import { BgTasksView } from './bg-tasks-view'
 import { EventsView } from './events-view'
 import { MarkdownInput } from './markdown-input'
@@ -76,6 +77,7 @@ export function SessionDetail() {
 	const allEvents = useSessionsStore(state => state.events)
 	const allTranscripts = useSessionsStore(state => state.transcripts)
 	const agentConnected = useSessionsStore(state => state.agentConnected)
+	const projectSettings = useSessionsStore(state => state.projectSettings)
 
 	// Derive values from raw state (no new object creation in selector)
 	const session = sessions.find(s => s.id === selectedSessionId)
@@ -200,11 +202,16 @@ export function SessionDetail() {
 						<ChevronRight className="w-3 h-3 text-muted-foreground" />
 					)}
 					<span className="text-accent text-xs uppercase tracking-wider">Session Info</span>
-					{!infoExpanded && (
-						<span className="text-muted-foreground text-[10px] ml-2">
-							{session.cwd.split('/').slice(-2).join('/')} · {formatModel(model || session.model)}
-						</span>
-					)}
+					{!infoExpanded && (() => {
+						const ps = projectSettings[session.cwd]
+						return (
+							<span className="text-muted-foreground text-[10px] ml-2 inline-flex items-center gap-1">
+								{ps?.icon && <span style={ps?.color ? { color: ps.color } : undefined}>{renderProjectIcon(ps.icon, 'w-3 h-3')}</span>}
+								<span style={ps?.color ? { color: ps.color } : undefined}>{ps?.label || session.cwd.split('/').slice(-2).join('/')}</span>
+								<span>{' · '}{formatModel(model || session.model)}</span>
+							</span>
+						)
+					})()}
 				</button>
 				{infoExpanded && (
 					<dl className="px-3 sm:px-4 pb-3 sm:pb-4 grid grid-cols-[80px_1fr] sm:grid-cols-[100px_1fr] gap-x-2 sm:gap-x-4 gap-y-1 text-xs">
@@ -354,9 +361,15 @@ export function SessionDetail() {
 					{hasTerminal && (
 						<button
 							type="button"
-							onClick={() => setShowTerminal(true)}
+							onClick={e => {
+								if (e.shiftKey && selectedSessionId) {
+									window.open(`/#popout-terminal/${selectedSessionId}`, '_blank', 'width=900,height=600,menubar=no,toolbar=no')
+								} else {
+									setShowTerminal(true)
+								}
+							}}
 							className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-muted-foreground hover:text-accent transition-colors"
-							title="Open terminal"
+							title="Open terminal (Shift+click to pop out)"
 						>
 							<Terminal className="w-3 h-3" />
 							TTY

@@ -13,6 +13,8 @@ services:
       - concentrator-data:/data/cache
       # Claude transcripts (read-only)
       - ${CLAUDE_DIR:-~/.claude}:/data/transcripts:ro
+      # Frontend assets (mount over baked-in copy for hot rebuilds: bun run build:web)
+      - ./web/dist:/srv/web:ro
     command:
       - "--web-dir"
       - "/srv/web"

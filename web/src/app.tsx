@@ -6,10 +6,11 @@ import { JsonInspectorDialog } from '@/components/json-inspector'
 import { SessionDetail } from '@/components/session-detail'
 import { SessionList } from '@/components/session-list'
 import { SessionSwitcher } from '@/components/session-switcher'
+import { WebTerminal } from '@/components/web-terminal'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { canTerminal } from '@/lib/types'
-import { fetchSessionEvents, fetchTranscript, useSessionsStore } from '@/hooks/use-sessions'
+import { fetchProjectSettings, fetchSessionEvents, fetchTranscript, useSessionsStore } from '@/hooks/use-sessions'
 import { useWebSocket } from '@/hooks/use-websocket'
 
 function Dashboard() {
@@ -27,6 +28,11 @@ function Dashboard() {
 
 	// Connect to WebSocket for real-time session updates
 	useWebSocket()
+
+	// Fetch project settings on mount
+	useEffect(() => {
+		fetchProjectSettings().then(s => useSessionsStore.getState().setProjectSettings(s))
+	}, [])
 
 	// Fetch initial events when session is selected (updates come via WebSocket)
 	useEffect(() => {
@@ -120,10 +126,10 @@ function Dashboard() {
 						</Button>
 					</SheetTrigger>
 					<SheetContent side="left" className="w-[320px] sm:w-[380px] p-0">
-						<SheetHeader className="p-3 border-b border-border bg-card">
-							<SheetTitle className="text-primary font-bold text-sm text-left">[ SESSIONS ]</SheetTitle>
+						<SheetHeader className="sr-only">
+							<SheetTitle>Sessions</SheetTitle>
 						</SheetHeader>
-						<div className="flex-1 overflow-y-auto p-2 h-[calc(100vh-60px)]">
+						<div className="flex-1 overflow-y-auto p-2 h-full">
 							<SessionList />
 						</div>
 					</SheetContent>
@@ -138,7 +144,6 @@ function Dashboard() {
 			<div className="flex gap-4 flex-1 min-h-0">
 				{/* Desktop sidebar */}
 				<div className="hidden lg:flex w-[350px] shrink-0 border border-border overflow-hidden flex-col">
-					<div className="shrink-0 p-3 border-b border-border bg-card text-primary font-bold text-sm">[ SESSIONS ]</div>
 					<div className="flex-1 min-h-0 overflow-y-auto p-2">
 						<SessionList />
 					</div>
@@ -146,10 +151,7 @@ function Dashboard() {
 
 				{/* Detail panel */}
 				<div className="flex-1 border border-border overflow-hidden flex flex-col min-w-0">
-					<div className="shrink-0 p-3 border-b border-border bg-card text-primary font-bold text-sm">[ DETAILS ]</div>
-					<div className="flex-1 min-h-0 overflow-hidden">
-						<SessionDetail />
-					</div>
+					<SessionDetail />
 				</div>
 			</div>
 
@@ -167,7 +169,35 @@ function Dashboard() {
 	)
 }
 
+// Popout terminal - rendered when URL is #popout-terminal/{sessionId}
+function PopoutTerminal({ sessionId }: { sessionId: string }) {
+	useWebSocket()
+
+	return (
+		<div className="h-full w-full">
+			<WebTerminal
+				sessionId={sessionId}
+				onClose={() => window.close()}
+				onSwitchSession={() => {}}
+				popout
+			/>
+		</div>
+	)
+}
+
 export function App() {
+	// Check for popout terminal route
+	const hash = window.location.hash.slice(1)
+	const popoutMatch = hash.match(/^popout-terminal\/(.+)$/)
+
+	if (popoutMatch) {
+		return (
+			<AuthGate>
+				<PopoutTerminal sessionId={popoutMatch[1]} />
+			</AuthGate>
+		)
+	}
+
 	return (
 		<AuthGate>
 			<Dashboard />

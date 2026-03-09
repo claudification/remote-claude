@@ -8,6 +8,7 @@ import type { Session, SendInput, TeamInfo } from "../shared/protocol";
 import { UI_HTML } from "./ui";
 import { resolveInJail } from "./path-jail";
 import { addSubscription, removeSubscription, sendPushToAll, getSubscriptionCount, isConfigured as isPushConfigured } from "./push";
+import { getAllProjectSettings, setProjectSettings, deleteProjectSettings } from "./project-settings";
 
 // Image registries
 // File registry: hash -> filesystem path (for [Image: source: /path] references)
@@ -804,6 +805,60 @@ export function createApiHandler(options: ApiOptions) {
       } catch (error) {
         return new Response(JSON.stringify({ error: `Send failed: ${error}` }), {
           status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // GET /api/settings/projects - get all project settings
+    if (req.method === "GET" && path === "/api/settings/projects") {
+      return new Response(JSON.stringify(getAllProjectSettings()), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // POST /api/settings/projects - update project settings
+    if (req.method === "POST" && path === "/api/settings/projects") {
+      try {
+        const body = await req.json() as { cwd: string; settings: { label?: string; icon?: string; color?: string } };
+        if (!body.cwd) {
+          return new Response(JSON.stringify({ error: "Missing cwd" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        setProjectSettings(body.cwd, body.settings || {});
+        return new Response(JSON.stringify({ success: true, settings: getAllProjectSettings() }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: `Failed: ${error}` }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // DELETE /api/settings/projects - delete project settings
+    if (req.method === "DELETE" && path === "/api/settings/projects") {
+      try {
+        const body = await req.json() as { cwd: string };
+        if (!body.cwd) {
+          return new Response(JSON.stringify({ error: "Missing cwd" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        deleteProjectSettings(body.cwd);
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: `Failed: ${error}` }), {
+          status: 400,
           headers: { "Content-Type": "application/json" },
         });
       }

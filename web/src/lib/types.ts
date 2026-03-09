@@ -127,6 +127,14 @@ export interface TranscriptEntry {
 	images?: TranscriptImage[]
 }
 
+export interface ProjectSettings {
+	label?: string
+	icon?: string
+	color?: string
+}
+
+export type ProjectSettingsMap = Record<string, ProjectSettings>
+
 export type WSMessage =
 	| { type: 'sessions'; data: Session[] }
 	| { type: 'session_update'; data: Session }

@@ -231,6 +231,35 @@ function ToolLine({
 			summary = `${path?.split('/').pop()} (${content?.length || 0} chars)`
 			break
 		}
+		case 'WebSearch': {
+			const query = input.query as string
+			summary = query
+			if (result) {
+				details = (
+					<pre className="text-[10px] text-muted-foreground max-h-32 overflow-auto whitespace-pre-wrap">
+						{truncate(result, 1500)}
+					</pre>
+				)
+			}
+			break
+		}
+		case 'WebFetch': {
+			const url = input.url as string
+			try {
+				const parsed = new URL(url)
+				summary = parsed.hostname + parsed.pathname
+			} catch {
+				summary = url
+			}
+			if (result) {
+				details = (
+					<pre className="text-[10px] text-muted-foreground max-h-32 overflow-auto whitespace-pre-wrap">
+						{truncate(result, 1500)}
+					</pre>
+				)
+			}
+			break
+		}
 		case 'Glob':
 		case 'Grep': {
 			const pattern = input.pattern as string
