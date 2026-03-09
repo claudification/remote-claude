@@ -77,17 +77,10 @@ function Dashboard() {
     fetchSessionEvents(selectedSessionId).then(events => setEvents(selectedSessionId, events))
   }, [selectedSessionId, setEvents])
 
-  // Poll transcript (reads from JSONL file, not pushed via WS)
+  // Fetch initial transcript when session is selected (updates come via WS push)
   useEffect(() => {
     if (!selectedSessionId) return
-
-    const loadTranscript = () => {
-      fetchTranscript(selectedSessionId).then(transcript => setTranscript(selectedSessionId, transcript))
-    }
-
-    loadTranscript()
-    const interval = setInterval(loadTranscript, 3000)
-    return () => clearInterval(interval)
+    fetchTranscript(selectedSessionId).then(transcript => setTranscript(selectedSessionId, transcript))
   }, [selectedSessionId, setTranscript])
 
   // Close sheet when a session is selected (mobile UX)

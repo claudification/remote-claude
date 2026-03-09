@@ -579,6 +579,13 @@ async function main() {
                 const sessionId = ws.data.sessionId || data.sessionId
                 if (sessionId) {
                   sessionStore.updateTasks(sessionId, data.tasks || [])
+                  // Forward full task list to dashboard subscribers
+                  const taskMsg = JSON.stringify({ type: 'tasks_update', sessionId, tasks: data.tasks || [] })
+                  for (const sub of sessionStore.getSubscribers()) {
+                    try {
+                      sub.send(taskMsg)
+                    } catch {}
+                  }
                   if (verbose) {
                     console.log(`[*] ${sessionId.slice(0, 8)}... tasks_update (${(data.tasks || []).length} tasks)`)
                   }
@@ -669,11 +676,7 @@ async function main() {
               case 'subagent_transcript_request': {
                 if (data.sessionId && data.agentId) {
                   if (sessionStore.hasSubagentTranscriptCache(data.sessionId, data.agentId)) {
-                    const entries = sessionStore.getSubagentTranscriptEntries(
-                      data.sessionId,
-                      data.agentId,
-                      data.limit,
-                    )
+                    const entries = sessionStore.getSubagentTranscriptEntries(data.sessionId, data.agentId, data.limit)
                     ws.send(
                       JSON.stringify({
                         type: 'subagent_transcript',

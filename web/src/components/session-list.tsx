@@ -99,8 +99,9 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           </span>
         </div>
       )}
-      {/* Active tasks + subagents + working teammates */}
+      {/* Active tasks + pending tasks + subagents + working teammates */}
       {(session.activeTasks.length > 0 ||
+        session.pendingTasks.length > 0 ||
         session.subagents.length > 0 ||
         session.teammates.some(t => t.status === 'working')) && (
         <div className="mt-1 space-y-0.5">
@@ -115,6 +116,12 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
               +{session.activeTasks.length - 3} more
             </div>
           )}
+          {session.pendingTasks.slice(0, 4).map(task => (
+            <div key={task.id} className="text-[11px] text-amber-400/50 font-mono truncate pl-1">
+              <span className="text-amber-400/40 mr-1">{'\u25CB'}</span>
+              {task.subject}
+            </div>
+          ))}
           {session.subagents
             .filter(a => a.status === 'running')
             .map(a => (

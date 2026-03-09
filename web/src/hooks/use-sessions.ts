@@ -5,6 +5,7 @@ import type {
   ProjectSettingsMap,
   Session,
   SubagentInfo,
+  TaskInfo,
   TranscriptEntry,
 } from '@/lib/types'
 
@@ -21,6 +22,7 @@ interface SessionsState {
   selectedSubagentId: string | null
   events: Record<string, HookEvent[]>
   transcripts: Record<string, TranscriptEntry[]>
+  tasks: Record<string, TaskInfo[]>
   projectSettings: ProjectSettingsMap
   isConnected: boolean
   agentConnected: boolean
@@ -41,6 +43,7 @@ interface SessionsState {
   openTerminal: (sessionId: string) => void
   setEvents: (sessionId: string, events: HookEvent[]) => void
   setTranscript: (sessionId: string, entries: TranscriptEntry[]) => void
+  setTasks: (sessionId: string, tasks: TaskInfo[]) => void
   setProjectSettings: (settings: ProjectSettingsMap) => void
   setConnected: (connected: boolean) => void
   setAgentConnected: (connected: boolean) => void
@@ -87,6 +90,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   selectedSubagentId: null,
   events: {},
   transcripts: {},
+  tasks: {},
   projectSettings: {},
   isConnected: false,
   agentConnected: false,
@@ -125,6 +129,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   setEvents: (sessionId, events) => set(state => ({ events: { ...state.events, [sessionId]: events } })),
   setTranscript: (sessionId, entries) =>
     set(state => ({ transcripts: { ...state.transcripts, [sessionId]: entries } })),
+  setTasks: (sessionId, tasks) => set(state => ({ tasks: { ...state.tasks, [sessionId]: tasks } })),
   setProjectSettings: settings => set({ projectSettings: settings }),
   setConnected: connected => set({ isConnected: connected }),
   setAgentConnected: connected => set({ agentConnected: connected }),
