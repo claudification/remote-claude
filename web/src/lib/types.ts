@@ -76,6 +76,17 @@ export interface Session {
     completedTaskCount: number
   }>
   team?: TeamInfo
+  tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
+  stats?: {
+    totalInputTokens: number
+    totalOutputTokens: number
+    totalCacheCreation: number
+    totalCacheRead: number
+    turnCount: number
+    toolCallCount: number
+    compactionCount: number
+  }
+  gitBranch?: string
   lastEvent?: {
     hookEvent: string
     timestamp: number

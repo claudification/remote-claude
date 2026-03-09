@@ -80,6 +80,9 @@ export interface SessionSummary {
     completedTaskCount: number
   }>
   team?: TeamInfo
+  tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
+  stats: Session['stats']
+  gitBranch?: string
 }
 
 export interface SessionStore {
@@ -212,6 +215,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         completedTaskCount: t.completedTaskCount,
       })),
       team: session.team,
+      tokenUsage: session.tokenUsage,
+      stats: session.stats,
+      gitBranch: session.gitBranch,
     }
   }
 
@@ -344,6 +350,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         teammates: s.teammates,
         team: s.team,
         diagLog: [],
+        stats: s.stats || { totalInputTokens: 0, totalOutputTokens: 0, totalCacheCreation: 0, totalCacheRead: 0, turnCount: 0, toolCallCount: 0, compactionCount: 0 },
+        gitBranch: s.gitBranch,
       }))
 
       const state: PersistedState = {
@@ -392,6 +400,15 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       bgTasks: [],
       diagLog: [],
       teammates: [],
+      stats: {
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalCacheCreation: 0,
+        totalCacheRead: 0,
+        turnCount: 0,
+        toolCallCount: 0,
+        compactionCount: 0,
+      },
     }
     sessions.set(id, session)
 
@@ -855,8 +872,64 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       }
     }
 
-    // Detect bg task completions from <task-notification> in user transcript entries
+    // Extract stats from transcript entries
     const session = sessions.get(sessionId)
+    let sessionChanged = false
+    if (session) {
+      // Ensure stats object exists (sessions created before this feature)
+      if (!session.stats) {
+        session.stats = { totalInputTokens: 0, totalOutputTokens: 0, totalCacheCreation: 0, totalCacheRead: 0, turnCount: 0, toolCallCount: 0, compactionCount: 0 }
+      }
+      for (const entry of entries) {
+        // Extract git branch from any entry
+        if (!session.gitBranch && (entry as any).gitBranch) {
+          session.gitBranch = (entry as any).gitBranch
+          sessionChanged = true
+        }
+
+        // Count user turns
+        if (entry.type === 'user') {
+          const content = (entry as any).message?.content
+          // Only count actual user messages, not tool results
+          if (typeof content === 'string' || (Array.isArray(content) && content.some((c: any) => c.type === 'text'))) {
+            if (!Array.isArray(content) || !content.some((c: any) => c.type === 'tool_result')) {
+              session.stats.turnCount++
+            }
+          }
+        }
+
+        // Count compactions
+        if (entry.type === 'compacted') {
+          session.stats.compactionCount++
+        }
+
+        if (entry.type !== 'assistant') continue
+
+        // Count tool calls
+        const content = (entry as any).message?.content
+        if (Array.isArray(content)) {
+          session.stats.toolCallCount += content.filter((c: any) => c.type === 'tool_use').length
+        }
+
+        // Extract token usage (latest = context window, cumulative = totals)
+        const usage = (entry as any).message?.usage
+        if (usage && typeof usage.input_tokens === 'number') {
+          session.tokenUsage = {
+            input: usage.input_tokens || 0,
+            cacheCreation: usage.cache_creation_input_tokens || 0,
+            cacheRead: usage.cache_read_input_tokens || 0,
+            output: usage.output_tokens || 0,
+          }
+          session.stats.totalInputTokens += (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0)
+          session.stats.totalOutputTokens += usage.output_tokens || 0
+          session.stats.totalCacheCreation += usage.cache_creation_input_tokens || 0
+          session.stats.totalCacheRead += usage.cache_read_input_tokens || 0
+          sessionChanged = true
+        }
+      }
+    }
+
+    // Detect bg task completions from <task-notification> in user transcript entries
     if (session && session.bgTasks.some(t => t.status === 'running')) {
       for (const entry of entries) {
         if (entry.type !== 'user') continue
@@ -879,10 +952,13 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           if (bgTask) {
             bgTask.status = status === 'completed' ? 'completed' : 'killed'
             bgTask.completedAt = Date.now()
+            sessionChanged = true
           }
         }
       }
-      // Broadcast updated session if any bg tasks changed
+    }
+
+    if (session && sessionChanged) {
       broadcast({ type: 'session_update', sessionId, session: toSessionSummary(session) })
     }
   }

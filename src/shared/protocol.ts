@@ -380,6 +380,17 @@ export interface Session {
   teammates: TeammateInfo[]
   team?: TeamInfo
   diagLog: Array<{ t: number; type: string; msg: string; args?: unknown }>
+  tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
+  stats: {
+    totalInputTokens: number
+    totalOutputTokens: number
+    totalCacheCreation: number
+    totalCacheRead: number
+    turnCount: number
+    toolCallCount: number
+    compactionCount: number
+  }
+  gitBranch?: string
 }
 
 // Agent -> Concentrator messages

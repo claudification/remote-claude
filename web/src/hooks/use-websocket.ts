@@ -47,6 +47,9 @@ interface SessionSummary {
     completedTaskCount: number
   }>
   team?: { teamName: string; role: 'lead' | 'teammate' }
+  tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
+  stats?: Session['stats']
+  gitBranch?: string
 }
 
 interface DashboardMessage {
@@ -98,6 +101,9 @@ export function useWebSocket() {
       bgTasks: summary.bgTasks ?? [],
       teammates: summary.teammates ?? [],
       team: summary.team,
+      tokenUsage: summary.tokenUsage,
+      stats: summary.stats,
+      gitBranch: summary.gitBranch,
     }),
     [],
   )
