@@ -94,6 +94,7 @@ export function SubagentView({ sessionId }: { sessionId: string }) {
   const running = subagents.filter(a => a.status === 'running').length
   const stopped = subagents.filter(a => a.status === 'stopped').length
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
+  const selectSubagent = useSessionsStore(state => state.selectSubagent)
 
   if (subagents.length === 0 && loaded) {
     return (
@@ -110,8 +111,6 @@ export function SubagentView({ sessionId }: { sessionId: string }) {
       </div>
     )
   }
-
-  const selectSubagent = useSessionsStore(state => state.selectSubagent)
 
   return (
     <div className="h-full overflow-y-auto font-mono text-xs leading-tight">
