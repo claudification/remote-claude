@@ -71,6 +71,31 @@ marked.setOptions({
   gfm: true,
   breaks: true,
   renderer,
+  // SECURITY: Do NOT render raw HTML from markdown source.
+  // Angle brackets get escaped so <whatever> shows as text, not DOM elements.
+  // Our own renderer output (links, del, code blocks) still works fine.
+  async: false,
+})
+
+// Sanitize: escape HTML tags in the source before marked processes them.
+// This ensures <foo> in transcript text renders as visible "&lt;foo&gt;" not invisible HTML.
+// Marked's built-in html:false doesn't exist in v15+ - we use a walkTokens hook instead.
+marked.use({
+  hooks: {
+    preprocess(src: string) {
+      // Escape HTML tags that aren't inside fenced code blocks
+      // Split on fenced code blocks, only escape outside them
+      const parts = src.split(/(```[\s\S]*?```|`[^`\n]+`)/g)
+      return parts
+        .map((part, i) => {
+          // Odd indices are code blocks/inline code - leave them alone
+          if (i % 2 === 1) return part
+          // Escape < that look like HTML tags (not operators like < in math)
+          return part.replace(/<(\/?[a-zA-Z][a-zA-Z0-9_-]*(?:\s[^>]*)?)>/g, '&lt;$1&gt;')
+        })
+        .join('')
+    },
+  },
 })
 
 // Override GFM strikethrough to require double tildes only (~~text~~)

@@ -28,7 +28,8 @@ import {
   Users,
   Zap,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSessionsStore } from '@/hooks/use-sessions'
 import type { TranscriptContentBlock, TranscriptEntry } from '@/lib/types'
 import { cn, truncate } from '@/lib/utils'
 import { JsonInspector } from './json-inspector'
@@ -636,11 +637,29 @@ function buildResultMap(entries: TranscriptEntry[]) {
   return map
 }
 
+// Parse <task-notification> XML into structured data
+interface TaskNotification {
+  taskId: string
+  summary: string
+  status: 'completed' | 'failed' | string
+}
+
+function parseTaskNotifications(text: string): TaskNotification[] {
+  const results: TaskNotification[] = []
+  const regex = /<task-notification>\s*<task-id>([^<]*)<\/task-id>\s*(?:<tool-use-id>[^<]*<\/tool-use-id>\s*)?(?:<output-file>[^<]*<\/output-file>\s*)?<status>([^<]*)<\/status>\s*<summary>([^<]*)<\/summary>\s*<\/task-notification>/g
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(text)) !== null) {
+    results.push({ taskId: match[1], status: match[2], summary: match[3] })
+  }
+  return results
+}
+
 // Group consecutive assistant entries (they often have multiple tool calls)
 interface DisplayGroup {
-  type: 'user' | 'assistant'
+  type: 'user' | 'assistant' | 'system'
   timestamp: string
   entries: TranscriptEntry[]
+  notifications?: TaskNotification[]
 }
 
 function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
@@ -662,6 +681,30 @@ function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
 
     // Skip empty string content
     if (typeof content === 'string' && !content.trim()) continue
+
+    // Convert task-notification messages into system groups, skip system-reminders
+    if (entry.type === 'user') {
+      const textContent = typeof content === 'string'
+        ? content
+        : Array.isArray(content)
+          ? content.filter(c => c.type === 'text').map(c => c.text).join('')
+          : ''
+      if (textContent.includes('<system-reminder>')) continue
+      if (textContent.includes('<task-notification>')) {
+        const notifications = parseTaskNotifications(textContent)
+        if (notifications.length > 0) {
+          // Break current group chain and insert system group
+          current = null
+          groups.push({
+            type: 'system',
+            timestamp: entry.timestamp || '',
+            entries: [entry],
+            notifications,
+          })
+          continue
+        }
+      }
+    }
 
     // Skip arrays with no displayable content
     if (Array.isArray(content)) {
@@ -696,6 +739,25 @@ function GroupView({
   showThinking?: boolean
 }) {
   const time = group.timestamp ? new Date(group.timestamp).toLocaleTimeString('en-US', { hour12: false }) : ''
+
+  // System groups: compact notification badges
+  if (group.type === 'system' && group.notifications?.length) {
+    return (
+      <div className="mb-2 space-y-1">
+        {group.notifications.map((n, i) => (
+          <div key={i} className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
+            <span className="text-[10px]">{time}</span>
+            <span className={cn(
+              'w-1.5 h-1.5 rounded-full shrink-0',
+              n.status === 'completed' ? 'bg-emerald-400' : 'bg-red-400',
+            )} />
+            <span className="truncate">{n.summary}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   const isUser = group.type === 'user'
 
   // Build ordered list of renderable items preserving chronological order
@@ -798,15 +860,58 @@ function GroupView({
   )
 }
 
+// Construction-striped "COMPACTED" divider line
+function CompactedDivider() {
+  return (
+    <div className="my-4 flex items-center gap-2">
+      <div
+        className="flex-1 h-px"
+        style={{
+          backgroundImage:
+            'repeating-linear-gradient(90deg, #e5c07b 0px, #e5c07b 8px, transparent 8px, transparent 16px)',
+        }}
+      />
+      <span className="px-2 py-0.5 text-[10px] font-bold font-mono uppercase tracking-widest text-amber-400/80 bg-amber-400/10 border border-amber-400/30">
+        compacted
+      </span>
+      <div
+        className="flex-1 h-px"
+        style={{
+          backgroundImage:
+            'repeating-linear-gradient(90deg, #e5c07b 0px, #e5c07b 8px, transparent 8px, transparent 16px)',
+        }}
+      />
+    </div>
+  )
+}
+
+// Compacting in-progress banner
+function CompactingBanner() {
+  return (
+    <div className="my-4 flex items-center gap-2 px-3 py-2 bg-amber-400/10 border border-amber-400/30 animate-pulse">
+      <div
+        className="w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"
+      />
+      <span className="text-[11px] font-mono font-bold text-amber-400 uppercase tracking-wider">
+        Compacting context...
+      </span>
+    </div>
+  )
+}
+
 interface TranscriptViewProps {
   entries: TranscriptEntry[]
   follow?: boolean
   showThinking?: boolean
   onUserScroll?: () => void
+  compacting?: boolean
+  compactedAt?: number | null
 }
 
-export function TranscriptView({ entries, follow = false, showThinking = false, onUserScroll }: TranscriptViewProps) {
+export function TranscriptView({ entries, follow = false, showThinking = false, onUserScroll, compacting, compactedAt }: TranscriptViewProps) {
   const parentRef = useRef<HTMLDivElement>(null)
+  // Ref kills the scroll timer synchronously (before React re-renders)
+  const followKilledRef = useRef(false)
 
   const resultMap = useMemo(() => buildResultMap(entries), [entries])
   const groups = useMemo(() => groupEntries(entries), [entries])
@@ -818,41 +923,40 @@ export function TranscriptView({ entries, follow = false, showThinking = false, 
     overscan: 5,
   })
 
-  // Disable follow on scroll UP (away from bottom): wheel/touch are always user-initiated
+  // Reset kill ref when follow re-engages
   useEffect(() => {
-    const el = parentRef.current
-    if (!el || !follow) return
-    function handleWheel(e: WheelEvent) {
-      if (e.deltaY < 0) onUserScroll?.()
-    }
-    function handleTouch() {
-      onUserScroll?.()
-    }
-    el.addEventListener('wheel', handleWheel, { passive: true })
-    el.addEventListener('touchstart', handleTouch, { passive: true })
-    return () => {
-      el.removeEventListener('wheel', handleWheel)
-      el.removeEventListener('touchstart', handleTouch)
-    }
+    if (follow) followKilledRef.current = false
+  }, [follow])
+
+  // Kill follow on user interaction (wheel/touch are never fired by programmatic scrollTo)
+  const killFollow = useCallback((e: React.WheelEvent | React.TouchEvent) => {
+    if (!follow) return
+    if ('deltaY' in e && e.deltaY >= 0) return
+    followKilledRef.current = true
+    onUserScroll?.()
   }, [follow, onUserScroll])
 
-  // Follow mode: pin scroll to bottom on a timer.
+  // Follow mode: scroll to bottom on new data OR initial load
+  const newDataSeq = useSessionsStore(state => state.newDataSeq)
+  const scrollToBottom = useCallback(() => {
+    const el = parentRef.current
+    if (!el || followKilledRef.current) return
+    el.scrollTop = el.scrollHeight
+  }, [])
+
+  // Scroll on data updates
+  useEffect(() => {
+    if (!follow || followKilledRef.current) return
+    // Double rAF: lets React + virtualizer finish layout
+    requestAnimationFrame(() => requestAnimationFrame(scrollToBottom))
+  }, [follow, newDataSeq, scrollToBottom])
+
+  // Scroll on initial mount / follow re-engage - virtualizer needs time to measure
   useEffect(() => {
     if (!follow) return
-
-    function scrollToBottom() {
-      const el = parentRef.current
-      if (!el || !el.scrollHeight) return
-      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-      if (distanceFromBottom > 1) {
-        el.scrollTo({ top: el.scrollHeight, behavior: 'instant' })
-      }
-    }
-
-    scrollToBottom()
-    const interval = setInterval(scrollToBottom, 300)
-    return () => clearInterval(interval)
-  }, [follow])
+    const t = setTimeout(scrollToBottom, 150)
+    return () => clearTimeout(t)
+  }, [follow, entries.length, scrollToBottom])
 
   if (groups.length === 0) {
     return (
@@ -870,7 +974,7 @@ export function TranscriptView({ entries, follow = false, showThinking = false, 
   }
 
   return (
-    <div ref={parentRef} className="h-full overflow-y-auto p-3 sm:p-4">
+    <div ref={parentRef} className="h-full overflow-y-auto p-3 sm:p-4" onWheel={killFollow} onTouchStart={killFollow}>
       <div
         style={{
           height: `${virtualizer.getTotalSize()}px`,
@@ -895,6 +999,9 @@ export function TranscriptView({ entries, follow = false, showThinking = false, 
           </div>
         ))}
       </div>
+      {/* Compaction indicators - rendered after virtualizer content */}
+      {compactedAt && !compacting && <CompactedDivider />}
+      {compacting && <CompactingBanner />}
     </div>
   )
 }

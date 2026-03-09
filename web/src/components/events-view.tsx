@@ -1,5 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
+import { useSessionsStore } from '@/hooks/use-sessions'
 import type { HookEvent } from '@/lib/types'
 import { EventItem } from './event-detail'
 
@@ -11,6 +12,7 @@ interface EventsViewProps {
 
 export function EventsView({ events, follow = false, onUserScroll }: EventsViewProps) {
   const parentRef = useRef<HTMLDivElement>(null)
+  const followKilledRef = useRef(false)
 
   // Reverse events so most recent is at top
   const reversed = [...events].reverse()
@@ -22,40 +24,31 @@ export function EventsView({ events, follow = false, onUserScroll }: EventsViewP
     overscan: 5,
   })
 
-  // Disable follow on scroll DOWN (away from top = away from newest in reversed list)
   useEffect(() => {
-    const el = parentRef.current
-    if (!el || !follow) return
-    function handleWheel(e: WheelEvent) {
-      if (e.deltaY > 0) onUserScroll?.()
-    }
-    function handleTouch() {
-      onUserScroll?.()
-    }
-    el.addEventListener('wheel', handleWheel, { passive: true })
-    el.addEventListener('touchstart', handleTouch, { passive: true })
-    return () => {
-      el.removeEventListener('wheel', handleWheel)
-      el.removeEventListener('touchstart', handleTouch)
-    }
+    if (follow) followKilledRef.current = false
+  }, [follow])
+
+  const killFollow = useCallback((e: React.WheelEvent | React.TouchEvent) => {
+    if (!follow) return
+    // Reversed list: scroll DOWN (deltaY > 0) = away from newest
+    if ('deltaY' in e && e.deltaY <= 0) return
+    followKilledRef.current = true
+    onUserScroll?.()
   }, [follow, onUserScroll])
 
-  // Follow mode: pin scroll to top (newest first)
+  // Follow mode: scroll to top (newest first) when new data arrives
+  const newDataSeq = useSessionsStore(state => state.newDataSeq)
   useEffect(() => {
-    if (!follow || reversed.length === 0) return
-
-    function scrollToTop() {
-      const el = parentRef.current
-      if (!el) return
+    if (!follow || followKilledRef.current || reversed.length === 0) return
+    const el = parentRef.current
+    if (!el) return
+    requestAnimationFrame(() => {
+      if (followKilledRef.current) return
       if (el.scrollTop > 1) {
         el.scrollTo({ top: 0, behavior: 'instant' })
       }
-    }
-
-    scrollToTop()
-    const interval = setInterval(scrollToTop, 300)
-    return () => clearInterval(interval)
-  }, [follow, reversed.length])
+    })
+  }, [follow, newDataSeq, reversed.length])
 
   if (reversed.length === 0) {
     return (
@@ -77,7 +70,7 @@ export function EventsView({ events, follow = false, onUserScroll }: EventsViewP
   }
 
   return (
-    <div ref={parentRef} className="h-full overflow-y-auto p-3 sm:p-4">
+    <div ref={parentRef} className="h-full overflow-y-auto p-3 sm:p-4" onWheel={killFollow} onTouchStart={killFollow}>
       <div
         style={{
           height: `${virtualizer.getTotalSize()}px`,
