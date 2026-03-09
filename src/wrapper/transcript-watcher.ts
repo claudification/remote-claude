@@ -38,7 +38,8 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
   let stopped = false
   let filePath = ''
 
-  async function readNewLines(isInitial: boolean): Promise<void> {
+  async function readNewLines(isInitial_: boolean): Promise<void> {
+    let isInitial = isInitial_
     if (reading || stopped || !fileHandle) {
       if (reading && !stopped) pendingRead = true
       return
@@ -47,7 +48,16 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
 
     try {
       const { size } = await stat(filePath)
-      if (size <= offset) {
+      if (size < offset) {
+        // File was truncated/compacted (Claude Code context compression rewrites the JSONL)
+        debug?.(`readNewLines: file truncated (size=${size} < offset=${offset}), resetting`)
+        offset = 0
+        partial = ''
+        entryCount = 0
+        // Re-read as initial batch since the old data is gone
+        isInitial = true
+      }
+      if (size === offset) {
         reading = false
         return
       }

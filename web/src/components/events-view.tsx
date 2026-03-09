@@ -11,7 +11,6 @@ interface EventsViewProps {
 
 export function EventsView({ events, follow = false, onUserScroll }: EventsViewProps) {
   const parentRef = useRef<HTMLDivElement>(null)
-  const programmaticScroll = useRef(false)
 
   // Reverse events so most recent is at top
   const reversed = [...events].reverse()
@@ -23,40 +22,39 @@ export function EventsView({ events, follow = false, onUserScroll }: EventsViewP
     overscan: 5,
   })
 
-  // Detect user scroll-down (away from top = away from newest) to disable follow
+  // Disable follow on user scroll-down (away from top = away from newest)
   useEffect(() => {
     const el = parentRef.current
     if (!el || !follow) return
-    let lastScrollTop = el.scrollTop
-    function handleScroll() {
-      if (programmaticScroll.current || !el) return
-      const currentScrollTop = el.scrollTop
-      const scrolledDown = currentScrollTop > lastScrollTop
-      lastScrollTop = currentScrollTop
-      if (scrolledDown && currentScrollTop > 50) {
-        onUserScroll?.()
-      }
+    function handleWheel(e: WheelEvent) {
+      if (e.deltaY > 0) onUserScroll?.()
     }
-    el.addEventListener('scroll', handleScroll, { passive: true })
-    return () => el.removeEventListener('scroll', handleScroll)
+    function handleTouch() {
+      onUserScroll?.()
+    }
+    el.addEventListener('wheel', handleWheel, { passive: true })
+    el.addEventListener('touchstart', handleTouch, { passive: true })
+    return () => {
+      el.removeEventListener('wheel', handleWheel)
+      el.removeEventListener('touchstart', handleTouch)
+    }
   }, [follow, onUserScroll])
 
-  const prevFollowRef = useRef(follow)
-
+  // Follow mode: pin scroll to top (newest first)
   useEffect(() => {
-    const followJustEnabled = !prevFollowRef.current && follow
-    prevFollowRef.current = follow
     if (!follow || reversed.length === 0) return
-    programmaticScroll.current = true
-    requestAnimationFrame(() => {
+
+    function scrollToTop() {
       const el = parentRef.current
-      if (el) {
-        el.scrollTo({ top: 0, behavior: followJustEnabled ? 'smooth' : 'instant' })
+      if (!el) return
+      if (el.scrollTop > 1) {
+        el.scrollTo({ top: 0, behavior: 'instant' })
       }
-      setTimeout(() => {
-        programmaticScroll.current = false
-      }, 200)
-    })
+    }
+
+    scrollToTop()
+    const interval = setInterval(scrollToTop, 300)
+    return () => clearInterval(interval)
   }, [follow, reversed.length])
 
   if (reversed.length === 0) {

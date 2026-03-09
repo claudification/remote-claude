@@ -807,7 +807,6 @@ interface TranscriptViewProps {
 
 export function TranscriptView({ entries, follow = false, showThinking = false, onUserScroll }: TranscriptViewProps) {
   const parentRef = useRef<HTMLDivElement>(null)
-  const programmaticScroll = useRef(false)
 
   const resultMap = useMemo(() => buildResultMap(entries), [entries])
   const groups = useMemo(() => groupEntries(entries), [entries])
@@ -819,30 +818,25 @@ export function TranscriptView({ entries, follow = false, showThinking = false, 
     overscan: 5,
   })
 
-  // Detect user scroll-up to disable follow
+  // Disable follow on user scroll-up: listen for wheel/touch (always user-initiated)
   useEffect(() => {
     const el = parentRef.current
     if (!el || !follow) return
-    let lastScrollTop = el.scrollTop
-    function handleScroll() {
-      if (programmaticScroll.current || !el) return
-      const currentScrollTop = el.scrollTop
-      const scrolledUp = currentScrollTop < lastScrollTop
-      lastScrollTop = currentScrollTop
-      if (scrolledUp) {
-        const distanceFromBottom = el.scrollHeight - currentScrollTop - el.clientHeight
-        if (distanceFromBottom > 50) {
-          onUserScroll?.()
-        }
-      }
+    function handleWheel(e: WheelEvent) {
+      if (e.deltaY < 0) onUserScroll?.()
     }
-    el.addEventListener('scroll', handleScroll, { passive: true })
-    return () => el.removeEventListener('scroll', handleScroll)
+    function handleTouch() {
+      onUserScroll?.()
+    }
+    el.addEventListener('wheel', handleWheel, { passive: true })
+    el.addEventListener('touchstart', handleTouch, { passive: true })
+    return () => {
+      el.removeEventListener('wheel', handleWheel)
+      el.removeEventListener('touchstart', handleTouch)
+    }
   }, [follow, onUserScroll])
 
-  // Follow mode: poll scroll position and pin to bottom.
-  // React effects can't reliably catch every content change (virtualizer re-measurements,
-  // async transcript fetches, grouped entries). A timer just works.
+  // Follow mode: pin scroll to bottom on a timer.
   useEffect(() => {
     if (!follow) return
 
@@ -851,11 +845,7 @@ export function TranscriptView({ entries, follow = false, showThinking = false, 
       if (!el || !el.scrollHeight) return
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
       if (distanceFromBottom > 1) {
-        programmaticScroll.current = true
         el.scrollTo({ top: el.scrollHeight, behavior: 'instant' })
-        setTimeout(() => {
-          programmaticScroll.current = false
-        }, 100)
       }
     }
 

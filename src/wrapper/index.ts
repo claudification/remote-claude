@@ -196,16 +196,14 @@ async function main() {
           break
         }
       }
-      if (!tasksDir) return
-      const files = readdirSync(tasksDir)
-        .filter(f => f.endsWith('.json'))
-        .sort()
-      if (files.length === 0) return
+      const files = tasksDir
+        ? readdirSync(tasksDir).filter(f => f.endsWith('.json')).sort()
+        : []
 
       const tasks: TaskInfo[] = []
       for (const file of files) {
         try {
-          const raw = readFileSync(join(tasksDir, file), 'utf-8')
+          const raw = readFileSync(join(tasksDir!, file), 'utf-8')
           const task = JSON.parse(raw)
           tasks.push({
             id: String(task.id || ''),
