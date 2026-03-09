@@ -325,10 +325,16 @@ async function main() {
           `Terminal attached (${cols}x${rows}), saved local size (${savedTerminalSize.cols}x${savedTerminalSize.rows})`,
         )
         if (ptyProcess) {
-          ptyProcess.resize(cols, rows)
-          // Force full screen repaint so remote viewer sees current state
-          // Small delay to let resize settle before SIGWINCH
-          setTimeout(() => ptyProcess?.redraw(), 50)
+          // Resize triggers SIGWINCH internally, which repaints most apps.
+          // Double-tap: resize to 1 col smaller first, then to actual size.
+          // This guarantees a size change even if browser matches current PTY size,
+          // forcing a full repaint from Claude Code / Ink / vim / etc.
+          ptyProcess.resize(Math.max(1, cols - 1), rows)
+          setTimeout(() => {
+            ptyProcess?.resize(cols, rows)
+            // Extra SIGWINCH as fallback for apps that ignore resize
+            setTimeout(() => ptyProcess?.redraw(), 100)
+          }, 50)
         }
       },
       onTerminalDetach() {
