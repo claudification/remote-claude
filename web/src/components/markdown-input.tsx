@@ -1,3 +1,4 @@
+import { Paperclip } from 'lucide-react'
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -69,8 +70,10 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 	const textareaRef = useRef<HTMLTextAreaElement>(null)
 	const highlightRef = useRef<HTMLDivElement>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
+	const fileInputRef = useRef<HTMLInputElement>(null)
 	const isMobile = useIsMobile()
 	const [expanded, setExpanded] = useState(false)
+	const [dragOver, setDragOver] = useState(false)
 
 	// Auto-resize textarea to fit content
 	const autoResize = useCallback(() => {
@@ -271,6 +274,7 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 
 	function handleDrop(e: React.DragEvent<HTMLTextAreaElement>) {
 		e.preventDefault()
+		setDragOver(false)
 		const files = e.dataTransfer?.files
 		if (!files?.length) return
 		for (const file of files) {
@@ -280,6 +284,20 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 
 	function handleDragOver(e: React.DragEvent<HTMLTextAreaElement>) {
 		e.preventDefault()
+		setDragOver(true)
+	}
+
+	function handleDragLeave() {
+		setDragOver(false)
+	}
+
+	function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+		const files = e.target.files
+		if (!files?.length) return
+		for (const file of files) {
+			uploadFile(file)
+		}
+		e.target.value = '' // reset so same file can be picked again
 	}
 
 	function handleFocus() {
@@ -385,6 +403,12 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 	// Normal inline mode
 	return (
 		<div ref={containerRef} className={cn('relative', className)}>
+			{/* Drag-over overlay */}
+			{dragOver && (
+				<div className="absolute inset-0 z-10 border-2 border-dashed border-accent bg-accent/10 rounded flex items-center justify-center pointer-events-none">
+					<span className="text-accent text-xs font-mono">Drop file here</span>
+				</div>
+			)}
 			{/* Highlight layer - renders colored markdown behind textarea */}
 			<div
 				ref={highlightRef}
@@ -393,6 +417,7 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 					textClasses,
 					'overflow-hidden text-foreground',
 				)}
+				style={{ right: '2rem' }}
 				aria-hidden="true"
 				dangerouslySetInnerHTML={{ __html: highlightMarkdown(value) }}
 			/>
@@ -403,12 +428,16 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 				onChange={handleInput}
 				onKeyDown={handleKeyDown}
 				onFocus={handleFocus}
+				onPaste={handlePaste}
+				onDrop={handleDrop}
+				onDragOver={handleDragOver}
+				onDragLeave={handleDragLeave}
 				onScroll={syncScroll}
 				disabled={disabled}
 				placeholder={placeholder}
 				rows={1}
 				className={cn(
-					'relative w-full bg-transparent border border-border rounded px-3 py-2 resize-none',
+					'relative w-full bg-transparent border border-border rounded pl-3 pr-8 py-2 resize-none',
 					textClasses,
 					'text-transparent caret-foreground selection:bg-accent/30 selection:text-foreground',
 					'focus:outline-none focus:ring-1 focus:ring-ring',
@@ -416,6 +445,22 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 					'disabled:opacity-50',
 				)}
 				style={{ minHeight: '2.25rem' }}
+			/>
+			{/* Attachment button */}
+			<button
+				type="button"
+				onClick={() => fileInputRef.current?.click()}
+				className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-accent transition-colors p-0.5"
+				title="Attach file (or paste/drop image)"
+			>
+				<Paperclip className="w-3.5 h-3.5" />
+			</button>
+			<input
+				ref={fileInputRef}
+				type="file"
+				accept="image/*,application/pdf,.txt,.md,.json,.csv,.xml,.yaml,.yml,.toml"
+				onChange={handleFileInput}
+				className="hidden"
 			/>
 		</div>
 	)
