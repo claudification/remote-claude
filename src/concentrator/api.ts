@@ -521,70 +521,20 @@ export function createApiHandler(options: ApiOptions) {
 
       const limit = parseInt(url.searchParams.get('limit') || '20', 10)
 
-      // Serve from transcript cache if available (streamed from rclaude)
-      if (sessionStore.hasTranscriptCache(sessionId)) {
-        const entries = sessionStore.getTranscriptEntries(sessionId, limit)
-        const processedEntries = entries.map((entry: any) => processImagesInEntry(entry))
-        return new Response(JSON.stringify(processedEntries, null, 2), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
+      // Serve from transcript cache (streamed from rclaude over WS)
+      if (!sessionStore.hasTranscriptCache(sessionId)) {
+        return new Response(
+          JSON.stringify({ error: 'No transcript in cache (rclaude not streaming yet?)' }),
+          { status: 404, headers: { 'Content-Type': 'application/json' } },
+        )
       }
 
-      // Fallback: read from filesystem (backward compat for non-streaming rclaude)
-      if (!session.transcriptPath) {
-        return new Response(JSON.stringify({ error: 'No transcript path available' }), {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
-
-      // Path jail check - transcript must resolve within allowed roots
-      const safeTranscriptPath = resolveInJail(session.transcriptPath)
-      if (!safeTranscriptPath) {
-        return new Response(JSON.stringify({ error: 'Access denied' }), {
-          status: 403,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
-
-      try {
-        const file = Bun.file(safeTranscriptPath)
-        if (!(await file.exists())) {
-          return new Response(JSON.stringify({ error: 'Transcript file not found' }), {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        }
-
-        const text = await file.text()
-        const lines = text.trim().split('\n').filter(Boolean)
-
-        // Parse JSONL - get last N entries
-        const entries = lines
-          .slice(-limit)
-          .map(line => {
-            try {
-              return JSON.parse(line)
-            } catch {
-              return null
-            }
-          })
-          .filter(Boolean)
-
-        // Process entries to find and register images
-        const processedEntries = entries.map((entry: any) => processImagesInEntry(entry))
-
-        return new Response(JSON.stringify(processedEntries, null, 2), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      } catch (error) {
-        return new Response(JSON.stringify({ error: `Failed to read transcript: ${error}` }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
+      const entries = sessionStore.getTranscriptEntries(sessionId, limit)
+      const processedEntries = entries.map((entry: any) => processImagesInEntry(entry))
+      return new Response(JSON.stringify(processedEntries, null, 2), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     // Get subagent transcript
@@ -603,74 +553,20 @@ export function createApiHandler(options: ApiOptions) {
 
       const limit = parseInt(url.searchParams.get('limit') || '100', 10)
 
-      // Serve from cache if available (streamed from rclaude)
-      if (sessionStore.hasSubagentTranscriptCache(sessionId, agentId)) {
-        const entries = sessionStore.getSubagentTranscriptEntries(sessionId, agentId, limit)
-        const processedEntries = entries.map((entry: any) => processImagesInEntry(entry))
-        return new Response(JSON.stringify(processedEntries, null, 2), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
+      // Serve from cache (streamed from rclaude over WS)
+      if (!sessionStore.hasSubagentTranscriptCache(sessionId, agentId)) {
+        return new Response(
+          JSON.stringify({ error: 'No subagent transcript in cache (rclaude not streaming yet?)' }),
+          { status: 404, headers: { 'Content-Type': 'application/json' } },
+        )
       }
 
-      // Fallback: read from filesystem
-      const agent = session.subagents.find(a => a.agentId === agentId)
-
-      // Derive transcript path: use agent's explicit path, or construct from parent session's path
-      let transcriptPath = agent?.transcriptPath
-      if (!transcriptPath && session.transcriptPath) {
-        const dir = session.transcriptPath.replace(/\/[^/]+$/, '')
-        transcriptPath = `${dir}/subagents/agent-${agentId}.jsonl`
-      }
-      if (!transcriptPath) {
-        return new Response(JSON.stringify({ error: 'No transcript available for this agent' }), {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
-
-      const safePath = resolveInJail(transcriptPath)
-      if (!safePath) {
-        return new Response(JSON.stringify({ error: 'Access denied' }), {
-          status: 403,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
-
-      try {
-        const file = Bun.file(safePath)
-        if (!(await file.exists())) {
-          return new Response(JSON.stringify({ error: 'Transcript file not found' }), {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        }
-
-        const text = await file.text()
-        const lines = text.trim().split('\n').filter(Boolean)
-        const entries = lines
-          .slice(-limit)
-          .map(line => {
-            try {
-              return JSON.parse(line)
-            } catch {
-              return null
-            }
-          })
-          .filter(Boolean)
-
-        const processedEntries = entries.map((entry: any) => processImagesInEntry(entry))
-
-        return new Response(JSON.stringify(processedEntries, null, 2), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      } catch (error) {
-        return new Response(JSON.stringify({ error: `Failed to read transcript: ${error}` }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
+      const entries = sessionStore.getSubagentTranscriptEntries(sessionId, agentId, limit)
+      const processedEntries = entries.map((entry: any) => processImagesInEntry(entry))
+      return new Response(JSON.stringify(processedEntries, null, 2), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     // Send input to session

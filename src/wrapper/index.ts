@@ -338,13 +338,18 @@ async function main() {
   }
 
   function startTranscriptWatcher(transcriptPath: string) {
-    if (transcriptWatcher) return // already watching
+    if (transcriptWatcher) {
+      debug(`Transcript watcher already running, skipping`)
+      return
+    }
 
     transcriptWatcher = createTranscriptWatcher({
       onEntries(entries, isInitial) {
         if (claudeSessionId && wsClient?.isConnected()) {
           wsClient.sendTranscriptEntries(entries, isInitial)
           debug(`Sent ${entries.length} transcript entries (initial: ${isInitial})`)
+        } else {
+          debug(`Cannot send ${entries.length} entries: sessionId=${!!claudeSessionId} ws=${wsClient?.isConnected()}`)
         }
       },
       onError(err) {
@@ -352,10 +357,11 @@ async function main() {
       },
     })
 
-    transcriptWatcher.start(transcriptPath).catch(err => {
+    transcriptWatcher.start(transcriptPath).then(() => {
+      debug(`Transcript watcher started OK: ${transcriptPath}`)
+    }).catch(err => {
       debug(`Failed to start transcript watcher: ${err}`)
     })
-    debug(`Watching transcript: ${transcriptPath}`)
   }
 
   function startSubagentWatcher(agentId: string, transcriptPath: string) {
@@ -387,6 +393,7 @@ async function main() {
       // Extract Claude's real session ID from SessionStart
       if (event.hookEvent === 'SessionStart' && event.data) {
         const data = event.data as Record<string, unknown>
+        debug(`SessionStart data keys: ${Object.keys(data).join(', ')}`)
         if (data.session_id && typeof data.session_id === 'string') {
           claudeSessionId = data.session_id
           debug(`Got Claude session ID: ${claudeSessionId.slice(0, 8)}...`)
@@ -395,16 +402,23 @@ async function main() {
 
           // Start transcript watcher if we have a transcript path
           if (data.transcript_path && typeof data.transcript_path === 'string') {
+            debug(`Starting transcript watcher: ${data.transcript_path}`)
             startTranscriptWatcher(data.transcript_path)
+          } else {
+            debug(`WARNING: No transcript_path in SessionStart data!`)
+            // Try to derive it from session_id (Claude stores at ~/.claude/projects/*/SESSION_ID.jsonl)
+            const claudeDir = join(homedir(), '.claude', 'projects')
+            debug(`Will need transcript_path from hook data or manual discovery in ${claudeDir}`)
           }
         }
       }
 
-      // Watch subagent transcripts when they start
+      // Watch subagent transcripts when they stop (transcript_path available at stop)
       if (event.hookEvent === 'SubagentStop' && event.data) {
         const data = event.data as Record<string, unknown>
         const agentId = String(data.agent_id || '')
         const transcriptPath = data.agent_transcript_path as string | undefined
+        debug(`SubagentStop: agent=${agentId.slice(0, 7)} transcript=${transcriptPath || 'NONE'}`)
         if (agentId && transcriptPath) {
           startSubagentWatcher(agentId, transcriptPath)
         }

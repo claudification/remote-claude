@@ -590,6 +590,7 @@ async function main() {
               case 'transcript_entries': {
                 const sessionId = ws.data.sessionId || data.sessionId
                 if (sessionId) {
+                  const entryCount = (data.entries || []).length
                   sessionStore.addTranscriptEntries(sessionId, data.entries || [], data.isInitial || false)
                   // Broadcast to dashboard subscribers
                   const msg = JSON.stringify(data)
@@ -598,17 +599,17 @@ async function main() {
                       sub.send(msg)
                     } catch {}
                   }
-                  if (verbose) {
-                    console.log(
-                      `[transcript] ${sessionId.slice(0, 8)}... ${(data.entries || []).length} entries (initial: ${data.isInitial})`,
-                    )
-                  }
+                  // Always log transcript events (new feature - needs visibility)
+                  console.log(
+                    `[transcript] ${sessionId.slice(0, 8)}... ${entryCount} entries (initial: ${data.isInitial})`,
+                  )
                 }
                 break
               }
               case 'subagent_transcript': {
                 const sessionId = ws.data.sessionId || data.sessionId
                 if (sessionId && data.agentId) {
+                  const entryCount = (data.entries || []).length
                   sessionStore.addSubagentTranscriptEntries(
                     sessionId,
                     data.agentId,
@@ -622,11 +623,9 @@ async function main() {
                       sub.send(msg)
                     } catch {}
                   }
-                  if (verbose) {
-                    console.log(
-                      `[transcript] ${sessionId.slice(0, 8)}... subagent ${data.agentId.slice(0, 7)} ${(data.entries || []).length} entries`,
-                    )
-                  }
+                  console.log(
+                    `[transcript] ${sessionId.slice(0, 8)}... subagent ${data.agentId.slice(0, 7)} ${entryCount} entries`,
+                  )
                 }
                 break
               }
