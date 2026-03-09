@@ -1,6 +1,7 @@
-import { Bell, BellOff } from 'lucide-react'
+import { Bell, BellOff, Settings } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { SettingsPage } from '@/components/settings-page'
 import { useSessionsStore, subscribeToPush, getPushStatus } from '@/hooks/use-sessions'
 
 const ASCII_LOGO = `\u00A0██████╗██╗      █████╗ ██╗   ██╗██████╗ ███████╗
@@ -12,6 +13,7 @@ const ASCII_LOGO = `\u00A0██████╗██╗      █████╗
 
 export function Header() {
 	const [expanded, setExpanded] = useState(false)
+	const [showSettings, setShowSettings] = useState(false)
 	const [pushState, setPushState] = useState<'loading' | 'unsupported' | 'prompt' | 'subscribing' | 'subscribed' | 'denied'>('loading')
 	const { sessions, isConnected, agentConnected } = useSessionsStore()
 
@@ -114,7 +116,17 @@ export function Header() {
 						</span>
 					</button>
 				)}
+			<button
+					type="button"
+					onClick={e => { e.stopPropagation(); setShowSettings(true) }}
+					className="text-muted-foreground hover:text-foreground transition-colors"
+					title="Settings"
+				>
+					<Settings className="w-3.5 h-3.5" />
+				</button>
 			</div>
+
+			{showSettings && <SettingsPage onClose={() => setShowSettings(false)} />}
 		</header>
 	)
 }

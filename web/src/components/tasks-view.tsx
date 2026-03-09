@@ -25,6 +25,7 @@ export function TasksView({ sessionId, pendingCount }: TasksViewProps) {
 	const [tasks, setTasks] = useState<TaskInfo[]>([])
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
+	const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set())
 
 	useEffect(() => {
 		let cancelled = false
@@ -78,6 +79,14 @@ export function TasksView({ sessionId, pendingCount }: TasksViewProps) {
 		{ label: 'Deleted', tasks: deleted },
 	].filter(g => g.tasks.length > 0)
 
+	function toggleDesc(taskId: string) {
+		setExpandedDescs(prev => {
+			const next = new Set(prev)
+			next.has(taskId) ? next.delete(taskId) : next.add(taskId)
+			return next
+		})
+	}
+
 	return (
 		<div className="overflow-y-auto h-full">
 			{/* Summary bar */}
@@ -114,7 +123,18 @@ export function TasksView({ sessionId, pendingCount }: TasksViewProps) {
 							</div>
 							{task.description && task.description !== task.subject && (
 								<div className="mt-1 ml-6 text-[11px] text-muted-foreground leading-tight">
-									{task.description.length > 200 ? task.description.slice(0, 200) + '...' : task.description}
+									{expandedDescs.has(task.id) || task.description.length <= 200
+										? task.description
+										: task.description.slice(0, 200) + '...'}
+									{task.description.length > 200 && (
+										<button
+											type="button"
+											onClick={() => toggleDesc(task.id)}
+											className="ml-1 text-accent hover:text-accent/80 font-mono"
+										>
+											{expandedDescs.has(task.id) ? '[less]' : '[more]'}
+										</button>
+									)}
 								</div>
 							)}
 							{task.blockedBy && task.blockedBy.length > 0 && (

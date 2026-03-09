@@ -250,10 +250,14 @@ async function main() {
         // Send text first
         ptyProcess.write(trimmed);
         // Then send Enter key separately after a tiny delay
+        // Send two \r with a gap - sometimes the first one gets swallowed by Claude Code
         setTimeout(() => {
           ptyProcess?.write("\r");
+          setTimeout(() => {
+            ptyProcess?.write("\r");
+          }, 100);
         }, 50);
-        debug(`Sent to PTY: ${JSON.stringify(trimmed)} then \\r`);
+        debug(`Sent to PTY: ${JSON.stringify(trimmed)} then 2x\\r`);
       },
       onTerminalInput(data) {
         // Raw keystrokes from browser terminal - write directly to PTY

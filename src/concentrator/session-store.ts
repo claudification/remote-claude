@@ -39,6 +39,7 @@ export interface SessionSummary {
   eventCount: number;
   activeSubagentCount: number;
   totalSubagentCount: number;
+  subagents: Array<{ agentId: string; agentType: string; status: "running" | "stopped"; startedAt: number; stoppedAt?: number; eventCount: number }>;
   taskCount: number;
   pendingTaskCount: number;
   activeTasks: Array<{ id: string; subject: string }>;
@@ -69,15 +70,17 @@ export interface SessionStore {
   setSessionSocket: (sessionId: string, ws: ServerWebSocket<unknown>) => void;
   getSessionSocket: (sessionId: string) => ServerWebSocket<unknown> | undefined;
   removeSessionSocket: (sessionId: string) => void;
-  // Terminal viewer methods
-  setTerminalViewer: (sessionId: string, ws: ServerWebSocket<unknown>) => void;
-  getTerminalViewer: (sessionId: string) => ServerWebSocket<unknown> | undefined;
-  clearTerminalViewer: (sessionId: string) => void;
-  clearTerminalViewerBySocket: (ws: ServerWebSocket<unknown>) => void;
+  // Terminal viewer methods (multiple viewers per session)
+  addTerminalViewer: (sessionId: string, ws: ServerWebSocket<unknown>) => void;
+  getTerminalViewers: (sessionId: string) => Set<ServerWebSocket<unknown>>;
+  removeTerminalViewer: (sessionId: string, ws: ServerWebSocket<unknown>) => void;
+  removeTerminalViewerBySocket: (ws: ServerWebSocket<unknown>) => void;
+  hasTerminalViewers: (sessionId: string) => boolean;
   // Dashboard subscriber methods
   addSubscriber: (ws: ServerWebSocket<unknown>) => void;
   removeSubscriber: (ws: ServerWebSocket<unknown>) => void;
   getSubscriberCount: () => number;
+  getSubscribers: () => Set<ServerWebSocket<unknown>>;
   // Agent methods (exclusive single agent connection)
   setAgent: (ws: ServerWebSocket<unknown>) => boolean;
   getAgent: () => ServerWebSocket<unknown> | undefined;
@@ -102,7 +105,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 
   const sessions = new Map<string, Session>();
   const sessionSockets = new Map<string, ServerWebSocket<unknown>>();
-  const terminalViewers = new Map<string, ServerWebSocket<unknown>>();
+  const terminalViewers = new Map<string, Set<ServerWebSocket<unknown>>>();
   const dashboardSubscribers = new Set<ServerWebSocket<unknown>>();
   let agentSocket: ServerWebSocket<unknown> | undefined;
 
@@ -119,6 +122,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       eventCount: session.events.length,
       activeSubagentCount: session.subagents.filter(a => a.status === "running").length,
       totalSubagentCount: session.subagents.length,
+      subagents: session.subagents.map(a => ({
+        agentId: a.agentId,
+        agentType: a.agentType,
+        status: a.status,
+        startedAt: a.startedAt,
+        stoppedAt: a.stoppedAt,
+        eventCount: a.events.length,
+      })),
       taskCount: session.tasks.length,
       pendingTaskCount: session.tasks.filter(t => t.status === "pending" || t.status === "in_progress").length,
       activeTasks: session.tasks
@@ -213,9 +224,19 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         const session: Session = {
           ...sessionData,
           events: [],
-          subagents: ((sessionData as any).subagents || []).map((a: any) => ({ ...a, events: a.events || [] })),
+          subagents: ((sessionData as any).subagents || []).map((a: any) => ({
+            ...a,
+            events: a.events || [],
+            // Restored sessions are ended - all subagents must be stopped
+            status: "stopped",
+            stoppedAt: a.stoppedAt || a.startedAt,
+          })),
           tasks: (sessionData as any).tasks || [],
-          bgTasks: (sessionData as any).bgTasks || [],
+          bgTasks: ((sessionData as any).bgTasks || []).map((t: any) => ({
+            ...t,
+            status: t.status === "running" ? "completed" : t.status,
+            completedAt: t.completedAt || t.startedAt,
+          })),
           teammates: (sessionData as any).teammates || [],
           team: (sessionData as any).team,
           // Mark restored sessions as ended unless they reconnect
@@ -612,25 +633,38 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     sessionSockets.delete(sessionId);
   }
 
-  // Terminal viewer management
-  function setTerminalViewer(sessionId: string, ws: ServerWebSocket<unknown>): void {
-    terminalViewers.set(sessionId, ws);
-  }
-
-  function getTerminalViewer(sessionId: string): ServerWebSocket<unknown> | undefined {
-    return terminalViewers.get(sessionId);
-  }
-
-  function clearTerminalViewer(sessionId: string): void {
-    terminalViewers.delete(sessionId);
-  }
-
-  function clearTerminalViewerBySocket(ws: ServerWebSocket<unknown>): void {
-    for (const [sessionId, viewer] of terminalViewers) {
-      if (viewer === ws) {
-        terminalViewers.delete(sessionId);
-      }
+  // Terminal viewer management (multiple viewers per session)
+  function addTerminalViewer(sessionId: string, ws: ServerWebSocket<unknown>): void {
+    let viewers = terminalViewers.get(sessionId);
+    if (!viewers) {
+      viewers = new Set();
+      terminalViewers.set(sessionId, viewers);
     }
+    viewers.add(ws);
+  }
+
+  function getTerminalViewers(sessionId: string): Set<ServerWebSocket<unknown>> {
+    return terminalViewers.get(sessionId) || new Set();
+  }
+
+  function removeTerminalViewer(sessionId: string, ws: ServerWebSocket<unknown>): void {
+    const viewers = terminalViewers.get(sessionId);
+    if (viewers) {
+      viewers.delete(ws);
+      if (viewers.size === 0) terminalViewers.delete(sessionId);
+    }
+  }
+
+  function removeTerminalViewerBySocket(ws: ServerWebSocket<unknown>): void {
+    for (const [sessionId, viewers] of terminalViewers) {
+      viewers.delete(ws);
+      if (viewers.size === 0) terminalViewers.delete(sessionId);
+    }
+  }
+
+  function hasTerminalViewers(sessionId: string): boolean {
+    const viewers = terminalViewers.get(sessionId);
+    return !!viewers && viewers.size > 0;
   }
 
   // Dashboard subscriber management
@@ -668,6 +702,10 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 
   function getSubscriberCount(): number {
     return dashboardSubscribers.size;
+  }
+
+  function getSubscribers(): Set<ServerWebSocket<unknown>> {
+    return dashboardSubscribers;
   }
 
   // Agent management (exclusive single connection)
@@ -708,13 +746,15 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     setSessionSocket,
     getSessionSocket,
     removeSessionSocket,
-    setTerminalViewer,
-    getTerminalViewer,
-    clearTerminalViewer,
-    clearTerminalViewerBySocket,
+    addTerminalViewer,
+    getTerminalViewers,
+    removeTerminalViewer,
+    removeTerminalViewerBySocket,
+    hasTerminalViewers,
     addSubscriber,
     removeSubscriber,
     getSubscriberCount,
+    getSubscribers,
     setAgent,
     getAgent,
     removeAgent,

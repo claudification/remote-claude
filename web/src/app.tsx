@@ -1,4 +1,4 @@
-import { Menu } from 'lucide-react'
+import { Command, Menu } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { AuthGate } from '@/components/auth-gate'
 import { Header } from '@/components/header'
@@ -138,6 +138,17 @@ function Dashboard() {
 				<div className="flex-1">
 					<Header />
 				</div>
+
+				{/* Command palette button - visible on touch/mobile screens without keyboards */}
+				<Button
+					variant="outline"
+					size="icon"
+					className="shrink-0 sm:hidden"
+					onClick={() => useSessionsStore.getState().toggleSwitcher()}
+					title="Command palette"
+				>
+					<Command className="h-4 w-4" />
+				</Button>
 			</div>
 
 			{/* Main content */}

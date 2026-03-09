@@ -505,6 +505,9 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 						disabled={disabled}
 						placeholder={placeholder}
 						autoFocus
+						autoCorrect="off"
+						autoCapitalize="off"
+						spellCheck={true}
 						className={cn(
 							'absolute inset-0 w-full h-full bg-transparent px-3 py-3 resize-none',
 							textClasses,
@@ -555,6 +558,9 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
 				disabled={disabled}
 				placeholder={placeholder}
 				rows={1}
+				autoCorrect="off"
+				autoCapitalize="off"
+				spellCheck={false}
 				className={cn(
 					'relative w-full bg-transparent border border-border rounded pl-3 pr-14 py-2 resize-none',
 					textClasses,

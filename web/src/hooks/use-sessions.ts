@@ -11,6 +11,7 @@ export interface TerminalMessage {
 interface SessionsState {
 	sessions: Session[]
 	selectedSessionId: string | null
+	selectedSubagentId: string | null
 	events: Record<string, HookEvent[]>
 	transcripts: Record<string, TranscriptEntry[]>
 	projectSettings: ProjectSettingsMap
@@ -25,6 +26,7 @@ interface SessionsState {
 
 	setSessions: (sessions: Session[]) => void
 	selectSession: (id: string | null) => void
+	selectSubagent: (agentId: string | null) => void
 	openTab: (sessionId: string, tab: string) => void
 	setShowTerminal: (show: boolean) => void
 	setShowSwitcher: (show: boolean) => void
@@ -75,6 +77,7 @@ export function applyHashRoute() {
 export const useSessionsStore = create<SessionsState>((set, get) => ({
 	sessions: [],
 	selectedSessionId: null,
+	selectedSubagentId: null,
 	events: {},
 	transcripts: {},
 	projectSettings: {},
@@ -89,8 +92,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 
 	setSessions: sessions => set({ sessions }),
 	selectSession: id => {
-		set({ selectedSessionId: id, requestedTab: null })
+		set({ selectedSessionId: id, selectedSubagentId: null, requestedTab: null })
 		updateHash(id ? `session/${id}` : '')
+	},
+	selectSubagent: agentId => {
+		set({ selectedSubagentId: agentId })
 	},
 	openTab: (sessionId, tab) => {
 		set({ selectedSessionId: sessionId, requestedTab: tab })
@@ -155,6 +161,12 @@ export async function fetchTranscript(sessionId: string): Promise<TranscriptEntr
 
 export async function fetchSubagents(sessionId: string): Promise<SubagentInfo[]> {
 	const res = await fetch(`${API_BASE}/sessions/${sessionId}/subagents`)
+	if (!res.ok) return []
+	return res.json()
+}
+
+export async function fetchSubagentTranscript(sessionId: string, agentId: string): Promise<TranscriptEntry[]> {
+	const res = await fetch(`${API_BASE}/sessions/${sessionId}/subagents/${agentId}/transcript?limit=500`)
 	if (!res.ok) return []
 	return res.json()
 }

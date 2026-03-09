@@ -11,8 +11,8 @@ import { createWsServer } from "./ws-server";
 import { createApiHandler } from "./api";
 import { DEFAULT_CONCENTRATOR_PORT } from "../shared/protocol";
 import { addAllowedRoot, addPathMapping, getAllowedRoots } from "./path-jail";
-import { initAuth, reloadState } from "./auth";
-import { requireAuth, handleAuthRoute, setRclaudeSecret } from "./auth-routes";
+import { initAuth, reloadState, getUser } from "./auth";
+import { requireAuth, handleAuthRoute, setRclaudeSecret, getAuthenticatedUser } from "./auth-routes";
 import { initPush, sendPushToAll, isConfigured as isPushConfigured } from "./push";
 import { initProjectSettings } from "./project-settings";
 
@@ -232,6 +232,21 @@ async function main() {
   process.on("SIGHUP", () => {
     reloadState();
     console.log("[auth] Reloaded auth state from disk (SIGHUP)");
+
+    // Terminate WS connections for revoked users
+    const subscribers = sessionStore.getSubscribers();
+    for (const ws of subscribers) {
+      const userName = (ws.data as { userName?: string }).userName;
+      if (userName) {
+        const user = getUser(userName);
+        if (!user || user.revoked) {
+          console.log(`[auth] Terminating WS for revoked user: ${userName}`);
+          sessionStore.removeTerminalViewerBySocket(ws);
+          sessionStore.removeSubscriber(ws);
+          try { ws.close(4401, "User revoked"); } catch {}
+        }
+      }
+    }
   });
 
   // Write PID file so CLI can send signals
@@ -315,6 +330,7 @@ async function main() {
       sessionId?: string;
       isDashboard?: boolean;
       isAgent?: boolean;
+      userName?: string; // authenticated user name (for revocation tracking)
     }
 
     Bun.serve<WsData>({
@@ -335,8 +351,10 @@ async function main() {
           req.headers.get("upgrade")?.toLowerCase() === "websocket" &&
           (url.pathname === "/" || url.pathname === "/ws")
         ) {
+          // Extract authenticated user for revocation tracking
+          const wsUserName = getAuthenticatedUser(req) ?? undefined;
           const success = server.upgrade(req, {
-            data: {} as WsData,
+            data: { userName: wsUserName } as WsData,
           });
           if (success) {
             return undefined;
@@ -465,10 +483,15 @@ async function main() {
               case "terminal_attach": {
                 const sessionSocket = sessionStore.getSessionSocket(data.sessionId);
                 if (sessionSocket) {
-                  sessionStore.setTerminalViewer(data.sessionId, ws);
-                  sessionSocket.send(JSON.stringify(data));
+                  const isFirstViewer = !sessionStore.hasTerminalViewers(data.sessionId);
+                  sessionStore.addTerminalViewer(data.sessionId, ws);
+                  // Only send attach to rclaude for the first viewer
+                  if (isFirstViewer) {
+                    sessionSocket.send(JSON.stringify(data));
+                  }
                   if (verbose) {
-                    console.log(`[terminal] Attached to ${data.sessionId.slice(0, 8)}... (${data.cols}x${data.rows})`);
+                    const viewers = sessionStore.getTerminalViewers(data.sessionId);
+                    console.log(`[terminal] Attached to ${data.sessionId.slice(0, 8)}... (${data.cols}x${data.rows}) [${viewers.size} viewer(s)]`);
                   }
                 } else {
                   ws.send(JSON.stringify({ type: "terminal_error", sessionId: data.sessionId, error: "Session not connected" }));
@@ -476,13 +499,17 @@ async function main() {
                 break;
               }
               case "terminal_detach": {
-                sessionStore.clearTerminalViewer(data.sessionId);
-                const sessionSocket = sessionStore.getSessionSocket(data.sessionId);
-                if (sessionSocket) {
-                  sessionSocket.send(JSON.stringify(data));
+                sessionStore.removeTerminalViewer(data.sessionId, ws);
+                // Only send detach to rclaude when last viewer disconnects
+                if (!sessionStore.hasTerminalViewers(data.sessionId)) {
+                  const sessionSocket = sessionStore.getSessionSocket(data.sessionId);
+                  if (sessionSocket) {
+                    sessionSocket.send(JSON.stringify(data));
+                  }
                 }
                 if (verbose) {
-                  console.log(`[terminal] Detached from ${data.sessionId.slice(0, 8)}...`);
+                  const viewers = sessionStore.getTerminalViewers(data.sessionId);
+                  console.log(`[terminal] Detached from ${data.sessionId.slice(0, 8)}... [${viewers.size} viewer(s) remaining]`);
                 }
                 break;
               }
@@ -494,10 +521,11 @@ async function main() {
                     sessionSocket.send(JSON.stringify(data));
                   }
                 } else if (ws.data.sessionId) {
-                  // rclaude -> dashboard (PTY output)
-                  const viewer = sessionStore.getTerminalViewer(data.sessionId || ws.data.sessionId);
-                  if (viewer) {
-                    viewer.send(JSON.stringify(data));
+                  // rclaude -> dashboard (PTY output) - broadcast to all viewers
+                  const viewers = sessionStore.getTerminalViewers(data.sessionId || ws.data.sessionId);
+                  const msg = JSON.stringify(data);
+                  for (const viewer of viewers) {
+                    try { viewer.send(msg); } catch {}
                   }
                 }
                 break;
@@ -510,10 +538,11 @@ async function main() {
                 break;
               }
               case "terminal_error": {
-                // rclaude -> dashboard
-                const viewer = sessionStore.getTerminalViewer(data.sessionId);
-                if (viewer) {
-                  viewer.send(JSON.stringify(data));
+                // rclaude -> dashboard - broadcast to all viewers
+                const viewers = sessionStore.getTerminalViewers(data.sessionId);
+                const msg = JSON.stringify(data);
+                for (const viewer of viewers) {
+                  try { viewer.send(msg); } catch {}
                 }
                 break;
               }
@@ -549,8 +578,8 @@ async function main() {
 
           // Handle dashboard subscriber disconnection
           if (ws.data.isDashboard) {
-            // If this dashboard was viewing a terminal, send detach to rclaude
-            sessionStore.clearTerminalViewerBySocket(ws);
+            // If this dashboard was viewing a terminal, remove from viewers
+            sessionStore.removeTerminalViewerBySocket(ws);
             sessionStore.removeSubscriber(ws);
             if (verbose) {
               console.log(`[dashboard] Subscriber disconnected (total: ${sessionStore.getSubscriberCount()})`);
@@ -561,13 +590,17 @@ async function main() {
           // Handle rclaude session disconnection
           const sessionId = ws.data.sessionId;
           if (sessionId) {
-            // Notify terminal viewer if any
-            const viewer = sessionStore.getTerminalViewer(sessionId);
-            if (viewer) {
-              try {
-                viewer.send(JSON.stringify({ type: "terminal_error", sessionId, error: "Session disconnected" }));
-              } catch {}
-              sessionStore.clearTerminalViewer(sessionId);
+            // Notify all terminal viewers
+            const viewers = sessionStore.getTerminalViewers(sessionId);
+            if (viewers.size > 0) {
+              const msg = JSON.stringify({ type: "terminal_error", sessionId, error: "Session disconnected" });
+              for (const viewer of viewers) {
+                try { viewer.send(msg); } catch {}
+              }
+              // Clear all viewers for this session
+              for (const viewer of viewers) {
+                sessionStore.removeTerminalViewer(sessionId, viewer);
+              }
             }
 
             // Remove socket tracking

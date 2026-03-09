@@ -51,6 +51,7 @@ export interface Session {
 	eventCount: number
 	activeSubagentCount: number
 	totalSubagentCount: number
+	subagents: Array<{ agentId: string; agentType: string; status: 'running' | 'stopped'; startedAt: number; stoppedAt?: number; eventCount: number }>
 	taskCount: number
 	pendingTaskCount: number
 	activeTasks: Array<{ id: string; subject: string }>

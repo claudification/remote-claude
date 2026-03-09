@@ -16,6 +16,7 @@ interface SessionSummary {
 	eventCount: number
 	activeSubagentCount?: number
 	totalSubagentCount?: number
+	subagents?: Array<{ agentId: string; agentType: string; status: 'running' | 'stopped'; startedAt: number; stoppedAt?: number; eventCount: number }>
 	taskCount?: number
 	pendingTaskCount?: number
 	activeTasks?: Array<{ id: string; subject: string }>
@@ -57,6 +58,7 @@ export function useWebSocket() {
 		eventCount: summary.eventCount,
 		activeSubagentCount: summary.activeSubagentCount ?? 0,
 		totalSubagentCount: summary.totalSubagentCount ?? 0,
+		subagents: summary.subagents ?? [],
 		taskCount: summary.taskCount ?? 0,
 		pendingTaskCount: summary.pendingTaskCount ?? 0,
 		activeTasks: summary.activeTasks ?? [],

@@ -1,10 +1,10 @@
-import { Bell, ChevronDown, ChevronRight, Terminal, X } from 'lucide-react'
+import { ArrowLeft, Bell, ChevronDown, ChevronRight, Terminal, X } from 'lucide-react'
 import { useRef, useState, useMemo, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { reviveSession, sendInput, useSessionsStore } from '@/hooks/use-sessions'
+import { reviveSession, sendInput, fetchSubagentTranscript, useSessionsStore } from '@/hooks/use-sessions'
 import { cn, formatAge, formatModel } from '@/lib/utils'
-import { canTerminal, type HookEvent } from '@/lib/types'
+import { canTerminal, type HookEvent, type TranscriptEntry } from '@/lib/types'
 import { renderProjectIcon } from './project-settings-editor'
 import { BgTasksView } from './bg-tasks-view'
 import { EventsView } from './events-view'
@@ -14,7 +14,7 @@ import { TasksView } from './tasks-view'
 import { TranscriptView } from './transcript-view'
 import { WebTerminal } from './web-terminal'
 
-type Tab = 'transcript' | 'events' | 'agents' | 'tasks' | 'bg'
+type Tab = 'transcript' | 'events' | 'agents' | 'tasks'
 
 // Find the latest notification that hasn't been "dismissed" by subsequent activity
 function getActiveNotification(events: HookEvent[]): HookEvent | null {
@@ -78,11 +78,44 @@ export function SessionDetail() {
 	const allTranscripts = useSessionsStore(state => state.transcripts)
 	const agentConnected = useSessionsStore(state => state.agentConnected)
 	const projectSettings = useSessionsStore(state => state.projectSettings)
+	const selectedSubagentId = useSessionsStore(state => state.selectedSubagentId)
+	const selectSubagent = useSessionsStore(state => state.selectSubagent)
 
 	// Derive values from raw state (no new object creation in selector)
 	const session = sessions.find(s => s.id === selectedSessionId)
 	const events = selectedSessionId ? allEvents[selectedSessionId] || [] : []
 	const transcript = selectedSessionId ? allTranscripts[selectedSessionId] || [] : []
+
+	// Subagent transcript state
+	const [subagentTranscript, setSubagentTranscript] = useState<TranscriptEntry[]>([])
+	const [subagentLoading, setSubagentLoading] = useState(false)
+
+	// Fetch subagent transcript when selectedSubagentId changes
+	useEffect(() => {
+		if (!selectedSessionId || !selectedSubagentId) {
+			setSubagentTranscript([])
+			return
+		}
+		let cancelled = false
+		setSubagentLoading(true)
+		fetchSubagentTranscript(selectedSessionId, selectedSubagentId).then(entries => {
+			if (!cancelled) {
+				setSubagentTranscript(entries)
+				setSubagentLoading(false)
+			}
+		})
+		// Poll for updates while agent is running
+		const agent = session?.subagents.find(a => a.agentId === selectedSubagentId)
+		if (agent?.status === 'running') {
+			const interval = setInterval(() => {
+				fetchSubagentTranscript(selectedSessionId, selectedSubagentId).then(entries => {
+					if (!cancelled) setSubagentTranscript(entries)
+				})
+			}, 3000)
+			return () => { cancelled = true; clearInterval(interval) }
+		}
+		return () => { cancelled = true }
+	}, [selectedSessionId, selectedSubagentId, session?.subagents])
 
 	// HOOKS MUST BE BEFORE EARLY RETURNS - React rules!
 	const activeNotification = useMemo(() => getActiveNotification(events), [events])
@@ -244,6 +277,56 @@ export function SessionDetail() {
 				)}
 			</div>
 
+			{/* Subagent Detail View - replaces entire panel content */}
+			{selectedSubagentId && (() => {
+				const agent = session.subagents.find(a => a.agentId === selectedSubagentId)
+				return (
+					<>
+						<div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border bg-pink-400/5">
+							<button
+								type="button"
+								onClick={() => selectSubagent(null)}
+								className="flex items-center gap-1 text-xs text-pink-400 hover:text-pink-300 transition-colors"
+							>
+								<ArrowLeft className="w-3 h-3" />
+								Back
+							</button>
+							<div className="w-px h-4 bg-border" />
+							<span className="text-xs text-pink-400 font-bold">
+								{agent?.agentType || 'agent'}
+							</span>
+							<span className="text-[10px] text-pink-400/50 font-mono">
+								{selectedSubagentId.slice(0, 8)}
+							</span>
+							{agent && (
+								<span className={cn(
+									'ml-auto px-1.5 py-0.5 text-[10px] uppercase font-bold',
+									agent.status === 'running' ? 'bg-active text-background' : 'bg-ended text-foreground',
+								)}>
+									{agent.status}
+								</span>
+							)}
+						</div>
+						<div className="flex-1 min-h-0 overflow-hidden">
+							{subagentLoading && subagentTranscript.length === 0 ? (
+								<div className="flex items-center justify-center h-full text-muted-foreground text-xs">
+									Loading transcript...
+								</div>
+							) : subagentTranscript.length === 0 ? (
+								<div className="flex items-center justify-center h-full text-muted-foreground text-xs">
+									No transcript entries yet
+								</div>
+							) : (
+								<TranscriptView entries={subagentTranscript} follow={follow} showThinking={showThinking} />
+							)}
+						</div>
+					</>
+				)
+			})()}
+
+			{/* Normal session view */}
+			{!selectedSubagentId && (
+			<>
 			{/* Notification Banner */}
 			{notificationToShow && (
 				<div className="shrink-0 mx-3 sm:mx-4 mt-3 p-3 bg-amber-500/20 border border-amber-500/50 flex items-start gap-3">
@@ -298,7 +381,7 @@ export function SessionDetail() {
 				>
 					Events
 				</button>
-				{(session.totalSubagentCount > 0 || session.activeSubagentCount > 0) && (
+				{(session.totalSubagentCount > 0 || session.activeSubagentCount > 0 || session.bgTasks.length > 0) && (
 					<button
 						type="button"
 						onClick={() => setActiveTab('agents')}
@@ -310,9 +393,9 @@ export function SessionDetail() {
 						)}
 					>
 						Agents
-						{session.activeSubagentCount > 0 && (
+						{(session.activeSubagentCount > 0 || session.runningBgTaskCount > 0) && (
 							<span className="ml-1.5 px-1.5 py-0.5 bg-active/20 text-active text-[10px] font-bold">
-								{session.activeSubagentCount}
+								{session.activeSubagentCount + session.runningBgTaskCount}
 							</span>
 						)}
 					</button>
@@ -336,27 +419,7 @@ export function SessionDetail() {
 						)}
 					</button>
 				)}
-				{session.bgTasks.length > 0 && (
-					<button
-						type="button"
-						onClick={() => setActiveTab('bg')}
-						className={cn(
-							'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
-							activeTab === 'bg'
-								? 'border-accent text-accent'
-								: 'border-transparent text-muted-foreground hover:text-foreground',
-						)}
-					>
-						BG
-						{session.runningBgTaskCount > 0 && (
-							<span className="ml-1.5 px-1.5 py-0.5 bg-emerald-400/20 text-emerald-400 text-[10px] font-bold">
-								{session.runningBgTaskCount}
-							</span>
-						)}
-					</button>
-				)}
-
-				{/* Terminal + Follow - pushed to right */}
+					{/* Terminal + Follow - pushed to right */}
 				<div className="ml-auto pr-3 flex items-center gap-2">
 					{hasTerminal && (
 						<button
@@ -415,8 +478,16 @@ export function SessionDetail() {
 				</div>
 			)}
 			{activeTab === 'agents' && selectedSessionId && (
-				<div className="flex-1 min-h-0 overflow-hidden p-3 sm:p-4">
+				<div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-4">
 					<SubagentView sessionId={selectedSessionId} />
+					{session.bgTasks.length > 0 && (
+						<>
+							<div className="border-t border-border pt-3">
+								<h3 className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-2">Background Tasks</h3>
+							</div>
+							<BgTasksView sessionId={selectedSessionId} />
+						</>
+					)}
 				</div>
 			)}
 			{activeTab === 'tasks' && selectedSessionId && (
@@ -424,10 +495,8 @@ export function SessionDetail() {
 					<TasksView sessionId={selectedSessionId} pendingCount={session.pendingTaskCount} />
 				</div>
 			)}
-			{activeTab === 'bg' && selectedSessionId && (
-				<div className="flex-1 min-h-0 overflow-hidden">
-					<BgTasksView sessionId={selectedSessionId} />
-				</div>
+
+			</>
 			)}
 
 			{/* Input box */}

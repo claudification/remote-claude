@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
 import { fetchSubagents, useSessionsStore } from '@/hooks/use-sessions'
 import type { SubagentInfo, HookEvent } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -102,12 +102,13 @@ export function SubagentView({ sessionId }: { sessionId: string }) {
 		)
 	}
 
+	const selectSubagent = useSessionsStore(state => state.selectSubagent)
+
 	return (
 		<div className="h-full overflow-y-auto font-mono text-xs">
-			<div className="text-muted-foreground mb-3">
+			<div className="text-muted-foreground mb-1">
 				{'┌── AGENTS ─────────────────────────'}
 			</div>
-			<div className="text-muted-foreground mb-1">{'│'}</div>
 
 			{subagents.map((agent, i) => {
 				const isLast = i === subagents.length - 1
@@ -117,48 +118,53 @@ export function SubagentView({ sessionId }: { sessionId: string }) {
 				const hasEvents = agent.events && agent.events.length > 0
 
 				return (
-					<div key={agent.agentId} className="mb-1">
-						<button
-							type="button"
-							onClick={() => setExpandedAgent(isExpanded ? null : agent.agentId)}
-							className="flex items-center gap-2 w-full text-left hover:bg-muted/20 rounded px-1 -mx-1 py-0.5"
-						>
-							<span className="text-muted-foreground">{prefix}</span>
-							{hasEvents ? (
-								isExpanded
-									? <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
-									: <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
-							) : (
-								<span className="w-3" />
-							)}
-							<span
-								className={cn(
-									'px-1.5 py-0.5 text-[10px] font-bold uppercase',
-									isRunning
-										? 'bg-active/20 text-active border border-active/50'
-										: 'bg-muted/30 text-muted-foreground border border-border',
-								)}
+					<div key={agent.agentId}>
+						<div className="flex items-center gap-2 hover:bg-muted/20 rounded px-1 -mx-1 py-0.5">
+							<button
+								type="button"
+								onClick={() => hasEvents && setExpandedAgent(isExpanded ? null : agent.agentId)}
+								className="flex items-center gap-2 flex-1 min-w-0 text-left"
 							>
-								{agent.status}
-							</span>
-							<span className="text-accent">{agentTypeIcon(agent.agentType)}</span>
-							<span className={cn('font-bold', isRunning ? 'text-foreground' : 'text-muted-foreground')}>
-								{agent.agentType}
-							</span>
-							<span className="text-muted-foreground text-[10px]">{agent.agentId.slice(0, 8)}</span>
-							<span className="text-muted-foreground text-[10px]">
-								({formatDuration(agent.startedAt, agent.stoppedAt)})
-							</span>
-							{hasEvents && (
-								<span className="text-muted-foreground text-[10px]">
-									[{agent.events.length} events]
+								<span className="text-muted-foreground">{prefix}</span>
+								{hasEvents ? (
+									isExpanded
+										? <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
+										: <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
+								) : (
+									<span className="w-3 shrink-0" />
+								)}
+								<span
+									className={cn(
+										'px-1.5 text-[10px] font-bold uppercase shrink-0',
+										isRunning
+											? 'bg-active/20 text-active border border-active/50'
+											: 'bg-muted/30 text-muted-foreground border border-border',
+									)}
+								>
+									{agent.status}
 								</span>
-							)}
-						</button>
+								<span className="text-accent shrink-0">{agentTypeIcon(agent.agentType)}</span>
+								<span className={cn('font-bold truncate', isRunning ? 'text-foreground' : 'text-muted-foreground')}>
+									{agent.agentType}
+								</span>
+								<span className="text-muted-foreground text-[10px] shrink-0">{agent.agentId.slice(0, 7)}</span>
+								<span className="text-muted-foreground text-[10px] shrink-0">
+									({formatDuration(agent.startedAt, agent.stoppedAt)})
+								</span>
+							</button>
+							<button
+								type="button"
+								onClick={() => selectSubagent(agent.agentId)}
+								className="shrink-0 p-1 text-pink-400/50 hover:text-pink-400 transition-colors"
+								title="View transcript"
+							>
+								<ExternalLink className="w-3 h-3" />
+							</button>
+						</div>
 
 						{/* Expanded event list */}
 						{isExpanded && hasEvents && (
-							<div className="ml-8 mt-1 mb-2 border-l border-border pl-3 space-y-0.5">
+							<div className="ml-8 mt-0.5 mb-1 border-l border-border pl-3 space-y-0">
 								{agent.events.map((evt, j) => (
 									<SubagentEventLine key={j} event={evt} />
 								))}
@@ -168,7 +174,7 @@ export function SubagentView({ sessionId }: { sessionId: string }) {
 				)
 			})}
 
-			<div className="text-muted-foreground mt-3 border-t border-border pt-2">
+			<div className="text-muted-foreground mt-2 border-t border-border pt-1.5">
 				{subagents.length} total | {running} running | {stopped} stopped
 			</div>
 		</div>
