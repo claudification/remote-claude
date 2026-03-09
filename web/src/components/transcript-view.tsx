@@ -982,29 +982,18 @@ export function TranscriptView({ entries, follow = false, showThinking = false, 
   const resultMap = useMemo(() => buildResultMap(entries), [entries])
   const rawGroups = useMemo(() => groupEntries(entries), [entries])
 
-  // Inject compacted divider / compacting banner as synthetic groups
+  // Inject compacted divider at start / compacting banner at end as synthetic groups
   const groups = useMemo(() => {
     const result: (DisplayGroup | { type: 'compacted_divider' } | { type: 'compacting_banner' })[] = []
-    let dividerInserted = false
 
-    for (const group of rawGroups) {
-      // Insert compacted divider at the right timestamp position
-      if (compactedAt && !compacting && !dividerInserted) {
-        const groupTime = group.timestamp ? new Date(group.timestamp).getTime() : 0
-        if (groupTime >= compactedAt) {
-          result.push({ type: 'compacted_divider' })
-          dividerInserted = true
-        }
-      }
-      result.push(group)
-    }
-
-    // If compactedAt but divider not yet inserted (all entries are before it), put at end
-    if (compactedAt && !compacting && !dividerInserted) {
+    // Compacted divider goes at the top - everything before it was compacted away
+    if (compactedAt && !compacting) {
       result.push({ type: 'compacted_divider' })
     }
 
-    // Compacting banner always at the end (it's happening now)
+    result.push(...rawGroups)
+
+    // Compacting banner at the end (it's happening now)
     if (compacting) {
       result.push({ type: 'compacting_banner' })
     }
