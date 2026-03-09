@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { fetchSessionEvents, fetchTranscript, useSessionsStore } from '@/hooks/use-sessions'
 import type { Session } from '@/lib/types'
-import { cn, formatModel, lastPathSegments } from '@/lib/utils'
+import { cn, formatAge, formatModel, lastPathSegments } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from './project-settings-editor'
 import { usePrefs } from './settings-page'
 
@@ -84,6 +84,11 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           >
             {displayName}
           </span>
+          {session.compacting && (
+            <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-amber-400/20 text-amber-400 border border-amber-400/50 animate-pulse">
+              compacting
+            </span>
+          )}
         </div>
       )}
       {compact && (
@@ -97,6 +102,9 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           >
             {session.id.slice(0, 8)}
           </span>
+          {session.compacting && (
+            <span className="text-[9px] text-amber-400 font-bold animate-pulse">COMPACT</span>
+          )}
         </div>
       )}
       {/* Active tasks + pending tasks + subagents + working teammates */}
@@ -138,7 +146,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
                 }}
               >
                 <span className="text-pink-400 mr-1">{'\u25CF'}</span>
-                {a.agentType} <span className="text-pink-400/50">{a.agentId.slice(0, 6)}</span>
+                {a.description || a.agentType} <span className="text-pink-400/50">{a.agentId.slice(0, 6)}</span>
               </div>
             ))}
           {session.subagents
@@ -157,7 +165,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
                 }}
               >
                 <span className="mr-1">{'\u25CB'}</span>
-                {a.agentType} <span className="text-pink-400/30">{a.agentId.slice(0, 6)}</span>
+                {a.description || a.agentType} <span className="text-pink-400/30">{a.agentId.slice(0, 6)}</span>
               </div>
             ))}
           {session.teammates
@@ -285,6 +293,50 @@ function SessionGroup({
   )
 }
 
+// Inactive project entry - one per cwd, shows latest session
+function InactiveProjectItem({ sessions }: { sessions: Session[] }) {
+  const { selectSession, setEvents, setTranscript, projectSettings } = useSessionsStore()
+  // Latest session by lastActivity
+  const latest = sessions.reduce((a, b) => (a.lastActivity > b.lastActivity ? a : b))
+  const ps = projectSettings[latest.cwd]
+  const displayName = ps?.label || lastPathSegments(latest.cwd)
+  const displayColor = ps?.color
+
+  async function handleClick() {
+    selectSession(latest.id)
+    const [evts, transcript] = await Promise.all([fetchSessionEvents(latest.id), fetchTranscript(latest.id)])
+    setEvents(latest.id, evts)
+    setTranscript(latest.id, transcript)
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="w-full text-left border border-border hover:border-primary p-2 pl-3 transition-colors"
+      style={displayColor ? { borderLeftColor: displayColor, borderLeftWidth: '3px' } : undefined}
+      title={`${sessions.length} session${sessions.length > 1 ? 's' : ''}\n${latest.cwd}`}
+    >
+      <div className="flex items-center gap-1.5">
+        {ps?.icon && (
+          <span className="text-muted-foreground" style={displayColor ? { color: displayColor } : undefined}>
+            {renderProjectIcon(ps.icon)}
+          </span>
+        )}
+        <span
+          className="font-mono text-xs text-muted-foreground truncate flex-1"
+          style={displayColor ? { color: `${displayColor}99` } : undefined}
+        >
+          {displayName}
+        </span>
+        <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
+          {formatAge(latest.lastActivity)}
+        </span>
+      </div>
+    </button>
+  )
+}
+
 export function SessionList() {
   const { sessions, projectSettings } = useSessionsStore()
   const { prefs } = usePrefs()
@@ -373,10 +425,21 @@ export function SessionList() {
             onChange={e => setShowInactive(e.target.checked)}
             className="accent-primary"
           />
-          show inactive ({inactive.length})
+          show inactive ({new Set(inactive.map(s => s.cwd)).size})
         </label>
       )}
-      {showInactive && renderGrouped(sortedInactive)}
+      {showInactive && (() => {
+        // Group inactive sessions by cwd, render one entry per project
+        const byCwd = new Map<string, Session[]>()
+        for (const s of sortedInactive) {
+          const group = byCwd.get(s.cwd) || []
+          group.push(s)
+          byCwd.set(s.cwd, group)
+        }
+        return Array.from(byCwd.values()).map(group => (
+          <InactiveProjectItem key={group[0].cwd} sessions={group} />
+        ))
+      })()}
     </div>
   )
 }

@@ -305,6 +305,7 @@ export type HookEventData =
 export interface SubagentInfo {
   agentId: string
   agentType: string
+  description?: string
   startedAt: number
   stoppedAt?: number
   status: 'running' | 'stopped'
@@ -364,6 +365,7 @@ export interface Session {
   startedAt: number
   lastActivity: number
   status: 'active' | 'idle' | 'ended'
+  compacting?: boolean
   events: HookEvent[]
   subagents: SubagentInfo[]
   tasks: TaskInfo[]

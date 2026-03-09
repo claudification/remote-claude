@@ -154,7 +154,7 @@ export function SubagentView({ sessionId }: { sessionId: string }) {
                 </span>
                 <span className="text-accent shrink-0">{agentTypeIcon(agent.agentType)}</span>
                 <span className={cn('font-bold truncate', isRunning ? 'text-foreground' : 'text-muted-foreground')}>
-                  {agent.agentType}
+                  {agent.description || agent.agentType}
                 </span>
                 <span className="text-muted-foreground text-[10px] shrink-0">{agent.agentId.slice(0, 7)}</span>
                 <span className="text-muted-foreground text-[10px] shrink-0">

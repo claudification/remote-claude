@@ -354,7 +354,7 @@ export function SessionDetail() {
                   Back
                 </button>
                 <div className="w-px h-4 bg-border" />
-                <span className="text-xs text-pink-400 font-bold">{agent?.agentType || 'agent'}</span>
+                <span className="text-xs text-pink-400 font-bold">{agent?.description || agent?.agentType || 'agent'}</span>
                 <span className="text-[10px] text-pink-400/50 font-mono">{selectedSubagentId.slice(0, 8)}</span>
                 {agent && (
                   <span
