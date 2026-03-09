@@ -59,7 +59,12 @@ export function SettingsPage({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-start justify-center pt-[10vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-start justify-center pt-[10vh] overflow-y-auto"
+      onClick={e => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
       <div className="w-full max-w-md border border-border bg-background p-6 relative">
         <button
           type="button"
