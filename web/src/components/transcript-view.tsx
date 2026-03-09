@@ -339,6 +339,69 @@ function DiffView({ patches, filePath }: { patches: Array<{ oldStart: number; li
   )
 }
 
+// Syntax-highlighted preview for Write operations
+function WritePreview({ content, filePath }: { content: string; filePath?: string }) {
+  const [html, setHtml] = useSyntaxState<string | null>(null)
+  const truncated = content.length > 3000 ? content.slice(0, 3000) : content
+  const lines = truncated.split('\n')
+
+  useEffect(() => {
+    const lang = filePath ? langFromPath(filePath) : undefined
+    if (!lang) return
+
+    ensureLang(lang)
+      .then(async ok => {
+        if (!ok) return
+        const highlighter = await getHighlighter()
+        try {
+          const tokens = highlighter.codeToTokens(truncated, { lang, theme: 'tokyo-night' })
+          const highlighted = tokens.tokens
+            .map((lineTokens: any[]) =>
+              lineTokens.map((t: any) => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`).join(''),
+            )
+            .join('\n')
+          setHtml(highlighted)
+        } catch {
+          // Fall back to plain
+        }
+      })
+      .catch(() => {})
+  }, [truncated, filePath])
+
+  const gutterWidth = String(lines.length).length
+
+  return (
+    <pre className="text-[10px] font-mono max-h-48 overflow-auto">
+      {html ? (
+        <code>
+          {html.split('\n').map((lineHtml, i) => (
+            <div key={i} className="hover:bg-muted/20">
+              <span className="text-muted-foreground/40 select-none inline-block text-right mr-3" style={{ width: `${gutterWidth + 1}ch` }}>
+                {i + 1}
+              </span>
+              <span dangerouslySetInnerHTML={{ __html: lineHtml }} />
+            </div>
+          ))}
+        </code>
+      ) : (
+        <code className="text-foreground/70">
+          {lines.map((line, i) => (
+            <div key={i} className="hover:bg-muted/20">
+              <span className="text-muted-foreground/40 select-none inline-block text-right mr-3" style={{ width: `${gutterWidth + 1}ch` }}>
+                {i + 1}
+              </span>
+              {line}
+            </div>
+          ))}
+        </code>
+      )}
+      {content.length > 3000 && (
+        <div className="text-muted-foreground mt-1">... +{content.length - 3000} chars truncated</div>
+      )}
+    </pre>
+  )
+}
+
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
@@ -407,6 +470,9 @@ function ToolLine({
       const path = input.file_path as string
       const content = input.content as string
       summary = `${shortPath(path)} (${content?.length || 0} chars)`
+      if (content) {
+        details = <WritePreview content={content} filePath={path} />
+      }
       break
     }
     case 'WebSearch': {
@@ -610,7 +676,7 @@ function ToolLine({
         <JsonInspector title={name} data={input} result={result} extra={toolUseResult} />
       </div>
       {details && (
-        <Collapsible id={tool.id ? `tool-${tool.id}` : undefined} label="output" defaultOpen={name === 'Edit'}>
+        <Collapsible id={tool.id ? `tool-${tool.id}` : undefined} label="output" defaultOpen={name === 'Edit' || name === 'Write'}>
           {details}
         </Collapsible>
       )}
