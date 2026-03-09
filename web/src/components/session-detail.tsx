@@ -1,5 +1,5 @@
 import { ArrowLeft, Bell, ChevronDown, ChevronRight, Terminal, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { fetchSubagentTranscript, reviveSession, sendInput, useSessionsStore } from '@/hooks/use-sessions'
@@ -50,6 +50,19 @@ function getActiveNotification(events: HookEvent[]): HookEvent | null {
   return lastNotification
 }
 
+function ScrollToBottomButton({ onClick, label = 'scroll to bottom' }: { onClick: () => void; label?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#7aa2f7] text-[#1a1b26] text-[11px] font-bold shadow-lg shadow-[#7aa2f7]/20 hover:bg-[#89b4fa] transition-colors cursor-pointer"
+    >
+      <ChevronDown className="h-3.5 w-3.5" />
+      {label}
+    </button>
+  )
+}
+
 export function SessionDetail() {
   const [activeTab, setActiveTab] = useState<Tab>('transcript')
   const [follow, setFollow] = useState(true)
@@ -59,6 +72,8 @@ export function SessionDetail() {
   const [reviveState, setReviveState] = useState<'idle' | 'sending' | 'waiting' | 'error'>('idle')
   const [reviveError, setReviveError] = useState<string | null>(null)
   const [reviveCountdown, setReviveCountdown] = useState(0)
+  const disableFollow = useCallback(() => setFollow(false), [])
+  const enableFollow = useCallback(() => setFollow(true), [])
   const reviveStartRef = useRef(0) // timestamp when revive started, to ignore pre-existing sessions
   const [infoExpanded, setInfoExpanded] = useState(false)
   const showTerminal = useSessionsStore(state => state.showTerminal)
@@ -332,7 +347,12 @@ export function SessionDetail() {
                     No transcript entries yet
                   </div>
                 ) : (
-                  <TranscriptView entries={subagentTranscript} follow={follow} showThinking={showThinking} />
+                  <TranscriptView
+                    entries={subagentTranscript}
+                    follow={follow}
+                    showThinking={showThinking}
+                    onUserScroll={disableFollow}
+                  />
                 )}
               </div>
             </>
@@ -485,13 +505,21 @@ export function SessionDetail() {
 
           {/* Content */}
           {activeTab === 'transcript' && (
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <TranscriptView entries={transcript} follow={follow} showThinking={showThinking} />
+            <div className="flex-1 min-h-0 overflow-hidden relative">
+              <TranscriptView
+                key={selectedSessionId}
+                entries={transcript}
+                follow={follow}
+                showThinking={showThinking}
+                onUserScroll={disableFollow}
+              />
+              {!follow && transcript.length > 0 && <ScrollToBottomButton onClick={enableFollow} />}
             </div>
           )}
           {activeTab === 'events' && (
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <EventsView events={events} follow={follow} />
+            <div className="flex-1 min-h-0 overflow-hidden relative">
+              <EventsView key={selectedSessionId} events={events} follow={follow} onUserScroll={disableFollow} />
+              {!follow && events.length > 0 && <ScrollToBottomButton onClick={enableFollow} label="scroll to top" />}
             </div>
           )}
           {activeTab === 'agents' && selectedSessionId && (

@@ -6,10 +6,12 @@ import { EventItem } from './event-detail'
 interface EventsViewProps {
   events: HookEvent[]
   follow?: boolean
+  onUserScroll?: () => void
 }
 
-export function EventsView({ events, follow = false }: EventsViewProps) {
+export function EventsView({ events, follow = false, onUserScroll }: EventsViewProps) {
   const parentRef = useRef<HTMLDivElement>(null)
+  const programmaticScroll = useRef(false)
 
   // Reverse events so most recent is at top
   const reversed = [...events].reverse()
@@ -17,21 +19,45 @@ export function EventsView({ events, follow = false }: EventsViewProps) {
   const virtualizer = useVirtualizer({
     count: reversed.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 100, // Estimate average event height
+    estimateSize: () => 100,
     overscan: 5,
   })
 
-  const prevCountRef = useRef(reversed.length)
+  // Detect user scroll-down (away from top = away from newest) to disable follow
+  useEffect(() => {
+    const el = parentRef.current
+    if (!el || !follow) return
+    let lastScrollTop = el.scrollTop
+    function handleScroll() {
+      if (programmaticScroll.current || !el) return
+      const currentScrollTop = el.scrollTop
+      const scrolledDown = currentScrollTop > lastScrollTop
+      lastScrollTop = currentScrollTop
+      if (scrolledDown && currentScrollTop > 50) {
+        onUserScroll?.()
+      }
+    }
+    el.addEventListener('scroll', handleScroll, { passive: true })
+    return () => el.removeEventListener('scroll', handleScroll)
+  }, [follow, onUserScroll])
+
+  const prevFollowRef = useRef(follow)
 
   useEffect(() => {
+    const followJustEnabled = !prevFollowRef.current && follow
+    prevFollowRef.current = follow
     if (!follow || reversed.length === 0) return
-    if (reversed.length !== prevCountRef.current || prevCountRef.current === 0) {
-      requestAnimationFrame(() => {
-        virtualizer.scrollToIndex(0, { align: 'start' })
-      })
-    }
-    prevCountRef.current = reversed.length
-  }, [follow, reversed.length, virtualizer])
+    programmaticScroll.current = true
+    requestAnimationFrame(() => {
+      const el = parentRef.current
+      if (el) {
+        el.scrollTo({ top: 0, behavior: followJustEnabled ? 'smooth' : 'instant' })
+      }
+      setTimeout(() => {
+        programmaticScroll.current = false
+      }, 200)
+    })
+  }, [follow, reversed.length])
 
   if (reversed.length === 0) {
     return (

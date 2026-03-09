@@ -802,10 +802,12 @@ interface TranscriptViewProps {
   entries: TranscriptEntry[]
   follow?: boolean
   showThinking?: boolean
+  onUserScroll?: () => void
 }
 
-export function TranscriptView({ entries, follow = false, showThinking = false }: TranscriptViewProps) {
+export function TranscriptView({ entries, follow = false, showThinking = false, onUserScroll }: TranscriptViewProps) {
   const parentRef = useRef<HTMLDivElement>(null)
+  const programmaticScroll = useRef(false)
 
   const resultMap = useMemo(() => buildResultMap(entries), [entries])
   const groups = useMemo(() => groupEntries(entries), [entries])
@@ -817,20 +819,50 @@ export function TranscriptView({ entries, follow = false, showThinking = false }
     overscan: 5,
   })
 
-  const prevCountRef = useRef(groups.length)
-
-  // Scroll to end when follow is enabled and new items arrive (or on initial load)
+  // Detect user scroll-up to disable follow
   useEffect(() => {
-    if (!follow || groups.length === 0) return
-    // Scroll on initial load or when new groups arrive
-    if (groups.length !== prevCountRef.current || prevCountRef.current === 0) {
-      // Small delay to let virtualizer measure
-      requestAnimationFrame(() => {
-        virtualizer.scrollToIndex(groups.length - 1, { align: 'end' })
-      })
+    const el = parentRef.current
+    if (!el || !follow) return
+    let lastScrollTop = el.scrollTop
+    function handleScroll() {
+      if (programmaticScroll.current || !el) return
+      const currentScrollTop = el.scrollTop
+      const scrolledUp = currentScrollTop < lastScrollTop
+      lastScrollTop = currentScrollTop
+      if (scrolledUp) {
+        const distanceFromBottom = el.scrollHeight - currentScrollTop - el.clientHeight
+        if (distanceFromBottom > 50) {
+          onUserScroll?.()
+        }
+      }
     }
-    prevCountRef.current = groups.length
-  }, [follow, groups.length, virtualizer])
+    el.addEventListener('scroll', handleScroll, { passive: true })
+    return () => el.removeEventListener('scroll', handleScroll)
+  }, [follow, onUserScroll])
+
+  // Follow mode: poll scroll position and pin to bottom.
+  // React effects can't reliably catch every content change (virtualizer re-measurements,
+  // async transcript fetches, grouped entries). A timer just works.
+  useEffect(() => {
+    if (!follow) return
+
+    function scrollToBottom() {
+      const el = parentRef.current
+      if (!el || !el.scrollHeight) return
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+      if (distanceFromBottom > 1) {
+        programmaticScroll.current = true
+        el.scrollTo({ top: el.scrollHeight, behavior: 'instant' })
+        setTimeout(() => {
+          programmaticScroll.current = false
+        }, 100)
+      }
+    }
+
+    scrollToBottom()
+    const interval = setInterval(scrollToBottom, 300)
+    return () => clearInterval(interval)
+  }, [follow])
 
   if (groups.length === 0) {
     return (
