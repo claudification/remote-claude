@@ -408,17 +408,19 @@ async function main() {
                 const existingSession = sessionStore.getSession(data.sessionId)
                 if (existingSession) {
                   sessionStore.resumeSession(data.sessionId)
-                  // Update capabilities on reconnect
-                  if (data.capabilities) {
-                    existingSession.capabilities = data.capabilities
-                  }
+                  // Update capabilities + version on reconnect
+                  if (data.capabilities) existingSession.capabilities = data.capabilities
+                  if (data.version) existingSession.version = data.version
+                  if (data.buildTime) existingSession.buildTime = data.buildTime
                   if (verbose) {
-                    console.log(`[~] Session resumed: ${data.sessionId.slice(0, 8)}... (${data.cwd})`)
+                    console.log(`[~] Session resumed: ${data.sessionId.slice(0, 8)}... (${data.cwd})${data.version ? ` [${data.version}]` : ''}`)
                   }
                 } else {
-                  sessionStore.createSession(data.sessionId, data.cwd, data.model, data.args, data.capabilities)
+                  const newSession = sessionStore.createSession(data.sessionId, data.cwd, data.model, data.args, data.capabilities)
+                  if (data.version) newSession.version = data.version
+                  if (data.buildTime) newSession.buildTime = data.buildTime
                   if (verbose) {
-                    console.log(`[+] Session started: ${data.sessionId.slice(0, 8)}... (${data.cwd})`)
+                    console.log(`[+] Session started: ${data.sessionId.slice(0, 8)}... (${data.cwd})${data.version ? ` [${data.version}]` : ''}`)
                   }
                 }
 

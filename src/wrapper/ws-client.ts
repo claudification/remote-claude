@@ -3,6 +3,7 @@
  * Connects to concentrator with automatic reconnection and offline queuing
  */
 
+import { BUILD_VERSION } from '../shared/version'
 import type {
   ConcentratorMessage,
   FileResponse,
@@ -96,7 +97,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
         connected = true
         reconnectAttempts = 0
 
-        // Send session metadata with capabilities
+        // Send session metadata with capabilities + version
         const meta: SessionMeta = {
           type: 'meta',
           sessionId,
@@ -105,6 +106,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
           model,
           capabilities,
           args,
+          version: `rclaude/${BUILD_VERSION.gitHashShort}`,
+          buildTime: BUILD_VERSION.buildTime,
         }
         ws?.send(JSON.stringify(meta))
 

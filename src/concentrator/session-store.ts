@@ -41,6 +41,8 @@ export interface SessionSummary {
   cwd: string
   model?: string
   capabilities?: WrapperCapability[]
+  version?: string
+  buildTime?: string
   startedAt: number
   lastActivity: number
   status: Session['status']
@@ -162,6 +164,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       cwd: session.cwd,
       model: session.model,
       capabilities: session.capabilities,
+      version: session.version,
+      buildTime: session.buildTime,
       startedAt: session.startedAt,
       lastActivity: session.lastActivity,
       status: session.status,

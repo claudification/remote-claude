@@ -23,6 +23,8 @@ export interface SessionMeta {
   model?: string
   args?: string[]
   capabilities?: WrapperCapability[]
+  version?: string
+  buildTime?: string
 }
 
 export interface SessionEnd {
@@ -357,6 +359,8 @@ export interface Session {
   args?: string[]
   capabilities?: WrapperCapability[]
   transcriptPath?: string
+  version?: string
+  buildTime?: string
   startedAt: number
   lastActivity: number
   status: 'active' | 'idle' | 'ended'
