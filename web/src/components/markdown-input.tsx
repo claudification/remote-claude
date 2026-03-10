@@ -66,7 +66,15 @@ function highlightMarkdown(text: string): string {
   return html
 }
 
-export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder, className, autoFocus }: MarkdownInputProps) {
+export function MarkdownInput({
+  value,
+  onChange,
+  onSubmit,
+  disabled,
+  placeholder,
+  className,
+  autoFocus,
+}: MarkdownInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const highlightRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -539,7 +547,11 @@ export function MarkdownInput({ value, onChange, onSubmit, disabled, placeholder
       {/* Highlight layer - renders colored markdown behind textarea */}
       <div
         ref={highlightRef}
-        className={cn('absolute inset-0 pl-3 pr-14 py-2 pointer-events-none', textClasses, 'overflow-hidden text-foreground')}
+        className={cn(
+          'absolute inset-0 pl-3 pr-14 py-2 pointer-events-none',
+          textClasses,
+          'overflow-hidden text-foreground',
+        )}
         aria-hidden="true"
         dangerouslySetInnerHTML={{ __html: highlightMarkdown(value) }}
       />

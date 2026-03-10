@@ -10,7 +10,7 @@ function StatusIndicator({ status, lastActivity }: { status: Session['status']; 
     return <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-ended text-foreground">ended</span>
   }
   // Active with recent activity (last 4 min) gets a spinning work indicator
-  if (status === 'active' && lastActivity && (Date.now() - lastActivity) < 4 * 60 * 1000) {
+  if (status === 'active' && lastActivity && Date.now() - lastActivity < 4 * 60 * 1000) {
     return (
       <span className="w-3 h-3 shrink-0 flex items-center justify-center" title="working">
         <span className="w-2.5 h-2.5 border-2 border-active border-t-transparent rounded-full animate-spin" />
@@ -19,13 +19,7 @@ function StatusIndicator({ status, lastActivity }: { status: Session['status']; 
   }
   // Server determines idle status via idleTimeoutMinutes setting
   return (
-    <span
-      className={cn(
-        'w-2 h-2 rounded-full shrink-0',
-        status === 'idle' ? 'bg-idle' : 'bg-active',
-      )}
-      title={status}
-    />
+    <span className={cn('w-2 h-2 rounded-full shrink-0', status === 'idle' ? 'bg-idle' : 'bg-active')} title={status} />
   )
 }
 
@@ -111,9 +105,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           >
             {session.id.slice(0, 8)}
           </span>
-          {session.compacting && (
-            <span className="text-[9px] text-amber-400 font-bold animate-pulse">COMPACT</span>
-          )}
+          {session.compacting && <span className="text-[9px] text-amber-400 font-bold animate-pulse">COMPACT</span>}
         </div>
       )}
       {/* Active tasks + pending tasks + subagents + working teammates */}
@@ -195,7 +187,9 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           session.runningBgTaskCount > 0 ||
           session.team) && (
           <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
-            {session.status === 'ended' && <StatusIndicator status={session.status} lastActivity={session.lastActivity} />}
+            {session.status === 'ended' && (
+              <StatusIndicator status={session.status} lastActivity={session.lastActivity} />
+            )}
             {session.pendingTaskCount > 0 && (
               <span
                 className="px-1.5 py-0.5 bg-amber-400/20 text-amber-400 border border-amber-400/50 text-[10px] font-bold cursor-pointer hover:bg-amber-400/30"
@@ -367,7 +361,9 @@ export function SessionList() {
 
   const active = sessions.filter(s => (s.status === 'active' || s.status === 'idle') && matchesFilter(s))
   const activeCwds = new Set(active.map(s => s.cwd))
-  const inactive = sessions.filter(s => s.status !== 'active' && s.status !== 'idle' && !activeCwds.has(s.cwd) && matchesFilter(s))
+  const inactive = sessions.filter(
+    s => s.status !== 'active' && s.status !== 'idle' && !activeCwds.has(s.cwd) && matchesFilter(s),
+  )
 
   const sorted = [...active].sort((a, b) => b.startedAt - a.startedAt)
   const sortedInactive = [...inactive].sort((a, b) => b.startedAt - a.startedAt)
@@ -444,18 +440,17 @@ export function SessionList() {
           show inactive ({new Set(inactive.map(s => s.cwd)).size})
         </label>
       )}
-      {showInactive && (() => {
-        // Group inactive sessions by cwd, render one entry per project
-        const byCwd = new Map<string, Session[]>()
-        for (const s of sortedInactive) {
-          const group = byCwd.get(s.cwd) || []
-          group.push(s)
-          byCwd.set(s.cwd, group)
-        }
-        return Array.from(byCwd.values()).map(group => (
-          <InactiveProjectItem key={group[0].cwd} sessions={group} />
-        ))
-      })()}
+      {showInactive &&
+        (() => {
+          // Group inactive sessions by cwd, render one entry per project
+          const byCwd = new Map<string, Session[]>()
+          for (const s of sortedInactive) {
+            const group = byCwd.get(s.cwd) || []
+            group.push(s)
+            byCwd.set(s.cwd, group)
+          }
+          return Array.from(byCwd.values()).map(group => <InactiveProjectItem key={group[0].cwd} sessions={group} />)
+        })()}
     </div>
   )
 }

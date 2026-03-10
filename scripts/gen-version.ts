@@ -12,8 +12,13 @@ const OUT = join(ROOT, 'src', 'shared', 'version.ts')
 let gitHash = 'unknown'
 let dirty = false
 try {
-  gitHash = execSync('git rev-parse HEAD', { cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'] }).toString().trim()
-  dirty = execSync('git status --porcelain', { cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'] }).toString().trim().length > 0
+  gitHash = execSync('git rev-parse HEAD', { cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'] })
+    .toString()
+    .trim()
+  dirty =
+    execSync('git status --porcelain', { cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'] })
+      .toString()
+      .trim().length > 0
 } catch {
   // No git available (Docker build, CI, etc.)
 }

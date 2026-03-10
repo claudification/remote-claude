@@ -28,13 +28,16 @@ export function EventsView({ events, follow = false, onUserScroll }: EventsViewP
     if (follow) followKilledRef.current = false
   }, [follow])
 
-  const killFollow = useCallback((e: React.WheelEvent | React.TouchEvent) => {
-    if (!follow) return
-    // Reversed list: scroll DOWN (deltaY > 0) = away from newest
-    if ('deltaY' in e && e.deltaY <= 0) return
-    followKilledRef.current = true
-    onUserScroll?.()
-  }, [follow, onUserScroll])
+  const killFollow = useCallback(
+    (e: React.WheelEvent | React.TouchEvent) => {
+      if (!follow) return
+      // Reversed list: scroll DOWN (deltaY > 0) = away from newest
+      if ('deltaY' in e && e.deltaY <= 0) return
+      followKilledRef.current = true
+      onUserScroll?.()
+    },
+    [follow, onUserScroll],
+  )
 
   // Follow mode: scroll to top (newest first) when new data arrives
   const newDataSeq = useSessionsStore(state => state.newDataSeq)

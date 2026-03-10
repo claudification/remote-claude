@@ -4,8 +4,8 @@
  */
 
 import type { SendInput, Session, TeamInfo } from '../shared/protocol'
-import { resolveInJail } from './path-jail'
 import { getGlobalSettings, updateGlobalSettings } from './global-settings'
+import { resolveInJail } from './path-jail'
 import { deleteProjectSettings, getAllProjectSettings, setProjectSettings } from './project-settings'
 import {
   addSubscription,
@@ -947,7 +947,11 @@ export function createApiHandler(options: ApiOptions) {
         // Broadcast settings_updated to all dashboard subscribers
         const json = JSON.stringify({ type: 'settings_updated', settings: result.settings })
         for (const ws of sessionStore.getSubscribers()) {
-          try { ws.send(json) } catch { /* dead socket */ }
+          try {
+            ws.send(json)
+          } catch {
+            /* dead socket */
+          }
         }
         return new Response(JSON.stringify(result), {
           status: 200,

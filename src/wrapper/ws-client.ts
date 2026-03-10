@@ -3,7 +3,6 @@
  * Connects to concentrator with automatic reconnection and offline queuing
  */
 
-import { BUILD_VERSION } from '../shared/version'
 import type {
   ConcentratorMessage,
   FileResponse,
@@ -19,6 +18,7 @@ import type {
   WrapperMessage,
 } from '../shared/protocol'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
+import { BUILD_VERSION } from '../shared/version'
 
 export interface WsClientOptions {
   concentratorUrl?: string

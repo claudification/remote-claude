@@ -10,8 +10,8 @@ import { DEFAULT_CONCENTRATOR_PORT } from '../shared/protocol'
 import { createApiHandler } from './api'
 import { getUser, initAuth, reloadState } from './auth'
 import { getAuthenticatedUser, handleAuthRoute, requireAuth, setRclaudeSecret } from './auth-routes'
-import { addAllowedRoot, addPathMapping, getAllowedRoots } from './path-jail'
 import { initGlobalSettings } from './global-settings'
+import { addAllowedRoot, addPathMapping, getAllowedRoots } from './path-jail'
 import { initProjectSettings } from './project-settings'
 import { initPush, isConfigured as isPushConfigured, sendPushToAll } from './push'
 import { createSessionStore } from './session-store'
@@ -415,14 +415,24 @@ async function main() {
                   if (data.version) existingSession.version = data.version
                   if (data.buildTime) existingSession.buildTime = data.buildTime
                   if (verbose) {
-                    console.log(`[~] Session resumed: ${data.sessionId.slice(0, 8)}... (${data.cwd})${data.version ? ` [${data.version}]` : ''}`)
+                    console.log(
+                      `[~] Session resumed: ${data.sessionId.slice(0, 8)}... (${data.cwd})${data.version ? ` [${data.version}]` : ''}`,
+                    )
                   }
                 } else {
-                  const newSession = sessionStore.createSession(data.sessionId, data.cwd, data.model, data.args, data.capabilities)
+                  const newSession = sessionStore.createSession(
+                    data.sessionId,
+                    data.cwd,
+                    data.model,
+                    data.args,
+                    data.capabilities,
+                  )
                   if (data.version) newSession.version = data.version
                   if (data.buildTime) newSession.buildTime = data.buildTime
                   if (verbose) {
-                    console.log(`[+] Session started: ${data.sessionId.slice(0, 8)}... (${data.cwd})${data.version ? ` [${data.version}]` : ''}`)
+                    console.log(
+                      `[+] Session started: ${data.sessionId.slice(0, 8)}... (${data.cwd})${data.version ? ` [${data.version}]` : ''}`,
+                    )
                   }
                 }
 

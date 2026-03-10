@@ -1,8 +1,7 @@
 import { Bell, BellOff, Cloud, Monitor } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { getPushStatus, subscribeToPush } from '@/hooks/use-sessions'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { getPushStatus, subscribeToPush, useSessionsStore } from '@/hooks/use-sessions'
 
 interface DashboardPrefs {
   showInactiveByDefault: boolean
@@ -66,7 +65,7 @@ function ServerSettings() {
   useEffect(() => {
     if (typeof globalSettings.idleTimeoutMinutes === 'number') return
     fetch('/api/settings')
-      .then(r => r.ok ? r.json() : null)
+      .then(r => (r.ok ? r.json() : null))
       .then(data => {
         if (data) useSessionsStore.setState({ globalSettings: data })
       })

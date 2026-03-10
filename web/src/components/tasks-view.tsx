@@ -63,9 +63,7 @@ function TaskRow({ task, onToggleDesc, expanded }: { task: TaskInfo; onToggleDes
           blocks: {task.blocks.map(id => `#${id}`).join(', ')}
         </div>
       )}
-      {task.owner && (
-        <div className="mt-1 ml-6 text-[10px] text-muted-foreground font-mono">owner: {task.owner}</div>
-      )}
+      {task.owner && <div className="mt-1 ml-6 text-[10px] text-muted-foreground font-mono">owner: {task.owner}</div>}
     </div>
   )
 }

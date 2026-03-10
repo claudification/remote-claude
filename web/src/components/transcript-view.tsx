@@ -376,7 +376,10 @@ function WritePreview({ content, filePath }: { content: string; filePath?: strin
         <code>
           {html.split('\n').map((lineHtml, i) => (
             <div key={i} className="hover:bg-muted/20">
-              <span className="text-muted-foreground/40 select-none inline-block text-right mr-3" style={{ width: `${gutterWidth + 1}ch` }}>
+              <span
+                className="text-muted-foreground/40 select-none inline-block text-right mr-3"
+                style={{ width: `${gutterWidth + 1}ch` }}
+              >
                 {i + 1}
               </span>
               <span dangerouslySetInnerHTML={{ __html: lineHtml }} />
@@ -387,7 +390,10 @@ function WritePreview({ content, filePath }: { content: string; filePath?: strin
         <code className="text-foreground/70">
           {lines.map((line, i) => (
             <div key={i} className="hover:bg-muted/20">
-              <span className="text-muted-foreground/40 select-none inline-block text-right mr-3" style={{ width: `${gutterWidth + 1}ch` }}>
+              <span
+                className="text-muted-foreground/40 select-none inline-block text-right mr-3"
+                style={{ width: `${gutterWidth + 1}ch` }}
+              >
                 {i + 1}
               </span>
               {line}
@@ -676,7 +682,11 @@ function ToolLine({
         <JsonInspector title={name} data={input} result={result} extra={toolUseResult} />
       </div>
       {details && (
-        <Collapsible id={tool.id ? `tool-${tool.id}` : undefined} label="output" defaultOpen={name === 'Edit' || name === 'Write'}>
+        <Collapsible
+          id={tool.id ? `tool-${tool.id}` : undefined}
+          label="output"
+          defaultOpen={name === 'Edit' || name === 'Write'}
+        >
           {details}
         </Collapsible>
       )}
@@ -750,7 +760,11 @@ function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
     // Compaction markers - break group chain and insert as-is
     if (entry.type === 'compacting' || entry.type === 'compacted') {
       current = null
-      groups.push({ type: entry.type as 'compacting' | 'compacted', timestamp: entry.timestamp || '', entries: [entry] })
+      groups.push({
+        type: entry.type as 'compacting' | 'compacted',
+        timestamp: entry.timestamp || '',
+        entries: [entry],
+      })
       continue
     }
 
@@ -771,11 +785,15 @@ function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
 
     // Convert task-notification messages into system groups, skip system-reminders
     if (entry.type === 'user') {
-      const textContent = typeof content === 'string'
-        ? content
-        : Array.isArray(content)
-          ? content.filter(c => c.type === 'text').map(c => c.text).join('')
-          : ''
+      const textContent =
+        typeof content === 'string'
+          ? content
+          : Array.isArray(content)
+            ? content
+                .filter(c => c.type === 'text')
+                .map(c => c.text)
+                .join('')
+            : ''
       if (textContent.includes('<system-reminder>')) continue
       if (textContent.includes('<task-notification>')) {
         const notifications = parseTaskNotifications(textContent)
@@ -824,10 +842,7 @@ function TaskNotificationLine({ notification: n, time }: { notification: TaskNot
     <div>
       <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
         <span className="text-[10px]">{time}</span>
-        <span className={cn(
-          'w-1.5 h-1.5 rounded-full shrink-0',
-          isCompleted ? 'bg-emerald-400' : 'bg-red-400',
-        )} />
+        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', isCompleted ? 'bg-emerald-400' : 'bg-red-400')} />
         <span className="truncate flex-1">{n.summary}</span>
         {n.result && (
           <button
@@ -1007,9 +1022,7 @@ function CompactedDivider() {
 function CompactingBanner() {
   return (
     <div className="my-4 flex items-center gap-2 px-3 py-2 bg-amber-400/10 border border-amber-400/30 animate-pulse">
-      <div
-        className="w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"
-      />
+      <div className="w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
       <span className="text-[11px] font-mono font-bold text-amber-400 uppercase tracking-wider">
         Compacting context...
       </span>
@@ -1045,12 +1058,15 @@ export function TranscriptView({ entries, follow = false, showThinking = false, 
   }, [follow])
 
   // Kill follow on user interaction (wheel/touch are never fired by programmatic scrollTo)
-  const killFollow = useCallback((e: React.WheelEvent | React.TouchEvent) => {
-    if (!follow) return
-    if ('deltaY' in e && e.deltaY >= 0) return
-    followKilledRef.current = true
-    onUserScroll?.()
-  }, [follow, onUserScroll])
+  const killFollow = useCallback(
+    (e: React.WheelEvent | React.TouchEvent) => {
+      if (!follow) return
+      if ('deltaY' in e && e.deltaY >= 0) return
+      followKilledRef.current = true
+      onUserScroll?.()
+    },
+    [follow, onUserScroll],
+  )
 
   // Follow mode: scroll to bottom on new data OR initial load
   const newDataSeq = useSessionsStore(state => state.newDataSeq)
