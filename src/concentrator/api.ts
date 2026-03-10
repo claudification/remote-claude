@@ -5,6 +5,7 @@
 
 import type { SendInput, Session, TeamInfo } from '../shared/protocol'
 import { resolveInJail } from './path-jail'
+import { getGlobalSettings, updateGlobalSettings } from './global-settings'
 import { deleteProjectSettings, getAllProjectSettings, setProjectSettings } from './project-settings'
 import {
   addSubscription,
@@ -919,6 +920,36 @@ export function createApiHandler(options: ApiOptions) {
         }
         deleteProjectSettings(body.cwd)
         return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      } catch (error) {
+        return new Response(JSON.stringify({ error: `Failed: ${error}` }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    // GET /api/settings - get global settings + schema
+    if (req.method === 'GET' && path === '/api/settings') {
+      return new Response(JSON.stringify(getGlobalSettings()), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    // POST /api/settings - update global settings (soft-fail validation)
+    if (req.method === 'POST' && path === '/api/settings') {
+      try {
+        const body = await req.json()
+        const result = updateGlobalSettings(body)
+        // Broadcast settings_updated to all dashboard subscribers
+        const json = JSON.stringify({ type: 'settings_updated', settings: result.settings })
+        for (const ws of sessionStore.getSubscribers()) {
+          try { ws.send(json) } catch { /* dead socket */ }
+        }
+        return new Response(JSON.stringify(result), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         })

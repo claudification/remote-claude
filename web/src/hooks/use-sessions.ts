@@ -24,6 +24,7 @@ interface SessionsState {
   transcripts: Record<string, TranscriptEntry[]>
   tasks: Record<string, TaskInfo[]>
   projectSettings: ProjectSettingsMap
+  globalSettings: Record<string, unknown>
   isConnected: boolean
   agentConnected: boolean
   error: string | null
@@ -93,6 +94,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   transcripts: {},
   tasks: {},
   projectSettings: {},
+  globalSettings: {},
   isConnected: false,
   agentConnected: false,
   error: null,

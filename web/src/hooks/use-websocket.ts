@@ -66,6 +66,8 @@ interface DashboardMessage {
   isInitial?: boolean
   // Task updates
   tasks?: TaskInfo[]
+  // Settings updates
+  settings?: Record<string, unknown>
 }
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
@@ -236,6 +238,12 @@ export function useWebSocket() {
             case 'agent_status': {
               if (msg.connected !== undefined) {
                 setAgentConnected(msg.connected)
+              }
+              break
+            }
+            case 'settings_updated': {
+              if (msg.settings) {
+                useSessionsStore.setState({ globalSettings: msg.settings as Record<string, unknown> })
               }
               break
             }

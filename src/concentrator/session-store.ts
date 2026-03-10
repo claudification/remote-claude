@@ -16,7 +16,7 @@ import type {
   TranscriptEntry,
   WrapperCapability,
 } from '../shared/protocol'
-import { IDLE_TIMEOUT_MS } from '../shared/protocol'
+import { getGlobalSettings } from './global-settings'
 
 const DEFAULT_CACHE_DIR = join(homedir(), '.cache', 'concentrator')
 const CACHE_FILENAME = 'sessions.json'
@@ -246,7 +246,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     for (const session of sessions.values()) {
       let changed = false
 
-      if (session.status === 'active' && now - session.lastActivity > IDLE_TIMEOUT_MS) {
+      const idleTimeoutMs = getGlobalSettings().idleTimeoutMinutes * 60 * 1000
+      if (session.status === 'active' && now - session.lastActivity > idleTimeoutMs) {
         session.status = 'idle'
         changed = true
       }

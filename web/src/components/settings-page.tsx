@@ -1,7 +1,8 @@
-import { Bell, BellOff } from 'lucide-react'
+import { Bell, BellOff, Cloud, Monitor } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { getPushStatus, subscribeToPush } from '@/hooks/use-sessions'
+import { useSessionsStore } from '@/hooks/use-sessions'
 
 interface DashboardPrefs {
   showInactiveByDefault: boolean
@@ -37,6 +38,96 @@ export function usePrefs() {
   return { prefs, update }
 }
 
+function SectionLabel({ icon: Icon, label, hint }: { icon: typeof Cloud; label: string; hint: string }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+      <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{label}</h3>
+      <span className="text-[9px] text-muted-foreground/60 font-mono">{hint}</span>
+    </div>
+  )
+}
+
+function ServerSettings() {
+  const globalSettings = useSessionsStore(s => s.globalSettings)
+  const [idleTimeout, setIdleTimeout] = useState<number>(10)
+  const [saving, setSaving] = useState(false)
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => {
+    const val = globalSettings.idleTimeoutMinutes
+    if (typeof val === 'number') {
+      setIdleTimeout(val)
+      setDirty(false)
+    }
+  }, [globalSettings.idleTimeoutMinutes])
+
+  // Fetch on mount if not yet populated
+  useEffect(() => {
+    if (typeof globalSettings.idleTimeoutMinutes === 'number') return
+    fetch('/api/settings')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) useSessionsStore.setState({ globalSettings: data })
+      })
+      .catch(() => {})
+  }, [])
+
+  async function saveServerSettings() {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idleTimeoutMinutes: idleTimeout }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        useSessionsStore.setState({ globalSettings: data.settings })
+        setDirty(false)
+      }
+    } catch {}
+    setSaving(false)
+  }
+
+  return (
+    <section className="mb-6">
+      <SectionLabel icon={Cloud} label="Server" hint="shared across all clients" />
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm text-foreground">Idle timeout</div>
+            <div className="text-[10px] text-muted-foreground">Minutes before active session is marked idle</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={120}
+              value={idleTimeout}
+              onChange={e => {
+                setIdleTimeout(Number(e.target.value))
+                setDirty(true)
+              }}
+              className="w-16 px-2 py-1 text-xs font-mono bg-muted border border-border text-foreground text-right"
+            />
+            {dirty && (
+              <button
+                type="button"
+                onClick={saveServerSettings}
+                disabled={saving}
+                className="px-2 py-1 text-[10px] font-mono border border-active/50 text-active hover:bg-active/20 transition-colors"
+              >
+                {saving ? '...' : 'Save'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { prefs, update } = usePrefs()
   const [pushState, setPushState] = useState<
@@ -65,9 +156,43 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       <DialogContent className="max-w-md">
         <DialogTitle className="uppercase tracking-wider mb-6">Settings</DialogTitle>
 
-        {/* Push Notifications */}
+        {/* Server settings */}
+        <ServerSettings />
+
+        {/* Client-side display settings */}
         <section className="mb-6">
-          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Notifications</h3>
+          <SectionLabel icon={Monitor} label="Display" hint="this browser only" />
+          <div className="space-y-3">
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <div className="text-sm text-foreground">Show inactive sessions</div>
+                <div className="text-[10px] text-muted-foreground">Show ended sessions in sidebar by default</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={prefs.showInactiveByDefault}
+                onChange={e => update({ showInactiveByDefault: e.target.checked })}
+                className="accent-primary w-4 h-4"
+              />
+            </label>
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <div className="text-sm text-foreground">Compact mode</div>
+                <div className="text-[10px] text-muted-foreground">Reduce spacing in session list</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={prefs.compactMode}
+                onChange={e => update({ compactMode: e.target.checked })}
+                className="accent-primary w-4 h-4"
+              />
+            </label>
+          </div>
+        </section>
+
+        {/* Notifications - client-side */}
+        <section className="mb-6">
+          <SectionLabel icon={Bell} label="Notifications" hint="this browser only" />
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
@@ -97,37 +222,6 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 {pushState === 'prompt' && 'Enable'}
               </button>
             </div>
-          </div>
-        </section>
-
-        {/* Display */}
-        <section className="mb-6">
-          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Display</h3>
-          <div className="space-y-3">
-            <label className="flex items-center justify-between cursor-pointer">
-              <div>
-                <div className="text-sm text-foreground">Show inactive sessions</div>
-                <div className="text-[10px] text-muted-foreground">Show ended sessions in sidebar by default</div>
-              </div>
-              <input
-                type="checkbox"
-                checked={prefs.showInactiveByDefault}
-                onChange={e => update({ showInactiveByDefault: e.target.checked })}
-                className="accent-primary w-4 h-4"
-              />
-            </label>
-            <label className="flex items-center justify-between cursor-pointer">
-              <div>
-                <div className="text-sm text-foreground">Compact mode</div>
-                <div className="text-[10px] text-muted-foreground">Reduce spacing in session list</div>
-              </div>
-              <input
-                type="checkbox"
-                checked={prefs.compactMode}
-                onChange={e => update({ compactMode: e.target.checked })}
-                className="accent-primary w-4 h-4"
-              />
-            </label>
           </div>
         </section>
 

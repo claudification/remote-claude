@@ -438,4 +438,5 @@ export interface AgentStatus {
 export const DEFAULT_CONCENTRATOR_URL = 'ws://localhost:9999'
 export const DEFAULT_CONCENTRATOR_PORT = 9999
 export const HEARTBEAT_INTERVAL_MS = 30000
-export const IDLE_TIMEOUT_MS = 60000
+// Idle timeout is now configured via global settings (idleTimeoutMinutes)
+// Server evaluates idle status - clients trust session.status
