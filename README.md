@@ -112,8 +112,81 @@ Session cookies are HMAC-SHA256 signed. The signing secret is auto-generated and
 
 ### Push Notifications
 
-PWA push notifications when Claude needs your attention. Works on mobile browsers. Subscribe
-from the settings panel, get notified when sessions are waiting for input.
+PWA push notifications when Claude needs your attention. Works on mobile browsers -- get
+notified when sessions are waiting for input even when the tab is closed or your phone is
+locked.
+
+**Setup:** Generate VAPID keys and add them to your `.env`:
+
+```bash
+# Generate keys
+npx web-push generate-vapid-keys
+
+# Add to .env
+VAPID_PUBLIC_KEY=BPxr...your-public-key
+VAPID_PRIVATE_KEY=abc...your-private-key
+```
+
+Restart the concentrator, then open Settings in the dashboard and click **Enable** under
+Notifications. Your browser will ask for notification permission -- accept it, and you're
+done. Each browser/device subscribes independently.
+
+VAPID keys are NOT derived from `RCLAUDE_SECRET` -- they're a separate keypair used
+exclusively for the Web Push protocol. Generate them once, keep them forever.
+
+**Automatic triggers:** The concentrator sends push notifications automatically when:
+- A session fires a `Notification` hook (Claude needs input)
+- A session fires a `Stop` hook (Claude stopped working)
+
+**Send notifications from scripts/hooks:** Use the REST API to push from anywhere --
+CI pipelines, cron jobs, Claude Code hooks, or your own tooling:
+
+```bash
+curl -X POST https://concentrator.example.com/api/push/send \
+  -H "Authorization: Bearer $RCLAUDE_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Build complete", "body": "Deploy finished in 42s"}'
+```
+
+**CLAUDE.md tip:** Add this to your project's `CLAUDE.md` so Claude can notify you
+when it finishes long-running tasks, deploys, or hits errors:
+
+```markdown
+## Push Notifications
+
+Send me a push notification through the concentrator when you complete
+significant work, encounter errors, or finish long-running tasks.
+
+### curl
+\`\`\`bash
+curl -s -X POST $RCLAUDE_CONCENTRATOR_URL/api/push/send \
+  -H "Authorization: Bearer $RCLAUDE_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Deploy complete", "body": "Production build deployed in 42s"}'
+\`\`\`
+
+### Examples of when to notify:
+- Build/deploy finished (or failed)
+- Long test suite completed
+- Task list fully cleared
+- Error that needs my attention
+- Waiting for my input on something important
+```
+
+Replace `$RCLAUDE_CONCENTRATOR_URL` with your actual concentrator URL
+(e.g. `https://concentrator.example.com`). The `$RCLAUDE_SECRET` env var
+is already available in Claude's shell when running under `rclaude`.
+
+**API reference:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | string | Notification title (required if no body) |
+| `body` | string | Notification body (required if no title) |
+| `sessionId` | string | Optional - links notification to a session |
+| `tag` | string | Optional - dedup key (same tag replaces previous) |
+
+Auth: `Bearer` token must match your `RCLAUDE_SECRET`.
 
 ### Session Revival
 
@@ -509,6 +582,15 @@ curl http://localhost:9999/api/project-settings
 curl -X PUT http://localhost:9999/api/project-settings \
   -H "Content-Type: application/json" \
   -d '{"cwd": "/home/user/project", "label": "My API", "icon": "rocket", "color": "#ff6600"}'
+
+# Push notifications (requires RCLAUDE_SECRET as Bearer token)
+curl -X POST http://localhost:9999/api/push/send \
+  -H "Authorization: Bearer $RCLAUDE_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Hello", "body": "Test notification", "tag": "test"}'
+
+# Get VAPID public key (for browser push subscription)
+curl http://localhost:9999/api/push/vapid
 ```
 
 ## Shell Integration
