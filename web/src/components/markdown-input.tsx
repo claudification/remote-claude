@@ -548,7 +548,7 @@ export function MarkdownInput({
       <div
         ref={highlightRef}
         className={cn(
-          'absolute inset-0 pl-3 pr-14 py-2 pointer-events-none',
+          'absolute inset-0 pl-3 pr-14 py-2 pointer-events-none border border-transparent',
           textClasses,
           'overflow-hidden text-foreground',
         )}
