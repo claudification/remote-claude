@@ -6,36 +6,119 @@
 /_/   \___/_/ /_/ /_/\____/\__/\___/   \___/_/\__,_/\__,_/\__,_/\___/
 
         ┌─────────────────────────────────────────────────────┐
-        │  DISTRIBUTED SESSION MONITORING FOR CLAUDE CODE     │
+        │  SESSION MONITORING + REMOTE CONTROL FOR CLAUDE CODE │
         └─────────────────────────────────────────────────────┘
 ```
 
-# remote-claude
+> **We're looking for a new name.** The current working title is `remote-claude` but it deserves
+> something with more personality. See [NAMES.md](NAMES.md) for the candidate list -- favorites
+> include **CLAUDVOYANT**, **THUNDERCLAUDE**, **CLAUDWERK**, and **PANOPTOCLAUDE**.
+> Suggestions welcome.
 
-**Aggregate and monitor multiple Claude Code sessions from a single dashboard.**
+---
 
-Run Claude Code in multiple terminals, on multiple machines - see all sessions in one place, send input remotely, open a web terminal, and never lose track of what your AI is doing.
+## What is this?
 
-## Features
+**remote-claude** turns Claude Code from a local-only CLI tool into a remotely accessible,
+multi-machine AI workstation you can monitor and control from anywhere.
 
-- **Multi-session monitoring** - See all Claude Code sessions across terminals and machines
-- **Real-time event streaming** - Watch tool calls, prompts, and responses live
-- **Transcript streaming** - Full conversation history streamed over WebSocket (no filesystem sharing needed)
-- **Remote input** - Markdown-capable input with file upload (paste/drag-drop images)
-- **Web terminal** - Full xterm.js terminal with popout windows (shift+click TTY badge)
-- **Syntax-highlighted diffs** - Shiki-powered diff rendering in transcript view
-- **Sub-agent tracking** - Visualize spawned agents, their types, and lifecycle
-- **Background task tracking** - See running Bash commands and task lists per session
-- **Team detection** - See which sessions are part of coordinated teams
-- **Project settings** - Custom label, icon, and color per project path
-- **Push notifications** - PWA push notifications when sessions need attention
-- **Session revival** - Revive idle sessions via host agent + tmux
-- **Passkey authentication** - WebAuthn passkeys, CLI-only invite creation, no passwords
-- **Session persistence** - Sessions survive concentrator restarts
-- **Session resume** - Resumed Claude sessions show as the same session
-- **Docker-ready** - Dockerfile + compose, no host filesystem access needed
-- **Frontend hot-reload** - Volume-mounted web assets, rebuild without restarting container
-- **Mobile-friendly UI** - Responsive design with Tokyo Night color scheme
+Run `rclaude` instead of `claude`. It wraps the CLI with a PTY, injects hooks, and streams
+everything -- events, transcripts, terminal I/O, tasks, sub-agents -- over a single WebSocket
+to a central server. Open the dashboard on your phone, your iPad, a borrowed laptop, whatever.
+Your Claude sessions are right there, live, with full interactive terminal access.
+
+**The killer feature: tunnel a real TTY to your running Claude session over the web.** Not a
+log viewer. Not a read-only transcript. A full interactive terminal -- xterm.js backed by the
+actual PTY process on your host machine. Type commands, approve tool calls, paste code, resize
+the window. It's your terminal, streamed through a WebSocket tunnel to any browser on any device.
+
+Sitting on the couch with your iPad? Open the dashboard, tap your session, hit the TTY button.
+You're in. Full terminal. Same session your desktop started. On a friend's laptop and need to
+check on a long-running Claude task? Log in with your passkey, open the terminal, and you're
+there. No SSH keys to configure, no VPN to connect, no port forwarding to set up.
+
+## Why does this exist?
+
+Claude Code is incredible but it's trapped in your terminal. You start a big task, walk away,
+and have no idea what happened until you come back to the same machine, the same terminal, the
+same tmux session. If you're running Claude on multiple projects across multiple machines,
+there's no way to see all of them in one place.
+
+This fixes that. All of it.
+
+## What makes it awesome
+
+### Live Terminal Over the Web
+
+Full xterm.js terminal tunneled through WebSocket to your host's PTY. Not a simulation -- the
+real terminal, with all its state, colors, cursor position, and scroll buffer. Works on phones,
+tablets, laptops, anything with a browser. Popout to a separate window with Shift+click. Multiple
+terminal themes (Dracula, Tokyo Night, Monokai, etc.), adjustable fonts, touch-friendly toolbar
+with Ctrl+C, paste, and copy buttons.
+
+### Real-Time Session Dashboard
+
+Watch Claude work in real-time from anywhere. Full transcript with syntax-highlighted code blocks
+(Shiki), inline images, markdown rendering, and diff visualization. See every tool call as it
+happens -- Bash commands, file reads, edits, grep results -- with expandable input/output details.
+Auto-follow mode scrolls with new content; scroll up to pause, scroll back down to resume.
+
+### Multi-Machine Aggregation
+
+Run Claude on your desktop, your server, your CI runner -- all sessions stream to one concentrator.
+The dashboard shows them all, grouped by project, with custom labels, icons, and colors. Switch
+between sessions instantly with Ctrl+K (QuickSilver-style fuzzy finder). Never lose track of
+what's running where.
+
+### Sub-Agent & Team Tracking
+
+Claude spawns background agents? You see them. Live status badges show running/completed state,
+event counts, and elapsed time directly in the transcript. Click into any agent to see its full
+transcript. Team sessions (multi-agent coordination) show teammate status, current tasks, and
+completion progress.
+
+### Task & Background Process Monitoring
+
+All tasks (pending, in-progress, completed) visible in a dedicated tab with blocking relationships
+and owner assignments. Background Bash processes tracked with their commands, descriptions, and
+run times. Archived tasks grouped by date for history.
+
+### File Editor
+
+Browse and edit markdown files in your session's working directory directly from the dashboard.
+CodeMirror-powered editor with syntax highlighting, version history, conflict detection (file
+changed on disk while you were editing), and one-click restore. Quick notes (Ctrl+Shift+N) append
+to a NOTES.md in the project root.
+
+### Passkey-Only Authentication
+
+No passwords. No API tokens. No self-registration. WebAuthn passkeys only.
+
+New users can ONLY be created through CLI-generated invite codes -- there is no web-based
+registration. You run `concentrator-cli create-invite --name someone` on the server, it prints
+a one-time link, they register their passkey, done. This means an attacker with access to the
+web interface alone cannot create accounts. The invite flow requires server-side CLI access.
+
+Session cookies are HMAC-SHA256 signed. The signing secret is auto-generated and stored with
+0600 permissions. Revoked users are blocked immediately.
+
+### Push Notifications
+
+PWA push notifications when Claude needs your attention. Works on mobile browsers. Subscribe
+from the settings panel, get notified when sessions are waiting for input.
+
+### Session Revival
+
+Session went idle? Revive it from the dashboard. The host agent (`rclaude-agent`) listens for
+revive commands and spawns a new tmux session with `rclaude --resume`, reconnecting your Claude
+session without touching the host machine.
+
+### Project Customization
+
+Label your projects, pick icons (50+ Lucide icons), set colors. The sidebar and session switcher
+show your custom branding. Settings persist on the server, shared across all dashboard clients.
+
+---
 
 ## Architecture
 
@@ -63,7 +146,22 @@ graph LR
     browser[Browser] -->|HTTP/WS| conc
 ```
 
-**Data flow:** rclaude wraps the `claude` CLI with a PTY, injects hooks, and streams everything (events, transcripts, tasks, terminal output) to the concentrator over a single WebSocket. The concentrator stores sessions in memory, persists to disk, and serves the dashboard. No filesystem sharing between host and Docker.
+**Data flow:** rclaude wraps the `claude` CLI with a PTY, injects hooks, and streams everything
+(events, transcripts, tasks, terminal output) to the concentrator over a single WebSocket. The
+concentrator stores sessions in memory, persists to disk, and serves the dashboard. No filesystem
+sharing between host and Docker.
+
+**Components:**
+
+| Component | What it does |
+|-----------|-------------|
+| **rclaude** | CLI wrapper. Spawns claude with PTY, injects hooks, streams to concentrator |
+| **concentrator** | Central server. HTTP + WS + WebAuthn auth. Runs in Docker |
+| **dashboard** | React SPA. Vite + Tailwind + Zustand. Served by concentrator |
+| **rclaude-agent** | Host-side agent. Listens for revive commands, spawns tmux sessions |
+| **concentrator-cli** | CLI for auth management. Create invites, list/revoke users |
+
+---
 
 ## Quick Start
 
@@ -293,6 +391,17 @@ docker exec concentrator concentrator-cli unrevoke --name rehabilitated
 - Session cookies last 7 days, then re-authentication is required
 - Auth state is stored in the cache directory (`auth.json`, mode 0600)
 
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+K` | Session switcher (fuzzy finder) |
+| `Ctrl+K` then `F:` | File picker (browse .md files in session) |
+| `Ctrl+Shift+N` | Quick note (append to NOTES.md) |
+| `Ctrl+Shift+T` | Open terminal for current session |
+| `Shift+click` TTY badge | Popout terminal to separate window |
+| `Esc` | Close modal / exit file picker |
+
 ## CLI Reference
 
 ### rclaude
@@ -386,10 +495,6 @@ curl http://localhost:9999/sessions/:id/tasks
 curl -X POST http://localhost:9999/sessions/:id/input \
   -H "Content-Type: application/json" \
   -d '{"input": "hello world"}'
-
-# Upload a file (returns URL for use in input)
-curl -X POST http://localhost:9999/api/files \
-  -F "file=@screenshot.png"
 
 # Project settings (label/icon/color per project path)
 curl http://localhost:9999/api/project-settings
@@ -538,6 +643,7 @@ cc                           # auto-creates tmux session "my-api"
 | `Notification` | System notification |
 | `SubagentStart` | Spawned a sub-agent |
 | `SubagentStop` | Sub-agent completed |
+| `PreCompact` | Context window compaction started |
 | `TeammateIdle` | Team member waiting for work |
 | `TaskCompleted` | Task finished in team context |
 
@@ -556,6 +662,7 @@ remote-claude/
 │   │   ├── pty-spawn.ts      # PTY subprocess management
 │   │   ├── ws-client.ts      # WebSocket client with reconnection
 │   │   ├── transcript-watcher.ts  # JSONL file watcher (chokidar)
+│   │   ├── file-editor.ts    # File operations for dashboard editor
 │   │   ├── local-server.ts   # Hook callback receiver
 │   │   └── settings-merge.ts # Claude settings injection
 │   ├── concentrator/         # Server implementation
@@ -575,7 +682,10 @@ remote-claude/
 │       ├── components/       # UI components
 │       │   ├── web-terminal.tsx      # xterm.js remote terminal
 │       │   ├── transcript-view.tsx   # Shiki-highlighted transcript
-│       │   ├── markdown-input.tsx    # Markdown editor with file upload
+│       │   ├── session-switcher.tsx  # Ctrl+K fuzzy finder + file picker
+│       │   ├── file-editor.tsx       # CodeMirror markdown editor
+│       │   ├── markdown-input.tsx    # Input with syntax overlay + file upload
+│       │   ├── subagent-view.tsx     # Agent list + transcript viewer
 │       │   └── ...
 │       ├── hooks/            # React hooks + Zustand stores
 │       └── styles/           # Tokyo Night theme
@@ -584,7 +694,7 @@ remote-claude/
 ├── docker-compose.yml        # Production (caddy-docker-proxy)
 ├── docker-compose.standalone.yml  # Standalone deployment
 ├── Caddyfile.example         # Caddy config template
-└── .env.example              # Configuration template
+└── NAMES.md                  # Name candidates (we need a better name)
 ```
 
 ## Development
@@ -597,6 +707,9 @@ bun run dev:web                  # Web dashboard (Vite dev server)
 
 # Type check
 bun run typecheck
+
+# Lint + format
+bunx biome check --write .
 
 # Build everything
 bun run build
@@ -629,8 +742,11 @@ rclaude authenticates to the concentrator with a shared secret (`RCLAUDE_SECRET`
 - **Backend**: TypeScript, WebSocket, REST API
 - **Auth**: WebAuthn / FIDO2 passkeys via [@simplewebauthn](https://simplewebauthn.dev/)
 - **Frontend**: React 19, Vite 7, Tailwind CSS v4, shadcn/ui
-- **Terminal**: [xterm.js](https://xtermjs.org/) with fit addon
-- **Syntax**: [Shiki](https://shiki.matsu.io/) for diff/code highlighting
+- **State**: [Zustand](https://github.com/pmndrs/zustand) for reactive stores
+- **Terminal**: [xterm.js](https://xtermjs.org/) with WebGL renderer + fit addon
+- **Editor**: [CodeMirror](https://codemirror.net/) for file editing
+- **Syntax**: [Shiki](https://shiki.matsu.io/) for code/diff highlighting
+- **Virtualization**: [@tanstack/react-virtual](https://tanstack.com/virtual) for large transcript lists
 - **File watching**: [chokidar](https://github.com/paulmillr/chokidar) for cross-platform JSONL streaming
 - **Push**: Web Push API with VAPID
 - **Theme**: Tokyo Night color palette
