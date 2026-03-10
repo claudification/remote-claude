@@ -1078,9 +1078,10 @@ interface TranscriptViewProps {
   follow?: boolean
   showThinking?: boolean
   onUserScroll?: () => void
+  onReachedBottom?: () => void
 }
 
-export function TranscriptView({ entries, follow = false, showThinking = false, onUserScroll }: TranscriptViewProps) {
+export function TranscriptView({ entries, follow = false, showThinking = false, onUserScroll, onReachedBottom }: TranscriptViewProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   // Ref kills the scroll timer synchronously (before React re-renders)
   const followKilledRef = useRef(false)
@@ -1110,6 +1111,19 @@ export function TranscriptView({ entries, follow = false, showThinking = false, 
     },
     [follow, onUserScroll],
   )
+
+  // Re-engage follow when user manually scrolls to the bottom
+  useEffect(() => {
+    const el = parentRef.current
+    if (!el || follow) return
+    function handleScroll() {
+      if (!el) return
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30
+      if (atBottom) onReachedBottom?.()
+    }
+    el.addEventListener('scroll', handleScroll, { passive: true })
+    return () => el.removeEventListener('scroll', handleScroll)
+  }, [follow, onReachedBottom])
 
   // Follow mode: scroll to bottom on new data OR initial load
   const newDataSeq = useSessionsStore(state => state.newDataSeq)

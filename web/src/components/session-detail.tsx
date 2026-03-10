@@ -641,13 +641,14 @@ export function SessionDetail() {
                 follow={follow}
                 showThinking={showThinking}
                 onUserScroll={disableFollow}
+                onReachedBottom={enableFollow}
               />
               {!follow && transcript.length > 0 && <ScrollToBottomButton onClick={enableFollow} />}
             </div>
           )}
           {activeTab === 'events' && (
             <div className="flex-1 min-h-0 overflow-hidden relative">
-              <EventsView key={selectedSessionId} events={events} follow={follow} onUserScroll={disableFollow} />
+              <EventsView key={selectedSessionId} events={events} follow={follow} onUserScroll={disableFollow} onReachedTop={enableFollow} />
               {!follow && events.length > 0 && <ScrollToBottomButton onClick={enableFollow} label="scroll to top" />}
             </div>
           )}
