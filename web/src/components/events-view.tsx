@@ -8,9 +8,10 @@ interface EventsViewProps {
   events: HookEvent[]
   follow?: boolean
   onUserScroll?: () => void
+  onReachedTop?: () => void
 }
 
-export function EventsView({ events, follow = false, onUserScroll }: EventsViewProps) {
+export function EventsView({ events, follow = false, onUserScroll, onReachedTop }: EventsViewProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   const followKilledRef = useRef(false)
 
@@ -38,6 +39,18 @@ export function EventsView({ events, follow = false, onUserScroll }: EventsViewP
     },
     [follow, onUserScroll],
   )
+
+  // Re-engage follow when user manually scrolls to the top (newest = top in reversed list)
+  useEffect(() => {
+    const el = parentRef.current
+    if (!el || follow) return
+    function handleScroll() {
+      if (!el) return
+      if (el.scrollTop < 30) onReachedTop?.()
+    }
+    el.addEventListener('scroll', handleScroll, { passive: true })
+    return () => el.removeEventListener('scroll', handleScroll)
+  }, [follow, onReachedTop])
 
   // Follow mode: scroll to top (newest first) when new data arrives
   const newDataSeq = useSessionsStore(state => state.newDataSeq)
