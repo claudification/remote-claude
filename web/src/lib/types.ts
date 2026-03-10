@@ -32,6 +32,11 @@ export interface TaskInfo {
   updatedAt: number
 }
 
+export interface ArchivedTaskGroup {
+  archivedAt: number
+  tasks: TaskInfo[]
+}
+
 export interface BgTaskSummary {
   taskId: string
   command: string
@@ -67,6 +72,7 @@ export interface Session {
   pendingTaskCount: number
   activeTasks: Array<{ id: string; subject: string }>
   pendingTasks: Array<{ id: string; subject: string }>
+  archivedTaskCount?: number
   runningBgTaskCount: number
   bgTasks: BgTaskSummary[]
   teammates: Array<{

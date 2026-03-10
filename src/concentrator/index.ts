@@ -581,7 +581,7 @@ async function main() {
                 const sessionId = ws.data.sessionId || data.sessionId
                 if (sessionId) {
                   sessionStore.updateTasks(sessionId, data.tasks || [])
-                  // Forward full task list to dashboard subscribers
+                  // Forward active task list to dashboard subscribers (archived fetched on demand)
                   const taskMsg = JSON.stringify({ type: 'tasks_update', sessionId, tasks: data.tasks || [] })
                   for (const sub of sessionStore.getSubscribers()) {
                     try {

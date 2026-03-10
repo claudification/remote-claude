@@ -31,6 +31,7 @@ interface SessionSummary {
   pendingTaskCount?: number
   activeTasks?: Array<{ id: string; subject: string }>
   pendingTasks?: Array<{ id: string; subject: string }>
+  archivedTaskCount?: number
   runningBgTaskCount?: number
   bgTasks?: Array<{
     taskId: string
@@ -99,6 +100,7 @@ export function useWebSocket() {
       pendingTaskCount: summary.pendingTaskCount ?? 0,
       activeTasks: summary.activeTasks ?? [],
       pendingTasks: summary.pendingTasks ?? [],
+      archivedTaskCount: summary.archivedTaskCount ?? 0,
       runningBgTaskCount: summary.runningBgTaskCount ?? 0,
       bgTasks: summary.bgTasks ?? [],
       teammates: summary.teammates ?? [],

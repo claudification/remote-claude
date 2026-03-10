@@ -64,6 +64,7 @@ export interface SessionSummary {
   pendingTaskCount: number
   activeTasks: Array<{ id: string; subject: string }>
   pendingTasks: Array<{ id: string; subject: string }>
+  archivedTaskCount: number
   runningBgTaskCount: number
   bgTasks: Array<{
     taskId: string
@@ -199,6 +200,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         .filter(t => t.status === 'pending')
         .slice(0, 4)
         .map(t => ({ id: t.id, subject: t.subject })),
+      archivedTaskCount: session.archivedTasks.reduce((sum, g) => sum + g.tasks.length, 0),
       runningBgTaskCount: session.bgTasks.filter(t => t.status === 'running').length,
       bgTasks: session.bgTasks.map(t => ({
         taskId: t.taskId,
@@ -304,6 +306,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
             stoppedAt: a.stoppedAt || a.startedAt,
           })),
           tasks: (sessionData as any).tasks || [],
+          archivedTasks: (sessionData as any).archivedTasks || [],
           bgTasks: ((sessionData as any).bgTasks || []).map((t: any) => ({
             ...t,
             status: t.status === 'running' ? 'completed' : t.status,
@@ -347,6 +350,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         eventCount: s.events.length,
         subagents: s.subagents,
         tasks: s.tasks,
+        archivedTasks: s.archivedTasks,
         bgTasks: s.bgTasks,
         teammates: s.teammates,
         team: s.team,
@@ -398,6 +402,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       events: [],
       subagents: [],
       tasks: [],
+      archivedTasks: [],
       bgTasks: [],
       diagLog: [],
       teammates: [],
@@ -816,6 +821,16 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   function updateTasks(sessionId: string, tasks: TaskInfo[]): void {
     const session = sessions.get(sessionId)
     if (!session) return
+
+    // Diff: find tasks that disappeared (deleted by Claude after completion)
+    const incomingIds = new Set(tasks.map(t => t.id))
+    const disappeared = session.tasks.filter(t => !incomingIds.has(t.id))
+    if (disappeared.length > 0) {
+      session.archivedTasks.push({
+        archivedAt: Date.now(),
+        tasks: disappeared,
+      })
+    }
 
     session.tasks = tasks
     // Broadcast updated session summary

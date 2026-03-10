@@ -222,7 +222,7 @@ function getMimeType(path: string): string {
   return mimeTypes[ext || ''] || 'application/octet-stream'
 }
 
-interface SessionSummary {
+interface SessionOverview {
   id: string
   cwd: string
   model?: string
@@ -245,7 +245,7 @@ interface SessionSummary {
 export function createApiHandler(options: ApiOptions) {
   const { sessionStore, webDir, vapidPublicKey, rclaudeSecret } = options
 
-  function sessionToSummary(session: Session): SessionSummary {
+  function sessionToOverview(session: Session): SessionOverview {
     const lastEvent = session.events[session.events.length - 1]
     return {
       id: session.id,
@@ -440,7 +440,7 @@ export function createApiHandler(options: ApiOptions) {
       const activeOnly = url.searchParams.get('active') === 'true'
       const sessions = activeOnly ? sessionStore.getActiveSessions() : sessionStore.getAllSessions()
 
-      const summaries = sessions.map(sessionToSummary)
+      const summaries = sessions.map(sessionToOverview)
 
       return new Response(JSON.stringify(summaries, null, 2), {
         status: 200,
@@ -461,7 +461,7 @@ export function createApiHandler(options: ApiOptions) {
         })
       }
 
-      return new Response(JSON.stringify(sessionToSummary(session), null, 2), {
+      return new Response(JSON.stringify(sessionToOverview(session), null, 2), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })
@@ -725,7 +725,7 @@ export function createApiHandler(options: ApiOptions) {
           headers: { 'Content-Type': 'application/json' },
         })
       }
-      return new Response(JSON.stringify(session.tasks, null, 2), {
+      return new Response(JSON.stringify({ tasks: session.tasks, archivedTasks: session.archivedTasks }, null, 2), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })

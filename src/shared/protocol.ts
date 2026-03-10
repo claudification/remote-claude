@@ -359,6 +359,11 @@ export interface TaskInfo {
   updatedAt: number
 }
 
+export interface ArchivedTaskGroup {
+  archivedAt: number
+  tasks: TaskInfo[]
+}
+
 export interface Session {
   id: string
   cwd: string
@@ -376,6 +381,7 @@ export interface Session {
   events: HookEvent[]
   subagents: SubagentInfo[]
   tasks: TaskInfo[]
+  archivedTasks: ArchivedTaskGroup[]
   bgTasks: BgTaskInfo[]
   teammates: TeammateInfo[]
   team?: TeamInfo

@@ -573,7 +573,7 @@ export function SessionDetail() {
                 )}
               </button>
             )}
-            {session.taskCount > 0 && (
+            {(session.taskCount > 0 || (session.archivedTaskCount ?? 0) > 0) && (
               <button
                 type="button"
                 onClick={() => setActiveTab('tasks')}
