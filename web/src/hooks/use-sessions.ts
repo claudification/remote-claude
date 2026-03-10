@@ -118,8 +118,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   requestedTabSeq: 0,
   pendingFilePath: null,
   newDataSeq: 0,
-  expandAll: false,
-  toggleExpandAll: () => set(state => ({ expandAll: !state.expandAll })),
+  expandAll: localStorage.getItem('expandAll') === 'true',
+  toggleExpandAll: () =>
+    set(state => {
+      const next = !state.expandAll
+      localStorage.setItem('expandAll', String(next))
+      return { expandAll: next }
+    }),
 
   setSessions: sessions => set({ sessions }),
   selectSession: id => {
