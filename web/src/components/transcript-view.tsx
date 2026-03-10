@@ -432,10 +432,20 @@ function ToolLine({
   tool,
   result,
   toolUseResult,
+  subagents,
 }: {
   tool: TranscriptContentBlock
   result?: string
   toolUseResult?: Record<string, unknown>
+  subagents?: Array<{
+    agentId: string
+    agentType: string
+    description?: string
+    status: 'running' | 'stopped'
+    startedAt: number
+    stoppedAt?: number
+    eventCount: number
+  }>
 }) {
   const name = tool.name || 'Tool'
   const input = tool.input || {}
@@ -444,6 +454,7 @@ function ToolLine({
   // Build one-line summary based on tool type
   let summary = ''
   let details: React.ReactNode = null
+  let agentBadge: React.ReactNode = null
 
   switch (name) {
     case 'Bash': {
@@ -528,15 +539,39 @@ function ToolLine({
     case 'Task':
     case 'Agent': {
       const desc = input.description as string
-      const agent = input.subagent_type as string
+      const agentType = input.subagent_type as string
       const prompt = input.prompt as string
-      summary = agent ? `${agent}: ${desc}` : desc
+      summary = agentType ? `${agentType}: ${desc}` : desc
       if (prompt) {
         details = (
           <pre className="text-[10px] text-muted-foreground max-h-32 overflow-auto whitespace-pre-wrap">
             {truncate(prompt, 2000)}
           </pre>
         )
+      }
+      // Look up live agent status from store
+      if (name === 'Agent') {
+        const subagent = subagents?.find(a => a.description === desc)
+        if (subagent) {
+          const isRunning = subagent.status === 'running'
+          const elapsed = subagent.stoppedAt
+            ? Math.round((subagent.stoppedAt - subagent.startedAt) / 1000)
+            : Math.round((Date.now() - subagent.startedAt) / 1000)
+          agentBadge = (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold',
+                isRunning ? 'bg-active/20 text-active animate-pulse' : 'bg-emerald-500/20 text-emerald-400',
+              )}
+            >
+              {isRunning ? 'running' : 'done'}
+              {subagent.eventCount > 0 && (
+                <span className="text-muted-foreground font-normal">{subagent.eventCount} events</span>
+              )}
+              <span className="text-muted-foreground font-normal">{elapsed}s</span>
+            </span>
+          )
+        }
       }
       break
     }
@@ -679,6 +714,7 @@ function ToolLine({
           <span className="truncate max-w-[120px]">{displayName}</span>
         </span>
         <span className="text-foreground/80 truncate flex-1">{summary}</span>
+        {agentBadge}
         <JsonInspector title={name} data={input} result={result} extra={toolUseResult} />
       </div>
       {details && (
@@ -795,6 +831,9 @@ function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
                 .join('')
             : ''
       if (textContent.includes('<system-reminder>')) continue
+      // Skip /slash command XML (e.g. /compact, /help) - raw XML noise
+      // The actual effect (compacting/compacted) is captured as its own entry type
+      if (textContent.includes('<command-name>') || textContent.includes('<local-command-caveat>')) continue
       if (textContent.includes('<task-notification>')) {
         const notifications = parseTaskNotifications(textContent)
         if (notifications.length > 0) {
@@ -878,6 +917,10 @@ function GroupView({
   resultMap: Map<string, { result: string; extra?: Record<string, unknown> }>
   showThinking?: boolean
 }) {
+  const subagents = useSessionsStore(state => {
+    const session = state.sessions.find(s => s.id === state.selectedSessionId)
+    return session?.subagents
+  })
   const time = group.timestamp ? new Date(group.timestamp).toLocaleTimeString('en-US', { hour12: false }) : ''
 
   // System groups: compact notification badges with expandable result
@@ -985,7 +1028,7 @@ function GroupView({
                 </div>
               )
             case 'tool':
-              return <ToolLine key={i} tool={item.tool} result={item.result} toolUseResult={item.extra} />
+              return <ToolLine key={i} tool={item.tool} result={item.result} toolUseResult={item.extra} subagents={subagents} />
           }
         })}
       </div>
