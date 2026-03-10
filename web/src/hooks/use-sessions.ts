@@ -54,6 +54,8 @@ interface SessionsState {
   setError: (error: string | null) => void
   setWs: (ws: WebSocket | null) => void
   setTerminalHandler: (handler: ((msg: TerminalMessage) => void) | null) => void
+  fileHandler: ((msg: any) => void) | null
+  setFileHandler: (handler: ((msg: any) => void) | null) => void
   sendWsMessage: (msg: Record<string, unknown>) => void
 
   getSelectedSession: () => Session | undefined
@@ -103,6 +105,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   error: null,
   ws: null,
   terminalHandler: null,
+  fileHandler: null,
   showTerminal: false,
   terminalWrapperId: null,
   showSwitcher: false,
@@ -153,6 +156,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   setError: error => set({ error }),
   setWs: ws => set({ ws }),
   setTerminalHandler: handler => set({ terminalHandler: handler }),
+  setFileHandler: handler => set({ fileHandler: handler }),
   sendWsMessage: msg => {
     const { ws } = get()
     if (ws?.readyState === WebSocket.OPEN) {
