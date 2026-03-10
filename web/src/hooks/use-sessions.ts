@@ -11,7 +11,7 @@ import type {
 
 export interface TerminalMessage {
   type: 'terminal_data' | 'terminal_error'
-  sessionId: string
+  wrapperId: string
   data?: string
   error?: string
 }
@@ -32,6 +32,7 @@ interface SessionsState {
   ws: WebSocket | null
   terminalHandler: ((msg: TerminalMessage) => void) | null
   showTerminal: boolean
+  terminalWrapperId: string | null
   showSwitcher: boolean
   requestedTab: string | null
   newDataSeq: number
@@ -43,7 +44,7 @@ interface SessionsState {
   setShowTerminal: (show: boolean) => void
   setShowSwitcher: (show: boolean) => void
   toggleSwitcher: () => void
-  openTerminal: (sessionId: string) => void
+  openTerminal: (wrapperId: string) => void
   setEvents: (sessionId: string, events: HookEvent[]) => void
   setTranscript: (sessionId: string, entries: TranscriptEntry[]) => void
   setTasks: (sessionId: string, tasks: TaskInfo[]) => void
@@ -76,14 +77,14 @@ export function applyHashRoute() {
   const hash = window.location.hash.slice(1)
   if (!hash) return
 
-  const [mode, sessionId] = hash.split('/')
-  if (!sessionId) return
+  const [mode, id] = hash.split('/')
+  if (!id) return
 
   const store = useSessionsStore.getState()
   if (mode === 'terminal') {
-    store.openTerminal(sessionId)
+    store.openTerminal(id) // id is wrapperId
   } else if (mode === 'session') {
-    store.selectSession(sessionId)
+    store.selectSession(id)
   }
 }
 
@@ -103,6 +104,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   ws: null,
   terminalHandler: null,
   showTerminal: false,
+  terminalWrapperId: null,
   showSwitcher: false,
   requestedTab: null,
   newDataSeq: 0,
@@ -120,7 +122,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     updateHash(`session/${sessionId}`)
   },
   setShowTerminal: show => {
-    set({ showTerminal: show })
+    set({ showTerminal: show, ...(!show && { terminalWrapperId: null }) })
     if (!show) {
       const { selectedSessionId } = get()
       updateHash(selectedSessionId ? `session/${selectedSessionId}` : '')
@@ -128,9 +130,17 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
   setShowSwitcher: show => set({ showSwitcher: show }),
   toggleSwitcher: () => set(state => ({ showSwitcher: !state.showSwitcher })),
-  openTerminal: sessionId => {
-    set({ selectedSessionId: sessionId, showTerminal: true, showSwitcher: false })
-    updateHash(`terminal/${sessionId}`)
+  openTerminal: wrapperId => {
+    // Find the session that owns this wrapper so we can select it in the main panel too
+    const { sessions } = get()
+    const ownerSession = sessions.find(s => s.wrapperIds?.includes(wrapperId))
+    set({
+      selectedSessionId: ownerSession?.id ?? null,
+      terminalWrapperId: wrapperId,
+      showTerminal: true,
+      showSwitcher: false,
+    })
+    updateHash(`terminal/${wrapperId}`)
   },
   setEvents: (sessionId, events) =>
     set(state => ({ events: { ...state.events, [sessionId]: events }, newDataSeq: state.newDataSeq + 1 })),

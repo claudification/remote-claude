@@ -128,6 +128,7 @@ export function SessionDetail() {
   const reviveStartRef = useRef(0) // timestamp when revive started, to ignore pre-existing sessions
   const [infoExpanded, setInfoExpanded] = useState(false)
   const showTerminal = useSessionsStore(state => state.showTerminal)
+  const terminalWrapperId = useSessionsStore(state => state.terminalWrapperId)
   const setShowTerminal = useSessionsStore(state => state.setShowTerminal)
   const requestedTab = useSessionsStore(state => state.requestedTab)
   // Apply requested tab from external navigation (badge clicks)
@@ -638,14 +639,16 @@ export function SessionDetail() {
                 <button
                   type="button"
                   onClick={e => {
-                    if (e.shiftKey && selectedSessionId) {
+                    const wid = session?.wrapperIds?.[0]
+                    if (!wid) return
+                    if (e.shiftKey) {
                       window.open(
-                        `/#popout-terminal/${selectedSessionId}`,
+                        `/#popout-terminal/${wid}`,
                         '_blank',
                         'width=900,height=600,menubar=no,toolbar=no',
                       )
                     } else {
-                      setShowTerminal(true)
+                      useSessionsStore.getState().openTerminal(wid)
                     }
                   }}
                   className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-muted-foreground hover:text-accent transition-colors"
@@ -731,13 +734,13 @@ export function SessionDetail() {
         <InputBar sessionId={selectedSessionId} />
       )}
 
-      {/* Terminal overlay */}
-      {showTerminal && selectedSessionId && hasTerminal && (
+      {/* Terminal overlay - routed by wrapperId (physical PTY) */}
+      {showTerminal && terminalWrapperId && (
         <WebTerminal
-          sessionId={selectedSessionId}
+          wrapperId={terminalWrapperId}
           onClose={() => setShowTerminal(false)}
-          onSwitchSession={id => {
-            useSessionsStore.getState().openTerminal(id)
+          onSwitchWrapper={wid => {
+            useSessionsStore.getState().openTerminal(wid)
           }}
         />
       )}

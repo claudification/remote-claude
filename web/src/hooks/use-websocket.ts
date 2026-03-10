@@ -10,6 +10,7 @@ interface SessionSummary {
   cwd: string
   model?: string
   capabilities?: WrapperCapability[]
+  wrapperIds?: string[]
   startedAt: number
   lastActivity: number
   status: Session['status']
@@ -87,6 +88,7 @@ export function useWebSocket() {
       cwd: summary.cwd,
       model: summary.model,
       capabilities: summary.capabilities,
+      wrapperIds: summary.wrapperIds,
       startedAt: summary.startedAt,
       lastActivity: summary.lastActivity,
       status: summary.status,
@@ -156,12 +158,12 @@ export function useWebSocket() {
         try {
           const msg = JSON.parse(event.data) as DashboardMessage
 
-          // Route terminal messages to terminal handler
+          // Route terminal messages to terminal handler (keyed by wrapperId)
           if (msg.type === 'terminal_data' || msg.type === 'terminal_error') {
             const handler = useSessionsStore.getState().terminalHandler
             handler?.({
               type: msg.type as 'terminal_data' | 'terminal_error',
-              sessionId: msg.sessionId || '',
+              wrapperId: (msg as any).wrapperId || '',
               data: msg.data,
               error: msg.error,
             })

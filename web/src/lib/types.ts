@@ -51,6 +51,7 @@ export interface Session {
   cwd: string
   model?: string
   capabilities?: WrapperCapability[]
+  wrapperIds?: string[]
   status: 'active' | 'idle' | 'ended'
   compacting?: boolean
   compactedAt?: number

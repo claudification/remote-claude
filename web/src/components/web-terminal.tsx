@@ -1,7 +1,7 @@
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import '@xterm/xterm/css/xterm.css'
 import { Settings, WifiOff, X } from 'lucide-react'
 import { type TerminalMessage, useSessionsStore } from '@/hooks/use-sessions'
@@ -18,13 +18,13 @@ import {
 import { TerminalToolbar } from './terminal-toolbar'
 
 interface WebTerminalProps {
-  sessionId: string
+  wrapperId: string
   onClose: () => void
-  onSwitchSession: (sessionId: string) => void
+  onSwitchWrapper: (wrapperId: string) => void
   popout?: boolean
 }
 
-export function WebTerminal({ sessionId, onClose, onSwitchSession, popout }: WebTerminalProps) {
+export function WebTerminal({ wrapperId, onClose, onSwitchWrapper, popout }: WebTerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -39,9 +39,9 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession, popout }: Web
 
   const sendData = useCallback(
     (data: string) => {
-      sendWsMessage({ type: 'terminal_data', sessionId, data })
+      sendWsMessage({ type: 'terminal_data', wrapperId, data })
     },
-    [sendWsMessage, sessionId],
+    [sendWsMessage, wrapperId],
   )
 
   function applySettings(terminal: Terminal, s: TerminalSettings) {
@@ -59,21 +59,25 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession, popout }: Web
     if (xtermRef.current) {
       applySettings(xtermRef.current, newSettings)
       const { cols, rows } = xtermRef.current
-      sendWsMessage({ type: 'terminal_resize', sessionId, cols, rows })
+      sendWsMessage({ type: 'terminal_resize', wrapperId, cols, rows })
     }
   }
+
+  // Resolve the owning session for this wrapper (for display purposes)
+  const ownerSession = sessions.find(s => s.wrapperIds?.includes(wrapperId))
 
   // Set window title in popout mode
   const projectSettings = useSessionsStore(state => state.projectSettings)
   useEffect(() => {
     if (!popout) return
-    const session = sessions.find(s => s.id === sessionId)
-    if (session) {
-      const ps = projectSettings[session.cwd]
-      const name = ps?.label || session.cwd.split('/').pop() || sessionId.slice(0, 8)
+    if (ownerSession) {
+      const ps = projectSettings[ownerSession.cwd]
+      const name = ps?.label || ownerSession.cwd.split('/').pop() || wrapperId.slice(0, 8)
       document.title = `TTY: ${name}`
+    } else {
+      document.title = `TTY: ${wrapperId.slice(0, 8)}`
     }
-  }, [popout, sessionId, sessions, projectSettings])
+  }, [popout, wrapperId, ownerSession, projectSettings])
 
   // Main terminal setup
   useEffect(() => {
@@ -107,7 +111,7 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession, popout }: Web
       if (e.ctrlKey && e.shiftKey && e.key === 'Q') return false
       // Shift+Enter - send \n (newline) instead of \r (xterm sends \r for both Enter and Shift+Enter)
       if (e.shiftKey && e.key === 'Enter' && e.type === 'keydown') {
-        sendWsMessage({ type: 'terminal_data', sessionId, data: '\n' })
+        sendWsMessage({ type: 'terminal_data', wrapperId, data: '\n' })
         return false
       }
       // When switcher is open, eat all keys so they don't go to PTY
@@ -134,11 +138,11 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession, popout }: Web
     terminal.write('\x1bc\x1b[2J\x1b[H\x1b[?25l')
 
     const dataDisposable = terminal.onData(data => {
-      sendWsMessage({ type: 'terminal_data', sessionId, data })
+      sendWsMessage({ type: 'terminal_data', wrapperId, data })
     })
 
     const handler = (msg: TerminalMessage) => {
-      if (msg.sessionId !== sessionId) return
+      if (msg.wrapperId !== wrapperId) return
       if (msg.type === 'terminal_data' && msg.data) {
         // Debug: detect characters that cause line offset issues
         const d = msg.data
@@ -176,7 +180,7 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession, popout }: Web
     const resizeObserver = new ResizeObserver(() => {
       fitAddon.fit()
       const { cols, rows } = terminal
-      sendWsMessage({ type: 'terminal_resize', sessionId, cols, rows })
+      sendWsMessage({ type: 'terminal_resize', wrapperId, cols, rows })
     })
     resizeObserver.observe(terminalRef.current)
 
@@ -186,12 +190,12 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession, popout }: Web
       resizeObserver.disconnect()
       dataDisposable.dispose()
       setTerminalHandler(null)
-      sendWsMessage({ type: 'terminal_detach', sessionId })
+      sendWsMessage({ type: 'terminal_detach', wrapperId })
       terminal.dispose()
       xtermRef.current = null
       fitAddonRef.current = null
     }
-  }, [sessionId, sendWsMessage, setTerminalHandler])
+  }, [wrapperId, sendWsMessage, setTerminalHandler])
 
   // Re-attach when WS reconnects
   useEffect(() => {
@@ -199,8 +203,8 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession, popout }: Web
     setTerminalError(null)
     const terminal = xtermRef.current
     const { cols, rows } = terminal
-    sendWsMessage({ type: 'terminal_attach', sessionId, cols, rows })
-  }, [isConnected, sessionId, sendWsMessage])
+    sendWsMessage({ type: 'terminal_attach', wrapperId, cols, rows })
+  }, [isConnected, wrapperId, sendWsMessage])
 
   // Terminal-local shortcuts (Ctrl+, for settings, Ctrl+Shift+Q for close)
   useEffect(() => {
@@ -274,8 +278,19 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession, popout }: Web
   const showDisconnected = !isConnected || !!terminalError
   const currentTheme = getTheme(settings.themeId)
 
-  // Terminal-capable sessions for tabs
-  const terminalSessions = sessions.filter(canTerminal)
+  // Build wrapper tabs: flatten all terminal-capable sessions into individual wrapper entries
+  const wrapperTabs = useMemo(() => {
+    const tabs: Array<{ wrapperId: string; session: (typeof sessions)[0] }> = []
+    for (const s of sessions) {
+      if (!canTerminal(s)) continue
+      if (s.wrapperIds?.length) {
+        for (const wid of s.wrapperIds) {
+          tabs.push({ wrapperId: wid, session: s })
+        }
+      }
+    }
+    return tabs
+  }, [sessions])
 
   return (
     <div
@@ -288,39 +303,42 @@ export function WebTerminal({ sessionId, onClose, onSwitchSession, popout }: Web
         xtermRef.current?.focus()
       }}
     >
-      {/* Header bar with session tabs */}
+      {/* Header bar with wrapper tabs */}
       <div
         className="shrink-0 flex items-center border-b"
         style={{ background: currentTheme.black, borderColor: currentTheme.brightBlack }}
       >
-        {/* Session tabs */}
+        {/* Wrapper tabs - each tab is a physical PTY */}
         <div className="flex items-center overflow-x-auto min-w-0 flex-1">
-          {terminalSessions.map(s => (
+          {wrapperTabs.map(({ wrapperId: wid, session: s }) => (
             <button
-              key={s.id}
+              key={wid}
               type="button"
               onClick={() => {
-                if (s.id !== sessionId) onSwitchSession(s.id)
+                if (wid !== wrapperId) onSwitchWrapper(wid)
               }}
               className="shrink-0 px-3 py-1.5 text-[10px] font-mono border-r transition-colors flex items-center gap-1.5"
               style={{
                 borderColor: `${currentTheme.brightBlack}60`,
-                background: s.id === sessionId ? currentTheme.background : 'transparent',
-                color: s.id === sessionId ? currentTheme.foreground : currentTheme.brightBlack,
+                background: wid === wrapperId ? currentTheme.background : 'transparent',
+                color: wid === wrapperId ? currentTheme.foreground : currentTheme.brightBlack,
               }}
-              title={s.cwd}
+              title={`${s.cwd} [${wid.slice(0, 8)}]`}
             >
               <span
                 className="w-1.5 h-1.5 rounded-full shrink-0"
                 style={{ background: s.status === 'active' ? currentTheme.green : currentTheme.yellow }}
               />
               {lastPathSegments(s.cwd, 2)}
+              {(s.wrapperIds?.length ?? 0) > 1 && (
+                <span style={{ color: currentTheme.brightBlack }}>:{wid.slice(0, 4)}</span>
+              )}
             </button>
           ))}
-          {terminalSessions.length === 0 && (
+          {wrapperTabs.length === 0 && (
             <span className="px-3 py-1.5 text-[10px] font-mono" style={{ color: currentTheme.brightBlack }}>
               {showDisconnected && <WifiOff className="w-3 h-3 inline mr-1.5" />}
-              TERMINAL - {sessionId.slice(0, 8)}
+              TERMINAL - {wrapperId.slice(0, 8)}
             </span>
           )}
         </div>

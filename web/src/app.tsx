@@ -104,8 +104,8 @@ function Dashboard() {
         e.preventDefault()
         const store = useSessionsStore.getState()
         const session = store.sessions.find(s => s.id === store.selectedSessionId)
-        if (session && canTerminal(session) && !store.showTerminal) {
-          store.openTerminal(session.id)
+        if (session && canTerminal(session) && !store.showTerminal && session.wrapperIds?.[0]) {
+          store.openTerminal(session.wrapperIds[0])
         }
       }
     }
@@ -116,8 +116,8 @@ function Dashboard() {
   function handleSwitcherSelect(id: string) {
     const store = useSessionsStore.getState()
     const session = store.sessions.find(s => s.id === id)
-    if (session && canTerminal(session)) {
-      store.openTerminal(id)
+    if (session && canTerminal(session) && session.wrapperIds?.[0]) {
+      store.openTerminal(session.wrapperIds[0])
     } else {
       store.selectSession(id)
       store.setShowSwitcher(false)
@@ -210,26 +210,26 @@ function Dashboard() {
   )
 }
 
-// Popout terminal - rendered when URL is #popout-terminal/{sessionId}
-function PopoutTerminal({ sessionId }: { sessionId: string }) {
+// Popout terminal - rendered when URL is #popout-terminal/{wrapperId}
+function PopoutTerminal({ wrapperId }: { wrapperId: string }) {
   useWebSocket()
 
   return (
     <div className="h-full w-full">
-      <WebTerminal sessionId={sessionId} onClose={() => window.close()} onSwitchSession={() => {}} popout />
+      <WebTerminal wrapperId={wrapperId} onClose={() => window.close()} onSwitchWrapper={() => {}} popout />
     </div>
   )
 }
 
 export function App() {
-  // Check for popout terminal route
+  // Check for popout terminal route: #popout-terminal/{wrapperId}
   const hash = window.location.hash.slice(1)
   const popoutMatch = hash.match(/^popout-terminal\/(.+)$/)
 
   if (popoutMatch) {
     return (
       <AuthGate>
-        <PopoutTerminal sessionId={popoutMatch[1]} />
+        <PopoutTerminal wrapperId={popoutMatch[1]} />
       </AuthGate>
     )
   }
