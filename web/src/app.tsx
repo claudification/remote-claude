@@ -14,6 +14,7 @@ import { WebTerminal } from '@/components/web-terminal'
 import { fetchProjectSettings, fetchSessionEvents, fetchTranscript, useSessionsStore } from '@/hooks/use-sessions'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { canTerminal } from '@/lib/types'
+import { isMobileViewport } from '@/lib/utils'
 
 // Swipe-right from left edge to open session list (mobile)
 function useSwipeToOpen(onOpen: () => void) {
@@ -49,7 +50,7 @@ function useSwipeToOpen(onOpen: () => void) {
 }
 
 function Dashboard() {
-  const [sheetOpen, setSheetOpen] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(() => isMobileViewport() && !useSessionsStore.getState().selectedSessionId)
   const { selectedSessionId, setEvents, setTranscript, showSwitcher } = useSessionsStore()
   const swipeHandlers = useSwipeToOpen(() => setSheetOpen(true))
 
