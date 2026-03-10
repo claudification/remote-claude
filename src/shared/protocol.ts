@@ -18,6 +18,7 @@ export type WrapperCapability = 'terminal'
 export interface SessionMeta {
   type: 'meta'
   sessionId: string
+  wrapperId: string // unique per rclaude instance (multiple wrappers can share a sessionId via --continue)
   cwd: string
   startedAt: number
   model?: string
@@ -41,34 +42,35 @@ export interface Heartbeat {
 }
 
 // Terminal streaming messages (browser <-> concentrator <-> rclaude)
+// All terminal messages route by wrapperId (physical rclaude instance + PTY)
 export interface TerminalAttach {
   type: 'terminal_attach'
-  sessionId: string
+  wrapperId: string
   cols: number
   rows: number
 }
 
 export interface TerminalDetach {
   type: 'terminal_detach'
-  sessionId: string
+  wrapperId: string
 }
 
 export interface TerminalData {
   type: 'terminal_data'
-  sessionId: string
+  wrapperId: string
   data: string
 }
 
 export interface TerminalResize {
   type: 'terminal_resize'
-  sessionId: string
+  wrapperId: string
   cols: number
   rows: number
 }
 
 export interface TerminalError {
   type: 'terminal_error'
-  sessionId: string
+  wrapperId: string
   error: string
 }
 
@@ -407,6 +409,7 @@ export interface AgentIdentify {
 export interface ReviveResult {
   type: 'revive_result'
   sessionId: string
+  wrapperId?: string // echoes the pre-assigned wrapperId
   success: boolean
   error?: string
   tmuxSession?: string
@@ -420,6 +423,7 @@ export interface ReviveSession {
   type: 'revive'
   sessionId: string
   cwd: string
+  wrapperId: string // pre-assigned wrapperId so concentrator can correlate the incoming connection
 }
 
 export interface AgentQuit {

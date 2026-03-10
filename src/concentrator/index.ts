@@ -357,6 +357,7 @@ async function main() {
 
     interface WsData {
       sessionId?: string
+      wrapperId?: string // unique per rclaude instance (multiple can share sessionId)
       isDashboard?: boolean
       isAgent?: boolean
       userName?: string // authenticated user name (for revocation tracking)
@@ -404,7 +405,9 @@ async function main() {
 
             switch (data.type) {
               case 'meta': {
+                const wrapperId = data.wrapperId || data.sessionId // backwards compat
                 ws.data.sessionId = data.sessionId
+                ws.data.wrapperId = wrapperId
 
                 // Check if session exists (resume case)
                 const existingSession = sessionStore.getSession(data.sessionId)
@@ -415,8 +418,9 @@ async function main() {
                   if (data.version) existingSession.version = data.version
                   if (data.buildTime) existingSession.buildTime = data.buildTime
                   if (verbose) {
+                    const wrapperCount = sessionStore.getActiveWrapperCount(data.sessionId) + 1
                     console.log(
-                      `[~] Session resumed: ${data.sessionId.slice(0, 8)}... (${data.cwd})${data.version ? ` [${data.version}]` : ''}`,
+                      `[~] Session resumed: ${data.sessionId.slice(0, 8)}... wrapper=${wrapperId.slice(0, 8)} (${data.cwd}) [${wrapperCount} wrapper(s)]${data.version ? ` [${data.version}]` : ''}`,
                     )
                   }
                 } else {
@@ -431,13 +435,13 @@ async function main() {
                   if (data.buildTime) newSession.buildTime = data.buildTime
                   if (verbose) {
                     console.log(
-                      `[+] Session started: ${data.sessionId.slice(0, 8)}... (${data.cwd})${data.version ? ` [${data.version}]` : ''}`,
+                      `[+] Session started: ${data.sessionId.slice(0, 8)}... wrapper=${wrapperId.slice(0, 8)} (${data.cwd})${data.version ? ` [${data.version}]` : ''}`,
                     )
                   }
                 }
 
-                // Track socket for input forwarding
-                sessionStore.setSessionSocket(data.sessionId, ws)
+                // Track socket by wrapperId (multiple wrappers can share a sessionId)
+                sessionStore.setSessionSocket(data.sessionId, wrapperId, ws)
 
                 ws.send(JSON.stringify({ type: 'ack', eventId: data.sessionId }))
                 break
@@ -461,10 +465,21 @@ async function main() {
               }
               case 'end': {
                 const sessionId = ws.data.sessionId || data.sessionId
-                if (sessionId) {
-                  sessionStore.endSession(sessionId, data.reason)
-                  if (verbose) {
-                    console.log(`[-] Session ended: ${sessionId.slice(0, 8)}... (${data.reason})`)
+                const endWrapperId = ws.data.wrapperId
+                if (sessionId && endWrapperId) {
+                  // Remove this wrapper's socket
+                  sessionStore.removeSessionSocket(sessionId, endWrapperId)
+                  const remaining = sessionStore.getActiveWrapperCount(sessionId)
+                  if (remaining === 0) {
+                    // Last wrapper disconnected - actually end the session
+                    sessionStore.endSession(sessionId, data.reason)
+                    if (verbose) {
+                      console.log(`[-] Session ended: ${sessionId.slice(0, 8)}... (${data.reason})`)
+                    }
+                  } else if (verbose) {
+                    console.log(
+                      `[~] Wrapper ${endWrapperId.slice(0, 8)} ended for session ${sessionId.slice(0, 8)}... (${remaining} wrapper(s) remaining)`,
+                    )
                   }
                 }
                 break
@@ -507,59 +522,61 @@ async function main() {
               }
 
               // Terminal relay: dashboard -> rclaude
+              // Terminal messages: all routed by wrapperId (physical PTY identity)
               case 'terminal_attach': {
-                const sessionSocket = sessionStore.getSessionSocket(data.sessionId)
-                if (sessionSocket) {
-                  const isFirstViewer = !sessionStore.hasTerminalViewers(data.sessionId)
-                  sessionStore.addTerminalViewer(data.sessionId, ws)
-                  // Only send attach to rclaude for the first viewer
+                const wid = data.wrapperId
+                const targetSocket = sessionStore.getSessionSocketByWrapper(wid)
+                if (targetSocket) {
+                  const isFirstViewer = !sessionStore.hasTerminalViewers(wid)
+                  sessionStore.addTerminalViewer(wid, ws)
                   if (isFirstViewer) {
-                    sessionSocket.send(JSON.stringify(data))
+                    targetSocket.send(JSON.stringify(data))
                   }
                   if (verbose) {
-                    const viewers = sessionStore.getTerminalViewers(data.sessionId)
+                    const viewers = sessionStore.getTerminalViewers(wid)
                     console.log(
-                      `[terminal] Attached to ${data.sessionId.slice(0, 8)}... (${data.cols}x${data.rows}) [${viewers.size} viewer(s)]`,
+                      `[terminal] Attached to wrapper=${wid.slice(0, 8)} (${data.cols}x${data.rows}) [${viewers.size} viewer(s)]`,
                     )
                   }
                 } else {
                   ws.send(
                     JSON.stringify({
                       type: 'terminal_error',
-                      sessionId: data.sessionId,
-                      error: 'Session not connected',
+                      wrapperId: wid,
+                      error: 'Wrapper not connected',
                     }),
                   )
                 }
                 break
               }
               case 'terminal_detach': {
-                sessionStore.removeTerminalViewer(data.sessionId, ws)
-                // Only send detach to rclaude when last viewer disconnects
-                if (!sessionStore.hasTerminalViewers(data.sessionId)) {
-                  const sessionSocket = sessionStore.getSessionSocket(data.sessionId)
-                  if (sessionSocket) {
-                    sessionSocket.send(JSON.stringify(data))
+                const wid = data.wrapperId
+                sessionStore.removeTerminalViewer(wid, ws)
+                if (!sessionStore.hasTerminalViewers(wid)) {
+                  const detachSocket = sessionStore.getSessionSocketByWrapper(wid)
+                  if (detachSocket) {
+                    detachSocket.send(JSON.stringify(data))
                   }
                 }
                 if (verbose) {
-                  const viewers = sessionStore.getTerminalViewers(data.sessionId)
+                  const viewers = sessionStore.getTerminalViewers(wid)
                   console.log(
-                    `[terminal] Detached from ${data.sessionId.slice(0, 8)}... [${viewers.size} viewer(s) remaining]`,
+                    `[terminal] Detached from wrapper=${wid.slice(0, 8)} [${viewers.size} viewer(s) remaining]`,
                   )
                 }
                 break
               }
               case 'terminal_data': {
+                const wid = data.wrapperId
                 if (ws.data.isDashboard) {
                   // Dashboard -> rclaude (user keystrokes)
-                  const sessionSocket = sessionStore.getSessionSocket(data.sessionId)
-                  if (sessionSocket) {
-                    sessionSocket.send(JSON.stringify(data))
+                  const targetSocket = sessionStore.getSessionSocketByWrapper(wid)
+                  if (targetSocket) {
+                    targetSocket.send(JSON.stringify(data))
                   }
-                } else if (ws.data.sessionId) {
-                  // rclaude -> dashboard (PTY output) - broadcast to all viewers
-                  const viewers = sessionStore.getTerminalViewers(data.sessionId || ws.data.sessionId)
+                } else if (ws.data.wrapperId) {
+                  // rclaude -> dashboard (PTY output) - broadcast to all viewers of this wrapper
+                  const viewers = sessionStore.getTerminalViewers(wid || ws.data.wrapperId)
                   const msg = JSON.stringify(data)
                   for (const viewer of viewers) {
                     try {
@@ -570,15 +587,15 @@ async function main() {
                 break
               }
               case 'terminal_resize': {
-                const sessionSocket = sessionStore.getSessionSocket(data.sessionId)
-                if (sessionSocket) {
-                  sessionSocket.send(JSON.stringify(data))
+                const targetSocket = sessionStore.getSessionSocketByWrapper(data.wrapperId)
+                if (targetSocket) {
+                  targetSocket.send(JSON.stringify(data))
                 }
                 break
               }
               case 'terminal_error': {
-                // rclaude -> dashboard - broadcast to all viewers
-                const viewers = sessionStore.getTerminalViewers(data.sessionId)
+                // rclaude -> dashboard - broadcast to all viewers of this wrapper
+                const viewers = sessionStore.getTerminalViewers(data.wrapperId || ws.data.wrapperId || '')
                 const msg = JSON.stringify(data)
                 for (const viewer of viewers) {
                   try {
@@ -773,31 +790,37 @@ async function main() {
 
           // Handle rclaude session disconnection
           const sessionId = ws.data.sessionId
-          if (sessionId) {
-            // Notify all terminal viewers
-            const viewers = sessionStore.getTerminalViewers(sessionId)
+          const closeWrapperId = ws.data.wrapperId
+          if (sessionId && closeWrapperId) {
+            // Notify terminal viewers attached to this wrapper's PTY
+            const viewers = sessionStore.getTerminalViewers(closeWrapperId)
             if (viewers.size > 0) {
-              const msg = JSON.stringify({ type: 'terminal_error', sessionId, error: 'Session disconnected' })
+              const msg = JSON.stringify({ type: 'terminal_error', wrapperId: closeWrapperId, error: 'Wrapper disconnected' })
               for (const viewer of viewers) {
                 try {
                   viewer.send(msg)
                 } catch {}
               }
-              // Clear all viewers for this session
               for (const viewer of viewers) {
-                sessionStore.removeTerminalViewer(sessionId, viewer)
+                sessionStore.removeTerminalViewer(closeWrapperId, viewer)
               }
             }
 
-            // Remove socket tracking
-            sessionStore.removeSessionSocket(sessionId)
+            // Remove this wrapper's socket
+            sessionStore.removeSessionSocket(sessionId, closeWrapperId)
+            const remaining = sessionStore.getActiveWrapperCount(sessionId)
 
             const session = sessionStore.getSession(sessionId)
-            if (session && session.status !== 'ended') {
+            if (session && session.status !== 'ended' && remaining === 0) {
+              // Last wrapper disconnected - end the session
               sessionStore.endSession(sessionId, 'connection_closed')
               if (verbose) {
-                console.log(`[-] Session ended: ${sessionId.slice(0, 8)}... (connection_closed)`)
+                console.log(`[-] Session ended: ${sessionId.slice(0, 8)}... (connection_closed, last wrapper)`)
               }
+            } else if (verbose && remaining > 0) {
+              console.log(
+                `[~] Wrapper ${closeWrapperId.slice(0, 8)} disconnected from session ${sessionId.slice(0, 8)}... (${remaining} wrapper(s) remaining)`,
+              )
             }
           }
         },

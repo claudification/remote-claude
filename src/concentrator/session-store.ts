@@ -43,6 +43,7 @@ export interface SessionSummary {
   capabilities?: WrapperCapability[]
   version?: string
   buildTime?: string
+  wrapperIds: string[] // connected rclaude instances (for routing)
   startedAt: number
   lastActivity: number
   status: Session['status']
@@ -104,9 +105,11 @@ export interface SessionStore {
   removeSession: (sessionId: string) => void
   getSessionEvents: (sessionId: string, limit?: number, since?: number) => HookEvent[]
   updateTasks: (sessionId: string, tasks: TaskInfo[]) => void
-  setSessionSocket: (sessionId: string, ws: ServerWebSocket<unknown>) => void
+  setSessionSocket: (sessionId: string, wrapperId: string, ws: ServerWebSocket<unknown>) => void
   getSessionSocket: (sessionId: string) => ServerWebSocket<unknown> | undefined
-  removeSessionSocket: (sessionId: string) => void
+  getSessionSocketByWrapper: (wrapperId: string) => ServerWebSocket<unknown> | undefined
+  removeSessionSocket: (sessionId: string, wrapperId: string) => void
+  getActiveWrapperCount: (sessionId: string) => number
   // Transcript cache methods
   addTranscriptEntries: (sessionId: string, entries: TranscriptEntry[], isInitial: boolean) => void
   getTranscriptEntries: (sessionId: string, limit?: number) => TranscriptEntry[]
@@ -120,11 +123,12 @@ export interface SessionStore {
   getSubagentTranscriptEntries: (sessionId: string, agentId: string, limit?: number) => TranscriptEntry[]
   hasSubagentTranscriptCache: (sessionId: string, agentId: string) => boolean
   // Terminal viewer methods (multiple viewers per session)
-  addTerminalViewer: (sessionId: string, ws: ServerWebSocket<unknown>) => void
-  getTerminalViewers: (sessionId: string) => Set<ServerWebSocket<unknown>>
-  removeTerminalViewer: (sessionId: string, ws: ServerWebSocket<unknown>) => void
+  // Terminal viewers keyed by wrapperId (each PTY is on a specific rclaude instance)
+  addTerminalViewer: (wrapperId: string, ws: ServerWebSocket<unknown>) => void
+  getTerminalViewers: (wrapperId: string) => Set<ServerWebSocket<unknown>>
+  removeTerminalViewer: (wrapperId: string, ws: ServerWebSocket<unknown>) => void
   removeTerminalViewerBySocket: (ws: ServerWebSocket<unknown>) => void
-  hasTerminalViewers: (sessionId: string) => boolean
+  hasTerminalViewers: (wrapperId: string) => boolean
   // Dashboard subscriber methods
   addSubscriber: (ws: ServerWebSocket<unknown>) => void
   removeSubscriber: (ws: ServerWebSocket<unknown>) => void
@@ -153,7 +157,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   const cachePath = join(cacheDir, CACHE_FILENAME)
 
   const sessions = new Map<string, Session>()
-  const sessionSockets = new Map<string, ServerWebSocket<unknown>>()
+  // sessionId -> (wrapperId -> socket): multiple rclaude instances can share a Claude session
+  const sessionSockets = new Map<string, Map<string, ServerWebSocket<unknown>>>()
+  // Terminal viewers keyed by wrapperId (each PTY is on a specific wrapper)
   const terminalViewers = new Map<string, Set<ServerWebSocket<unknown>>>()
   const dashboardSubscribers = new Set<ServerWebSocket<unknown>>()
   let agentSocket: ServerWebSocket<unknown> | undefined
@@ -169,6 +175,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 
   // Helper to create session summary for broadcasting
   function toSessionSummary(session: Session): SessionSummary {
+    const wrappers = sessionSockets.get(session.id)
     return {
       id: session.id,
       cwd: session.cwd,
@@ -176,6 +183,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       capabilities: session.capabilities,
       version: session.version,
       buildTime: session.buildTime,
+      wrapperIds: wrappers ? Array.from(wrappers.keys()) : [],
       startedAt: session.startedAt,
       lastActivity: session.lastActivity,
       status: session.status,
@@ -758,49 +766,75 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     return events
   }
 
-  function setSessionSocket(sessionId: string, ws: ServerWebSocket<unknown>): void {
-    sessionSockets.set(sessionId, ws)
+  function setSessionSocket(sessionId: string, wrapperId: string, ws: ServerWebSocket<unknown>): void {
+    let wrappers = sessionSockets.get(sessionId)
+    if (!wrappers) {
+      wrappers = new Map()
+      sessionSockets.set(sessionId, wrappers)
+    }
+    wrappers.set(wrapperId, ws)
   }
 
   function getSessionSocket(sessionId: string): ServerWebSocket<unknown> | undefined {
-    return sessionSockets.get(sessionId)
+    const wrappers = sessionSockets.get(sessionId)
+    if (!wrappers || wrappers.size === 0) return undefined
+    // Return the most recently added wrapper socket
+    let last: ServerWebSocket<unknown> | undefined
+    for (const ws of wrappers.values()) last = ws
+    return last
   }
 
-  function removeSessionSocket(sessionId: string): void {
-    sessionSockets.delete(sessionId)
+  function getSessionSocketByWrapper(wrapperId: string): ServerWebSocket<unknown> | undefined {
+    for (const wrappers of sessionSockets.values()) {
+      const ws = wrappers.get(wrapperId)
+      if (ws) return ws
+    }
+    return undefined
+  }
+
+  function removeSessionSocket(sessionId: string, wrapperId: string): void {
+    const wrappers = sessionSockets.get(sessionId)
+    if (wrappers) {
+      wrappers.delete(wrapperId)
+      if (wrappers.size === 0) sessionSockets.delete(sessionId)
+    }
+  }
+
+  function getActiveWrapperCount(sessionId: string): number {
+    return sessionSockets.get(sessionId)?.size ?? 0
   }
 
   // Terminal viewer management (multiple viewers per session)
-  function addTerminalViewer(sessionId: string, ws: ServerWebSocket<unknown>): void {
-    let viewers = terminalViewers.get(sessionId)
+  function addTerminalViewer(wrapperId: string, ws: ServerWebSocket<unknown>): void {
+    let viewers = terminalViewers.get(wrapperId)
     if (!viewers) {
       viewers = new Set()
-      terminalViewers.set(sessionId, viewers)
+      terminalViewers.set(wrapperId, viewers)
     }
     viewers.add(ws)
   }
 
-  function getTerminalViewers(sessionId: string): Set<ServerWebSocket<unknown>> {
-    return terminalViewers.get(sessionId) || new Set()
+  function getTerminalViewers(wrapperId: string): Set<ServerWebSocket<unknown>> {
+    return terminalViewers.get(wrapperId) || new Set()
   }
 
-  function removeTerminalViewer(sessionId: string, ws: ServerWebSocket<unknown>): void {
-    const viewers = terminalViewers.get(sessionId)
+  function removeTerminalViewer(wrapperId: string, ws: ServerWebSocket<unknown>): void {
+    const viewers = terminalViewers.get(wrapperId)
     if (viewers) {
       viewers.delete(ws)
-      if (viewers.size === 0) terminalViewers.delete(sessionId)
+      if (viewers.size === 0) terminalViewers.delete(wrapperId)
     }
   }
 
   function removeTerminalViewerBySocket(ws: ServerWebSocket<unknown>): void {
-    for (const [sessionId, viewers] of terminalViewers) {
+    for (const [id, viewers] of terminalViewers) {
       viewers.delete(ws)
-      if (viewers.size === 0) terminalViewers.delete(sessionId)
+      if (viewers.size === 0) terminalViewers.delete(id)
     }
   }
 
-  function hasTerminalViewers(sessionId: string): boolean {
-    const viewers = terminalViewers.get(sessionId)
+  function hasTerminalViewers(wrapperId: string): boolean {
+    const viewers = terminalViewers.get(wrapperId)
     return !!viewers && viewers.size > 0
   }
 
@@ -1012,7 +1046,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       }
       // Push to subagent transcript cache + broadcast
       for (const [agentId, agentBatch] of agentEntries) {
-        console.log(`[transcript] ${sessionId.slice(0, 8)}... live agent ${agentId.slice(0, 7)} ${agentBatch.length} entries from parent`)
+        console.log(
+          `[transcript] ${sessionId.slice(0, 8)}... live agent ${agentId.slice(0, 7)} ${agentBatch.length} entries from parent`,
+        )
         addSubagentTranscriptEntries(sessionId, agentId, agentBatch, false)
         broadcast({
           type: 'subagent_transcript',
@@ -1087,7 +1123,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     getSessionEvents,
     setSessionSocket,
     getSessionSocket,
+    getSessionSocketByWrapper,
     removeSessionSocket,
+    getActiveWrapperCount,
     addTerminalViewer,
     getTerminalViewers,
     removeTerminalViewer,

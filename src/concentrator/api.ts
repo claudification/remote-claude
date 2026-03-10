@@ -3,6 +3,7 @@
  * Provides endpoints for querying session data
  */
 
+import { randomUUID } from 'node:crypto'
 import type { SendInput, Session, TeamInfo } from '../shared/protocol'
 import { getGlobalSettings, updateGlobalSettings } from './global-settings'
 import { resolveInJail } from './path-jail'
@@ -654,15 +655,17 @@ export function createApiHandler(options: ApiOptions) {
       }
 
       try {
+        const wrapperId = randomUUID()
         agent.send(
           JSON.stringify({
             type: 'revive',
             sessionId,
             cwd: session.cwd,
+            wrapperId,
           }),
         )
 
-        return new Response(JSON.stringify({ success: true, message: 'Revive command sent to agent' }), {
+        return new Response(JSON.stringify({ success: true, message: 'Revive command sent to agent', wrapperId }), {
           status: 202,
           headers: { 'Content-Type': 'application/json' },
         })

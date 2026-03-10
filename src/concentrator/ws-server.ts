@@ -77,7 +77,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
               }
 
               // Track socket for this session (for sending input)
-              sessionStore.setSessionSocket(meta.sessionId, ws)
+              sessionStore.setSessionSocket(meta.sessionId, meta.wrapperId || meta.sessionId, ws)
 
               onSessionStart?.(meta.sessionId, meta)
 
