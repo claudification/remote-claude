@@ -895,8 +895,11 @@ function AgentGroupView({
           if (item.kind === 'thinking') {
             if (!expandAll) return null
             return (
-              <div key={i} className="text-[10px] text-purple-400/60 italic">
-                {truncate(item.text, 200)}
+              <div key={i} className="border-l-2 border-purple-400/40 pl-2 py-1">
+                <div className="text-[10px] text-purple-400/70 uppercase font-bold tracking-wider mb-1">thinking</div>
+                <div className="text-[11px] opacity-75">
+                  <Markdown>{item.text}</Markdown>
+                </div>
               </div>
             )
           }
