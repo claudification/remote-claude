@@ -99,12 +99,8 @@ export function createWsServer(options: WsServerOptions): WsServer {
             }
 
             case 'heartbeat': {
-              const heartbeat = data as Heartbeat
-              const sessionId = ws.data.sessionId || heartbeat.sessionId
-
-              if (sessionId) {
-                sessionStore.updateActivity(sessionId)
-              }
+              // Heartbeats keep the WS alive but do NOT count as activity.
+              // Only hook events and transcript entries reset lastActivity.
               break
             }
 

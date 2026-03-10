@@ -11,6 +11,7 @@ import { createApiHandler } from './api'
 import { getUser, initAuth, reloadState } from './auth'
 import { getAuthenticatedUser, handleAuthRoute, requireAuth, setRclaudeSecret } from './auth-routes'
 import { addAllowedRoot, addPathMapping, getAllowedRoots } from './path-jail'
+import { initGlobalSettings } from './global-settings'
 import { initProjectSettings } from './project-settings'
 import { initPush, isConfigured as isPushConfigured, sendPushToAll } from './push'
 import { createSessionStore } from './session-store'
@@ -222,8 +223,9 @@ async function main() {
     expectedOrigins: origins.length > 0 ? origins : defaultOrigins,
   })
 
-  // Initialize project settings
+  // Initialize settings
   initProjectSettings(authCacheDir)
+  initGlobalSettings(authCacheDir)
 
   // Initialize web push (optional - needs VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY env vars)
   if (vapidPublicKey && vapidPrivateKey) {
@@ -443,10 +445,8 @@ async function main() {
                 break
               }
               case 'heartbeat': {
-                const sessionId = ws.data.sessionId || data.sessionId
-                if (sessionId) {
-                  sessionStore.updateActivity(sessionId)
-                }
+                // Heartbeats keep the WS alive but do NOT count as activity.
+                // Only hook events and transcript entries reset lastActivity.
                 break
               }
               case 'end': {
