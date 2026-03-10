@@ -1,4 +1,4 @@
-import { Command, Menu } from 'lucide-react'
+import { Command, FileText, Menu } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AuthGate } from '@/components/auth-gate'
 import { Header } from '@/components/header'
@@ -179,7 +179,16 @@ function Dashboard() {
           <Header />
         </div>
 
-        {/* Command palette button - visible on touch/mobile screens without keyboards */}
+        {/* Mobile-only buttons for touch screens without keyboards */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="shrink-0 sm:hidden"
+          onClick={() => window.dispatchEvent(new Event('open-quick-note'))}
+          title="Quick note"
+        >
+          <FileText className="h-4 w-4" />
+        </Button>
         <Button
           variant="outline"
           size="icon"

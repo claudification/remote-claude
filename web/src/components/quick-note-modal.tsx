@@ -22,7 +22,7 @@ export function QuickNoteModal() {
 
   const { appendQuickNote } = useFileEditor(selectedSessionId && isActive ? selectedSessionId : null)
 
-  // Global keyboard shortcut
+  // Global keyboard shortcut + programmatic open via custom event
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey && e.shiftKey && e.key === 'N') {
@@ -36,8 +36,15 @@ export function QuickNoteModal() {
         setText('')
       }
     }
+    function handleOpenEvent() {
+      if (selectedSessionId && isActive) setOpen(true)
+    }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('open-quick-note', handleOpenEvent)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('open-quick-note', handleOpenEvent)
+    }
   }, [open, selectedSessionId, isActive])
 
   const handleSubmit = useCallback(async () => {
