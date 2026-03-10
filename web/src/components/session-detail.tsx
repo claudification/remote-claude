@@ -17,6 +17,9 @@ import { WebTerminal } from './web-terminal'
 
 type Tab = 'transcript' | 'events' | 'agents' | 'tasks' | 'diag'
 
+// Stable reference to avoid re-render loops with Zustand selectors
+const EMPTY_TRANSCRIPT: TranscriptEntry[] = []
+
 // Find the latest notification that hasn't been "dismissed" by subsequent activity
 function getActiveNotification(events: HookEvent[]): HookEvent | null {
   if (events.length === 0) return null
@@ -147,41 +150,33 @@ export function SessionDetail() {
   const events = selectedSessionId ? allEvents[selectedSessionId] || [] : []
   const transcript = selectedSessionId ? allTranscripts[selectedSessionId] || [] : []
 
-  // Subagent transcript state
-  const [subagentTranscript, setSubagentTranscript] = useState<TranscriptEntry[]>([])
+  // Subagent transcript: store (live WS push) + initial HTTP fetch
+  const subagentKey = selectedSessionId && selectedSubagentId ? `${selectedSessionId}:${selectedSubagentId}` : ''
+  const subagentTranscriptRaw = useSessionsStore(state =>
+    subagentKey ? state.subagentTranscripts[subagentKey] : undefined,
+  )
+  const subagentTranscript = subagentTranscriptRaw || EMPTY_TRANSCRIPT
   const [subagentLoading, setSubagentLoading] = useState(false)
 
-  // Fetch subagent transcript when selectedSubagentId changes
+  // Fetch initial subagent transcript via HTTP, seed into store
   useEffect(() => {
-    if (!selectedSessionId || !selectedSubagentId) {
-      setSubagentTranscript([])
-      return
-    }
+    if (!selectedSessionId || !selectedSubagentId) return
     let cancelled = false
     setSubagentLoading(true)
     fetchSubagentTranscript(selectedSessionId, selectedSubagentId).then(entries => {
-      if (!cancelled) {
-        setSubagentTranscript(entries)
-        setSubagentLoading(false)
+      if (cancelled) return
+      setSubagentLoading(false)
+      if (entries.length > 0) {
+        const key = `${selectedSessionId}:${selectedSubagentId}`
+        useSessionsStore.setState(state => ({
+          subagentTranscripts: { ...state.subagentTranscripts, [key]: entries },
+        }))
       }
     })
-    // Poll for updates while agent is running
-    const agent = session?.subagents.find(a => a.agentId === selectedSubagentId)
-    if (agent?.status === 'running') {
-      const interval = setInterval(() => {
-        fetchSubagentTranscript(selectedSessionId, selectedSubagentId).then(entries => {
-          if (!cancelled) setSubagentTranscript(entries)
-        })
-      }, 3000)
-      return () => {
-        cancelled = true
-        clearInterval(interval)
-      }
-    }
     return () => {
       cancelled = true
     }
-  }, [selectedSessionId, selectedSubagentId, session?.subagents])
+  }, [selectedSessionId, selectedSubagentId])
 
   // HOOKS MUST BE BEFORE EARLY RETURNS - React rules!
   const activeNotification = useMemo(() => getActiveNotification(events), [events])
@@ -305,147 +300,176 @@ export function SessionDetail() {
                     {' · '}
                     {formatModel(model || session.model)}
                   </span>
-                  {session.tokenUsage && (() => {
-                    const { input, cacheCreation, cacheRead } = session.tokenUsage
-                    const total = input + cacheCreation + cacheRead
-                    const maxTokens = 200_000
-                    const pct = Math.min(100, Math.round((total / maxTokens) * 100))
-                    const totalK = Math.round(total / 1000)
-                    return (
-                      <span className="inline-flex items-center gap-1 ml-1">
-                        <span className="text-muted-foreground">·</span>
-                        <span className="inline-block w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                  {session.tokenUsage &&
+                    (() => {
+                      const { input, cacheCreation, cacheRead } = session.tokenUsage
+                      const total = input + cacheCreation + cacheRead
+                      const maxTokens = 200_000
+                      const pct = Math.min(100, Math.round((total / maxTokens) * 100))
+                      const totalK = Math.round(total / 1000)
+                      return (
+                        <span className="inline-flex items-center gap-1 ml-1">
+                          <span className="text-muted-foreground">·</span>
+                          <span className="inline-block w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <span
+                              className={cn(
+                                'block h-full rounded-full',
+                                pct < 60 ? 'bg-emerald-400' : pct < 85 ? 'bg-amber-400' : 'bg-red-400',
+                              )}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </span>
                           <span
                             className={cn(
-                              'block h-full rounded-full',
-                              pct < 60 ? 'bg-emerald-400' : pct < 85 ? 'bg-amber-400' : 'bg-red-400',
+                              'text-[10px] font-mono',
+                              pct < 60 ? 'text-emerald-400/70' : pct < 85 ? 'text-amber-400/70' : 'text-red-400/70',
                             )}
-                            style={{ width: `${pct}%` }}
-                          />
+                          >
+                            {totalK}K ({pct}%)
+                          </span>
                         </span>
-                        <span className={cn(
-                          'text-[10px] font-mono',
-                          pct < 60 ? 'text-emerald-400/70' : pct < 85 ? 'text-amber-400/70' : 'text-red-400/70',
-                        )}>
-                          {totalK}K ({pct}%)
-                        </span>
-                      </span>
-                    )
-                  })()}
+                      )
+                    })()}
                 </span>
               )
             })()}
         </button>
-        {infoExpanded && (() => {
-          const s = session.stats
-          const tu = session.tokenUsage
-          const contextTotal = tu ? tu.input + tu.cacheCreation + tu.cacheRead : 0
-          const contextPct = tu ? Math.min(100, Math.round((contextTotal / 200_000) * 100)) : 0
+        {infoExpanded &&
+          (() => {
+            const s = session.stats
+            const tu = session.tokenUsage
+            const contextTotal = tu ? tu.input + tu.cacheCreation + tu.cacheRead : 0
+            const contextPct = tu ? Math.min(100, Math.round((contextTotal / 200_000) * 100)) : 0
 
-          // Cost estimation (per 1M tokens, Opus pricing)
-          const inputCostPer1M = 15
-          const outputCostPer1M = 75
-          const cacheCostPer1M = 1.875 // cache read
-          const cacheWriteCostPer1M = 18.75 // cache creation
-          const estimatedCost = s
-            ? ((s.totalInputTokens - s.totalCacheCreation - s.totalCacheRead) * inputCostPer1M
-              + s.totalOutputTokens * outputCostPer1M
-              + s.totalCacheRead * cacheCostPer1M
-              + s.totalCacheCreation * cacheWriteCostPer1M) / 1_000_000
-            : 0
+            // Cost estimation (per 1M tokens, Opus pricing)
+            const inputCostPer1M = 15
+            const outputCostPer1M = 75
+            const cacheCostPer1M = 1.875 // cache read
+            const cacheWriteCostPer1M = 18.75 // cache creation
+            const estimatedCost = s
+              ? ((s.totalInputTokens - s.totalCacheCreation - s.totalCacheRead) * inputCostPer1M +
+                  s.totalOutputTokens * outputCostPer1M +
+                  s.totalCacheRead * cacheCostPer1M +
+                  s.totalCacheCreation * cacheWriteCostPer1M) /
+                1_000_000
+              : 0
 
-          return (
-            <div className="px-3 sm:px-4 pb-3 sm:pb-4 text-xs font-mono space-y-3">
-              {/* Row 1: Status + Git + Model */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className={cn(
-                  'px-2 py-0.5 text-[10px] uppercase font-bold',
-                  session.status === 'active' && 'bg-active text-background',
-                  session.status === 'idle' && 'bg-idle text-background',
-                  session.status === 'ended' && 'bg-ended text-foreground',
-                )}>
-                  {session.status}
-                </span>
-                <span className="text-foreground">{formatModel(model || session.model)}</span>
-                {session.gitBranch && (
-                  <span className="text-purple-400 text-[10px]">
-                    <span className="text-muted-foreground">branch:</span> {session.gitBranch}
+            return (
+              <div className="px-3 sm:px-4 pb-3 sm:pb-4 text-xs font-mono space-y-3">
+                {/* Row 1: Status + Git + Model */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span
+                    className={cn(
+                      'px-2 py-0.5 text-[10px] uppercase font-bold',
+                      session.status === 'active' && 'bg-active text-background',
+                      session.status === 'idle' && 'bg-idle text-background',
+                      session.status === 'ended' && 'bg-ended text-foreground',
+                    )}
+                  >
+                    {session.status}
                   </span>
-                )}
-                <span className="text-muted-foreground text-[10px]">{session.id.slice(0, 8)}</span>
-              </div>
-
-              {/* Row 2: Context window bar */}
-              {tu && (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-[10px] w-16">context</span>
-                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className={cn(
-                          'h-full rounded-full transition-all',
-                          contextPct < 60 ? 'bg-emerald-400' : contextPct < 85 ? 'bg-amber-400' : 'bg-red-400',
-                        )}
-                        style={{ width: `${contextPct}%` }}
-                      />
-                    </div>
-                    <span className={cn(
-                      'text-[10px] w-16 text-right',
-                      contextPct < 60 ? 'text-emerald-400' : contextPct < 85 ? 'text-amber-400' : 'text-red-400',
-                    )}>
-                      {Math.round(contextTotal / 1000)}K / 200K
+                  <span className="text-foreground">{formatModel(model || session.model)}</span>
+                  {session.gitBranch && (
+                    <span className="text-purple-400 text-[10px]">
+                      <span className="text-muted-foreground">branch:</span> {session.gitBranch}
                     </span>
-                  </div>
+                  )}
+                  <span className="text-muted-foreground text-[10px]">{session.id.slice(0, 8)}</span>
                 </div>
-              )}
 
-              {/* Row 3: Token stats */}
-              {s && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-[10px]">
-                  <div>
-                    <span className="text-muted-foreground">in </span>
-                    <span className="text-cyan-400">{(s.totalInputTokens / 1000).toFixed(0)}K</span>
+                {/* Row 2: Context window bar */}
+                {tu && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground text-[10px] w-16">context</span>
+                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={cn(
+                            'h-full rounded-full transition-all',
+                            contextPct < 60 ? 'bg-emerald-400' : contextPct < 85 ? 'bg-amber-400' : 'bg-red-400',
+                          )}
+                          style={{ width: `${contextPct}%` }}
+                        />
+                      </div>
+                      <span
+                        className={cn(
+                          'text-[10px] w-16 text-right',
+                          contextPct < 60 ? 'text-emerald-400' : contextPct < 85 ? 'text-amber-400' : 'text-red-400',
+                        )}
+                      >
+                        {Math.round(contextTotal / 1000)}K / 200K
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-muted-foreground">out </span>
-                    <span className="text-orange-400">{(s.totalOutputTokens / 1000).toFixed(0)}K</span>
+                )}
+
+                {/* Row 3: Token stats */}
+                {s && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-[10px]">
+                    <div>
+                      <span className="text-muted-foreground">in </span>
+                      <span className="text-cyan-400">{(s.totalInputTokens / 1000).toFixed(0)}K</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">out </span>
+                      <span className="text-orange-400">{(s.totalOutputTokens / 1000).toFixed(0)}K</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">cache r/w </span>
+                      <span className="text-blue-400">{(s.totalCacheRead / 1000).toFixed(0)}K</span>
+                      <span className="text-muted-foreground"> / </span>
+                      <span className="text-purple-400">{(s.totalCacheCreation / 1000).toFixed(0)}K</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">cost </span>
+                      <span className="text-emerald-400">${estimatedCost.toFixed(2)}</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-muted-foreground">cache r/w </span>
-                    <span className="text-blue-400">{(s.totalCacheRead / 1000).toFixed(0)}K</span>
-                    <span className="text-muted-foreground"> / </span>
-                    <span className="text-purple-400">{(s.totalCacheCreation / 1000).toFixed(0)}K</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">cost </span>
-                    <span className="text-emerald-400">${estimatedCost.toFixed(2)}</span>
-                  </div>
+                )}
+
+                {/* Row 4: Session stats */}
+                <div className="flex items-center gap-4 text-[10px] flex-wrap">
+                  {s && s.turnCount > 0 && (
+                    <span>
+                      <span className="text-muted-foreground">turns </span>
+                      <span className="text-foreground">{s.turnCount}</span>
+                    </span>
+                  )}
+                  {s && s.toolCallCount > 0 && (
+                    <span>
+                      <span className="text-muted-foreground">tools </span>
+                      <span className="text-foreground">{s.toolCallCount}</span>
+                    </span>
+                  )}
+                  {session.totalSubagentCount > 0 && (
+                    <span>
+                      <span className="text-muted-foreground">agents </span>
+                      <span className="text-foreground">{session.totalSubagentCount}</span>
+                    </span>
+                  )}
+                  {s && s.compactionCount > 0 && (
+                    <span>
+                      <span className="text-muted-foreground">compactions </span>
+                      <span className="text-amber-400">{s.compactionCount}</span>
+                    </span>
+                  )}
+                  <span>
+                    <span className="text-muted-foreground">started </span>
+                    <span className="text-foreground">
+                      {new Date(session.startedAt).toLocaleTimeString('en-US', { hour12: false })}
+                    </span>
+                  </span>
+                  <span>
+                    <span className="text-muted-foreground">last </span>
+                    <span className="text-foreground">{formatAge(session.lastActivity)}</span>
+                  </span>
                 </div>
-              )}
 
-              {/* Row 4: Session stats */}
-              <div className="flex items-center gap-4 text-[10px] flex-wrap">
-                {s && s.turnCount > 0 && (
-                  <span><span className="text-muted-foreground">turns </span><span className="text-foreground">{s.turnCount}</span></span>
-                )}
-                {s && s.toolCallCount > 0 && (
-                  <span><span className="text-muted-foreground">tools </span><span className="text-foreground">{s.toolCallCount}</span></span>
-                )}
-                {session.totalSubagentCount > 0 && (
-                  <span><span className="text-muted-foreground">agents </span><span className="text-foreground">{session.totalSubagentCount}</span></span>
-                )}
-                {s && s.compactionCount > 0 && (
-                  <span><span className="text-muted-foreground">compactions </span><span className="text-amber-400">{s.compactionCount}</span></span>
-                )}
-                <span><span className="text-muted-foreground">started </span><span className="text-foreground">{new Date(session.startedAt).toLocaleTimeString('en-US', { hour12: false })}</span></span>
-                <span><span className="text-muted-foreground">last </span><span className="text-foreground">{formatAge(session.lastActivity)}</span></span>
+                {/* CWD */}
+                <div className="text-[10px] text-muted-foreground truncate">{session.cwd}</div>
               </div>
-
-              {/* CWD */}
-              <div className="text-[10px] text-muted-foreground truncate">{session.cwd}</div>
-            </div>
-          )
-        })()}
+            )
+          })()}
       </div>
 
       {/* Subagent Detail View - replaces entire panel content */}
@@ -464,7 +488,9 @@ export function SessionDetail() {
                   Back
                 </button>
                 <div className="w-px h-4 bg-border" />
-                <span className="text-xs text-pink-400 font-bold">{agent?.description || agent?.agentType || 'agent'}</span>
+                <span className="text-xs text-pink-400 font-bold">
+                  {agent?.description || agent?.agentType || 'agent'}
+                </span>
                 <span className="text-[10px] text-pink-400/50 font-mono">{selectedSubagentId.slice(0, 8)}</span>
                 {agent && (
                   <span
@@ -694,9 +720,7 @@ export function SessionDetail() {
               <TasksView sessionId={selectedSessionId} pendingCount={session.pendingTaskCount} />
             </div>
           )}
-          {activeTab === 'diag' && selectedSessionId && (
-            <DiagView sessionId={selectedSessionId} />
-          )}
+          {activeTab === 'diag' && selectedSessionId && <DiagView sessionId={selectedSessionId} />}
         </>
       )}
 

@@ -71,17 +71,18 @@ function Dashboard() {
     fetchProjectSettings().then(s => useSessionsStore.getState().setProjectSettings(s))
   }, [])
 
-  // Fetch initial events when session is selected (updates come via WebSocket)
+  // Fetch events when session selected or WS reconnects (fills gaps from disconnection)
+  const isConnected = useSessionsStore(state => state.isConnected)
   useEffect(() => {
-    if (!selectedSessionId) return
+    if (!selectedSessionId || !isConnected) return
     fetchSessionEvents(selectedSessionId).then(events => setEvents(selectedSessionId, events))
-  }, [selectedSessionId, setEvents])
+  }, [selectedSessionId, isConnected, setEvents])
 
-  // Fetch initial transcript when session is selected (updates come via WS push)
+  // Fetch transcript when session selected or WS reconnects (fills gaps from disconnection)
   useEffect(() => {
-    if (!selectedSessionId) return
+    if (!selectedSessionId || !isConnected) return
     fetchTranscript(selectedSessionId).then(transcript => setTranscript(selectedSessionId, transcript))
-  }, [selectedSessionId, setTranscript])
+  }, [selectedSessionId, isConnected, setTranscript])
 
   // Close sheet when a session is selected (mobile UX)
   useEffect(() => {

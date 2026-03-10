@@ -229,6 +229,24 @@ export function useWebSocket() {
               }
               break
             }
+            case 'subagent_transcript': {
+              if (msg.sessionId && msg.entries?.length) {
+                const agentId = (msg as any).agentId
+                if (agentId) {
+                  const key = `${msg.sessionId}:${agentId}`
+                  useSessionsStore.setState(state => {
+                    const existing = state.subagentTranscripts[key] || []
+                    return {
+                      subagentTranscripts: {
+                        ...state.subagentTranscripts,
+                        [key]: (msg as any).isInitial ? msg.entries! : [...existing, ...msg.entries!],
+                      },
+                    }
+                  })
+                }
+              }
+              break
+            }
             case 'tasks_update': {
               if (msg.sessionId && msg.tasks) {
                 useSessionsStore.setState(state => ({

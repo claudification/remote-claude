@@ -355,7 +355,15 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         teammates: s.teammates,
         team: s.team,
         diagLog: [],
-        stats: s.stats || { totalInputTokens: 0, totalOutputTokens: 0, totalCacheCreation: 0, totalCacheRead: 0, turnCount: 0, toolCallCount: 0, compactionCount: 0 },
+        stats: s.stats || {
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalCacheCreation: 0,
+          totalCacheRead: 0,
+          turnCount: 0,
+          toolCallCount: 0,
+          compactionCount: 0,
+        },
         gitBranch: s.gitBranch,
       }))
 
@@ -894,7 +902,15 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     if (session) {
       // Ensure stats object exists (sessions created before this feature)
       if (!session.stats) {
-        session.stats = { totalInputTokens: 0, totalOutputTokens: 0, totalCacheCreation: 0, totalCacheRead: 0, turnCount: 0, toolCallCount: 0, compactionCount: 0 }
+        session.stats = {
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalCacheCreation: 0,
+          totalCacheRead: 0,
+          turnCount: 0,
+          toolCallCount: 0,
+          compactionCount: 0,
+        }
       }
       for (const entry of entries) {
         // Extract git branch from any entry
@@ -936,7 +952,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
             cacheRead: usage.cache_read_input_tokens || 0,
             output: usage.output_tokens || 0,
           }
-          session.stats.totalInputTokens += (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0)
+          session.stats.totalInputTokens +=
+            (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0)
           session.stats.totalOutputTokens += usage.output_tokens || 0
           session.stats.totalCacheCreation += usage.cache_creation_input_tokens || 0
           session.stats.totalCacheRead += usage.cache_read_input_tokens || 0
@@ -951,11 +968,15 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         if (entry.type !== 'user') continue
         const msg = entry.message as Record<string, unknown> | undefined
         const content = msg?.content
-        const text = typeof content === 'string'
-          ? content
-          : Array.isArray(content)
-            ? content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join('')
-            : ''
+        const text =
+          typeof content === 'string'
+            ? content
+            : Array.isArray(content)
+              ? content
+                  .filter((c: any) => c.type === 'text')
+                  .map((c: any) => c.text)
+                  .join('')
+              : ''
         if (!text.includes('<task-notification>')) continue
 
         // Extract task IDs and statuses
@@ -971,6 +992,35 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
             sessionChanged = true
           }
         }
+      }
+    }
+
+    // Extract live subagent transcript entries from parent transcript
+    // During runtime, agent progress is embedded in parent transcript with data.agentId
+    if (session) {
+      const agentEntries = new Map<string, TranscriptEntry[]>()
+      for (const entry of entries) {
+        const agentId = (entry as any).agentId || (entry as any).data?.agentId
+        if (agentId && typeof agentId === 'string') {
+          let batch = agentEntries.get(agentId)
+          if (!batch) {
+            batch = []
+            agentEntries.set(agentId, batch)
+          }
+          batch.push(entry)
+        }
+      }
+      // Push to subagent transcript cache + broadcast
+      for (const [agentId, agentBatch] of agentEntries) {
+        console.log(`[transcript] ${sessionId.slice(0, 8)}... live agent ${agentId.slice(0, 7)} ${agentBatch.length} entries from parent`)
+        addSubagentTranscriptEntries(sessionId, agentId, agentBatch, false)
+        broadcast({
+          type: 'subagent_transcript',
+          sessionId,
+          agentId,
+          entries: agentBatch,
+          isInitial: false,
+        } as any)
       }
     }
 

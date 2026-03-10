@@ -175,6 +175,7 @@ async function main() {
   let taskWatcher: ChokidarWatcher | null = null
   let lastTasksJson = ''
   let transcriptWatcher: TranscriptWatcher | null = null
+  let parentTranscriptPath: string | null = null // stored to derive subagent transcript paths
   const subagentWatchers = new Map<string, TranscriptWatcher>()
 
   // Queue events until we have the real session ID
@@ -199,7 +200,9 @@ async function main() {
 
   function readAndSendTasks() {
     if (!wsClient?.isConnected() || !claudeSessionId) {
-      debug(`readAndSendTasks: skipped (connected=${wsClient?.isConnected()}, sessionId=${claudeSessionId?.slice(0, 8)})`)
+      debug(
+        `readAndSendTasks: skipped (connected=${wsClient?.isConnected()}, sessionId=${claudeSessionId?.slice(0, 8)})`,
+      )
       return
     }
     try {
@@ -215,7 +218,9 @@ async function main() {
       }
 
       const files = tasksDir
-        ? readdirSync(tasksDir).filter(f => f.endsWith('.json')).sort()
+        ? readdirSync(tasksDir)
+            .filter(f => f.endsWith('.json'))
+            .sort()
         : []
 
       const tasks: TaskInfo[] = []
@@ -459,16 +464,15 @@ async function main() {
       })
   }
 
-  function startSubagentWatcher(agentId: string, transcriptPath: string) {
+  function startSubagentWatcher(agentId: string, transcriptPath: string, live: boolean) {
     if (subagentWatchers.has(agentId)) return
 
-    // Subagent transcripts are complete at SubagentStop time - read once, send, close
     const watcher = createTranscriptWatcher({
       debug: DEBUG ? (msg: string) => debug(`[tw:${agentId.slice(0, 7)}] ${msg}`) : undefined,
       onEntries(entries, isInitial) {
         if (claudeSessionId && wsClient?.isConnected()) {
           sendTranscriptEntriesChunked(entries, isInitial, agentId)
-          debug(`Sent ${entries.length} subagent transcript entries for ${agentId.slice(0, 7)}`)
+          debug(`Sent ${entries.length} subagent transcript entries for ${agentId.slice(0, 7)} (live=${live})`)
         }
       },
       onError(err) {
@@ -480,15 +484,27 @@ async function main() {
     watcher
       .start(transcriptPath)
       .then(() => {
-        // File is complete - stop watching, free the fd
-        watcher.stop()
-        subagentWatchers.delete(agentId)
-        debug(`Subagent transcript read complete, watcher closed: ${agentId.slice(0, 7)}`)
+        if (!live) {
+          // Non-live (SubagentStop): file is complete, read once and close
+          watcher.stop()
+          subagentWatchers.delete(agentId)
+          debug(`Subagent transcript read complete, watcher closed: ${agentId.slice(0, 7)}`)
+        }
+        // Live mode: keep watching via chokidar for new entries
       })
       .catch(err => {
         debug(`Failed to start subagent watcher: ${err}`)
       })
-    debug(`Reading subagent transcript: ${agentId.slice(0, 7)}`)
+    debug(`${live ? 'Live watching' : 'Reading'} subagent transcript: ${agentId.slice(0, 7)}`)
+  }
+
+  function stopSubagentWatcher(agentId: string) {
+    const watcher = subagentWatchers.get(agentId)
+    if (watcher) {
+      watcher.stop()
+      subagentWatchers.delete(agentId)
+      debug(`Stopped live subagent watcher: ${agentId.slice(0, 7)}`)
+    }
   }
 
   // Start local HTTP server for hook callbacks
@@ -541,6 +557,7 @@ async function main() {
           // Start/restart transcript watcher if path is available and session changed
           if (data.transcript_path && typeof data.transcript_path === 'string') {
             const transcriptPath = data.transcript_path
+            parentTranscriptPath = transcriptPath
             // Only start watcher if the transcript file actually exists
             // (first SessionStart from --settings gives a bogus session ID whose file never exists)
             if (existsSync(transcriptPath)) {
@@ -564,14 +581,39 @@ async function main() {
         }
       }
 
-      // Watch subagent transcripts when they stop (transcript_path available at stop)
+      // Start live watching subagent transcripts at SubagentStart
+      if (event.hookEvent === 'SubagentStart' && event.data) {
+        const data = event.data as Record<string, unknown>
+        const agentId = String(data.agent_id || '')
+        if (agentId && parentTranscriptPath) {
+          // Derive subagent transcript path: {sessionDir}/subagents/agent-{agentId}.jsonl
+          const sessionDir = parentTranscriptPath.replace(/\.jsonl$/, '')
+          const agentTranscriptPath = join(sessionDir, 'subagents', `agent-${agentId}.jsonl`)
+          if (existsSync(agentTranscriptPath)) {
+            startSubagentWatcher(agentId, agentTranscriptPath, true)
+          } else {
+            debug(`SubagentStart: transcript file not yet created: ${agentTranscriptPath}`)
+            // Retry after a short delay (file may be created slightly after hook fires)
+            setTimeout(() => {
+              if (existsSync(agentTranscriptPath) && !subagentWatchers.has(agentId)) {
+                startSubagentWatcher(agentId, agentTranscriptPath, true)
+              }
+            }, 500)
+          }
+        }
+      }
+
+      // Stop live watcher and do final read at SubagentStop
       if (event.hookEvent === 'SubagentStop' && event.data) {
         const data = event.data as Record<string, unknown>
         const agentId = String(data.agent_id || '')
         const transcriptPath = typeof data.agent_transcript_path === 'string' ? data.agent_transcript_path : undefined
         debug(`SubagentStop: agent=${agentId.slice(0, 7)} transcript=${transcriptPath || 'NONE'}`)
+        // Stop live watcher first
+        stopSubagentWatcher(agentId)
+        // Then do a final read of the complete transcript
         if (agentId && transcriptPath) {
-          startSubagentWatcher(agentId, transcriptPath)
+          startSubagentWatcher(agentId, transcriptPath, false)
         }
       }
 
