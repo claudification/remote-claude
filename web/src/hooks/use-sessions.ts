@@ -35,6 +35,8 @@ interface SessionsState {
   terminalWrapperId: string | null
   showSwitcher: boolean
   requestedTab: string | null
+  requestedTabSeq: number
+  pendingFilePath: string | null
   newDataSeq: number
 
   setSessions: (sessions: Session[]) => void
@@ -57,6 +59,7 @@ interface SessionsState {
   fileHandler: ((msg: any) => void) | null
   setFileHandler: (handler: ((msg: any) => void) | null) => void
   sendWsMessage: (msg: Record<string, unknown>) => void
+  setPendingFilePath: (path: string | null) => void
 
   getSelectedSession: () => Session | undefined
   getSelectedEvents: () => HookEvent[]
@@ -110,18 +113,29 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   terminalWrapperId: null,
   showSwitcher: false,
   requestedTab: null,
+  requestedTabSeq: 0,
+  pendingFilePath: null,
   newDataSeq: 0,
 
   setSessions: sessions => set({ sessions }),
   selectSession: id => {
-    set({ selectedSessionId: id, selectedSubagentId: null, requestedTab: null })
+    set(state => ({
+      selectedSessionId: id,
+      selectedSubagentId: null,
+      requestedTab: 'transcript',
+      requestedTabSeq: state.requestedTabSeq + 1,
+    }))
     updateHash(id ? `session/${id}` : '')
   },
   selectSubagent: agentId => {
     set({ selectedSubagentId: agentId })
   },
   openTab: (sessionId, tab) => {
-    set({ selectedSessionId: sessionId, requestedTab: tab })
+    set(state => ({
+      selectedSessionId: sessionId,
+      requestedTab: tab,
+      requestedTabSeq: state.requestedTabSeq + 1,
+    }))
     updateHash(`session/${sessionId}`)
   },
   setShowTerminal: show => {
@@ -157,6 +171,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   setWs: ws => set({ ws }),
   setTerminalHandler: handler => set({ terminalHandler: handler }),
   setFileHandler: handler => set({ fileHandler: handler }),
+  setPendingFilePath: path => set({ pendingFilePath: path }),
   sendWsMessage: msg => {
     const { ws } = get()
     if (ws?.readyState === WebSocket.OPEN) {

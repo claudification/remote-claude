@@ -40,6 +40,7 @@ export interface WsClientOptions {
   onTranscriptRequest?: (limit?: number) => void
   onSubagentTranscriptRequest?: (agentId: string, limit?: number) => void
   onFileRequest?: (requestId: string, path: string) => void
+  onFileEditorMessage?: (message: Record<string, unknown>) => void
 }
 
 export interface WsClient {
@@ -78,6 +79,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onTranscriptRequest,
     onSubagentTranscriptRequest,
     onFileRequest,
+    onFileEditorMessage,
   } = options
 
   let ws: WebSocket | null = null
@@ -196,6 +198,14 @@ export function createWsClient(options: WsClientOptions): WsClient {
             case 'ack':
               // Acknowledgements - no action needed
               break
+            default: {
+              // File editor messages are relayed as generic JSON (not part of ConcentratorMessage type)
+              const msgType = (message as any).type as string
+              if (msgType?.startsWith('file_') || msgType === 'quick_note_append') {
+                onFileEditorMessage?.(message as unknown as Record<string, unknown>)
+              }
+              break
+            }
           }
         } catch {
           // Ignore parse errors

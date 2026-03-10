@@ -158,6 +158,21 @@ export function useWebSocket() {
         try {
           const msg = JSON.parse(event.data) as DashboardMessage
 
+          // Route file editor messages to file handler
+          if (
+            msg.type === 'file_list_response' ||
+            msg.type === 'file_content_response' ||
+            msg.type === 'file_save_response' ||
+            msg.type === 'file_history_response' ||
+            msg.type === 'file_restore_response' ||
+            msg.type === 'quick_note_response' ||
+            msg.type === 'file_changed'
+          ) {
+            const handler = useSessionsStore.getState().fileHandler
+            handler?.(msg)
+            return
+          }
+
           // Route terminal messages to terminal handler (keyed by wrapperId)
           if (msg.type === 'terminal_data' || msg.type === 'terminal_error') {
             const handler = useSessionsStore.getState().terminalHandler

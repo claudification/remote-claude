@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import { type FSWatcher as ChokidarWatcher, watch as chokidarWatch } from 'chokidar'
 import type { HookEvent, TaskInfo, TasksUpdate, TranscriptEntry } from '../shared/protocol'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
+import { FileEditor } from './file-editor'
 import { startLocalServer, stopLocalServer } from './local-server'
 import { type PtyProcess, setupTerminalPassthrough, spawnClaude } from './pty-spawn'
 import { cleanupSettings, writeMergedSettings } from './settings-merge'
@@ -171,6 +172,7 @@ async function main() {
   let wsClient: WsClient | null = null
   let ptyProcess: PtyProcess | null = null
   let terminalAttached = false
+  let fileEditor: FileEditor | null = null
   let savedTerminalSize: { cols: number; rows: number } | null = null
   let taskWatcher: ChokidarWatcher | null = null
   let lastTasksJson = ''
@@ -415,7 +417,90 @@ async function main() {
             debug(`File request failed: ${path} - ${err}`)
           })
       },
+      onFileEditorMessage(msg) {
+        handleFileEditorMessage(msg)
+      },
     })
+  }
+
+  function ensureFileEditor(): FileEditor {
+    if (!fileEditor) {
+      fileEditor = new FileEditor(cwd, claudeSessionId || internalId)
+    }
+    return fileEditor
+  }
+
+  function handleFileEditorMessage(msg: Record<string, unknown>) {
+    const type = msg.type as string
+    const requestId = msg.requestId as string | undefined
+    const sessionId = msg.sessionId as string | undefined
+    const editor = ensureFileEditor()
+
+    function respond(responseType: string, data: Record<string, unknown>) {
+      wsClient?.send({ type: responseType, requestId, sessionId, ...data } as any)
+    }
+
+    function respondError(responseType: string, err: unknown) {
+      respond(responseType, { error: String(err) })
+    }
+
+    switch (type) {
+      case 'file_list_request':
+        editor
+          .listFiles()
+          .then(files => respond('file_list_response', { files }))
+          .catch(err => respondError('file_list_response', err))
+        break
+      case 'file_content_request':
+        editor
+          .readFile(msg.path as string)
+          .then(result => respond('file_content_response', { content: result.content, version: result.version }))
+          .catch(err => respondError('file_content_response', err))
+        break
+      case 'file_save':
+        editor
+          .saveFile({
+            path: msg.path as string,
+            content: msg.content as string,
+            diff: (msg.diff as string) || '',
+            baseVersion: (msg.baseVersion as number) || 0,
+          })
+          .then(result => respond('file_save_response', { ...result }))
+          .catch(err => respondError('file_save_response', err))
+        break
+      case 'file_watch':
+        editor.watchFile(msg.path as string, event => {
+          wsClient?.send({ type: 'file_changed', sessionId, ...event } as any)
+        })
+        break
+      case 'file_unwatch':
+        editor.unwatchFile(msg.path as string)
+        break
+      case 'file_history_request':
+        try {
+          const versions = editor.getHistory(msg.path as string)
+          respond('file_history_response', { versions })
+        } catch (err) {
+          respondError('file_history_response', err)
+        }
+        break
+      case 'file_restore':
+        editor
+          .restoreVersion(msg.path as string, msg.version as number)
+          .then(async result => {
+            const read = await editor.readFile(msg.path as string)
+            respond('file_restore_response', { version: result.version, content: read.content })
+          })
+          .catch(err => respondError('file_restore_response', err))
+        break
+      case 'quick_note_append':
+        editor
+          .appendNote(msg.text as string)
+          .then(result => respond('quick_note_response', { version: result.version }))
+          .catch(err => respondError('quick_note_response', err))
+        break
+    }
+    debug(`File editor: ${type}${msg.path ? ` path=${msg.path}` : ''}`)
   }
 
   const TRANSCRIPT_CHUNK_SIZE = 200
@@ -676,6 +761,7 @@ async function main() {
     transcriptWatcher?.stop()
     for (const watcher of subagentWatchers.values()) watcher.stop()
     subagentWatchers.clear()
+    fileEditor?.destroy()
     cleanupTerminal()
     stopLocalServer(localServer)
     wsClient?.close()

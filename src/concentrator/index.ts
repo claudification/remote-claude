@@ -693,6 +693,47 @@ async function main() {
                 break
               }
 
+              // File editor relay: dashboard <-> wrapper
+              // Dashboard sends request (with sessionId + requestId), concentrator forwards to wrapper.
+              // Wrapper sends response (with requestId), concentrator forwards back to requesting dashboard.
+              case 'file_list_request':
+              case 'file_content_request':
+              case 'file_save':
+              case 'file_watch':
+              case 'file_unwatch':
+              case 'file_history_request':
+              case 'file_restore':
+              case 'quick_note_append': {
+                if (ws.data.isDashboard && data.sessionId) {
+                  // Dashboard -> wrapper: forward to the session's wrapper
+                  const targetSocket = sessionStore.getSessionSocket(data.sessionId)
+                  if (targetSocket) {
+                    // Tag with the dashboard socket so we can route the response back
+                    targetSocket.send(JSON.stringify(data))
+                  } else {
+                    ws.send(JSON.stringify({ type: data.type.replace('_request', '_response').replace('_save', '_save_response'), requestId: data.requestId, error: 'Session not connected' }))
+                  }
+                }
+                break
+              }
+              case 'file_list_response':
+              case 'file_content_response':
+              case 'file_save_response':
+              case 'file_history_response':
+              case 'file_restore_response':
+              case 'quick_note_response':
+              case 'file_changed': {
+                // Wrapper -> dashboard: forward to all dashboard subscribers
+                // (requestId-based correlation handles routing on the client side)
+                const msg = JSON.stringify(data)
+                for (const sub of sessionStore.getSubscribers()) {
+                  try {
+                    sub.send(msg)
+                  } catch {}
+                }
+                break
+              }
+
               // Transcript streaming: dashboard -> rclaude (request cached or proxied transcript)
               case 'transcript_request': {
                 if (data.sessionId) {
