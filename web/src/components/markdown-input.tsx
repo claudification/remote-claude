@@ -1,5 +1,6 @@
 import { Mic, Paperclip } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { getShowVoiceInput } from '@/components/settings-page'
 import { cn } from '@/lib/utils'
 
 interface MarkdownInputProps {
@@ -87,6 +88,15 @@ export function MarkdownInput({
       requestAnimationFrame(() => textareaRef.current?.focus())
     }
   }, [autoFocus, isMobile])
+  const [showVoice, setShowVoice] = useState(getShowVoiceInput)
+  useEffect(() => {
+    function onPrefsChanged() {
+      setShowVoice(getShowVoiceInput())
+    }
+    window.addEventListener('prefs-changed', onPrefsChanged)
+    return () => window.removeEventListener('prefs-changed', onPrefsChanged)
+  }, [])
+
   const [expanded, setExpanded] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [recording, setRecording] = useState(false)
@@ -446,23 +456,25 @@ export function MarkdownInput({
             Cancel
           </button>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleRecording}
-              className={cn(
-                'transition-colors p-1',
-                recording
-                  ? 'text-red-400 animate-pulse'
-                  : transcribing
-                    ? 'text-yellow-400 animate-pulse'
-                    : 'text-muted-foreground hover:text-accent',
-              )}
-              title={recording ? 'Stop recording' : transcribing ? 'Transcribing...' : 'Voice input'}
-              disabled={transcribing}
-              style={{ touchAction: 'manipulation' }}
-            >
-              <Mic className="w-4 h-4" />
-            </button>
+            {showVoice && (
+              <button
+                type="button"
+                onClick={toggleRecording}
+                className={cn(
+                  'transition-colors p-1',
+                  recording
+                    ? 'text-red-400 animate-pulse'
+                    : transcribing
+                      ? 'text-yellow-400 animate-pulse'
+                      : 'text-muted-foreground hover:text-accent',
+                )}
+                title={recording ? 'Stop recording' : transcribing ? 'Transcribing...' : 'Voice input'}
+                disabled={transcribing}
+                style={{ touchAction: 'manipulation' }}
+              >
+                <Mic className="w-4 h-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -585,23 +597,25 @@ export function MarkdownInput({
       />
       {/* Action buttons */}
       <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-        <button
-          type="button"
-          onClick={toggleRecording}
-          className={cn(
-            'transition-colors p-0.5',
-            recording
-              ? 'text-red-400 animate-pulse'
-              : transcribing
-                ? 'text-yellow-400 animate-pulse'
-                : 'text-muted-foreground hover:text-accent',
-          )}
-          title={recording ? 'Stop recording' : transcribing ? 'Transcribing...' : 'Voice input (tap to record)'}
-          disabled={transcribing}
-          style={{ touchAction: 'manipulation' }}
-        >
-          <Mic className="w-3.5 h-3.5" />
-        </button>
+        {showVoice && (
+          <button
+            type="button"
+            onClick={toggleRecording}
+            className={cn(
+              'transition-colors p-0.5',
+              recording
+                ? 'text-red-400 animate-pulse'
+                : transcribing
+                  ? 'text-yellow-400 animate-pulse'
+                  : 'text-muted-foreground hover:text-accent',
+            )}
+            title={recording ? 'Stop recording' : transcribing ? 'Transcribing...' : 'Voice input (tap to record)'}
+            disabled={transcribing}
+            style={{ touchAction: 'manipulation' }}
+          >
+            <Mic className="w-3.5 h-3.5" />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}

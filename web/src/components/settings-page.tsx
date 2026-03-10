@@ -6,6 +6,7 @@ import { getPushStatus, subscribeToPush, useSessionsStore } from '@/hooks/use-se
 interface DashboardPrefs {
   showInactiveByDefault: boolean
   compactMode: boolean
+  showVoiceInput: boolean
 }
 
 function loadPrefs(): DashboardPrefs {
@@ -18,11 +19,13 @@ function loadPrefs(): DashboardPrefs {
 
 function savePrefs(prefs: DashboardPrefs) {
   localStorage.setItem('dashboard-prefs', JSON.stringify(prefs))
+  window.dispatchEvent(new Event('prefs-changed'))
 }
 
 const defaultPrefs: DashboardPrefs = {
   showInactiveByDefault: false,
   compactMode: false,
+  showVoiceInput: true,
 }
 
 export function usePrefs() {
@@ -35,6 +38,10 @@ export function usePrefs() {
     })
   }
   return { prefs, update }
+}
+
+export function getShowVoiceInput(): boolean {
+  return loadPrefs().showVoiceInput
 }
 
 function SectionLabel({ icon: Icon, label, hint }: { icon: typeof Cloud; label: string; hint: string }) {
@@ -183,6 +190,18 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 type="checkbox"
                 checked={prefs.compactMode}
                 onChange={e => update({ compactMode: e.target.checked })}
+                className="accent-primary w-4 h-4"
+              />
+            </label>
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <div className="text-sm text-foreground">Voice input</div>
+                <div className="text-[10px] text-muted-foreground">Show microphone button in input bar</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={prefs.showVoiceInput}
+                onChange={e => update({ showVoiceInput: e.target.checked })}
                 className="accent-primary w-4 h-4"
               />
             </label>
