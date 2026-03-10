@@ -6,6 +6,7 @@
 import { AlertTriangle, ChevronLeft, Clock, FileText, Loader2, RefreshCw, Save } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { type FileInfo, useFileEditor } from '@/hooks/use-file-editor'
+import { useSessionsStore } from '@/hooks/use-sessions'
 import { cn } from '@/lib/utils'
 
 // Lazy-load CodeMirror (heavy dependency)
@@ -188,6 +189,18 @@ export function FileEditor({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     loadFileList()
   }, [loadFileList])
+
+  // Auto-open file from Ctrl+K file picker
+  const pendingFilePath = useSessionsStore(state => state.pendingFilePath)
+  useEffect(() => {
+    if (pendingFilePath && files.length > 0) {
+      const match = files.find(f => f.path === pendingFilePath)
+      if (match) {
+        openFile(match.path)
+      }
+      useSessionsStore.getState().setPendingFilePath(null)
+    }
+  }, [pendingFilePath, files, openFile])
 
   const handleOpenFile = useCallback(
     (path: string) => {

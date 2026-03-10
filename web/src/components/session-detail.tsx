@@ -1,13 +1,14 @@
-import { ArrowLeft, Bell, ChevronDown, ChevronRight, Terminal, X } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, ChevronDown, ChevronRight, Terminal } from 'lucide-react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { fetchSubagentTranscript, reviveSession, sendInput, useSessionsStore } from '@/hooks/use-sessions'
-import { canTerminal, type HookEvent, type TranscriptEntry } from '@/lib/types'
+import { canTerminal, type TranscriptEntry } from '@/lib/types'
 import { cn, formatAge, formatModel } from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
 import { DiagView } from './diag-view'
 import { EventsView } from './events-view'
+import { FileEditor } from './file-editor'
 import { MarkdownInput } from './markdown-input'
 import { renderProjectIcon } from './project-settings-editor'
 import { SubagentView } from './subagent-view'
@@ -15,44 +16,10 @@ import { TasksView } from './tasks-view'
 import { TranscriptView } from './transcript-view'
 import { WebTerminal } from './web-terminal'
 
-type Tab = 'transcript' | 'events' | 'agents' | 'tasks' | 'diag'
+type Tab = 'transcript' | 'events' | 'agents' | 'tasks' | 'files' | 'diag'
 
 // Stable reference to avoid re-render loops with Zustand selectors
 const EMPTY_TRANSCRIPT: TranscriptEntry[] = []
-
-// Find the latest notification that hasn't been "dismissed" by subsequent activity
-function getActiveNotification(events: HookEvent[]): HookEvent | null {
-  if (events.length === 0) return null
-
-  // Find the most recent notification
-  let lastNotification: HookEvent | null = null
-  let lastNotificationIndex = -1
-
-  for (let i = events.length - 1; i >= 0; i--) {
-    if (events[i].hookEvent === 'Notification') {
-      lastNotification = events[i]
-      lastNotificationIndex = i
-      break
-    }
-  }
-
-  if (!lastNotification) return null
-
-  // Check if there's been activity AFTER the notification that would dismiss it
-  // Activity that dismisses: PreToolUse, PostToolUse, UserPromptSubmit (new work starting)
-  for (let i = lastNotificationIndex + 1; i < events.length; i++) {
-    const event = events[i]
-    if (
-      event.hookEvent === 'PreToolUse' ||
-      event.hookEvent === 'PostToolUse' ||
-      event.hookEvent === 'UserPromptSubmit'
-    ) {
-      return null // Notification is "stale" - activity resumed
-    }
-  }
-
-  return lastNotification
-}
 
 function ScrollToBottomButton({ onClick, label = 'scroll to bottom' }: { onClick: () => void; label?: string }) {
   return (
@@ -131,16 +98,19 @@ export function SessionDetail() {
   const terminalWrapperId = useSessionsStore(state => state.terminalWrapperId)
   const setShowTerminal = useSessionsStore(state => state.setShowTerminal)
   const requestedTab = useSessionsStore(state => state.requestedTab)
-  // Apply requested tab from external navigation (badge clicks)
+  const requestedTabSeq = useSessionsStore(state => state.requestedTabSeq)
+  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
+
+  // Apply requested tab - fires on selectSession (always 'transcript'), openTab, and badge clicks
+  // requestedTabSeq ensures re-clicks on the same session still trigger
   useEffect(() => {
     if (requestedTab) {
       setActiveTab(requestedTab as Tab)
       useSessionsStore.setState({ requestedTab: null })
     }
-  }, [requestedTab])
+  }, [requestedTab, requestedTabSeq])
 
   const sessions = useSessionsStore(state => state.sessions)
-  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
   const allEvents = useSessionsStore(state => state.events)
   const allTranscripts = useSessionsStore(state => state.transcripts)
   const agentConnected = useSessionsStore(state => state.agentConnected)
@@ -182,8 +152,6 @@ export function SessionDetail() {
   }, [selectedSessionId, selectedSubagentId])
 
   // HOOKS MUST BE BEFORE EARLY RETURNS - React rules!
-  const activeNotification = useMemo(() => getActiveNotification(events), [events])
-  const [dismissedNotificationId, setDismissedNotificationId] = useState<string | null>(null)
 
   // Countdown timer while waiting for revived session
   useEffect(() => {
@@ -239,12 +207,6 @@ export function SessionDetail() {
   }
 
   const model = events.find(e => e.hookEvent === 'SessionStart' && e.data?.model)?.data?.model as string | undefined
-
-  // Show notification if it's active and not manually dismissed
-  const notificationToShow =
-    activeNotification && activeNotification.timestamp.toString() !== dismissedNotificationId
-      ? activeNotification
-      : null
 
   const canSendInput = session?.status === 'active' || session?.status === 'idle'
   const hasTerminal = session ? canTerminal(session) : false
@@ -531,32 +493,6 @@ export function SessionDetail() {
       {/* Normal session view */}
       {!selectedSubagentId && (
         <>
-          {/* Notification Banner */}
-          {notificationToShow && (
-            <div className="shrink-0 mx-3 sm:mx-4 mt-3 p-3 bg-amber-500/20 border border-amber-500/50 flex items-start gap-3">
-              <Bell className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 animate-pulse" />
-              <div className="flex-1 min-w-0">
-                <div className="text-amber-200 text-xs font-bold uppercase tracking-wider mb-1">
-                  {(notificationToShow.data?.notification_type as string) || 'Notification'}
-                </div>
-                <div className="text-amber-100/90 text-sm">
-                  {(notificationToShow.data?.message as string) || 'Awaiting input...'}
-                </div>
-                {notificationToShow.data?.title != null && (
-                  <div className="text-amber-200/70 text-[10px] mt-1">{String(notificationToShow.data.title)}</div>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => setDismissedNotificationId(notificationToShow.timestamp.toString())}
-                className="text-amber-400 hover:text-amber-200 p-1"
-                title="Dismiss"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
           {/* Tabs with follow checkbox */}
           <div className="shrink-0 flex items-center border-b border-border">
             <button
@@ -621,6 +557,20 @@ export function SessionDetail() {
                 )}
               </button>
             )}
+            {session.status === 'active' && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('files')}
+                className={cn(
+                  'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
+                  activeTab === 'files'
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+              >
+                Files
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setActiveTab('diag')}
@@ -642,11 +592,7 @@ export function SessionDetail() {
                     const wid = session?.wrapperIds?.[0]
                     if (!wid) return
                     if (e.shiftKey) {
-                      window.open(
-                        `/#popout-terminal/${wid}`,
-                        '_blank',
-                        'width=900,height=600,menubar=no,toolbar=no',
-                      )
+                      window.open(`/#popout-terminal/${wid}`, '_blank', 'width=900,height=600,menubar=no,toolbar=no')
                     } else {
                       useSessionsStore.getState().openTerminal(wid)
                     }
@@ -725,6 +671,11 @@ export function SessionDetail() {
               <TasksView sessionId={selectedSessionId} pendingCount={session.pendingTaskCount} />
             </div>
           )}
+          {activeTab === 'files' && selectedSessionId && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <FileEditor sessionId={selectedSessionId} />
+            </div>
+          )}
           {activeTab === 'diag' && selectedSessionId && <DiagView sessionId={selectedSessionId} />}
         </>
       )}
@@ -789,7 +740,6 @@ export function SessionDetail() {
           )}
         </div>
       )}
-
     </div>
   )
 }

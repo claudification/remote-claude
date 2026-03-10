@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AuthGate } from '@/components/auth-gate'
 import { Header } from '@/components/header'
 import { JsonInspectorDialog } from '@/components/json-inspector'
+import { QuickNoteModal } from '@/components/quick-note-modal'
 import { SessionDetail } from '@/components/session-detail'
 import { SessionList } from '@/components/session-list'
 import { SessionSwitcher } from '@/components/session-switcher'
@@ -200,12 +201,23 @@ function Dashboard() {
       {showSwitcher && (
         <SessionSwitcher
           onSelect={handleSwitcherSelect}
+          onFileSelect={(sessionId, path) => {
+            const store = useSessionsStore.getState()
+            store.selectSession(sessionId)
+            store.setShowSwitcher(false)
+            // Open Files tab with this file - use openTab then set a pending file open
+            store.openTab(sessionId, 'files')
+            // Store the pending file path so FileEditor can pick it up
+            store.setPendingFilePath(path)
+          }}
           onClose={() => useSessionsStore.getState().setShowSwitcher(false)}
         />
       )}
 
       {/* Global JSON inspector dialog (survives virtualizer remounts) */}
       <JsonInspectorDialog />
+      {/* Ctrl+Shift+N quick note modal */}
+      <QuickNoteModal />
     </div>
   )
 }
