@@ -22,6 +22,7 @@ interface SessionsState {
   selectedSubagentId: string | null
   events: Record<string, HookEvent[]>
   transcripts: Record<string, TranscriptEntry[]>
+  subagentTranscripts: Record<string, TranscriptEntry[]> // key: `${sessionId}:${agentId}`
   tasks: Record<string, TaskInfo[]>
   projectSettings: ProjectSettingsMap
   globalSettings: Record<string, unknown>
@@ -92,6 +93,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   selectedSubagentId: null,
   events: {},
   transcripts: {},
+  subagentTranscripts: {},
   tasks: {},
   projectSettings: {},
   globalSettings: {},
