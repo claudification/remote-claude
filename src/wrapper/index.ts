@@ -198,15 +198,22 @@ async function main() {
   let taskCandidateDirs: string[] = []
 
   function readAndSendTasks() {
-    if (!wsClient?.isConnected() || !claudeSessionId) return
+    if (!wsClient?.isConnected() || !claudeSessionId) {
+      debug(`readAndSendTasks: skipped (connected=${wsClient?.isConnected()}, sessionId=${claudeSessionId?.slice(0, 8)})`)
+      return
+    }
     try {
+      // Read tasks from ALL candidate dirs - pick the one with actual .json files
       let tasksDir: string | null = null
       for (const dir of taskCandidateDirs) {
-        if (existsSync(dir)) {
+        if (!existsSync(dir)) continue
+        const jsonFiles = readdirSync(dir).filter(f => f.endsWith('.json'))
+        if (jsonFiles.length > 0) {
           tasksDir = dir
           break
         }
       }
+
       const files = tasksDir
         ? readdirSync(tasksDir).filter(f => f.endsWith('.json')).sort()
         : []
@@ -236,10 +243,12 @@ async function main() {
         lastTasksJson = json
         const msg: TasksUpdate = { type: 'tasks_update', sessionId: claudeSessionId, tasks }
         wsClient?.send(msg)
-        debug(`Tasks updated: ${tasks.length} tasks`)
+        debug(`Tasks updated: ${tasks.length} tasks (dir: ${tasksDir?.split('/').pop()?.slice(0, 8)})`)
+        diag('tasks', `Sent ${tasks.length} tasks`, { dir: tasksDir?.split('/').pop() })
       }
-    } catch {
-      // Ignore read errors
+    } catch (err) {
+      debug(`readAndSendTasks error: ${err}`)
+      diag('tasks', `Read error: ${err}`, { dirs: taskCandidateDirs.map(d => d.split('/').pop()) })
     }
   }
 
@@ -249,11 +258,14 @@ async function main() {
   function startTaskWatching() {
     if (taskWatcher) return
     const tasksBase = join(homedir(), '.claude', 'tasks')
-    taskCandidateDirs = [claudeSessionId ? join(tasksBase, claudeSessionId) : null, join(tasksBase, internalId)].filter(
-      Boolean,
-    ) as string[]
+    // Watch both Claude's session ID dir and our internal ID dir (they may differ)
+    const candidates = new Set<string>()
+    if (claudeSessionId) candidates.add(join(tasksBase, claudeSessionId))
+    candidates.add(join(tasksBase, internalId))
+    taskCandidateDirs = Array.from(candidates)
 
     const watchPaths = taskCandidateDirs.map(d => join(d, '*.json'))
+    debug(`Task watcher dirs: ${taskCandidateDirs.map(d => d.split('/').pop()).join(', ')}`)
     taskWatcher = chokidarWatch(watchPaths, {
       ignoreInitial: false,
       awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
@@ -261,7 +273,10 @@ async function main() {
     taskWatcher.on('add', readAndSendTasks)
     taskWatcher.on('change', readAndSendTasks)
     taskWatcher.on('unlink', readAndSendTasks)
-    diag('watch', 'Task watcher started', taskCandidateDirs)
+    // Also poll periodically in case chokidar misses events (e.g. dir created after watcher)
+    const pollInterval = setInterval(() => readAndSendTasks(), 5000)
+    taskWatcher.on('close', () => clearInterval(pollInterval))
+    diag('watch', 'Task watcher started', { dirs: taskCandidateDirs.map(d => d.split('/').pop()), watchPaths })
   }
 
   function connectToConcentrator(sessionId: string) {

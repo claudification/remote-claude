@@ -1,20 +1,28 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { fetchSessionEvents, fetchTranscript, useSessionsStore } from '@/hooks/use-sessions'
 import type { Session } from '@/lib/types'
 import { cn, formatAge, formatModel, lastPathSegments } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from './project-settings-editor'
 import { usePrefs } from './settings-page'
 
-function StatusIndicator({ status }: { status: Session['status'] }) {
+function StatusIndicator({ status, lastActivity }: { status: Session['status']; lastActivity?: number }) {
   if (status === 'ended') {
     return <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-ended text-foreground">ended</span>
   }
+  // Active with recent activity (last 4 min) gets a spinning work indicator
+  if (status === 'active' && lastActivity && (Date.now() - lastActivity) < 4 * 60 * 1000) {
+    return (
+      <span className="w-3 h-3 shrink-0 flex items-center justify-center" title="working">
+        <span className="w-2.5 h-2.5 border-2 border-active border-t-transparent rounded-full animate-spin" />
+      </span>
+    )
+  }
+  // Server determines idle status via idleTimeoutMinutes setting
   return (
     <span
       className={cn(
         'w-2 h-2 rounded-full shrink-0',
-        status === 'active' && 'bg-active',
-        status === 'idle' && 'bg-idle',
+        status === 'idle' ? 'bg-idle' : 'bg-active',
       )}
       title={status}
     />
@@ -73,6 +81,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
       {/* Path - most important */}
       {!compact && (
         <div className="flex items-center gap-1.5">
+          <StatusIndicator status={session.status} lastActivity={session.lastActivity} />
           {ps?.icon && (
             <span style={displayColor && !isSelected ? { color: displayColor } : undefined}>
               {renderProjectIcon(ps.icon)}
@@ -93,7 +102,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
       )}
       {compact && (
         <div className="flex items-center gap-1.5">
-          <StatusIndicator status={session.status} />
+          <StatusIndicator status={session.status} lastActivity={session.lastActivity} />
           <span
             className={cn(
               'font-mono text-[11px] flex-1 truncate',
@@ -150,7 +159,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
               </div>
             ))}
           {session.subagents
-            .filter(a => a.status === 'stopped')
+            .filter(a => a.status === 'stopped' && a.stoppedAt && Date.now() - a.stoppedAt < 30 * 60 * 1000)
             .map(a => (
               <div
                 key={a.agentId}
@@ -186,7 +195,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           session.runningBgTaskCount > 0 ||
           session.team) && (
           <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
-            {session.status === 'ended' && <StatusIndicator status={session.status} />}
+            {session.status === 'ended' && <StatusIndicator status={session.status} lastActivity={session.lastActivity} />}
             {session.pendingTaskCount > 0 && (
               <span
                 className="px-1.5 py-0.5 bg-amber-400/20 text-amber-400 border border-amber-400/50 text-[10px] font-bold cursor-pointer hover:bg-amber-400/30"
@@ -342,6 +351,12 @@ export function SessionList() {
   const { prefs } = usePrefs()
   const [showInactive, setShowInactive] = useState(prefs.showInactiveByDefault)
   const [filter, setFilter] = useState('')
+  // Periodic tick to re-evaluate time-based visibility (spinner, 10min cutoff)
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 30_000)
+    return () => clearInterval(t)
+  }, [])
 
   const matchesFilter = (s: Session) => {
     if (!filter) return true

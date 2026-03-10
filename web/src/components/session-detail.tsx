@@ -758,6 +758,15 @@ export function SessionDetail() {
           )}
         </div>
       )}
+
+      {/* Idle overlay - absolute, no layout impact */}
+      {session?.status === 'idle' && (
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
+          <div className="pointer-events-auto px-4 py-2 bg-background/80 border border-idle/30 backdrop-blur-sm">
+            <span className="text-idle text-xs font-mono font-bold uppercase tracking-widest">Awaiting Input</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
