@@ -14,3 +14,10 @@
 - [x] Commit WORK.md, then delete it, and commit.. it was temporary
 - [x] the settings modal has NO padding in it currently
 - [x] the scroll to bottom, can you NOT show it if I'm at the bottom already? ;-)
+- [x] add SHIFT+? keyboard shortcut to show a keyboard shortcut map :-).. and some ascii art
+- [x] when an inline agent is shown in the transcript, is it possible to EXPAND the current transcript in it? (if I click expand!)
+- [x] Just like in CLAUDE CODE, hittint CTRL+O opens all verbose outputs :-).. I was thinking, we have a [x] verbose swithc where we can do the same, meaning all colappsibles opens :-).. bind to CTRL+O
+- [x] BUG: When the text wraps in markdowninput the cursor offset get's fucked up ;-). maybe because of the attach and microphone? Not sure.. ![image.png](https://concentrator.frst.dev/file/lxz5kp.png)
+- [x] In settings, add something where the voice input icon can be toggled on or off.. (and update markdowninput to take that as input)
+- [x] mobile ui need a button for QUICK NOTE
+- [x] push notifications!.. is there a hard coded key? or derived from rclaude key
