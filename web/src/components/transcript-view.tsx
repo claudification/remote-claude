@@ -10,6 +10,7 @@ import {
   CircleHelp,
   CircleStop,
   ClipboardList,
+  Clock,
   FileCode,
   FilePlus,
   FileSearch,
@@ -29,7 +30,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { fetchSubagentTranscript, useSessionsStore } from '@/hooks/use-sessions'
 import type { TranscriptContentBlock, TranscriptEntry } from '@/lib/types'
 import { cn, truncate } from '@/lib/utils'
 import { JsonInspector } from './json-inspector'
@@ -100,6 +101,10 @@ const TOOL_STYLES: Record<string, { color: string; Icon: LucideIcon }> = {
   TeamDelete: { color: 'text-red-400', Icon: Users },
   // Bookmarks
   Bookmark: { color: 'text-amber-400', Icon: Bookmark },
+  // Cron
+  CronCreate: { color: 'text-sky-400', Icon: Clock },
+  CronList: { color: 'text-sky-400', Icon: Clock },
+  CronDelete: { color: 'text-red-400', Icon: Clock },
 }
 
 const DEFAULT_TOOL_STYLE = { color: 'text-event-tool', Icon: Play }
@@ -117,11 +122,13 @@ function Collapsible({
   id,
   label,
   defaultOpen = false,
+  onExpand,
   children,
 }: {
   id?: string
   label: string
   defaultOpen?: boolean
+  onExpand?: () => void
   children: React.ReactNode
 }) {
   // Apply defaultOpen only once per unique id (not on every remount)
@@ -136,6 +143,11 @@ function Collapsible({
   // Expand all override
   const isOpen = expandAll || open
 
+  // Fire onExpand when expandAll opens a previously closed collapsible
+  useEffect(() => {
+    if (expandAll && !open && onExpand) onExpand()
+  }, [expandAll]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function toggle() {
     const next = !isOpen
     setOpen(next)
@@ -147,6 +159,7 @@ function Collapsible({
     if (expandAll && !next) {
       useSessionsStore.getState().toggleExpandAll()
     }
+    if (next && onExpand) onExpand()
   }
 
   return (
@@ -463,6 +476,7 @@ function ToolLine({
   let summary = ''
   let details: React.ReactNode = null
   let agentBadge: React.ReactNode = null
+  let matchedAgentId: string | null = null
 
   switch (name) {
     case 'Bash': {
@@ -561,6 +575,7 @@ function ToolLine({
       if (name === 'Agent') {
         const subagent = subagents?.find(a => a.description === desc)
         if (subagent) {
+          matchedAgentId = subagent.agentId
           const isRunning = subagent.status === 'running'
           const elapsed = subagent.stoppedAt
             ? Math.round((subagent.stoppedAt - subagent.startedAt) / 1000)
@@ -695,6 +710,48 @@ function ToolLine({
       summary = teamName || ''
       break
     }
+    case 'CronCreate': {
+      const cronExpr = input.cron as string
+      const prompt = input.prompt as string
+      const recurring = input.recurring as boolean
+      summary = `${cronExpr}${recurring ? ' (recurring)' : ''}`
+      if (prompt) {
+        details = (
+          <pre className="text-[10px] text-muted-foreground max-h-24 overflow-auto whitespace-pre-wrap">
+            {truncate(prompt, 500)}
+          </pre>
+        )
+      }
+      break
+    }
+    case 'CronList': {
+      const extra = toolUseResult as Record<string, unknown> | undefined
+      const jobs = extra?.jobs as Array<{ id: string; humanSchedule: string; prompt: string; recurring: boolean }> | undefined
+      if (jobs?.length) {
+        summary = `${jobs.length} job${jobs.length !== 1 ? 's' : ''}`
+        details = (
+          <div className="text-[10px] font-mono text-muted-foreground space-y-0.5">
+            {jobs.map(j => (
+              <div key={j.id}>
+                <span className="text-sky-400">{j.id.slice(0, 8)}</span>{' '}
+                <span className="text-foreground/70">{j.humanSchedule}</span>
+                {j.recurring && <span className="text-muted-foreground"> (recurring)</span>}
+                {' - '}
+                <span>{truncate(j.prompt, 80)}</span>
+              </div>
+            ))}
+          </div>
+        )
+      } else {
+        summary = 'no jobs'
+      }
+      break
+    }
+    case 'CronDelete': {
+      const jobId = input.id as string
+      summary = jobId ? `delete ${jobId.slice(0, 8)}` : 'delete'
+      break
+    }
     default: {
       // MCP tools (mcp__server__tool) - show tool name cleanly
       if (name.startsWith('mcp__')) {
@@ -734,6 +791,128 @@ function ToolLine({
           {details}
         </Collapsible>
       )}
+      {matchedAgentId && <AgentTranscriptInline agentId={matchedAgentId} toolId={tool.id} />}
+    </div>
+  )
+}
+
+// Inline expandable agent transcript
+function AgentTranscriptInline({ agentId, toolId }: { agentId: string; toolId?: string }) {
+  const sessionId = useSessionsStore(state => state.selectedSessionId)
+  const [entries, setEntries] = useState<TranscriptEntry[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const collapsibleId = toolId ? `agent-transcript-${toolId}` : `agent-transcript-${agentId}`
+
+  function handleExpand() {
+    if (entries || loading || !sessionId) return
+    setLoading(true)
+    fetchSubagentTranscript(sessionId, agentId)
+      .then(data => {
+        setEntries(data)
+        setLoading(false)
+      })
+      .catch(err => {
+        setError(err.message || 'Failed to fetch')
+        setLoading(false)
+      })
+  }
+
+  return (
+    <Collapsible id={collapsibleId} label="agent transcript" onExpand={handleExpand}>
+      {loading && <div className="text-[10px] text-muted-foreground animate-pulse">loading transcript...</div>}
+      {error && <div className="text-[10px] text-red-400">Error: {error}</div>}
+      {entries && entries.length === 0 && (
+        <div className="text-[10px] text-muted-foreground">No transcript entries</div>
+      )}
+      {entries && entries.length > 0 && <AgentTranscriptEntries entries={entries} />}
+    </Collapsible>
+  )
+}
+
+// Render agent transcript entries in a compact format
+function AgentTranscriptEntries({ entries }: { entries: TranscriptEntry[] }) {
+  const resultMap = useMemo(() => buildResultMap(entries), [entries])
+  const groups = useMemo(() => groupEntries(entries), [entries])
+
+  return (
+    <div className="space-y-2 border-l-2 border-pink-400/30 pl-3">
+      {groups.map((group, i) => (
+        <AgentGroupView key={i} group={group} resultMap={resultMap} />
+      ))}
+    </div>
+  )
+}
+
+// Simplified group view for agent transcripts (no virtualizer needed)
+function AgentGroupView({
+  group,
+  resultMap,
+}: {
+  group: DisplayGroup
+  resultMap: Map<string, { result: string; extra?: Record<string, unknown> }>
+}) {
+  const expandAll = useSessionsStore(state => state.expandAll)
+
+  if (group.type === 'system') return null
+
+  const isUser = group.type === 'user'
+
+  type AgentItem =
+    | { kind: 'text'; text: string }
+    | { kind: 'thinking'; text: string }
+    | { kind: 'tool'; tool: TranscriptContentBlock; result?: string; extra?: Record<string, unknown> }
+
+  const content: AgentItem[] = []
+  for (const entry of group.entries) {
+    const c = entry.message?.content
+    if (typeof c === 'string') {
+      if (c.trim()) content.push({ kind: 'text', text: c })
+    } else if (Array.isArray(c)) {
+      for (const block of c) {
+        if (block.type === 'text' && block.text?.trim()) {
+          content.push({ kind: 'text', text: block.text })
+        } else if (block.type === 'thinking' && (block.thinking || block.text)) {
+          content.push({ kind: 'thinking', text: block.thinking || block.text || '' })
+        } else if (block.type === 'tool_use') {
+          const res = block.id ? resultMap.get(block.id) : undefined
+          content.push({ kind: 'tool', tool: block, result: res?.result, extra: res?.extra })
+        }
+      }
+    }
+  }
+
+  if (content.length === 0) return null
+
+  const label = isUser ? 'USER' : 'AGENT'
+  const labelColor = isUser ? 'text-event-prompt' : 'text-pink-400'
+
+  return (
+    <div className="text-xs">
+      <span className={cn('text-[9px] font-bold uppercase', labelColor)}>{label}</span>
+      <div className="pl-2 space-y-1">
+        {content.map((item, i) => {
+          if (item.kind === 'thinking') {
+            if (!expandAll) return null
+            return (
+              <div key={i} className="text-[10px] text-purple-400/60 italic">
+                {truncate(item.text, 200)}
+              </div>
+            )
+          }
+          if (item.kind === 'text') {
+            return (
+              <div key={i} className="text-[11px]">
+                <Markdown>{item.text}</Markdown>
+              </div>
+            )
+          }
+          if (item.kind === 'tool') {
+            return <ToolLine key={i} tool={item.tool} result={item.result} toolUseResult={item.extra} />
+          }
+          return null
+        })}
+      </div>
     </div>
   )
 }
@@ -1037,7 +1216,15 @@ function GroupView({
                 </div>
               )
             case 'tool':
-              return <ToolLine key={i} tool={item.tool} result={item.result} toolUseResult={item.extra} subagents={subagents} />
+              return (
+                <ToolLine
+                  key={i}
+                  tool={item.tool}
+                  result={item.result}
+                  toolUseResult={item.extra}
+                  subagents={subagents}
+                />
+              )
           }
         })}
       </div>
@@ -1090,7 +1277,13 @@ interface TranscriptViewProps {
   onReachedBottom?: () => void
 }
 
-export function TranscriptView({ entries, follow = false, showThinking = false, onUserScroll, onReachedBottom }: TranscriptViewProps) {
+export function TranscriptView({
+  entries,
+  follow = false,
+  showThinking = false,
+  onUserScroll,
+  onReachedBottom,
+}: TranscriptViewProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   // Ref kills the scroll timer synchronously (before React re-renders)
   const followKilledRef = useRef(false)
