@@ -122,6 +122,9 @@ export interface SessionStore {
   ) => void
   getSubagentTranscriptEntries: (sessionId: string, agentId: string, limit?: number) => TranscriptEntry[]
   hasSubagentTranscriptCache: (sessionId: string, agentId: string) => boolean
+  // Background task output methods
+  addBgTaskOutput: (sessionId: string, taskId: string, data: string, done: boolean) => void
+  getBgTaskOutput: (taskId: string) => string | undefined
   // Terminal viewer methods (multiple viewers per session)
   // Terminal viewers keyed by wrapperId (each PTY is on a specific rclaude instance)
   addTerminalViewer: (wrapperId: string, ws: ServerWebSocket<unknown>) => void
@@ -172,6 +175,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   const transcriptCache = new Map<string, TranscriptEntry[]>()
   // Subagent transcript cache: `${sessionId}:${agentId}` -> entries
   const subagentTranscriptCache = new Map<string, TranscriptEntry[]>()
+  // Background task output cache: taskId -> accumulated output string
+  const bgTaskOutputCache = new Map<string, string>()
 
   // Helper to create session summary for broadcasting
   function toSessionSummary(session: Session): SessionSummary {
@@ -1109,6 +1114,28 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     return subagentTranscriptCache.has(`${sessionId}:${agentId}`)
   }
 
+  function addBgTaskOutput(sessionId: string, taskId: string, data: string, done: boolean) {
+    if (data) {
+      const existing = bgTaskOutputCache.get(taskId) || ''
+      // Cap at 100KB to prevent memory issues
+      const combined = existing + data
+      bgTaskOutputCache.set(taskId, combined.length > 100_000 ? combined.slice(-100_000) : combined)
+    }
+    // Store output reference on the bgTask if it exists
+    const session = sessions.get(sessionId)
+    if (session && done) {
+      const bgTask = session.bgTasks.find(t => t.taskId === taskId)
+      if (bgTask && bgTask.status === 'running') {
+        bgTask.status = 'completed'
+        bgTask.completedAt = Date.now()
+      }
+    }
+  }
+
+  function getBgTaskOutput(taskId: string): string | undefined {
+    return bgTaskOutputCache.get(taskId)
+  }
+
   return {
     createSession,
     resumeSession,
@@ -1145,6 +1172,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     addSubagentTranscriptEntries,
     getSubagentTranscriptEntries,
     hasSubagentTranscriptCache,
+    addBgTaskOutput,
+    getBgTaskOutput,
     saveState,
     clearState,
   }

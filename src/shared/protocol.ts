@@ -113,6 +113,15 @@ export interface FileResponse {
 // A single JSONL transcript entry (opaque to protocol - the concentrator just stores/forwards it)
 export type TranscriptEntry = Record<string, unknown>
 
+// Streaming output from background bash tasks (.output file watching)
+export interface BgTaskOutput {
+  type: 'bg_task_output'
+  sessionId: string
+  taskId: string
+  data: string // new chunk of output
+  done: boolean // true when task has completed and file is fully read
+}
+
 export type WrapperMessage =
   | HookEvent
   | SessionMeta
@@ -124,6 +133,7 @@ export type WrapperMessage =
   | TranscriptEntries
   | SubagentTranscript
   | FileResponse
+  | BgTaskOutput
 
 // Concentrator -> Wrapper messages
 export interface Ack {

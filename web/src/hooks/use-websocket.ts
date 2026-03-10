@@ -3,7 +3,7 @@
  */
 import { useCallback, useEffect, useRef } from 'react'
 import type { HookEvent, Session, TaskInfo, TranscriptEntry, WrapperCapability } from '@/lib/types'
-import { applyHashRoute, useSessionsStore } from './use-sessions'
+import { applyHashRoute, handleBgTaskOutputMessage, useSessionsStore } from './use-sessions'
 
 interface SessionSummary {
   id: string
@@ -68,6 +68,9 @@ interface DashboardMessage {
   isInitial?: boolean
   // Task updates
   tasks?: TaskInfo[]
+  // Background task output
+  taskId?: string
+  done?: boolean
   // Settings updates
   settings?: Record<string, unknown>
 }
@@ -275,6 +278,16 @@ export function useWebSocket() {
             case 'agent_status': {
               if (msg.connected !== undefined) {
                 setAgentConnected(msg.connected)
+              }
+              break
+            }
+            case 'bg_task_output': {
+              if (msg.taskId) {
+                handleBgTaskOutputMessage({
+                  taskId: msg.taskId,
+                  data: msg.data || '',
+                  done: msg.done || false,
+                })
               }
               break
             }

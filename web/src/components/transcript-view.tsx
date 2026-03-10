@@ -60,7 +60,7 @@ const ansiConverter = new AnsiToHtml({
   },
 })
 
-function AnsiText({ text }: { text: string }) {
+export function AnsiText({ text }: { text: string }) {
   const html = useMemo(() => ansiConverter.toHtml(text), [text])
   return <span dangerouslySetInnerHTML={{ __html: html }} />
 }

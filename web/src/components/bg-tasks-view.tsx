@@ -1,6 +1,8 @@
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useEffect, useState } from 'react'
+import { getBgTaskOutput, onBgTaskOutput, useSessionsStore } from '@/hooks/use-sessions'
 import type { BgTaskSummary } from '@/lib/types'
 import { cn, formatAge } from '@/lib/utils'
+import { AnsiText } from './transcript-view'
 
 function StatusBadge({ status }: { status: BgTaskSummary['status'] }) {
   return (
@@ -14,6 +16,27 @@ function StatusBadge({ status }: { status: BgTaskSummary['status'] }) {
     >
       {status}
     </span>
+  )
+}
+
+function BgTaskOutputView({ taskId }: { taskId: string }) {
+  const [output, setOutput] = useState(() => getBgTaskOutput(taskId))
+
+  useEffect(() => {
+    // Subscribe to output updates for this task
+    return onBgTaskOutput(updatedTaskId => {
+      if (updatedTaskId === taskId) {
+        setOutput(getBgTaskOutput(taskId))
+      }
+    })
+  }, [taskId])
+
+  if (!output) return null
+
+  return (
+    <pre className="text-[10px] bg-black/30 p-2 max-h-48 overflow-auto whitespace-pre-wrap font-mono mt-1.5 border-l-2 border-emerald-400/30">
+      <AnsiText text={output} />
+    </pre>
   )
 }
 
@@ -39,6 +62,7 @@ export function BgTasksView({ sessionId }: { sessionId: string }) {
         </div>
         {task.description && <div className="text-xs text-foreground">{task.description}</div>}
         <div className="text-[11px] text-muted-foreground font-mono truncate">$ {task.command}</div>
+        <BgTaskOutputView taskId={task.taskId} />
       </div>
     )
   }

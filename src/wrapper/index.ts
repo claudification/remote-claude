@@ -179,6 +179,7 @@ async function main() {
   let transcriptWatcher: TranscriptWatcher | null = null
   let parentTranscriptPath: string | null = null // stored to derive subagent transcript paths
   const subagentWatchers = new Map<string, TranscriptWatcher>()
+  const bgTaskOutputWatchers = new Map<string, { stop: () => void }>()
 
   // Queue events until we have the real session ID
   const eventQueue: HookEvent[] = []
@@ -524,6 +525,99 @@ async function main() {
     }
   }
 
+  // Watch a background task .output file and stream chunks to concentrator
+  function startBgTaskOutputWatcher(taskId: string, outputPath: string) {
+    if (bgTaskOutputWatchers.has(taskId)) return
+    debug(`[bgout] Starting watcher for task ${taskId}: ${outputPath}`)
+
+    let offset = 0
+    let stopped = false
+    let retries = 0
+    const MAX_RETRIES = 20 // 20 x 250ms = 5s max wait for file to appear
+
+    async function readChunk() {
+      if (stopped || !wsClient?.isConnected()) return
+      try {
+        const file = Bun.file(outputPath)
+        const size = file.size
+        if (size > offset) {
+          const slice = file.slice(offset, size)
+          const text = await slice.text()
+          offset = size
+          if (text) {
+            wsClient!.sendBgTaskOutput(taskId, text, false)
+          }
+        }
+      } catch {
+        // File might not exist yet
+        if (retries++ < MAX_RETRIES) return // will retry on next poll
+        debug(`[bgout] Giving up on ${taskId} after ${MAX_RETRIES} retries`)
+        stopWatcher()
+      }
+    }
+
+    // Poll every 500ms - simple and reliable for output files
+    const interval = setInterval(readChunk, 500)
+
+    function stopWatcher() {
+      if (stopped) return
+      stopped = true
+      clearInterval(interval)
+      bgTaskOutputWatchers.delete(taskId)
+      // Do a final read to catch any remaining output
+      readChunk().then(() => {
+        if (wsClient?.isConnected()) {
+          wsClient.sendBgTaskOutput(taskId, '', true)
+        }
+        debug(`[bgout] Watcher stopped for task ${taskId}`)
+      })
+    }
+
+    bgTaskOutputWatchers.set(taskId, { stop: stopWatcher })
+  }
+
+  // Scan transcript entries for background task IDs and start output watchers
+  function scanForBgTasks(entries: TranscriptEntry[]) {
+    for (const entry of entries) {
+      const tur = (entry as any).toolUseResult
+      if (!tur?.backgroundTaskId) continue
+      const taskId = tur.backgroundTaskId as string
+      if (bgTaskOutputWatchers.has(taskId)) continue
+
+      // Extract output path from the tool_result content
+      const msg = (entry as any).message
+      const content = msg?.content
+      const text = typeof content === 'string' ? content : Array.isArray(content)
+        ? content.filter((c: any) => typeof c === 'string' || c?.type === 'text').map((c: any) => typeof c === 'string' ? c : c.text).join('')
+        : ''
+      const pathMatch = text.match(/Output is being written to: (\S+\.output)/)
+      if (pathMatch) {
+        startBgTaskOutputWatcher(taskId, pathMatch[1])
+      } else {
+        debug(`[bgout] Found backgroundTaskId ${taskId} but no output path in content`)
+      }
+    }
+
+    // Also check for task completions to stop watchers
+    for (const entry of entries) {
+      const msg = (entry as any).message
+      const content = msg?.content
+      const text = typeof content === 'string' ? content : Array.isArray(content)
+        ? content.filter((c: any) => typeof c === 'string' || c?.type === 'text').map((c: any) => typeof c === 'string' ? c : c.text).join('')
+        : ''
+      if (!text.includes('<task-notification>')) continue
+      const re = /<task-id>([^<]+)<\/task-id>/g
+      let match: RegExpExecArray | null
+      while ((match = re.exec(text)) !== null) {
+        const watcher = bgTaskOutputWatchers.get(match[1])
+        if (watcher) {
+          debug(`[bgout] Task ${match[1]} completed, stopping watcher`)
+          watcher.stop()
+        }
+      }
+    }
+  }
+
   function startTranscriptWatcher(transcriptPath: string) {
     if (transcriptWatcher) {
       debug(`Transcript watcher already running, skipping`)
@@ -534,6 +628,8 @@ async function main() {
       debug: DEBUG ? (msg: string) => debug(`[tw] ${msg}`) : undefined,
       onEntries(entries, isInitial) {
         sendTranscriptEntriesChunked(entries, isInitial)
+        // Scan for background tasks to watch their output files
+        scanForBgTasks(entries)
       },
       onError(err) {
         debug(`Transcript watcher error: ${err.message}`)
@@ -761,6 +857,8 @@ async function main() {
     transcriptWatcher?.stop()
     for (const watcher of subagentWatchers.values()) watcher.stop()
     subagentWatchers.clear()
+    for (const watcher of bgTaskOutputWatchers.values()) watcher.stop()
+    bgTaskOutputWatchers.clear()
     fileEditor?.destroy()
     cleanupTerminal()
     stopLocalServer(localServer)

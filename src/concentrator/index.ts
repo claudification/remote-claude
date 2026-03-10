@@ -680,6 +680,20 @@ async function main() {
                 }
                 break
               }
+              case 'bg_task_output': {
+                const sessionId = ws.data.sessionId || data.sessionId
+                if (sessionId && data.taskId) {
+                  sessionStore.addBgTaskOutput(sessionId, data.taskId, data.data || '', data.done || false)
+                  // Broadcast to dashboard subscribers
+                  const msg = JSON.stringify(data)
+                  for (const sub of sessionStore.getSubscribers()) {
+                    try {
+                      sub.send(msg)
+                    } catch {}
+                  }
+                }
+                break
+              }
               case 'file_response': {
                 // rclaude responding to a file request - forward to whoever requested it
                 // For now, file_response goes to all dashboard subscribers

@@ -4,6 +4,7 @@
  */
 
 import type {
+  BgTaskOutput,
   ConcentratorMessage,
   FileResponse,
   Heartbeat,
@@ -51,6 +52,7 @@ export interface WsClient {
   sendTranscriptEntries: (entries: TranscriptEntry[], isInitial: boolean) => void
   sendSubagentTranscript: (agentId: string, entries: TranscriptEntry[], isInitial: boolean) => void
   sendFileResponse: (requestId: string, data?: string, mediaType?: string, error?: string) => void
+  sendBgTaskOutput: (taskId: string, data: string, done: boolean) => void
   close: () => void
   isConnected: () => boolean
 }
@@ -286,6 +288,17 @@ export function createWsClient(options: WsClientOptions): WsClient {
     send(msg)
   }
 
+  function sendBgTaskOutput(taskId: string, data: string, done: boolean) {
+    const msg: BgTaskOutput = {
+      type: 'bg_task_output',
+      sessionId,
+      taskId,
+      data,
+      done,
+    }
+    send(msg)
+  }
+
   function close() {
     shouldReconnect = false
     if (heartbeatInterval) {
@@ -314,6 +327,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     sendTranscriptEntries,
     sendSubagentTranscript,
     sendFileResponse,
+    sendBgTaskOutput,
     close,
     isConnected,
   }

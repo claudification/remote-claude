@@ -9,6 +9,29 @@ import type {
   TranscriptEntry,
 } from '@/lib/types'
 
+// Background task output streaming - module-level to avoid Zustand re-renders on every chunk
+const bgTaskOutputMap = new Map<string, string>()
+const bgTaskOutputListeners = new Set<(taskId: string) => void>()
+
+export function getBgTaskOutput(taskId: string): string {
+  return bgTaskOutputMap.get(taskId) || ''
+}
+
+export function onBgTaskOutput(listener: (taskId: string) => void): () => void {
+  bgTaskOutputListeners.add(listener)
+  return () => bgTaskOutputListeners.delete(listener)
+}
+
+export function handleBgTaskOutputMessage(msg: { taskId: string; data: string; done: boolean }) {
+  if (msg.data) {
+    const existing = bgTaskOutputMap.get(msg.taskId) || ''
+    bgTaskOutputMap.set(msg.taskId, existing + msg.data)
+  }
+  for (const listener of bgTaskOutputListeners) {
+    listener(msg.taskId)
+  }
+}
+
 export interface TerminalMessage {
   type: 'terminal_data' | 'terminal_error'
   wrapperId: string
