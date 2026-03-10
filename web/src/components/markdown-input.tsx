@@ -203,12 +203,18 @@ export function MarkdownInput({
     }
   }, [expanded])
 
-  // Focus textarea when entering expanded (mobile compose) mode
-  useEffect(() => {
-    if (expanded) {
-      requestAnimationFrame(() => textareaRef.current?.focus())
-    }
-  }, [expanded])
+  // Focus the expanded textarea on mount via ref callback
+  // useEffect + requestAnimationFrame doesn't work on iOS Safari because
+  // the focus isn't from a direct user gesture after the DOM swap
+  const expandedTextareaRef = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      if (node) {
+        textareaRef.current = node
+        node.focus()
+      }
+    },
+    [],
+  )
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     const ta = textareaRef.current
@@ -523,9 +529,9 @@ export function MarkdownInput({
             aria-hidden="true"
             dangerouslySetInnerHTML={{ __html: highlightMarkdown(value) }}
           />
-          {/* Textarea */}
+          {/* Textarea - uses ref callback to auto-focus on mount */}
           <textarea
-            ref={textareaRef}
+            ref={expandedTextareaRef}
             value={value}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
