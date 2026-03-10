@@ -71,6 +71,9 @@ export function DiagView({ sessionId }: DiagViewProps) {
   const [data, setData] = useState<Record<string, unknown> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [highlighted, setHighlighted] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const mnemonic = `diag:${sessionId}`
 
   useEffect(() => {
     setData(null)
@@ -94,6 +97,18 @@ export function DiagView({ sessionId }: DiagViewProps) {
       .catch(() => {})
   }, [yaml])
 
+  function handleCopy() {
+    const text = `# ${mnemonic}\n\n${yaml}`
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  function handleCopyMnemonic() {
+    navigator.clipboard.writeText(mnemonic)
+  }
+
   if (error) {
     return <div className="p-4 text-red-400 font-mono text-xs">{error}</div>
   }
@@ -103,17 +118,39 @@ export function DiagView({ sessionId }: DiagViewProps) {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto p-3">
-      {highlighted ? (
-        <div
-          className="text-[11px] font-mono [&_pre]:!bg-transparent [&_code]:!bg-transparent"
-          dangerouslySetInnerHTML={{ __html: highlighted }}
-        />
-      ) : (
-        <pre className="text-[11px] font-mono text-foreground/90 whitespace-pre-wrap">
-          {yaml}
-        </pre>
-      )}
+    <div className="flex-1 min-h-0 flex flex-col">
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
+        <button
+          type="button"
+          onClick={handleCopyMnemonic}
+          className="font-mono text-[11px] text-muted-foreground hover:text-accent transition-colors cursor-pointer select-all"
+          title="Click to copy mnemonic"
+        >
+          {mnemonic}
+        </button>
+        <div className="flex-1" />
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="px-2 py-1 text-[10px] font-mono border border-border hover:border-accent hover:text-accent text-muted-foreground transition-colors"
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+      {/* Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-3">
+        {highlighted ? (
+          <div
+            className="text-[11px] font-mono [&_pre]:!bg-transparent [&_code]:!bg-transparent"
+            dangerouslySetInnerHTML={{ __html: highlighted }}
+          />
+        ) : (
+          <pre className="text-[11px] font-mono text-foreground/90 whitespace-pre-wrap">
+            {yaml}
+          </pre>
+        )}
+      </div>
     </div>
   )
 }
