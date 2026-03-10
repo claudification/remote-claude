@@ -16,7 +16,7 @@ interface MarkdownInputProps {
 const MOBILE_BREAKPOINT = 640 // sm breakpoint
 
 function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(false)
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < MOBILE_BREAKPOINT)
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
     check()
