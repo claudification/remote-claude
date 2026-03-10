@@ -1,9 +1,7 @@
 import { Info } from 'lucide-react'
-import { lazy, Suspense } from 'react'
 import { create } from 'zustand'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-
-const JsonHighlight = lazy(() => import('./json-highlight'))
+import JsonHighlight from './json-highlight'
 
 // Global store so dialog state survives virtualizer remounts
 interface InspectorStore {
@@ -67,30 +65,28 @@ export function JsonInspectorDialog() {
           <DialogTitle>{title}</DialogTitle>
         </div>
         <div className="flex-1 overflow-y-auto p-4 font-mono text-xs">
-          <Suspense fallback={<div className="text-muted-foreground">Loading...</div>}>
-            {open && data && (
-              <div className="space-y-4">
+          {open && data && (
+            <div className="space-y-4">
+              <section>
+                <div className="text-muted-foreground text-[10px] uppercase tracking-wider mb-2">Input</div>
+                <JsonHighlight data={data} />
+              </section>
+              {result && (
                 <section>
-                  <div className="text-muted-foreground text-[10px] uppercase tracking-wider mb-2">Input</div>
-                  <JsonHighlight data={data} />
+                  <div className="text-muted-foreground text-[10px] uppercase tracking-wider mb-2">Result</div>
+                  <pre className="whitespace-pre-wrap text-foreground/80 bg-black/20 p-3 max-h-60 overflow-auto">
+                    {result}
+                  </pre>
                 </section>
-                {result && (
-                  <section>
-                    <div className="text-muted-foreground text-[10px] uppercase tracking-wider mb-2">Result</div>
-                    <pre className="whitespace-pre-wrap text-foreground/80 bg-black/20 p-3 max-h-60 overflow-auto">
-                      {result}
-                    </pre>
-                  </section>
-                )}
-                {extra && Object.keys(extra).length > 0 && (
-                  <section>
-                    <div className="text-muted-foreground text-[10px] uppercase tracking-wider mb-2">Extra</div>
-                    <JsonHighlight data={extra} />
-                  </section>
-                )}
-              </div>
-            )}
-          </Suspense>
+              )}
+              {extra && Object.keys(extra).length > 0 && (
+                <section>
+                  <div className="text-muted-foreground text-[10px] uppercase tracking-wider mb-2">Extra</div>
+                  <JsonHighlight data={extra} />
+                </section>
+              )}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

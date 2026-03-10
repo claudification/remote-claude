@@ -152,7 +152,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md p-6">
         <DialogTitle className="uppercase tracking-wider mb-6">Settings</DialogTitle>
 
         {/* Server settings */}
