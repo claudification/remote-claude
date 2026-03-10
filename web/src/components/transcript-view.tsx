@@ -703,19 +703,33 @@ function buildResultMap(entries: TranscriptEntry[]) {
   return map
 }
 
-// Parse <task-notification> XML into structured data
+// Parse <task-notification> XML into structured data using DOMParser
 interface TaskNotification {
   taskId: string
   summary: string
   status: 'completed' | 'failed' | string
+  result?: string
 }
 
 function parseTaskNotifications(text: string): TaskNotification[] {
   const results: TaskNotification[] = []
-  const regex = /<task-notification>\s*<task-id>([^<]*)<\/task-id>\s*(?:<tool-use-id>[^<]*<\/tool-use-id>\s*)?(?:<output-file>[^<]*<\/output-file>\s*)?<status>([^<]*)<\/status>\s*<summary>([^<]*)<\/summary>\s*<\/task-notification>/g
-  let match: RegExpExecArray | null
-  while ((match = regex.exec(text)) !== null) {
-    results.push({ taskId: match[1], status: match[2], summary: match[3] })
+  // Extract each <task-notification>...</task-notification> block (may not be properly closed)
+  const blockRegex = /<task-notification>([\s\S]*?)(?:<\/task-notification>|$)/g
+  let blockMatch: RegExpExecArray | null
+  while ((blockMatch = blockRegex.exec(text)) !== null) {
+    const xml = `<root>${blockMatch[1]}</root>`
+    try {
+      const doc = new DOMParser().parseFromString(xml, 'text/xml')
+      const taskId = doc.querySelector('task-id')?.textContent?.trim() || ''
+      const status = doc.querySelector('status')?.textContent?.trim() || ''
+      const summary = doc.querySelector('summary')?.textContent?.trim() || ''
+      const result = doc.querySelector('result')?.textContent?.trim() || undefined
+      if (taskId || summary) {
+        results.push({ taskId, status, summary, result })
+      }
+    } catch {
+      // Malformed XML - skip
+    }
   }
   return results
 }
@@ -802,6 +816,44 @@ function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
   return groups
 }
 
+function TaskNotificationLine({ notification: n, time }: { notification: TaskNotification; time: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const isCompleted = n.status === 'completed'
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
+        <span className="text-[10px]">{time}</span>
+        <span className={cn(
+          'w-1.5 h-1.5 rounded-full shrink-0',
+          isCompleted ? 'bg-emerald-400' : 'bg-red-400',
+        )} />
+        <span className="truncate flex-1">{n.summary}</span>
+        {n.result && (
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className={cn(
+              'w-4 h-4 shrink-0 flex items-center justify-center rounded-full border text-[9px] font-bold transition-colors',
+              expanded
+                ? 'border-accent text-accent bg-accent/10'
+                : 'border-muted-foreground/40 text-muted-foreground/60 hover:border-accent hover:text-accent',
+            )}
+            title="Show result"
+          >
+            i
+          </button>
+        )}
+      </div>
+      {expanded && n.result && (
+        <pre className="text-[10px] font-mono text-foreground/70 mt-1 ml-6 pl-2 border-l border-muted-foreground/20 max-h-32 overflow-auto whitespace-pre-wrap">
+          {n.result}
+        </pre>
+      )}
+    </div>
+  )
+}
+
 function GroupView({
   group,
   resultMap,
@@ -813,19 +865,12 @@ function GroupView({
 }) {
   const time = group.timestamp ? new Date(group.timestamp).toLocaleTimeString('en-US', { hour12: false }) : ''
 
-  // System groups: compact notification badges
+  // System groups: compact notification badges with expandable result
   if (group.type === 'system' && group.notifications?.length) {
     return (
       <div className="mb-2 space-y-1">
         {group.notifications.map((n, i) => (
-          <div key={i} className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
-            <span className="text-[10px]">{time}</span>
-            <span className={cn(
-              'w-1.5 h-1.5 rounded-full shrink-0',
-              n.status === 'completed' ? 'bg-emerald-400' : 'bg-red-400',
-            )} />
-            <span className="truncate">{n.summary}</span>
-          </div>
+          <TaskNotificationLine key={i} notification={n} time={time} />
         ))}
       </div>
     )
