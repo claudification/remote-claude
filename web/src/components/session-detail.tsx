@@ -71,6 +71,7 @@ function ScrollToBottomButton({ onClick, label = 'scroll to bottom' }: { onClick
 const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
   const [inputValue, setInputValue] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   async function handleSend() {
     if (!inputValue.trim() || isSending) return
@@ -80,11 +81,12 @@ const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
       if (success) setInputValue('')
     } finally {
       setIsSending(false)
+      requestAnimationFrame(() => containerRef.current?.querySelector('textarea')?.focus())
     }
   }
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border bg-background z-10">
+    <div ref={containerRef} className="absolute bottom-0 left-0 right-0 p-3 border-t border-border bg-background z-10">
       <div className="flex gap-2 items-stretch">
         <MarkdownInput
           value={inputValue}
@@ -725,7 +727,9 @@ export function SessionDetail() {
       )}
 
       {/* Input box - isolated to prevent transcript rerenders on typing */}
-      {canSendInput && activeTab === 'transcript' && selectedSessionId && <InputBar sessionId={selectedSessionId} />}
+      {canSendInput && activeTab === 'transcript' && !selectedSubagentId && selectedSessionId && (
+        <InputBar sessionId={selectedSessionId} />
+      )}
 
       {/* Terminal overlay */}
       {showTerminal && selectedSessionId && hasTerminal && (
