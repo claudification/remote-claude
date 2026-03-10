@@ -130,14 +130,22 @@ function Collapsible({
     expandedState.add(id)
   }
 
+  const expandAll = useSessionsStore(state => state.expandAll)
   const [open, setOpen] = useState(() => (id ? expandedState.has(id) : defaultOpen))
 
+  // Expand all override
+  const isOpen = expandAll || open
+
   function toggle() {
-    const next = !open
+    const next = !isOpen
     setOpen(next)
     if (id) {
       if (next) expandedState.add(id)
       else expandedState.delete(id)
+    }
+    // If expand-all is on and user manually collapses, turn off expand-all
+    if (expandAll && !next) {
+      useSessionsStore.getState().toggleExpandAll()
     }
   }
 
@@ -148,10 +156,10 @@ function Collapsible({
         onClick={toggle}
         className="flex items-center gap-1 text-muted-foreground hover:text-foreground text-[10px] font-mono"
       >
-        {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+        {isOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
         {label}
       </button>
-      {open && <div className="mt-1 ml-4">{children}</div>}
+      {isOpen && <div className="mt-1 ml-4">{children}</div>}
     </div>
   )
 }
@@ -921,6 +929,7 @@ function GroupView({
     const session = state.sessions.find(s => s.id === state.selectedSessionId)
     return session?.subagents
   })
+  const expandAll = useSessionsStore(state => state.expandAll)
   const time = group.timestamp ? new Date(group.timestamp).toLocaleTimeString('en-US', { hour12: false }) : ''
 
   // System groups: compact notification badges with expandable result
@@ -990,7 +999,7 @@ function GroupView({
         {items.map((item, i) => {
           switch (item.kind) {
             case 'thinking':
-              if (!showThinking) return null
+              if (!showThinking && !expandAll) return null
               return (
                 <div key={i} className="border-l-2 border-purple-400/40 pl-3 py-1">
                   <div className="text-[10px] text-purple-400/70 uppercase font-bold tracking-wider mb-1">thinking</div>

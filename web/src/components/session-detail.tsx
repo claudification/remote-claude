@@ -100,6 +100,7 @@ export function SessionDetail() {
   const requestedTab = useSessionsStore(state => state.requestedTab)
   const requestedTabSeq = useSessionsStore(state => state.requestedTabSeq)
   const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
+  const expandAll = useSessionsStore(state => state.expandAll)
 
   // Apply requested tab - fires on selectSession (always 'transcript'), openTab, and badge clicks
   // requestedTabSeq ensures re-clicks on the same session still trigger
@@ -609,13 +610,16 @@ export function SessionDetail() {
             <div className="pr-3 flex items-center gap-3">
               <div className="flex items-center gap-1.5">
                 <Checkbox
-                  id="thinking"
-                  checked={showThinking}
-                  onCheckedChange={checked => setShowThinking(checked === true)}
+                  id="verbose"
+                  checked={showThinking || expandAll}
+                  onCheckedChange={checked => {
+                    setShowThinking(checked === true)
+                    if (expandAll && !checked) useSessionsStore.getState().toggleExpandAll()
+                  }}
                   className="h-3.5 w-3.5"
                 />
-                <label htmlFor="thinking" className="text-[10px] text-muted-foreground cursor-pointer select-none">
-                  thinking
+                <label htmlFor="verbose" className="text-[10px] text-muted-foreground cursor-pointer select-none">
+                  verbose
                 </label>
               </div>
               <div className="flex items-center gap-1.5">

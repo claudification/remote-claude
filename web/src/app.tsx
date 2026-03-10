@@ -4,6 +4,7 @@ import { AuthGate } from '@/components/auth-gate'
 import { Header } from '@/components/header'
 import { JsonInspectorDialog } from '@/components/json-inspector'
 import { QuickNoteModal } from '@/components/quick-note-modal'
+import { ShortcutHelp } from '@/components/shortcut-help'
 import { SessionDetail } from '@/components/session-detail'
 import { SessionList } from '@/components/session-list'
 import { SessionSwitcher } from '@/components/session-switcher'
@@ -99,6 +100,14 @@ function Dashboard() {
       if (e.ctrlKey && e.key === 'k') {
         e.preventDefault()
         useSessionsStore.getState().toggleSwitcher()
+      }
+      // Ctrl+O - toggle expand all / verbose mode
+      if (e.ctrlKey && e.key === 'o') {
+        // Don't trigger in terminal or inputs
+        const el = e.target as HTMLElement
+        if (el?.closest('.xterm') || el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA') return
+        e.preventDefault()
+        useSessionsStore.getState().toggleExpandAll()
       }
       // Ctrl+Shift+T - open TTY for current session
       if (e.ctrlKey && e.shiftKey && e.key === 'T') {
@@ -218,6 +227,8 @@ function Dashboard() {
       <JsonInspectorDialog />
       {/* Ctrl+Shift+N quick note modal */}
       <QuickNoteModal />
+      {/* Shift+? shortcut help */}
+      <ShortcutHelp />
     </div>
   )
 }

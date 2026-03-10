@@ -38,6 +38,8 @@ interface SessionsState {
   requestedTabSeq: number
   pendingFilePath: string | null
   newDataSeq: number
+  expandAll: boolean
+  toggleExpandAll: () => void
 
   setSessions: (sessions: Session[]) => void
   selectSession: (id: string | null) => void
@@ -116,6 +118,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   requestedTabSeq: 0,
   pendingFilePath: null,
   newDataSeq: 0,
+  expandAll: false,
+  toggleExpandAll: () => set(state => ({ expandAll: !state.expandAll })),
 
   setSessions: sessions => set({ sessions }),
   selectSession: id => {
