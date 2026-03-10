@@ -7,3 +7,4 @@ bin/
 package-lock.json
 *.tsbuildinfo
 .env
+.agent.pid
