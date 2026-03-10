@@ -24,6 +24,7 @@ export interface WsClientOptions {
   concentratorUrl?: string
   concentratorSecret?: string
   sessionId: string
+  wrapperId: string
   cwd: string
   model?: string
   args?: string[]
@@ -61,6 +62,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     concentratorUrl = DEFAULT_CONCENTRATOR_URL,
     concentratorSecret,
     sessionId,
+    wrapperId,
     cwd,
     model,
     args,
@@ -101,6 +103,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
         const meta: SessionMeta = {
           type: 'meta',
           sessionId,
+          wrapperId,
           cwd,
           startedAt: Date.now(),
           model,
@@ -235,7 +238,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
   function sendTerminalData(data: string) {
     const msg: TerminalData = {
       type: 'terminal_data',
-      sessionId,
+      wrapperId,
       data,
     }
     send(msg)

@@ -61,10 +61,13 @@ fi
 TMUX_NAME="remote-claude"
 BASE_CMD="rclaude --dangerously-skip-permissions"
 
-# Build tmux env flags - pass RCLAUDE_SECRET if set
+# Build tmux env flags - pass RCLAUDE_SECRET and RCLAUDE_WRAPPER_ID if set
 TMUX_ENV=()
 if [[ -n "${RCLAUDE_SECRET:-}" ]]; then
   TMUX_ENV+=(-e "RCLAUDE_SECRET=$RCLAUDE_SECRET")
+fi
+if [[ -n "${RCLAUDE_WRAPPER_ID:-}" ]]; then
+  TMUX_ENV+=(-e "RCLAUDE_WRAPPER_ID=$RCLAUDE_WRAPPER_ID")
 fi
 
 SESSION_EXISTS=false

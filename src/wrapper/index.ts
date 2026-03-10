@@ -162,8 +162,8 @@ async function main() {
     noConcentrator = true
   }
 
-  // Internal ID for local server validation (not sent to concentrator)
-  const internalId = randomUUID()
+  // Unique wrapper identity - use pre-assigned ID from revive flow if available
+  const internalId = process.env.RCLAUDE_WRAPPER_ID || randomUUID()
   const cwd = process.cwd()
 
   // Will be set when we receive SessionStart from Claude
@@ -294,6 +294,7 @@ async function main() {
       concentratorUrl,
       concentratorSecret,
       sessionId,
+      wrapperId: internalId,
       cwd,
       args: claudeArgs,
       capabilities,

@@ -100,6 +100,7 @@ function debug(msg: string, verbose: boolean) {
 async function reviveSession(
   sessionId: string,
   cwd: string,
+  wrapperId: string,
   reviveScript: string,
   secret: string,
   verbose: boolean,
@@ -107,6 +108,7 @@ async function reviveSession(
   const result: ReviveResult = {
     type: 'revive_result',
     sessionId,
+    wrapperId,
     success: false,
     continued: false,
   }
@@ -116,7 +118,7 @@ async function reviveSession(
   const proc = Bun.spawnSync([reviveScript, sessionId, cwd], {
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...process.env, RCLAUDE_SECRET: secret },
+    env: { ...process.env, RCLAUDE_SECRET: secret, RCLAUDE_WRAPPER_ID: wrapperId },
   })
 
   const stdout = proc.stdout.toString().trim()
@@ -199,9 +201,9 @@ function connect(url: string, secret: string, reviveScript: string, verbose: boo
           process.exit(0)
 
         case 'revive': {
-          const reviveMsg = msg as { sessionId: string; cwd: string }
-          log(`Reviving session ${reviveMsg.sessionId.slice(0, 8)}... (${reviveMsg.cwd})`)
-          const result = await reviveSession(reviveMsg.sessionId, reviveMsg.cwd, reviveScript, secret, verbose)
+          const reviveMsg = msg as { sessionId: string; cwd: string; wrapperId: string }
+          log(`Reviving session ${reviveMsg.sessionId.slice(0, 8)}... wrapper=${reviveMsg.wrapperId.slice(0, 8)} (${reviveMsg.cwd})`)
+          const result = await reviveSession(reviveMsg.sessionId, reviveMsg.cwd, reviveMsg.wrapperId, reviveScript, secret, verbose)
           ws.send(JSON.stringify(result))
           if (result.success) {
             log(`Revived in tmux session "${result.tmuxSession}" (continued: ${result.continued})`)
