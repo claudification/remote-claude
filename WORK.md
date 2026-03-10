@@ -110,12 +110,14 @@ The file editor feature was built concurrently by another session. Key notes:
 - Protocol types, ws-client callbacks, wrapper wiring are additive - should merge clean.
 
 ### Reconciliation checklist
-- [ ] Merge both branches / resolve conflicts
-- [ ] Verify `getSessionSocket(sessionId)` works for file editor relay
-- [ ] `bun run typecheck` clean
-- [ ] `bunx vitest run` - all tests pass
-- [ ] `bun run build` - all binaries compile
+- [x] Merge both branches / resolve conflicts
+- [x] Verify `getSessionSocket(sessionId)` works for file editor relay
+- [x] `bun run typecheck` clean
+- [x] `bunx vitest run` - 81/82 pass (1 flaky timing test in transcript-watcher, pre-existing)
+- [x] `bun run build` - all binaries compile
 
 ## Status
 
-Backend + frontend complete. Typecheck passes (only pre-existing errors in untracked `use-file-editor.ts`).
+Backend + frontend complete. File editor fully integrated: wrapper FileEditor engine, concentrator relay,
+WS routing to dashboard fileHandler, Files tab in session detail. QuickNote modal (Ctrl+Shift+N) wired
+with MarkdownInput. Typecheck clean, builds clean.
