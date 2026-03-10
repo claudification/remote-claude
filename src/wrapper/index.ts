@@ -136,7 +136,7 @@ async function main() {
   // Parse our specific args, pass the rest to claude
   const args = process.argv.slice(2)
 
-  let concentratorUrl = DEFAULT_CONCENTRATOR_URL
+  let concentratorUrl = process.env.RCLAUDE_CONCENTRATOR_URL || DEFAULT_CONCENTRATOR_URL
   let concentratorSecret = process.env.RCLAUDE_SECRET
   let noConcentrator = false
   let noTerminal = false
