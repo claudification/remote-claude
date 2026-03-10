@@ -1,7 +1,7 @@
 import { Mic, Paperclip } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getShowVoiceInput } from '@/components/settings-page'
-import { cn } from '@/lib/utils'
+import { cn, isMobileViewport } from '@/lib/utils'
 
 interface MarkdownInputProps {
   value: string
@@ -13,12 +13,10 @@ interface MarkdownInputProps {
   autoFocus?: boolean
 }
 
-const MOBILE_BREAKPOINT = 640 // sm breakpoint
-
 function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < MOBILE_BREAKPOINT)
+  const [isMobile, setIsMobile] = useState(isMobileViewport)
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    const check = () => setIsMobile(isMobileViewport())
     check()
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)

@@ -1,6 +1,13 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
+/** Tailwind `sm` breakpoint - below this is mobile */
+export const MOBILE_BREAKPOINT = 640
+
+export function isMobileViewport() {
+  return window.innerWidth < MOBILE_BREAKPOINT
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }

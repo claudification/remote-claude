@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { fetchSubagentTranscript, reviveSession, sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { canTerminal, type TranscriptEntry } from '@/lib/types'
-import { cn, formatAge, formatModel } from '@/lib/utils'
+import { cn, formatAge, formatModel, isMobileViewport } from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
 import { DiagView } from './diag-view'
 import { EventsView } from './events-view'
@@ -49,7 +49,7 @@ const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
     } finally {
       setIsSending(false)
       // Re-focus on desktop only - on mobile this triggers the full-screen compose modal
-      if (window.innerWidth >= 640) {
+      if (!isMobileViewport()) {
         requestAnimationFrame(() => containerRef.current?.querySelector('textarea')?.focus())
       }
     }
