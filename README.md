@@ -56,6 +56,13 @@ tablets, laptops, anything with a browser. Popout to a separate window with Shif
 terminal themes (Dracula, Tokyo Night, Monokai, etc.), adjustable fonts, touch-friendly toolbar
 with Ctrl+C, paste, and copy buttons.
 
+### Rich Remote Input
+
+Send prompts to Claude from any device with a full markdown-aware input bar. Syntax-highlighted
+as you type, Shift+Enter for multiline. Paste images from clipboard, drag-and-drop files, or
+use the attach button to upload -- images are embedded inline and sent to Claude as context.
+Voice recording support for hands-free input on mobile.
+
 ### Real-Time Session Dashboard
 
 Watch Claude work in real-time from anywhere. Full transcript with syntax-highlighted code blocks
@@ -83,12 +90,13 @@ All tasks (pending, in-progress, completed) visible in a dedicated tab with bloc
 and owner assignments. Background Bash processes tracked with their commands, descriptions, and
 run times. Archived tasks grouped by date for history.
 
-### File Editor
+### File Editor & Browser
 
 Browse and edit markdown files in your session's working directory directly from the dashboard.
 CodeMirror-powered editor with syntax highlighting, version history, conflict detection (file
-changed on disk while you were editing), and one-click restore. Quick notes (Ctrl+Shift+N) append
-to a NOTES.md in the project root.
+changed on disk while you were editing), and one-click restore. Hit Ctrl+K and type `F:` to
+open the QuickSilver-style file browser -- fuzzy-search your project's files and jump straight
+into editing. Quick notes (Ctrl+Shift+N) append to a NOTES.md in the project root.
 
 ### Passkey-Only Authentication
 
