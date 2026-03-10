@@ -50,20 +50,8 @@ function useSwipeToOpen(onOpen: () => void) {
 
 function Dashboard() {
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [errorExpanded, setErrorExpanded] = useState(false)
-  const { selectedSessionId, setEvents, setTranscript, error, showSwitcher } = useSessionsStore()
+  const { selectedSessionId, setEvents, setTranscript, showSwitcher } = useSessionsStore()
   const swipeHandlers = useSwipeToOpen(() => setSheetOpen(true))
-
-  // Auto-expand on new error, auto-collapse after 4s
-  useEffect(() => {
-    if (!error) {
-      setErrorExpanded(false)
-      return
-    }
-    setErrorExpanded(true)
-    const t = setTimeout(() => setErrorExpanded(false), 4000)
-    return () => clearTimeout(t)
-  }, [error])
 
   // Connect to WebSocket for real-time session updates
   useWebSocket()
@@ -136,25 +124,6 @@ function Dashboard() {
 
   return (
     <div className="h-full flex flex-col p-2 sm:p-4 max-w-[1400px] mx-auto overflow-hidden" {...swipeHandlers}>
-      {/* Error indicator */}
-      {error &&
-        (errorExpanded ? (
-          <div
-            className="mb-2 px-3 py-2 border border-red-500/50 bg-red-500/10 text-red-400 font-mono text-xs shrink-0 cursor-pointer"
-            onClick={() => setErrorExpanded(false)}
-          >
-            [ERROR] {error}
-          </div>
-        ) : (
-          <div
-            className="mb-1 flex items-center gap-1.5 cursor-pointer shrink-0"
-            onClick={() => setErrorExpanded(true)}
-          >
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-red-400 font-mono text-[10px]">ERR</span>
-          </div>
-        ))}
-
       {/* Header with mobile menu */}
       <div className="flex items-center gap-2 mb-4 shrink-0">
         {/* Mobile menu button */}
