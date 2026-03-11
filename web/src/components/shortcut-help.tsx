@@ -9,6 +9,7 @@ const SHORTCUTS = [
   { keys: 'Ctrl+K', action: 'Session switcher (fuzzy finder)' },
   { keys: 'Ctrl+K F:', action: 'File browser (in switcher)' },
   { keys: 'Ctrl+Shift+N', action: 'Quick note (append to NOTES.md)' },
+  { keys: 'Ctrl+Shift+D', action: 'Toggle debug console' },
   { keys: 'Ctrl+Shift+T', action: 'Open terminal for current session' },
   { keys: 'Ctrl+O', action: 'Toggle verbose / expand all' },
   { keys: 'Shift+Click TTY', action: 'Popout terminal to new window' },
@@ -54,7 +55,7 @@ export function ShortcutHelp() {
         onClick={e => e.stopPropagation()}
       >
         <pre className="text-[#7aa2f7] text-[10px] leading-tight mb-4 select-none">
-{`┌──────────────────────────────────────┐
+          {`┌──────────────────────────────────────┐
 │  ██╗  ██╗███████╗██╗   ██╗███████╗  │
 │  ██║ ██╔╝██╔════╝╚██╗ ██╔╝██╔════╝  │
 │  █████╔╝ █████╗   ╚████╔╝ ███████╗  │

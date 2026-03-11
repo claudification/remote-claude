@@ -57,6 +57,7 @@ interface SessionsState {
   showTerminal: boolean
   terminalWrapperId: string | null
   showSwitcher: boolean
+  showDebugConsole: boolean
   requestedTab: string | null
   requestedTabSeq: number
   pendingFilePath: string | null
@@ -71,6 +72,7 @@ interface SessionsState {
   setShowTerminal: (show: boolean) => void
   setShowSwitcher: (show: boolean) => void
   toggleSwitcher: () => void
+  toggleDebugConsole: () => void
   openTerminal: (wrapperId: string) => void
   setEvents: (sessionId: string, events: HookEvent[]) => void
   setTranscript: (sessionId: string, entries: TranscriptEntry[]) => void
@@ -137,6 +139,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   showTerminal: false,
   terminalWrapperId: null,
   showSwitcher: false,
+  showDebugConsole: false,
   requestedTab: null,
   requestedTabSeq: 0,
   pendingFilePath: null,
@@ -179,6 +182,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
   setShowSwitcher: show => set({ showSwitcher: show }),
   toggleSwitcher: () => set(state => ({ showSwitcher: !state.showSwitcher })),
+  toggleDebugConsole: () => set(state => ({ showDebugConsole: !state.showDebugConsole })),
   openTerminal: wrapperId => {
     // Find the session that owns this wrapper so we can select it in the main panel too
     const { sessions } = get()

@@ -722,10 +722,10 @@ export function createApiHandler(options: ApiOptions) {
         })
 
         if (result.success) {
-          return new Response(
-            JSON.stringify({ success: true, wrapperId, tmuxSession: result.tmuxSession }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } },
-          )
+          return new Response(JSON.stringify({ success: true, wrapperId, tmuxSession: result.tmuxSession }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
         return new Response(JSON.stringify({ error: result.error || 'Spawn failed' }), {
           status: 500,
@@ -1158,6 +1158,8 @@ export function createApiHandler(options: ApiOptions) {
           })
         }
 
+        console.log(`[transcribe] Fetching audio: ${body.audioUrl}`)
+
         // Fetch the audio file
         const audioRes = await fetch(body.audioUrl)
         if (!audioRes.ok) throw new Error(`Failed to fetch audio: ${audioRes.status}`)
@@ -1166,8 +1168,10 @@ export function createApiHandler(options: ApiOptions) {
 
         // Detect media type from URL or response
         const contentType = audioRes.headers.get('content-type') || 'audio/webm'
+        console.log(`[transcribe] Audio: ${audioBlob.byteLength} bytes, type: ${contentType}`)
 
         // Step 1: Whisper transcription via OpenRouter (Groq)
+        console.log('[transcribe] Calling Whisper...')
         const whisperRes = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
           method: 'POST',
           headers: {
@@ -1182,11 +1186,13 @@ export function createApiHandler(options: ApiOptions) {
 
         if (!whisperRes.ok) {
           const err = await whisperRes.text()
+          console.error(`[transcribe] Whisper failed: ${whisperRes.status} ${err}`)
           throw new Error(`Whisper failed: ${whisperRes.status} ${err}`)
         }
 
         const whisperData = (await whisperRes.json()) as { text?: string }
         const rawText = whisperData.text || ''
+        console.log(`[transcribe] Whisper raw: "${rawText.slice(0, 100)}"${rawText.length > 100 ? '...' : ''}`)
 
         if (!rawText.trim()) {
           return new Response(JSON.stringify({ raw: '', refined: '' }), {
@@ -1220,6 +1226,8 @@ export function createApiHandler(options: ApiOptions) {
         })
 
         if (!refineRes.ok) {
+          const refineErr = await refineRes.text().catch(() => '')
+          console.error(`[transcribe] Refinement failed: ${refineRes.status} ${refineErr}`)
           // Refinement failed - return raw text anyway
           return new Response(JSON.stringify({ raw: rawText, refined: rawText }), {
             status: 200,
@@ -1229,6 +1237,7 @@ export function createApiHandler(options: ApiOptions) {
 
         const refineData = (await refineRes.json()) as { choices?: Array<{ message?: { content?: string } }> }
         const refined = refineData.choices?.[0]?.message?.content?.trim() || rawText
+        console.log(`[transcribe] Refined: "${refined.slice(0, 100)}"${refined.length > 100 ? '...' : ''}`)
 
         return new Response(JSON.stringify({ raw: rawText, refined }), {
           status: 200,

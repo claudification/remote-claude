@@ -1,13 +1,14 @@
 import { Command, FileText, Menu } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AuthGate } from '@/components/auth-gate'
+import { DebugConsole } from '@/components/debug-console'
 import { Header } from '@/components/header'
 import { JsonInspectorDialog } from '@/components/json-inspector'
 import { QuickNoteModal } from '@/components/quick-note-modal'
-import { ShortcutHelp } from '@/components/shortcut-help'
 import { SessionDetail } from '@/components/session-detail'
 import { SessionList } from '@/components/session-list'
 import { SessionSwitcher } from '@/components/session-switcher'
+import { ShortcutHelp } from '@/components/shortcut-help'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { WebTerminal } from '@/components/web-terminal'
@@ -51,7 +52,7 @@ function useSwipeToOpen(onOpen: () => void) {
 
 function Dashboard() {
   const [sheetOpen, setSheetOpen] = useState(() => isMobileViewport() && !useSessionsStore.getState().selectedSessionId)
-  const { selectedSessionId, setEvents, setTranscript, showSwitcher } = useSessionsStore()
+  const { selectedSessionId, setEvents, setTranscript, showSwitcher, showDebugConsole } = useSessionsStore()
   const swipeHandlers = useSwipeToOpen(() => setSheetOpen(true))
 
   // Connect to WebSocket for real-time session updates
@@ -97,6 +98,11 @@ function Dashboard() {
         if (el?.closest('.xterm') || el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA') return
         e.preventDefault()
         useSessionsStore.getState().toggleExpandAll()
+      }
+      // Ctrl+Shift+D - toggle debug console
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault()
+        useSessionsStore.getState().toggleDebugConsole()
       }
       // Ctrl+Shift+T - open TTY for current session
       if (e.ctrlKey && e.shiftKey && e.key === 'T') {
@@ -207,6 +213,8 @@ function Dashboard() {
       <QuickNoteModal />
       {/* Shift+? shortcut help */}
       <ShortcutHelp />
+      {/* Debug console (Ctrl+Shift+D) */}
+      {showDebugConsole && <DebugConsole onClose={() => useSessionsStore.getState().toggleDebugConsole()} />}
     </div>
   )
 }

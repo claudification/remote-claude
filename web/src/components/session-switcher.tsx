@@ -7,6 +7,46 @@ import { canTerminal, type Session } from '@/lib/types'
 import { cn, formatAge, lastPathSegments } from '@/lib/utils'
 import { renderProjectIcon } from './project-settings-editor'
 
+interface PaletteCommand {
+  id: string
+  label: string
+  shortcut?: string
+  action: () => void
+}
+
+function getPaletteCommands(onClose: () => void): PaletteCommand[] {
+  const store = useSessionsStore.getState()
+  const session = store.sessions.find(s => s.id === store.selectedSessionId)
+  return [
+    {
+      id: 'debug-console',
+      label: 'Toggle debug console',
+      shortcut: 'Ctrl+Shift+D',
+      action: () => { store.toggleDebugConsole(); onClose() },
+    },
+    {
+      id: 'verbose',
+      label: 'Toggle verbose / expand all',
+      shortcut: 'Ctrl+O',
+      action: () => { store.toggleExpandAll(); onClose() },
+    },
+    {
+      id: 'quick-note',
+      label: 'Quick note (append to NOTES.md)',
+      shortcut: 'Ctrl+Shift+N',
+      action: () => { window.dispatchEvent(new Event('open-quick-note')); onClose() },
+    },
+    ...(session && canTerminal(session) && session.wrapperIds?.[0]
+      ? [{
+          id: 'terminal',
+          label: 'Open terminal for current session',
+          shortcut: 'Ctrl+Shift+T',
+          action: () => { store.openTerminal(session.wrapperIds![0]); onClose() },
+        }]
+      : []),
+  ]
+}
+
 interface SessionSwitcherProps {
   onSelect: (sessionId: string) => void
   onFileSelect: (sessionId: string, path: string) => void
@@ -22,8 +62,16 @@ export function SessionSwitcher({ onSelect, onFileSelect, onClose }: SessionSwit
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Command mode (> prefix, like VS Code)
+  const isCommandMode = filter.startsWith('>')
+  const commandFilter = isCommandMode ? filter.slice(1).trim().toLowerCase() : ''
+  const commands = useMemo(() => getPaletteCommands(onClose), [onClose])
+  const filteredCommands = isCommandMode
+    ? commands.filter(c => c.label.toLowerCase().includes(commandFilter))
+    : []
+
   // File picker mode
-  const isFileMode = filter.toLowerCase().startsWith('f:') && !filter.toLowerCase().startsWith('f:/')
+  const isFileMode = !isCommandMode && filter.toLowerCase().startsWith('f:') && !filter.toLowerCase().startsWith('f:/')
   const fileFilter = isFileMode ? filter.slice(2).trim().toLowerCase() : ''
   const [files, setFiles] = useState<FileInfo[]>([])
   const [filesLoading, setFilesLoading] = useState(false)
@@ -31,7 +79,7 @@ export function SessionSwitcher({ onSelect, onFileSelect, onClose }: SessionSwit
 
   // Spawn mode
   const agentConnected = useSessionsStore(state => state.agentConnected)
-  const isSpawnMode = filter.toLowerCase().startsWith('s:')
+  const isSpawnMode = !isCommandMode && filter.toLowerCase().startsWith('s:')
   const spawnPath = isSpawnMode ? filter.slice(2).trim() : ''
   const [spawnDirs, setSpawnDirs] = useState<string[]>([])
   const [spawnLoading, setSpawnLoading] = useState(false)
@@ -41,7 +89,9 @@ export function SessionSwitcher({ onSelect, onFileSelect, onClose }: SessionSwit
 
   // Compute the parent directory and partial name for autocomplete
   const spawnParentDir = spawnPath.includes('/') ? spawnPath.slice(0, spawnPath.lastIndexOf('/') + 1) : '/'
-  const spawnPartial = spawnPath.includes('/') ? spawnPath.slice(spawnPath.lastIndexOf('/') + 1).toLowerCase() : spawnPath.toLowerCase()
+  const spawnPartial = spawnPath.includes('/')
+    ? spawnPath.slice(spawnPath.lastIndexOf('/') + 1).toLowerCase()
+    : spawnPath.toLowerCase()
 
   // Fetch dirs with debounce as user types
   const fetchDirs = useCallback(
@@ -77,9 +127,7 @@ export function SessionSwitcher({ onSelect, onFileSelect, onClose }: SessionSwit
     }
   }, [isSpawnMode, spawnParentDir, fetchDirs])
 
-  const filteredSpawnDirs = spawnPartial
-    ? spawnDirs.filter(d => d.toLowerCase().startsWith(spawnPartial))
-    : spawnDirs
+  const filteredSpawnDirs = spawnPartial ? spawnDirs.filter(d => d.toLowerCase().startsWith(spawnPartial)) : spawnDirs
 
   async function handleSpawn(cwd: string) {
     if (spawning || !cwd) return
@@ -168,18 +216,20 @@ export function SessionSwitcher({ onSelect, onFileSelect, onClose }: SessionSwit
       }),
     [allSessions, projectSettings],
   )
-  const filteredSessions = filter && !isFileMode && !isSpawnMode
-    ? sessionFzf.find(filter).map(r => r.item)
-    : allSessions
+  const filteredSessions =
+    filter && !isFileMode && !isSpawnMode ? sessionFzf.find(filter).map(r => r.item) : allSessions
 
   // Fuzzy matching for files
-  const fileFzf = useMemo(
-    () => new Fzf(files, { selector: (f: FileInfo) => `${f.name} ${f.path}` }),
-    [files],
-  )
+  const fileFzf = useMemo(() => new Fzf(files, { selector: (f: FileInfo) => `${f.name} ${f.path}` }), [files])
   const filteredFiles = fileFilter ? fileFzf.find(fileFilter).map(r => r.item) : files
 
-  const itemCount = isSpawnMode ? filteredSpawnDirs.length : isFileMode ? filteredFiles.length : filteredSessions.length
+  const itemCount = isCommandMode
+    ? filteredCommands.length
+    : isSpawnMode
+      ? filteredSpawnDirs.length
+      : isFileMode
+        ? filteredFiles.length
+        : filteredSessions.length
 
   // Clamp active index
   useEffect(() => {
@@ -197,7 +247,7 @@ export function SessionSwitcher({ onSelect, onFileSelect, onClose }: SessionSwit
     switch (e.key) {
       case 'Escape':
         e.preventDefault()
-        if (isFileMode || isSpawnMode) {
+        if (isFileMode || isSpawnMode || isCommandMode) {
           setFilter('')
           setActiveIndex(0)
         } else {
@@ -224,7 +274,10 @@ export function SessionSwitcher({ onSelect, onFileSelect, onClose }: SessionSwit
         break
       case 'Enter':
         e.preventDefault()
-        if (isSpawnMode) {
+        if (isCommandMode) {
+          const cmd = filteredCommands[activeIndex]
+          if (cmd) cmd.action()
+        } else if (isSpawnMode) {
           // If a dir is highlighted, complete it; if path ends with /, spawn there
           if (filteredSpawnDirs.length > 0 && !spawnPath.endsWith('/')) {
             const selected = filteredSpawnDirs[activeIndex]
@@ -295,11 +348,13 @@ export function SessionSwitcher({ onSelect, onFileSelect, onClose }: SessionSwit
             }}
             onKeyDown={handleKeyDown}
             placeholder={
-              isSpawnMode
-                ? 'Path to spawn (e.g. projects/my-app or /absolute/path)...'
-                : isFileMode
-                  ? 'Search files...'
-                  : 'Switch session... (F: files, S: spawn)'
+              isCommandMode
+                ? 'Type a command...'
+                : isSpawnMode
+                  ? 'Path to spawn (e.g. projects/my-app or /absolute/path)...'
+                  : isFileMode
+                    ? 'Search files...'
+                    : 'Switch session... (>cmd  F:files  S:spawn)'
             }
             className="w-full bg-transparent text-[19px] sm:text-sm text-[#a9b1d6] placeholder:text-[#565f89] outline-none"
             autoComplete="off"
@@ -309,7 +364,30 @@ export function SessionSwitcher({ onSelect, onFileSelect, onClose }: SessionSwit
 
         {/* List */}
         <div className="max-h-[40vh] overflow-y-auto">
-          {isSpawnMode ? (
+          {isCommandMode ? (
+            <>
+              {filteredCommands.length === 0 && (
+                <div className="px-3 py-4 text-center text-[10px] text-[#565f89]">No matching commands</div>
+              )}
+              {filteredCommands.map((cmd, i) => (
+                <button
+                  key={cmd.id}
+                  type="button"
+                  onClick={cmd.action}
+                  onMouseEnter={() => setActiveIndex(i)}
+                  className={cn(
+                    'w-full px-3 py-2 flex items-center justify-between text-left transition-colors',
+                    i === activeIndex ? 'bg-[#33467c]/50' : 'hover:bg-[#33467c]/25',
+                  )}
+                >
+                  <span className="text-xs text-[#a9b1d6]">{cmd.label}</span>
+                  {cmd.shortcut && (
+                    <kbd className="px-1.5 py-0.5 bg-[#33467c]/30 text-[10px] text-[#565f89]">{cmd.shortcut}</kbd>
+                  )}
+                </button>
+              ))}
+            </>
+          ) : isSpawnMode ? (
             <>
               {!agentConnected && (
                 <div className="px-3 py-4 text-center text-[10px] text-red-400">No host agent connected</div>
@@ -360,14 +438,14 @@ export function SessionSwitcher({ onSelect, onFileSelect, onClose }: SessionSwit
                 </button>
               )}
               {spawning && (
-                <div className="px-3 py-4 text-center text-[10px] text-[#9ece6a] animate-pulse">Spawning session...</div>
+                <div className="px-3 py-4 text-center text-[10px] text-[#9ece6a] animate-pulse">
+                  Spawning session...
+                </div>
               )}
             </>
           ) : isFileMode ? (
             <>
-              {filesLoading && (
-                <div className="px-3 py-4 text-center text-[10px] text-[#565f89]">Loading files...</div>
-              )}
+              {filesLoading && <div className="px-3 py-4 text-center text-[10px] text-[#565f89]">Loading files...</div>}
               {!filesLoading && filteredFiles.length === 0 && (
                 <div className="px-3 py-4 text-center text-[10px] text-[#565f89]">
                   {files.length === 0 ? 'No .md files found' : 'No matches'}

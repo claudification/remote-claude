@@ -349,8 +349,10 @@ export function MarkdownInput({
 
   async function startRecording() {
     try {
+      console.log('[voice] Requesting microphone access...')
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4' // Safari fallback
+      console.log(`[voice] Recording with mimeType: ${mimeType}`)
       const recorder = new MediaRecorder(stream, { mimeType })
       audioChunksRef.current = []
 
@@ -361,15 +363,19 @@ export function MarkdownInput({
       recorder.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
         const blob = new Blob(audioChunksRef.current, { type: mimeType })
-        if (blob.size < 1000) return // too short, ignore
+        console.log(`[voice] Recording stopped, blob size: ${blob.size} bytes`)
+        if (blob.size < 1000) {
+          console.log('[voice] Blob too small (<1000 bytes), ignoring')
+          return
+        }
         await transcribeAudio(blob, mimeType)
       }
 
       recorder.start(250) // collect in 250ms chunks
       mediaRecorderRef.current = recorder
       setRecording(true)
-    } catch {
-      // Permission denied or no mic
+    } catch (err) {
+      console.error('[voice] Failed to start recording:', err)
     }
   }
 
@@ -394,21 +400,34 @@ export function MarkdownInput({
     try {
       // Upload audio to file service
       const ext = mimeType.includes('webm') ? 'webm' : 'mp4'
+      console.log(`[voice] Uploading audio (${blob.size} bytes, ${ext})...`)
       const formData = new FormData()
       formData.append('file', blob, `voice.${ext}`)
       const uploadRes = await fetch('/api/files', { method: 'POST', body: formData })
-      if (!uploadRes.ok) throw new Error('Upload failed')
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text().catch(() => '')
+        console.error(`[voice] Upload failed: ${uploadRes.status} ${errText}`)
+        throw new Error('Upload failed')
+      }
       const { url: audioUrl } = await uploadRes.json()
+      console.log(`[voice] Uploaded: ${audioUrl}`)
 
       // Call transcription endpoint with optional context
+      console.log('[voice] Calling /api/transcribe...')
       const res = await fetch('/api/transcribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ audioUrl }),
       })
-      if (!res.ok) throw new Error('Transcription failed')
-      const { refined } = await res.json()
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '')
+        console.error(`[voice] Transcription failed: ${res.status} ${errText}`)
+        throw new Error('Transcription failed')
+      }
+      const result = await res.json()
+      console.log('[voice] Transcription result:', result)
 
+      const { refined } = result
       if (refined?.trim()) {
         // Insert at cursor or append
         const ta = textareaRef.current
@@ -417,9 +436,11 @@ export function MarkdownInput({
         const after = value.slice(pos)
         const spacer = before.length > 0 && !before.endsWith(' ') && !before.endsWith('\n') ? ' ' : ''
         onChange(before + spacer + refined + after)
+      } else {
+        console.log('[voice] Empty transcription result, nothing to insert')
       }
-    } catch {
-      // Transcription failed silently
+    } catch (err) {
+      console.error('[voice] Transcription pipeline error:', err)
     } finally {
       setTranscribing(false)
     }
