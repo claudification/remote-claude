@@ -2,6 +2,7 @@
  * WebSocket hook for real-time updates from concentrator
  */
 import { useCallback, useEffect, useRef } from 'react'
+import { recordIn, recordOut } from './ws-stats'
 import type { HookEvent, Session, TaskInfo, TranscriptEntry, WrapperCapability } from '@/lib/types'
 import { type ProjectSettingsMap, applyHashRoute, handleBgTaskOutputMessage, useSessionsStore } from './use-sessions'
 
@@ -134,7 +135,9 @@ export function useWebSocket() {
         setError(null)
         setWs(ws)
         // Subscribe to dashboard updates
-        ws.send(JSON.stringify({ type: 'subscribe' }))
+        const sub = JSON.stringify({ type: 'subscribe' })
+        recordOut(sub.length)
+        ws.send(sub)
       }
 
       ws.onclose = e => {
@@ -162,8 +165,10 @@ export function useWebSocket() {
       }
 
       ws.onmessage = event => {
+        const raw = event.data as string
+        recordIn(raw.length)
         try {
-          const msg = JSON.parse(event.data) as DashboardMessage
+          const msg = JSON.parse(raw) as DashboardMessage
 
           // Route file editor messages to file handler
           if (

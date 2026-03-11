@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { recordOut } from './ws-stats'
 import type {
   HookEvent,
   ProjectSettings,
@@ -221,7 +222,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   sendWsMessage: msg => {
     const { ws } = get()
     if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(msg))
+      const payload = JSON.stringify(msg)
+      recordOut(payload.length)
+      ws.send(payload)
     }
   },
 

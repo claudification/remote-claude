@@ -7,6 +7,7 @@ interface DashboardPrefs {
   showInactiveByDefault: boolean
   compactMode: boolean
   showVoiceInput: boolean
+  showWsStats: boolean
 }
 
 function loadPrefs(): DashboardPrefs {
@@ -26,6 +27,7 @@ const defaultPrefs: DashboardPrefs = {
   showInactiveByDefault: false,
   compactMode: false,
   showVoiceInput: true,
+  showWsStats: false,
 }
 
 export function usePrefs() {
@@ -42,6 +44,10 @@ export function usePrefs() {
 
 export function getShowVoiceInput(): boolean {
   return loadPrefs().showVoiceInput
+}
+
+export function getShowWsStats(): boolean {
+  return loadPrefs().showWsStats
 }
 
 // --- Color input with live preview ---
@@ -383,6 +389,18 @@ function DisplayTab() {
           type="checkbox"
           checked={prefs.showVoiceInput}
           onChange={e => update({ showVoiceInput: e.target.checked })}
+          className="accent-primary w-4 h-4"
+        />
+      </label>
+      <label className="flex items-center justify-between cursor-pointer">
+        <div>
+          <div className="text-sm text-foreground">WS traffic stats</div>
+          <div className="text-[10px] text-muted-foreground">Show msg/s and KB/s in header bar</div>
+        </div>
+        <input
+          type="checkbox"
+          checked={prefs.showWsStats}
+          onChange={e => update({ showWsStats: e.target.checked })}
           className="accent-primary w-4 h-4"
         />
       </label>

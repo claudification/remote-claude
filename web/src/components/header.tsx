@@ -1,10 +1,29 @@
 import { Bell, BellOff, Settings } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { SettingsDialog } from '@/components/settings-page'
+import { useEffect, useState, useSyncExternalStore } from 'react'
+import { SettingsDialog, getShowWsStats } from '@/components/settings-page'
 import { getPushStatus, subscribeToPush, useSessionsStore } from '@/hooks/use-sessions'
+import { getRates, subscribe as subscribeStats } from '@/hooks/ws-stats'
+
+function formatBytes(bps: number): string {
+  if (bps < 1024) return `${Math.round(bps)}B`
+  return `${(bps / 1024).toFixed(1)}K`
+}
+
+function WsStats() {
+  const rates = useSyncExternalStore(subscribeStats, getRates)
+  return (
+    <span className="text-[10px] text-muted-foreground/70 font-mono tabular-nums whitespace-nowrap" title="WS traffic (3s avg)">
+      <span className="opacity-50">in</span>{' '}
+      {rates.msgInPerSec.toFixed(0)}m/{formatBytes(rates.bytesInPerSec)}s{' '}
+      <span className="opacity-50">out</span>{' '}
+      {rates.msgOutPerSec.toFixed(0)}m/{formatBytes(rates.bytesOutPerSec)}s
+    </span>
+  )
+}
 
 export function Header() {
   const [showSettings, setShowSettings] = useState(false)
+  const [showStats, setShowStats] = useState(getShowWsStats)
   const [pushState, setPushState] = useState<
     'loading' | 'unsupported' | 'prompt' | 'subscribing' | 'subscribed' | 'denied'
   >('loading')
@@ -17,6 +36,15 @@ export function Header() {
       else if (status.permission === 'denied') setPushState('denied')
       else setPushState('prompt')
     })
+  }, [])
+
+  // Listen for prefs changes (toggle from settings dialog)
+  useEffect(() => {
+    function onPrefsChanged() {
+      setShowStats(getShowWsStats())
+    }
+    window.addEventListener('prefs-changed', onPrefsChanged)
+    return () => window.removeEventListener('prefs-changed', onPrefsChanged)
   }, [])
 
   async function handlePushToggle(e: React.MouseEvent) {
@@ -76,6 +104,8 @@ export function Header() {
         >
           <Settings className="w-3.5 h-3.5" />
         </button>
+
+        {showStats && <><span className="flex-1" /><WsStats /></>}
       </div>
 
       <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
