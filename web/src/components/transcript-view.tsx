@@ -834,7 +834,7 @@ function ToolLine({
         <Collapsible
           id={tool.id ? `tool-${tool.id}` : undefined}
           label="output"
-          defaultOpen={name === 'Edit' || name === 'Write'}
+          defaultOpen={name === 'Edit' || name === 'Write' || (name === 'Bash' && expandAll)}
         >
           {details}
         </Collapsible>

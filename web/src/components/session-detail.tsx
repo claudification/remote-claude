@@ -614,10 +614,10 @@ export function SessionDetail() {
               <div className="flex items-center gap-1.5">
                 <Checkbox
                   id="verbose"
-                  checked={showThinking || expandAll}
+                  checked={expandAll}
                   onCheckedChange={checked => {
                     setShowThinking(checked === true)
-                    if (expandAll && !checked) useSessionsStore.getState().toggleExpandAll()
+                    if (checked !== expandAll) useSessionsStore.getState().toggleExpandAll()
                   }}
                   className="h-3.5 w-3.5"
                 />

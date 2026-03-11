@@ -102,13 +102,18 @@ export function MarkdownInput({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
 
+  // Sync scroll between textarea and highlight div
+  const syncScroll = useCallback(() => {
+    if (textareaRef.current && highlightRef.current) {
+      highlightRef.current.scrollTop = textareaRef.current.scrollTop
+      highlightRef.current.scrollLeft = textareaRef.current.scrollLeft
+    }
+  }, [])
+
   // Auto-resize textarea to fit content
   const autoResize = useCallback(() => {
     const textarea = textareaRef.current
     if (!textarea) return
-
-    // Reset to auto to measure scrollHeight correctly
-    textarea.style.height = 'auto'
 
     if (expanded) {
       // In expanded mode, fill available space (handled by flex)
@@ -119,20 +124,19 @@ export function MarkdownInput({
 
     // Cap at 120px (~5 lines) to prevent layout reflow jerk in transcript above
     const maxHeight = 120
-    const newHeight = Math.min(textarea.scrollHeight, maxHeight)
+
+    // Measure scrollHeight without causing visible overflow:
+    // set overflow hidden first, then reset height, measure, apply
+    textarea.style.overflowY = 'hidden'
+    textarea.style.height = 'auto'
+    const scrollH = textarea.scrollHeight
+    const newHeight = Math.min(scrollH, maxHeight)
     textarea.style.height = `${newHeight}px`
+    textarea.style.overflowY = scrollH > maxHeight ? 'auto' : 'hidden'
 
-    // Enable scrolling when capped
-    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
-  }, [expanded])
-
-  // Sync scroll between textarea and highlight div
-  const syncScroll = useCallback(() => {
-    if (textareaRef.current && highlightRef.current) {
-      highlightRef.current.scrollTop = textareaRef.current.scrollTop
-      highlightRef.current.scrollLeft = textareaRef.current.scrollLeft
-    }
-  }, [])
+    // Sync highlight layer scroll after resize
+    requestAnimationFrame(syncScroll)
+  }, [expanded, syncScroll])
 
   // Resize on value change
   useEffect(() => {
@@ -274,6 +278,8 @@ export function MarkdownInput({
 
   function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
     onChange(e.target.value)
+    // Sync highlight scroll after content change (caret may move)
+    requestAnimationFrame(syncScroll)
   }
 
   async function uploadFile(file: File) {
@@ -560,7 +566,14 @@ export function MarkdownInput({
 
   // Normal inline mode
   return (
-    <div ref={containerRef} className={cn('relative', className)}>
+    <div
+      ref={containerRef}
+      className={cn(
+        'relative border border-border rounded has-[:focus]:border-ring',
+        disabled && 'opacity-50',
+        className,
+      )}
+    >
       {/* Drag-over overlay */}
       {dragOver && (
         <div className="absolute inset-0 z-10 border-2 border-dashed border-accent bg-accent/10 rounded flex items-center justify-center pointer-events-none">
@@ -571,9 +584,9 @@ export function MarkdownInput({
       <div
         ref={highlightRef}
         className={cn(
-          'absolute inset-0 pl-3 pr-14 py-2 pointer-events-none border border-transparent',
+          'absolute inset-0 pl-3 pr-14 py-2 pointer-events-none overflow-hidden',
           textClasses,
-          'overflow-hidden text-foreground',
+          'text-foreground',
         )}
         aria-hidden="true"
         dangerouslySetInnerHTML={{ __html: highlightMarkdown(value) }}
@@ -597,12 +610,11 @@ export function MarkdownInput({
         autoCapitalize="off"
         spellCheck={false}
         className={cn(
-          'relative w-full bg-transparent border border-border rounded pl-3 pr-14 py-2 resize-none',
+          'relative w-full bg-transparent pl-3 pr-14 py-2 resize-none',
           textClasses,
           'text-transparent caret-foreground selection:bg-accent/30 selection:text-foreground',
-          'focus:outline-none focus:ring-1 focus:ring-ring',
+          'focus:outline-none',
           'placeholder:text-muted-foreground',
-          'disabled:opacity-50',
         )}
         style={{ minHeight: '2.25rem' }}
       />

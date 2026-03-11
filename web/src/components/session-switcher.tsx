@@ -301,7 +301,7 @@ export function SessionSwitcher({ onSelect, onFileSelect, onClose }: SessionSwit
                   ? 'Search files...'
                   : 'Switch session... (F: files, S: spawn)'
             }
-            className="w-full bg-transparent text-sm text-[#a9b1d6] placeholder:text-[#565f89] outline-none"
+            className="w-full bg-transparent text-[19px] sm:text-sm text-[#a9b1d6] placeholder:text-[#565f89] outline-none"
             autoComplete="off"
             spellCheck={false}
           />
