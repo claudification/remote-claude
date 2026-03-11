@@ -1,13 +1,13 @@
 import { Command, FileText, Menu } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AuthGate } from '@/components/auth-gate'
+import { CommandPalette } from '@/components/command-palette'
 import { DebugConsole } from '@/components/debug-console'
 import { Header } from '@/components/header'
 import { JsonInspectorDialog } from '@/components/json-inspector'
 import { QuickNoteModal } from '@/components/quick-note-modal'
 import { SessionDetail } from '@/components/session-detail'
 import { SessionList } from '@/components/session-list'
-import { SessionSwitcher } from '@/components/session-switcher'
 import { ShortcutHelp } from '@/components/shortcut-help'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -192,15 +192,13 @@ function Dashboard() {
 
       {/* Global session switcher (Ctrl+K from anywhere) */}
       {showSwitcher && (
-        <SessionSwitcher
+        <CommandPalette
           onSelect={handleSwitcherSelect}
           onFileSelect={(sessionId, path) => {
             const store = useSessionsStore.getState()
             store.selectSession(sessionId)
             store.setShowSwitcher(false)
-            // Open Files tab with this file - use openTab then set a pending file open
             store.openTab(sessionId, 'files')
-            // Store the pending file path so FileEditor can pick it up
             store.setPendingFilePath(path)
           }}
           onClose={() => useSessionsStore.getState().setShowSwitcher(false)}
