@@ -958,11 +958,19 @@ function AgentGroupView({
   const userTag = (globalSettings.userLabel as string)?.trim() || 'USER'
   const agentTag = (globalSettings.agentLabel as string)?.trim() || 'AGENT'
   const label = isUser ? userTag : agentTag
-  const labelColor = isUser ? 'text-event-prompt' : 'text-pink-400'
+  const customColor = isUser ? (globalSettings.userColor as string)?.trim() : (globalSettings.agentColor as string)?.trim()
+  const labelColor = customColor || (isUser ? 'text-event-prompt' : 'text-pink-400')
+  const sizeKey = (isUser ? (globalSettings.userSize as string) : (globalSettings.agentSize as string)) || ''
+  const sizeClass = { xs: 'text-[7px]', sm: 'text-[8px]', '': 'text-[9px]', lg: 'text-[11px]', xl: 'text-[13px]' }[sizeKey] || 'text-[9px]'
 
   return (
     <div className="text-xs">
-      <span className={cn('text-[9px] font-bold uppercase', labelColor)}>{label}</span>
+      <span
+        className={cn(sizeClass, 'font-bold uppercase', !customColor && labelColor)}
+        style={customColor ? { color: customColor } : undefined}
+      >
+        {label}
+      </span>
       <div className="pl-2 space-y-1">
         {content.map((item, i) => {
           if (item.kind === 'thinking') {
@@ -1239,15 +1247,23 @@ function GroupView({
   const userTag = (globalSettings.userLabel as string)?.trim() || 'USER'
   const agentTag = (globalSettings.agentLabel as string)?.trim() || 'CLAUDE'
   const label = isUser ? userTag : agentTag
+  const customColor = isUser ? (globalSettings.userColor as string)?.trim() : (globalSettings.agentColor as string)?.trim()
   const borderColor = isUser ? 'border-event-prompt' : 'border-primary'
   const labelBg = isUser ? 'bg-event-prompt text-background' : 'bg-primary text-primary-foreground'
+  const sizeKey = (isUser ? (globalSettings.userSize as string) : (globalSettings.agentSize as string)) || ''
+  const sizeClass = { xs: 'text-[8px]', sm: 'text-[9px]', '': 'text-[10px]', lg: 'text-[13px]', xl: 'text-[16px]' }[sizeKey] || 'text-[10px]'
 
   return (
     <div className="mb-4">
       {/* Single header for the group */}
       <div className="flex items-center gap-2 mb-2">
         <span className={cn('text-[10px]', borderColor)}>┌──</span>
-        <span className={cn('px-2 py-0.5 text-[10px] font-bold', labelBg)}>{label}</span>
+        <span
+          className={cn('px-2 py-0.5 font-bold', sizeClass, !customColor && labelBg)}
+          style={customColor ? { backgroundColor: customColor, color: '#0a0a0a' } : undefined}
+        >
+          {label}
+        </span>
         <span className="text-muted-foreground text-[10px]">{time}</span>
         <span className={cn('flex-1 text-[10px] overflow-hidden', borderColor)}>{'─'.repeat(40)}</span>
       </div>

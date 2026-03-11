@@ -385,6 +385,17 @@ export async function fetchServerCapabilities(): Promise<{ voice: boolean }> {
   }
 }
 
+// Global settings API
+export async function fetchGlobalSettings(): Promise<Record<string, unknown>> {
+  try {
+    const res = await fetch(`${API_BASE}/api/settings`)
+    if (!res.ok) return {}
+    return res.json()
+  } catch {
+    return {}
+  }
+}
+
 // Project settings API
 export async function fetchProjectSettings(): Promise<ProjectSettingsMap> {
   const res = await fetch(`${API_BASE}/api/settings/projects`)

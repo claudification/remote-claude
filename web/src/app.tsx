@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { WebTerminal } from '@/components/web-terminal'
 import {
+  fetchGlobalSettings,
   fetchProjectSettings,
   fetchServerCapabilities,
   fetchSessionEvents,
@@ -74,10 +75,11 @@ function Dashboard() {
   // Connect to WebSocket for real-time session updates
   useWebSocket()
 
-  // Fetch project settings and server capabilities on mount
+  // Fetch project settings, server capabilities, and global settings on mount
   useEffect(() => {
     fetchProjectSettings().then(s => useSessionsStore.getState().setProjectSettings(s))
     fetchServerCapabilities().then(c => useSessionsStore.getState().setServerCapabilities(c))
+    fetchGlobalSettings().then(s => useSessionsStore.setState({ globalSettings: s }))
   }, [])
 
   // Fetch events when session selected or WS reconnects (fills gaps from disconnection)

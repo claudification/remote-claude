@@ -40,15 +40,34 @@ function ScrollToBottomButton({
 
 // Isolated input bar - typing here does NOT rerender transcript/events
 const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
-  const draft = useSessionsStore(state => state.inputDrafts[sessionId] ?? '')
-  const setDraft = useSessionsStore(state => state.setInputDraft)
+  const [inputValue, setLocalInput] = useState(() => useSessionsStore.getState().inputDrafts[sessionId] ?? '')
   const [isSending, setIsSending] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef(inputValue)
+  const sessionRef = useRef(sessionId)
 
   function setInputValue(text: string) {
-    setDraft(sessionId, text)
+    setLocalInput(text)
+    inputRef.current = text
   }
-  const inputValue = draft
+
+  // Session switch: save old draft, restore new
+  useEffect(() => {
+    if (sessionRef.current !== sessionId) {
+      useSessionsStore.getState().setInputDraft(sessionRef.current, inputRef.current)
+      const restored = useSessionsStore.getState().inputDrafts[sessionId] ?? ''
+      setLocalInput(restored)
+      inputRef.current = restored
+      sessionRef.current = sessionId
+    }
+  }, [sessionId])
+
+  // Save draft on unmount
+  useEffect(() => {
+    return () => {
+      useSessionsStore.getState().setInputDraft(sessionRef.current, inputRef.current)
+    }
+  }, [])
 
   async function handleSend() {
     if (!inputValue.trim() || isSending) return
