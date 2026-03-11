@@ -49,15 +49,11 @@ const marked = new Marked(
         try {
           return hljs.highlight(code, { language: lang }).value
         } catch {
-          // Fall through to auto-detect
+          return code
         }
       }
-      // Auto-detect language
-      try {
-        return hljs.highlightAuto(code).value
-      } catch {
-        return code
-      }
+      // No language specified -- return plain text (auto-detect misidentifies /* etc.)
+      return code
     },
   }),
 )

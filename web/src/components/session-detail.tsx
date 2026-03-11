@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronDown, ChevronRight, Terminal } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Terminal } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -21,15 +21,19 @@ type Tab = 'transcript' | 'events' | 'agents' | 'tasks' | 'files' | 'diag'
 // Stable reference to avoid re-render loops with Zustand selectors
 const EMPTY_TRANSCRIPT: TranscriptEntry[] = []
 
-function ScrollToBottomButton({ onClick, label = 'scroll to bottom' }: { onClick: () => void; label?: string }) {
+function ScrollToBottomButton({
+  onClick,
+  direction = 'down',
+}: { onClick: () => void; direction?: 'down' | 'up' }) {
+  const Icon = direction === 'up' ? ChevronUp : ChevronDown
   return (
     <button
       type="button"
       onClick={onClick}
-      className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#7aa2f7] text-[#1a1b26] text-[11px] font-bold shadow-lg shadow-[#7aa2f7]/20 hover:bg-[#89b4fa] transition-colors cursor-pointer"
+      className="absolute bottom-22 right-3 z-50 w-8 h-8 flex items-center justify-center rounded-full bg-[#7aa2f7] text-[#1a1b26] shadow-lg shadow-[#7aa2f7]/20 hover:bg-[#89b4fa] transition-colors cursor-pointer"
+      title={direction === 'up' ? 'Scroll to top' : 'Scroll to bottom'}
     >
-      <ChevronDown className="h-3.5 w-3.5" />
-      {label}
+      <Icon className="h-4 w-4" />
     </button>
   )
 }
@@ -656,13 +660,19 @@ export function SessionDetail() {
                 onUserScroll={disableFollow}
                 onReachedBottom={enableFollow}
               />
-              {!follow && transcript.length > 0 && <ScrollToBottomButton onClick={enableFollow} />}
+              {!follow && transcript.length > 0 && <ScrollToBottomButton onClick={enableFollow} direction="down" />}
             </div>
           )}
           {activeTab === 'events' && (
             <div className="flex-1 min-h-0 overflow-hidden relative">
-              <EventsView key={selectedSessionId} events={events} follow={follow} onUserScroll={disableFollow} onReachedTop={enableFollow} />
-              {!follow && events.length > 0 && <ScrollToBottomButton onClick={enableFollow} label="scroll to top" />}
+              <EventsView
+                key={selectedSessionId}
+                events={events}
+                follow={follow}
+                onUserScroll={disableFollow}
+                onReachedTop={enableFollow}
+              />
+              {!follow && events.length > 0 && <ScrollToBottomButton onClick={enableFollow} direction="up" />}
             </div>
           )}
           {activeTab === 'agents' && selectedSessionId && (
