@@ -1,4 +1,4 @@
-import { Command, FileText, Menu } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Command, FileText, Menu } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AuthGate } from '@/components/auth-gate'
 import { CommandPalette } from '@/components/command-palette'
@@ -12,7 +12,13 @@ import { ShortcutHelp } from '@/components/shortcut-help'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { WebTerminal } from '@/components/web-terminal'
-import { fetchProjectSettings, fetchSessionEvents, fetchTranscript, useSessionsStore } from '@/hooks/use-sessions'
+import {
+  fetchProjectSettings,
+  fetchServerCapabilities,
+  fetchSessionEvents,
+  fetchTranscript,
+  useSessionsStore,
+} from '@/hooks/use-sessions'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { canTerminal } from '@/lib/types'
 import { isMobileViewport } from '@/lib/utils'
@@ -52,15 +58,25 @@ function useSwipeToOpen(onOpen: () => void) {
 
 function Dashboard() {
   const [sheetOpen, setSheetOpen] = useState(() => isMobileViewport() && !useSessionsStore.getState().selectedSessionId)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === 'true')
   const { selectedSessionId, setEvents, setTranscript, showSwitcher, showDebugConsole } = useSessionsStore()
   const swipeHandlers = useSwipeToOpen(() => setSheetOpen(true))
+
+  function toggleSidebar() {
+    setSidebarCollapsed(prev => {
+      const next = !prev
+      localStorage.setItem('sidebar-collapsed', String(next))
+      return next
+    })
+  }
 
   // Connect to WebSocket for real-time session updates
   useWebSocket()
 
-  // Fetch project settings on mount
+  // Fetch project settings and server capabilities on mount
   useEffect(() => {
     fetchProjectSettings().then(s => useSessionsStore.getState().setProjectSettings(s))
+    fetchServerCapabilities().then(c => useSessionsStore.getState().setServerCapabilities(c))
   }, [])
 
   // Fetch events when session selected or WS reconnects (fills gaps from disconnection)
@@ -99,6 +115,13 @@ function Dashboard() {
         e.preventDefault()
         useSessionsStore.getState().toggleExpandAll()
       }
+      // Ctrl+B / Cmd+B - toggle sidebar
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        const el = e.target as HTMLElement
+        if (el?.closest('.xterm') || el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA') return
+        e.preventDefault()
+        toggleSidebar()
+      }
       // Ctrl+Shift+D - toggle debug console
       if (e.ctrlKey && e.shiftKey && e.key === 'D') {
         e.preventDefault()
@@ -112,6 +135,19 @@ function Dashboard() {
         if (session && canTerminal(session) && !store.showTerminal && session.wrapperIds?.[0]) {
           store.openTerminal(session.wrapperIds[0])
         }
+      }
+      // Escape - go home to transcript + focus input (desktop only)
+      if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.shiftKey && !isMobileViewport()) {
+        const el = e.target as HTMLElement
+        // Don't capture when terminal, modal, palette, or input has focus
+        if (el?.closest('.xterm')) return
+        const store = useSessionsStore.getState()
+        if (store.showSwitcher || store.showDebugConsole || store.showTerminal) return
+        if (!store.selectedSessionId) return
+        e.preventDefault()
+        store.selectSubagent(null)
+        store.openTab(store.selectedSessionId, 'transcript')
+        requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('textarea')?.focus())
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -178,10 +214,35 @@ function Dashboard() {
       {/* Main content */}
       <div className="flex gap-4 flex-1 min-h-0">
         {/* Desktop sidebar */}
-        <div className="hidden lg:flex w-[350px] shrink-0 border border-border overflow-hidden flex-col">
-          <div className="flex-1 min-h-0 overflow-y-auto p-2">
-            <SessionList />
-          </div>
+        <div
+          className={`hidden lg:flex shrink-0 border border-border overflow-hidden flex-col transition-[width] duration-200 ${sidebarCollapsed ? 'w-10' : 'w-[350px]'}`}
+        >
+          {sidebarCollapsed ? (
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className="flex items-center justify-center h-full w-full hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
+              title="Expand sidebar"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          ) : (
+            <>
+              <div className="flex items-center justify-end px-1 pt-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="p-1 rounded hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
+                  title="Collapse sidebar"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto p-2 pt-0">
+                <SessionList />
+              </div>
+            </>
+          )}
         </div>
 
         {/* Detail panel */}
