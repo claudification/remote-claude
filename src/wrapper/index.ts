@@ -752,23 +752,32 @@ async function main() {
           if (data.transcript_path && typeof data.transcript_path === 'string') {
             const transcriptPath = data.transcript_path
             parentTranscriptPath = transcriptPath
-            // Only start watcher if the transcript file actually exists
-            // (first SessionStart from --settings gives a bogus session ID whose file never exists)
-            if (existsSync(transcriptPath)) {
-              if (sessionChanged || !transcriptWatcher) {
-                if (transcriptWatcher) {
-                  debug(`Stopping old transcript watcher (session changed)`)
-                  transcriptWatcher.stop()
-                  transcriptWatcher = null
+            // Start watcher if transcript file exists, or retry until it does
+            // (brand new projects may not have the JSONL file yet when SessionStart fires)
+            async function tryStartTranscriptWatcher(path: string, retries = 10, delay = 500) {
+              for (let i = 0; i <= retries; i++) {
+                if (existsSync(path)) {
+                  if (sessionChanged || !transcriptWatcher) {
+                    if (transcriptWatcher) {
+                      debug(`Stopping old transcript watcher (session changed)`)
+                      transcriptWatcher.stop()
+                      transcriptWatcher = null
+                    }
+                    debug(`Starting transcript watcher: ${path}`)
+                    startTranscriptWatcher(path)
+                  } else {
+                    debug(`Transcript watcher already running for correct session`)
+                  }
+                  return
                 }
-                debug(`Starting transcript watcher: ${transcriptPath}`)
-                startTranscriptWatcher(transcriptPath)
-              } else {
-                debug(`Transcript watcher already running for correct session`)
+                if (i < retries) {
+                  debug(`Transcript file not found (attempt ${i + 1}/${retries + 1}), retrying in ${delay}ms: ${path}`)
+                  await new Promise(r => setTimeout(r, delay))
+                }
               }
-            } else {
-              debug(`Skipping transcript watcher - file does not exist yet: ${transcriptPath}`)
+              debug(`WARNING: Transcript file never appeared after ${retries} retries: ${path}`)
             }
+            tryStartTranscriptWatcher(transcriptPath)
           } else {
             debug(`WARNING: No transcript_path in SessionStart data!`)
           }
