@@ -3,7 +3,7 @@
  */
 import { useCallback, useEffect, useRef } from 'react'
 import type { HookEvent, Session, TaskInfo, TranscriptEntry, WrapperCapability } from '@/lib/types'
-import { applyHashRoute, handleBgTaskOutputMessage, useSessionsStore } from './use-sessions'
+import { type ProjectSettingsMap, applyHashRoute, handleBgTaskOutputMessage, useSessionsStore } from './use-sessions'
 
 interface SessionSummary {
   id: string
@@ -323,6 +323,12 @@ export function useWebSocket() {
             case 'settings_updated': {
               if (msg.settings) {
                 useSessionsStore.setState({ globalSettings: msg.settings as Record<string, unknown> })
+              }
+              break
+            }
+            case 'project_settings_updated': {
+              if (msg.settings) {
+                useSessionsStore.getState().setProjectSettings(msg.settings as ProjectSettingsMap)
               }
               break
             }

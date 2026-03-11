@@ -661,17 +661,6 @@ export function SessionDetail() {
                   verbose
                 </label>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="follow"
-                  checked={follow}
-                  onCheckedChange={checked => setFollow(checked === true)}
-                  className="h-3.5 w-3.5"
-                />
-                <label htmlFor="follow" className="text-[10px] text-muted-foreground cursor-pointer select-none">
-                  follow
-                </label>
-              </div>
             </div>
           </div>
 

@@ -65,7 +65,7 @@ const PALETTE = [
   '#e2e8f0', // slate/white
 ]
 
-const OPACITY_STEPS = [100, 85, 70, 55, 40, 25, 15, 5]
+const OPACITY_STEPS = [100, 85, 70, 50, 35, 20, 10, 0]
 
 function hexToRgba(hex: string, opacity: number): string {
   const r = Number.parseInt(hex.slice(1, 3), 16)

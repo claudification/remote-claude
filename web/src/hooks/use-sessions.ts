@@ -8,6 +8,7 @@ import type {
   TaskInfo,
   TranscriptEntry,
 } from '@/lib/types'
+export type { ProjectSettingsMap }
 
 // Background task output streaming - module-level to avoid Zustand re-renders on every chunk
 const bgTaskOutputMap = new Map<string, string>()

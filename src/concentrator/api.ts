@@ -1025,7 +1025,13 @@ export function createApiHandler(options: ApiOptions) {
           })
         }
         setProjectSettings(body.cwd, body.settings || {})
-        return new Response(JSON.stringify({ success: true, settings: getAllProjectSettings() }), {
+        const allSettings = getAllProjectSettings()
+        // Broadcast to all dashboard subscribers
+        const json = JSON.stringify({ type: 'project_settings_updated', settings: allSettings })
+        for (const ws of sessionStore.getSubscribers()) {
+          try { ws.send(json) } catch { /* dead socket */ }
+        }
+        return new Response(JSON.stringify({ success: true, settings: allSettings }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         })
@@ -1048,7 +1054,13 @@ export function createApiHandler(options: ApiOptions) {
           })
         }
         deleteProjectSettings(body.cwd)
-        return new Response(JSON.stringify({ success: true }), {
+        const allSettings = getAllProjectSettings()
+        // Broadcast to all dashboard subscribers
+        const json = JSON.stringify({ type: 'project_settings_updated', settings: allSettings })
+        for (const ws of sessionStore.getSubscribers()) {
+          try { ws.send(json) } catch { /* dead socket */ }
+        }
+        return new Response(JSON.stringify({ success: true, settings: allSettings }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         })

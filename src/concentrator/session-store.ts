@@ -4,6 +4,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
+import { getProjectSettings } from './project-settings'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerWebSocket } from 'bun'
@@ -28,13 +29,16 @@ export interface SessionStoreOptions {
 
 // Message types for dashboard subscribers
 export interface DashboardMessage {
-  type: 'session_update' | 'session_created' | 'session_ended' | 'event' | 'sessions_list' | 'agent_status'
+  type: 'session_update' | 'session_created' | 'session_ended' | 'event' | 'sessions_list' | 'agent_status' | 'toast' | 'settings_updated' | 'project_settings_updated'
   sessionId?: string
   previousSessionId?: string // set when session was re-keyed (e.g. /clear)
   session?: SessionSummary
   sessions?: SessionSummary[]
   event?: HookEvent
   connected?: boolean
+  title?: string
+  message?: string
+  settings?: unknown
 }
 
 export interface SessionSummary {
@@ -278,6 +282,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       if (session.status === 'active' && now - session.lastActivity > idleTimeoutMs) {
         session.status = 'idle'
         changed = true
+        // Toast: session went idle - clickable to switch to it
+        const projectName = getProjectSettings(session.cwd)?.label || session.cwd.split('/').pop() || session.cwd
+        broadcast({
+          type: 'toast',
+          sessionId: session.id,
+          title: 'Session idle',
+          message: `${projectName} - waiting for input`,
+        })
       }
 
       // Clean up stale "running" agents (SubagentStop may have been missed)
@@ -770,6 +782,19 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           // Back to idle after completing
           teammate.status = 'idle'
         }
+      }
+
+      // Notification hook -> toast to all dashboards
+      if (event.hookEvent === 'Notification') {
+        const data = event.data as Record<string, unknown>
+        const message = typeof data.message === 'string' ? data.message : 'Needs attention'
+        const projectName = getProjectSettings(session.cwd)?.label || session.cwd.split('/').pop() || session.cwd
+        broadcast({
+          type: 'toast',
+          sessionId,
+          title: projectName,
+          message,
+        })
       }
 
       // Broadcast event to dashboard subscribers
