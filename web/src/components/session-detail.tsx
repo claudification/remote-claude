@@ -63,7 +63,7 @@ const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
           onChange={setInputValue}
           onSubmit={handleSend}
           disabled={isSending}
-          placeholder="Send input to session..."
+          placeholder="Enter to send, Shift+Enter for new line"
           className="flex-1"
           autoFocus
         />
@@ -81,7 +81,6 @@ const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
           {isSending ? '...' : 'SEND'}
         </button>
       </div>
-      <p className="text-[10px] text-muted-foreground mt-1">Enter to send, Shift+Enter for new line</p>
     </div>
   )
 })
