@@ -133,6 +133,13 @@ export interface BgTaskOutput {
   done: boolean // true when task has completed and file is fully read
 }
 
+export interface WrapperNotify {
+  type: 'notify'
+  sessionId: string
+  message: string
+  title?: string
+}
+
 export type WrapperMessage =
   | HookEvent
   | SessionMeta
@@ -146,6 +153,7 @@ export type WrapperMessage =
   | SubagentTranscript
   | FileResponse
   | BgTaskOutput
+  | WrapperNotify
 
 // Concentrator -> Wrapper messages
 export interface Ack {

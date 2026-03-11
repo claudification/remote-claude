@@ -89,6 +89,8 @@ interface SessionsState {
   setFileHandler: (handler: ((msg: any) => void) | null) => void
   sendWsMessage: (msg: Record<string, unknown>) => void
   setPendingFilePath: (path: string | null) => void
+  inputDrafts: Record<string, string>
+  setInputDraft: (sessionId: string, text: string) => void
 
   getSelectedSession: () => Session | undefined
   getSelectedEvents: () => HookEvent[]
@@ -147,6 +149,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   requestedTab: null,
   requestedTabSeq: 0,
   pendingFilePath: null,
+  inputDrafts: {},
+  setInputDraft: (sessionId, text) =>
+    set(state => ({ inputDrafts: { ...state.inputDrafts, [sessionId]: text } })),
   newDataSeq: 0,
   expandAll: localStorage.getItem('expandAll') === 'true',
   toggleExpandAll: () =>

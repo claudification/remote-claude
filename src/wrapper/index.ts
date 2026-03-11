@@ -829,6 +829,13 @@ async function main() {
 
       debug(`Hook: ${event.hookEvent}`)
     },
+    onNotify(message: string, title?: string) {
+      const sessionId = claudeSessionId || internalId
+      debug(`Notify: ${title ? `[${title}] ` : ''}${message}`)
+      if (wsClient?.isConnected()) {
+        wsClient.send({ type: 'notify', sessionId, message, title })
+      }
+    },
   })
 
   // Generate merged settings with hook injection
@@ -854,6 +861,20 @@ async function main() {
       '- **PDFs** (.pdf): Download with `curl -sL "<url>" -o /tmp/<filename>`, then use the Read tool with the pages parameter.',
       '',
       'Always download and process these files - do not just acknowledge the links. The user expects you to see and work with the file contents.',
+      '',
+      '# Notifications (rclaude)',
+      '',
+      'You can send push notifications to the user\'s devices (phone, browser) via the rclaude notification endpoint.',
+      'Use this when the user asks to be notified, or when a long-running task completes and the user might not be watching.',
+      '',
+      '```bash',
+      `curl -s -X POST http://127.0.0.1:${localServerPort}/notify -H "Content-Type: application/json" -d '{"message": "Your task is done!", "title": "Optional title"}'`,
+      '```',
+      '',
+      '- `message` (required): The notification body text',
+      '- `title` (optional): Notification title (defaults to project name)',
+      '',
+      'This sends a real push notification to the user\'s phone/browser AND shows a toast in the dashboard.',
     ].join('\n'),
   )
   claudeArgs.push('--append-system-prompt-file', promptFile)

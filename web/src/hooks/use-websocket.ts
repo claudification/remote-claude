@@ -74,6 +74,9 @@ interface DashboardMessage {
   done?: boolean
   // Settings updates
   settings?: Record<string, unknown>
+  // Toast notifications
+  title?: string
+  message?: string
 }
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
@@ -200,12 +203,16 @@ export function useWebSocket() {
               break
             }
             case 'session_created': {
-              // New session added
+              // New session added (dedup: skip if already in list)
               if (msg.session) {
                 const newSession = toSession(msg.session)
-                useSessionsStore.setState(state => ({
-                  sessions: [...state.sessions, newSession],
-                }))
+                useSessionsStore.setState(state => {
+                  if (state.sessions.some(s => s.id === newSession.id)) {
+                    // Already exists - update instead of duplicating
+                    return { sessions: state.sessions.map(s => (s.id === newSession.id ? { ...s, ...newSession } : s)) }
+                  }
+                  return { sessions: [...state.sessions, newSession] }
+                })
               }
               break
             }
@@ -317,6 +324,12 @@ export function useWebSocket() {
               if (msg.settings) {
                 useSessionsStore.setState({ globalSettings: msg.settings as Record<string, unknown> })
               }
+              break
+            }
+            case 'toast': {
+              const title = msg.title as string || 'Notification'
+              const body = msg.message as string || ''
+              window.dispatchEvent(new CustomEvent('rclaude-toast', { detail: { title, body, sessionId: msg.sessionId } }))
               break
             }
           }

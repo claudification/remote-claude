@@ -954,7 +954,10 @@ function AgentGroupView({
 
   if (content.length === 0) return null
 
-  const label = isUser ? 'USER' : 'AGENT'
+  const globalSettings = useSessionsStore(state => state.globalSettings)
+  const userTag = (globalSettings.userLabel as string)?.trim() || 'USER'
+  const agentTag = (globalSettings.agentLabel as string)?.trim() || 'AGENT'
+  const label = isUser ? userTag : agentTag
   const labelColor = isUser ? 'text-event-prompt' : 'text-pink-400'
 
   return (
@@ -1093,7 +1096,7 @@ function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
       if (textContent.includes('<system-reminder>')) continue
       // Skip /slash command XML (e.g. /compact, /help) - raw XML noise
       // The actual effect (compacting/compacted) is captured as its own entry type
-      if (textContent.includes('<command-name>') || textContent.includes('<local-command-caveat>')) continue
+      if (textContent.includes('<command-name>') || textContent.includes('<local-command-caveat>') || textContent.includes('<local-command-stdout>')) continue
       if (textContent.includes('<task-notification>')) {
         const notifications = parseTaskNotifications(textContent)
         if (notifications.length > 0) {
@@ -1232,7 +1235,10 @@ function GroupView({
     }
   }
 
-  const label = isUser ? 'USER' : 'CLAUDE'
+  const globalSettings = useSessionsStore(state => state.globalSettings)
+  const userTag = (globalSettings.userLabel as string)?.trim() || 'USER'
+  const agentTag = (globalSettings.agentLabel as string)?.trim() || 'CLAUDE'
+  const label = isUser ? userTag : agentTag
   const borderColor = isUser ? 'border-event-prompt' : 'border-primary'
   const labelBg = isUser ? 'bg-event-prompt text-background' : 'bg-primary text-primary-foreground'
 

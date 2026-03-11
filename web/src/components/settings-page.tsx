@@ -57,6 +57,8 @@ function SectionLabel({ icon: Icon, label, hint }: { icon: typeof Cloud; label: 
 function ServerSettings() {
   const globalSettings = useSessionsStore(s => s.globalSettings)
   const [idleTimeout, setIdleTimeout] = useState<number>(10)
+  const [userLabel, setUserLabel] = useState('')
+  const [agentLabel, setAgentLabel] = useState('')
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
 
@@ -64,9 +66,11 @@ function ServerSettings() {
     const val = globalSettings.idleTimeoutMinutes
     if (typeof val === 'number') {
       setIdleTimeout(val)
-      setDirty(false)
     }
-  }, [globalSettings.idleTimeoutMinutes])
+    if (typeof globalSettings.userLabel === 'string') setUserLabel(globalSettings.userLabel as string)
+    if (typeof globalSettings.agentLabel === 'string') setAgentLabel(globalSettings.agentLabel as string)
+    setDirty(false)
+  }, [globalSettings.idleTimeoutMinutes, globalSettings.userLabel, globalSettings.agentLabel])
 
   // Fetch on mount if not yet populated
   useEffect(() => {
@@ -85,7 +89,7 @@ function ServerSettings() {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idleTimeoutMinutes: idleTimeout }),
+        body: JSON.stringify({ idleTimeoutMinutes: idleTimeout, userLabel, agentLabel }),
       })
       if (res.ok) {
         const data = await res.json()
@@ -105,29 +109,61 @@ function ServerSettings() {
             <div className="text-sm text-foreground">Idle timeout</div>
             <div className="text-[10px] text-muted-foreground">Minutes before active session is marked idle</div>
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min={1}
-              max={120}
-              value={idleTimeout}
-              onChange={e => {
-                setIdleTimeout(Number(e.target.value))
-                setDirty(true)
-              }}
-              className="w-16 px-2 py-1 text-xs font-mono bg-muted border border-border text-foreground text-right"
-            />
-            {dirty && (
-              <button
-                type="button"
-                onClick={saveServerSettings}
-                disabled={saving}
-                className="px-2 py-1 text-[10px] font-mono border border-active/50 text-active hover:bg-active/20 transition-colors"
-              >
-                {saving ? '...' : 'Save'}
-              </button>
-            )}
+          <input
+            type="number"
+            min={1}
+            max={120}
+            value={idleTimeout}
+            onChange={e => {
+              setIdleTimeout(Number(e.target.value))
+              setDirty(true)
+            }}
+            className="w-16 px-2 py-1 text-xs font-mono bg-muted border border-border text-foreground text-right"
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm text-foreground">User label</div>
+            <div className="text-[10px] text-muted-foreground">Name tag for user messages in transcript</div>
           </div>
+          <input
+            type="text"
+            maxLength={20}
+            value={userLabel}
+            placeholder="USER"
+            onChange={e => {
+              setUserLabel(e.target.value)
+              setDirty(true)
+            }}
+            className="w-28 px-2 py-1 text-xs font-mono bg-muted border border-border text-foreground text-right placeholder:text-muted-foreground/40"
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm text-foreground">Agent label</div>
+            <div className="text-[10px] text-muted-foreground">Name tag for Claude messages in transcript</div>
+          </div>
+          <input
+            type="text"
+            maxLength={20}
+            value={agentLabel}
+            placeholder="AGENT"
+            onChange={e => {
+              setAgentLabel(e.target.value)
+              setDirty(true)
+            }}
+            className="w-28 px-2 py-1 text-xs font-mono bg-muted border border-border text-foreground text-right placeholder:text-muted-foreground/40"
+          />
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={saveServerSettings}
+            disabled={saving || !dirty}
+            className={`px-2 py-1 text-[10px] font-mono border transition-colors ${dirty ? 'border-active/50 text-active hover:bg-active/20' : 'border-border text-muted-foreground/40 cursor-not-allowed'}`}
+          >
+            {saving ? '...' : 'Save'}
+          </button>
         </div>
       </div>
     </section>

@@ -9,6 +9,7 @@ import { QuickNoteModal } from '@/components/quick-note-modal'
 import { SessionDetail } from '@/components/session-detail'
 import { SessionList } from '@/components/session-list'
 import { ShortcutHelp } from '@/components/shortcut-help'
+import { ToastContainer } from '@/components/toast'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { WebTerminal } from '@/components/web-terminal'
@@ -102,10 +103,12 @@ function Dashboard() {
   // Global keyboard shortcuts - work EVERYWHERE (dashboard + terminal)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // Ctrl+K / Cmd+K - session switcher
+      // Ctrl+K / Cmd+K - session switcher (closes terminal if open)
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault()
-        useSessionsStore.getState().toggleSwitcher()
+        const store = useSessionsStore.getState()
+        if (store.showTerminal) store.setShowTerminal(false)
+        store.toggleSwitcher()
       }
       // Ctrl+O / Cmd+O - toggle expand all / verbose mode
       if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
@@ -270,6 +273,8 @@ function Dashboard() {
       <ShortcutHelp />
       {/* Debug console (Ctrl+Shift+D) */}
       {showDebugConsole && <DebugConsole onClose={() => useSessionsStore.getState().toggleDebugConsole()} />}
+      {/* Toast notifications */}
+      <ToastContainer />
     </div>
   )
 }

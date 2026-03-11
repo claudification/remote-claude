@@ -40,9 +40,15 @@ function ScrollToBottomButton({
 
 // Isolated input bar - typing here does NOT rerender transcript/events
 const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
-  const [inputValue, setInputValue] = useState('')
+  const draft = useSessionsStore(state => state.inputDrafts[sessionId] ?? '')
+  const setDraft = useSessionsStore(state => state.setInputDraft)
   const [isSending, setIsSending] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  function setInputValue(text: string) {
+    setDraft(sessionId, text)
+  }
+  const inputValue = draft
 
   async function handleSend() {
     if (!inputValue.trim() || isSending) return

@@ -11,6 +11,7 @@ type HttpServer = Server<unknown>
 export interface LocalServerOptions {
   sessionId: string
   onHookEvent: (event: HookEvent) => void
+  onNotify?: (message: string, title?: string) => void
 }
 
 /**
@@ -38,7 +39,7 @@ async function findAvailablePort(startPort: number): Promise<number> {
  * Create and start the local HTTP server for hook callbacks
  */
 export async function startLocalServer(options: LocalServerOptions): Promise<{ server: HttpServer; port: number }> {
-  const { sessionId, onHookEvent } = options
+  const { sessionId, onHookEvent, onNotify } = options
 
   const port = await findAvailablePort(19000 + Math.floor(Math.random() * 1000))
 
@@ -50,6 +51,22 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
       // Health check endpoint
       if (url.pathname === '/health') {
         return new Response('ok', { status: 200 })
+      }
+
+      // Notify endpoint: POST /notify - send push notification via concentrator
+      if (req.method === 'POST' && url.pathname === '/notify') {
+        try {
+          const body = await req.json() as Record<string, unknown>
+          const message = typeof body.message === 'string' ? body.message : ''
+          const title = typeof body.title === 'string' ? body.title : undefined
+          if (!message.trim()) {
+            return new Response(JSON.stringify({ error: 'message is required' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
+          }
+          onNotify?.(message.trim(), title?.trim())
+          return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+        } catch {
+          return new Response(JSON.stringify({ error: 'invalid JSON' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
+        }
       }
 
       // Hook event endpoint: POST /hook/:eventType

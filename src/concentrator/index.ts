@@ -494,6 +494,32 @@ async function main() {
                 }
                 break
               }
+              case 'notify': {
+                // Push notification from wrapper (triggered by Claude via curl)
+                const sessionId = ws.data.sessionId || data.sessionId
+                const session = sessionId ? sessionStore.getSession(sessionId) : undefined
+                const cwd = session?.cwd?.split('/').slice(-2).join('/') || sessionId?.slice(0, 8) || 'rclaude'
+                const message = data.message || 'Notification'
+                const title = data.title || cwd
+                console.log(`[notify] ${title}: ${message}`)
+
+                // Send push notification
+                if (isPushConfigured()) {
+                  sendPushToAll({
+                    title,
+                    body: message,
+                    sessionId,
+                    tag: `notify-${sessionId}`,
+                  }).catch(() => {})
+                }
+
+                // Broadcast toast to all dashboard subscribers
+                const toastMsg = JSON.stringify({ type: 'toast', title, message, sessionId })
+                for (const sub of sessionStore.getSubscribers()) {
+                  try { sub.send(toastMsg) } catch {}
+                }
+                break
+              }
               case 'end': {
                 const sessionId = ws.data.sessionId || data.sessionId
                 const endWrapperId = ws.data.wrapperId
