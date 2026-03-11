@@ -46,7 +46,16 @@ export function useCommandPalette(onClose: () => void) {
     [allSessions, projectSettings],
   )
   const filteredSessions =
-    filter && !isFileMode && !isSpawnMode && !isCommandMode ? sessionFzf.find(filter).map(r => r.item) : allSessions
+    filter && !isFileMode && !isSpawnMode && !isCommandMode
+      ? sessionFzf
+          .find(filter)
+          .sort((a, b) => {
+            const aLive = a.item.status !== 'ended' ? 1 : 0
+            const bLive = b.item.status !== 'ended' ? 1 : 0
+            return bLive - aLive // active/idle first, fzf order preserved within tier
+          })
+          .map(r => r.item)
+      : allSessions
 
   // --- File mode ---
   const fileFilter = isFileMode ? filter.slice(2).trim().toLowerCase() : ''

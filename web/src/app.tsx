@@ -212,38 +212,34 @@ function Dashboard() {
       </div>
 
       {/* Main content */}
-      <div className="flex gap-4 flex-1 min-h-0">
+      <div className="flex gap-4 flex-1 min-h-0 relative">
         {/* Desktop sidebar */}
-        <div
-          className={`hidden lg:flex shrink-0 border border-border overflow-hidden flex-col transition-[width] duration-200 ${sidebarCollapsed ? 'w-10' : 'w-[350px]'}`}
-        >
-          {sidebarCollapsed ? (
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              className="flex items-center justify-center h-full w-full hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
-              title="Expand sidebar"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          ) : (
-            <>
-              <div className="flex items-center justify-end px-1 pt-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={toggleSidebar}
-                  className="p-1 rounded hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
-                  title="Collapse sidebar"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <div className="flex-1 min-h-0 overflow-y-auto p-2 pt-0">
-                <SessionList />
-              </div>
-            </>
-          )}
-        </div>
+        {sidebarCollapsed ? (
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="hidden lg:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 items-center justify-center w-5 h-10 rounded-r-md bg-muted/80 hover:bg-muted border border-l-0 border-border text-muted-foreground hover:text-foreground transition-colors"
+            title="Expand sidebar (Ctrl+B)"
+          >
+            <ChevronRight className="h-3 w-3" />
+          </button>
+        ) : (
+          <div className="hidden lg:flex w-[350px] shrink-0 border border-border overflow-hidden flex-col">
+            <div className="flex items-center justify-end px-1 pt-1 shrink-0">
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className="p-1 rounded hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
+                title="Collapse sidebar (Ctrl+B)"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto p-2 pt-0">
+              <SessionList />
+            </div>
+          </div>
+        )}
 
         {/* Detail panel */}
         <div className="flex-1 border border-border overflow-hidden flex flex-col min-w-0">
