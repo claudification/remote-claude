@@ -10,6 +10,7 @@ export interface ProjectSettings {
   label?: string
   icon?: string
   color?: string
+  keyterms?: string[]
 }
 
 type SettingsMap = Record<string, ProjectSettings>

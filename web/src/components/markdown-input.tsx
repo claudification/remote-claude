@@ -1,6 +1,8 @@
 import { Mic, Paperclip } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getShowVoiceInput } from '@/components/settings-page'
+import { VoiceOverlay } from '@/components/voice-overlay'
+import { useSessionsStore } from '@/hooks/use-sessions'
 import { cn, isMobileViewport } from '@/lib/utils'
 
 interface MarkdownInputProps {
@@ -86,21 +88,20 @@ export function MarkdownInput({
       requestAnimationFrame(() => textareaRef.current?.focus())
     }
   }, [autoFocus, isMobile])
-  const [showVoice, setShowVoice] = useState(getShowVoiceInput)
+  const voiceCapable = useSessionsStore(state => state.serverCapabilities.voice)
+  const [showVoicePref, setShowVoicePref] = useState(getShowVoiceInput)
   useEffect(() => {
     function onPrefsChanged() {
-      setShowVoice(getShowVoiceInput())
+      setShowVoicePref(getShowVoiceInput())
     }
     window.addEventListener('prefs-changed', onPrefsChanged)
     return () => window.removeEventListener('prefs-changed', onPrefsChanged)
   }, [])
+  const showVoice = voiceCapable && showVoicePref
 
   const [expanded, setExpanded] = useState(false)
   const [dragOver, setDragOver] = useState(false)
-  const [recording, setRecording] = useState(false)
-  const [transcribing, setTranscribing] = useState(false)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
+  const [showVoiceOverlay, setShowVoiceOverlay] = useState(false)
 
   // Sync scroll between textarea and highlight div
   const syncScroll = useCallback(() => {
@@ -347,103 +348,17 @@ export function MarkdownInput({
     e.target.value = '' // reset so same file can be picked again
   }
 
-  async function startRecording() {
-    try {
-      console.log('[voice] Requesting microphone access...')
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4' // Safari fallback
-      console.log(`[voice] Recording with mimeType: ${mimeType}`)
-      const recorder = new MediaRecorder(stream, { mimeType })
-      audioChunksRef.current = []
-
-      recorder.ondataavailable = e => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data)
-      }
-
-      recorder.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop())
-        const blob = new Blob(audioChunksRef.current, { type: mimeType })
-        console.log(`[voice] Recording stopped, blob size: ${blob.size} bytes`)
-        if (blob.size < 1000) {
-          console.log('[voice] Blob too small (<1000 bytes), ignoring')
-          return
-        }
-        await transcribeAudio(blob, mimeType)
-      }
-
-      recorder.start(250) // collect in 250ms chunks
-      mediaRecorderRef.current = recorder
-      setRecording(true)
-    } catch (err) {
-      console.error('[voice] Failed to start recording:', err)
-    }
-  }
-
-  function stopRecording() {
-    if (mediaRecorderRef.current?.state === 'recording') {
-      mediaRecorderRef.current.stop()
-      mediaRecorderRef.current = null
-    }
-    setRecording(false)
-  }
-
-  function toggleRecording() {
-    if (recording) {
-      stopRecording()
-    } else {
-      startRecording()
-    }
-  }
-
-  async function transcribeAudio(blob: Blob, mimeType: string) {
-    setTranscribing(true)
-    try {
-      // Upload audio to file service
-      const ext = mimeType.includes('webm') ? 'webm' : 'mp4'
-      console.log(`[voice] Uploading audio (${blob.size} bytes, ${ext})...`)
-      const formData = new FormData()
-      formData.append('file', blob, `voice.${ext}`)
-      const uploadRes = await fetch('/api/files', { method: 'POST', body: formData })
-      if (!uploadRes.ok) {
-        const errText = await uploadRes.text().catch(() => '')
-        console.error(`[voice] Upload failed: ${uploadRes.status} ${errText}`)
-        throw new Error('Upload failed')
-      }
-      const { url: audioUrl } = await uploadRes.json()
-      console.log(`[voice] Uploaded: ${audioUrl}`)
-
-      // Call transcription endpoint with optional context
-      console.log('[voice] Calling /api/transcribe...')
-      const res = await fetch('/api/transcribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ audioUrl }),
-      })
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '')
-        console.error(`[voice] Transcription failed: ${res.status} ${errText}`)
-        throw new Error('Transcription failed')
-      }
-      const result = await res.json()
-      console.log('[voice] Transcription result:', result)
-
-      const { refined } = result
-      if (refined?.trim()) {
-        // Insert at cursor or append
-        const ta = textareaRef.current
-        const pos = ta?.selectionStart ?? value.length
-        const before = value.slice(0, pos)
-        const after = value.slice(pos)
-        const spacer = before.length > 0 && !before.endsWith(' ') && !before.endsWith('\n') ? ' ' : ''
-        onChange(before + spacer + refined + after)
-      } else {
-        console.log('[voice] Empty transcription result, nothing to insert')
-      }
-    } catch (err) {
-      console.error('[voice] Transcription pipeline error:', err)
-    } finally {
-      setTranscribing(false)
-    }
+  function handleVoiceResult(text: string) {
+    // Insert at cursor or append
+    const ta = textareaRef.current
+    const pos = ta?.selectionStart ?? value.length
+    const before = value.slice(0, pos)
+    const after = value.slice(pos)
+    const spacer = before.length > 0 && !before.endsWith(' ') && !before.endsWith('\n') ? ' ' : ''
+    onChange(before + spacer + text + after)
+    // Focus synchronously - iOS Safari requires focus within the user gesture call stack
+    // (rAF/setTimeout break the gesture chain and Safari refuses the focus)
+    ta?.focus()
   }
 
   function handleFocus() {
@@ -481,6 +396,7 @@ export function MarkdownInput({
     const composeTop = viewportHeight ? 'var(--vv-offset, 0px)' : '0px'
 
     return (
+      <>
       <div
         className="fixed inset-x-0 z-50 flex flex-col bg-background"
         style={{ touchAction: 'manipulation', height: composeHeight, top: composeTop }}
@@ -541,17 +457,9 @@ export function MarkdownInput({
             {showVoice && (
               <button
                 type="button"
-                onClick={toggleRecording}
-                className={cn(
-                  'transition-colors p-1',
-                  recording
-                    ? 'text-red-400 animate-pulse'
-                    : transcribing
-                      ? 'text-yellow-400 animate-pulse'
-                      : 'text-muted-foreground hover:text-accent',
-                )}
-                title={recording ? 'Stop recording' : transcribing ? 'Transcribing...' : 'Voice input'}
-                disabled={transcribing}
+                onClick={() => setShowVoiceOverlay(true)}
+                className="text-muted-foreground hover:text-accent transition-colors p-1"
+                title="Voice input"
                 style={{ touchAction: 'manipulation' }}
               >
                 <Mic className="w-4 h-4" />
@@ -579,6 +487,13 @@ export function MarkdownInput({
           </div>
         </div>
       </div>
+      {showVoiceOverlay && (
+        <VoiceOverlay
+          onResult={handleVoiceResult}
+          onClose={() => setShowVoiceOverlay(false)}
+        />
+      )}
+      </>
     )
   }
 
@@ -635,17 +550,9 @@ export function MarkdownInput({
         {showVoice && (
           <button
             type="button"
-            onClick={toggleRecording}
-            className={cn(
-              'transition-colors p-0.5',
-              recording
-                ? 'text-red-400 animate-pulse'
-                : transcribing
-                  ? 'text-yellow-400 animate-pulse'
-                  : 'text-muted-foreground hover:text-accent',
-            )}
-            title={recording ? 'Stop recording' : transcribing ? 'Transcribing...' : 'Voice input (tap to record)'}
-            disabled={transcribing}
+            onClick={() => setShowVoiceOverlay(true)}
+            className="text-muted-foreground hover:text-accent transition-colors p-0.5"
+            title="Voice input (tap to record)"
             style={{ touchAction: 'manipulation' }}
           >
             <Mic className="w-3.5 h-3.5" />
@@ -667,6 +574,12 @@ export function MarkdownInput({
         onChange={handleFileInput}
         className="hidden"
       />
+      {showVoiceOverlay && (
+        <VoiceOverlay
+          onResult={handleVoiceResult}
+          onClose={() => setShowVoiceOverlay(false)}
+        />
+      )}
     </div>
   )
 }

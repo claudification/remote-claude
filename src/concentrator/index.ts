@@ -15,6 +15,7 @@ import { addAllowedRoot, addPathMapping, getAllowedRoots } from './path-jail'
 import { initProjectSettings } from './project-settings'
 import { initPush, isConfigured as isPushConfigured, sendPushToAll } from './push'
 import { createSessionStore } from './session-store'
+import { cleanupVoiceForWs, handleVoiceData, handleVoiceStart, handleVoiceStop } from './voice-stream'
 import { createWsServer } from './ws-server'
 
 interface Args {
@@ -737,9 +738,11 @@ async function main() {
                 break
               }
               case 'file_response': {
-                // rclaude responding to a file request - forward to whoever requested it
-                // For now, file_response goes to all dashboard subscribers
-                // (the dashboard tracks requestId to know if it's for them)
+                // Check if this is a server-side request (e.g. keyterm generation)
+                if (data.requestId && sessionStore.resolveFile(data.requestId, data)) {
+                  break // Handled server-side, don't broadcast
+                }
+                // rclaude responding to a dashboard file request - forward to subscribers
                 const msg = JSON.stringify(data)
                 for (const sub of sessionStore.getSubscribers()) {
                   try {
@@ -842,6 +845,20 @@ async function main() {
                 }
                 break
               }
+              // Voice streaming: browser <-> Deepgram via concentrator relay
+              case 'voice_start': {
+                handleVoiceStart(ws, data, sessionStore)
+                break
+              }
+              case 'voice_data': {
+                handleVoiceData(ws, data.audio)
+                break
+              }
+              case 'voice_stop': {
+                handleVoiceStop(ws)
+                break
+              }
+
               case 'file_request': {
                 // Dashboard requesting a file - proxy to rclaude
                 if (data.sessionId) {
@@ -882,6 +899,8 @@ async function main() {
 
           // Handle dashboard subscriber disconnection
           if (ws.data.isDashboard) {
+            // Clean up any active voice streaming session
+            cleanupVoiceForWs(ws)
             // If this dashboard was viewing a terminal, remove from viewers
             sessionStore.removeTerminalViewerBySocket(ws)
             sessionStore.removeSubscriber(ws)

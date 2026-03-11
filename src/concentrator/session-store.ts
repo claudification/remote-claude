@@ -152,6 +152,9 @@ export interface SessionStore {
   addDirListener: (requestId: string, cb: (result: any) => void) => void
   removeDirListener: (requestId: string) => void
   resolveDir: (requestId: string, result: any) => void
+  addFileListener: (requestId: string, cb: (result: any) => void) => void
+  removeFileListener: (requestId: string) => void
+  resolveFile: (requestId: string, result: any) => boolean
   saveState: () => Promise<void>
   clearState: () => Promise<void>
 }
@@ -1251,6 +1254,23 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
   }
 
+  const fileListeners = new Map<string, (result: any) => void>()
+  function addFileListener(requestId: string, cb: (result: any) => void) {
+    fileListeners.set(requestId, cb)
+  }
+  function removeFileListener(requestId: string) {
+    fileListeners.delete(requestId)
+  }
+  function resolveFile(requestId: string, result: any): boolean {
+    const cb = fileListeners.get(requestId)
+    if (cb) {
+      fileListeners.delete(requestId)
+      cb(result)
+      return true
+    }
+    return false
+  }
+
   function broadcastSessionUpdate(sessionId: string): void {
     const session = sessions.get(sessionId)
     if (session) {
@@ -1308,6 +1328,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     addDirListener,
     removeDirListener,
     resolveDir,
+    addFileListener,
+    removeFileListener,
+    resolveFile,
     saveState,
     clearState,
   }

@@ -49,6 +49,8 @@ interface SessionsState {
   tasks: Record<string, TaskInfo[]>
   projectSettings: ProjectSettingsMap
   globalSettings: Record<string, unknown>
+  serverCapabilities: { voice: boolean }
+  setServerCapabilities: (caps: { voice: boolean }) => void
   isConnected: boolean
   agentConnected: boolean
   error: string | null
@@ -130,6 +132,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   tasks: {},
   projectSettings: {},
   globalSettings: {},
+  serverCapabilities: { voice: false },
+  setServerCapabilities: caps => set({ serverCapabilities: caps }),
   isConnected: false,
   agentConnected: false,
   error: null,
@@ -365,6 +369,17 @@ export async function getPushStatus(): Promise<{ supported: boolean; subscribed:
   return { supported, subscribed, permission }
 }
 
+// Server capabilities
+export async function fetchServerCapabilities(): Promise<{ voice: boolean }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/capabilities`)
+    if (!res.ok) return { voice: false }
+    return res.json()
+  } catch {
+    return { voice: false }
+  }
+}
+
 // Project settings API
 export async function fetchProjectSettings(): Promise<ProjectSettingsMap> {
   const res = await fetch(`${API_BASE}/api/settings/projects`)
@@ -384,6 +399,19 @@ export async function updateProjectSettings(
   if (!res.ok) return null
   const data = await res.json()
   return data.settings
+}
+
+export async function generateProjectKeyterms(cwd: string): Promise<{ keyterms: string[]; settings: ProjectSettingsMap } | null> {
+  const res = await fetch(`${API_BASE}/api/settings/projects/generate-keyterms`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cwd }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Request failed' }))
+    throw new Error(err.error || `HTTP ${res.status}`)
+  }
+  return res.json()
 }
 
 export async function deleteProjectSettings(cwd: string): Promise<ProjectSettingsMap | null> {

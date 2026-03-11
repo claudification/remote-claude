@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto'
 import type { ListDirsResult, SendInput, Session, SpawnResult, TeamInfo } from '../shared/protocol'
 import { getGlobalSettings, updateGlobalSettings } from './global-settings'
 import { resolveInJail } from './path-jail'
-import { deleteProjectSettings, getAllProjectSettings, setProjectSettings } from './project-settings'
+import { deleteProjectSettings, getAllProjectSettings, getProjectSettings, setProjectSettings } from './project-settings'
 import {
   addSubscription,
   getSubscriptionCount,
@@ -377,6 +377,16 @@ export function createApiHandler(options: ApiOptions) {
         status: 200,
         headers: { 'Content-Type': 'text/plain' },
       })
+    }
+
+    // Server capabilities - tells dashboard what features are available
+    if (path === '/api/capabilities') {
+      return new Response(
+        JSON.stringify({
+          voice: !!process.env.DEEPGRAM_API_KEY,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
     }
 
     // Serve registered images by hash: /file/{hash}.ext
@@ -1050,6 +1060,154 @@ export function createApiHandler(options: ApiOptions) {
       }
     }
 
+    // POST /api/settings/projects/generate-keyterms - auto-generate keyterms from project files
+    if (req.method === 'POST' && path === '/api/settings/projects/generate-keyterms') {
+      const openrouterKey = process.env.OPENROUTER_API_KEY
+      if (!openrouterKey) {
+        return new Response(JSON.stringify({ error: 'OPENROUTER_API_KEY not configured' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+
+      try {
+        const body = (await req.json()) as { cwd: string }
+        if (!body.cwd) {
+          return new Response(JSON.stringify({ error: 'Missing cwd' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        // Find a connected wrapper session for this cwd to read files from
+        const allSessions = sessionStore.getAllSessions()
+        const sessionForCwd = allSessions.find(s => s.cwd === body.cwd && s.status === 'active')
+        const wrapperSocket = sessionForCwd ? sessionStore.getSessionSocket(sessionForCwd.id) : null
+        if (!wrapperSocket) {
+          return new Response(JSON.stringify({ error: 'No active session connected for this project' }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        // Read project files via wrapper with timeout
+        const filesToRead = [
+          `${body.cwd}/CLAUDE.md`,
+          `${body.cwd}/.claude/CLAUDE.md`,
+          `${body.cwd}/package.json`,
+          `${body.cwd}/README.md`,
+        ]
+
+        const fileContents: string[] = []
+        for (const filePath of filesToRead) {
+          try {
+            const content = await new Promise<string | null>((resolve, reject) => {
+              const requestId = randomUUID()
+              const timeout = setTimeout(() => {
+                sessionStore.removeFileListener(requestId)
+                reject(new Error(`File read timed out (5s): ${filePath}`))
+              }, 5000)
+
+              sessionStore.addFileListener(requestId, (msg: { data?: string; error?: string }) => {
+                clearTimeout(timeout)
+                if (msg.error || !msg.data) {
+                  resolve(null)
+                } else {
+                  // file_response returns base64 data
+                  resolve(Buffer.from(msg.data, 'base64').toString('utf-8'))
+                }
+              })
+
+              wrapperSocket.send(JSON.stringify({ type: 'file_request', requestId, path: filePath }))
+            })
+            if (content) {
+              fileContents.push(`--- ${filePath} ---\n${content.slice(0, 10000)}`)
+            }
+          } catch {
+            // File not found or timeout - skip
+          }
+        }
+
+        if (fileContents.length === 0) {
+          return new Response(JSON.stringify({ error: 'No project files found (CLAUDE.md, package.json, README.md)' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        console.log(`[keyterms] Generating keyterms for ${body.cwd} from ${fileContents.length} files`)
+
+        // Extract keyterms via Haiku
+        const llmRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${openrouterKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'anthropic/claude-haiku-4-5-20251001',
+            messages: [
+              {
+                role: 'system',
+                content: `Extract domain-specific terms from these project files for voice transcription keyword boosting. Focus on:
+- Project names, tool names, library names
+- Technical terms specific to this project
+- Abbreviations, acronyms, unusual spellings
+- Brand names, product names
+- Any term a speech-to-text engine would likely misspell
+
+Output a JSON array of strings. Each string should be the correct spelling of one term. Include 10-30 terms, most important first. Only output the JSON array, nothing else.`,
+              },
+              { role: 'user', content: fileContents.join('\n\n') },
+            ],
+            max_tokens: 1024,
+          }),
+        })
+
+        if (!llmRes.ok) {
+          const err = await llmRes.text().catch(() => '')
+          console.error(`[keyterms] LLM failed: ${llmRes.status} ${err.slice(0, 500)}`)
+          return new Response(JSON.stringify({ error: 'Failed to generate keyterms' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        const llmData = (await llmRes.json()) as { choices?: Array<{ message?: { content?: string } }> }
+        const raw = llmData.choices?.[0]?.message?.content?.trim() || '[]'
+        let keyterms: string[]
+        try {
+          // Parse JSON, handling potential markdown code fences
+          const cleaned = raw.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
+          keyterms = JSON.parse(cleaned)
+          if (!Array.isArray(keyterms)) throw new Error('Not an array')
+          keyterms = keyterms.filter(t => typeof t === 'string' && t.trim()).map(t => t.trim())
+        } catch {
+          console.error(`[keyterms] Failed to parse LLM output: ${raw.slice(0, 200)}`)
+          return new Response(JSON.stringify({ error: 'Failed to parse keyterms from LLM' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        console.log(`[keyterms] Generated ${keyterms.length} keyterms: ${keyterms.join(', ')}`)
+
+        // Save to project settings
+        setProjectSettings(body.cwd, { keyterms })
+
+        return new Response(JSON.stringify({ keyterms, settings: getAllProjectSettings() }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      } catch (error) {
+        console.error(`[keyterms] Error: ${error}`)
+        return new Response(JSON.stringify({ error: `Failed: ${error}` }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
     // GET /api/settings - get global settings + schema
     if (req.method === 'GET' && path === '/api/settings') {
       return new Response(JSON.stringify(getGlobalSettings()), {
@@ -1139,19 +1297,21 @@ export function createApiHandler(options: ApiOptions) {
       }
     }
 
-    // POST /api/transcribe - transcribe audio via Whisper + refine with Haiku
+    // POST /api/transcribe - transcribe audio via Deepgram Nova-3
     if (path === '/api/transcribe' && req.method === 'POST') {
-      const openrouterKey = process.env.OPENROUTER_API_KEY
-      if (!openrouterKey) {
-        return new Response(JSON.stringify({ error: 'OPENROUTER_API_KEY not configured' }), {
+      const deepgramKey = process.env.DEEPGRAM_API_KEY
+      if (!deepgramKey) {
+        console.error('[transcribe] DEEPGRAM_API_KEY not configured - cannot transcribe')
+        return new Response(JSON.stringify({ error: 'DEEPGRAM_API_KEY not configured' }), {
           status: 500,
           headers: { 'Content-Type': 'application/json' },
         })
       }
 
       try {
-        const body = (await req.json()) as { audioUrl?: string; context?: string }
+        const body = (await req.json()) as { audioUrl?: string; sessionId?: string }
         if (!body.audioUrl) {
+          console.error('[transcribe] Missing audioUrl in request body')
           return new Response(JSON.stringify({ error: 'audioUrl required' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' },
@@ -1163,87 +1323,77 @@ export function createApiHandler(options: ApiOptions) {
         // Fetch the audio file
         const audioRes = await fetch(body.audioUrl)
         if (!audioRes.ok) throw new Error(`Failed to fetch audio: ${audioRes.status}`)
-        const audioBlob = await audioRes.arrayBuffer()
-        const audioBase64 = Buffer.from(audioBlob).toString('base64')
-
-        // Detect media type from URL or response
+        const audioBytes = new Uint8Array(await audioRes.arrayBuffer())
         const contentType = audioRes.headers.get('content-type') || 'audio/webm'
-        console.log(`[transcribe] Audio: ${audioBlob.byteLength} bytes, type: ${contentType}`)
+        console.log(`[transcribe] Audio: ${audioBytes.byteLength} bytes, type: ${contentType}`)
 
-        // Step 1: Whisper transcription via OpenRouter (Groq)
-        console.log('[transcribe] Calling Whisper...')
-        const whisperRes = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${openrouterKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'openai/whisper-large-v3',
-            file: `data:${contentType};base64,${audioBase64}`,
-          }),
+        // Build keyterms from project settings (session -> cwd -> project keyterms)
+        const keyterms: string[] = []
+        if (body.sessionId) {
+          const session = sessionStore.getSession(body.sessionId)
+          if (session?.cwd) {
+            const projSettings = getProjectSettings(session.cwd)
+            if (projSettings?.keyterms?.length) {
+              keyterms.push(...projSettings.keyterms)
+              console.log(`[transcribe] Project keyterms for ${session.cwd}: ${projSettings.keyterms.join(', ')}`)
+            }
+          }
+        }
+        const params = new URLSearchParams({
+          model: 'nova-3',
+          smart_format: 'true',
+          punctuate: 'true',
+          filler_words: 'false',       // strip um, uh, etc.
+          diarize: 'false',
+          language: 'en',
         })
-
-        if (!whisperRes.ok) {
-          const err = await whisperRes.text()
-          console.error(`[transcribe] Whisper failed: ${whisperRes.status} ${err}`)
-          throw new Error(`Whisper failed: ${whisperRes.status} ${err}`)
+        // Add keyterms individually (Nova-3 uses 'keyterm' not 'keywords')
+        for (const kt of keyterms) {
+          params.append('keyterm', kt)
         }
 
-        const whisperData = (await whisperRes.json()) as { text?: string }
-        const rawText = whisperData.text || ''
-        console.log(`[transcribe] Whisper raw: "${rawText.slice(0, 100)}"${rawText.length > 100 ? '...' : ''}`)
+        console.log('[transcribe] Calling Deepgram Nova-3...')
+        const dgRes = await fetch(`https://api.deepgram.com/v1/listen?${params}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Token ${deepgramKey}`,
+            'Content-Type': contentType,
+          },
+          body: audioBytes,
+        })
+
+        if (!dgRes.ok) {
+          const err = await dgRes.text()
+          console.error(`[transcribe] Deepgram failed: ${dgRes.status} ${err.slice(0, 500)}`)
+          throw new Error(`Deepgram transcription failed: ${dgRes.status}`)
+        }
+
+        const dgData = (await dgRes.json()) as {
+          results?: {
+            channels?: Array<{
+              alternatives?: Array<{ transcript?: string }>
+            }>
+          }
+        }
+        const rawText = dgData.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || ''
+        console.log(`[transcribe] Result: "${rawText.slice(0, 200)}"${rawText.length > 200 ? '...' : ''}`)
 
         if (!rawText.trim()) {
+          console.log('[transcribe] Empty transcription, returning empty')
           return new Response(JSON.stringify({ raw: '', refined: '' }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
           })
         }
 
-        // Step 2: Haiku refinement
-        const contextHint = body.context
-          ? `\n\nRecent conversation context (for fixing domain-specific terms):\n${body.context}`
-          : ''
-
-        const refineRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${openrouterKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'anthropic/claude-haiku-4-5-20251001',
-            messages: [
-              {
-                role: 'system',
-                content: `You are refining a voice-transcribed message intended as a prompt for a coding AI assistant. Fix misspellings, punctuation, and technical terms. Preserve the user's intent exactly. Do not add or remove meaning. Convert spoken patterns to written form. Output ONLY the refined text, nothing else.${contextHint}`,
-              },
-              { role: 'user', content: rawText },
-            ],
-            max_tokens: 2048,
-          }),
-        })
-
-        if (!refineRes.ok) {
-          const refineErr = await refineRes.text().catch(() => '')
-          console.error(`[transcribe] Refinement failed: ${refineRes.status} ${refineErr}`)
-          // Refinement failed - return raw text anyway
-          return new Response(JSON.stringify({ raw: rawText, refined: rawText }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        }
-
-        const refineData = (await refineRes.json()) as { choices?: Array<{ message?: { content?: string } }> }
-        const refined = refineData.choices?.[0]?.message?.content?.trim() || rawText
-        console.log(`[transcribe] Refined: "${refined.slice(0, 100)}"${refined.length > 100 ? '...' : ''}`)
-
-        return new Response(JSON.stringify({ raw: rawText, refined }), {
+        // Deepgram with keyterms is good enough to skip Haiku refinement for now
+        // raw and refined are the same - no second LLM pass needed
+        return new Response(JSON.stringify({ raw: rawText, refined: rawText }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         })
       } catch (error) {
+        console.error('[transcribe] Pipeline error:', error)
         return new Response(JSON.stringify({ error: `Transcription failed: ${error}` }), {
           status: 500,
           headers: { 'Content-Type': 'application/json' },

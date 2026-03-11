@@ -102,7 +102,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { deleteProjectSettings, updateProjectSettings, useSessionsStore } from '@/hooks/use-sessions'
+import { deleteProjectSettings, generateProjectKeyterms, updateProjectSettings, useSessionsStore } from '@/hooks/use-sessions'
 import type { ProjectSettings } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -250,14 +250,19 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
   const [label, setLabel] = useState(current.label || '')
   const [icon, setIcon] = useState(current.icon || '')
   const [color, setColor] = useState(current.color || '')
+  const [keyterms, setKeyterms] = useState<string[]>(current.keyterms || [])
+  const [keytermInput, setKeytermInput] = useState('')
   const [iconSearch, setIconSearch] = useState('')
   const [saving, setSaving] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
 
   useEffect(() => {
     const c = projectSettings[cwd] || {}
     setLabel(c.label || '')
     setIcon(c.icon || '')
     setColor(c.color || '')
+    setKeyterms(c.keyterms || [])
   }, [projectSettings, cwd])
 
   const filteredIcons = useMemo(() => {
@@ -272,11 +277,39 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
     if (label.trim()) settings.label = label.trim()
     if (icon) settings.icon = icon
     if (color) settings.color = color
+    if (keyterms.length) settings.keyterms = keyterms
 
     const result = await updateProjectSettings(cwd, settings)
     if (result) setProjectSettings(result)
     setSaving(false)
     onClose()
+  }
+
+  async function handleGenerateKeyterms() {
+    setGenerating(true)
+    setGenerateError(null)
+    try {
+      const result = await generateProjectKeyterms(cwd)
+      if (result) {
+        setKeyterms(result.keyterms)
+        setProjectSettings(result.settings)
+      }
+    } catch (err: any) {
+      setGenerateError(err.message || 'Failed to generate')
+    }
+    setGenerating(false)
+  }
+
+  function addKeyterm() {
+    const term = keytermInput.trim()
+    if (term && !keyterms.includes(term)) {
+      setKeyterms([...keyterms, term])
+      setKeytermInput('')
+    }
+  }
+
+  function removeKeyterm(term: string) {
+    setKeyterms(keyterms.filter(t => t !== term))
   }
 
   async function handleClear() {
@@ -288,9 +321,12 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
   }
 
   const hasChanges =
-    label.trim() !== (current.label || '') || icon !== (current.icon || '') || color !== (current.color || '')
+    label.trim() !== (current.label || '') ||
+    icon !== (current.icon || '') ||
+    color !== (current.color || '') ||
+    JSON.stringify(keyterms) !== JSON.stringify(current.keyterms || [])
 
-  const hasAnySettings = current.label || current.icon || current.color
+  const hasAnySettings = current.label || current.icon || current.color || (current.keyterms?.length ?? 0) > 0
 
   return (
     <div className="border border-border bg-card p-3 space-y-3 text-xs" onClick={e => e.stopPropagation()}>
@@ -393,6 +429,59 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
               )}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Voice Keyterms */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-muted-foreground text-[10px] uppercase tracking-wider">Voice Keyterms</label>
+          <button
+            type="button"
+            onClick={handleGenerateKeyterms}
+            disabled={generating}
+            className="text-[10px] text-accent hover:text-accent/80 disabled:text-muted-foreground transition-colors"
+          >
+            {generating ? 'Generating...' : 'Auto-generate'}
+          </button>
+        </div>
+        {generateError && (
+          <div className="text-[10px] text-red-400 mb-1">{generateError}</div>
+        )}
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          {keyterms.map(term => (
+            <span
+              key={term}
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-accent/10 border border-accent/30 text-accent text-[10px] font-mono"
+            >
+              {term}
+              <button type="button" onClick={() => removeKeyterm(term)} className="hover:text-red-400 ml-0.5">
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </span>
+          ))}
+          {keyterms.length === 0 && (
+            <span className="text-muted-foreground text-[10px]">No keyterms - voice transcription uses defaults</span>
+          )}
+        </div>
+        <div className="flex gap-1">
+          <input
+            type="text"
+            value={keytermInput}
+            onChange={e => setKeytermInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addKeyterm() } }}
+            placeholder="Add term..."
+            className="flex-1 bg-background border border-border px-2 py-1 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50"
+            style={{ fontSize: '16px' }}
+          />
+          <button
+            type="button"
+            onClick={addKeyterm}
+            disabled={!keytermInput.trim()}
+            className="px-2 py-1 text-[10px] font-bold border border-border text-muted-foreground hover:text-accent hover:border-accent disabled:opacity-30 transition-colors"
+          >
+            +
+          </button>
         </div>
       </div>
 
