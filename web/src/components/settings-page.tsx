@@ -487,6 +487,21 @@ function NotificationsTab() {
     setPushState(result.success ? 'subscribed' : 'denied')
   }
 
+  async function handleReRegister() {
+    if (pushState === 'subscribing') return
+    setPushState('subscribing')
+    // Unsubscribe existing, then re-subscribe with current VAPID key
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/sw.js')
+      if (reg) {
+        const sub = await reg.pushManager.getSubscription()
+        if (sub) await sub.unsubscribe()
+      }
+    } catch {}
+    const result = await subscribeToPush()
+    setPushState(result.success ? 'subscribed' : 'denied')
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -517,6 +532,15 @@ function NotificationsTab() {
           {pushState === 'prompt' && 'Enable'}
         </button>
       </div>
+      {pushState === 'subscribed' && (
+        <button
+          type="button"
+          onClick={handleReRegister}
+          className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+        >
+          Re-register push (use after VAPID key change)
+        </button>
+      )}
     </div>
   )
 }
