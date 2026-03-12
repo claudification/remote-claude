@@ -46,8 +46,9 @@ export interface SpawnResultsProps extends ResultListProps {
   path: string
   spawning: boolean
   agentConnected: boolean
+  canCreateDir: boolean
   onDirSelect: (dir: string) => void
-  onSpawn: (cwd: string) => void
+  onSpawn: (cwd: string, mkdir?: boolean) => void
 }
 
 export function formatFileSize(bytes: number): string {

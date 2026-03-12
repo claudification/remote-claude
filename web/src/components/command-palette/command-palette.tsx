@@ -60,6 +60,7 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
               path={palette.spawnPath}
               spawning={palette.spawning}
               agentConnected={palette.agentConnected}
+              canCreateDir={palette.canCreateDir}
               activeIndex={palette.activeIndex}
               setActiveIndex={palette.setActiveIndex}
               onDirSelect={palette.handleDirSelect}

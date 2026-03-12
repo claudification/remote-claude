@@ -9,6 +9,7 @@ export function SpawnResults({
   path,
   spawning,
   agentConnected,
+  canCreateDir,
   activeIndex,
   setActiveIndex,
   onDirSelect,
@@ -32,10 +33,24 @@ export function SpawnResults({
 
   return (
     <>
-      {dirs.length === 0 && !spawning && (
+      {dirs.length === 0 && !spawning && !canCreateDir && (
         <div className="px-3 py-4 text-center text-[10px] text-[#565f89]">
           {path.endsWith('/') ? 'No subdirectories' : 'No matches'}
         </div>
+      )}
+      {canCreateDir && !spawning && (
+        <button
+          type="button"
+          onClick={() => onSpawn(path.endsWith('/') ? path.slice(0, -1) : path, true)}
+          className="w-full px-3 py-2 flex items-center gap-3 text-left bg-amber-400/10 hover:bg-amber-400/20 transition-colors"
+        >
+          <FolderPlus className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span className="text-xs">
+            <span className="text-amber-400 font-bold">Create</span>{' '}
+            <span className="text-[#a9b1d6]">{path.endsWith('/') ? path.slice(0, -1) : path}</span>{' '}
+            <span className="text-amber-400 font-bold">& spawn</span>
+          </span>
+        </button>
       )}
       {dirs.map((dir, i) => (
         <button

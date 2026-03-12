@@ -698,7 +698,7 @@ export function createApiHandler(options: ApiOptions) {
       }
 
       try {
-        const body = (await req.json()) as { cwd: string }
+        const body = (await req.json()) as { cwd: string; mkdir?: boolean }
         if (!body.cwd || typeof body.cwd !== 'string') {
           return new Response(JSON.stringify({ error: 'Missing cwd field' }), {
             status: 400,
@@ -727,6 +727,7 @@ export function createApiHandler(options: ApiOptions) {
               requestId,
               cwd: body.cwd,
               wrapperId,
+              mkdir: body.mkdir || false,
             }),
           )
         })

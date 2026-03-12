@@ -9,7 +9,7 @@
  * connected, this process exits immediately.
  */
 
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import type { ConcentratorAgentMessage, ListDirsResult, ReviveResult, SpawnResult } from '../shared/protocol'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
@@ -203,9 +203,19 @@ async function spawnSession(
   reviveScript: string,
   secret: string,
   verbose: boolean,
+  mkdir = false,
 ): Promise<{ success: boolean; error?: string; tmuxSession?: string }> {
   if (!existsSync(cwd)) {
-    return { success: false, error: `Directory not found: ${cwd}` }
+    if (mkdir) {
+      try {
+        mkdirSync(cwd, { recursive: true })
+        debug(`Created directory: ${cwd}`, verbose)
+      } catch (e: any) {
+        return { success: false, error: `Failed to create directory: ${e.message}` }
+      }
+    } else {
+      return { success: false, error: `Directory not found: ${cwd}` }
+    }
   }
 
   if (!isSpawnApproved(cwd)) {
@@ -337,7 +347,7 @@ function connect(
         }
 
         case 'spawn': {
-          const spawnMsg = msg as { requestId: string; cwd: string; wrapperId: string }
+          const spawnMsg = msg as { requestId: string; cwd: string; wrapperId: string; mkdir?: boolean }
           if (noSpawn) {
             ws.send(
               JSON.stringify({
@@ -351,7 +361,7 @@ function connect(
           }
           const expandedCwd = expandPath(spawnMsg.cwd, spawnRoot)
           log(`Spawning session at ${expandedCwd} (wrapper=${spawnMsg.wrapperId.slice(0, 8)})`)
-          const spawnRes = await spawnSession(expandedCwd, spawnMsg.wrapperId, reviveScript, secret, verbose)
+          const spawnRes = await spawnSession(expandedCwd, spawnMsg.wrapperId, reviveScript, secret, verbose, spawnMsg.mkdir)
           const response: SpawnResult = {
             type: 'spawn_result',
             requestId: spawnMsg.requestId,

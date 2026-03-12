@@ -165,8 +165,10 @@ export function useCommandPalette(onClose: () => void) {
   }, [isSpawnMode, spawnParentDir, fetchDirs])
 
   const filteredSpawnDirs = spawnPartial ? spawnDirs.filter(d => d.toLowerCase().startsWith(spawnPartial)) : spawnDirs
+  // Show "create & spawn" when the typed path doesn't match any existing directory
+  const canCreateDir = isSpawnMode && spawnPartial.length > 0 && filteredSpawnDirs.length === 0 && !spawnLoading
 
-  async function handleSpawn(cwd: string) {
+  async function handleSpawn(cwd: string, mkdir = false) {
     if (spawning || !cwd) return
     setSpawning(true)
     setSpawnError(null)
@@ -174,7 +176,7 @@ export function useCommandPalette(onClose: () => void) {
       const res = await fetch('/api/spawn', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cwd }),
+        body: JSON.stringify({ cwd, mkdir }),
       })
       const data = await res.json()
       if (data.success) {
@@ -258,7 +260,8 @@ export function useCommandPalette(onClose: () => void) {
               setActiveIndex(0)
             }
           } else if (spawnPath) {
-            handleSpawn(spawnPath.endsWith('/') ? spawnPath.slice(0, -1) : spawnPath)
+            const cleanPath = spawnPath.endsWith('/') ? spawnPath.slice(0, -1) : spawnPath
+            handleSpawn(cleanPath, canCreateDir)
           }
         } else if (isFileMode) {
           const file = filteredFiles[activeIndex]
@@ -308,6 +311,7 @@ export function useCommandPalette(onClose: () => void) {
     spawnLoading,
     spawnError,
     spawning,
+    canCreateDir,
 
     // Actions
     handleKeyDown,
