@@ -980,6 +980,7 @@ function AgentGroupView({
 }) {
   const expandAll = useSessionsStore(state => state.expandAll)
   const showThinking = useSessionsStore(state => state.dashboardPrefs.showThinking)
+  const globalSettings = useSessionsStore(state => state.globalSettings)
 
   if (group.type === 'system') return null
 
@@ -1010,8 +1011,6 @@ function AgentGroupView({
   }
 
   if (content.length === 0) return null
-
-  const globalSettings = useSessionsStore(state => state.globalSettings)
   const userTag = (globalSettings.userLabel as string)?.trim() || 'USER'
   const agentTag = (globalSettings.agentLabel as string)?.trim() || 'AGENT'
   const label = isUser ? userTag : agentTag
@@ -1259,6 +1258,7 @@ function GroupView({
     return session?.subagents
   })
   const expandAll = useSessionsStore(state => state.expandAll)
+  const globalSettings = useSessionsStore(state => state.globalSettings)
   const time = group.timestamp ? new Date(group.timestamp).toLocaleTimeString('en-US', { hour12: false }) : ''
 
   // System groups: compact notification badges with expandable result
@@ -1308,8 +1308,6 @@ function GroupView({
       }
     }
   }
-
-  const globalSettings = useSessionsStore(state => state.globalSettings)
   const userTag = (globalSettings.userLabel as string)?.trim() || 'USER'
   const agentTag = (globalSettings.agentLabel as string)?.trim() || 'CLAUDE'
   const label = isUser ? userTag : agentTag
