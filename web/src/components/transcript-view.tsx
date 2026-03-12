@@ -177,6 +177,35 @@ function Collapsible({
   )
 }
 
+// Truncated output - caps visible lines with a "more" button when expandAll is on.
+// Prevents massive bash/read outputs from tanking the UI in verbose mode.
+const TRUNCATE_LINES = 10
+
+function TruncatedPre({ text }: { text: string }) {
+  const [revealed, setRevealed] = useState(false)
+  const safeText = typeof text === 'string' ? text : String(text ?? '')
+  const lines = safeText.split('\n')
+  const needsTruncation = lines.length > TRUNCATE_LINES && !revealed
+  const displayText = needsTruncation ? lines.slice(0, TRUNCATE_LINES).join('\n') : safeText
+
+  return (
+    <div>
+      <pre className="text-[10px] bg-black/30 p-2 whitespace-pre-wrap font-mono">
+        <AnsiText text={displayText} />
+      </pre>
+      {needsTruncation && (
+        <button
+          type="button"
+          onClick={() => setRevealed(true)}
+          className="text-[10px] text-accent hover:text-accent/80 font-mono mt-0.5 px-2"
+        >
+          +{lines.length - TRUNCATE_LINES} more lines
+        </button>
+      )}
+    </div>
+  )
+}
+
 // Syntax-highlighted diff view for Edit operations
 // Uses Shiki (lazy-loaded) to highlight code, with diff line backgrounds overlaid
 
@@ -522,14 +551,13 @@ function ToolLine({
         details = (
           <div className="space-y-1">
             {expandAll && cmd && <ShellCommand command={cmd} />}
-            <pre
-              className={cn(
-                'text-[10px] bg-black/30 p-2 overflow-auto whitespace-pre-wrap font-mono',
-                expandAll ? 'max-h-[80vh]' : 'max-h-32',
-              )}
-            >
-              <AnsiText text={outputText} />
-            </pre>
+            {expandAll ? (
+              <TruncatedPre text={outputText} />
+            ) : (
+              <pre className="text-[10px] bg-black/30 p-2 overflow-auto whitespace-pre-wrap font-mono max-h-32">
+                <AnsiText text={outputText} />
+              </pre>
+            )}
           </div>
         )
       } else if (expandAll && cmd) {
@@ -540,6 +568,9 @@ function ToolLine({
     case 'Read': {
       const path = input.file_path as string
       summary = shortPath(path) || path
+      if (expandAll && result && typeof result === 'string') {
+        details = <TruncatedPre text={result} />
+      }
       break
     }
     case 'Edit': {
@@ -594,13 +625,17 @@ function ToolLine({
       const pattern = input.pattern as string
       summary = pattern
       if (result) {
-        const lines = result.split('\n').filter(Boolean)
-        details = (
-          <pre className="text-[10px] text-muted-foreground max-h-24 overflow-auto">
-            {lines.slice(0, 20).join('\n')}
-            {lines.length > 20 && `\n... +${lines.length - 20} more`}
-          </pre>
-        )
+        if (expandAll) {
+          details = <TruncatedPre text={result} />
+        } else {
+          const lines = result.split('\n').filter(Boolean)
+          details = (
+            <pre className="text-[10px] text-muted-foreground max-h-24 overflow-auto">
+              {lines.slice(0, 20).join('\n')}
+              {lines.length > 20 && `\n... +${lines.length - 20} more`}
+            </pre>
+          )
+        }
       }
       break
     }
