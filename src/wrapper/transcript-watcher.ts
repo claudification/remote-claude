@@ -2,14 +2,21 @@
  * Transcript JSONL File Watcher
  * Watches Claude transcript files for new entries, parses them,
  * processes inline images (extract base64 -> blob hash), and emits entries.
+ *
+ * Uses directory-level chokidar watching instead of file-level to work around
+ * a Bun fs.watch bug on macOS where closing a file watcher and starting a new
+ * one on a different file in the same directory causes events to silently stop.
+ * This happens on /clear and compaction which create new transcript files.
  */
 
 import { type FileHandle, open, stat } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
 import { type FSWatcher as ChokidarWatcher, watch as chokidarWatch } from 'chokidar'
 import type { TranscriptEntry } from '../shared/protocol'
 
 export interface TranscriptWatcherOptions {
   onEntries: (entries: TranscriptEntry[], isInitial: boolean) => void
+  onNewFile?: (filename: string) => void
   onError?: (error: Error) => void
   debug?: (msg: string) => void
 }
@@ -26,7 +33,7 @@ export interface TranscriptWatcher {
  * Reads from the last known offset, parses new lines, emits entries.
  */
 export function createTranscriptWatcher(options: TranscriptWatcherOptions): TranscriptWatcher {
-  const { onEntries, onError, debug } = options
+  const { onEntries, onNewFile, onError, debug } = options
 
   let fileHandle: FileHandle | null = null
   let watcher: ChokidarWatcher | null = null
@@ -130,16 +137,32 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
     await readNewLines(true)
     debug?.(`Initial read done, entryCount=${entryCount}`)
 
-    // Watch for changes with chokidar
-    watcher = chokidarWatch(path, {
+    // Watch the PARENT DIRECTORY instead of the file directly.
+    // Bun's fs.watch on macOS silently stops firing events after closing a file
+    // watcher and starting a new one on a different file in the same directory.
+    // /clear and compaction create new transcript files in the same dir, triggering
+    // this bug. Directory-level watching is immune.
+    const dir = dirname(path)
+    const absPath = resolve(path)
+    watcher = chokidarWatch(dir, {
       ignoreInitial: true,
+      depth: 0,
       awaitWriteFinish: { stabilityThreshold: 50, pollInterval: 25 },
     })
-    watcher.on('change', () => {
-      debug?.(`chokidar change event`)
-      readNewLines(false)
+    watcher.on('change', (changedPath) => {
+      if (resolve(changedPath) === absPath) {
+        debug?.(`chokidar change event`)
+        readNewLines(false)
+      }
     })
-    debug?.(`Chokidar watcher setup OK`)
+    watcher.on('add', (addedPath) => {
+      const name = addedPath.split('/').pop() || addedPath
+      if (name.endsWith('.jsonl')) {
+        debug?.(`New transcript file detected: ${name}`)
+        onNewFile?.(name)
+      }
+    })
+    debug?.(`Chokidar dir watcher setup OK: ${dir}`)
   }
 
   function stop(): void {

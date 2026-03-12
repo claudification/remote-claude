@@ -645,6 +645,9 @@ async function main() {
         // Scan for background tasks to watch their output files
         scanForBgTasks(entries)
       },
+      onNewFile(filename) {
+        diag('watch', 'New transcript file detected', { filename })
+      },
       onError(err) {
         debug(`Transcript watcher error: ${err.message}`)
       },
