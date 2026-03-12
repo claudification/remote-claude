@@ -18,7 +18,9 @@ import { WebTerminal } from './web-terminal'
 
 type Tab = 'transcript' | 'events' | 'agents' | 'tasks' | 'files' | 'diag'
 
-// Stable reference to avoid re-render loops with Zustand selectors
+// Stable empty references to avoid re-render loops with Zustand selectors
+// (Zustand uses Object.is - a new [] !== previous [], causing infinite re-renders)
+const EMPTY_EVENTS: any[] = []
 const EMPTY_TRANSCRIPT: TranscriptEntry[] = []
 
 function ScrollToBottomButton({ onClick, direction = 'down' }: { onClick: () => void; direction?: 'down' | 'up' }) {
@@ -148,9 +150,11 @@ export function SessionDetail() {
   }, [requestedTab, requestedTabSeq])
 
   const sessions = useSessionsStore(state => state.sessions)
-  const events = useSessionsStore(state => (selectedSessionId ? state.events[selectedSessionId] || [] : []))
+  const events = useSessionsStore(state =>
+    selectedSessionId ? state.events[selectedSessionId] || EMPTY_EVENTS : EMPTY_EVENTS,
+  )
   const transcript = useSessionsStore(state =>
-    selectedSessionId ? state.transcripts[selectedSessionId] || [] : [],
+    selectedSessionId ? state.transcripts[selectedSessionId] || EMPTY_TRANSCRIPT : EMPTY_TRANSCRIPT,
   )
   const agentConnected = useSessionsStore(state => state.agentConnected)
   const projectSettings = useSessionsStore(state => state.projectSettings)
