@@ -45,6 +45,7 @@ interface SessionsState {
   sessions: Session[]
   selectedSessionId: string | null
   selectedSubagentId: string | null
+  sessionMru: string[]
   events: Record<string, HookEvent[]>
   transcripts: Record<string, TranscriptEntry[]>
   subagentTranscripts: Record<string, TranscriptEntry[]> // key: `${sessionId}:${agentId}`
@@ -130,6 +131,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   sessions: [],
   selectedSessionId: null,
   selectedSubagentId: null,
+  sessionMru: [],
   events: {},
   transcripts: {},
   subagentTranscripts: {},
@@ -165,12 +167,16 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 
   setSessions: sessions => set({ sessions }),
   selectSession: id => {
-    set(state => ({
-      selectedSessionId: id,
-      selectedSubagentId: null,
-      requestedTab: 'transcript',
-      requestedTabSeq: state.requestedTabSeq + 1,
-    }))
+    set(state => {
+      const mru = id ? [id, ...state.sessionMru.filter(s => s !== id)] : state.sessionMru
+      return {
+        selectedSessionId: id,
+        selectedSubagentId: null,
+        requestedTab: 'transcript',
+        requestedTabSeq: state.requestedTabSeq + 1,
+        sessionMru: mru,
+      }
+    })
     updateHash(id ? `session/${id}` : '')
   },
   selectSubagent: agentId => {

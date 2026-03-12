@@ -9,6 +9,7 @@ import type { PaletteMode } from './types'
 export function useCommandPalette(onClose: () => void) {
   const sessions = useSessionsStore(state => state.sessions)
   const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
+  const sessionMru = useSessionsStore(state => state.sessionMru)
   const projectSettings = useSessionsStore(state => state.projectSettings)
   const sendWsMessage = useSessionsStore(state => state.sendWsMessage)
   const agentConnected = useSessionsStore(state => state.agentConnected)
@@ -32,7 +33,13 @@ export function useCommandPalette(onClose: () => void) {
   // --- Session mode ---
   const activeCwds = new Set(sessions.filter(s => s.status !== 'ended').map(s => s.cwd))
   const deduplicated = sessions.filter(s => s.status !== 'ended' || !activeCwds.has(s.cwd))
-  const allSessions = [...deduplicated].sort((a, b) => b.startedAt - a.startedAt)
+  const mruIndex = new Map(sessionMru.map((id, i) => [id, i]))
+  const allSessions = [...deduplicated].sort((a, b) => {
+    const ai = mruIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER
+    const bi = mruIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER
+    if (ai !== bi) return ai - bi
+    return b.startedAt - a.startedAt
+  })
 
   const sessionFzf = useMemo(
     () =>
@@ -55,7 +62,7 @@ export function useCommandPalette(onClose: () => void) {
             return bLive - aLive // active/idle first, fzf order preserved within tier
           })
           .map(r => r.item)
-      : allSessions
+      : allSessions.filter(s => s.status !== 'ended' && s.id !== selectedSessionId)
 
   // --- File mode ---
   const fileFilter = isFileMode ? filter.slice(2).trim().toLowerCase() : ''
