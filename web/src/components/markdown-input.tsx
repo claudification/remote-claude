@@ -14,6 +14,7 @@ interface MarkdownInputProps {
   placeholder?: string
   className?: string
   autoFocus?: boolean
+  inline?: boolean // Force inline mode: no mobile expand, autoFocus works on mobile
 }
 
 function useIsMobile() {
@@ -76,6 +77,7 @@ export function MarkdownInput({
   placeholder,
   className,
   autoFocus,
+  inline,
 }: MarkdownInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const highlightRef = useRef<HTMLDivElement>(null)
@@ -83,12 +85,12 @@ export function MarkdownInput({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isMobile = useIsMobile()
 
-  // Auto-focus on mount (non-mobile only - avoids keyboard popup)
+  // Auto-focus on mount (non-mobile only - avoids keyboard popup, unless inline mode)
   useEffect(() => {
-    if (autoFocus && !isMobile) {
+    if (autoFocus && (inline || !isMobile)) {
       requestAnimationFrame(() => textareaRef.current?.focus())
     }
-  }, [autoFocus, isMobile])
+  }, [autoFocus, isMobile, inline])
   const voiceCapable = useSessionsStore(state => state.serverCapabilities.voice)
   const [showVoicePref, setShowVoicePref] = useState(getShowVoiceInput)
   useEffect(() => {
@@ -411,7 +413,7 @@ export function MarkdownInput({
   }
 
   function handleFocus() {
-    if (isMobile) {
+    if (isMobile && !inline) {
       setExpanded(true)
     }
   }

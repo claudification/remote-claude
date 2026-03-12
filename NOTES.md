@@ -38,5 +38,5 @@
 - [x] oh any code box that is returned any code blocks should have a copy button on them so I can copy the contents of a code block. That would be great awesome.
 - [x] Code blocks shall have a COPY action :-).. on hover!..
 - [x] when a user unfocused the mobile full screen experience for inputs, it should be considered as hitting the cancel button for example, if I have to cancel right now it just minimize this down, which is exactly what I want. Simply if I click outside, I unfocused the input for the text area. If I do that, I want that to be considered the same thing as hitting the cancel button basically it all collapsing down into normal view.
-- [ ] feature when clicking, quick notes, make sure that the input field or the marked out input is focused
-- [ ] is there a way to inject MCP servers using the temporary location settings?.Jaeson on file?
+- [x] feature when clicking, quick notes, make sure that the input field or the marked out input is focused
+- [x] is there a way to inject MCP servers using the temporary settings.json file? YES - but MCP servers go in `.mcp.json` (project root) or `~/.claude.json` (user scope), not settings.json. Can inject via wrapper by creating/merging `.mcp.json` at spawn time. Wrapper could expose MCP endpoint on localhost for notify/inbox/collab tools.

@@ -101,6 +101,7 @@ export function QuickNoteModal() {
             disabled={sending}
             placeholder="Type a note (creates - [ ] item)... Shift+Enter for new line"
             autoFocus
+            inline
           />
         </div>
         <div className="flex items-center justify-between px-3 py-2 border-t border-border shrink-0">
