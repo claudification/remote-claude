@@ -66,7 +66,7 @@ export function spawnClaude(options: PtyOptions): PtyProcess {
       ...env,
       RCLAUDE_SESSION_ID: sessionId,
       RCLAUDE_PORT: String(localServerPort),
-      ...(concentratorUrl ? { RCLAUDE_CONCENTRATOR_URL: concentratorUrl } : {}),
+      ...(concentratorUrl ? { RCLAUDE_CONCENTRATOR: concentratorUrl } : {}),
       ...(concentratorSecret ? { RCLAUDE_SECRET: concentratorSecret } : {}),
       // Pin task list to session ID so tasks persist to ~/.claude/tasks/{sessionId}/
       CLAUDE_CODE_TASK_LIST_ID: sessionId,
