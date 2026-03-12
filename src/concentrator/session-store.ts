@@ -219,6 +219,33 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
   }
 
+  // Coalesced session_update broadcasts: only the last update per session per tick is sent
+  const pendingSessionUpdates = new Set<string>()
+  let sessionUpdateScheduled = false
+
+  function scheduleSessionUpdate(sessionId: string): void {
+    pendingSessionUpdates.add(sessionId)
+    if (!sessionUpdateScheduled) {
+      sessionUpdateScheduled = true
+      queueMicrotask(flushSessionUpdates)
+    }
+  }
+
+  function flushSessionUpdates(): void {
+    sessionUpdateScheduled = false
+    for (const id of pendingSessionUpdates) {
+      const session = sessions.get(id)
+      if (session) {
+        broadcast({
+          type: 'session_update',
+          sessionId: id,
+          session: toSessionSummary(session),
+        })
+      }
+    }
+    pendingSessionUpdates.clear()
+  }
+
   // Load persisted state on startup
   if (enablePersistence) {
     loadStateSync()
@@ -262,11 +289,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       }
 
       if (changed) {
-        broadcast({
-          type: 'session_update',
-          sessionId: session.id,
-          session: toSessionSummary(session),
-        })
+        scheduleSessionUpdate(session.id)
       }
     }
 
@@ -787,12 +810,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         event,
       })
 
-      // Also broadcast session update (for lastActivity, eventCount changes)
-      broadcast({
-        type: 'session_update',
-        sessionId,
-        session: toSessionSummary(session),
-      })
+      // Coalesce session update (for lastActivity, eventCount changes)
+      scheduleSessionUpdate(sessionId)
     }
   }
 
@@ -1004,12 +1023,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
 
     session.tasks = tasks
-    // Broadcast updated session summary
-    broadcast({
-      type: 'session_update',
-      sessionId,
-      session: toSessionSummary(session),
-    })
+    scheduleSessionUpdate(sessionId)
   }
 
   function getSubscriberCount(): number {
@@ -1190,7 +1204,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
 
     if (session && sessionChanged) {
-      broadcast({ type: 'session_update', sessionId, session: toSessionSummary(session) })
+      scheduleSessionUpdate(sessionId)
     }
   }
 
@@ -1309,14 +1323,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   }
 
   function broadcastSessionUpdate(sessionId: string): void {
-    const session = sessions.get(sessionId)
-    if (session) {
-      broadcast({
-        type: 'session_update',
-        sessionId,
-        session: toSessionSummary(session),
-      })
-    }
+    scheduleSessionUpdate(sessionId)
   }
 
   return {
