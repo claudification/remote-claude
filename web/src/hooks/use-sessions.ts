@@ -1,5 +1,12 @@
 import { create } from 'zustand'
-import { recordOut } from './ws-stats'
+import {
+  type DashboardPrefs,
+  DEFAULT_TOOL_DISPLAY,
+  loadPrefs,
+  resolveToolDisplay,
+  type ToolDisplayKey,
+  type ToolDisplayPrefs,
+} from '@/lib/dashboard-prefs'
 import type {
   HookEvent,
   ProjectSettings,
@@ -9,6 +16,7 @@ import type {
   TaskInfo,
   TranscriptEntry,
 } from '@/lib/types'
+import { recordOut } from './ws-stats'
 export type { ProjectSettingsMap }
 
 // Background task output streaming - module-level to avoid Zustand re-renders on every chunk
@@ -69,6 +77,11 @@ interface SessionsState {
   newDataSeq: number
   expandAll: boolean
   toggleExpandAll: () => void
+
+  // Dashboard prefs (per-device, persisted to localStorage)
+  dashboardPrefs: DashboardPrefs
+  updateDashboardPrefs: (patch: Partial<DashboardPrefs>) => void
+  resolveToolDisplay: (tool: ToolDisplayKey) => ToolDisplayPrefs
 
   setSessions: (sessions: Session[]) => void
   selectSession: (id: string | null) => void
@@ -154,8 +167,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   requestedTabSeq: 0,
   pendingFilePath: null,
   inputDrafts: {},
-  setInputDraft: (sessionId, text) =>
-    set(state => ({ inputDrafts: { ...state.inputDrafts, [sessionId]: text } })),
+  setInputDraft: (sessionId, text) => set(state => ({ inputDrafts: { ...state.inputDrafts, [sessionId]: text } })),
   newDataSeq: 0,
   expandAll: localStorage.getItem('expandAll') === 'true',
   toggleExpandAll: () =>
@@ -164,6 +176,16 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       localStorage.setItem('expandAll', String(next))
       return { expandAll: next }
     }),
+
+  dashboardPrefs: loadPrefs(),
+  updateDashboardPrefs: patch =>
+    set(state => {
+      const next = { ...state.dashboardPrefs, ...patch }
+      localStorage.setItem('dashboard-prefs', JSON.stringify(next))
+      window.dispatchEvent(new Event('prefs-changed'))
+      return { dashboardPrefs: next }
+    }),
+  resolveToolDisplay: (tool: ToolDisplayKey) => resolveToolDisplay(get().dashboardPrefs, tool),
 
   setSessions: sessions => set({ sessions }),
   selectSession: id => {
@@ -427,7 +449,9 @@ export async function updateProjectSettings(
   return data.settings
 }
 
-export async function generateProjectKeyterms(cwd: string): Promise<{ keyterms: string[]; settings: ProjectSettingsMap } | null> {
+export async function generateProjectKeyterms(
+  cwd: string,
+): Promise<{ keyterms: string[]; settings: ProjectSettingsMap } | null> {
   const res = await fetch(`${API_BASE}/api/settings/projects/generate-keyterms`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

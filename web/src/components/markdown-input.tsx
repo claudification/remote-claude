@@ -1,7 +1,6 @@
 import { Mic, Paperclip } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { getShowVoiceInput } from '@/components/settings-page'
 import { VoiceOverlay } from '@/components/voice-overlay'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { cn, haptic, isMobileViewport } from '@/lib/utils'
@@ -92,14 +91,7 @@ export function MarkdownInput({
     }
   }, [autoFocus, isMobile, inline])
   const voiceCapable = useSessionsStore(state => state.serverCapabilities.voice)
-  const [showVoicePref, setShowVoicePref] = useState(getShowVoiceInput)
-  useEffect(() => {
-    function onPrefsChanged() {
-      setShowVoicePref(getShowVoiceInput())
-    }
-    window.addEventListener('prefs-changed', onPrefsChanged)
-    return () => window.removeEventListener('prefs-changed', onPrefsChanged)
-  }, [])
+  const showVoicePref = useSessionsStore(state => state.dashboardPrefs.showVoiceInput)
   const showVoice = voiceCapable && showVoicePref
 
   const [expanded, setExpanded] = useState(false)
@@ -632,7 +624,7 @@ export function MarkdownInput({
               onPointerDown={handleSendPointerDown}
               onPointerUp={handleSendPointerUp}
               onPointerCancel={handleSendPointerUp}
-              onContextMenu={!value.trim() && showVoice ? (e) => e.preventDefault() : undefined}
+              onContextMenu={!value.trim() && showVoice ? e => e.preventDefault() : undefined}
               disabled={disabled}
               className={cn(
                 'text-sm font-bold px-4 py-1.5 rounded select-none',
@@ -649,7 +641,9 @@ export function MarkdownInput({
             onResult={holdToRecord ? handleVoiceResultAndSubmit : handleVoiceResult}
             onClose={handleVoiceClose}
             holdMode={holdToRecord}
-            onMicGranted={() => { micPermissionRef.current = true }}
+            onMicGranted={() => {
+              micPermissionRef.current = true
+            }}
           />
         )}
       </div>,
@@ -739,7 +733,9 @@ export function MarkdownInput({
           onResult={holdToRecord ? handleVoiceResultAndSubmit : handleVoiceResult}
           onClose={handleVoiceClose}
           holdMode={holdToRecord}
-          onMicGranted={() => { micPermissionRef.current = true }}
+          onMicGranted={() => {
+            micPermissionRef.current = true
+          }}
         />
       )}
     </div>

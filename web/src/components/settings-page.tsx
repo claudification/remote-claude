@@ -2,53 +2,7 @@ import { Bell, BellOff, Cloud, Keyboard, Monitor } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { getPushStatus, subscribeToPush, useSessionsStore } from '@/hooks/use-sessions'
-
-interface DashboardPrefs {
-  showInactiveByDefault: boolean
-  compactMode: boolean
-  showVoiceInput: boolean
-  showWsStats: boolean
-}
-
-function loadPrefs(): DashboardPrefs {
-  try {
-    const raw = localStorage.getItem('dashboard-prefs')
-    if (raw) return { ...defaultPrefs, ...JSON.parse(raw) }
-  } catch {}
-  return defaultPrefs
-}
-
-function savePrefs(prefs: DashboardPrefs) {
-  localStorage.setItem('dashboard-prefs', JSON.stringify(prefs))
-  window.dispatchEvent(new Event('prefs-changed'))
-}
-
-const defaultPrefs: DashboardPrefs = {
-  showInactiveByDefault: false,
-  compactMode: false,
-  showVoiceInput: true,
-  showWsStats: false,
-}
-
-export function usePrefs() {
-  const [prefs, setPrefs] = useState(loadPrefs)
-  function update(patch: Partial<DashboardPrefs>) {
-    setPrefs(prev => {
-      const next = { ...prev, ...patch }
-      savePrefs(next)
-      return next
-    })
-  }
-  return { prefs, update }
-}
-
-export function getShowVoiceInput(): boolean {
-  return loadPrefs().showVoiceInput
-}
-
-export function getShowWsStats(): boolean {
-  return loadPrefs().showWsStats
-}
+import { resolveToolDisplay, TOOL_DISPLAY_KEYS } from '@/lib/dashboard-prefs'
 
 // --- Color input with live preview ---
 // 16 curated pastel/muted colors that look good on dark backgrounds
@@ -225,7 +179,15 @@ function ServerTab() {
     if (typeof globalSettings.userSize === 'string') setUserSize(globalSettings.userSize as string)
     if (typeof globalSettings.agentSize === 'string') setAgentSize(globalSettings.agentSize as string)
     setDirty(false)
-  }, [globalSettings.idleTimeoutMinutes, globalSettings.userLabel, globalSettings.agentLabel, globalSettings.userColor, globalSettings.agentColor, globalSettings.userSize, globalSettings.agentSize])
+  }, [
+    globalSettings.idleTimeoutMinutes,
+    globalSettings.userLabel,
+    globalSettings.agentLabel,
+    globalSettings.userColor,
+    globalSettings.agentColor,
+    globalSettings.userSize,
+    globalSettings.agentSize,
+  ])
 
   // Global settings are fetched on app mount (app.tsx) - no need to fetch here
 
@@ -235,7 +197,15 @@ function ServerTab() {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idleTimeoutMinutes: idleTimeout, userLabel, agentLabel, userColor, agentColor, userSize, agentSize }),
+        body: JSON.stringify({
+          idleTimeoutMinutes: idleTimeout,
+          userLabel,
+          agentLabel,
+          userColor,
+          agentColor,
+          userSize,
+          agentSize,
+        }),
       })
       if (res.ok) {
         const data = await res.json()
@@ -289,7 +259,13 @@ function ServerTab() {
         </div>
         <div className="flex items-center justify-between">
           <div className="text-sm text-foreground">Size</div>
-          <SizePicker value={userSize} onChange={v => { setUserSize(v); markDirty() }} />
+          <SizePicker
+            value={userSize}
+            onChange={v => {
+              setUserSize(v)
+              markDirty()
+            }}
+          />
         </div>
         <div>
           <div className="text-sm text-foreground mb-1">Background color</div>
@@ -322,7 +298,13 @@ function ServerTab() {
         </div>
         <div className="flex items-center justify-between">
           <div className="text-sm text-foreground">Size</div>
-          <SizePicker value={agentSize} onChange={v => { setAgentSize(v); markDirty() }} />
+          <SizePicker
+            value={agentSize}
+            onChange={v => {
+              setAgentSize(v)
+              markDirty()
+            }}
+          />
         </div>
         <div>
           <div className="text-sm text-foreground mb-1">Background color</div>
@@ -352,7 +334,8 @@ function ServerTab() {
 }
 
 function DisplayTab() {
-  const { prefs, update } = usePrefs()
+  const prefs = useSessionsStore(s => s.dashboardPrefs)
+  const update = useSessionsStore(s => s.updateDashboardPrefs)
 
   return (
     <div className="space-y-3">
@@ -404,6 +387,81 @@ function DisplayTab() {
           className="accent-primary w-4 h-4"
         />
       </label>
+      <label className="flex items-center justify-between cursor-pointer">
+        <div>
+          <div className="text-sm text-foreground">Show thinking</div>
+          <div className="text-[10px] text-muted-foreground">Display model thinking blocks in transcript</div>
+        </div>
+        <input
+          type="checkbox"
+          checked={prefs.showThinking}
+          onChange={e => update({ showThinking: e.target.checked })}
+          className="accent-primary w-4 h-4"
+        />
+      </label>
+      {/* Per-tool verbose display settings */}
+      <div className="pt-2 border-t border-border">
+        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+          Tool output (verbose mode)
+        </div>
+        <div className="space-y-1">
+          {TOOL_DISPLAY_KEYS.map(tool => {
+            const effective = resolveToolDisplay(prefs, tool)
+            const custom = prefs.toolDisplay?.[tool]
+            return (
+              <div key={tool} className="flex items-center gap-2 text-xs font-mono">
+                <span className="w-20 text-muted-foreground truncate">{tool}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const td = { ...prefs.toolDisplay }
+                    td[tool] = { ...td[tool], defaultOpen: !effective.defaultOpen }
+                    update({ toolDisplay: td })
+                  }}
+                  className={`px-1.5 py-0.5 text-[9px] border transition-colors ${
+                    effective.defaultOpen
+                      ? 'border-active/50 text-active bg-active/10'
+                      : 'border-border text-muted-foreground'
+                  }`}
+                  title="Default expanded in verbose mode"
+                >
+                  {effective.defaultOpen ? 'open' : 'closed'}
+                </button>
+                <select
+                  value={effective.lineLimit}
+                  onChange={e => {
+                    const td = { ...prefs.toolDisplay }
+                    td[tool] = { ...td[tool], lineLimit: Number(e.target.value) }
+                    update({ toolDisplay: td })
+                  }}
+                  className="bg-card border border-border text-foreground text-[10px] px-1 py-0.5"
+                  title="Line truncation limit (0 = no limit)"
+                >
+                  {[0, 5, 10, 15, 20, 30, 50, 100].map(n => (
+                    <option key={n} value={n}>
+                      {n === 0 ? 'all' : `${n}L`}
+                    </option>
+                  ))}
+                </select>
+                {custom && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const td = { ...prefs.toolDisplay }
+                      delete td[tool]
+                      update({ toolDisplay: td })
+                    }}
+                    className="text-[8px] text-muted-foreground hover:text-foreground"
+                    title="Reset to default"
+                  >
+                    x
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }

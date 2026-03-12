@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchSubagentTranscript, useSessionsStore } from '@/hooks/use-sessions'
+import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/dashboard-prefs'
 import type { TranscriptContentBlock, TranscriptEntry } from '@/lib/types'
 import { cn, truncate } from '@/lib/utils'
 import { JsonInspector } from './json-inspector'
@@ -179,14 +180,16 @@ function Collapsible({
 
 // Truncated output - caps visible lines with a "more" button when expandAll is on.
 // Prevents massive bash/read outputs from tanking the UI in verbose mode.
-const TRUNCATE_LINES = 10
+// Line limit is configurable per-device via Settings > Display > Verbose line limit.
 
-function TruncatedPre({ text }: { text: string }) {
+function TruncatedPre({ text, tool }: { text: string; tool?: ToolDisplayKey }) {
   const [revealed, setRevealed] = useState(false)
+  const prefs = useSessionsStore(s => s.dashboardPrefs)
+  const limit = tool ? resolveToolDisplay(prefs, tool).lineLimit : 10
   const safeText = typeof text === 'string' ? text : String(text ?? '')
   const lines = safeText.split('\n')
-  const needsTruncation = lines.length > TRUNCATE_LINES && !revealed
-  const displayText = needsTruncation ? lines.slice(0, TRUNCATE_LINES).join('\n') : safeText
+  const needsTruncation = limit > 0 && lines.length > limit && !revealed
+  const displayText = needsTruncation ? lines.slice(0, limit).join('\n') : safeText
 
   return (
     <div>
@@ -199,7 +202,7 @@ function TruncatedPre({ text }: { text: string }) {
           onClick={() => setRevealed(true)}
           className="text-[10px] text-accent hover:text-accent/80 font-mono mt-0.5 px-2"
         >
-          +{lines.length - TRUNCATE_LINES} more lines
+          +{lines.length - limit} more lines
         </button>
       )}
     </div>
@@ -426,8 +429,14 @@ function ShellCommand({ command }: { command: string }) {
 // Syntax-highlighted preview for Write operations
 function WritePreview({ content, filePath }: { content: string; filePath?: string }) {
   const [html, setHtml] = useSyntaxState<string | null>(null)
+  const [revealed, setRevealed] = useState(false)
+  const expandAll = useSessionsStore(state => state.expandAll)
+  const writePrefs = useSessionsStore(s => s.dashboardPrefs)
+  const writeDisplay = resolveToolDisplay(writePrefs, 'Write')
+  const limit = writeDisplay.lineLimit
   const truncated = content.length > 3000 ? content.slice(0, 3000) : content
   const lines = truncated.split('\n')
+  const lineTruncate = expandAll && limit > 0 && lines.length > limit && !revealed
 
   useEffect(() => {
     const lang = filePath ? langFromPath(filePath) : undefined
@@ -454,41 +463,55 @@ function WritePreview({ content, filePath }: { content: string; filePath?: strin
 
   const gutterWidth = String(lines.length).length
 
+  const visibleLines = lineTruncate ? limit : lines.length
+  const htmlLines = html ? html.split('\n') : null
+
   return (
-    <pre className="text-[10px] font-mono max-h-48 overflow-auto">
-      {html ? (
-        <code>
-          {html.split('\n').map((lineHtml, i) => (
-            <div key={i} className="hover:bg-muted/20">
-              <span
-                className="text-muted-foreground/40 select-none inline-block text-right mr-3"
-                style={{ width: `${gutterWidth + 1}ch` }}
-              >
-                {i + 1}
-              </span>
-              <span dangerouslySetInnerHTML={{ __html: lineHtml }} />
-            </div>
-          ))}
-        </code>
-      ) : (
-        <code className="text-foreground/70">
-          {lines.map((line, i) => (
-            <div key={i} className="hover:bg-muted/20">
-              <span
-                className="text-muted-foreground/40 select-none inline-block text-right mr-3"
-                style={{ width: `${gutterWidth + 1}ch` }}
-              >
-                {i + 1}
-              </span>
-              {line}
-            </div>
-          ))}
-        </code>
+    <div>
+      <pre className={cn('text-[10px] font-mono', !expandAll && 'max-h-48 overflow-auto')}>
+        {htmlLines ? (
+          <code>
+            {htmlLines.slice(0, visibleLines).map((lineHtml, i) => (
+              <div key={i} className="hover:bg-muted/20">
+                <span
+                  className="text-muted-foreground/40 select-none inline-block text-right mr-3"
+                  style={{ width: `${gutterWidth + 1}ch` }}
+                >
+                  {i + 1}
+                </span>
+                <span dangerouslySetInnerHTML={{ __html: lineHtml }} />
+              </div>
+            ))}
+          </code>
+        ) : (
+          <code className="text-foreground/70">
+            {lines.slice(0, visibleLines).map((line, i) => (
+              <div key={i} className="hover:bg-muted/20">
+                <span
+                  className="text-muted-foreground/40 select-none inline-block text-right mr-3"
+                  style={{ width: `${gutterWidth + 1}ch` }}
+                >
+                  {i + 1}
+                </span>
+                {line}
+              </div>
+            ))}
+          </code>
+        )}
+        {!lineTruncate && content.length > 3000 && (
+          <div className="text-muted-foreground mt-1">... +{content.length - 3000} chars truncated</div>
+        )}
+      </pre>
+      {lineTruncate && (
+        <button
+          type="button"
+          onClick={() => setRevealed(true)}
+          className="text-[10px] text-accent hover:text-accent/80 font-mono mt-0.5 px-2"
+        >
+          +{lines.length - limit} more lines
+        </button>
       )}
-      {content.length > 3000 && (
-        <div className="text-muted-foreground mt-1">... +{content.length - 3000} chars truncated</div>
-      )}
-    </pre>
+    </div>
   )
 }
 
@@ -535,6 +558,8 @@ function ToolLine({
   const input = tool.input || {}
   const style = getToolStyle(name)
   const expandAll = useSessionsStore(state => state.expandAll)
+  const dashPrefs = useSessionsStore(state => state.dashboardPrefs)
+  const toolPrefs = resolveToolDisplay(dashPrefs, name as ToolDisplayKey)
 
   // Build one-line summary based on tool type
   let summary = ''
@@ -552,7 +577,7 @@ function ToolLine({
           <div className="space-y-1">
             {expandAll && cmd && <ShellCommand command={cmd} />}
             {expandAll ? (
-              <TruncatedPre text={outputText} />
+              <TruncatedPre text={outputText} tool="Bash" />
             ) : (
               <pre className="text-[10px] bg-black/30 p-2 overflow-auto whitespace-pre-wrap font-mono max-h-32">
                 <AnsiText text={outputText} />
@@ -569,7 +594,7 @@ function ToolLine({
       const path = input.file_path as string
       summary = shortPath(path) || path
       if (expandAll && result && typeof result === 'string') {
-        details = <TruncatedPre text={result} />
+        details = <TruncatedPre text={result} tool="Read" />
       }
       break
     }
@@ -626,7 +651,7 @@ function ToolLine({
       summary = pattern
       if (result) {
         if (expandAll) {
-          details = <TruncatedPre text={result} />
+          details = <TruncatedPre text={result} tool={name as ToolDisplayKey} />
         } else {
           const lines = result.split('\n').filter(Boolean)
           details = (
@@ -877,11 +902,7 @@ function ToolLine({
         <JsonInspector title={name} data={input} result={result} extra={toolUseResult} />
       </div>
       {details && (
-        <Collapsible
-          id={tool.id ? `tool-${tool.id}` : undefined}
-          label="output"
-          defaultOpen={name === 'Edit' || name === 'Write' || (name === 'Bash' && expandAll)}
-        >
+        <Collapsible id={tool.id ? `tool-${tool.id}` : undefined} label="output" defaultOpen={toolPrefs.defaultOpen}>
           {details}
         </Collapsible>
       )}
@@ -958,6 +979,7 @@ function AgentGroupView({
   resultMap: Map<string, { result: string; extra?: Record<string, unknown> }>
 }) {
   const expandAll = useSessionsStore(state => state.expandAll)
+  const showThinking = useSessionsStore(state => state.dashboardPrefs.showThinking)
 
   if (group.type === 'system') return null
 
@@ -993,10 +1015,14 @@ function AgentGroupView({
   const userTag = (globalSettings.userLabel as string)?.trim() || 'USER'
   const agentTag = (globalSettings.agentLabel as string)?.trim() || 'AGENT'
   const label = isUser ? userTag : agentTag
-  const customColor = isUser ? (globalSettings.userColor as string)?.trim() : (globalSettings.agentColor as string)?.trim()
+  const customColor = isUser
+    ? (globalSettings.userColor as string)?.trim()
+    : (globalSettings.agentColor as string)?.trim()
   const labelColor = customColor || (isUser ? 'text-event-prompt' : 'text-pink-400')
   const sizeKey = (isUser ? (globalSettings.userSize as string) : (globalSettings.agentSize as string)) || ''
-  const sizeClass = { xs: 'text-[7px]', sm: 'text-[8px]', '': 'text-[9px]', lg: 'text-[11px]', xl: 'text-[13px]' }[sizeKey] || 'text-[9px]'
+  const sizeClass =
+    { xs: 'text-[7px]', sm: 'text-[8px]', '': 'text-[9px]', lg: 'text-[11px]', xl: 'text-[13px]' }[sizeKey] ||
+    'text-[9px]'
 
   return (
     <div className="text-xs">
@@ -1009,7 +1035,7 @@ function AgentGroupView({
       <div className="pl-2 space-y-1">
         {content.map((item, i) => {
           if (item.kind === 'thinking') {
-            if (!expandAll) return null
+            if (!showThinking && !expandAll) return null
             return (
               <div key={i} className="border-l-2 border-purple-400/40 pl-2 py-1">
                 <div className="text-[10px] text-purple-400/70 uppercase font-bold tracking-wider mb-1">thinking</div>
@@ -1139,7 +1165,12 @@ function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
       if (textContent.includes('<system-reminder>')) continue
       // Skip /slash command XML (e.g. /compact, /help) - raw XML noise
       // The actual effect (compacting/compacted) is captured as its own entry type
-      if (textContent.includes('<command-name>') || textContent.includes('<local-command-caveat>') || textContent.includes('<local-command-stdout>')) continue
+      if (
+        textContent.includes('<command-name>') ||
+        textContent.includes('<local-command-caveat>') ||
+        textContent.includes('<local-command-stdout>')
+      )
+        continue
       if (textContent.includes('<task-notification>')) {
         const notifications = parseTaskNotifications(textContent)
         if (notifications.length > 0) {
@@ -1282,11 +1313,15 @@ function GroupView({
   const userTag = (globalSettings.userLabel as string)?.trim() || 'USER'
   const agentTag = (globalSettings.agentLabel as string)?.trim() || 'CLAUDE'
   const label = isUser ? userTag : agentTag
-  const customColor = isUser ? (globalSettings.userColor as string)?.trim() : (globalSettings.agentColor as string)?.trim()
+  const customColor = isUser
+    ? (globalSettings.userColor as string)?.trim()
+    : (globalSettings.agentColor as string)?.trim()
   const borderColor = isUser ? 'border-event-prompt' : 'border-primary'
   const labelBg = isUser ? 'bg-event-prompt text-background' : 'bg-primary text-primary-foreground'
   const sizeKey = (isUser ? (globalSettings.userSize as string) : (globalSettings.agentSize as string)) || ''
-  const sizeClass = { xs: 'text-[8px]', sm: 'text-[9px]', '': 'text-[10px]', lg: 'text-[13px]', xl: 'text-[16px]' }[sizeKey] || 'text-[10px]'
+  const sizeClass =
+    { xs: 'text-[8px]', sm: 'text-[9px]', '': 'text-[10px]', lg: 'text-[13px]', xl: 'text-[16px]' }[sizeKey] ||
+    'text-[10px]'
 
   return (
     <div className="mb-4">

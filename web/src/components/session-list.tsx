@@ -3,7 +3,6 @@ import { fetchSessionEvents, fetchTranscript, useSessionsStore } from '@/hooks/u
 import type { Session } from '@/lib/types'
 import { cn, formatAge, formatModel, haptic, lastPathSegments } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from './project-settings-editor'
-import { usePrefs } from './settings-page'
 
 function StatusIndicator({ status }: { status: Session['status'] }) {
   if (status === 'ended') {
@@ -12,7 +11,10 @@ function StatusIndicator({ status }: { status: Session['status'] }) {
   if (status === 'active') {
     return (
       <span className="w-3 h-3 shrink-0 flex items-center justify-center" title="working">
-        <span className="w-2.5 h-2.5 rounded-full animate-spin" style={{ border: '2px solid var(--active)', borderTopColor: 'transparent' }} />
+        <span
+          className="w-2.5 h-2.5 rounded-full animate-spin"
+          style={{ border: '2px solid var(--active)', borderTopColor: 'transparent' }}
+        />
       </span>
     )
   }
@@ -178,34 +180,29 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
         </div>
       )}
       {/* Status row (non-compact only, only if there's something to show) */}
-      {!compact &&
-        (session.status === 'ended' ||
-          session.runningBgTaskCount > 0 ||
-          session.team) && (
-          <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
-            {session.status === 'ended' && (
-              <StatusIndicator status={session.status} />
-            )}
-            {session.runningBgTaskCount > 0 && (
-              <span
-                className="px-1.5 py-0.5 bg-emerald-400/20 text-emerald-400 border border-emerald-400/50 text-[10px] font-bold cursor-pointer hover:bg-emerald-400/30"
-                onClick={e => {
-                  e.stopPropagation()
-                  openTab(session.id, 'agents')
-                }}
-              >
-                [{session.runningBgTaskCount}] bg
-              </span>
-            )}
-            {session.team && (
-              <span className="px-1.5 py-0.5 bg-purple-400/20 text-purple-400 border border-purple-400/50 text-[10px] font-bold uppercase">
-                {session.team.role === 'lead' ? 'LEAD' : 'TEAM'} {session.team.teamName}
-                {session.teammates.length > 0 &&
-                  ` (${session.teammates.filter(t => t.status !== 'stopped').length}/${session.teammates.length})`}
-              </span>
-            )}
-          </div>
-        )}
+      {!compact && (session.status === 'ended' || session.runningBgTaskCount > 0 || session.team) && (
+        <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
+          {session.status === 'ended' && <StatusIndicator status={session.status} />}
+          {session.runningBgTaskCount > 0 && (
+            <span
+              className="px-1.5 py-0.5 bg-emerald-400/20 text-emerald-400 border border-emerald-400/50 text-[10px] font-bold cursor-pointer hover:bg-emerald-400/30"
+              onClick={e => {
+                e.stopPropagation()
+                openTab(session.id, 'agents')
+              }}
+            >
+              [{session.runningBgTaskCount}] bg
+            </span>
+          )}
+          {session.team && (
+            <span className="px-1.5 py-0.5 bg-purple-400/20 text-purple-400 border border-purple-400/50 text-[10px] font-bold uppercase">
+              {session.team.role === 'lead' ? 'LEAD' : 'TEAM'} {session.team.teamName}
+              {session.teammates.length > 0 &&
+                ` (${session.teammates.filter(t => t.status !== 'stopped').length}/${session.teammates.length})`}
+            </span>
+          )}
+        </div>
+      )}
     </button>
   )
 }
@@ -328,8 +325,8 @@ function InactiveProjectItem({ sessions }: { sessions: Session[] }) {
 
 export function SessionList() {
   const { sessions, projectSettings } = useSessionsStore()
-  const { prefs } = usePrefs()
-  const [showInactive, setShowInactive] = useState(prefs.showInactiveByDefault)
+  const dashPrefs = useSessionsStore(s => s.dashboardPrefs)
+  const [showInactive, setShowInactive] = useState(dashPrefs.showInactiveByDefault)
   const [filter, setFilter] = useState('')
   // Periodic tick to re-evaluate time-based visibility (spinner, 10min cutoff)
   const [, setTick] = useState(0)

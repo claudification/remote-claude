@@ -21,10 +21,7 @@ type Tab = 'transcript' | 'events' | 'agents' | 'tasks' | 'files' | 'diag'
 // Stable reference to avoid re-render loops with Zustand selectors
 const EMPTY_TRANSCRIPT: TranscriptEntry[] = []
 
-function ScrollToBottomButton({
-  onClick,
-  direction = 'down',
-}: { onClick: () => void; direction?: 'down' | 'up' }) {
+function ScrollToBottomButton({ onClick, direction = 'down' }: { onClick: () => void; direction?: 'down' | 'up' }) {
   const Icon = direction === 'up' ? ChevronUp : ChevronDown
   return (
     <button
@@ -125,7 +122,7 @@ const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
 export function SessionDetail() {
   const [activeTab, setActiveTab] = useState<Tab>('transcript')
   const [follow, setFollow] = useState(true)
-  const [showThinking, setShowThinking] = useState(false)
+  const showThinking = useSessionsStore(s => s.dashboardPrefs.showThinking)
   const [reviveState, setReviveState] = useState<'idle' | 'sending' | 'waiting' | 'error'>('idle')
   const [reviveError, setReviveError] = useState<string | null>(null)
   const [reviveCountdown, setReviveCountdown] = useState(0)
@@ -537,7 +534,10 @@ export function SessionDetail() {
           <div className="shrink-0 flex items-center border-b border-border overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <button
               type="button"
-              onClick={() => { haptic('tick'); setActiveTab('transcript') }}
+              onClick={() => {
+                haptic('tick')
+                setActiveTab('transcript')
+              }}
               className={cn(
                 'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
                 activeTab === 'transcript'
@@ -549,7 +549,10 @@ export function SessionDetail() {
             </button>
             <button
               type="button"
-              onClick={() => { haptic('tick'); setActiveTab('events') }}
+              onClick={() => {
+                haptic('tick')
+                setActiveTab('events')
+              }}
               className={cn(
                 'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
                 activeTab === 'events'
@@ -562,7 +565,10 @@ export function SessionDetail() {
             {(session.totalSubagentCount > 0 || session.activeSubagentCount > 0 || session.bgTasks.length > 0) && (
               <button
                 type="button"
-                onClick={() => { haptic('tick'); setActiveTab('agents') }}
+                onClick={() => {
+                  haptic('tick')
+                  setActiveTab('agents')
+                }}
                 className={cn(
                   'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
                   activeTab === 'agents'
@@ -581,7 +587,10 @@ export function SessionDetail() {
             {(session.taskCount > 0 || (session.archivedTaskCount ?? 0) > 0) && (
               <button
                 type="button"
-                onClick={() => { haptic('tick'); setActiveTab('tasks') }}
+                onClick={() => {
+                  haptic('tick')
+                  setActiveTab('tasks')
+                }}
                 className={cn(
                   'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
                   activeTab === 'tasks'
@@ -600,7 +609,10 @@ export function SessionDetail() {
             {session.status === 'active' && (
               <button
                 type="button"
-                onClick={() => { haptic('tick'); setActiveTab('files') }}
+                onClick={() => {
+                  haptic('tick')
+                  setActiveTab('files')
+                }}
                 className={cn(
                   'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
                   activeTab === 'files'
@@ -613,7 +625,10 @@ export function SessionDetail() {
             )}
             <button
               type="button"
-              onClick={() => { haptic('tick'); setActiveTab('diag') }}
+              onClick={() => {
+                haptic('tick')
+                setActiveTab('diag')
+              }}
               className={cn(
                 'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
                 activeTab === 'diag'
@@ -652,7 +667,6 @@ export function SessionDetail() {
                   id="verbose"
                   checked={expandAll}
                   onCheckedChange={checked => {
-                    setShowThinking(checked === true)
                     if (checked !== expandAll) useSessionsStore.getState().toggleExpandAll()
                   }}
                   className="h-3.5 w-3.5"
