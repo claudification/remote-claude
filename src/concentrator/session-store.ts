@@ -837,6 +837,15 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   }
 
   function setSessionSocket(sessionId: string, wrapperId: string, ws: ServerWebSocket<unknown>): void {
+    // Remove wrapperId from any OTHER session first (wrapper reconnected to different session)
+    for (const [sid, wrappers] of sessionSockets.entries()) {
+      if (sid !== sessionId && wrappers.has(wrapperId)) {
+        wrappers.delete(wrapperId)
+        if (wrappers.size === 0) sessionSockets.delete(sid)
+        // Broadcast so dashboard drops the stale wrapperId from the old session
+        broadcastSessionUpdate(sid)
+      }
+    }
     let wrappers = sessionSockets.get(sessionId)
     if (!wrappers) {
       wrappers = new Map()
