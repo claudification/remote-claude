@@ -1,4 +1,4 @@
-import { Bell, BellOff, Cloud, Info, Keyboard, Monitor } from 'lucide-react'
+import { Bell, BellOff, Cloud, Info, Keyboard, Mic, Monitor } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { getPushStatus, subscribeToPush, useSessionsStore } from '@/hooks/use-sessions'
@@ -627,9 +627,96 @@ function VersionTab() {
   )
 }
 
+function VoiceTab() {
+  const globalSettings = useSessionsStore(s => s.globalSettings)
+  const [refinement, setRefinement] = useState(true)
+  const [prompt, setPrompt] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => {
+    if (typeof globalSettings.voiceRefinement === 'boolean') setRefinement(globalSettings.voiceRefinement)
+    if (typeof globalSettings.voiceRefinementPrompt === 'string') setPrompt(globalSettings.voiceRefinementPrompt as string)
+    setDirty(false)
+  }, [globalSettings.voiceRefinement, globalSettings.voiceRefinementPrompt])
+
+  async function save() {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voiceRefinement: refinement, voiceRefinementPrompt: prompt }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        useSessionsStore.setState({ globalSettings: data.settings })
+        setDirty(false)
+      }
+    } catch {}
+    setSaving(false)
+  }
+
+  return (
+    <div className="space-y-4">
+      <label className="flex items-center justify-between cursor-pointer">
+        <div>
+          <div className="text-sm text-foreground">LLM refinement</div>
+          <div className="text-[10px] text-muted-foreground">
+            Post-process voice transcripts with Haiku to fix ASR errors
+          </div>
+        </div>
+        <input
+          type="checkbox"
+          checked={refinement}
+          onChange={e => {
+            setRefinement(e.target.checked)
+            setDirty(true)
+          }}
+          className="accent-primary w-4 h-4"
+        />
+      </label>
+
+      {refinement && (
+        <div>
+          <div className="text-sm text-foreground mb-1">Refinement prompt</div>
+          <div className="text-[10px] text-muted-foreground mb-2">
+            Custom system prompt for the refinement step. Leave empty for default ASR post-processor.
+          </div>
+          <textarea
+            value={prompt}
+            onChange={e => {
+              setPrompt(e.target.value)
+              setDirty(true)
+            }}
+            placeholder="You are an expert ASR post-processor..."
+            rows={6}
+            className="w-full px-3 py-2 text-xs font-mono bg-muted border border-border text-foreground placeholder:text-muted-foreground/30 resize-y min-h-[80px]"
+          />
+          <div className="text-[9px] text-muted-foreground/50 text-right mt-0.5">
+            {prompt.length}/2000
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-end pt-1">
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving || !dirty}
+          className={`px-2 py-1 text-[10px] font-mono border transition-colors ${dirty ? 'border-active/50 text-active hover:bg-active/20' : 'border-border text-muted-foreground/40 cursor-not-allowed'}`}
+        >
+          {saving ? '...' : 'Save'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 const settingsTabs = [
   { id: 'server', label: 'Server', icon: Cloud, component: ServerTab },
   { id: 'display', label: 'Display', icon: Monitor, component: DisplayTab },
+  { id: 'voice', label: 'Voice', icon: Mic, component: VoiceTab },
   { id: 'notify', label: 'Notify', icon: Bell, component: NotificationsTab },
   { id: 'keys', label: 'Keys', icon: Keyboard, component: ShortcutsTab },
   { id: 'version', label: 'Version', icon: Info, component: VersionTab },
@@ -645,23 +732,27 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       <DialogContent className="max-w-md p-0 gap-0">
         <DialogTitle className="uppercase tracking-wider px-6 pt-6 pb-0">Settings</DialogTitle>
 
-        {/* Tab bar */}
-        <div className="flex border-b border-border px-6 mt-4">
-          {settingsTabs.map(tab => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-mono transition-colors border-b-2 -mb-px ${
-                activeTab === tab.id
-                  ? 'border-active text-active'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <tab.icon className="w-3 h-3" />
-              {tab.label}
-            </button>
-          ))}
+        {/* Tab bar - scrollable on mobile */}
+        <div className="relative mt-4">
+          <div className="flex border-b border-border px-6 overflow-x-auto scrollbar-hide">
+            {settingsTabs.map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-mono transition-colors border-b-2 -mb-px whitespace-nowrap shrink-0 ${
+                  activeTab === tab.id
+                    ? 'border-active text-active'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <tab.icon className="w-3 h-3" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {/* Scroll fade indicator */}
+          <div className="absolute right-0 top-0 bottom-px w-8 bg-gradient-to-l from-background to-transparent pointer-events-none sm:hidden" />
         </div>
 
         {/* Tab content */}

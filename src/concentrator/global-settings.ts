@@ -16,6 +16,8 @@ export const GlobalSettingsSchema = z.object({
   agentColor: z.string().max(50).default(''),
   userSize: z.string().max(4).default(''),
   agentSize: z.string().max(4).default(''),
+  voiceRefinement: z.boolean().default(true),
+  voiceRefinementPrompt: z.string().max(2000).default(''),
 })
 
 export type GlobalSettings = z.infer<typeof GlobalSettingsSchema>

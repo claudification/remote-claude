@@ -6,6 +6,7 @@
  */
 
 import type { ServerWebSocket } from 'bun'
+import { getGlobalSettings } from './global-settings'
 import { getProjectSettings } from './project-settings'
 import type { SessionStore } from './session-store'
 
@@ -263,8 +264,11 @@ function stopVoiceSession(ws: ServerWebSocket<unknown>, reason: string) {
  *   with both project keyterms AND dynamically extracted context from step 1.
  */
 async function refineAndSend(ws: ServerWebSocket<unknown>, rawText: string, keyterms: string[]) {
+  const globalSettings = getGlobalSettings()
   const openrouterKey = process.env.OPENROUTER_API_KEY
-  if (!openrouterKey || !rawText.trim()) {
+
+  // Skip refinement if disabled in settings, no API key, or empty text
+  if (!globalSettings.voiceRefinement || !openrouterKey || !rawText.trim()) {
     ws.send(JSON.stringify({ type: 'voice_done', raw: rawText, refined: rawText }))
     cleanupVoiceSession(ws)
     return
@@ -344,17 +348,21 @@ ${rawText}`,
       ? `\nDomain vocabulary (correct spellings for this project): ${keyterms.join(', ')}\nWhen the transcript contains words that sound similar to these terms, prefer the domain term.`
       : ''
 
-    const messages = [
-      {
-        role: 'system' as const,
-        content: `You are an expert ASR (Automatic Speech Recognition) post-processor. You specialize in cleaning up voice-transcribed text that will be used as prompts for a coding AI assistant.
+    const defaultSystemPrompt = `You are an expert ASR (Automatic Speech Recognition) post-processor. You specialize in cleaning up voice-transcribed text that will be used as prompts for a coding AI assistant.
 
 You understand common ASR failure modes:
 - Homophones and near-homophones (e.g. "their/there/they're", "write/right", "new/knew")
 - Word boundary errors where ASR splits or merges words incorrectly (e.g. "react server" vs "React Server", "type script" vs "TypeScript")
 - Technical term misrecognition (API names, libraries, CLI tools often get mangled)
 - Disfluencies: false starts, self-corrections, filler words, repetitions
-- Spoken punctuation and syntax references${keytermBlock}${contextBlock}`,
+- Spoken punctuation and syntax references`
+
+    const systemPrompt = globalSettings.voiceRefinementPrompt || defaultSystemPrompt
+
+    const messages = [
+      {
+        role: 'system' as const,
+        content: `${systemPrompt}${keytermBlock}${contextBlock}`,
       },
       {
         role: 'user' as const,

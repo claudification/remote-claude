@@ -161,6 +161,15 @@ body {
 	background: var(--primary);
 }
 
+/* Hide scrollbar but keep scrolling */
+.scrollbar-hide {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+	display: none;
+}
+
 /* Focus styles */
 :focus-visible {
 	outline: 2px solid var(--ring);
