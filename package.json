@@ -32,15 +32,19 @@
     "@types/diff": "^8.0.0",
     "@types/web-push": "^3.6.4",
     "typescript": "^5.7.0",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.0"
   },
   "dependencies": {
-    "@codemirror/view": "^6.39.17",
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.40.0",
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.0",
     "@tailwindcss/vite": "^4.2.1",
-    "@types/node": "^25.4.0",
+    "@tanstack/react-virtual": "^3.13.22",
+    "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
+    "@vitejs/plugin-react-swc": "^4.3.0",
     "chokidar": "^5.0.0",
     "diff": "^8.0.3",
     "jsdom": "^28.1.0",
