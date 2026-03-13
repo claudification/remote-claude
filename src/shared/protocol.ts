@@ -26,6 +26,7 @@ export interface SessionMeta {
   capabilities?: WrapperCapability[]
   version?: string
   buildTime?: string
+  claudeVersion?: string
 }
 
 export interface SessionEnd {
@@ -422,6 +423,7 @@ export interface Session {
   transcriptPath?: string
   version?: string
   buildTime?: string
+  claudeVersion?: string
   startedAt: number
   lastActivity: number
   status: 'active' | 'idle' | 'ended'
@@ -528,6 +530,7 @@ export interface SessionSummary {
   capabilities?: WrapperCapability[]
   version?: string
   buildTime?: string
+  claudeVersion?: string
   wrapperIds: string[]
   startedAt: number
   lastActivity: number

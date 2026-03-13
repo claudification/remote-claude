@@ -418,6 +418,7 @@ async function main() {
                   if (data.capabilities) existingSession.capabilities = data.capabilities
                   if (data.version) existingSession.version = data.version
                   if (data.buildTime) existingSession.buildTime = data.buildTime
+                  if (data.claudeVersion) existingSession.claudeVersion = data.claudeVersion
                   if (verbose) {
                     const wrapperCount = sessionStore.getActiveWrapperCount(data.sessionId) + 1
                     console.log(
@@ -434,6 +435,7 @@ async function main() {
                   )
                   if (data.version) newSession.version = data.version
                   if (data.buildTime) newSession.buildTime = data.buildTime
+                  if (data.claudeVersion) newSession.claudeVersion = data.claudeVersion
                   if (verbose) {
                     console.log(
                       `[+] Session started: ${data.sessionId.slice(0, 8)}... wrapper=${wrapperId.slice(0, 8)} (${data.cwd})${data.version ? ` [${data.version}]` : ''}`,
@@ -516,7 +518,9 @@ async function main() {
                 // Broadcast toast to all dashboard subscribers
                 const toastMsg = JSON.stringify({ type: 'toast', title, message, sessionId })
                 for (const sub of sessionStore.getSubscribers()) {
-                  try { sub.send(toastMsg) } catch {}
+                  try {
+                    sub.send(toastMsg)
+                  } catch {}
                 }
                 break
               }

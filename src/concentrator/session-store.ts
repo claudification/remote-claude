@@ -4,7 +4,6 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
-import { getProjectSettings } from './project-settings'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerWebSocket } from 'bun'
@@ -16,11 +15,21 @@ import type {
   TranscriptEntry,
   WrapperCapability,
 } from '../shared/protocol'
+import { getProjectSettings } from './project-settings'
 export type { SessionSummary }
 
 // Dashboard broadcast message (concentrator -> browser)
 export interface DashboardMessage {
-  type: 'session_update' | 'session_created' | 'session_ended' | 'event' | 'sessions_list' | 'agent_status' | 'toast' | 'settings_updated' | 'project_settings_updated'
+  type:
+    | 'session_update'
+    | 'session_created'
+    | 'session_ended'
+    | 'event'
+    | 'sessions_list'
+    | 'agent_status'
+    | 'toast'
+    | 'settings_updated'
+    | 'project_settings_updated'
   sessionId?: string
   previousSessionId?: string
   session?: SessionSummary
@@ -158,6 +167,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       capabilities: session.capabilities,
       version: session.version,
       buildTime: session.buildTime,
+      claudeVersion: session.claudeVersion,
       wrapperIds: wrappers ? Array.from(wrappers.keys()) : [],
       startedAt: session.startedAt,
       lastActivity: session.lastActivity,

@@ -373,6 +373,9 @@ export function SessionDetail() {
                     {session.status}
                   </span>
                   <span className="text-foreground">{formatModel(model || session.model)}</span>
+                  {session.claudeVersion && (
+                    <span className="text-muted-foreground text-[10px]">cc/{session.claudeVersion}</span>
+                  )}
                   {session.gitBranch && (
                     <span className="text-purple-400 text-[10px]">
                       <span className="text-muted-foreground">branch:</span> {session.gitBranch}

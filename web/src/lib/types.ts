@@ -10,6 +10,7 @@ export type {
   TeamInfo,
   WrapperCapability,
 } from '@shared/protocol'
+
 import type { BgTaskInfo as BgTaskSummary, ProjectSettings, WrapperCapability } from '@shared/protocol'
 
 // Re-export HookEvent but with a looser data type for generic property access
@@ -69,6 +70,7 @@ export interface Session {
     toolCallCount: number
     compactionCount: number
   }
+  claudeVersion?: string
   gitBranch?: string
   lastEvent?: {
     hookEvent: string

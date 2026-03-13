@@ -5,20 +5,52 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { type FSWatcher as ChokidarWatcher, watch as chokidarWatch } from 'chokidar'
 import type { HookEvent, TaskInfo, TasksUpdate, TranscriptEntry } from '../shared/protocol'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
+import { DEBUG, debug } from './debug'
 import { FileEditor } from './file-editor'
 import { startLocalServer, stopLocalServer } from './local-server'
 import { getTerminalSize, type PtyProcess, setupTerminalPassthrough, spawnClaude } from './pty-spawn'
 import { cleanupSettings, writeMergedSettings } from './settings-merge'
 import { createTranscriptWatcher, type TranscriptWatcher } from './transcript-watcher'
 import { createWsClient, type WsClient } from './ws-client'
-import { DEBUG, debug } from './debug'
+
+/**
+ * Detect Claude Code version by resolving the `claude` symlink.
+ * Path layout: ~/.local/share/claude/versions/X.Y.Z
+ * Falls back to `claude --version` if symlink doesn't match.
+ */
+function detectClaudeVersion(): string | undefined {
+  try {
+    const claudePath = Bun.which('claude')
+    if (!claudePath) return undefined
+
+    const resolved = realpathSync(claudePath)
+    const version = basename(resolved)
+    // Version segment looks like X.Y.Z (semver-ish)
+    if (/^\d+\.\d+\.\d+/.test(version)) {
+      debug(`Claude version from symlink: ${version}`)
+      return version
+    }
+
+    // Fallback: run claude --version
+    const proc = Bun.spawnSync(['claude', '--version'], { timeout: 5000 })
+    const output = proc.stdout.toString().trim()
+    const match = output.match(/^(\d+\.\d+\.\d+)/)
+    if (match) {
+      debug(`Claude version from --version: ${match[1]}`)
+      return match[1]
+    }
+  } catch (err) {
+    debug(`Failed to detect Claude version: ${err instanceof Error ? err.message : err}`)
+  }
+  return undefined
+}
 
 function wsToHttpUrl(url: string): string {
   return url.replace('ws://', 'http://').replace('wss://', 'https://')
@@ -299,6 +331,7 @@ async function main() {
       wrapperId: internalId,
       cwd,
       args: claudeArgs,
+      claudeVersion: detectClaudeVersion(),
       capabilities,
       onConnected() {
         diag('ws', 'Connected to concentrator', { sessionId })
@@ -766,12 +799,18 @@ async function main() {
                   return
                 }
                 attempt++
-                debug(`Transcript file not found (attempt ${attempt}, ${(elapsed / 1000).toFixed(1)}s elapsed), retrying in ${delay}ms: ${path}`)
+                debug(
+                  `Transcript file not found (attempt ${attempt}, ${(elapsed / 1000).toFixed(1)}s elapsed), retrying in ${delay}ms: ${path}`,
+                )
                 await new Promise(r => setTimeout(r, delay))
                 elapsed += delay
                 delay = Math.min(delay * 2, maxDelay)
               }
-              diag('error', 'Transcript file never appeared', { path, elapsed: `${(elapsed / 1000).toFixed(0)}s`, attempts: attempt })
+              diag('error', 'Transcript file never appeared', {
+                path,
+                elapsed: `${(elapsed / 1000).toFixed(0)}s`,
+                attempts: attempt,
+              })
             }
             tryStartTranscriptWatcher(transcriptPath)
           } else {
@@ -860,7 +899,7 @@ async function main() {
       '',
       '# Notifications (rclaude)',
       '',
-      'You can send push notifications to the user\'s devices (phone, browser) via the rclaude notification endpoint.',
+      "You can send push notifications to the user's devices (phone, browser) via the rclaude notification endpoint.",
       'Use this when the user asks to be notified, or when a long-running task completes and the user might not be watching.',
       '',
       '```bash',
@@ -870,7 +909,7 @@ async function main() {
       '- `message` (required): The notification body text',
       '- `title` (optional): Notification title (defaults to project name)',
       '',
-      'This sends a real push notification to the user\'s phone/browser AND shows a toast in the dashboard.',
+      "This sends a real push notification to the user's phone/browser AND shows a toast in the dashboard.",
     ].join('\n'),
   )
   claudeArgs.push('--append-system-prompt-file', promptFile)
