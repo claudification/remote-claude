@@ -36,7 +36,6 @@ export interface DashboardPrefs {
   showVoiceFab: boolean
   showWsStats: boolean
   showThinking: boolean
-  carriageReturnDelay: number // ms delay before CR after paste (0 = use wrapper default)
   toolDisplay: Partial<Record<ToolDisplayKey, Partial<ToolDisplayPrefs>>>
 }
 
@@ -47,7 +46,6 @@ export const defaultPrefs: DashboardPrefs = {
   showVoiceFab: false,
   showWsStats: false,
   showThinking: false,
-  carriageReturnDelay: 0,
   toolDisplay: {},
 }
 

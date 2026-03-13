@@ -334,7 +334,7 @@ export async function reviveSession(sessionId: string): Promise<{ success: boole
 }
 
 export async function sendInput(sessionId: string, input: string): Promise<boolean> {
-  const crDelay = useSessionsStore.getState().dashboardPrefs.carriageReturnDelay
+  const crDelay = (useSessionsStore.getState().globalSettings.carriageReturnDelay as number) || 0
   const res = await fetch(`${API_BASE}/sessions/${sessionId}/input`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

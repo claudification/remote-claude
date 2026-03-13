@@ -1,29 +1,28 @@
-import { Bell, BellOff, Cloud, Info, Keyboard, Mic, Monitor } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Bell, BellOff, Cloud, Save } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { getPushStatus, subscribeToPush, useSessionsStore } from '@/hooks/use-sessions'
 import { resolveToolDisplay, TOOL_DISPLAY_KEYS } from '@/lib/dashboard-prefs'
 import { BUILD_VERSION } from '../../../src/shared/version'
 
 // --- Color input with live preview ---
-// 16 curated pastel/muted colors that look good on dark backgrounds
 const PALETTE = [
-  '#f9a8d4', // pink
-  '#f472b6', // hot pink
-  '#c084fc', // purple
-  '#a78bfa', // violet
-  '#818cf8', // indigo
-  '#60a5fa', // blue
-  '#38bdf8', // sky
-  '#22d3ee', // cyan
-  '#2dd4bf', // teal
-  '#4ade80', // green
-  '#a3e635', // lime
-  '#facc15', // yellow
-  '#fbbf24', // amber
-  '#fb923c', // orange
-  '#f87171', // red
-  '#e2e8f0', // slate/white
+  '#f9a8d4',
+  '#f472b6',
+  '#c084fc',
+  '#a78bfa',
+  '#818cf8',
+  '#60a5fa',
+  '#38bdf8',
+  '#22d3ee',
+  '#2dd4bf',
+  '#4ade80',
+  '#a3e635',
+  '#facc15',
+  '#fbbf24',
+  '#fb923c',
+  '#f87171',
+  '#e2e8f0',
 ]
 
 const OPACITY_STEPS = [100, 85, 70, 50, 35, 20, 10, 0]
@@ -71,7 +70,6 @@ function ColorInput({
 
   return (
     <div className="space-y-2">
-      {/* Color swatches */}
       <div className="flex flex-wrap gap-1">
         {PALETTE.map(hex => (
           <button
@@ -86,8 +84,6 @@ function ColorInput({
           />
         ))}
       </div>
-
-      {/* Opacity slider */}
       <div className="flex items-center gap-1">
         <span className="text-[9px] text-muted-foreground w-8 shrink-0">alpha</span>
         <div className="flex gap-0.5 flex-1">
@@ -108,8 +104,6 @@ function ColorInput({
           ))}
         </div>
       </div>
-
-      {/* Preview + reset */}
       <div className="flex items-center gap-2">
         <div className="w-6 h-6 border border-border shrink-0" style={{ backgroundColor: preview }} />
         <span className="text-[10px] font-mono text-muted-foreground flex-1 truncate">{value || defaultColor}</span>
@@ -156,345 +150,52 @@ function SizePicker({ value, onChange }: { value: string; onChange: (v: string) 
   )
 }
 
-// --- Tab components ---
-
-function ServerTab() {
-  const globalSettings = useSessionsStore(s => s.globalSettings)
-  const [idleTimeout, setIdleTimeout] = useState<number>(10)
-  const [userLabel, setUserLabel] = useState('')
-  const [agentLabel, setAgentLabel] = useState('')
-  const [userColor, setUserColor] = useState('')
-  const [agentColor, setAgentColor] = useState('')
-  const [userSize, setUserSize] = useState('')
-  const [agentSize, setAgentSize] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [dirty, setDirty] = useState(false)
-
-  useEffect(() => {
-    const val = globalSettings.idleTimeoutMinutes
-    if (typeof val === 'number') setIdleTimeout(val)
-    if (typeof globalSettings.userLabel === 'string') setUserLabel(globalSettings.userLabel as string)
-    if (typeof globalSettings.agentLabel === 'string') setAgentLabel(globalSettings.agentLabel as string)
-    if (typeof globalSettings.userColor === 'string') setUserColor(globalSettings.userColor as string)
-    if (typeof globalSettings.agentColor === 'string') setAgentColor(globalSettings.agentColor as string)
-    if (typeof globalSettings.userSize === 'string') setUserSize(globalSettings.userSize as string)
-    if (typeof globalSettings.agentSize === 'string') setAgentSize(globalSettings.agentSize as string)
-    setDirty(false)
-  }, [
-    globalSettings.idleTimeoutMinutes,
-    globalSettings.userLabel,
-    globalSettings.agentLabel,
-    globalSettings.userColor,
-    globalSettings.agentColor,
-    globalSettings.userSize,
-    globalSettings.agentSize,
-  ])
-
-  // Global settings are fetched on app mount (app.tsx) - no need to fetch here
-
-  async function save() {
-    setSaving(true)
-    try {
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          idleTimeoutMinutes: idleTimeout,
-          userLabel,
-          agentLabel,
-          userColor,
-          agentColor,
-          userSize,
-          agentSize,
-        }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        useSessionsStore.setState({ globalSettings: data.settings })
-        setDirty(false)
-      }
-    } catch {}
-    setSaving(false)
-  }
-
-  function markDirty() {
-    setDirty(true)
-  }
-
+// --- Cloud icon for server settings ---
+function ServerIcon() {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-sm text-foreground">Idle timeout</div>
-          <div className="text-[10px] text-muted-foreground">Minutes before active session is marked idle</div>
-        </div>
-        <input
-          type="number"
-          min={1}
-          max={120}
-          value={idleTimeout}
-          onChange={e => {
-            setIdleTimeout(Number(e.target.value))
-            markDirty()
-          }}
-          className="w-16 px-2 py-1 text-xs font-mono bg-muted border border-border text-foreground text-right"
-        />
-      </div>
+    <span title="Server setting (shared)">
+      <Cloud className="w-3 h-3 text-blue-400/70 shrink-0" />
+    </span>
+  )
+}
 
-      {/* Label + color pairs */}
-      <div className="space-y-3">
-        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">User tag</div>
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-foreground">Label</div>
-          <input
-            type="text"
-            maxLength={20}
-            value={userLabel}
-            placeholder="USER"
-            onChange={e => {
-              setUserLabel(e.target.value)
-              markDirty()
-            }}
-            className="w-28 px-2 py-1 text-xs font-mono bg-muted border border-border text-foreground text-right placeholder:text-muted-foreground/40"
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-foreground">Size</div>
-          <SizePicker
-            value={userSize}
-            onChange={v => {
-              setUserSize(v)
-              markDirty()
-            }}
-          />
-        </div>
-        <div>
-          <div className="text-sm text-foreground mb-1">Background color</div>
-          <ColorInput
-            value={userColor}
-            onChange={v => {
-              setUserColor(v)
-              markDirty()
-            }}
-            defaultColor="rgba(234,179,8,1)"
-          />
+// --- Setting row wrapper ---
+function SettingRow({
+  label,
+  description,
+  server,
+  children,
+}: {
+  label: string
+  description: string
+  server?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-start gap-1.5 min-w-0">
+        {server && <ServerIcon />}
+        <div className="min-w-0">
+          <div className="text-sm text-foreground">{label}</div>
+          <div className="text-[10px] text-muted-foreground">{description}</div>
         </div>
       </div>
-
-      <div className="space-y-3">
-        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Agent tag</div>
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-foreground">Label</div>
-          <input
-            type="text"
-            maxLength={20}
-            value={agentLabel}
-            placeholder="AGENT"
-            onChange={e => {
-              setAgentLabel(e.target.value)
-              markDirty()
-            }}
-            className="w-28 px-2 py-1 text-xs font-mono bg-muted border border-border text-foreground text-right placeholder:text-muted-foreground/40"
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-foreground">Size</div>
-          <SizePicker
-            value={agentSize}
-            onChange={v => {
-              setAgentSize(v)
-              markDirty()
-            }}
-          />
-        </div>
-        <div>
-          <div className="text-sm text-foreground mb-1">Background color</div>
-          <ColorInput
-            value={agentColor}
-            onChange={v => {
-              setAgentColor(v)
-              markDirty()
-            }}
-            defaultColor="rgba(168,85,247,1)"
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-end pt-1">
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving || !dirty}
-          className={`px-2 py-1 text-[10px] font-mono border transition-colors ${dirty ? 'border-active/50 text-active hover:bg-active/20' : 'border-border text-muted-foreground/40 cursor-not-allowed'}`}
-        >
-          {saving ? '...' : 'Save'}
-        </button>
-      </div>
+      <div className="shrink-0">{children}</div>
     </div>
   )
 }
 
-function DisplayTab() {
-  const prefs = useSessionsStore(s => s.dashboardPrefs)
-  const update = useSessionsStore(s => s.updateDashboardPrefs)
-
+// --- Group header ---
+function GroupHeader({ label }: { label: string }) {
   return (
-    <div className="space-y-3">
-      <label className="flex items-center justify-between cursor-pointer">
-        <div>
-          <div className="text-sm text-foreground">Show inactive sessions</div>
-          <div className="text-[10px] text-muted-foreground">Show ended sessions in sidebar by default</div>
-        </div>
-        <input
-          type="checkbox"
-          checked={prefs.showInactiveByDefault}
-          onChange={e => update({ showInactiveByDefault: e.target.checked })}
-          className="accent-primary w-4 h-4"
-        />
-      </label>
-      <label className="flex items-center justify-between cursor-pointer">
-        <div>
-          <div className="text-sm text-foreground">Compact mode</div>
-          <div className="text-[10px] text-muted-foreground">Reduce spacing in session list</div>
-        </div>
-        <input
-          type="checkbox"
-          checked={prefs.compactMode}
-          onChange={e => update({ compactMode: e.target.checked })}
-          className="accent-primary w-4 h-4"
-        />
-      </label>
-      <label className="flex items-center justify-between cursor-pointer">
-        <div>
-          <div className="text-sm text-foreground">Voice input</div>
-          <div className="text-[10px] text-muted-foreground">Show microphone button in input bar</div>
-        </div>
-        <input
-          type="checkbox"
-          checked={prefs.showVoiceInput}
-          onChange={e => update({ showVoiceInput: e.target.checked })}
-          className="accent-primary w-4 h-4"
-        />
-      </label>
-      <label className="flex items-center justify-between cursor-pointer">
-        <div>
-          <div className="text-sm text-foreground">Voice FAB (mobile)</div>
-          <div className="text-[10px] text-muted-foreground">Floating hold-to-record button on right edge</div>
-        </div>
-        <input
-          type="checkbox"
-          checked={prefs.showVoiceFab}
-          onChange={e => update({ showVoiceFab: e.target.checked })}
-          className="accent-primary w-4 h-4"
-        />
-      </label>
-      <label className="flex items-center justify-between cursor-pointer">
-        <div>
-          <div className="text-sm text-foreground">WS traffic stats</div>
-          <div className="text-[10px] text-muted-foreground">Show msg/s and KB/s in header bar</div>
-        </div>
-        <input
-          type="checkbox"
-          checked={prefs.showWsStats}
-          onChange={e => update({ showWsStats: e.target.checked })}
-          className="accent-primary w-4 h-4"
-        />
-      </label>
-      <label className="flex items-center justify-between cursor-pointer">
-        <div>
-          <div className="text-sm text-foreground">Show thinking</div>
-          <div className="text-[10px] text-muted-foreground">Display model thinking blocks in transcript</div>
-        </div>
-        <input
-          type="checkbox"
-          checked={prefs.showThinking}
-          onChange={e => update({ showThinking: e.target.checked })}
-          className="accent-primary w-4 h-4"
-        />
-      </label>
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-sm text-foreground">CR delay (ms)</div>
-          <div className="text-[10px] text-muted-foreground">Delay before carriage return after paste (0 = auto)</div>
-        </div>
-        <input
-          type="number"
-          min={0}
-          max={2000}
-          step={50}
-          value={prefs.carriageReturnDelay}
-          onChange={e => update({ carriageReturnDelay: Math.max(0, Number(e.target.value) || 0) })}
-          className="w-20 bg-muted border border-border rounded px-2 py-1 text-sm text-foreground text-right"
-        />
-      </div>
-      {/* Per-tool verbose display settings */}
-      <div className="pt-2 border-t border-border">
-        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
-          Tool output (verbose mode)
-        </div>
-        <div className="space-y-1">
-          {TOOL_DISPLAY_KEYS.map(tool => {
-            const effective = resolveToolDisplay(prefs, tool)
-            const custom = prefs.toolDisplay?.[tool]
-            return (
-              <div key={tool} className="flex items-center gap-2 text-xs font-mono">
-                <span className="w-20 text-muted-foreground truncate">{tool}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const td = { ...prefs.toolDisplay }
-                    td[tool] = { ...td[tool], defaultOpen: !effective.defaultOpen }
-                    update({ toolDisplay: td })
-                  }}
-                  className={`px-1.5 py-0.5 text-[9px] border transition-colors ${
-                    effective.defaultOpen
-                      ? 'border-active/50 text-active bg-active/10'
-                      : 'border-border text-muted-foreground'
-                  }`}
-                  title="Default expanded in verbose mode"
-                >
-                  {effective.defaultOpen ? 'open' : 'closed'}
-                </button>
-                <select
-                  value={effective.lineLimit}
-                  onChange={e => {
-                    const td = { ...prefs.toolDisplay }
-                    td[tool] = { ...td[tool], lineLimit: Number(e.target.value) }
-                    update({ toolDisplay: td })
-                  }}
-                  className="bg-card border border-border text-foreground text-[10px] px-1 py-0.5"
-                  title="Line truncation limit (0 = no limit)"
-                >
-                  {[0, 5, 10, 15, 20, 30, 50, 100].map(n => (
-                    <option key={n} value={n}>
-                      {n === 0 ? 'all' : `${n}L`}
-                    </option>
-                  ))}
-                </select>
-                {custom && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const td = { ...prefs.toolDisplay }
-                      delete td[tool]
-                      update({ toolDisplay: td })
-                    }}
-                    className="text-[8px] text-muted-foreground hover:text-foreground"
-                    title="Reset to default"
-                  >
-                    x
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
+    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pt-3 pb-1 border-t border-border first:border-t-0 first:pt-0">
+      {label}
     </div>
   )
 }
 
-function NotificationsTab() {
+// --- Notifications (inline, not a separate tab) ---
+function NotificationsSection() {
   const [pushState, setPushState] = useState<
     'loading' | 'unsupported' | 'prompt' | 'subscribing' | 'subscribed' | 'denied'
   >('loading')
@@ -518,7 +219,6 @@ function NotificationsTab() {
   async function handleReRegister() {
     if (pushState === 'subscribing') return
     setPushState('subscribing')
-    // Unsubscribe existing, then re-subscribe with current VAPID key
     try {
       const reg = await navigator.serviceWorker.getRegistration('/sw.js')
       if (reg) {
@@ -531,7 +231,7 @@ function NotificationsTab() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-sm text-foreground">Push notifications</div>
@@ -573,96 +273,313 @@ function NotificationsTab() {
   )
 }
 
-function ShortcutsTab() {
-  const shortcuts = [
-    ['Command palette', 'Ctrl+K'],
-    ['Toggle sidebar', 'Ctrl+B'],
-    ['Toggle verbose', 'Ctrl+O'],
-    ['Quick note', 'Ctrl+Shift+N'],
-    ['Open terminal', 'Ctrl+Shift+T'],
-    ['Debug console', 'Ctrl+Shift+D'],
-    ['Shortcut help', 'Shift+?'],
-    ['Go home / focus input', 'Escape'],
-  ]
+// --- Shortcuts (inline) ---
+const SHORTCUTS = [
+  ['Command palette', 'Ctrl+K'],
+  ['Toggle sidebar', 'Ctrl+B'],
+  ['Toggle verbose', 'Ctrl+O'],
+  ['Quick note', 'Ctrl+Shift+N'],
+  ['Open terminal', 'Ctrl+Shift+T'],
+  ['Debug console', 'Ctrl+Shift+D'],
+  ['Shortcut help', 'Shift+?'],
+  ['Go home / focus input', 'Escape'],
+]
 
-  return (
-    <div className="space-y-1.5">
-      {shortcuts.map(([name, key]) => (
-        <div key={name} className="flex justify-between text-xs">
-          <span className="text-muted-foreground">{name}</span>
-          <kbd className="px-1.5 py-0.5 bg-muted text-muted-foreground border border-border text-[10px] font-mono">
-            {key}
-          </kbd>
-        </div>
-      ))}
-    </div>
-  )
+// --- Main settings content ---
+
+interface SettingItem {
+  group: string
+  label: string
+  description: string
+  server?: boolean
+  keywords?: string // extra search terms
+  render: (ctx: SettingsContext) => React.ReactNode
 }
 
-function VersionTab() {
-  const buildDate = BUILD_VERSION.buildTime
-    ? new Date(BUILD_VERSION.buildTime).toLocaleString('en-US', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-        hour12: false,
-      })
-    : 'unknown'
+interface SettingsContext {
+  // Server settings (local draft state)
+  server: Record<string, unknown>
+  setServer: (key: string, value: unknown) => void
+  // Client prefs
+  prefs: ReturnType<typeof useSessionsStore.getState>['dashboardPrefs']
+  updatePrefs: ReturnType<typeof useSessionsStore.getState>['updateDashboardPrefs']
+}
 
-  return (
-    <div className="space-y-4 font-mono text-xs">
-      <div className="space-y-2">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">commit</span>
-          <span className="text-active">{BUILD_VERSION.gitHashShort}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">built</span>
-          <span>{buildDate}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">dirty</span>
-          <span>{BUILD_VERSION.dirty ? 'yes' : 'no'}</span>
+const SETTINGS: SettingItem[] = [
+  // --- General ---
+  {
+    group: 'General',
+    label: 'Idle timeout',
+    description: 'Minutes before active session is marked idle',
+    server: true,
+    render: ctx => (
+      <input
+        type="number"
+        min={1}
+        max={120}
+        value={(ctx.server.idleTimeoutMinutes as number) ?? 10}
+        onChange={e => ctx.setServer('idleTimeoutMinutes', Number(e.target.value))}
+        className="w-16 px-2 py-1 text-xs font-mono bg-muted border border-border text-foreground text-right"
+      />
+    ),
+  },
+  {
+    group: 'General',
+    label: 'User label',
+    description: 'Tag shown next to user messages',
+    server: true,
+    keywords: 'tag name',
+    render: ctx => (
+      <input
+        type="text"
+        maxLength={20}
+        value={(ctx.server.userLabel as string) ?? ''}
+        placeholder="USER"
+        onChange={e => ctx.setServer('userLabel', e.target.value)}
+        className="w-28 px-2 py-1 text-xs font-mono bg-muted border border-border text-foreground text-right placeholder:text-muted-foreground/40"
+      />
+    ),
+  },
+  {
+    group: 'General',
+    label: 'User tag size',
+    description: 'Size of the user label badge',
+    server: true,
+    render: ctx => (
+      <SizePicker value={(ctx.server.userSize as string) ?? ''} onChange={v => ctx.setServer('userSize', v)} />
+    ),
+  },
+  {
+    group: 'General',
+    label: 'User tag color',
+    description: 'Background color for user label',
+    server: true,
+    keywords: 'colour background',
+    render: ctx => (
+      <div className="w-full">
+        <ColorInput
+          value={(ctx.server.userColor as string) ?? ''}
+          onChange={v => ctx.setServer('userColor', v)}
+          defaultColor="rgba(234,179,8,1)"
+        />
+      </div>
+    ),
+  },
+  {
+    group: 'General',
+    label: 'Agent label',
+    description: 'Tag shown next to agent messages',
+    server: true,
+    keywords: 'tag name',
+    render: ctx => (
+      <input
+        type="text"
+        maxLength={20}
+        value={(ctx.server.agentLabel as string) ?? ''}
+        placeholder="AGENT"
+        onChange={e => ctx.setServer('agentLabel', e.target.value)}
+        className="w-28 px-2 py-1 text-xs font-mono bg-muted border border-border text-foreground text-right placeholder:text-muted-foreground/40"
+      />
+    ),
+  },
+  {
+    group: 'General',
+    label: 'Agent tag size',
+    description: 'Size of the agent label badge',
+    server: true,
+    render: ctx => (
+      <SizePicker value={(ctx.server.agentSize as string) ?? ''} onChange={v => ctx.setServer('agentSize', v)} />
+    ),
+  },
+  {
+    group: 'General',
+    label: 'Agent tag color',
+    description: 'Background color for agent label',
+    server: true,
+    keywords: 'colour background',
+    render: ctx => (
+      <div className="w-full">
+        <ColorInput
+          value={(ctx.server.agentColor as string) ?? ''}
+          onChange={v => ctx.setServer('agentColor', v)}
+          defaultColor="rgba(168,85,247,1)"
+        />
+      </div>
+    ),
+  },
+  // --- Input ---
+  {
+    group: 'Input',
+    label: 'CR delay',
+    description: 'Delay (ms) before carriage return after paste (0 = auto)',
+    server: true,
+    keywords: 'carriage return paste delay',
+    render: ctx => (
+      <input
+        type="number"
+        min={0}
+        max={2000}
+        step={50}
+        value={(ctx.server.carriageReturnDelay as number) ?? 0}
+        onChange={e => ctx.setServer('carriageReturnDelay', Math.max(0, Number(e.target.value) || 0))}
+        className="w-20 bg-muted border border-border px-2 py-1 text-xs font-mono text-foreground text-right"
+      />
+    ),
+  },
+  {
+    group: 'Input',
+    label: 'Voice input',
+    description: 'Show microphone button in input bar',
+    keywords: 'mic microphone',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.showVoiceInput}
+        onChange={e => ctx.updatePrefs({ showVoiceInput: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
+  {
+    group: 'Input',
+    label: 'Voice FAB (mobile)',
+    description: 'Floating hold-to-record button on right edge',
+    keywords: 'mic microphone fab',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.showVoiceFab}
+        onChange={e => ctx.updatePrefs({ showVoiceFab: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
+  // --- Voice ---
+  {
+    group: 'Voice',
+    label: 'LLM refinement',
+    description: 'Post-process voice transcripts with Haiku to fix ASR errors',
+    server: true,
+    keywords: 'speech recognition',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={(ctx.server.voiceRefinement as boolean) ?? true}
+        onChange={e => ctx.setServer('voiceRefinement', e.target.checked)}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
+  {
+    group: 'Voice',
+    label: 'Refinement prompt',
+    description: 'Custom system prompt for voice refinement (leave empty for default)',
+    server: true,
+    keywords: 'speech recognition prompt',
+    render: ctx => (
+      <div className="w-full">
+        <textarea
+          value={(ctx.server.voiceRefinementPrompt as string) ?? ''}
+          onChange={e => ctx.setServer('voiceRefinementPrompt', e.target.value)}
+          placeholder="You are an expert ASR post-processor..."
+          rows={4}
+          className="w-full px-3 py-2 text-xs font-mono bg-muted border border-border text-foreground placeholder:text-muted-foreground/30 resize-y min-h-[60px]"
+        />
+        <div className="text-[9px] text-muted-foreground/50 text-right mt-0.5">
+          {((ctx.server.voiceRefinementPrompt as string) ?? '').length}/2000
         </div>
       </div>
+    ),
+  },
+  // --- Display ---
+  {
+    group: 'Display',
+    label: 'Show inactive sessions',
+    description: 'Show ended sessions in sidebar by default',
+    keywords: 'sidebar ended',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.showInactiveByDefault}
+        onChange={e => ctx.updatePrefs({ showInactiveByDefault: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
+  {
+    group: 'Display',
+    label: 'Compact mode',
+    description: 'Reduce spacing in session list',
+    keywords: 'dense',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.compactMode}
+        onChange={e => ctx.updatePrefs({ compactMode: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
+  {
+    group: 'Display',
+    label: 'Show thinking',
+    description: 'Display model thinking blocks in transcript',
+    keywords: 'reasoning',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.showThinking}
+        onChange={e => ctx.updatePrefs({ showThinking: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
+  {
+    group: 'Display',
+    label: 'WS traffic stats',
+    description: 'Show msg/s and KB/s in header bar',
+    keywords: 'websocket bandwidth',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.showWsStats}
+        onChange={e => ctx.updatePrefs({ showWsStats: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
+]
 
-      {BUILD_VERSION.recentCommits?.length > 0 && (
-        <div className="border-t border-border pt-3">
-          <div className="text-muted-foreground mb-2 uppercase tracking-wider text-[10px]">Recent commits</div>
-          <div className="space-y-1.5">
-            {BUILD_VERSION.recentCommits.map(c => (
-              <div key={c.hash} className="flex gap-2">
-                <span className="text-active shrink-0">{c.hash}</span>
-                <span className="text-foreground/70 truncate">{c.message}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function VoiceTab() {
+export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [filter, setFilter] = useState('')
   const globalSettings = useSessionsStore(s => s.globalSettings)
-  const [refinement, setRefinement] = useState(true)
-  const [prompt, setPrompt] = useState('')
-  const [saving, setSaving] = useState(false)
+  const prefs = useSessionsStore(s => s.dashboardPrefs)
+  const updatePrefs = useSessionsStore(s => s.updateDashboardPrefs)
+
+  // Local draft of server settings (only committed on Save)
+  const [serverDraft, setServerDraft] = useState<Record<string, unknown>>({})
   const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const filterRef = useRef<HTMLInputElement>(null)
 
+  // Sync draft from server on open or when globalSettings change
   useEffect(() => {
-    if (typeof globalSettings.voiceRefinement === 'boolean') setRefinement(globalSettings.voiceRefinement)
-    if (typeof globalSettings.voiceRefinementPrompt === 'string')
-      setPrompt(globalSettings.voiceRefinementPrompt as string)
+    setServerDraft({ ...globalSettings })
     setDirty(false)
-  }, [globalSettings.voiceRefinement, globalSettings.voiceRefinementPrompt])
+  }, [globalSettings])
 
-  async function save() {
+  function setServer(key: string, value: unknown) {
+    setServerDraft(prev => ({ ...prev, [key]: value }))
+    setDirty(true)
+  }
+
+  async function handleSave() {
     setSaving(true)
     try {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ voiceRefinement: refinement, voiceRefinementPrompt: prompt }),
+        body: JSON.stringify(serverDraft),
       })
       if (res.ok) {
         const data = await res.json()
@@ -673,105 +590,260 @@ function VoiceTab() {
     setSaving(false)
   }
 
-  return (
-    <div className="space-y-4">
-      <label className="flex items-center justify-between cursor-pointer">
-        <div>
-          <div className="text-sm text-foreground">LLM refinement</div>
-          <div className="text-[10px] text-muted-foreground">
-            Post-process voice transcripts with Haiku to fix ASR errors
-          </div>
-        </div>
-        <input
-          type="checkbox"
-          checked={refinement}
-          onChange={e => {
-            setRefinement(e.target.checked)
-            setDirty(true)
-          }}
-          className="accent-primary w-4 h-4"
-        />
-      </label>
+  const ctx: SettingsContext = {
+    server: serverDraft,
+    setServer,
+    prefs,
+    updatePrefs,
+  }
 
-      {refinement && (
-        <div>
-          <div className="text-sm text-foreground mb-1">Refinement prompt</div>
-          <div className="text-[10px] text-muted-foreground mb-2">
-            Custom system prompt for the refinement step. Leave empty for default ASR post-processor.
-          </div>
-          <textarea
-            value={prompt}
-            onChange={e => {
-              setPrompt(e.target.value)
-              setDirty(true)
-            }}
-            placeholder="You are an expert ASR post-processor..."
-            rows={6}
-            className="w-full px-3 py-2 text-xs font-mono bg-muted border border-border text-foreground placeholder:text-muted-foreground/30 resize-y min-h-[80px]"
-          />
-          <div className="text-[9px] text-muted-foreground/50 text-right mt-0.5">{prompt.length}/2000</div>
-        </div>
-      )}
+  // Filter settings
+  const lowerFilter = filter.toLowerCase()
+  const filtered = useMemo(() => {
+    if (!lowerFilter) return SETTINGS
+    return SETTINGS.filter(
+      s =>
+        s.label.toLowerCase().includes(lowerFilter) ||
+        s.description.toLowerCase().includes(lowerFilter) ||
+        s.group.toLowerCase().includes(lowerFilter) ||
+        (s.keywords && s.keywords.toLowerCase().includes(lowerFilter)),
+    )
+  }, [lowerFilter])
 
-      <div className="flex justify-end pt-1">
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving || !dirty}
-          className={`px-2 py-1 text-[10px] font-mono border transition-colors ${dirty ? 'border-active/50 text-active hover:bg-active/20' : 'border-border text-muted-foreground/40 cursor-not-allowed'}`}
-        >
-          {saving ? '...' : 'Save'}
-        </button>
-      </div>
-    </div>
-  )
-}
+  // Group filtered settings
+  const groups = useMemo(() => {
+    const map = new Map<string, SettingItem[]>()
+    for (const item of filtered) {
+      const existing = map.get(item.group)
+      if (existing) existing.push(item)
+      else map.set(item.group, [item])
+    }
+    return map
+  }, [filtered])
 
-const settingsTabs = [
-  { id: 'server', label: 'Server', icon: Cloud, component: ServerTab },
-  { id: 'display', label: 'Display', icon: Monitor, component: DisplayTab },
-  { id: 'voice', label: 'Voice', icon: Mic, component: VoiceTab },
-  { id: 'notify', label: 'Notify', icon: Bell, component: NotificationsTab },
-  { id: 'keys', label: 'Keys', icon: Keyboard, component: ShortcutsTab },
-  { id: 'version', label: 'Version', icon: Info, component: VersionTab },
-] as const
+  // Focus filter on open
+  useEffect(() => {
+    if (open) setTimeout(() => filterRef.current?.focus(), 50)
+  }, [open])
 
-export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const [activeTab, setActiveTab] = useState<string>('server')
-
-  const ActiveComponent = settingsTabs.find(t => t.id === activeTab)?.component ?? ServerTab
+  const buildDate = BUILD_VERSION.buildTime
+    ? new Date(BUILD_VERSION.buildTime).toLocaleString('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        hour12: false,
+      })
+    : 'unknown'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-0 gap-0">
+      <DialogContent className="max-w-md p-0 gap-0 max-h-[85vh] flex flex-col">
         <DialogTitle className="uppercase tracking-wider px-6 pt-6 pb-0">Settings</DialogTitle>
 
-        {/* Tab bar - scrollable on mobile */}
-        <div className="relative mt-4">
-          <div className="flex border-b border-border px-6 overflow-x-auto scrollbar-hide">
-            {settingsTabs.map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-mono transition-colors border-b-2 -mb-px whitespace-nowrap shrink-0 ${
-                  activeTab === tab.id
-                    ? 'border-active text-active'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <tab.icon className="w-3 h-3" />
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          {/* Scroll fade indicator */}
-          <div className="absolute right-0 top-0 bottom-px w-8 bg-gradient-to-l from-background to-transparent pointer-events-none sm:hidden" />
+        {/* Filter input */}
+        <div className="px-6 pt-4 pb-2">
+          <input
+            ref={filterRef}
+            type="text"
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            placeholder="Filter settings..."
+            className="w-full px-3 py-1.5 text-xs font-mono bg-muted border border-border text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-ring"
+          />
         </div>
 
-        {/* Tab content */}
-        <div className="px-6 py-5 min-h-[200px]">
-          <ActiveComponent />
+        {/* Scrollable settings list */}
+        <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-3">
+          {Array.from(groups.entries()).map(([group, items]) => (
+            <div key={group}>
+              <GroupHeader label={group} />
+              <div className="space-y-3">
+                {items.map(item => {
+                  const rendered = item.render(ctx)
+                  // Full-width items (color pickers, textareas) get stacked layout
+                  const isFullWidth =
+                    item.label.includes('color') || item.label.includes('Color') || item.label === 'Refinement prompt'
+                  if (isFullWidth) {
+                    return (
+                      <div key={item.label}>
+                        <div className="flex items-start gap-1.5 mb-1">
+                          {item.server && <ServerIcon />}
+                          <div>
+                            <div className="text-sm text-foreground">{item.label}</div>
+                            <div className="text-[10px] text-muted-foreground">{item.description}</div>
+                          </div>
+                        </div>
+                        {rendered}
+                      </div>
+                    )
+                  }
+                  return (
+                    <SettingRow key={item.label} label={item.label} description={item.description} server={item.server}>
+                      {rendered}
+                    </SettingRow>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+
+          {/* Tool output -- only show when not filtered or filter matches */}
+          {(!lowerFilter ||
+            'tool output verbose'.includes(lowerFilter) ||
+            TOOL_DISPLAY_KEYS.some(t => t.toLowerCase().includes(lowerFilter))) && (
+            <div>
+              <GroupHeader label="Tool output" />
+              <div className="space-y-1">
+                {TOOL_DISPLAY_KEYS.filter(
+                  t =>
+                    !lowerFilter ||
+                    t.toLowerCase().includes(lowerFilter) ||
+                    'tool output verbose'.includes(lowerFilter),
+                ).map(tool => {
+                  const effective = resolveToolDisplay(prefs, tool)
+                  const custom = prefs.toolDisplay?.[tool]
+                  return (
+                    <div key={tool} className="flex items-center gap-2 text-xs font-mono">
+                      <span className="w-20 text-muted-foreground truncate">{tool}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const td = { ...prefs.toolDisplay }
+                          td[tool] = { ...td[tool], defaultOpen: !effective.defaultOpen }
+                          updatePrefs({ toolDisplay: td })
+                        }}
+                        className={`px-1.5 py-0.5 text-[9px] border transition-colors ${
+                          effective.defaultOpen
+                            ? 'border-active/50 text-active bg-active/10'
+                            : 'border-border text-muted-foreground'
+                        }`}
+                        title="Default expanded in verbose mode"
+                      >
+                        {effective.defaultOpen ? 'open' : 'closed'}
+                      </button>
+                      <select
+                        value={effective.lineLimit}
+                        onChange={e => {
+                          const td = { ...prefs.toolDisplay }
+                          td[tool] = { ...td[tool], lineLimit: Number(e.target.value) }
+                          updatePrefs({ toolDisplay: td })
+                        }}
+                        className="bg-card border border-border text-foreground text-[10px] px-1 py-0.5"
+                        title="Line truncation limit (0 = no limit)"
+                      >
+                        {[0, 5, 10, 15, 20, 30, 50, 100].map(n => (
+                          <option key={n} value={n}>
+                            {n === 0 ? 'all' : `${n}L`}
+                          </option>
+                        ))}
+                      </select>
+                      {custom && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const td = { ...prefs.toolDisplay }
+                            delete td[tool]
+                            updatePrefs({ toolDisplay: td })
+                          }}
+                          className="text-[8px] text-muted-foreground hover:text-foreground"
+                          title="Reset to default"
+                        >
+                          x
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Notifications */}
+          {(!lowerFilter || 'notifications push notify bell'.includes(lowerFilter)) && (
+            <div>
+              <GroupHeader label="Notifications" />
+              <NotificationsSection />
+            </div>
+          )}
+
+          {/* Shortcuts */}
+          {(!lowerFilter ||
+            'shortcuts keyboard keys hotkey'.includes(lowerFilter) ||
+            SHORTCUTS.some(
+              ([n, k]) => n.toLowerCase().includes(lowerFilter) || k.toLowerCase().includes(lowerFilter),
+            )) && (
+            <div>
+              <GroupHeader label="Shortcuts" />
+              <div className="space-y-1.5">
+                {SHORTCUTS.filter(
+                  ([n, k]) =>
+                    !lowerFilter ||
+                    n.toLowerCase().includes(lowerFilter) ||
+                    k.toLowerCase().includes(lowerFilter) ||
+                    'shortcuts keyboard keys hotkey'.includes(lowerFilter),
+                ).map(([name, key]) => (
+                  <div key={name} className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">{name}</span>
+                    <kbd className="px-1.5 py-0.5 bg-muted text-muted-foreground border border-border text-[10px] font-mono">
+                      {key}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Version */}
+          {(!lowerFilter || 'version build commit'.includes(lowerFilter)) && (
+            <div>
+              <GroupHeader label="Version" />
+              <div className="space-y-2 font-mono text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">commit</span>
+                  <span className="text-active">{BUILD_VERSION.gitHashShort}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">built</span>
+                  <span>{buildDate}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">dirty</span>
+                  <span>{BUILD_VERSION.dirty ? 'yes' : 'no'}</span>
+                </div>
+                {BUILD_VERSION.recentCommits?.length > 0 && (
+                  <div className="border-t border-border pt-2">
+                    <div className="text-muted-foreground mb-1.5 uppercase tracking-wider text-[10px]">
+                      Recent commits
+                    </div>
+                    <div className="space-y-1">
+                      {BUILD_VERSION.recentCommits.map(c => (
+                        <div key={c.hash} className="flex gap-2">
+                          <span className="text-active shrink-0">{c.hash}</span>
+                          <span className="text-foreground/70 truncate">{c.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Sticky save button at bottom */}
+        <div className="px-6 py-3 border-t border-border flex justify-end">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !dirty}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono border transition-colors ${
+              dirty
+                ? 'border-active/50 text-active hover:bg-active/20'
+                : 'border-border text-muted-foreground/40 cursor-not-allowed'
+            }`}
+          >
+            <Save className="w-3 h-3" />
+            {saving ? 'Saving...' : 'Save'}
+          </button>
         </div>
       </DialogContent>
     </Dialog>
