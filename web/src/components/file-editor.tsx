@@ -4,7 +4,7 @@
  */
 
 import { AlertTriangle, ChevronLeft, Clock, Eye, FileText, Loader2, Pencil, RefreshCw, Save } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { type FileInfo, useFileEditor } from '@/hooks/use-file-editor'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { cn } from '@/lib/utils'
@@ -162,7 +162,7 @@ function EditorPane({ content, onChange }: { content: string; onChange: (value: 
   return <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />
 }
 
-export function FileEditor({ sessionId }: { sessionId: string }) {
+export const FileEditor = memo(function FileEditor({ sessionId }: { sessionId: string }) {
   const {
     files,
     activeFile,
@@ -365,4 +365,4 @@ export function FileEditor({ sessionId }: { sessionId: string }) {
       </div>
     </div>
   )
-}
+})
