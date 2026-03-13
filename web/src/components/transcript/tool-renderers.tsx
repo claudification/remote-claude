@@ -11,7 +11,13 @@ import { escapeHtml } from './shared'
 import { ensureLang, getHighlighter, langFromPath } from './syntax'
 
 // Syntax-highlighted diff view for Edit operations
-export function DiffView({ patches, filePath }: { patches: Array<{ oldStart: number; lines: string[] }>; filePath?: string }) {
+export function DiffView({
+  patches,
+  filePath,
+}: {
+  patches: Array<{ oldStart: number; lines: string[] }>
+  filePath?: string
+}) {
   const [highlighted, setHighlighted] = useState<Map<string, string> | null>(null)
   const [revealed, setRevealed] = useState(false)
   const prefs = useSessionsStore(s => s.dashboardPrefs)
@@ -68,11 +74,18 @@ export function DiffView({ patches, filePath }: { patches: Array<{ oldStart: num
       <pre className="text-[10px] font-mono overflow-x-auto">
         {visibleLines.map((line, j) => {
           if (line.hunkHeader) {
-            return <div key={j} className="text-muted-foreground">{line.hunkHeader}</div>
+            return (
+              <div key={j} className="text-muted-foreground">
+                {line.hunkHeader}
+              </div>
+            )
           }
           const syntaxHtml = highlighted?.get(line.content)
           return (
-            <div key={j} className={cn(line.prefix === '+' && 'bg-green-500/10', line.prefix === '-' && 'bg-red-500/10')}>
+            <div
+              key={j}
+              className={cn(line.prefix === '+' && 'bg-green-500/10', line.prefix === '-' && 'bg-red-500/10')}
+            >
               <span
                 className={cn(
                   line.prefix === '+' && 'text-green-400',

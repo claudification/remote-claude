@@ -201,7 +201,11 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
     for (const entry of newEntries) {
       if (entry.type === 'compacting' || entry.type === 'compacted') {
         lastGroup = null
-        const g: DisplayGroup = { type: entry.type as 'compacting' | 'compacted', timestamp: entry.timestamp || '', entries: [entry] }
+        const g: DisplayGroup = {
+          type: entry.type as 'compacting' | 'compacted',
+          timestamp: entry.timestamp || '',
+          entries: [entry],
+        }
         newGroups.push(g)
         continue
       }
@@ -220,10 +224,18 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
           typeof content === 'string'
             ? content
             : Array.isArray(content)
-              ? content.filter(c => c.type === 'text').map(c => c.text).join('')
+              ? content
+                  .filter(c => c.type === 'text')
+                  .map(c => c.text)
+                  .join('')
               : ''
         if (textContent.includes('<system-reminder>')) continue
-        if (textContent.includes('<command-name>') || textContent.includes('<local-command-caveat>') || textContent.includes('<local-command-stdout>')) continue
+        if (
+          textContent.includes('<command-name>') ||
+          textContent.includes('<local-command-caveat>') ||
+          textContent.includes('<local-command-stdout>')
+        )
+          continue
         if (textContent.includes('<task-notification>')) {
           const notifications = parseTaskNotifications(textContent)
           if (notifications.length > 0) {
@@ -236,7 +248,10 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
 
       if (Array.isArray(content)) {
         const hasContent = content.some(
-          c => (c.type === 'text' && c.text?.trim()) || (c.type === 'thinking' && (c.thinking?.trim() || c.text?.trim())) || c.type === 'tool_use',
+          c =>
+            (c.type === 'text' && c.text?.trim()) ||
+            (c.type === 'thinking' && (c.thinking?.trim() || c.text?.trim())) ||
+            c.type === 'tool_use',
         )
         if (!hasContent) continue
       }

@@ -8,8 +8,8 @@ import { fetchSubagentTranscript, useSessionsStore } from '@/hooks/use-sessions'
 import type { TranscriptContentBlock, TranscriptEntry } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Markdown } from '../markdown'
+import { buildResultMap, type DisplayGroup, groupEntries } from './grouping'
 import { Collapsible } from './shared'
-import { buildResultMap, groupEntries, type DisplayGroup } from './grouping'
 import { ToolLine } from './tool-line'
 
 // Inline expandable agent transcript - live via store subscription + HTTP seed

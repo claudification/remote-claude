@@ -236,9 +236,7 @@ export function ToolLine({
       const taskId = (input.taskId || input.id || input.task_id) as string
       summary = taskId ? `#${taskId}` : ''
       if (result) {
-        details = (
-          <pre className="text-[10px] text-muted-foreground overflow-x-auto">{truncate(result, 500)}</pre>
-        )
+        details = <pre className="text-[10px] text-muted-foreground overflow-x-auto">{truncate(result, 500)}</pre>
       }
       break
     }
