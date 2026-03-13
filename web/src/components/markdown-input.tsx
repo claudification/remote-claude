@@ -96,6 +96,7 @@ export function MarkdownInput({
 
   const [expanded, setExpanded] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [pasteChoice, setPasteChoice] = useState<{ file: File } | null>(null)
   const [showVoiceOverlay, setShowVoiceOverlay] = useState(false)
   const [holdToRecord, setHoldToRecord] = useState(false) // true = voice overlay in hold-to-record mode
   const holdActiveRef = useRef(false) // track across renders for touchend handler
@@ -326,14 +327,35 @@ export function MarkdownInput({
     const items = e.clipboardData?.items
     if (!items) return
 
+    // Check what formats are available
+    let hasImage = false
+    let hasText = false
+    let imageItem: DataTransferItem | null = null
     for (const item of items) {
       if (item.type.startsWith('image/') || item.type.startsWith('application/')) {
-        e.preventDefault()
-        const file = item.getAsFile()
-        if (file) uploadFile(file)
-        return
+        hasImage = true
+        imageItem = item
       }
+      if (item.type === 'text/plain') hasText = true
     }
+
+    // Both image and text available - ask user
+    if (hasImage && hasText && imageItem) {
+      e.preventDefault()
+      const file = imageItem.getAsFile()
+      if (!file) return
+      setPasteChoice({ file })
+      return
+    }
+
+    // Only image - upload directly
+    if (hasImage && imageItem) {
+      e.preventDefault()
+      const file = imageItem.getAsFile()
+      if (file) uploadFile(file)
+      return
+    }
+    // Text only - let default paste behavior handle it
   }
 
   function handleDrop(e: React.DragEvent<HTMLTextAreaElement>) {
@@ -654,6 +676,50 @@ export function MarkdownInput({
   // Normal inline mode
   return (
     <div ref={containerRef} className={cn('relative grid', className)}>
+      {/* Paste format picker - shown when clipboard has both image and text */}
+      {pasteChoice && (
+        <div className="absolute -top-9 left-0 right-0 z-20 flex items-center gap-2 px-2 py-1.5 bg-background border border-border rounded-t shadow-lg">
+          <span className="text-[10px] text-muted-foreground font-mono">Paste as:</span>
+          <button
+            type="button"
+            className="text-[10px] font-mono px-2 py-0.5 bg-accent/20 hover:bg-accent/40 text-accent rounded"
+            onClick={() => {
+              haptic('tap')
+              uploadFile(pasteChoice.file)
+              setPasteChoice(null)
+            }}
+          >
+            Image
+          </button>
+          <button
+            type="button"
+            className="text-[10px] font-mono px-2 py-0.5 bg-muted hover:bg-muted/80 text-foreground rounded"
+            onClick={() => {
+              haptic('tap')
+              // Read text from clipboard and insert
+              navigator.clipboard.readText().then(text => {
+                if (text && textareaRef.current) {
+                  const ta = textareaRef.current
+                  const start = ta.selectionStart
+                  const end = ta.selectionEnd
+                  const newVal = value.slice(0, start) + text + value.slice(end)
+                  onChange(newVal)
+                }
+              })
+              setPasteChoice(null)
+            }}
+          >
+            Text
+          </button>
+          <button
+            type="button"
+            className="text-[10px] text-muted-foreground hover:text-foreground ml-auto"
+            onClick={() => setPasteChoice(null)}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
       {/* Drag-over overlay */}
       {dragOver && (
         <div className="absolute inset-0 z-10 border-2 border-dashed border-accent bg-accent/10 rounded flex items-center justify-center pointer-events-none">
