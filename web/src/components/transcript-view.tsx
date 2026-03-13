@@ -115,9 +115,8 @@ function getToolStyle(name: string) {
   return TOOL_STYLES[name] || (name.startsWith('mcp__') ? MCP_TOOL_STYLE : DEFAULT_TOOL_STYLE)
 }
 
-// Module-level state that survives virtualizer unmount/remount cycles
-const expandedState = new Set<string>()
-const defaultOpenApplied = new Set<string>()
+// Module-level state that survives virtualizer unmount/remount cycles (lives in separate module to avoid circular deps)
+import { defaultOpenApplied, expandedState } from '@/lib/expanded-state'
 
 function Collapsible({
   id,

@@ -16,6 +16,7 @@ import type {
   TaskInfo,
   TranscriptEntry,
 } from '@/lib/types'
+import { clearExpandedState } from '@/lib/expanded-state'
 import { recordOut } from './ws-stats'
 export type { ProjectSettingsMap }
 
@@ -32,10 +33,21 @@ export function onBgTaskOutput(listener: (taskId: string) => void): () => void {
   return () => bgTaskOutputListeners.delete(listener)
 }
 
+const BG_TASK_OUTPUT_MAX = 100 * 1024 // 100KB per task
+
 export function handleBgTaskOutputMessage(msg: { taskId: string; data: string; done: boolean }) {
   if (msg.data) {
-    const existing = bgTaskOutputMap.get(msg.taskId) || ''
-    bgTaskOutputMap.set(msg.taskId, existing + msg.data)
+    let existing = bgTaskOutputMap.get(msg.taskId) || ''
+    existing += msg.data
+    // Cap at 100KB - keep the tail (most recent output)
+    if (existing.length > BG_TASK_OUTPUT_MAX) {
+      existing = existing.slice(-BG_TASK_OUTPUT_MAX)
+    }
+    bgTaskOutputMap.set(msg.taskId, existing)
+  }
+  if (msg.done) {
+    // Clean up after a delay to let UI read final output
+    setTimeout(() => bgTaskOutputMap.delete(msg.taskId), 60_000)
   }
   for (const listener of bgTaskOutputListeners) {
     listener(msg.taskId)
@@ -189,14 +201,30 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 
   setSessions: sessions => set({ sessions }),
   selectSession: id => {
+    clearExpandedState()
     set(state => {
       const mru = id ? [id, ...state.sessionMru.filter(s => s !== id)] : state.sessionMru
+      // Evict cached data for non-selected sessions to prevent memory bloat
+      const events: Record<string, HookEvent[]> = {}
+      const transcripts: Record<string, TranscriptEntry[]> = {}
+      const subagentTranscripts: Record<string, TranscriptEntry[]> = {}
+      if (id) {
+        // Keep only selected session's data
+        if (state.events[id]) events[id] = state.events[id]
+        if (state.transcripts[id]) transcripts[id] = state.transcripts[id]
+        for (const key of Object.keys(state.subagentTranscripts)) {
+          if (key.startsWith(`${id}:`)) subagentTranscripts[key] = state.subagentTranscripts[key]
+        }
+      }
       return {
         selectedSessionId: id,
         selectedSubagentId: null,
         requestedTab: 'transcript',
         requestedTabSeq: state.requestedTabSeq + 1,
         sessionMru: mru,
+        events,
+        transcripts,
+        subagentTranscripts,
       }
     })
     updateHash(id ? `session/${id}` : '')
