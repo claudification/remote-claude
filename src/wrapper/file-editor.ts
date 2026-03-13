@@ -225,7 +225,15 @@ export class FileEditor {
       // File doesn't exist yet, that's fine
     }
 
-    const line = `- [ ] ${text}\n`
+    // Indent continuation lines to stay within the markdown list item (6 chars = "- [ ] ")
+    const parts = text.split('\n')
+    const line =
+      parts.length === 1
+        ? `- [ ] ${text}\n`
+        : `- [ ] ${parts[0]}\n${parts
+            .slice(1)
+            .map(l => `      ${l}`)
+            .join('\n')}\n`
     const content = existing ? (existing.endsWith('\n') ? existing + line : `${existing}\n${line}`) : line
 
     // No skip flag for quick notes - we want watchers to see this change
