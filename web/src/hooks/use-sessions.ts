@@ -202,6 +202,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   setSessions: sessions => set({ sessions }),
   selectSession: id => {
     clearExpandedState()
+    const defaultView = get().globalSettings.defaultView as string
     set(state => {
       const mru = id ? [id, ...state.sessionMru.filter(s => s !== id)] : state.sessionMru
       // Evict cached data for non-selected sessions to prevent memory bloat
@@ -227,6 +228,14 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         subagentTranscripts,
       }
     })
+    // Auto-open terminal if defaultView is TTY and session supports it
+    if (id && defaultView === 'tty') {
+      const session = get().sessions.find(s => s.id === id)
+      if (session?.wrapperIds?.[0] && session.capabilities?.includes('terminal')) {
+        get().openTerminal(session.wrapperIds[0])
+        return
+      }
+    }
     updateHash(id ? `session/${id}` : '')
   },
   selectSubagent: agentId => {
