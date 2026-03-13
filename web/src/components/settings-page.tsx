@@ -1,8 +1,9 @@
-import { Bell, BellOff, Cloud, Keyboard, Monitor } from 'lucide-react'
+import { Bell, BellOff, Cloud, Info, Keyboard, Monitor } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { getPushStatus, subscribeToPush, useSessionsStore } from '@/hooks/use-sessions'
 import { resolveToolDisplay, TOOL_DISPLAY_KEYS } from '@/lib/dashboard-prefs'
+import { BUILD_VERSION } from '../../../src/shared/version'
 
 // --- Color input with live preview ---
 // 16 curated pastel/muted colors that look good on dark backgrounds
@@ -571,11 +572,55 @@ function ShortcutsTab() {
   )
 }
 
+function VersionTab() {
+  const buildDate = BUILD_VERSION.buildTime
+    ? new Date(BUILD_VERSION.buildTime).toLocaleString('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        hour12: false,
+      })
+    : 'unknown'
+
+  return (
+    <div className="space-y-4 font-mono text-xs">
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">commit</span>
+          <span className="text-active">{BUILD_VERSION.gitHashShort}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">built</span>
+          <span>{buildDate}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">dirty</span>
+          <span>{BUILD_VERSION.dirty ? 'yes' : 'no'}</span>
+        </div>
+      </div>
+
+      {BUILD_VERSION.recentCommits?.length > 0 && (
+        <div className="border-t border-border pt-3">
+          <div className="text-muted-foreground mb-2 uppercase tracking-wider text-[10px]">Recent commits</div>
+          <div className="space-y-1.5">
+            {BUILD_VERSION.recentCommits.map(c => (
+              <div key={c.hash} className="flex gap-2">
+                <span className="text-active shrink-0">{c.hash}</span>
+                <span className="text-foreground/70 truncate">{c.message}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const settingsTabs = [
   { id: 'server', label: 'Server', icon: Cloud, component: ServerTab },
   { id: 'display', label: 'Display', icon: Monitor, component: DisplayTab },
   { id: 'notify', label: 'Notify', icon: Bell, component: NotificationsTab },
   { id: 'keys', label: 'Keys', icon: Keyboard, component: ShortcutsTab },
+  { id: 'version', label: 'Version', icon: Info, component: VersionTab },
 ] as const
 
 export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
