@@ -151,7 +151,8 @@ function Dashboard() {
         }
       }
       // Ctrl+Shift+Alt+N - open NOTES.md in file editor
-      if (e.ctrlKey && e.shiftKey && e.altKey && e.key === 'N') {
+      // Use e.code instead of e.key because Alt on macOS remaps key to special chars
+      if (e.ctrlKey && e.shiftKey && e.altKey && e.code === 'KeyN') {
         e.preventDefault()
         const store = useSessionsStore.getState()
         if (store.selectedSessionId) {

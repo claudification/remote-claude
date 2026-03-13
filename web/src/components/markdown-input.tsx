@@ -329,22 +329,32 @@ export function MarkdownInput({
 
     // Check what formats are available
     let hasImage = false
-    let hasText = false
     let imageItem: DataTransferItem | null = null
+    let textItem: DataTransferItem | null = null
     for (const item of items) {
-      if (item.type.startsWith('image/') || item.type.startsWith('application/')) {
+      if (item.type.startsWith('image/')) {
         hasImage = true
         imageItem = item
       }
-      if (item.type === 'text/plain') hasText = true
+      if (item.type === 'text/plain') textItem = item
     }
 
-    // Both image and text available - ask user
-    if (hasImage && hasText && imageItem) {
+    // Both image and text available - check if text is meaningful (not just a filename)
+    // macOS puts filenames as text/plain when copying screenshots or files
+    if (hasImage && textItem && imageItem) {
       e.preventDefault()
       const file = imageItem.getAsFile()
       if (!file) return
-      setPasteChoice({ file })
+      // Read the text to check if it's worth offering a choice
+      const text = await new Promise<string>(resolve => textItem!.getAsString(resolve))
+      const isJustFilename = /^[^\n]{1,260}\.(png|jpe?g|gif|webp|svg|bmp|tiff?|ico|heic)$/i.test(text.trim())
+      if (!text.trim() || isJustFilename) {
+        // Text is empty or just a filename - upload image directly
+        uploadFile(file)
+      } else {
+        // Genuine text + image - show picker
+        setPasteChoice({ file })
+      }
       return
     }
 
