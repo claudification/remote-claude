@@ -692,6 +692,18 @@ export function createApiHandler(options: ApiOptions) {
       }
     }
 
+    // GET /api/agent/diag - Agent diagnostic log
+    if (req.method === 'GET' && path === '/api/agent/diag') {
+      const diag = {
+        connected: sessionStore.hasAgent(),
+        entries: sessionStore.getAgentDiag(),
+      }
+      return new Response(JSON.stringify(diag, null, 2), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
     // POST /api/spawn - Spawn a new rclaude session at an arbitrary CWD
     if (req.method === 'POST' && path === '/api/spawn') {
       const agent = sessionStore.getAgent()

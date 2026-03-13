@@ -107,6 +107,9 @@ export interface SessionStore {
   getAgent: () => ServerWebSocket<unknown> | undefined
   removeAgent: (ws: ServerWebSocket<unknown>) => void
   hasAgent: () => boolean
+  // Agent diagnostics (structured log entries from host agent)
+  pushAgentDiag: (entry: { t: number; type: string; msg: string; args?: unknown }) => void
+  getAgentDiag: () => Array<{ t: number; type: string; msg: string; args?: unknown }>
   // Request-response listeners for agent relay (spawn, dir listing)
   addSpawnListener: (requestId: string, cb: (result: any) => void) => void
   removeSpawnListener: (requestId: string) => void
@@ -1067,6 +1070,21 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     return !!agentSocket
   }
 
+  // Agent diagnostics - capped ring buffer
+  const agentDiagLog: Array<{ t: number; type: string; msg: string; args?: unknown }> = []
+  const AGENT_DIAG_MAX = 200
+
+  function pushAgentDiag(entry: { t: number; type: string; msg: string; args?: unknown }) {
+    agentDiagLog.push(entry)
+    if (agentDiagLog.length > AGENT_DIAG_MAX) {
+      agentDiagLog.splice(0, agentDiagLog.length - AGENT_DIAG_MAX)
+    }
+  }
+
+  function getAgentDiag() {
+    return [...agentDiagLog]
+  }
+
   // Transcript cache methods
   function addTranscriptEntries(sessionId: string, entries: TranscriptEntry[], isInitial: boolean): void {
     if (isInitial) {
@@ -1368,6 +1386,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     getAgent,
     removeAgent,
     hasAgent,
+    pushAgentDiag,
+    getAgentDiag,
     addTranscriptEntries,
     getTranscriptEntries,
     hasTranscriptCache,

@@ -90,12 +90,27 @@ the target path to allow spawning. Only one agent can be connected at a time.
 `)
 }
 
+// Module-level WS ref for diag()
+let activeWs: WebSocket | null = null
+
 function log(msg: string) {
   console.log(`[rclaude-agent] ${msg}`)
 }
 
 function debug(msg: string, verbose: boolean) {
   if (verbose) console.log(`[rclaude-agent] ${msg}`)
+}
+
+function diag(type: string, msg: string, args?: unknown) {
+  log(`[diag] ${type}: ${msg}${args ? ` ${JSON.stringify(args)}` : ''}`)
+  if (activeWs?.readyState === WebSocket.OPEN) {
+    try {
+      activeWs.send(JSON.stringify({
+        type: 'agent_diag',
+        entries: [{ t: Date.now(), type, msg, args }],
+      }))
+    } catch {}
+  }
 }
 
 /**
@@ -204,11 +219,25 @@ async function spawnSession(
   verbose: boolean,
   mkdir = false,
 ): Promise<{ success: boolean; error?: string; tmuxSession?: string }> {
+  // Diagnostic dump
+  const whichRclaude = Bun.spawnSync(['which', 'rclaude'])
+  diag('spawn', 'Starting spawn', {
+    cwd,
+    wrapperId,
+    mkdir,
+    reviveScript,
+    reviveScriptExists: existsSync(reviveScript),
+    secretSet: !!secret,
+    concentratorUrl: process.env.RCLAUDE_CONCENTRATOR || 'UNSET',
+    rclaude: whichRclaude.stdout.toString().trim() || 'NOT FOUND',
+    PATH: process.env.PATH,
+  })
+
   if (!existsSync(cwd)) {
     if (mkdir) {
       try {
         mkdirSync(cwd, { recursive: true })
-        debug(`Created directory: ${cwd}`, verbose)
+        diag('spawn', 'Created directory', { cwd })
       } catch (e: any) {
         return { success: false, error: `Failed to create directory: ${e.message}` }
       }
@@ -223,19 +252,31 @@ async function spawnSession(
 
   // Use "spawn-<timestamp>" as synthetic sessionId (revive-session.sh uses it for tmux window naming)
   const syntheticId = `spawn-${Date.now()}`
-  debug(`Spawning: ${reviveScript} ${syntheticId} ${cwd}`, verbose)
+  const scriptArgs = [reviveScript, syntheticId, cwd]
+  const scriptEnv = { ...process.env, RCLAUDE_SECRET: secret, RCLAUDE_WRAPPER_ID: wrapperId }
 
-  const proc = Bun.spawnSync([reviveScript, syntheticId, cwd], {
+  diag('spawn', 'Running revive script', { args: scriptArgs })
+
+  const proc = Bun.spawnSync(scriptArgs, {
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...process.env, RCLAUDE_SECRET: secret, RCLAUDE_WRAPPER_ID: wrapperId },
+    env: scriptEnv,
   })
 
   const stdout = proc.stdout.toString().trim()
   const stderr = proc.stderr.toString().trim()
+  const exitCode = proc.exitCode
 
-  if (verbose && stdout) debug(`Script stdout: ${stdout}`, verbose)
-  if (stderr) debug(`Script stderr: ${stderr}`, verbose)
+  // After spawn, check if the tmux session/window actually exists
+  const tmuxCheck = Bun.spawnSync(['tmux', 'list-windows', '-t', 'remote-claude'])
+  const tmuxWindows = tmuxCheck.stdout.toString().trim()
+
+  diag('spawn', 'Script completed', {
+    exitCode,
+    stdout,
+    stderr: stderr || undefined,
+    tmuxWindowsAfter: tmuxWindows || '(none/session gone)',
+  })
 
   let tmuxSession: string | undefined
   for (const line of stdout.split('\n')) {
@@ -243,10 +284,10 @@ async function spawnSession(
     if (key === 'TMUX_SESSION') tmuxSession = value
   }
 
-  if (proc.exitCode === 0 || proc.exitCode === 1) {
+  if (exitCode === 0 || exitCode === 1) {
     return { success: true, tmuxSession }
   }
-  return { success: false, error: stderr || `Script exited with code ${proc.exitCode}` }
+  return { success: false, error: stderr || `Script exited with code ${exitCode}` }
 }
 
 /**
@@ -291,6 +332,7 @@ function connect(
 
   ws.onopen = () => {
     log('Connected to concentrator')
+    activeWs = ws
     // Identify as agent
     ws.send(JSON.stringify({ type: 'agent_identify' }))
 
@@ -359,7 +401,13 @@ function connect(
             break
           }
           const expandedCwd = expandPath(spawnMsg.cwd, spawnRoot)
-          log(`Spawning session at ${expandedCwd} (wrapper=${spawnMsg.wrapperId.slice(0, 8)})`)
+          diag('spawn', 'Spawn request received', {
+            requestId: spawnMsg.requestId,
+            rawCwd: spawnMsg.cwd,
+            expandedCwd,
+            wrapperId: spawnMsg.wrapperId,
+            mkdir: spawnMsg.mkdir,
+          })
           const spawnRes = await spawnSession(expandedCwd, spawnMsg.wrapperId, reviveScript, secret, verbose, spawnMsg.mkdir)
           const response: SpawnResult = {
             type: 'spawn_result',
@@ -370,11 +418,10 @@ function connect(
             wrapperId: spawnMsg.wrapperId,
           }
           ws.send(JSON.stringify(response))
-          if (spawnRes.success) {
-            log(`Spawned in tmux session "${spawnRes.tmuxSession}"`)
-          } else {
-            log(`Spawn failed: ${spawnRes.error}`)
-          }
+          diag('spawn', spawnRes.success ? 'Spawn OK' : 'Spawn FAILED', {
+            tmuxSession: spawnRes.tmuxSession,
+            error: spawnRes.error,
+          })
           break
         }
 
@@ -399,6 +446,7 @@ function connect(
   }
 
   ws.onclose = () => {
+    activeWs = null
     if (heartbeatTimer) clearInterval(heartbeatTimer)
 
     if (shouldReconnect) {

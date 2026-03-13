@@ -593,6 +593,15 @@ async function main() {
                 sessionStore.resolveDir(data.requestId, data)
                 break
               }
+              case 'agent_diag': {
+                // Structured diagnostic entries from the host agent
+                if (Array.isArray(data.entries)) {
+                  for (const entry of data.entries) {
+                    sessionStore.pushAgentDiag(entry)
+                  }
+                }
+                break
+              }
 
               // Terminal relay: dashboard -> rclaude
               // Terminal messages: all routed by wrapperId (physical PTY identity)

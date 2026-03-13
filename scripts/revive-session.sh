@@ -74,52 +74,49 @@ if [[ -n "${RCLAUDE_WRAPPER_ID:-}" ]]; then
   WRAPPER_PREFIX="RCLAUDE_WRAPPER_ID=$RCLAUDE_WRAPPER_ID "
 fi
 
-SESSION_EXISTS=false
-
-if tmux has-session -t "$TMUX_NAME" 2>/dev/null; then
-  SESSION_EXISTS=true
-fi
-
-# Try with --continue first
 CONTINUE_CMD="${WRAPPER_PREFIX}$BASE_CMD --continue"
 FRESH_CMD="${WRAPPER_PREFIX}$BASE_CMD"
 
-if [[ "$SESSION_EXISTS" == true ]]; then
-  # Add new window to existing tmux session
-  if tmux new-window "${TMUX_ENV[@]}" -t "$TMUX_NAME" -c "$CWD" "$CONTINUE_CMD"; then
-    echo "TMUX_SESSION=$TMUX_NAME"
-    echo "CONTINUED=true"
-    exit 0
+# Count tmux windows in our session (0 if session doesn't exist)
+window_count() {
+  tmux list-windows -t "$TMUX_NAME" 2>/dev/null | wc -l | tr -d ' '
+}
+
+# Launch a command in tmux (new window or new session as needed).
+# Returns 0 on success, 1 on failure.
+tmux_launch() {
+  local cmd="$1"
+  if tmux has-session -t "$TMUX_NAME" 2>/dev/null; then
+    tmux new-window "${TMUX_ENV[@]}" -t "$TMUX_NAME" -c "$CWD" "$cmd"
+  else
+    tmux new-session -d "${TMUX_ENV[@]}" -s "$TMUX_NAME" -c "$CWD" "$cmd"
   fi
-else
-  # Create new tmux session with --continue
-  if tmux new-session -d "${TMUX_ENV[@]}" -s "$TMUX_NAME" -c "$CWD" "$CONTINUE_CMD"; then
-    sleep 2
-    if tmux has-session -t "$TMUX_NAME" 2>/dev/null; then
-      echo "TMUX_SESSION=$TMUX_NAME"
-      echo "CONTINUED=true"
-      exit 0
-    fi
-  fi
+}
+
+# Verify the spawned window survived startup.
+# If the command exits immediately (e.g. --continue with no prior session),
+# the window closes and the count drops back down.
+verify_window_survived() {
+  local before="$1"
+  sleep 2
+  local after
+  after=$(window_count)
+  (( after > before ))
+}
+
+# Try with --continue first (continues most recent conversation in cwd)
+BEFORE=$(window_count)
+if tmux_launch "$CONTINUE_CMD" && verify_window_survived "$BEFORE"; then
+  echo "TMUX_SESSION=$TMUX_NAME"
+  echo "CONTINUED=true"
+  exit 0
 fi
 
 # Fallback: fresh session without --continue
-if tmux has-session -t "$TMUX_NAME" 2>/dev/null; then
-  SESSION_EXISTS=true
-fi
-
-if [[ "$SESSION_EXISTS" == true ]]; then
-  if tmux new-window "${TMUX_ENV[@]}" -t "$TMUX_NAME" -c "$CWD" "$FRESH_CMD"; then
-    echo "TMUX_SESSION=$TMUX_NAME"
-    echo "CONTINUED=false"
-    exit 1
-  fi
-else
-  if tmux new-session -d "${TMUX_ENV[@]}" -s "$TMUX_NAME" -c "$CWD" "$FRESH_CMD"; then
-    echo "TMUX_SESSION=$TMUX_NAME"
-    echo "CONTINUED=false"
-    exit 1
-  fi
+if tmux_launch "$FRESH_CMD"; then
+  echo "TMUX_SESSION=$TMUX_NAME"
+  echo "CONTINUED=false"
+  exit 1
 fi
 
 echo "ERROR: Failed to create tmux session" >&2
