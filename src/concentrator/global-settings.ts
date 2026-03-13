@@ -19,7 +19,6 @@ export const GlobalSettingsSchema = z.object({
   voiceRefinement: z.boolean().default(true),
   voiceRefinementPrompt: z.string().max(2000).default(''),
   carriageReturnDelay: z.number().min(0).max(2000).default(0),
-  defaultView: z.enum(['transcript', 'tty']).default('transcript'),
 })
 
 export type GlobalSettings = z.infer<typeof GlobalSettingsSchema>

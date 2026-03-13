@@ -412,13 +412,12 @@ const SETTINGS: SettingItem[] = [
   {
     group: 'Display',
     label: 'Default view',
-    description: 'What to show when selecting a session',
-    server: true,
+    description: 'What to show when selecting a session (per-device)',
     keywords: 'terminal tty transcript',
     render: ctx => (
       <select
-        value={(ctx.server.defaultView as string) ?? 'transcript'}
-        onChange={e => ctx.setServer('defaultView', e.target.value)}
+        value={ctx.prefs.defaultView ?? 'transcript'}
+        onChange={e => ctx.updatePrefs({ defaultView: e.target.value as 'transcript' | 'tty' })}
         className="bg-muted border border-border text-foreground text-xs px-2 py-1 font-mono"
       >
         <option value="transcript">Transcript</option>

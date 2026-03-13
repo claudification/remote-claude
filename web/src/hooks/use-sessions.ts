@@ -202,7 +202,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   setSessions: sessions => set({ sessions }),
   selectSession: id => {
     clearExpandedState()
-    const defaultView = get().globalSettings.defaultView as string
+    const defaultView = get().dashboardPrefs.defaultView
     set(state => {
       const mru = id ? [id, ...state.sessionMru.filter(s => s !== id)] : state.sessionMru
       // Evict cached data for non-selected sessions to prevent memory bloat
