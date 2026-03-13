@@ -73,8 +73,20 @@ function sanitizeForAnsi(text: string): string {
     .replace(/>/g, '&gt;')
 }
 
-export function AnsiText({ text }: { text: string }) {
-  const html = useMemo(() => ansiConverter.toHtml(sanitizeForAnsi(text)), [text])
+export function AnsiText({ text, highlight }: { text: string; highlight?: RegExp }) {
+  const html = useMemo(() => {
+    let result = ansiConverter.toHtml(sanitizeForAnsi(text))
+    if (highlight) {
+      // Apply highlight to text content only (not inside HTML tags)
+      // Split on HTML tags, highlight text segments, rejoin
+      result = result.replace(/([^<]+)|(<[^>]+>)/g, (match, textPart, tagPart) => {
+        if (tagPart) return tagPart
+        if (!textPart) return match
+        return textPart.replace(highlight, '<mark class="bg-amber-400/40 text-inherit rounded-sm">$&</mark>')
+      })
+    }
+    return result
+  }, [text, highlight])
   return <span dangerouslySetInnerHTML={{ __html: html }} />
 }
 
@@ -192,7 +204,7 @@ export function Collapsible({
 
 // Truncated output - caps visible lines with a "more" button.
 // Line limit is configurable per-tool via Settings > Display.
-export function TruncatedPre({ text, tool }: { text: string; tool?: ToolDisplayKey }) {
+export function TruncatedPre({ text, tool, highlight }: { text: string; tool?: ToolDisplayKey; highlight?: RegExp }) {
   const [revealed, setRevealed] = useState(false)
   const limit = useSessionsStore(s => (tool ? resolveToolDisplay(s.dashboardPrefs, tool).lineLimit : 10))
   const safeText = typeof text === 'string' ? text : String(text ?? '')
@@ -203,7 +215,7 @@ export function TruncatedPre({ text, tool }: { text: string; tool?: ToolDisplayK
   return (
     <div>
       <pre className="text-[10px] bg-black/30 p-2 whitespace-pre-wrap font-mono">
-        <AnsiText text={displayText} />
+        <AnsiText text={displayText} highlight={highlight} />
       </pre>
       {needsTruncation && (
         <button

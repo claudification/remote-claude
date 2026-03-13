@@ -132,7 +132,15 @@ export function ToolLine({
       const pattern = input.pattern as string
       summary = pattern
       if (result) {
-        details = <TruncatedPre text={result} tool={name as ToolDisplayKey} />
+        let grepHighlight: RegExp | undefined
+        if (pattern) {
+          try {
+            grepHighlight = new RegExp(pattern, input['-i'] ? 'gi' : 'g')
+          } catch {
+            // Invalid regex - skip highlighting
+          }
+        }
+        details = <TruncatedPre text={result} tool={name as ToolDisplayKey} highlight={grepHighlight} />
       }
       break
     }
