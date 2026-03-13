@@ -45,6 +45,7 @@ export interface Session {
     startedAt: number
     stoppedAt?: number
     eventCount: number
+    tokenUsage?: { totalInput: number; totalOutput: number; cacheCreation: number; cacheRead: number }
   }>
   taskCount: number
   pendingTaskCount: number

@@ -188,6 +188,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         startedAt: a.startedAt,
         stoppedAt: a.stoppedAt,
         eventCount: a.events.length,
+        ...(a.tokenUsage && { tokenUsage: a.tokenUsage }),
       })),
       taskCount: session.tasks.length,
       pendingTaskCount: session.tasks.filter(t => t.status === 'pending' || t.status === 'in_progress').length,
@@ -1266,6 +1267,35 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         subagentTranscriptCache.set(key, existing)
       }
     }
+
+    // Extract token usage from subagent transcript entries
+    const session = sessions.get(sessionId)
+    if (!session) return
+    const subagent = session.subagents.find(a => a.agentId === agentId)
+    if (!subagent) return
+
+    let changed = false
+    for (const entry of entries) {
+      if (entry.type !== 'assistant') continue
+      const usage = (entry as any).message?.usage
+      if (!usage || typeof usage.input_tokens !== 'number') continue
+
+      if (!subagent.tokenUsage) {
+        subagent.tokenUsage = { totalInput: 0, totalOutput: 0, cacheCreation: 0, cacheRead: 0 }
+      }
+      if (isInitial && !changed) {
+        // On initial load, reset to avoid double-counting
+        subagent.tokenUsage = { totalInput: 0, totalOutput: 0, cacheCreation: 0, cacheRead: 0 }
+      }
+      subagent.tokenUsage.totalInput +=
+        (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0)
+      subagent.tokenUsage.totalOutput += usage.output_tokens || 0
+      subagent.tokenUsage.cacheCreation += usage.cache_creation_input_tokens || 0
+      subagent.tokenUsage.cacheRead += usage.cache_read_input_tokens || 0
+      changed = true
+    }
+
+    if (changed) broadcastSessionUpdate(sessionId)
   }
 
   function getSubagentTranscriptEntries(sessionId: string, agentId: string, limit?: number): TranscriptEntry[] {

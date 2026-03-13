@@ -352,6 +352,12 @@ export interface SubagentInfo {
   status: 'running' | 'stopped'
   transcriptPath?: string
   events: HookEvent[]
+  tokenUsage?: {
+    totalInput: number
+    totalOutput: number
+    cacheCreation: number
+    cacheRead: number
+  }
 }
 
 // Team tracking
@@ -549,6 +555,7 @@ export interface SessionSummary {
     startedAt: number
     stoppedAt?: number
     eventCount: number
+    tokenUsage?: { totalInput: number; totalOutput: number; cacheCreation: number; cacheRead: number }
   }>
   taskCount: number
   pendingTaskCount: number
