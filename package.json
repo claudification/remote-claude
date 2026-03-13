@@ -18,7 +18,7 @@
     "lint": "bunx biome check --fix .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "install-cli": "bun run build && mkdir -p ~/.local/bin && cp bin/rclaude bin/concentrator bin/concentrator-cli bin/rclaude-agent ~/.local/bin/ && cp scripts/revive-session.sh ~/.local/bin/ && echo 'Installed rclaude, concentrator, concentrator-cli, rclaude-agent, and revive-session.sh to ~/.local/bin'"
+    "install-cli": "bun install && cd web && bun install && cd .. && bun run build && mkdir -p ~/.local/bin && cp bin/rclaude bin/concentrator bin/concentrator-cli bin/rclaude-agent ~/.local/bin/ && cp scripts/revive-session.sh ~/.local/bin/ && echo 'Installed rclaude, concentrator, concentrator-cli, rclaude-agent, and revive-session.sh to ~/.local/bin'"
   },
   "bin": {
     "rclaude": "./bin/rclaude",
