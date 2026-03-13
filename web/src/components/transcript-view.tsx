@@ -1032,13 +1032,16 @@ function AgentGroupView({
     { xs: 'text-[7px]', sm: 'text-[8px]', '': 'text-[9px]', lg: 'text-[11px]', xl: 'text-[13px]' }[sizeKey] ||
     'text-[9px]'
 
+  const isOptimistic = group.entries.some(e => e.data?._optimistic)
+
   return (
-    <div className="text-xs">
+    <div className={cn('text-xs', isOptimistic && 'opacity-60')}>
       <span
         className={cn(sizeClass, 'font-bold uppercase', !customColor && labelColor)}
         style={customColor ? { color: customColor } : undefined}
       >
         {label}
+        {isOptimistic && <span className="text-muted-foreground font-normal ml-2">sending...</span>}
       </span>
       <div className="pl-2 space-y-1">
         {content.map((item, i) => {

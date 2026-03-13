@@ -339,6 +339,19 @@ export async function sendInput(sessionId: string, input: string): Promise<boole
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ input }),
   })
+  if (res.ok) {
+    // Inject optimistic user entry so it appears in transcript immediately.
+    // The real entry arrives later via JSONL streaming once Claude processes the turn.
+    const state = useSessionsStore.getState()
+    const existing = state.transcripts[sessionId] || []
+    const optimistic: TranscriptEntry = {
+      type: 'user',
+      timestamp: new Date().toISOString(),
+      message: { role: 'user', content: input },
+      data: { _optimistic: true },
+    }
+    state.setTranscript(sessionId, [...existing, optimistic])
+  }
   return res.ok
 }
 

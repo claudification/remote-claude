@@ -697,7 +697,7 @@ export function MarkdownInput({
           'placeholder:text-muted-foreground',
           'disabled:opacity-50',
         )}
-        style={{ minHeight: '2.25rem' }}
+        style={{ minHeight: '2.25rem', fontSize: '16px' }}
       />
       {/* Action buttons */}
       <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">

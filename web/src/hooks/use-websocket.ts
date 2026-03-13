@@ -161,10 +161,12 @@ function processMessage(msg: DashboardMessage) {
       if (msg.sessionId && msg.entries?.length) {
         useSessionsStore.setState(state => {
           const existing = state.transcripts[msg.sessionId!] || []
+          // Strip optimistic entries (injected by sendInput) when real data arrives
+          const filtered = existing.filter(e => !e.data?._optimistic)
           return {
             transcripts: {
               ...state.transcripts,
-              [msg.sessionId!]: msg.isInitial ? msg.entries! : [...existing, ...msg.entries!],
+              [msg.sessionId!]: msg.isInitial ? msg.entries! : [...filtered, ...msg.entries!],
             },
           }
         })

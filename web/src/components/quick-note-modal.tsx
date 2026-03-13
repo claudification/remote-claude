@@ -7,6 +7,7 @@ import { FileText, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useFileEditor } from '@/hooks/use-file-editor'
 import { useSessionsStore } from '@/hooks/use-sessions'
+import { haptic } from '@/lib/utils'
 import { MarkdownInput } from './markdown-input'
 
 export function QuickNoteModal() {
@@ -28,6 +29,7 @@ export function QuickNoteModal() {
       if (e.ctrlKey && e.shiftKey && e.key === 'N') {
         e.preventDefault()
         if (selectedSessionId && isActive) {
+          haptic('tap')
           setOpen(true)
         }
       }
@@ -37,7 +39,10 @@ export function QuickNoteModal() {
       }
     }
     function handleOpenEvent() {
-      if (selectedSessionId && isActive) setOpen(true)
+      if (selectedSessionId && isActive) {
+        haptic('tap')
+        setOpen(true)
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('open-quick-note', handleOpenEvent)
@@ -49,15 +54,17 @@ export function QuickNoteModal() {
 
   const handleSubmit = useCallback(async () => {
     if (!text.trim() || sending) return
+    haptic('tap')
     setSending(true)
     try {
       await appendQuickNote(text.trim())
+      haptic('success')
       setText('')
       setOpen(false)
       setFlash(true)
       setTimeout(() => setFlash(false), 1000)
     } catch {
-      // Error handled in hook
+      haptic('error')
     } finally {
       setSending(false)
     }

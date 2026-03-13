@@ -367,25 +367,29 @@ async function main() {
           ptyProcess.write(trimmed)
           setTimeout(() => {
             ptyProcess?.write('\r')
-            setTimeout(() => ptyProcess?.write('\r'), 100)
-          }, 50)
+            setTimeout(() => ptyProcess?.write('\r'), 150)
+          }, 100)
         } else {
           // Multiline: chunk line-by-line inside bracketed paste, then submit
+          // Delays scale with input size so large pastes don't outrun the PTY
+          const perLineDelay = Math.min(50, Math.max(20, lines.length > 50 ? 50 : 20))
           ptyProcess.write('\x1b[200~')
           lines.forEach((line, i) => {
             setTimeout(() => {
               if (!ptyProcess) return
               ptyProcess.write(i > 0 ? `\n${line}` : line)
               if (i === lines.length - 1) {
+                // End bracketed paste, then wait for PTY to process before sending Enter
+                const settleDelay = Math.min(500, Math.max(100, lines.length * 2))
                 setTimeout(() => {
                   ptyProcess?.write('\x1b[201~')
                   setTimeout(() => {
                     ptyProcess?.write('\r')
-                    setTimeout(() => ptyProcess?.write('\r'), 150)
-                  }, 100)
-                }, 20)
+                    setTimeout(() => ptyProcess?.write('\r'), 250)
+                  }, settleDelay)
+                }, 50)
               }
-            }, i * 20)
+            }, i * perLineDelay)
           })
         }
         debug(`Sent to PTY: ${lines.length} lines, ${trimmed.length} chars`)
