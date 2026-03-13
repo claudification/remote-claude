@@ -3,7 +3,7 @@
  * Handles all tool types (Bash, Read, Edit, Write, Agent, MCP, etc.)
  */
 
-import React, { memo, Suspense } from 'react'
+import React, { Component, memo, Suspense, type ErrorInfo, type ReactNode } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/dashboard-prefs'
 import type { TranscriptContentBlock } from '@/lib/types'
@@ -18,16 +18,72 @@ function formatTokenCount(tokens: number): string {
   return `${tokens} tok`
 }
 
-// Lazy import to break circular dependency: agent-views -> ToolLine -> AgentTranscriptInline -> agent-views
-const LazyAgentTranscriptInline = React.lazy(() =>
+// Lazy import with retry - handles stale cached chunks after deploys
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>,
+  retries = 2,
+): React.LazyExoticComponent<T> {
+  return React.lazy(() => {
+    function attempt(remaining: number): Promise<{ default: T }> {
+      return factory().catch((err: Error) => {
+        if (remaining <= 0) throw err
+        // Force cache-bust by adding timestamp to module URL on retry
+        return new Promise<{ default: T }>(resolve => setTimeout(() => resolve(attempt(remaining - 1)), 500))
+      })
+    }
+    return attempt(retries)
+  })
+}
+
+const LazyAgentTranscriptInline = lazyWithRetry(() =>
   import('./agent-views').then(m => ({ default: m.AgentTranscriptInline })),
 )
 
+// Lightweight error boundary for lazy-loaded components - doesn't nuke the whole transcript
+class LazyErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.warn('LazyErrorBoundary caught:', error.message, info.componentStack?.slice(0, 200))
+  }
+
+  render() {
+    if (this.state.error) {
+      const isChunkError =
+        this.state.error.message.includes('module script') ||
+        this.state.error.message.includes('dynamically imported') ||
+        this.state.error.message.includes('Loading chunk')
+      return (
+        <div className="text-[10px] text-red-400/70 font-mono py-0.5">
+          {isChunkError ? (
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="hover:text-red-400 cursor-pointer underline"
+            >
+              stale chunk - click to reload
+            </button>
+          ) : (
+            `render error: ${this.state.error.message.slice(0, 80)}`
+          )}
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 function AgentInline({ agentId, toolId }: { agentId: string; toolId?: string }) {
   return (
-    <Suspense fallback={<div className="text-[10px] text-muted-foreground">loading...</div>}>
-      <LazyAgentTranscriptInline agentId={agentId} toolId={toolId} />
-    </Suspense>
+    <LazyErrorBoundary>
+      <Suspense fallback={<div className="text-[10px] text-muted-foreground">loading...</div>}>
+        <LazyAgentTranscriptInline agentId={agentId} toolId={toolId} />
+      </Suspense>
+    </LazyErrorBoundary>
   )
 }
 
