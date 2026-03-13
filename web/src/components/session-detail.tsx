@@ -150,12 +150,20 @@ export function SessionDetail() {
   }, [requestedTab, requestedTabSeq])
 
   const session = useSessionsStore(state => state.sessions.find(s => s.id === state.selectedSessionId))
-  const events = useSessionsStore(state =>
-    selectedSessionId ? state.events[selectedSessionId] || EMPTY_EVENTS : EMPTY_EVENTS,
-  )
-  const transcript = useSessionsStore(state =>
-    selectedSessionId ? state.transcripts[selectedSessionId] || EMPTY_TRANSCRIPT : EMPTY_TRANSCRIPT,
-  )
+
+  // Track activeTab in a ref so selectors can skip updates when data isn't visible.
+  // This prevents transcript/event updates from re-rendering the file editor and vice versa.
+  const activeTabRef = useRef(activeTab)
+  activeTabRef.current = activeTab
+
+  const events = useSessionsStore(state => {
+    if (activeTabRef.current !== 'events' && activeTabRef.current !== 'transcript') return EMPTY_EVENTS
+    return selectedSessionId ? state.events[selectedSessionId] || EMPTY_EVENTS : EMPTY_EVENTS
+  })
+  const transcript = useSessionsStore(state => {
+    if (activeTabRef.current !== 'transcript') return EMPTY_TRANSCRIPT
+    return selectedSessionId ? state.transcripts[selectedSessionId] || EMPTY_TRANSCRIPT : EMPTY_TRANSCRIPT
+  })
   const agentConnected = useSessionsStore(state => state.agentConnected)
   const projectSettings = useSessionsStore(state => (session?.cwd ? state.projectSettings[session.cwd] : undefined))
   const selectedSubagentId = useSessionsStore(state => state.selectedSubagentId)
