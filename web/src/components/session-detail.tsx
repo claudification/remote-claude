@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { fetchSubagentTranscript, reviveSession, sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { canTerminal, type TranscriptEntry } from '@/lib/types'
-import { cn, formatAge, formatModel, haptic, isMobileViewport } from '@/lib/utils'
+import { cn, contextWindowSize, formatAge, formatModel, haptic, isMobileViewport } from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
 import { DiagView } from './diag-view'
 import { EventsView } from './events-view'
@@ -320,7 +320,7 @@ export function SessionDetail() {
                     (() => {
                       const { input, cacheCreation, cacheRead } = session.tokenUsage
                       const total = input + cacheCreation + cacheRead
-                      const maxTokens = 200_000
+                      const maxTokens = contextWindowSize(model || session.model)
                       const pct = Math.min(100, Math.round((total / maxTokens) * 100))
                       const totalK = Math.round(total / 1000)
                       return (
@@ -355,7 +355,8 @@ export function SessionDetail() {
             const s = session.stats
             const tu = session.tokenUsage
             const contextTotal = tu ? tu.input + tu.cacheCreation + tu.cacheRead : 0
-            const contextPct = tu ? Math.min(100, Math.round((contextTotal / 200_000) * 100)) : 0
+            const ctxWindow = contextWindowSize(model || session.model)
+            const contextPct = tu ? Math.min(100, Math.round((contextTotal / ctxWindow) * 100)) : 0
 
             // Cost estimation (per 1M tokens, Opus pricing)
             const inputCostPer1M = 15
@@ -416,7 +417,7 @@ export function SessionDetail() {
                           contextPct < 60 ? 'text-emerald-400' : contextPct < 85 ? 'text-amber-400' : 'text-red-400',
                         )}
                       >
-                        {Math.round(contextTotal / 1000)}K / 200K
+                        {Math.round(contextTotal / 1000)}K / {Math.round(ctxWindow / 1000)}K
                       </span>
                     </div>
                   </div>
@@ -761,9 +762,10 @@ export function SessionDetail() {
       )}
 
       {/* Input box - isolated to prevent transcript rerenders on typing */}
-      {canSendInput && (activeTab === 'transcript' || (activeTab === 'tty' && !hasTerminal)) && !selectedSubagentId && selectedSessionId && (
-        <InputBar sessionId={selectedSessionId} />
-      )}
+      {canSendInput &&
+        (activeTab === 'transcript' || (activeTab === 'tty' && !hasTerminal)) &&
+        !selectedSubagentId &&
+        selectedSessionId && <InputBar sessionId={selectedSessionId} />}
 
       {/* Terminal overlay - routed by wrapperId (physical PTY) */}
       {showTerminal && terminalWrapperId && (

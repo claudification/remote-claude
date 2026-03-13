@@ -54,6 +54,14 @@ export function formatModel(model: string | undefined): string {
     .replace(/-\d{8}$/, '')
 }
 
+/** Context window size for a given model string. Opus 4.6 has 1M, everything else 200K. */
+export function contextWindowSize(model: string | undefined): number {
+  if (!model) return 200_000
+  const m = model.toLowerCase()
+  if (m.includes('opus-4-6') || m.includes('opus-4.6')) return 1_000_000
+  return 200_000
+}
+
 /**
  * Haptic feedback via web-haptics (works on iOS + Android).
  * Uses hidden <input type="checkbox" switch> trick for iOS Safari Taptic Engine.
