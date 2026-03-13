@@ -61,6 +61,12 @@ fi
 TMUX_NAME="remote-claude"
 BASE_CMD="rclaude --dangerously-skip-permissions"
 
+# Unset Claude Code env vars that prevent nested sessions.
+# Agent may inherit these if launched from within a Claude session.
+while IFS='=' read -r name _; do
+  [[ "$name" == CLAUDECODE || "$name" == CLAUDE_CODE_* ]] && unset "$name"
+done < <(env)
+
 # Build tmux env flags - pass RCLAUDE_SECRET only
 # RCLAUDE_WRAPPER_ID is passed inline to the command (not tmux env) to prevent
 # it from leaking to other tmux windows/sessions launched later

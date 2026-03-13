@@ -89,6 +89,14 @@ ok "RCLAUDE_SECRET is set"
 ok "Agent binary: $AGENT_BIN"
 ok "Revive script: $REVIVE_SCRIPT"
 
+# --- Clean environment ---
+# Agent may be launched from within a Claude Code session (e.g. user runs
+# start-agent.sh from Claude). Claude sets CLAUDECODE env var which prevents
+# nested sessions. Unset all Claude-inherited vars so spawned sessions work.
+while IFS='=' read -r name _; do
+  [[ "$name" == CLAUDECODE || "$name" == CLAUDE_CODE_* ]] && unset "$name"
+done < <(env)
+
 # --- Start ---
 
 "$AGENT_BIN" ${AGENT_ARGS[@]+"${AGENT_ARGS[@]}"} >> "$LOG_FILE" 2>&1 &
