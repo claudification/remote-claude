@@ -293,6 +293,62 @@ ln -sf "$(pwd)/bin/rclaude-agent" ~/.local/bin/rclaude-agent
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 ```
 
+### Running rclaude-agent as a service (macOS)
+
+To keep `rclaude-agent` running in the background and auto-start on login, create a launchd plist:
+
+```bash
+cat > ~/Library/LaunchAgents/com.rclaude.agent.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.rclaude.agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/YOU/.local/bin/rclaude-agent</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/rclaude-agent.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/rclaude-agent.err</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/YOU/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>RCLAUDE_CONCENTRATOR</key>
+        <string>wss://concentrator.example.com</string>
+        <key>RCLAUDE_SECRET</key>
+        <string>your-shared-secret-here</string>
+    </dict>
+</dict>
+</plist>
+EOF
+```
+
+Replace `/Users/YOU` with your home directory and set the correct concentrator URL and secret.
+
+```bash
+# Load (starts immediately and on login)
+launchctl load ~/Library/LaunchAgents/com.rclaude.agent.plist
+
+# Check status
+launchctl list | grep rclaude
+
+# Stop
+launchctl unload ~/Library/LaunchAgents/com.rclaude.agent.plist
+
+# View logs
+tail -f /tmp/rclaude-agent.log
+```
+
+> **Note:** launchd does not inherit your shell environment. All required env vars must be specified in the plist's `EnvironmentVariables` dict.
+
 ### Shell configuration
 
 Add to your `~/.zshrc` or `~/.bashrc`:
