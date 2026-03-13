@@ -122,6 +122,12 @@ export function GroupView({
       }
     }
   }
+  // Detect effort keywords in user messages
+  const effortBadge =
+    isUser && items.some(it => it.kind === 'text' && /\bultrathink\b/i.test(it.text))
+      ? { symbol: '\u25CF', label: 'high' } // ●
+      : null
+
   const label = isUser ? userLabel : agentLabel
   const customColor = isUser ? userColor : agentColor
   const borderColor = isUser ? 'border-event-prompt' : 'border-primary'
@@ -141,6 +147,11 @@ export function GroupView({
         >
           {label}
         </span>
+        {effortBadge && (
+          <span className="px-1.5 py-0.5 text-[10px] font-bold bg-orange-400/20 text-orange-400">
+            {effortBadge.symbol} {effortBadge.label}
+          </span>
+        )}
         <span className="text-muted-foreground text-[10px]">{time}</span>
         <span className={cn('flex-1 text-[10px] overflow-hidden', borderColor)}>{'─'.repeat(40)}</span>
       </div>

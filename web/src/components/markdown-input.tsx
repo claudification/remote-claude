@@ -62,6 +62,12 @@ function highlightMarkdown(text: string): string {
   // Links [text](url)
   html = html.replace(/(\[[^\]]*\]\([^)]*\))/g, '<span class="text-accent underline">$1</span>')
 
+  // Effort keywords (ultrathink = high effort ●)
+  html = html.replace(
+    /\b(ultrathink)\b/gi,
+    '<span class="text-orange-400 font-bold">$1</span><span class="text-orange-400/60 text-[10px]"> ●</span>',
+  )
+
   // Ensure trailing newline for height matching
   if (!html.endsWith('\n')) html += '\n'
 
@@ -348,8 +354,8 @@ export function MarkdownInput({
       // Read the text to check if it's worth offering a choice
       const text = await new Promise<string>(resolve => textItem!.getAsString(resolve))
       const trimmed = text.trim()
-      const isJustFilename = /^[^\n]{1,500}\.(png|jpe?g|gif|webp|svg|bmp|tiff?|ico|heic)$/i.test(trimmed) ||
-        /^(\/|~|[A-Z]:\\)/.test(trimmed) // file paths (Unix or Windows)
+      const isJustFilename =
+        /^[^\n]{1,500}\.(png|jpe?g|gif|webp|svg|bmp|tiff?|ico|heic)$/i.test(trimmed) || /^(\/|~|[A-Z]:\\)/.test(trimmed) // file paths (Unix or Windows)
       if (!trimmed || isJustFilename) {
         // Text is empty or just a filename - upload image directly
         uploadFile(file)
