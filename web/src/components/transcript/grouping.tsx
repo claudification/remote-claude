@@ -70,11 +70,20 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
   for (const entry of entries) {
     if (entry.type === 'compacting' || entry.type === 'compacted') {
       current = null
-      groups.push({
-        type: entry.type as 'compacting' | 'compacted',
-        timestamp: entry.timestamp || '',
-        entries: [entry],
-      })
+      // When compacted arrives, replace the preceding compacting group
+      if (entry.type === 'compacted' && groups.length > 0 && groups[groups.length - 1].type === 'compacting') {
+        groups[groups.length - 1] = {
+          type: 'compacted',
+          timestamp: entry.timestamp || '',
+          entries: [entry],
+        }
+      } else {
+        groups.push({
+          type: entry.type as 'compacting' | 'compacted',
+          timestamp: entry.timestamp || '',
+          entries: [entry],
+        })
+      }
       continue
     }
 
@@ -201,12 +210,24 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
     for (const entry of newEntries) {
       if (entry.type === 'compacting' || entry.type === 'compacted') {
         lastGroup = null
-        const g: DisplayGroup = {
-          type: entry.type as 'compacting' | 'compacted',
-          timestamp: entry.timestamp || '',
-          entries: [entry],
+        // When compacted arrives, replace the preceding compacting group
+        if (
+          entry.type === 'compacted' &&
+          newGroups.length > 0 &&
+          newGroups[newGroups.length - 1].type === 'compacting'
+        ) {
+          newGroups[newGroups.length - 1] = {
+            type: 'compacted',
+            timestamp: entry.timestamp || '',
+            entries: [entry],
+          }
+        } else {
+          newGroups.push({
+            type: entry.type as 'compacting' | 'compacted',
+            timestamp: entry.timestamp || '',
+            entries: [entry],
+          })
         }
-        newGroups.push(g)
         continue
       }
 
