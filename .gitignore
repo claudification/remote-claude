@@ -8,3 +8,4 @@ package-lock.json
 *.tsbuildinfo
 .env
 .agent.pid
+NOTES.md
