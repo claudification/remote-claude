@@ -1,11 +1,10 @@
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import '@xterm/xterm/css/xterm.css'
 import { Settings, WifiOff, X } from 'lucide-react'
 import { type TerminalMessage, useSessionsStore } from '@/hooks/use-sessions'
-import { canTerminal } from '@/lib/types'
 import { lastPathSegments } from '@/lib/utils'
 import {
   getFont,
@@ -20,11 +19,10 @@ import { TerminalToolbar } from './terminal-toolbar'
 interface WebTerminalProps {
   wrapperId: string
   onClose: () => void
-  onSwitchWrapper: (wrapperId: string) => void
   popout?: boolean
 }
 
-export function WebTerminal({ wrapperId, onClose, onSwitchWrapper, popout }: WebTerminalProps) {
+export function WebTerminal({ wrapperId, onClose, popout }: WebTerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -278,84 +276,29 @@ export function WebTerminal({ wrapperId, onClose, onSwitchWrapper, popout }: Web
   const showDisconnected = !isConnected || !!terminalError
   const currentTheme = getTheme(settings.themeId)
 
-  // Build wrapper tabs: flatten all terminal-capable sessions into individual wrapper entries
-  const wrapperTabs = useMemo(() => {
-    const tabs: Array<{ wrapperId: string; session: (typeof sessions)[0] }> = []
-    for (const s of sessions) {
-      if (!canTerminal(s)) continue
-      if (s.wrapperIds?.length) {
-        for (const wid of s.wrapperIds) {
-          tabs.push({ wrapperId: wid, session: s })
-        }
-      }
-    }
-    return tabs
-  }, [sessions])
-
   return (
     <div
       data-terminal-overlay
       className="fixed inset-0 z-50 flex flex-col overflow-hidden"
       style={{ background: currentTheme.background, overscrollBehavior: 'none' }}
       onClick={e => {
-        // Re-focus terminal when clicking anywhere in the overlay (not on buttons/inputs)
         if ((e.target as HTMLElement).closest('button, input, select, textarea')) return
         xtermRef.current?.focus()
       }}
     >
-      {/* Header bar with wrapper tabs */}
+      {/* Minimal header */}
       <div
         className="shrink-0 flex items-center border-b"
         style={{ background: currentTheme.black, borderColor: currentTheme.brightBlack }}
       >
-        {/* Wrapper tabs - each tab is a physical PTY */}
-        <div className="flex items-center overflow-x-auto min-w-0 flex-1">
-          {wrapperTabs.map(({ wrapperId: wid, session: s }) => (
-            <button
-              key={wid}
-              type="button"
-              onClick={() => {
-                if (wid !== wrapperId) onSwitchWrapper(wid)
-              }}
-              className="shrink-0 px-3 py-1.5 text-[10px] font-mono border-r transition-colors flex items-center gap-1.5"
-              style={{
-                borderColor: `${currentTheme.brightBlack}60`,
-                background: wid === wrapperId ? currentTheme.background : 'transparent',
-                color: wid === wrapperId ? currentTheme.foreground : currentTheme.brightBlack,
-              }}
-              title={`${s.cwd} [${wid.slice(0, 8)}]`}
-            >
-              <span
-                className="w-1.5 h-1.5 rounded-full shrink-0"
-                style={{ background: s.status === 'active' ? currentTheme.green : currentTheme.yellow }}
-              />
-              {lastPathSegments(s.cwd, 2)}
-              {(s.wrapperIds?.length ?? 0) > 1 && (
-                <span style={{ color: currentTheme.brightBlack }}>:{wid.slice(0, 4)}</span>
-              )}
-            </button>
-          ))}
-          {wrapperTabs.length === 0 && (
-            <span className="px-3 py-1.5 text-[10px] font-mono" style={{ color: currentTheme.brightBlack }}>
-              {showDisconnected && <WifiOff className="w-3 h-3 inline mr-1.5" />}
-              TERMINAL - {wrapperId.slice(0, 8)}
-            </span>
-          )}
-        </div>
-        {/* Actions */}
+        <span className="px-3 py-1.5 text-[10px] font-mono flex-1" style={{ color: currentTheme.brightBlack }}>
+          {showDisconnected && <WifiOff className="w-3 h-3 inline mr-1.5" />}
+          {ownerSession ? lastPathSegments(ownerSession.cwd, 2) : `TERMINAL - ${wrapperId.slice(0, 8)}`}
+        </span>
         <div className="flex items-center gap-1 px-2 shrink-0">
           <span className="text-[10px] font-mono mr-1 hidden sm:inline" style={{ color: currentTheme.brightBlack }}>
-            ^K switch ^, settings ^⇧Q close
+            ^, settings ^⇧Q close
           </span>
-          <button
-            type="button"
-            onClick={() => useSessionsStore.getState().toggleSwitcher()}
-            className="p-1 transition-colors"
-            style={{ color: showSwitcher ? currentTheme.blue : currentTheme.brightBlack }}
-            title="Switch session (Ctrl+K)"
-          >
-            <span className="text-[10px] font-mono">TTY</span>
-          </button>
           <button
             type="button"
             onClick={() => setShowSettings(prev => !prev)}

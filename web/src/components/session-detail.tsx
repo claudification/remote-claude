@@ -9,6 +9,7 @@ import { BgTasksView } from './bg-tasks-view'
 import { DiagView } from './diag-view'
 import { EventsView } from './events-view'
 import { FileEditor } from './file-editor'
+import { InlineTerminal } from './inline-terminal'
 import { MarkdownInput } from './markdown-input'
 import { renderProjectIcon } from './project-settings-editor'
 import { SubagentView } from './subagent-view'
@@ -16,7 +17,7 @@ import { TasksView } from './tasks-view'
 import { TranscriptView } from './transcript'
 import { WebTerminal } from './web-terminal'
 
-type Tab = 'transcript' | 'events' | 'agents' | 'tasks' | 'files' | 'diag'
+type Tab = 'transcript' | 'tty' | 'events' | 'agents' | 'tasks' | 'files' | 'diag'
 
 // Stable empty references to avoid re-render loops with Zustand selectors
 // (Zustand uses Object.is - a new [] !== previous [], causing infinite re-renders)
@@ -157,11 +158,13 @@ export function SessionDetail() {
   activeTabRef.current = activeTab
 
   const events = useSessionsStore(state => {
-    if (activeTabRef.current !== 'events' && activeTabRef.current !== 'transcript') return EMPTY_EVENTS
+    const tab = activeTabRef.current
+    if (tab !== 'events' && tab !== 'transcript' && tab !== 'tty') return EMPTY_EVENTS
     return selectedSessionId ? state.events[selectedSessionId] || EMPTY_EVENTS : EMPTY_EVENTS
   })
   const transcript = useSessionsStore(state => {
-    if (activeTabRef.current !== 'transcript') return EMPTY_TRANSCRIPT
+    const tab = activeTabRef.current
+    if (tab !== 'transcript' && tab !== 'tty') return EMPTY_TRANSCRIPT
     return selectedSessionId ? state.transcripts[selectedSessionId] || EMPTY_TRANSCRIPT : EMPTY_TRANSCRIPT
   })
   const agentConnected = useSessionsStore(state => state.agentConnected)
@@ -561,6 +564,31 @@ export function SessionDetail() {
             >
               Transcript
             </button>
+            {hasTerminal && (
+              <button
+                type="button"
+                onClick={e => {
+                  if (e.shiftKey) {
+                    const wid = session?.wrapperIds?.[0]
+                    if (wid)
+                      window.open(`/#popout-terminal/${wid}`, '_blank', 'width=900,height=600,menubar=no,toolbar=no')
+                  } else {
+                    haptic('tick')
+                    setActiveTab(activeTab === 'tty' ? 'transcript' : 'tty')
+                  }
+                }}
+                className={cn(
+                  'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors flex items-center gap-1',
+                  activeTab === 'tty'
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+                title="Terminal (Shift+click to pop out)"
+              >
+                <Terminal className="w-3 h-3" />
+                TTY
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -652,27 +680,8 @@ export function SessionDetail() {
             >
               Diag
             </button>
-            {/* Terminal + Follow - pushed to right */}
+            {/* Follow/verbose - pushed to right */}
             <div className="ml-auto pr-3 flex items-center gap-2">
-              {hasTerminal && (
-                <button
-                  type="button"
-                  onClick={e => {
-                    const wid = session?.wrapperIds?.[0]
-                    if (!wid) return
-                    if (e.shiftKey) {
-                      window.open(`/#popout-terminal/${wid}`, '_blank', 'width=900,height=600,menubar=no,toolbar=no')
-                    } else {
-                      useSessionsStore.getState().openTerminal(wid)
-                    }
-                  }}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-muted-foreground hover:text-accent transition-colors"
-                  title="Open terminal (Shift+click to pop out)"
-                >
-                  <Terminal className="w-3 h-3" />
-                  TTY
-                </button>
-              )}
               <div className="w-px h-4 bg-border" />
             </div>
             <div className="pr-3 hidden sm:flex items-center gap-3">
@@ -692,7 +701,7 @@ export function SessionDetail() {
             </div>
           </div>
 
-          {activeTab === 'transcript' && (
+          {(activeTab === 'transcript' || (activeTab === 'tty' && !hasTerminal)) && (
             <div className="flex-1 min-h-0 overflow-hidden relative">
               <TranscriptView
                 key={selectedSessionId}
@@ -703,6 +712,11 @@ export function SessionDetail() {
                 onReachedBottom={enableFollow}
               />
               {!follow && transcript.length > 0 && <ScrollToBottomButton onClick={enableFollow} direction="down" />}
+            </div>
+          )}
+          {activeTab === 'tty' && hasTerminal && !showTerminal && session.wrapperIds?.[0] && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <InlineTerminal wrapperId={session.wrapperIds[0]} />
             </div>
           )}
           {activeTab === 'events' && (
@@ -747,19 +761,13 @@ export function SessionDetail() {
       )}
 
       {/* Input box - isolated to prevent transcript rerenders on typing */}
-      {canSendInput && activeTab === 'transcript' && !selectedSubagentId && selectedSessionId && (
+      {canSendInput && (activeTab === 'transcript' || (activeTab === 'tty' && !hasTerminal)) && !selectedSubagentId && selectedSessionId && (
         <InputBar sessionId={selectedSessionId} />
       )}
 
       {/* Terminal overlay - routed by wrapperId (physical PTY) */}
       {showTerminal && terminalWrapperId && (
-        <WebTerminal
-          wrapperId={terminalWrapperId}
-          onClose={() => setShowTerminal(false)}
-          onSwitchWrapper={wid => {
-            useSessionsStore.getState().openTerminal(wid)
-          }}
-        />
+        <WebTerminal wrapperId={terminalWrapperId} onClose={() => setShowTerminal(false)} />
       )}
 
       {/* Revive button for ended sessions */}

@@ -321,7 +321,7 @@ function PopoutTerminal({ wrapperId }: { wrapperId: string }) {
 
   return (
     <div className="h-full w-full">
-      <WebTerminal wrapperId={wrapperId} onClose={() => window.close()} onSwitchWrapper={() => {}} popout />
+      <WebTerminal wrapperId={wrapperId} onClose={() => window.close()} popout />
     </div>
   )
 }

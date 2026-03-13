@@ -13,5 +13,9 @@ export const BUILD_VERSION: BuildVersion = {
   gitHashShort: 'e97f67e-dirty',
   buildTime: '2026-03-13T15:50:11.885Z',
   dirty: true,
-  recentCommits: [{"hash":"e97f67e","message":"(HEAD -> main, origin/main, origin/HEAD) chore: Update build version"},{"hash":"cad17dc","message":"feat: Per-subagent token usage tracking and display"},{"hash":"4d62e78","message":"fix: Eliminate Zustand re-render storms causing React error #185 and UI jank"}],
+  recentCommits: [
+    { hash: 'e97f67e', message: '(HEAD -> main, origin/main, origin/HEAD) chore: Update build version' },
+    { hash: 'cad17dc', message: 'feat: Per-subagent token usage tracking and display' },
+    { hash: '4d62e78', message: 'fix: Eliminate Zustand re-render storms causing React error #185 and UI jank' },
+  ],
 }
