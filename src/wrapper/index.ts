@@ -357,18 +357,23 @@ async function main() {
       onError(error) {
         debug(`Concentrator error: ${error.message}`)
       },
-      onInput(input) {
+      onInput(input, crDelay) {
         if (!ptyProcess) return
         const trimmed = input.replace(/[\r\n]+$/, '')
         const lines = trimmed.split('\n')
+
+        // Default delays (used when no crDelay from dashboard)
+        const singleCrDelay = crDelay ?? 150
+        const singlePreDelay = crDelay != null ? Math.max(50, crDelay / 2) : 100
+        const multiSettleBase = crDelay ?? 250
 
         if (lines.length === 1) {
           // Single line: write + Enter
           ptyProcess.write(trimmed)
           setTimeout(() => {
             ptyProcess?.write('\r')
-            setTimeout(() => ptyProcess?.write('\r'), 150)
-          }, 100)
+            setTimeout(() => ptyProcess?.write('\r'), singleCrDelay)
+          }, singlePreDelay)
         } else {
           // Multiline: chunk line-by-line inside bracketed paste, then submit
           // Delays scale with input size so large pastes don't outrun the PTY
@@ -380,19 +385,21 @@ async function main() {
               ptyProcess.write(i > 0 ? `\n${line}` : line)
               if (i === lines.length - 1) {
                 // End bracketed paste, then wait for PTY to process before sending Enter
-                const settleDelay = Math.min(500, Math.max(100, lines.length * 2))
+                const settleDelay = crDelay != null ? crDelay : Math.min(500, Math.max(100, lines.length * 2))
                 setTimeout(() => {
                   ptyProcess?.write('\x1b[201~')
                   setTimeout(() => {
                     ptyProcess?.write('\r')
-                    setTimeout(() => ptyProcess?.write('\r'), 250)
+                    setTimeout(() => ptyProcess?.write('\r'), multiSettleBase)
                   }, settleDelay)
                 }, 50)
               }
             }, i * perLineDelay)
           })
         }
-        debug(`Sent to PTY: ${lines.length} lines, ${trimmed.length} chars`)
+        debug(
+          `Sent to PTY: ${lines.length} lines, ${trimmed.length} chars${crDelay != null ? ` (crDelay=${crDelay}ms)` : ''}`,
+        )
       },
       onTerminalInput(data) {
         // Raw keystrokes from browser terminal - write directly to PTY

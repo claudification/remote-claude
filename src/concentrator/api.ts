@@ -614,7 +614,7 @@ export function createApiHandler(options: ApiOptions) {
       }
 
       try {
-        const body = (await req.json()) as { input: string }
+        const body = (await req.json()) as { input: string; crDelay?: number }
         if (!body.input || typeof body.input !== 'string') {
           return new Response(JSON.stringify({ error: 'Missing input field' }), {
             status: 400,
@@ -626,6 +626,7 @@ export function createApiHandler(options: ApiOptions) {
           type: 'input',
           sessionId,
           input: body.input,
+          ...(typeof body.crDelay === 'number' && body.crDelay > 0 && { crDelay: body.crDelay }),
         }
         ws.send(JSON.stringify(inputMsg))
 

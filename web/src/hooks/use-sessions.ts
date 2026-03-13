@@ -334,10 +334,11 @@ export async function reviveSession(sessionId: string): Promise<{ success: boole
 }
 
 export async function sendInput(sessionId: string, input: string): Promise<boolean> {
+  const crDelay = useSessionsStore.getState().dashboardPrefs.carriageReturnDelay
   const res = await fetch(`${API_BASE}/sessions/${sessionId}/input`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input }),
+    body: JSON.stringify({ input, ...(crDelay > 0 && { crDelay }) }),
   })
   if (res.ok) {
     // Inject optimistic user entry so it appears in transcript immediately.

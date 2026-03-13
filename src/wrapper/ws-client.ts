@@ -38,7 +38,7 @@ export interface WsClientOptions {
   onDisconnected?: () => void
   onError?: (error: Error) => void
   capabilities?: WrapperCapability[]
-  onInput?: (input: string) => void
+  onInput?: (input: string, crDelay?: number) => void
   onTerminalAttach?: (cols: number, rows: number) => void
   onTerminalDetach?: () => void
   onTerminalInput?: (data: string) => void
@@ -190,7 +190,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
               break
             case 'input':
               // Forward input to PTY
-              onInput?.(message.input)
+              onInput?.(message.input, message.crDelay)
               break
             case 'terminal_attach':
               onTerminalAttach?.(message.cols, message.rows)

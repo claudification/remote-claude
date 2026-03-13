@@ -172,6 +172,7 @@ export interface SendInput {
   type: 'input'
   sessionId: string
   input: string
+  crDelay?: number // carriage return delay in ms (dashboard setting, optional)
 }
 
 // Transcript streaming: concentrator -> rclaude

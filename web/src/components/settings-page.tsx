@@ -412,6 +412,21 @@ function DisplayTab() {
           className="accent-primary w-4 h-4"
         />
       </label>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm text-foreground">CR delay (ms)</div>
+          <div className="text-[10px] text-muted-foreground">Delay before carriage return after paste (0 = auto)</div>
+        </div>
+        <input
+          type="number"
+          min={0}
+          max={2000}
+          step={50}
+          value={prefs.carriageReturnDelay}
+          onChange={e => update({ carriageReturnDelay: Math.max(0, Number(e.target.value) || 0) })}
+          className="w-20 bg-muted border border-border rounded px-2 py-1 text-sm text-foreground text-right"
+        />
+      </div>
       {/* Per-tool verbose display settings */}
       <div className="pt-2 border-t border-border">
         <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">

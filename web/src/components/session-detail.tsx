@@ -666,7 +666,7 @@ export function SessionDetail() {
               )}
               <div className="w-px h-4 bg-border" />
             </div>
-            <div className="pr-3 flex items-center gap-3">
+            <div className="pr-3 hidden sm:flex items-center gap-3">
               <div className="flex items-center gap-1.5">
                 <Checkbox
                   id="verbose"
