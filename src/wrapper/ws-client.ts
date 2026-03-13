@@ -21,6 +21,9 @@ import type {
 } from '../shared/protocol'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
+import { debug as _debug } from './debug'
+
+const debug = (msg: string) => _debug(`[ws] ${msg}`)
 
 export interface WsClientOptions {
   concentratorUrl?: string
@@ -96,14 +99,6 @@ export function createWsClient(options: WsClientOptions): WsClient {
   const maxReconnectAttempts = 10
   const messageQueue: WrapperMessage[] = []
   let heartbeatInterval: Timer | null = null
-
-  const debug = (msg: string) => {
-    if (process.env.RCLAUDE_DEBUG) {
-      const line = `[${new Date().toISOString()}] [ws] ${msg}\n`
-      const logFile = process.env.RCLAUDE_DEBUG_LOG || '/tmp/rclaude-debug.log'
-      try { require('fs').appendFileSync(logFile, line) } catch {}
-    }
-  }
 
   function connect() {
     try {

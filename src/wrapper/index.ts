@@ -5,7 +5,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -18,21 +18,7 @@ import { getTerminalSize, type PtyProcess, setupTerminalPassthrough, spawnClaude
 import { cleanupSettings, writeMergedSettings } from './settings-merge'
 import { createTranscriptWatcher, type TranscriptWatcher } from './transcript-watcher'
 import { createWsClient, type WsClient } from './ws-client'
-
-const DEBUG = !!process.env.RCLAUDE_DEBUG
-const DEBUG_LOG = process.env.RCLAUDE_DEBUG_LOG || (DEBUG ? '/tmp/rclaude-debug.log' : '')
-
-function debug(msg: string) {
-  if (!DEBUG) return
-  const line = `[${new Date().toISOString()}] ${msg}\n`
-  if (DEBUG_LOG) {
-    try {
-      appendFileSync(DEBUG_LOG, line)
-    } catch {}
-  } else {
-    console.error(`[rclaude] ${msg}`)
-  }
-}
+import { DEBUG, debug } from './debug'
 
 function wsToHttpUrl(url: string): string {
   return url.replace('ws://', 'http://').replace('wss://', 'https://')
