@@ -33,9 +33,18 @@ echo ""
 
 # ─── Prerequisites ───────────────────────────────────────────────
 if ! command -v bun &>/dev/null; then
-  err "bun is required but not installed."
-  echo "  Install: curl -fsSL https://bun.sh/install | bash"
-  exit 1
+  warn "bun is not installed. Installing..."
+  curl -fsSL https://bun.sh/install | bash
+  # Source bun into current shell
+  if [ -f "$HOME/.bun/bin/bun" ]; then
+    export BUN_INSTALL="$HOME/.bun"
+    export PATH="$BUN_INSTALL/bin:$PATH"
+  fi
+  if ! command -v bun &>/dev/null; then
+    err "Failed to install bun. Install manually: curl -fsSL https://bun.sh/install | bash"
+    exit 1
+  fi
+  ok "Installed bun $(bun --version)"
 fi
 
 # ─── Detect shell ────────────────────────────────────────────────
@@ -52,9 +61,14 @@ esac
 info "Detected shell: ${BOLD}$SHELL_NAME${NC} ($SHELL_RC)"
 
 # ─── Install dependencies ───────────────────────────────────────
-info "Installing dependencies..."
+info "Installing root dependencies..."
 cd "$REPO_DIR"
 bun install --frozen-lockfile 2>/dev/null || bun install
+
+info "Installing web dependencies..."
+cd "$REPO_DIR/web"
+bun install --frozen-lockfile 2>/dev/null || bun install
+cd "$REPO_DIR"
 
 # ─── Build binaries ──────────────────────────────────────────────
 info "Building binaries..."
@@ -173,9 +187,10 @@ echo ""
 MARKER="# rclaude config"
 if grep -qF "$MARKER" "$SHELL_RC" 2>/dev/null; then
   warn "rclaude config already exists in $SHELL_RC - updating"
-  # Remove old block
-  sed -i.bak "/$MARKER/,/# end rclaude config/d" "$SHELL_RC"
-  rm -f "${SHELL_RC}.bak"
+  # Remove old block (resolve symlinks for sed -i compatibility)
+  REAL_SHELL_RC="$(readlink -f "$SHELL_RC" 2>/dev/null || realpath "$SHELL_RC" 2>/dev/null || echo "$SHELL_RC")"
+  sed -i.bak "/$MARKER/,/# end rclaude config/d" "$REAL_SHELL_RC"
+  rm -f "${REAL_SHELL_RC}.bak"
 fi
 
 SHELL_BLOCK="${MARKER}

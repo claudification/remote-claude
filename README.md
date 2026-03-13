@@ -248,9 +248,11 @@ sharing between host and Docker.
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) runtime (v1.2+)
 - [Claude Code](https://claude.ai/code) CLI installed
 - Docker (for concentrator)
+- [Bun](https://bun.sh) runtime (v1.2+) — the installer will auto-install it if missing
+
+No other tools (Node.js, npm, vite, etc.) are required. Bun handles everything.
 
 ### Install
 
@@ -261,16 +263,25 @@ cd remote-claude
 ```
 
 The installer will:
-1. Build all binaries (`rclaude`, `rclaude-agent`, `concentrator`, `concentrator-cli`)
-2. Symlink them to `~/.local/bin/`
-3. Ask about concentrator setup (local Docker, remote, or skip)
-4. Configure your shell (`~/.zshrc` or `~/.bashrc`)
-5. Optionally alias `claude` to `rclaude`
+1. Install [Bun](https://bun.sh) automatically if not found
+2. Install all dependencies (root + web frontend)
+3. Build all binaries (`rclaude`, `rclaude-agent`, `concentrator`, `concentrator-cli`)
+4. Symlink them to `~/.local/bin/`
+5. Ask about concentrator setup (local Docker, remote, or skip)
+6. Configure your shell (`~/.zshrc` or `~/.bashrc`)
+7. Optionally alias `claude` to `rclaude`
 
 ### Manual install
 
 ```bash
+# Install bun if you don't have it
+curl -fsSL https://bun.sh/install | bash
+
+# Install dependencies (root AND web)
 bun install
+cd web && bun install && cd ..
+
+# Build everything
 bun run build
 
 # Symlink binaries
@@ -790,6 +801,9 @@ remote-claude/
 ## Development
 
 ```bash
+# First time: install all dependencies
+bun install && cd web && bun install && cd ..
+
 # Dev mode (hot reload)
 bun run dev:wrapper              # Wrapper
 bun run dev:concentrator         # Concentrator

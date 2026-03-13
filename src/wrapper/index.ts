@@ -44,11 +44,16 @@ function wsToHttpUrl(url: string): string {
 async function isConcentratorReady(url: string): Promise<boolean> {
   try {
     const httpUrl = wsToHttpUrl(url)
-    const resp = await fetch(`${httpUrl}/health`, {
-      signal: AbortSignal.timeout(200),
+    const healthUrl = `${httpUrl}/health`
+    debug(`Health check: ${healthUrl}`)
+    const start = Date.now()
+    const resp = await fetch(healthUrl, {
+      signal: AbortSignal.timeout(3000),
     })
+    debug(`Health check: ${resp.status} in ${Date.now() - start}ms`)
     return resp.ok
-  } catch {
+  } catch (err) {
+    debug(`Health check failed: ${err instanceof Error ? err.message : err}`)
     return false
   }
 }
@@ -136,11 +141,14 @@ async function main() {
   // Parse our specific args, pass the rest to claude
   const args = process.argv.slice(2)
 
-  let concentratorUrl = DEFAULT_CONCENTRATOR_URL
+  let concentratorUrl = process.env.RCLAUDE_CONCENTRATOR || DEFAULT_CONCENTRATOR_URL
   let concentratorSecret = process.env.RCLAUDE_SECRET
   let noConcentrator = false
   let noTerminal = false
   const claudeArgs: string[] = []
+
+  debug(`Concentrator URL: ${concentratorUrl} (source: ${process.env.RCLAUDE_CONCENTRATOR ? 'env' : 'default'})`)
+  debug(`Concentrator secret: ${concentratorSecret ? 'set' : 'NOT SET'}`)
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
@@ -166,6 +174,7 @@ async function main() {
     debug('Concentrator not reachable - running without it')
     noConcentrator = true
   }
+  debug(`Concentrator: ${noConcentrator ? 'DISABLED' : 'ENABLED'} (url: ${concentratorUrl})`)
 
   // Unique wrapper identity - use pre-assigned ID from revive flow if available
   const internalId = process.env.RCLAUDE_WRAPPER_ID || randomUUID()
