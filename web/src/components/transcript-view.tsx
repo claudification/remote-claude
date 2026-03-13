@@ -61,8 +61,18 @@ const ansiConverter = new AnsiToHtml({
   },
 })
 
+// Sanitize text before ANSI conversion to prevent HTML/style/script injection.
+// Tool output (especially Bash/WebFetch) can contain raw HTML that would
+// bleed into the DOM via dangerouslySetInnerHTML.
+function sanitizeForAnsi(text: string): string {
+  return text
+    .replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
 export function AnsiText({ text }: { text: string }) {
-  const html = useMemo(() => ansiConverter.toHtml(text), [text])
+  const html = useMemo(() => ansiConverter.toHtml(sanitizeForAnsi(text)), [text])
   return <span dangerouslySetInnerHTML={{ __html: html }} />
 }
 
