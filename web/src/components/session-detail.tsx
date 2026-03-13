@@ -157,9 +157,7 @@ export function SessionDetail() {
     selectedSessionId ? state.transcripts[selectedSessionId] || EMPTY_TRANSCRIPT : EMPTY_TRANSCRIPT,
   )
   const agentConnected = useSessionsStore(state => state.agentConnected)
-  const projectSettings = useSessionsStore(state =>
-    session?.cwd ? state.projectSettings[session.cwd] : undefined,
-  )
+  const projectSettings = useSessionsStore(state => (session?.cwd ? state.projectSettings[session.cwd] : undefined))
   const selectedSubagentId = useSessionsStore(state => state.selectedSubagentId)
   const selectSubagent = useSessionsStore(state => state.selectSubagent)
 

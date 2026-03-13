@@ -9,9 +9,9 @@ export interface BuildVersion {
 }
 
 export const BUILD_VERSION: BuildVersion = {
-  gitHash: 'd2c377ebd345d5cf814f03d31d2b78c04fc0672e',
-  gitHashShort: 'd2c377e-dirty',
-  buildTime: '2026-03-13T15:00:19.251Z',
+  gitHash: 'e97f67e9f7519abc1487452f8e4cfd5a9a0b89a6',
+  gitHashShort: 'e97f67e-dirty',
+  buildTime: '2026-03-13T15:50:11.885Z',
   dirty: true,
-  recentCommits: [{"hash":"d2c377e","message":"(HEAD -> main, origin/main, origin/HEAD) feat: Default view setting (transcript vs TTY)"},{"hash":"ccaf845","message":"fix: Quick note multiline indentation"},{"hash":"ec9fb88","message":"fix: Shorten placeholder text on mobile to prevent wrapping"}],
+  recentCommits: [{"hash":"e97f67e","message":"(HEAD -> main, origin/main, origin/HEAD) chore: Update build version"},{"hash":"cad17dc","message":"feat: Per-subagent token usage tracking and display"},{"hash":"4d62e78","message":"fix: Eliminate Zustand re-render storms causing React error #185 and UI jank"}],
 }

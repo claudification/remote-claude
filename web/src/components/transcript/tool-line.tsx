@@ -55,7 +55,9 @@ export function ToolLine({
   const input = tool.input || {}
   const style = getToolStyle(name)
   const expandAll = useSessionsStore(state => state.expandAll)
-  const toolDefaultOpen = useSessionsStore(state => resolveToolDisplay(state.dashboardPrefs, name as ToolDisplayKey).defaultOpen)
+  const toolDefaultOpen = useSessionsStore(
+    state => resolveToolDisplay(state.dashboardPrefs, name as ToolDisplayKey).defaultOpen,
+  )
 
   let summary = ''
   let details: React.ReactNode = null
