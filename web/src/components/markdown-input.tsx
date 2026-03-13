@@ -347,7 +347,8 @@ export function MarkdownInput({
       if (!file) return
       // Read the text to check if it's worth offering a choice
       const text = await new Promise<string>(resolve => textItem!.getAsString(resolve))
-      const isJustFilename = /^[^\n]{1,260}\.(png|jpe?g|gif|webp|svg|bmp|tiff?|ico|heic)$/i.test(text.trim())
+      const isJustFilename = /^[^\n]{1,500}\.(png|jpe?g|gif|webp|svg|bmp|tiff?|ico|heic)$/i.test(text.trim()) ||
+        /^(\/|~|[A-Z]:\\)/.test(text.trim()) // file paths (Unix or Windows)
       if (!text.trim() || isJustFilename) {
         // Text is empty or just a filename - upload image directly
         uploadFile(file)
