@@ -159,7 +159,7 @@ significant work, encounter errors, or finish long-running tasks.
 
 ### curl
 \`\`\`bash
-curl -s -X POST $RCLAUDE_CONCENTRATOR_URL/api/push/send \
+curl -s -X POST $RCLAUDE_CONCENTRATOR/api/push/send \
   -H "Authorization: Bearer $RCLAUDE_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"title": "Deploy complete", "body": "Production build deployed in 42s"}'
@@ -173,7 +173,7 @@ curl -s -X POST $RCLAUDE_CONCENTRATOR_URL/api/push/send \
 - Waiting for my input on something important
 ```
 
-Replace `$RCLAUDE_CONCENTRATOR_URL` with your actual concentrator URL
+Replace `$RCLAUDE_CONCENTRATOR` with your actual concentrator URL
 (e.g. `https://concentrator.example.com`). The `$RCLAUDE_SECRET` env var
 is already available in Claude's shell when running under `rclaude`.
 

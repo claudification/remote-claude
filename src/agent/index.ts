@@ -35,7 +35,7 @@ const DEFAULT_REVIVE_SCRIPT = findReviveScript()
 
 function parseArgs() {
   const args = process.argv.slice(2)
-  let concentratorUrl = DEFAULT_CONCENTRATOR_URL
+  let concentratorUrl = process.env.RCLAUDE_CONCENTRATOR || DEFAULT_CONCENTRATOR_URL
   let secret = process.env.RCLAUDE_SECRET
   let verbose = false
   let reviveScript = DEFAULT_REVIVE_SCRIPT
