@@ -74,10 +74,20 @@ export function haptic(pattern: 'tap' | 'double' | 'success' | 'error' | 'tick' 
   // The library works on iOS via a hidden <input switch> DOM trick (the !isSupported path).
   const h = getHaptics()
   switch (pattern) {
-    case 'tap': h.trigger('light'); break
-    case 'tick': h.trigger('selection'); break
-    case 'double': h.trigger('medium'); break
-    case 'success': h.trigger('success'); break
-    case 'error': h.trigger('error'); break
+    case 'tap':
+      h.trigger('light')
+      break
+    case 'tick':
+      h.trigger('selection')
+      break
+    case 'double':
+      h.trigger('medium')
+      break
+    case 'success':
+      h.trigger('success')
+      break
+    case 'error':
+      h.trigger('error')
+      break
   }
 }

@@ -1,6 +1,6 @@
 import { Copy, Maximize2, Minimize2, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { type LogEntry, clearLog, copyLogText, getLogEntries, subscribeLog } from '@/lib/debug-log'
+import { clearLog, copyLogText, getLogEntries, type LogEntry, subscribeLog } from '@/lib/debug-log'
 
 const LEVEL_COLORS: Record<string, string> = {
   error: 'text-red-400',
@@ -16,7 +16,9 @@ const MAX_HEIGHT_RATIO = 0.7
 function LogLine({ entry }: { entry: LogEntry }) {
   const ts = new Date(entry.t).toISOString().slice(11, 23)
   return (
-    <div className={`flex gap-2 font-mono text-[11px] leading-relaxed ${LEVEL_COLORS[entry.level] || 'text-foreground'}`}>
+    <div
+      className={`flex gap-2 font-mono text-[11px] leading-relaxed ${LEVEL_COLORS[entry.level] || 'text-foreground'}`}
+    >
       <span className="text-muted-foreground/50 shrink-0 select-none">{ts}</span>
       <span className="text-muted-foreground/50 shrink-0 w-10 select-none">{entry.level.toUpperCase()}</span>
       <span className="whitespace-pre-wrap break-all">{entry.args}</span>
@@ -66,12 +68,15 @@ export function DebugConsole({ onClose }: { onClose: () => void }) {
   }
 
   // Drag resize from top edge
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
-    e.preventDefault()
-    dragRef.current = { startY: e.clientY, startH: height }
-    const el = e.currentTarget as HTMLElement
-    el.setPointerCapture(e.pointerId)
-  }, [height])
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      dragRef.current = { startY: e.clientY, startH: height }
+      const el = e.currentTarget as HTMLElement
+      el.setPointerCapture(e.pointerId)
+    },
+    [height],
+  )
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current) return
@@ -114,7 +119,11 @@ export function DebugConsole({ onClose }: { onClose: () => void }) {
             className="text-muted-foreground hover:text-foreground transition-colors p-1"
             title="Copy last 200 lines"
           >
-            {copied ? <span className="text-[10px] font-mono text-green-400">copied</span> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? (
+              <span className="text-[10px] font-mono text-green-400">copied</span>
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
           </button>
           <button
             type="button"
@@ -143,11 +152,7 @@ export function DebugConsole({ onClose }: { onClose: () => void }) {
         </div>
       </div>
       {/* Log area */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-auto px-3 py-1"
-      >
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-auto px-3 py-1">
         {entries.length === 0 && (
           <div className="text-muted-foreground/50 text-xs font-mono py-4 text-center">No log entries yet</div>
         )}

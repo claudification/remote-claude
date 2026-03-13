@@ -636,7 +636,8 @@ function VoiceTab() {
 
   useEffect(() => {
     if (typeof globalSettings.voiceRefinement === 'boolean') setRefinement(globalSettings.voiceRefinement)
-    if (typeof globalSettings.voiceRefinementPrompt === 'string') setPrompt(globalSettings.voiceRefinementPrompt as string)
+    if (typeof globalSettings.voiceRefinementPrompt === 'string')
+      setPrompt(globalSettings.voiceRefinementPrompt as string)
     setDirty(false)
   }, [globalSettings.voiceRefinement, globalSettings.voiceRefinementPrompt])
 
@@ -693,9 +694,7 @@ function VoiceTab() {
             rows={6}
             className="w-full px-3 py-2 text-xs font-mono bg-muted border border-border text-foreground placeholder:text-muted-foreground/30 resize-y min-h-[80px]"
           />
-          <div className="text-[9px] text-muted-foreground/50 text-right mt-0.5">
-            {prompt.length}/2000
-          </div>
+          <div className="text-[9px] text-muted-foreground/50 text-right mt-0.5">{prompt.length}/2000</div>
         </div>
       )}
 

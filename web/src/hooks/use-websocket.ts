@@ -10,10 +10,11 @@ import { unstable_batchedUpdates as batchUpdates } from 'react-dom'
 
 // Graceful fallback if unstable_batchedUpdates is ever removed
 const batch: (fn: () => void) => void = batchUpdates ?? (fn => fn())
-import { recordIn, recordOut } from './ws-stats'
+
 import type { SessionSummary } from '@shared/protocol'
 import type { HookEvent, Session, TaskInfo, TranscriptEntry } from '@/lib/types'
-import { type ProjectSettingsMap, applyHashRoute, handleBgTaskOutputMessage, useSessionsStore } from './use-sessions'
+import { applyHashRoute, handleBgTaskOutputMessage, type ProjectSettingsMap, useSessionsStore } from './use-sessions'
+import { recordIn, recordOut } from './ws-stats'
 
 // Dashboard message from concentrator WS (loose type field for extensibility)
 interface DashboardMessage {
@@ -321,9 +322,11 @@ export function useWebSocket() {
 
           // Toast notifications -> direct DOM event
           if (msg.type === 'toast') {
-            const title = msg.title as string || 'Notification'
-            const body = msg.message as string || ''
-            window.dispatchEvent(new CustomEvent('rclaude-toast', { detail: { title, body, sessionId: msg.sessionId } }))
+            const title = (msg.title as string) || 'Notification'
+            const body = (msg.message as string) || ''
+            window.dispatchEvent(
+              new CustomEvent('rclaude-toast', { detail: { title, body, sessionId: msg.sessionId } }),
+            )
             return
           }
 

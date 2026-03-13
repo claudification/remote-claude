@@ -5,10 +5,10 @@
 
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
-import { HighlightStyle, bracketMatching, syntaxHighlighting } from '@codemirror/language'
+import { bracketMatching, HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { EditorState } from '@codemirror/state'
-import { tags } from '@lezer/highlight'
 import { drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view'
+import { tags } from '@lezer/highlight'
 
 // Tokyo Night colors for markdown
 const tokyoNightMarkdown = HighlightStyle.define([

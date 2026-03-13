@@ -6,7 +6,7 @@
  * Auto-submits after utterance end (silence detection) + refinement.
  */
 
-import { Loader2, Check, X, Square } from 'lucide-react'
+import { Check, Loader2, Square, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { cn, haptic } from '@/lib/utils'
@@ -124,7 +124,9 @@ export function VoiceOverlay({ onResult, onClose, holdMode = false, onMicGranted
     // is the actual "release" we want -- but we need a small delay to avoid
     // catching a phantom event during mount
     let armed = false
-    const armTimer = setTimeout(() => { armed = true }, 100)
+    const armTimer = setTimeout(() => {
+      armed = true
+    }, 100)
     function handleRelease() {
       if (!armed) return
       if (stateRef.current === 'recording' || stateRef.current === 'connecting') {
@@ -163,12 +165,10 @@ export function VoiceOverlay({ onResult, onClose, holdMode = false, onMicGranted
       const sessionId = useSessionsStore.getState().selectedSessionId
       sendWs({ type: 'voice_start', sessionId })
 
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : 'audio/mp4'
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4'
       const recorder = new MediaRecorder(stream, { mimeType })
 
-      recorder.ondataavailable = async (e) => {
+      recorder.ondataavailable = async e => {
         if (e.data.size > 0) {
           const buffer = await e.data.arrayBuffer()
           const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
@@ -271,26 +271,31 @@ export function VoiceOverlay({ onResult, onClose, holdMode = false, onMicGranted
 
       {/* Transcript area - fills middle */}
       <div className="flex-1 overflow-y-auto px-4">
-        <div className={cn(
-          'max-w-[700px] mx-auto font-mono text-base leading-relaxed p-4 min-h-[4rem]',
-          state === 'error' ? 'text-red-400' : '',
-        )}>
+        <div
+          className={cn(
+            'max-w-[700px] mx-auto font-mono text-base leading-relaxed p-4 min-h-[4rem]',
+            state === 'error' ? 'text-red-400' : '',
+          )}
+        >
           {!displayText && !displayInterim && state !== 'error' && (
             <span className="text-muted-foreground/40 italic text-lg">
               {state === 'connecting' ? 'Connecting...' : 'Speak now...'}
             </span>
           )}
           {displayText && (
-            <span className={cn(
-              'transition-colors duration-300',
-              state === 'done' ? 'text-foreground' : 'text-foreground/80',
-            )}>
+            <span
+              className={cn(
+                'transition-colors duration-300',
+                state === 'done' ? 'text-foreground' : 'text-foreground/80',
+              )}
+            >
               {displayText}
             </span>
           )}
           {displayInterim && (
             <span className="text-accent/50 italic">
-              {displayText ? ' ' : ''}{displayInterim}
+              {displayText ? ' ' : ''}
+              {displayInterim}
             </span>
           )}
         </div>
@@ -327,9 +332,7 @@ export function VoiceOverlay({ onResult, onClose, holdMode = false, onMicGranted
             </button>
           )}
           {(state === 'refining' || state === 'connecting') && holdMode && (
-            <span className="text-xs text-muted-foreground/60 font-mono uppercase tracking-wider">
-              Processing...
-            </span>
+            <span className="text-xs text-muted-foreground/60 font-mono uppercase tracking-wider">Processing...</span>
           )}
           {state === 'done' && !holdMode && (
             <>
@@ -354,9 +357,7 @@ export function VoiceOverlay({ onResult, onClose, holdMode = false, onMicGranted
             </>
           )}
           {state === 'done' && holdMode && (
-            <span className="text-xs text-green-400/60 font-mono uppercase tracking-wider">
-              Sending...
-            </span>
+            <span className="text-xs text-green-400/60 font-mono uppercase tracking-wider">Sending...</span>
           )}
           {state === 'error' && (
             <button

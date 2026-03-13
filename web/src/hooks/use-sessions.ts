@@ -7,6 +7,7 @@ import {
   type ToolDisplayKey,
   type ToolDisplayPrefs,
 } from '@/lib/dashboard-prefs'
+import { clearExpandedState } from '@/lib/expanded-state'
 import type {
   HookEvent,
   ProjectSettings,
@@ -16,7 +17,6 @@ import type {
   TaskInfo,
   TranscriptEntry,
 } from '@/lib/types'
-import { clearExpandedState } from '@/lib/expanded-state'
 import { recordOut } from './ws-stats'
 export type { ProjectSettingsMap }
 

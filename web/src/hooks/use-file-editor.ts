@@ -3,8 +3,8 @@
  * Handles request/response correlation, file state, autosave
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FileInfo } from '@shared/protocol'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSessionsStore } from './use-sessions'
 
 export type { FileInfo } from '@shared/protocol'

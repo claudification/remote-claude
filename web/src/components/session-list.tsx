@@ -1,7 +1,7 @@
+import type { HookEvent } from '@shared/protocol'
 import { useEffect, useState } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import type { Session } from '@/lib/types'
-import type { HookEvent } from '@shared/protocol'
 import { cn, formatAge, formatModel, haptic, lastPathSegments } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from './project-settings-editor'
 

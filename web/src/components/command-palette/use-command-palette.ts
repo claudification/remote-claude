@@ -70,7 +70,10 @@ export function useCommandPalette(onClose: () => void) {
   const [filesLoading, setFilesLoading] = useState(false)
   const filesFetched = useRef(false)
 
-  const fileFzf = useMemo(() => new Fzf(files, { selector: (f: FileInfo) => `${f.name} ${f.path}`, casing: 'case-insensitive' }), [files])
+  const fileFzf = useMemo(
+    () => new Fzf(files, { selector: (f: FileInfo) => `${f.name} ${f.path}`, casing: 'case-insensitive' }),
+    [files],
+  )
   const filteredFiles = fileFilter ? fileFzf.find(fileFilter).map(r => r.item) : files
 
   // Fetch file list when entering file mode

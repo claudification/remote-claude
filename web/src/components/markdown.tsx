@@ -47,7 +47,9 @@ renderer.code = ({ text, lang }) => {
   const langClass = lang ? ` class="hljs language-${lang}"` : ' class="hljs"'
   let highlighted = text
   if (lang && hljs.getLanguage(lang)) {
-    try { highlighted = hljs.highlight(text, { language: lang }).value } catch {}
+    try {
+      highlighted = hljs.highlight(text, { language: lang }).value
+    } catch {}
   }
   return `<div class="code-block-wrap"><pre><code${langClass}>${highlighted}</code></pre><button class="code-copy-btn" title="Copy">⧉</button></div>`
 }
@@ -127,7 +129,9 @@ export function Markdown({ children }: MarkdownProps) {
     if (!code) return
     navigator.clipboard.writeText(code.textContent || '').then(() => {
       btn.textContent = '✓'
-      setTimeout(() => { btn.textContent = '⧉' }, 1500)
+      setTimeout(() => {
+        btn.textContent = '⧉'
+      }, 1500)
     })
   }, [])
 

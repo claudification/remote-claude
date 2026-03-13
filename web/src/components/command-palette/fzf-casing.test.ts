@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
 import { Fzf } from 'fzf'
+import { describe, expect, it } from 'vitest'
 
 describe('Fzf case-insensitive matching', () => {
   const items = [
@@ -10,7 +10,7 @@ describe('Fzf case-insensitive matching', () => {
 
   it('smart-case (default) fails on uppercase query matching lowercase item', () => {
     const fzf = new Fzf(items, {
-      selector: (s) => `${s.cwd} ${s.label}`,
+      selector: s => `${s.cwd} ${s.label}`,
       // default is smart-case
     })
     // "Iran" has uppercase I, so smart-case treats it as case-sensitive
@@ -22,7 +22,7 @@ describe('Fzf case-insensitive matching', () => {
 
   it('case-insensitive matches regardless of query casing', () => {
     const fzf = new Fzf(items, {
-      selector: (s) => `${s.cwd} ${s.label}`,
+      selector: s => `${s.cwd} ${s.label}`,
       casing: 'case-insensitive',
     })
 
@@ -50,7 +50,7 @@ describe('Fzf case-insensitive matching', () => {
     ]
 
     const fzf = new Fzf(files, {
-      selector: (f) => `${f.name} ${f.path}`,
+      selector: f => `${f.name} ${f.path}`,
       casing: 'case-insensitive',
     })
 
