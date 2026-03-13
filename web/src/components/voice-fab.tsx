@@ -29,10 +29,13 @@ export function VoiceFab() {
   const wsListenerRef = useRef<((event: MessageEvent) => void) | null>(null)
   const stateRef = useRef<FabState>('idle')
   const cancelledRef = useRef(false)
+  const dragOffsetRef = useRef(0)
+  const pendingStopRef = useRef(false) // Set when pointerup fires before getUserMedia resolves
   const utteranceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   stateRef.current = state
   cancelledRef.current = cancelled
+  dragOffsetRef.current = dragOffset
 
   const sendWs = useCallback((msg: Record<string, unknown>) => {
     useSessionsStore.getState().sendWsMessage(msg)
@@ -135,6 +138,7 @@ export function VoiceFab() {
     setErrorMsg('')
     setDragOffset(0)
     setCancelled(false)
+    pendingStopRef.current = false
   }
 
   function cleanup() {
@@ -166,12 +170,13 @@ export function VoiceFab() {
   }
 
   async function handlePointerDown(e: React.PointerEvent) {
-    if (state !== 'idle') return
+    if (stateRef.current !== 'idle') return
     e.preventDefault()
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
 
     startXRef.current = e.clientX
     setCancelled(false)
+    pendingStopRef.current = false
     setDragOffset(0)
     setState('connecting')
     haptic('tap')
@@ -180,10 +185,18 @@ export function VoiceFab() {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      if (cancelledRef.current) {
+
+      // User released finger (or cancelled) while we were waiting for mic permission
+      if (cancelledRef.current || pendingStopRef.current) {
         stream.getTracks().forEach(t => t.stop())
+        if (pendingStopRef.current) {
+          pendingStopRef.current = false
+          cleanup()
+          resetState()
+        }
         return
       }
+
       streamRef.current = stream
 
       const sessionId = useSessionsStore.getState().selectedSessionId
@@ -212,7 +225,8 @@ export function VoiceFab() {
   }
 
   function handlePointerMove(e: React.PointerEvent) {
-    if (state !== 'recording' && state !== 'connecting') return
+    const s = stateRef.current
+    if (s !== 'recording' && s !== 'connecting') return
 
     const dx = e.clientX - startXRef.current
     const offset = Math.min(0, dx) // only track leftward movement
@@ -225,14 +239,22 @@ export function VoiceFab() {
   }
 
   function handlePointerUp() {
-    if (state === 'idle') return
+    const s = stateRef.current
+    if (s === 'idle') return
 
-    if (Math.abs(dragOffset) >= CANCEL_THRESHOLD) {
+    if (Math.abs(dragOffsetRef.current) >= CANCEL_THRESHOLD) {
       cancelRecording()
       return
     }
 
-    if (state === 'recording' || state === 'connecting') {
+    if (s === 'connecting') {
+      // getUserMedia hasn't resolved yet - signal the async callback to bail out
+      pendingStopRef.current = true
+      haptic('tick')
+      return
+    }
+
+    if (s === 'recording') {
       // Stop recording, send for refinement
       if (mediaRecorderRef.current?.state === 'recording') {
         mediaRecorderRef.current.stop()
@@ -244,16 +266,9 @@ export function VoiceFab() {
       }
       sendWs({ type: 'voice_stop' })
 
-      const text = finalText || interimText
-      if (text) {
-        setState('refining')
-        haptic('tick')
-      } else {
-        // No text captured
-        cleanup()
-        resetState()
-        haptic('error')
-      }
+      // Transition to refining - let the server flush final transcript
+      setState('refining')
+      haptic('tick')
     }
   }
 
