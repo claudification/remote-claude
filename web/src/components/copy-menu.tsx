@@ -77,21 +77,12 @@ async function copyAsImage(element: HTMLElement) {
   if (!toBlobFn) throw new Error('html-to-image not loaded yet')
 
   const bgColor = getComputedStyle(document.body).backgroundColor || '#0a0a0a'
+  const pad = Math.round(parseFloat(getComputedStyle(element).fontSize) * 1.25)
 
-  // Temporarily wrap the ORIGINAL element in a padded div for capture.
-  // html-to-image clones internally, and clones lose computed styles when
-  // placed elsewhere. Wrapping the original keeps all styles intact.
-  const wrapper = document.createElement('div')
-  wrapper.style.display = 'inline-block'
-  wrapper.style.padding = '1em 1.25em'
-  const parent = element.parentElement!
-  const next = element.nextSibling
-  parent.replaceChild(wrapper, element)
-  wrapper.appendChild(element)
-
-  // Safari requires ClipboardItem creation within the user gesture context.
-  // Pass the blob PROMISE directly - don't await it first.
-  const blobPromise = toBlobFn(wrapper, {
+  // Capture element as-is, then add padding via canvas post-processing.
+  // All DOM manipulation approaches fail (clones lose styles, reparenting
+  // breaks rendering, cssText gets ignored by html-to-image's clone).
+  const blobPromise = toBlobFn(element, {
     pixelRatio: 2,
     backgroundColor: bgColor,
     filter: (node: HTMLElement) => {
@@ -100,16 +91,25 @@ async function copyAsImage(element: HTMLElement) {
       if (node.classList?.contains('table-source')) return false
       return true
     },
-  }).then(blob => {
+  }).then(async blob => {
     if (!blob) throw new Error('toBlob returned null')
-    return blob
-  })
 
-  // Unwrap immediately - toBlob reads dimensions synchronously
-  wrapper.removeChild(element)
-  if (next) parent.insertBefore(element, next)
-  else parent.appendChild(element)
-  parent.removeChild(wrapper)
+    // Add padding via canvas
+    const img = await createImageBitmap(blob)
+    const canvas = document.createElement('canvas')
+    const p = pad * 2 // pixelRatio already applied by toBlob
+    canvas.width = img.width + p * 2
+    canvas.height = img.height + p * 2
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = bgColor
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(img, p, p)
+    img.close()
+
+    return new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(b => (b ? resolve(b) : reject(new Error('canvas toBlob failed'))), 'image/png')
+    })
+  })
 
   await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })])
 }
