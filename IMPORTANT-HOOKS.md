@@ -98,6 +98,63 @@ TeammateIdle (agent_id, agent_name, team_name) -- identifies membership
   └── TaskCompleted -> completedTaskCount++, status back to 'idle'
 ```
 
+## Message Queue (queue-operation Transcript Entries)
+
+When the user types while Claude is busy, messages are queued in-memory and
+written to the JSONL as `queue-operation` entries. This is NOT part of the
+hook system -- it's a transcript-only mechanism.
+
+### Operations (from decompiled CC 2.1.76 source)
+
+| Operation | Mechanism | When | Has `content`? |
+|-----------|-----------|------|----------------|
+| `enqueue` | Push to queue (priority `next` for user msgs, `later` for task notifications) | User types or task notification arrives | Yes |
+| `popAll` | Drain all "editable" items, concatenate into next user turn | Start of new turn after Claude finishes | Yes (echoes text) |
+| `dequeue` | Single priority-based pop | Between turns, or task notification consumed | No |
+| `remove` | Predicate-based splice | Mid-turn consumption (Claude processes interject while still working) | No |
+
+### Queue Lifecycle
+
+```
+User types while Claude is busy
+  │
+  ├── enqueue (content: "user's message")
+  │
+  ├── Claude finishes current work
+  │   │
+  │   ├── Single message queued:
+  │   │     remove (mid-turn) or dequeue (between turns)
+  │   │
+  │   └── Multiple messages queued:
+  │         popAll (drains all, concatenates into one prompt)
+  │
+  └── /clear while messages queued:
+        popAll (bulk drain, messages discarded)
+```
+
+### "Editable" vs "Non-Editable" Items
+
+Claude Code distinguishes between:
+- **Editable** = user-typed messages (consumed by `popAll`)
+- **Non-editable** = `<task-notification>` entries (consumed by `dequeue`, skip `popAll`)
+
+Task notifications are enqueued with priority `later` and dequeued almost
+instantly (~8ms). They bypass the normal user message queue path.
+
+### rclaude Handling
+
+- `enqueue` with content -> synthesized as user display group with `queued: true`
+- `dequeue`/`remove` -> clear `queued` flag on oldest queued group (FIFO)
+- `popAll` -> clear `queued` flag on ALL queued groups
+- Queued groups float at the bottom of the transcript as a sticky footer
+- When consumed, they snap to their chronological position in the transcript
+
+### Statistical Patterns (from real sessions)
+
+- `enqueue` -> `remove`: seconds to minutes gap (Claude was busy)
+- `enqueue` -> `dequeue`: <1s gap (Claude was idle or just finished)
+- Multiple `enqueue` -> single `popAll` per item: bulk drain at turn boundary
+
 ## Session IDs -- Three Different Things
 
 | ID | Source | Lifetime | Purpose |
@@ -220,9 +277,9 @@ rclaude hooks are PREPENDED to user's hook arrays (fire first).
 
 ## Known Quirks & Gotchas
 
-### 1. No PostCompact Hook
-There is no PostCompact. Compaction end is signaled by the next `SessionStart`.
-Do NOT clear compacting state on any other event.
+### 1. PostCompact Hook (CC 2.1.76+)
+`PostCompact` was added in CC 2.1.76. rclaude uses it as the primary signal
+to clear compacting state. Fallback: `SessionStart` after `PreCompact` (older CC).
 
 ### 2. First SessionStart May Have Non-Existent Transcript
 The `--settings` injection can cause a SessionStart before the JSONL file exists.
