@@ -343,9 +343,14 @@ async function main() {
         // Start polling task files
         startTaskWatching()
         // Re-send transcript on reconnect (concentrator may have restarted)
+        // Delay slightly to let the connection stabilize before sending large payloads
         if (transcriptWatcher) {
-          debug('Re-sending transcript on reconnect')
-          transcriptWatcher.resend().catch(err => debug(`Resend failed: ${err}`))
+          debug('Re-sending transcript on reconnect (delayed 1s)')
+          setTimeout(() => {
+            if (wsClient?.isConnected()) {
+              transcriptWatcher?.resend().catch(err => debug(`Resend failed: ${err}`))
+            }
+          }, 1000)
         }
         // Re-send tasks immediately
         lastTasksJson = ''
@@ -544,7 +549,8 @@ async function main() {
     debug(`File editor: ${type}${msg.path ? ` path=${msg.path}` : ''}`)
   }
 
-  const TRANSCRIPT_CHUNK_SIZE = 200
+  const TRANSCRIPT_CHUNK_SIZE = 50 // entries per chunk (was 200 — smaller to avoid oversized WS frames)
+  const MAX_CHUNK_BYTES = 512 * 1024 // 512KB max per WS message
 
   function sendTranscriptEntriesChunked(entries: TranscriptEntry[], isInitial: boolean, agentId?: string) {
     if (!claudeSessionId || !wsClient?.isConnected()) {
@@ -556,12 +562,23 @@ async function main() {
         ? wsClient!.sendSubagentTranscript(agentId, chunk, initial)
         : wsClient!.sendTranscriptEntries(chunk, initial)
 
-    if (entries.length <= TRANSCRIPT_CHUNK_SIZE) {
-      send(entries, isInitial)
-      return
+    // Split into size-bounded chunks to avoid oversized WS frames
+    let chunk: TranscriptEntry[] = []
+    let chunkBytes = 0
+    let first = true
+    for (const entry of entries) {
+      const entryJson = JSON.stringify(entry)
+      if (chunk.length > 0 && (chunk.length >= TRANSCRIPT_CHUNK_SIZE || chunkBytes + entryJson.length > MAX_CHUNK_BYTES)) {
+        send(chunk, isInitial && first)
+        first = false
+        chunk = []
+        chunkBytes = 0
+      }
+      chunk.push(entry)
+      chunkBytes += entryJson.length
     }
-    for (let i = 0; i < entries.length; i += TRANSCRIPT_CHUNK_SIZE) {
-      send(entries.slice(i, i + TRANSCRIPT_CHUNK_SIZE), isInitial && i === 0)
+    if (chunk.length > 0) {
+      send(chunk, isInitial && first)
     }
   }
 

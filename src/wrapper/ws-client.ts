@@ -98,7 +98,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
   let connected = false
   let shouldReconnect = true
   let reconnectAttempts = 0
+  const maxReconnectAttempts = 50
   const messageQueue: WrapperMessage[] = []
+  const MAX_QUEUE_SIZE = 500
   let heartbeatInterval: Timer | null = null
 
   function connect() {
@@ -163,11 +165,14 @@ export function createWsClient(options: WsClientOptions): WsClient {
 
         onDisconnected?.()
 
-        // Attempt reconnect
-        if (shouldReconnect) {
+        // Attempt reconnect with exponential backoff, capped at 60s
+        if (shouldReconnect && reconnectAttempts < maxReconnectAttempts) {
           reconnectAttempts++
-          const delay = Math.min(1000 * 2 ** reconnectAttempts, 30_000)
+          const delay = Math.min(1000 * 2 ** Math.min(reconnectAttempts, 6), 60_000)
+          debug(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${maxReconnectAttempts})`)
           setTimeout(connect, delay)
+        } else if (shouldReconnect) {
+          onError?.(new Error(`WebSocket reconnection gave up after ${maxReconnectAttempts} attempts`))
         }
       }
 
@@ -232,9 +237,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
     } catch (error) {
       onError?.(error as Error)
       // Attempt reconnect on connection failure
-      if (shouldReconnect) {
+      if (shouldReconnect && reconnectAttempts < maxReconnectAttempts) {
         reconnectAttempts++
-        const delay = Math.min(1000 * 2 ** reconnectAttempts, 30_000)
+        const delay = Math.min(1000 * 2 ** Math.min(reconnectAttempts, 6), 60_000)
         setTimeout(connect, delay)
       }
     }
@@ -242,10 +247,17 @@ export function createWsClient(options: WsClientOptions): WsClient {
 
   function send(message: WrapperMessage) {
     if (connected && ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(message))
+      const json = JSON.stringify(message)
+      // Log large messages for debugging disconnects
+      if (json.length > 100_000) {
+        onError?.(new Error(`Large WS message: type=${message.type} size=${(json.length / 1024).toFixed(0)}KB`))
+      }
+      ws.send(json)
     } else {
-      // Queue for later
-      messageQueue.push(message)
+      // Queue for later, cap size to prevent unbounded growth
+      if (messageQueue.length < MAX_QUEUE_SIZE) {
+        messageQueue.push(message)
+      }
     }
   }
 
