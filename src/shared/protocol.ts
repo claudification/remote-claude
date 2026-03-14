@@ -122,8 +122,124 @@ export interface FileResponse {
   error?: string
 }
 
-// A single JSONL transcript entry (opaque to protocol - the concentrator just stores/forwards it)
-export type TranscriptEntry = Record<string, unknown>
+// Common fields present on most JSONL transcript entries
+interface TranscriptEntryBase {
+  type: string
+  timestamp?: string
+  uuid?: string
+  parentUuid?: string | null
+  isSidechain?: boolean
+  sessionId?: string
+  cwd?: string
+  version?: string
+  gitBranch?: string
+  slug?: string
+  userType?: string
+}
+
+export interface TranscriptAssistantMessage {
+  model?: string
+  id?: string
+  type?: string
+  role: 'assistant'
+  content: unknown[]
+  stop_reason?: string | null
+  stop_sequence?: string | null
+  usage?: {
+    input_tokens: number
+    cache_creation_input_tokens?: number
+    cache_read_input_tokens?: number
+    output_tokens: number
+    service_tier?: string
+    speed?: string
+    server_tool_use?: Record<string, number>
+    cache_creation?: Record<string, number>
+    inference_geo?: string
+    iterations?: unknown[]
+  }
+}
+
+export interface TranscriptUserEntry extends TranscriptEntryBase {
+  type: 'user'
+  message?: {
+    role: 'user'
+    content: string | unknown[]
+  }
+  promptId?: string
+  sourceToolAssistantUUID?: string
+  sourceToolUseID?: string
+  toolUseResult?: Record<string, unknown> | unknown[] | string
+  isCompactSummary?: boolean
+  isMeta?: boolean
+  isVisibleInTranscriptOnly?: boolean
+  imagePasteIds?: number[]
+  permissionMode?: string
+}
+
+export interface TranscriptAssistantEntry extends TranscriptEntryBase {
+  type: 'assistant'
+  message?: TranscriptAssistantMessage
+  requestId?: string
+  isApiErrorMessage?: boolean
+  error?: string
+}
+
+export interface TranscriptProgressEntry extends TranscriptEntryBase {
+  type: 'progress'
+  data?: Record<string, unknown>
+  toolUseID?: string
+  parentToolUseID?: string
+}
+
+export interface TranscriptSystemEntry extends TranscriptEntryBase {
+  type: 'system'
+  subtype?: 'stop_hook_summary' | 'turn_duration' | 'compact_boundary' | 'local_command' | string
+  content?: string
+  level?: string
+  isMeta?: boolean
+  stopReason?: string
+  hookCount?: number
+  hookErrors?: unknown[]
+  hookInfos?: unknown[]
+  preventedContinuation?: boolean
+  hasOutput?: boolean
+  durationMs?: number
+  toolUseID?: string
+  compactMetadata?: { trigger?: string; preTokens?: number }
+}
+
+export interface TranscriptQueueEntry extends TranscriptEntryBase {
+  type: 'queue-operation'
+  operation: 'enqueue' | 'remove' | 'dequeue' | 'popAll'
+  content?: string
+}
+
+export interface TranscriptCompactingEntry extends TranscriptEntryBase {
+  type: 'compacting' | 'compacted'
+}
+
+export interface TranscriptLastPromptEntry extends TranscriptEntryBase {
+  type: 'last-prompt'
+  lastPrompt?: string
+}
+
+export interface TranscriptPrLinkEntry extends TranscriptEntryBase {
+  type: 'pr-link'
+  prNumber?: number
+  prRepository?: string
+  prUrl?: string
+}
+
+export type TranscriptEntry =
+  | TranscriptUserEntry
+  | TranscriptAssistantEntry
+  | TranscriptProgressEntry
+  | TranscriptSystemEntry
+  | TranscriptQueueEntry
+  | TranscriptCompactingEntry
+  | TranscriptLastPromptEntry
+  | TranscriptPrLinkEntry
+  | (TranscriptEntryBase & Record<string, unknown>) // fallback for unknown types
 
 // Streaming output from background bash tasks (.output file watching)
 export interface BgTaskOutput {
