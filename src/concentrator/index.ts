@@ -11,6 +11,7 @@ import { createApiHandler } from './api'
 import { getUser, initAuth, reloadState } from './auth'
 import { getAuthenticatedUser, handleAuthRoute, requireAuth, setRclaudeSecret } from './auth-routes'
 import { initGlobalSettings } from './global-settings'
+import { isPathWithinCwd } from './path-guard'
 import { addAllowedRoot, addPathMapping, getAllowedRoots } from './path-jail'
 import { initProjectSettings } from './project-settings'
 import { initPush, isPushConfigured, sendPushToAll } from './push'
@@ -831,6 +832,19 @@ async function main() {
               case 'file_restore':
               case 'quick_note_append': {
                 if (ws.data.isDashboard && data.sessionId) {
+                  // Path traversal guard: validate file path is within session CWD
+                  const session = sessionStore.getSession(data.sessionId)
+                  if (data.path && session?.cwd && !isPathWithinCwd(data.path, session.cwd)) {
+                    ws.send(
+                      JSON.stringify({
+                        type: data.type.replace('_request', '_response').replace('_save', '_save_response'),
+                        requestId: data.requestId,
+                        error: `Path outside session directory: ${data.path}`,
+                      }),
+                    )
+                    break
+                  }
+
                   // Dashboard -> wrapper: forward to the session's wrapper
                   const targetSocket = sessionStore.getSessionSocket(data.sessionId)
                   if (targetSocket) {
@@ -929,6 +943,19 @@ async function main() {
               case 'file_request': {
                 // Dashboard requesting a file - proxy to rclaude
                 if (data.sessionId) {
+                  // Path traversal guard
+                  const session = sessionStore.getSession(data.sessionId)
+                  if (data.path && session?.cwd && !isPathWithinCwd(data.path, session.cwd)) {
+                    ws.send(
+                      JSON.stringify({
+                        type: 'file_response',
+                        requestId: data.requestId,
+                        error: `Path outside session directory: ${data.path}`,
+                      }),
+                    )
+                    break
+                  }
+
                   const sessionSocket = sessionStore.getSessionSocket(data.sessionId)
                   if (sessionSocket) {
                     sessionSocket.send(JSON.stringify(data))
