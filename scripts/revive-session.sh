@@ -23,7 +23,7 @@ if [[ ! -d "$CWD" ]]; then
 fi
 
 TMUX_NAME="remote-claude"
-BASE_CMD="rclaude --dangerously-skip-permissions"
+BASE_CMD="rclaude --dangerously-skip-permissions --continue"
 
 # Unset Claude Code env vars that prevent nested sessions.
 # Agent may inherit these if launched from within a Claude session.
@@ -51,11 +51,12 @@ SPAWN_CMD="${WRAPPER_PREFIX}$BASE_CMD"
 # missing env vars like API keys, FNM_*, XDG_CONFIG_HOME, etc.
 tmux_launch() {
   local cmd="$1"
-  # tmux passes commands to sh -c by default. We wrap in a login shell
-  # invocation so the user's profile is sourced before running rclaude.
-  # Using $SHELL (or zsh fallback) with -l for login + -c for command.
+  # tmux pane commands run non-interactively by default. We need both:
+  #   -l (login) to source .zprofile
+  #   -i (interactive) to source .zshrc (where env vars like FNM_DIR,
+  #      ZPFX, API keys are typically set via plugins/zinit/etc)
   local shell_path="${SHELL:-/bin/zsh}"
-  local wrapped="${shell_path} -l -c \"${cmd}\""
+  local wrapped="${shell_path} -li -c \"${cmd}\""
   if tmux has-session -t "$TMUX_NAME" 2>/dev/null; then
     tmux new-window "${TMUX_ENV[@]}" -t "$TMUX_NAME" -c "$CWD" "$wrapped"
   else
