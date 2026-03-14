@@ -87,6 +87,20 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
       continue
     }
 
+    // queue-operation enqueue = user interject message. Claude Code writes these
+    // to the JSONL when the user sends a message while Claude is working. The actual
+    // text is in entry.content (not entry.message.content). Synthesize a user group.
+    if (entry.type === 'queue-operation' && (entry as any).operation === 'enqueue' && (entry as any).content) {
+      const synthetic: TranscriptEntry = {
+        type: 'user',
+        timestamp: entry.timestamp,
+        message: { role: 'user', content: (entry as any).content },
+      }
+      current = { type: 'user', timestamp: entry.timestamp || '', entries: [synthetic] }
+      groups.push(current)
+      continue
+    }
+
     if (entry.type !== 'user' && entry.type !== 'assistant') continue
     const content = entry.message?.content
     if (!content) continue
@@ -228,6 +242,18 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
             entries: [entry],
           })
         }
+        continue
+      }
+
+      // queue-operation enqueue = user interject message (see batch grouper above)
+      if (entry.type === 'queue-operation' && (entry as any).operation === 'enqueue' && (entry as any).content) {
+        const synthetic: TranscriptEntry = {
+          type: 'user',
+          timestamp: entry.timestamp,
+          message: { role: 'user', content: (entry as any).content },
+        }
+        lastGroup = { type: 'user', timestamp: entry.timestamp || '', entries: [synthetic] }
+        newGroups.push(lastGroup)
         continue
       }
 
