@@ -214,19 +214,21 @@ function processMessage(msg: DashboardMessage) {
             },
           }
         })
-        // Haptic feedback for live transcript updates (not historical loads)
+        // Haptic feedback for live transcript updates (not historical loads).
+        // Scan the batch for the most significant entry type - batches often
+        // contain a mix of progress + assistant + user entries.
         if (isLive) {
-          const last = msg.entries![msg.entries!.length - 1]
-          if (last.type === 'assistant') {
-            const content = (last as any).message?.content
-            if (Array.isArray(content)) {
-              const hasToolResult = content.some((c: any) => c.type === 'tool_use')
-              const hasThinking = content.some((c: any) => c.type === 'thinking')
-              if (hasToolResult) liveHaptic('tap', msg.sessionId)
-              else if (hasThinking) liveHaptic('tick', msg.sessionId)
-              else liveHaptic('tick', msg.sessionId) // text response
+          let hapticType: Parameters<typeof haptic>[0] | null = null
+          for (const entry of msg.entries!) {
+            if (entry.type === 'assistant') {
+              const content = (entry as any).message?.content
+              if (Array.isArray(content)) {
+                if (content.some((c: any) => c.type === 'tool_use')) hapticType = 'tap'
+                else if (!hapticType) hapticType = 'tick'
+              }
             }
           }
+          if (hapticType) liveHaptic(hapticType, msg.sessionId)
         }
       }
       break
