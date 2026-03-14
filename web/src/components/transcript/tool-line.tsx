@@ -3,7 +3,8 @@
  * Handles all tool types (Bash, Read, Edit, Write, Agent, MCP, etc.)
  */
 
-import { memo, type ReactNode } from 'react'
+import { Check, Copy } from 'lucide-react'
+import { memo, type ReactNode, useState } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/dashboard-prefs'
 import type { TranscriptContentBlock } from '@/lib/types'
@@ -16,6 +17,27 @@ function formatTokenCount(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M tok`
   if (tokens >= 1000) return `${(tokens / 1000).toFixed(0)}K tok`
   return `${tokens} tok`
+}
+
+function CopyResultButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+
+  return (
+    <button
+      type="button"
+      className="text-muted-foreground/40 hover:text-muted-foreground transition-colors p-0.5"
+      title="Copy result"
+      onClick={e => {
+        e.stopPropagation()
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1500)
+        })
+      }}
+    >
+      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+    </button>
+  )
 }
 
 export function ToolLine({
@@ -372,6 +394,7 @@ export function ToolLine({
         </span>
         <span className="text-foreground/80 truncate flex-1">{summary}</span>
         {agentBadge}
+        {result && <CopyResultButton text={result} />}
         <JsonInspector title={name} data={input} result={result} extra={toolUseResult} />
       </div>
       {details && (

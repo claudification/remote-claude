@@ -3,6 +3,7 @@
  * Includes task notification lines, compaction dividers, and the main group layout.
  */
 
+import { Check, Copy } from 'lucide-react'
 import { memo, useState } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import type { TranscriptContentBlock, TranscriptImage, TranscriptToolUseResult } from '@/lib/types'
@@ -86,45 +87,22 @@ type SubagentRef = Array<{
   tokenUsage?: { totalInput: number; totalOutput: number; cacheCreation: number; cacheRead: number }
 }>
 
-function collectGroupMarkdown(
-  items: Array<{ kind: string; text?: string; tool?: TranscriptContentBlock; result?: string }>,
-) {
-  const parts: string[] = []
-  for (const item of items) {
-    if (item.kind === 'text' && item.text) {
-      parts.push(item.text)
-    } else if (item.kind === 'tool' && item.result) {
-      const name = item.tool?.name || 'tool'
-      parts.push(`**${name}:**\n\`\`\`\n${item.result}\n\`\`\``)
-    }
-  }
-  return parts.join('\n\n')
-}
-
-function CopyGroupButton({
-  items,
-}: {
-  items: Array<{ kind: string; text?: string; tool?: TranscriptContentBlock; result?: string }>
-}) {
+function CopyTextButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
-
-  function handleCopy() {
-    const md = collectGroupMarkdown(items)
-    if (!md) return
-    navigator.clipboard.writeText(md).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    })
-  }
 
   return (
     <button
       type="button"
-      onClick={handleCopy}
-      className="opacity-30 sm:opacity-0 sm:group-hover/gv:opacity-60 hover:!opacity-100 transition-opacity text-[11px] text-muted-foreground shrink-0"
-      title="Copy as markdown"
+      className="absolute top-0 right-0 opacity-0 group-hover/text:opacity-60 hover:!opacity-100 sm:opacity-0 max-sm:opacity-30 transition-opacity text-muted-foreground p-0.5"
+      title="Copy text"
+      onClick={() => {
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1500)
+        })
+      }}
     >
-      {copied ? '✓' : '⧉'}
+      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
     </button>
   )
 }
@@ -211,7 +189,7 @@ export function GroupView({
     'text-[10px]'
 
   return (
-    <div className="mb-4 group/gv">
+    <div className="mb-4">
       <div className="flex items-center gap-2 mb-2">
         <span className={cn('text-[10px]', borderColor)}>{'┌──'}</span>
         <span
@@ -231,7 +209,6 @@ export function GroupView({
           </span>
         )}
         <span className="text-muted-foreground text-[10px]">{time}</span>
-        {!isUser && <CopyGroupButton items={items} />}
         <span className={cn('flex-1 text-[10px] overflow-hidden', borderColor)}>{'─'.repeat(40)}</span>
       </div>
 
@@ -250,8 +227,9 @@ export function GroupView({
               )
             case 'text':
               return (
-                <div key={i} className="text-sm">
+                <div key={i} className="text-sm group/text relative">
                   <Markdown>{item.text}</Markdown>
+                  <CopyTextButton text={item.text} />
                 </div>
               )
             case 'images':
