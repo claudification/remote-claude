@@ -12,6 +12,7 @@ import { unstable_batchedUpdates as batchUpdates } from 'react-dom'
 const batch: (fn: () => void) => void = batchUpdates ?? (fn => fn())
 
 import type { SessionSummary } from '@shared/protocol'
+import { BUILD_VERSION } from '../../../src/shared/version'
 import type { HookEvent, Session, TaskInfo, TranscriptEntry } from '@/lib/types'
 import { applyHashRoute, handleBgTaskOutputMessage, type ProjectSettingsMap, useSessionsStore } from './use-sessions'
 import { recordIn, recordOut } from './ws-stats'
@@ -101,6 +102,11 @@ function processMessage(msg: DashboardMessage) {
       if (msg.sessions) {
         useSessionsStore.getState().setSessions(msg.sessions.map(toSession))
         applyHashRoute()
+      }
+      // Check for version mismatch between server and this frontend bundle
+      if ((msg as any).serverVersion) {
+        const mismatch = (msg as any).serverVersion !== BUILD_VERSION.gitHashShort
+        if (mismatch) useSessionsStore.setState({ versionMismatch: true })
       }
       break
     }

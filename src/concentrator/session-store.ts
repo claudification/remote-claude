@@ -4,6 +4,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
+import { BUILD_VERSION } from '../shared/version'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerWebSocket } from 'bun'
@@ -1247,6 +1248,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         JSON.stringify({
           type: 'sessions_list',
           sessions: sessionsList,
+          serverVersion: BUILD_VERSION.gitHashShort,
         }),
       )
     } catch {

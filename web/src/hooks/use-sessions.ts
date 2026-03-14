@@ -88,6 +88,7 @@ interface SessionsState {
   pendingFilePath: string | null
   newDataSeq: number
   expandAll: boolean
+  versionMismatch: boolean
   toggleExpandAll: () => void
 
   // Dashboard prefs (per-device, persisted to localStorage)
@@ -182,6 +183,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   setInputDraft: (sessionId, text) => set(state => ({ inputDrafts: { ...state.inputDrafts, [sessionId]: text } })),
   newDataSeq: 0,
   expandAll: localStorage.getItem('expandAll') === 'true',
+  versionMismatch: false,
   toggleExpandAll: () =>
     set(state => {
       const next = !state.expandAll

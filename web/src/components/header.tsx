@@ -39,6 +39,7 @@ export function Header() {
   const isConnected = useSessionsStore(s => s.isConnected)
   const agentConnected = useSessionsStore(s => s.agentConnected)
   const error = useSessionsStore(s => s.error)
+  const versionMismatch = useSessionsStore(s => s.versionMismatch)
 
   useEffect(() => {
     getPushStatus().then(status => {
@@ -74,6 +75,17 @@ export function Header() {
         <span className={`text-xs sm:text-sm ${agentConnected ? 'text-active' : 'text-muted-foreground'}`}>
           {agentConnected ? '● Agent' : '○ Agent'}
         </span>
+
+        {versionMismatch && (
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="text-[10px] text-amber-400/80 hover:text-amber-400 transition-colors"
+            title="Server was updated - click to reload"
+          >
+            update available
+          </button>
+        )}
 
         {pushState !== 'unsupported' && pushState !== 'loading' && (
           <button
