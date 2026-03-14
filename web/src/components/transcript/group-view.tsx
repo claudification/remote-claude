@@ -212,7 +212,7 @@ export function GroupView({
                   <CopyMenu
                     text={item.text}
                     copyAsImage
-                    className="absolute top-0 right-0 opacity-0 group-hover/text:opacity-60 hover:!opacity-100 max-sm:opacity-60 transition-opacity"
+                    className="absolute top-0 right-0 opacity-60 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/text:opacity-60 hover:!opacity-100 transition-opacity"
                   />
                 </div>
               )
