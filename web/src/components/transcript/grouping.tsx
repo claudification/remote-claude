@@ -124,8 +124,9 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
     // the most recent queued group (FIFO - multiple enqueues, bulk remove).
     if (isQueue(entry)) {
       if (entry.operation === 'enqueue' && entry.content) {
-        // Task-notifications are enqueued too but shouldn't render as user bubbles.
-        // Parse them into system notification groups instead.
+        // Task-notifications are enqueued too but shouldn't float as queued.
+        // They're fire-and-forget system notifications - render inline immediately.
+        // Their dequeue entries may never arrive (different consumption path).
         if (entry.content.startsWith('<task-notification>')) {
           const notifications = parseTaskNotifications(entry.content)
           if (notifications.length > 0) {
@@ -135,7 +136,6 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
               timestamp: entry.timestamp || '',
               entries: [entry],
               notifications,
-              queued: true,
             })
           }
         } else {
@@ -238,7 +238,8 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
     const cache = cacheRef.current
 
     // Full reset if entries shrunk (initial load replaced everything, or session switch)
-    if (entries.length < cache.len) {
+    const isReset = entries.length < cache.len
+    if (isReset) {
       cache.len = 0
       cache.resultMap = new Map()
       cache.groups = []
@@ -315,7 +316,6 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
                 timestamp: entry.timestamp || '',
                 entries: [entry],
                 notifications,
-                queued: true,
               })
             }
           } else {
@@ -391,6 +391,15 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
       } else {
         lastGroup = { type, timestamp: entry.timestamp || '', entries: [entry] }
         newGroups.push(lastGroup)
+      }
+    }
+
+    // On initial/reset load, clear any orphaned queued flags. Historical data
+    // may have enqueue entries whose remove/dequeue was evicted from the 500-entry
+    // ring buffer, leaving stale "queued" groups that will never be consumed.
+    if (isReset) {
+      for (const g of newGroups) {
+        if (g.queued) g.queued = false
       }
     }
 
