@@ -46,14 +46,20 @@ fi
 
 SPAWN_CMD="${WRAPPER_PREFIX}$BASE_CMD"
 
-# Launch a command in tmux (new window or new session as needed).
-# Returns 0 on success, 1 on failure.
+# Launch a command in tmux via a login shell so .zshrc/.zprofile are sourced.
+# Without this, the tmux pane runs the command directly (no shell init),
+# missing env vars like API keys, FNM_*, XDG_CONFIG_HOME, etc.
 tmux_launch() {
   local cmd="$1"
+  # tmux passes commands to sh -c by default. We wrap in a login shell
+  # invocation so the user's profile is sourced before running rclaude.
+  # Using $SHELL (or zsh fallback) with -l for login + -c for command.
+  local shell_path="${SHELL:-/bin/zsh}"
+  local wrapped="${shell_path} -l -c \"${cmd}\""
   if tmux has-session -t "$TMUX_NAME" 2>/dev/null; then
-    tmux new-window "${TMUX_ENV[@]}" -t "$TMUX_NAME" -c "$CWD" "$cmd"
+    tmux new-window "${TMUX_ENV[@]}" -t "$TMUX_NAME" -c "$CWD" "$wrapped"
   else
-    tmux new-session -d "${TMUX_ENV[@]}" -s "$TMUX_NAME" -c "$CWD" "$cmd"
+    tmux new-session -d "${TMUX_ENV[@]}" -s "$TMUX_NAME" -c "$CWD" "$wrapped"
   fi
 }
 
