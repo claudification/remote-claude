@@ -18,6 +18,7 @@ export interface DisplayGroup {
   timestamp: string
   entries: TranscriptEntry[]
   notifications?: TaskNotification[]
+  queued?: boolean // user interject waiting to be consumed
 }
 
 // Build map of tool_use_id -> result
@@ -87,17 +88,28 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
       continue
     }
 
-    // queue-operation enqueue = user interject message. Claude Code writes these
-    // to the JSONL when the user sends a message while Claude is working. The actual
-    // text is in entry.content (not entry.message.content). Synthesize a user group.
-    if (entry.type === 'queue-operation' && (entry as any).operation === 'enqueue' && (entry as any).content) {
-      const synthetic: TranscriptEntry = {
-        type: 'user',
-        timestamp: entry.timestamp,
-        message: { role: 'user', content: (entry as any).content },
+    // queue-operation: enqueue = user interject, remove = consumed by Claude.
+    // enqueue creates a queued user group; remove clears the queued flag on
+    // the most recent queued group (FIFO - multiple enqueues, bulk remove).
+    if (entry.type === 'queue-operation') {
+      const op = (entry as any).operation
+      if (op === 'enqueue' && (entry as any).content) {
+        const synthetic: TranscriptEntry = {
+          type: 'user',
+          timestamp: entry.timestamp,
+          message: { role: 'user', content: (entry as any).content },
+        }
+        current = { type: 'user', timestamp: entry.timestamp || '', entries: [synthetic], queued: true }
+        groups.push(current)
+      } else if (op === 'remove') {
+        // Clear queued flag on the oldest still-queued group
+        for (const g of groups) {
+          if (g.queued) {
+            g.queued = false
+            break
+          }
+        }
       }
-      current = { type: 'user', timestamp: entry.timestamp || '', entries: [synthetic] }
-      groups.push(current)
       continue
     }
 
@@ -245,15 +257,25 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
         continue
       }
 
-      // queue-operation enqueue = user interject message (see batch grouper above)
-      if (entry.type === 'queue-operation' && (entry as any).operation === 'enqueue' && (entry as any).content) {
-        const synthetic: TranscriptEntry = {
-          type: 'user',
-          timestamp: entry.timestamp,
-          message: { role: 'user', content: (entry as any).content },
+      // queue-operation: enqueue/remove (see batch grouper for full explanation)
+      if (entry.type === 'queue-operation') {
+        const op = (entry as any).operation
+        if (op === 'enqueue' && (entry as any).content) {
+          const synthetic: TranscriptEntry = {
+            type: 'user',
+            timestamp: entry.timestamp,
+            message: { role: 'user', content: (entry as any).content },
+          }
+          lastGroup = { type: 'user', timestamp: entry.timestamp || '', entries: [synthetic], queued: true }
+          newGroups.push(lastGroup)
+        } else if (op === 'remove') {
+          for (const g of newGroups) {
+            if (g.queued) {
+              g.queued = false
+              break
+            }
+          }
         }
-        lastGroup = { type: 'user', timestamp: entry.timestamp || '', entries: [synthetic] }
-        newGroups.push(lastGroup)
         continue
       }
 

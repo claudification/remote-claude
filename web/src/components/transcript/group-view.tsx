@@ -152,11 +152,16 @@ export function GroupView({
             {effortBadge.symbol} {effortBadge.label}
           </span>
         )}
+        {group.queued && (
+          <span className="px-1.5 py-0.5 text-[10px] font-mono text-amber-400/70 bg-amber-400/10 animate-pulse">
+            queued
+          </span>
+        )}
         <span className="text-muted-foreground text-[10px]">{time}</span>
         <span className={cn('flex-1 text-[10px] overflow-hidden', borderColor)}>{'─'.repeat(40)}</span>
       </div>
 
-      <div className="pl-4 space-y-2">
+      <div className={cn('pl-4 space-y-2', group.queued && 'opacity-50')}>
         {items.map((item, i) => {
           switch (item.kind) {
             case 'thinking':

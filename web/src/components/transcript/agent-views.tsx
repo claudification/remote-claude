@@ -124,13 +124,14 @@ function AgentGroupView({
     'text-[9px]'
 
   return (
-    <div className="text-xs">
+    <div className={cn('text-xs', group.queued && 'opacity-50')}>
       <span
         className={cn(sizeClass, 'font-bold uppercase', !customColor && labelColor)}
         style={customColor ? { color: customColor } : undefined}
       >
         {label}
       </span>
+      {group.queued && <span className="ml-2 text-[9px] font-mono text-amber-400/70 animate-pulse">queued</span>}
       <div className="pl-2 space-y-1">
         {content.map((item, i) => {
           if (item.kind === 'thinking') {
