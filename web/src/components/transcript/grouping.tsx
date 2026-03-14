@@ -126,7 +126,7 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
       if (entry.operation === 'enqueue' && entry.content) {
         // Task-notifications are enqueued too but shouldn't render as user bubbles.
         // Parse them into system notification groups instead.
-        if (entry.content.trimStart().startsWith('<task-notification>')) {
+        if (entry.content.startsWith('<task-notification>')) {
           const notifications = parseTaskNotifications(entry.content)
           if (notifications.length > 0) {
             current = null
@@ -306,7 +306,7 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
       // queue-operation: enqueue/remove (see batch grouper for full explanation)
       if (isQueue(entry)) {
         if (entry.operation === 'enqueue' && entry.content) {
-          if (entry.content.trimStart().startsWith('<task-notification>')) {
+          if (entry.content.startsWith('<task-notification>')) {
             const notifications = parseTaskNotifications(entry.content)
             if (notifications.length > 0) {
               lastGroup = null
