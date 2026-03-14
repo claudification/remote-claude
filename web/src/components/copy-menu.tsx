@@ -1,15 +1,13 @@
 /**
  * CopyMenu - Copy button with format options.
  * Short tap/click: copy as markdown (default).
- * Long-press (mobile) / right-click (desktop): show format menu.
- *
- * Note: Radix ContextMenu was considered but it wraps a trigger area and
- * conflicts with our short-tap default behavior. Hand-rolled is simpler here.
+ * Long-press (mobile) / right-click (desktop): show format picker via Radix ContextMenu.
  */
 
 import { Check, Copy } from 'lucide-react'
 import { Marked } from 'marked'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { ContextMenu } from 'radix-ui'
+import { useState } from 'react'
 import { cn, haptic } from '@/lib/utils'
 
 const marked = new Marked()
@@ -67,11 +65,6 @@ interface CopyMenuProps {
 
 export function CopyMenu({ text, className, iconClassName = 'w-3 h-3' }: CopyMenuProps) {
   const [copied, setCopied] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const didLongPress = useRef(false)
 
   function flashCopied() {
     setCopied(true)
@@ -79,111 +72,59 @@ export function CopyMenu({ text, className, iconClassName = 'w-3 h-3' }: CopyMen
     setTimeout(() => setCopied(false), 1500)
   }
 
-  function handleShortTap() {
-    if (didLongPress.current) return
+  function handleShortTap(e: React.MouseEvent) {
+    // Radix ContextMenu may fire click after long-press dismissal on some
+    // platforms. The `detail` property is 0 for synthetic/keyboard clicks
+    // vs 1+ for real pointer clicks - but we allow both here since short
+    // tap is always safe (idempotent copy).
+    e.stopPropagation()
     haptic('tap')
     navigator.clipboard.writeText(text).then(flashCopied)
   }
 
-  function openMenu(x: number, y: number) {
-    const clampedX = Math.min(Math.max(8, x), window.innerWidth - 188)
-    const clampedY = Math.min(Math.max(8, y), window.innerHeight - 168)
-    setMenuPos({ x: clampedX, y: clampedY })
-    setMenuOpen(true)
-    haptic('double')
-  }
-
-  function handleTouchStart(e: React.TouchEvent) {
-    didLongPress.current = false
-    const { clientX, clientY } = e.touches[0]
-    longPressTimer.current = setTimeout(() => {
-      didLongPress.current = true
-      openMenu(clientX, clientY)
-    }, 500)
-  }
-
-  function cancelLongPress() {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-  }
-
-  function handleContextMenu(e: React.MouseEvent) {
-    e.preventDefault()
-    e.stopPropagation()
-    openMenu(e.clientX, e.clientY)
-  }
-
   function handleSelect(format: CopyFormat) {
     haptic('tap')
-    copyAs(text, format).then(() => {
-      setMenuOpen(false)
-      setMenuPos(null)
-      flashCopied()
-    })
+    copyAs(text, format).then(flashCopied)
   }
 
-  const dismissMenu = useCallback((e: MouseEvent | TouchEvent) => {
-    if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-      setMenuOpen(false)
-      setMenuPos(null)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!menuOpen) return
-    document.addEventListener('mousedown', dismissMenu)
-    document.addEventListener('touchstart', dismissMenu)
-    return () => {
-      document.removeEventListener('mousedown', dismissMenu)
-      document.removeEventListener('touchstart', dismissMenu)
-    }
-  }, [menuOpen, dismissMenu])
-
-  useEffect(() => {
-    return () => {
-      if (longPressTimer.current) clearTimeout(longPressTimer.current)
-    }
-  }, [])
-
   return (
-    <>
-      <button
-        type="button"
-        className={cn('text-muted-foreground/40 hover:text-muted-foreground transition-colors p-0.5', className)}
-        title="Copy (right-click or long-press for options)"
-        onClick={handleShortTap}
-        onContextMenu={handleContextMenu}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={cancelLongPress}
-        onTouchMove={cancelLongPress}
-      >
-        {copied ? <Check className={cn(iconClassName, 'text-emerald-400')} /> : <Copy className={iconClassName} />}
-      </button>
-
-      {menuOpen && menuPos && (
-        <div
-          ref={menuRef}
-          className="fixed z-[100] min-w-[170px] bg-popover border border-border rounded-lg shadow-xl py-1 animate-in fade-in zoom-in-95 duration-100"
-          style={{ left: menuPos.x, top: menuPos.y }}
+    <ContextMenu.Root
+      onOpenChange={open => {
+        if (open) haptic('double')
+      }}
+    >
+      <ContextMenu.Trigger asChild>
+        <button
+          type="button"
+          className={cn('text-muted-foreground/40 hover:text-muted-foreground transition-colors p-0.5', className)}
+          title="Copy (right-click or long-press for options)"
+          onClick={handleShortTap}
         >
-          <div className="px-3 py-1.5 text-[10px] text-muted-foreground uppercase tracking-wider font-bold border-b border-border mb-1">
+          {copied ? <Check className={cn(iconClassName, 'text-emerald-400')} /> : <Copy className={iconClassName} />}
+        </button>
+      </ContextMenu.Trigger>
+
+      <ContextMenu.Portal>
+        <ContextMenu.Content
+          className="min-w-[170px] bg-popover border border-border rounded-lg shadow-xl py-1 z-[100] animate-in fade-in zoom-in-95 duration-100"
+          alignOffset={5}
+        >
+          <ContextMenu.Label className="px-3 py-1.5 text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
             Copy as
-          </div>
+          </ContextMenu.Label>
+          <ContextMenu.Separator className="h-px bg-border my-1" />
           {FORMAT_OPTIONS.map(opt => (
-            <button
+            <ContextMenu.Item
               key={opt.key}
-              type="button"
-              className="w-full text-left px-3 py-2.5 sm:py-2 hover:bg-accent/50 active:bg-accent transition-colors flex flex-col gap-0.5"
-              onClick={() => handleSelect(opt.key)}
+              className="px-3 py-2.5 sm:py-2 hover:bg-accent/50 active:bg-accent focus:bg-accent/50 outline-none transition-colors cursor-pointer flex flex-col gap-0.5"
+              onSelect={() => handleSelect(opt.key)}
             >
               <span className="text-sm sm:text-xs font-medium text-foreground">{opt.label}</span>
               <span className="text-[11px] sm:text-[10px] text-muted-foreground">{opt.desc}</span>
-            </button>
+            </ContextMenu.Item>
           ))}
-        </div>
-      )}
-    </>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
   )
 }
