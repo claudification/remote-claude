@@ -135,5 +135,5 @@ export function Markdown({ children }: MarkdownProps) {
     })
   }, [])
 
-  return <div ref={ref} className="prose-hacker" dangerouslySetInnerHTML={{ __html: html }} onClick={handleClick} />
+  return <div ref={ref} className="prose-hacker [overflow-wrap:anywhere]" dangerouslySetInnerHTML={{ __html: html }} onClick={handleClick} />
 }
