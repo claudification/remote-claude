@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path'
 
 export interface SessionOrderEntry {
   cwd: string
-  // future: group?: string
+  group?: string
 }
 
 export interface SessionOrder {

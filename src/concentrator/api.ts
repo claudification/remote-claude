@@ -1434,7 +1434,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
           action?: 'pin' | 'unpin' | 'move' | 'set'
           cwd?: string
           toIndex?: number
-          organized?: Array<{ cwd: string }>
+          organized?: Array<{ cwd: string; group?: string }>
         }
 
         if (body.action === 'pin' && body.cwd) {

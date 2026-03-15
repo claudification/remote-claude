@@ -72,7 +72,7 @@ interface SessionsState {
   tasks: Record<string, TaskInfo[]>
   projectSettings: ProjectSettingsMap
   globalSettings: Record<string, unknown>
-  sessionOrder: { organized: Array<{ cwd: string }> }
+  sessionOrder: { organized: Array<{ cwd: string; group?: string }> }
   serverCapabilities: { voice: boolean }
   setServerCapabilities: (caps: { voice: boolean }) => void
   isConnected: boolean
@@ -110,7 +110,7 @@ interface SessionsState {
   setTranscript: (sessionId: string, entries: TranscriptEntry[]) => void
   setTasks: (sessionId: string, tasks: TaskInfo[]) => void
   setProjectSettings: (settings: ProjectSettingsMap) => void
-  setSessionOrder: (order: { organized: Array<{ cwd: string }> }) => void
+  setSessionOrder: (order: { organized: Array<{ cwd: string; group?: string }> }) => void
   setConnected: (connected: boolean) => void
   setAgentConnected: (connected: boolean) => void
   setError: (error: string | null) => void
@@ -516,7 +516,7 @@ export async function deleteProjectSettings(cwd: string): Promise<ProjectSetting
 }
 
 // Session order API
-export type SessionOrderData = { organized: Array<{ cwd: string }> }
+export type SessionOrderData = { organized: Array<{ cwd: string; group?: string }> }
 
 export async function fetchSessionOrder(): Promise<SessionOrderData> {
   const res = await fetch(`${API_BASE}/api/session-order`)
@@ -526,7 +526,7 @@ export async function fetchSessionOrder(): Promise<SessionOrderData> {
 
 export async function updateSessionOrder(
   action: 'pin' | 'unpin' | 'move' | 'set',
-  payload: { cwd?: string; toIndex?: number; organized?: Array<{ cwd: string }> },
+  payload: { cwd?: string; toIndex?: number; organized?: Array<{ cwd: string; group?: string }> },
 ): Promise<void> {
   await fetch(`${API_BASE}/api/session-order`, {
     method: 'POST',
