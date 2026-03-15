@@ -456,14 +456,9 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
       <DialogContent className="max-w-md">
         <div className="p-4 space-y-3 text-xs">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-accent font-bold uppercase tracking-wider text-[10px]">
-              Project Settings
-            </DialogTitle>
-            <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <DialogTitle className="text-accent font-bold uppercase tracking-wider text-[10px]">
+            Project Settings
+          </DialogTitle>
 
           {/* Label */}
           <div>
@@ -643,7 +638,7 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
                 className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider border border-red-500/50 text-red-400 hover:bg-red-500/20 transition-colors"
               >
                 <Trash2 className="w-3 h-3" />
-                Clear
+                Reset All
               </button>
             )}
           </div>
