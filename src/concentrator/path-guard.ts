@@ -16,9 +16,9 @@ import { resolve } from 'node:path'
 export function isPathWithinCwd(filePath: string, cwd: string): boolean {
   if (!filePath || !cwd) return false
   if (filePath.includes('\0')) return false
-  if (!filePath.startsWith('/')) return false
 
-  const resolvedPath = resolve(filePath)
+  // Resolve relative paths against the CWD (e.g. "DOMAINS.md" -> "/projects/foo/DOMAINS.md")
+  const resolvedPath = filePath.startsWith('/') ? resolve(filePath) : resolve(cwd, filePath)
   const resolvedCwd = resolve(cwd)
 
   return resolvedPath === resolvedCwd || resolvedPath.startsWith(`${resolvedCwd}/`)

@@ -63,13 +63,25 @@ describe('isPathWithinCwd', () => {
     expect(isPathWithinCwd('/home/jonas/projects/acme/file\0.txt', cwd)).toBe(false)
   })
 
-  // Relative paths
-  test('blocks relative paths', () => {
-    expect(isPathWithinCwd('src/index.ts', cwd)).toBe(false)
+  // Relative paths - resolved against CWD
+  test('allows relative paths within cwd', () => {
+    expect(isPathWithinCwd('src/index.ts', cwd)).toBe(true)
   })
 
-  test('blocks relative traversal', () => {
+  test('allows simple filename', () => {
+    expect(isPathWithinCwd('README.md', cwd)).toBe(true)
+  })
+
+  test('blocks relative traversal escaping cwd', () => {
     expect(isPathWithinCwd('../../../etc/passwd', cwd)).toBe(false)
+  })
+
+  test('allows relative path with ./ prefix', () => {
+    expect(isPathWithinCwd('./src/index.ts', cwd)).toBe(true)
+  })
+
+  test('blocks relative traversal that escapes then re-enters', () => {
+    expect(isPathWithinCwd('../../other-project/file.txt', cwd)).toBe(false)
   })
 
   // Empty/missing inputs
