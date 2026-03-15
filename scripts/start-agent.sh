@@ -37,18 +37,21 @@ fi
 # Collect extra args to pass through
 AGENT_ARGS=()
 VERBOSE=false
+SPAWN_ROOT_SET=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --concentrator) AGENT_ARGS+=(--concentrator "$2"); shift 2 ;;
-    --spawn-root)   AGENT_ARGS+=(--spawn-root "$2"); shift 2 ;;
+    --spawn-root)   AGENT_ARGS+=(--spawn-root "$2"); SPAWN_ROOT_SET=true; shift 2 ;;
     --no-spawn)     AGENT_ARGS+=(--no-spawn); shift ;;
     -v|--verbose)   AGENT_ARGS+=(-v); VERBOSE=true; shift ;;
     --help|-h)
       echo "Usage: start-agent.sh [--concentrator <url>] [--spawn-root <path>] [--no-spawn] [-v|--verbose]"
       echo ""
       echo "Validates config and starts rclaude-agent in the background."
-      echo "Reads RCLAUDE_SECRET from .env or environment."
+      echo "Reads RCLAUDE_SECRET and RCLAUDE_SPAWN_ROOT from .env or environment."
+      echo ""
+      echo "Spawn root priority: --spawn-root flag > \$RCLAUDE_SPAWN_ROOT > \$HOME"
       echo ""
       echo "Files:"
       echo "  .agent.pid  - PID of running agent"
@@ -58,6 +61,11 @@ while [[ $# -gt 0 ]]; do
     *) die "Unknown argument: $1" ;;
   esac
 done
+
+# Default spawn root: $RCLAUDE_SPAWN_ROOT > $HOME (--spawn-root flag overrides both)
+if [[ "$SPAWN_ROOT_SET" == false && -n "${RCLAUDE_SPAWN_ROOT:-}" ]]; then
+  AGENT_ARGS+=(--spawn-root "$RCLAUDE_SPAWN_ROOT")
+fi
 
 # --- Validation ---
 
