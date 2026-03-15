@@ -75,7 +75,10 @@ const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
     setIsSending(true)
     try {
       const success = await sendInput(sessionId, inputValue)
-      if (success) setInputValue('')
+      if (success) {
+        setInputValue('')
+        useSessionsStore.getState().setInputDraft(sessionId, '')
+      }
     } finally {
       setIsSending(false)
       // Re-focus on desktop only - on mobile this triggers the full-screen compose modal
