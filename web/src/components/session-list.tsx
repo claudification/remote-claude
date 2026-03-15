@@ -56,11 +56,10 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
   const displayColor = ps?.color
 
   return (
-    <button
-      type="button"
+    <div
       onClick={handleClick}
       className={cn(
-        'w-full text-left border transition-colors group',
+        'w-full text-left border transition-colors group cursor-pointer',
         compact ? 'p-2 pl-4 text-[11px]' : 'p-3',
         isSelected
           ? 'border-accent bg-accent/15 ring-1 ring-accent/50 shadow-[0_0_8px_rgba(122,162,247,0.15)]'
@@ -204,7 +203,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           )}
         </div>
       )}
-    </button>
+    </div>
   )
 }
 
