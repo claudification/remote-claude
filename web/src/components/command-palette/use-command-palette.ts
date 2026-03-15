@@ -14,9 +14,18 @@ export function useCommandPalette(onClose: () => void) {
   const sendWsMessage = useSessionsStore(state => state.sendWsMessage)
   const agentConnected = useSessionsStore(state => state.agentConnected)
 
-  const [filter, setFilter] = useState('')
+  const switcherInitialFilter = useSessionsStore(state => state.switcherInitialFilter)
+  const [filter, setFilter] = useState(switcherInitialFilter)
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Apply initial filter when switcher opens with a prefilled value
+  useEffect(() => {
+    if (switcherInitialFilter) {
+      setFilter(switcherInitialFilter)
+      useSessionsStore.getState().openSwitcherWithFilter('')
+    }
+  }, [])
 
   // Mode detection
   const isCommandMode = filter.startsWith('>')

@@ -152,6 +152,11 @@ function Dashboard() {
           }
         }
       }
+      // Ctrl+Shift+S - open spawn session dialog (Ctrl+K with S: prefilled)
+      if (e.ctrlKey && e.shiftKey && e.code === 'KeyS') {
+        e.preventDefault()
+        useSessionsStore.getState().openSwitcherWithFilter('S:./')
+      }
       // Ctrl+Shift+Alt+N - open NOTES.md in file editor
       // Use e.code instead of e.key because Alt on macOS remaps key to special chars
       if (e.ctrlKey && e.shiftKey && e.altKey && e.code === 'KeyN') {
