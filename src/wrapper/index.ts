@@ -10,6 +10,7 @@ import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { type FSWatcher as ChokidarWatcher, watch as chokidarWatch } from 'chokidar'
+import { isPathWithinCwd } from '../shared/path-guard'
 import type { HookEvent, TaskInfo, TasksUpdate, TranscriptEntry } from '../shared/protocol'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
 import { DEBUG, debug } from './debug'
@@ -483,6 +484,13 @@ async function main() {
 
     function respondError(responseType: string, err: unknown) {
       respond(responseType, { error: String(err) })
+    }
+
+    // Path traversal guard: reject paths outside the session CWD
+    if (msg.path && !isPathWithinCwd(msg.path as string, cwd)) {
+      const errorType = type.replace('_request', '_response').replace('_save', '_save_response')
+      respond(errorType, { error: `Path outside session directory: ${msg.path}` })
+      return
     }
 
     switch (type) {
