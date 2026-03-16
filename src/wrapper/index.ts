@@ -343,14 +343,6 @@ async function main() {
         eventQueue.length = 0
         // Start polling task files
         startTaskWatching()
-        // Re-send transcript on reconnect (concentrator may have restarted)
-        if (transcriptWatcher) {
-          debug('Re-sending transcript on reconnect')
-          transcriptWatcher.resend().catch(err => debug(`Resend failed: ${err}`))
-        }
-        // Re-send tasks immediately
-        lastTasksJson = ''
-        readAndSendTasks()
       },
       onDisconnected() {
         debug('Disconnected from concentrator')
@@ -462,6 +454,16 @@ async function main() {
       onFileEditorMessage(msg) {
         handleFileEditorMessage(msg)
       },
+      onAck() {
+        // Concentrator has processed our meta message and registered the socket.
+        // This is the correct signal to resend state (not an arbitrary timeout).
+        if (transcriptWatcher) {
+          debug('Ack received, re-sending transcript')
+          transcriptWatcher.resend().catch(err => debug(`Resend failed: ${err}`))
+        }
+        lastTasksJson = ''
+        readAndSendTasks()
+      },
     })
   }
 
@@ -552,7 +554,7 @@ async function main() {
     debug(`File editor: ${type}${msg.path ? ` path=${msg.path}` : ''}`)
   }
 
-  const TRANSCRIPT_CHUNK_SIZE = 200
+  const TRANSCRIPT_CHUNK_SIZE = 50 // entries per chunk (was 200 — smaller to avoid oversized WS frames)
 
   function sendTranscriptEntriesChunked(entries: TranscriptEntry[], isInitial: boolean, agentId?: string) {
     if (!claudeSessionId || !wsClient?.isConnected()) {
@@ -564,12 +566,10 @@ async function main() {
         ? wsClient!.sendSubagentTranscript(agentId, chunk, initial)
         : wsClient!.sendTranscriptEntries(chunk, initial)
 
-    if (entries.length <= TRANSCRIPT_CHUNK_SIZE) {
-      send(entries, isInitial)
-      return
-    }
+    // Split into fixed-size chunks to avoid oversized WS frames
     for (let i = 0; i < entries.length; i += TRANSCRIPT_CHUNK_SIZE) {
-      send(entries.slice(i, i + TRANSCRIPT_CHUNK_SIZE), isInitial && i === 0)
+      const chunk = entries.slice(i, i + TRANSCRIPT_CHUNK_SIZE)
+      send(chunk, isInitial && i === 0)
     }
   }
 
