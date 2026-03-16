@@ -674,7 +674,6 @@ async function main() {
   }
 
   const TRANSCRIPT_CHUNK_SIZE = 50 // entries per chunk (was 200 — smaller to avoid oversized WS frames)
-  const MAX_CHUNK_BYTES = 512 * 1024 // 512KB max per WS message
 
   function sendTranscriptEntriesChunked(entries: TranscriptEntry[], isInitial: boolean, agentId?: string) {
     if (!claudeSessionId || !wsClient?.isConnected()) {
@@ -686,23 +685,10 @@ async function main() {
         ? wsClient!.sendSubagentTranscript(agentId, chunk, initial)
         : wsClient!.sendTranscriptEntries(chunk, initial)
 
-    // Split into size-bounded chunks to avoid oversized WS frames
-    let chunk: TranscriptEntry[] = []
-    let chunkBytes = 0
-    let first = true
-    for (const entry of entries) {
-      const entryJson = JSON.stringify(entry)
-      if (chunk.length > 0 && (chunk.length >= TRANSCRIPT_CHUNK_SIZE || chunkBytes + entryJson.length > MAX_CHUNK_BYTES)) {
-        send(chunk, isInitial && first)
-        first = false
-        chunk = []
-        chunkBytes = 0
-      }
-      chunk.push(entry)
-      chunkBytes += entryJson.length
-    }
-    if (chunk.length > 0) {
-      send(chunk, isInitial && first)
+    // Split into fixed-size chunks to avoid oversized WS frames
+    for (let i = 0; i < entries.length; i += TRANSCRIPT_CHUNK_SIZE) {
+      const chunk = entries.slice(i, i + TRANSCRIPT_CHUNK_SIZE)
+      send(chunk, isInitial && i === 0)
     }
   }
 
