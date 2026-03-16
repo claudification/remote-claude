@@ -120,7 +120,15 @@ function HistoryPanel({
   )
 }
 
-function EditorPane({ content, onChange }: { content: string; onChange: (value: string) => void }) {
+function EditorPane({
+  content,
+  onChange,
+  filePath,
+}: {
+  content: string
+  onChange: (value: string) => void
+  filePath?: string
+}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<any>(null)
   const onChangeRef = useRef(onChange)
@@ -132,9 +140,14 @@ function EditorPane({ content, onChange }: { content: string; onChange: (value: 
     let destroyed = false
     loadCodeMirror().then(cm => {
       if (destroyed || !containerRef.current) return
-      const view = cm.createEditorView(containerRef.current, content, (value: string) => {
-        onChangeRef.current(value)
-      })
+      const view = cm.createEditorView(
+        containerRef.current,
+        content,
+        (value: string) => {
+          onChangeRef.current(value)
+        },
+        filePath,
+      )
       viewRef.current = view
     })
 
@@ -145,7 +158,7 @@ function EditorPane({ content, onChange }: { content: string; onChange: (value: 
         viewRef.current = null
       }
     }
-  }, []) // Only mount once
+  }, [filePath]) // Remount on file change (different language)
 
   // Update content from external changes (disk change, file switch)
   useEffect(() => {
@@ -344,7 +357,7 @@ export const FileEditor = memo(function FileEditor({ sessionId }: { sessionId: s
               <Markdown>{content}</Markdown>
             </div>
           ) : (
-            <EditorPane content={content} onChange={updateContent} />
+            <EditorPane content={content} onChange={updateContent} filePath={activeFile ?? undefined} />
           )
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground text-xs">

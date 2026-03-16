@@ -4,14 +4,19 @@
  */
 
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
+import { css } from '@codemirror/lang-css'
+import { html } from '@codemirror/lang-html'
+import { javascript } from '@codemirror/lang-javascript'
+import { json } from '@codemirror/lang-json'
 import { markdown } from '@codemirror/lang-markdown'
-import { bracketMatching, HighlightStyle, syntaxHighlighting } from '@codemirror/language'
-import { EditorState } from '@codemirror/state'
+import { python } from '@codemirror/lang-python'
+import { bracketMatching, HighlightStyle, type LanguageSupport, syntaxHighlighting } from '@codemirror/language'
+import { EditorState, type Extension } from '@codemirror/state'
 import { drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view'
 import { tags } from '@lezer/highlight'
 
-// Tokyo Night colors for markdown
-const tokyoNightMarkdown = HighlightStyle.define([
+// Tokyo Night colors
+const tokyoNightHighlight = HighlightStyle.define([
   { tag: tags.heading1, color: '#7aa2f7', fontWeight: 'bold', fontSize: '1.3em' },
   { tag: tags.heading2, color: '#7aa2f7', fontWeight: 'bold', fontSize: '1.2em' },
   { tag: tags.heading3, color: '#7aa2f7', fontWeight: 'bold', fontSize: '1.1em' },
@@ -83,10 +88,44 @@ const editorTheme = EditorView.theme(
   { dark: true },
 )
 
+function langFromPath(filePath: string | undefined): LanguageSupport | Extension {
+  if (!filePath) return markdown()
+  const ext = filePath.split('.').pop()?.toLowerCase() || ''
+  switch (ext) {
+    case 'ts':
+    case 'tsx':
+      return javascript({ typescript: true, jsx: ext === 'tsx' })
+    case 'js':
+    case 'mjs':
+    case 'cjs':
+      return javascript()
+    case 'jsx':
+      return javascript({ jsx: true })
+    case 'json':
+    case 'jsonl':
+      return json()
+    case 'css':
+      return css()
+    case 'html':
+    case 'htm':
+    case 'svg':
+      return html()
+    case 'py':
+      return python()
+    case 'md':
+    case 'mdx':
+    case 'markdown':
+      return markdown()
+    default:
+      return markdown()
+  }
+}
+
 export function createEditorView(
   parent: HTMLElement,
   initialContent: string,
   onChange: (value: string) => void,
+  filePath?: string,
 ): EditorView {
   const updateListener = EditorView.updateListener.of(update => {
     if (update.docChanged) {
@@ -103,9 +142,9 @@ export function createEditorView(
       bracketMatching(),
       history(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
-      markdown(),
+      langFromPath(filePath),
       editorTheme,
-      syntaxHighlighting(tokyoNightMarkdown),
+      syntaxHighlighting(tokyoNightHighlight),
       updateListener,
       EditorView.lineWrapping,
     ],
