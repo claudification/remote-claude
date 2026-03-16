@@ -4,7 +4,6 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
-import { BUILD_VERSION } from '../shared/version'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerWebSocket } from 'bun'
@@ -23,6 +22,7 @@ import type {
   TranscriptUserEntry,
   WrapperCapability,
 } from '../shared/protocol'
+import { BUILD_VERSION } from '../shared/version'
 import { getProjectSettings } from './project-settings'
 export type { SessionSummary }
 
@@ -1644,9 +1644,10 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     if (session) {
       const agentEntries = new Map<string, TranscriptEntry[]>()
       for (const entry of entries) {
-        const agentId = entry.type === 'progress'
-          ? ((entry as TranscriptProgressEntry).data?.agentId as string | undefined)
-          : undefined
+        const agentId =
+          entry.type === 'progress'
+            ? ((entry as TranscriptProgressEntry).data?.agentId as string | undefined)
+            : undefined
         if (agentId && typeof agentId === 'string') {
           let batch = agentEntries.get(agentId)
           if (!batch) {
@@ -1705,7 +1706,12 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       subagentTranscriptCache.set(key, entries.slice(-MAX_TRANSCRIPT_ENTRIES))
     } else {
       const existing = subagentTranscriptCache.get(key) || []
-      existing.push(...entries)
+      // Deduplicate: agent entries arrive from both the subagent JSONL watcher
+      // AND extracted from parent transcript progress entries. Use uuid to filter.
+      const seen = new Set(existing.map(e => e.uuid).filter(Boolean))
+      const fresh = entries.filter(e => !e.uuid || !seen.has(e.uuid))
+      if (fresh.length === 0) return
+      existing.push(...fresh)
       if (existing.length > MAX_TRANSCRIPT_ENTRIES) {
         subagentTranscriptCache.set(key, existing.slice(-MAX_TRANSCRIPT_ENTRIES))
       } else {
