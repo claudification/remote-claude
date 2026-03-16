@@ -383,7 +383,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   setInterval(() => {
     const now = Date.now()
     const STALE_AGENT_MS = 10 * 60 * 1000 // 10 minutes
-    const LIVENESS_MS = 30_000 // 30s without hooks = not "actively receiving"
+    const LIVENESS_MS = 5 * 60_000 // 5m without hooks = not "actively receiving"
     const toEvict: string[] = []
 
     for (const session of sessions.values()) {
