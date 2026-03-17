@@ -365,6 +365,7 @@ export type HookEventType =
   | 'WorktreeRemove'
   | 'Elicitation'
   | 'ElicitationResult'
+  | 'StopFailure'
   | 'Setup'
 
 // Hook event data structures (based on Claude Code hook system)

@@ -48,6 +48,7 @@ interface ClaudeSettings {
     WorktreeRemove?: HookMatcher[]
     Elicitation?: HookMatcher[]
     ElicitationResult?: HookMatcher[]
+    StopFailure?: HookMatcher[]
     Setup?: HookMatcher[]
   }
   [key: string]: unknown
@@ -75,6 +76,7 @@ const HOOK_EVENTS = [
   'WorktreeRemove',
   'Elicitation',
   'ElicitationResult',
+  'StopFailure',
   'Setup',
 ] as const
 
