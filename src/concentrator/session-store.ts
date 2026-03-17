@@ -222,6 +222,10 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   const transcriptCache = new Map<string, TranscriptEntry[]>()
   // Subagent transcript cache: `${sessionId}:${agentId}` -> entries
   const subagentTranscriptCache = new Map<string, TranscriptEntry[]>()
+  // Transcript kick tracking: sessionId -> last kick timestamp (debounce 60s)
+  const lastTranscriptKick = new Map<string, number>()
+  const TRANSCRIPT_KICK_DEBOUNCE_MS = 60_000
+  const TRANSCRIPT_KICK_EVENT_THRESHOLD = 5
   // Background task output cache: taskId -> accumulated output string
   const bgTaskOutputCache = new Map<string, string>()
 
@@ -1049,6 +1053,31 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         event,
       })
 
+      // Transcript kick: if events are flowing but no transcript entries, nudge the wrapper
+      if (
+        session.events.length >= TRANSCRIPT_KICK_EVENT_THRESHOLD &&
+        !transcriptCache.has(sessionId) &&
+        session.status !== 'ended'
+      ) {
+        const now = Date.now()
+        const lastKick = lastTranscriptKick.get(sessionId) || 0
+        if (now - lastKick > TRANSCRIPT_KICK_DEBOUNCE_MS) {
+          lastTranscriptKick.set(sessionId, now)
+          // Find the wrapper socket for this session and send kick
+          const wrappers = sessionSockets.get(sessionId)
+          if (wrappers) {
+            for (const ws of wrappers.values()) {
+              try {
+                ws.send(JSON.stringify({ type: 'transcript_kick', sessionId }))
+                console.log(`[session-store] Sent transcript_kick to wrapper for ${sessionId.slice(0, 8)}`)
+              } catch {
+                // Wrapper socket may be dead
+              }
+            }
+          }
+        }
+      }
+
       // Coalesce session update (for lastActivity, eventCount changes)
       scheduleSessionUpdate(sessionId)
     }
@@ -1113,6 +1142,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     sessionSockets.delete(sessionId)
     transcriptCache.delete(sessionId)
     pendingAgentDescriptions.delete(sessionId)
+    lastTranscriptKick.delete(sessionId)
     for (const key of subagentTranscriptCache.keys()) {
       if (key.startsWith(`${sessionId}:`)) {
         subagentTranscriptCache.delete(key)

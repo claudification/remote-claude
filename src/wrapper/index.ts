@@ -462,6 +462,36 @@ async function main() {
       onFileEditorMessage(msg) {
         handleFileEditorMessage(msg)
       },
+      onTranscriptKick() {
+        // Concentrator detected we have events but no transcript - retry the watcher
+        if (!transcriptWatcher && parentTranscriptPath) {
+          debug(`Transcript kick received - retrying watcher for: ${parentTranscriptPath}`)
+          diag('info', 'Transcript kick - retrying watcher', { path: parentTranscriptPath })
+          // Re-run the same retry logic with a fresh 15min timeout
+          async function retryTranscriptWatcher(path: string) {
+            let delay = 500
+            const maxDelay = 10_000
+            const maxTotal = 900_000
+            let elapsed = 0
+            while (elapsed < maxTotal) {
+              if (existsSync(path)) {
+                debug(`Transcript file found after kick: ${path}`)
+                startTranscriptWatcher(path)
+                return
+              }
+              await new Promise(r => setTimeout(r, delay))
+              elapsed += delay
+              delay = Math.min(delay * 2, maxDelay)
+            }
+            diag('error', 'Transcript file still not found after kick', { path })
+          }
+          retryTranscriptWatcher(parentTranscriptPath)
+        } else if (transcriptWatcher) {
+          debug('Transcript kick received but watcher already running')
+        } else {
+          debug('Transcript kick received but no transcript path known')
+        }
+      },
     })
   }
 
@@ -799,7 +829,7 @@ async function main() {
             async function tryStartTranscriptWatcher(path: string) {
               let delay = 500
               const maxDelay = 10_000
-              const maxTotal = 150_000 // 2.5 minutes total
+              const maxTotal = 900_000 // 15 minutes total (slow-starting sessions can take 6+ min)
               let elapsed = 0
               let attempt = 0
               while (elapsed < maxTotal) {

@@ -132,7 +132,9 @@ function EditorPane({
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<any>(null)
   const onChangeRef = useRef(onChange)
+  const contentRef = useRef(content)
   onChangeRef.current = onChange
+  contentRef.current = content
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -140,9 +142,10 @@ function EditorPane({
     let destroyed = false
     loadCodeMirror().then(cm => {
       if (destroyed || !containerRef.current) return
+      // Use contentRef to get latest content (avoids stale closure if content arrived while CM was loading)
       const view = cm.createEditorView(
         containerRef.current,
-        content,
+        contentRef.current,
         (value: string) => {
           onChangeRef.current(value)
         },
@@ -357,7 +360,12 @@ export const FileEditor = memo(function FileEditor({ sessionId }: { sessionId: s
               <Markdown>{content}</Markdown>
             </div>
           ) : (
-            <EditorPane content={content} onChange={updateContent} filePath={activeFile ?? undefined} />
+            <EditorPane
+              key={activeFile}
+              content={content}
+              onChange={updateContent}
+              filePath={activeFile ?? undefined}
+            />
           )
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground text-xs">

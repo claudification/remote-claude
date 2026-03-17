@@ -48,6 +48,7 @@ export interface WsClientOptions {
   onFileRequest?: (requestId: string, path: string) => void
   onFileEditorMessage?: (message: Record<string, unknown>) => void
   onAck?: (origins: string[]) => void
+  onTranscriptKick?: () => void
 }
 
 export interface WsClient {
@@ -91,6 +92,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onFileRequest,
     onFileEditorMessage,
     onAck,
+    onTranscriptKick,
   } = options
 
   let sessionId = initialSessionId
@@ -215,6 +217,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
               break
             case 'ack':
               onAck?.(message.origins || [])
+              break
+            case 'transcript_kick':
+              onTranscriptKick?.()
               break
             default: {
               // File editor messages are relayed as generic JSON (not part of ConcentratorMessage type)

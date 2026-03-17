@@ -10,7 +10,13 @@ import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
 import { markdown } from '@codemirror/lang-markdown'
 import { python } from '@codemirror/lang-python'
-import { bracketMatching, HighlightStyle, type LanguageSupport, syntaxHighlighting } from '@codemirror/language'
+import {
+  bracketMatching,
+  defaultHighlightStyle,
+  HighlightStyle,
+  type LanguageSupport,
+  syntaxHighlighting,
+} from '@codemirror/language'
 import { EditorState, type Extension } from '@codemirror/state'
 import { drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view'
 import { tags } from '@lezer/highlight'
@@ -133,6 +139,8 @@ export function createEditorView(
     }
   })
 
+  const lang = langFromPath(filePath)
+
   const state = EditorState.create({
     doc: initialContent,
     extensions: [
@@ -142,13 +150,28 @@ export function createEditorView(
       bracketMatching(),
       history(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
-      langFromPath(filePath),
+      lang,
       editorTheme,
       syntaxHighlighting(tokyoNightHighlight),
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       updateListener,
       EditorView.lineWrapping,
     ],
   })
 
-  return new EditorView({ state, parent })
+  const view = new EditorView({ state, parent })
+
+  // Debug: verify highlight spans appear after parse
+  requestAnimationFrame(() => {
+    const spans = parent.querySelectorAll('.cm-line span[class]')
+    const styleEls = document.querySelectorAll('style')
+    console.log(
+      `[cm] file=${filePath} lang=${(lang as any)?.language?.name ?? '?'} spans=${spans.length} styles=${styleEls.length} content=${initialContent.length}b`,
+    )
+    if (spans.length === 0 && initialContent.length > 0) {
+      console.warn('[cm] No highlighted spans found! Syntax highlighting may be broken.')
+    }
+  })
+
+  return view
 }

@@ -324,6 +324,11 @@ export interface FileRequest {
   path: string
 }
 
+export interface TranscriptKick {
+  type: 'transcript_kick'
+  sessionId: string
+}
+
 export type ConcentratorMessage =
   | Ack
   | ConcentratorError
@@ -335,6 +340,7 @@ export type ConcentratorMessage =
   | TranscriptRequest
   | SubagentTranscriptRequest
   | FileRequest
+  | TranscriptKick
 
 // Hook event types from Claude Code
 export type HookEventType =
