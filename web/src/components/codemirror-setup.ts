@@ -192,6 +192,8 @@ export function createEditorView(
       lang,
       editorTheme,
       directHighlightPlugin,
+      // Mount the HighlightStyle's CSS (syntaxHighlighting() normally does this)
+      EditorView.styleModule.of(tokyoNightHighlight.module!),
       updateListener,
       EditorView.lineWrapping,
     ],
