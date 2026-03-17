@@ -422,6 +422,16 @@ export function createRouter(options: RouteOptions): Hono {
     return c.json({ success: true, message: 'Revive command sent to agent', wrapperId }, 202)
   })
 
+  app.delete('/sessions/:id', c => {
+    const sessionId = c.req.param('id')
+    const session = sessionStore.getSession(sessionId)
+    if (!session) return c.json({ error: 'Session not found' }, 404)
+    if (session.status !== 'ended') return c.json({ error: 'Only ended sessions can be dismissed' }, 400)
+    sessionStore.removeSession(sessionId)
+    broadcastToSubscribers(sessionStore, { type: 'session_dismissed', sessionId })
+    return c.json({ success: true })
+  })
+
   // ─── Agent ─────────────────────────────────────────────────────────
   app.get('/agent/status', c => c.json({ connected: sessionStore.hasAgent() }))
 

@@ -121,6 +121,7 @@ interface SessionsState {
   fileHandler: ((msg: any) => void) | null
   setFileHandler: (handler: ((msg: any) => void) | null) => void
   sendWsMessage: (msg: Record<string, unknown>) => void
+  dismissSession: (sessionId: string) => void
   setPendingFilePath: (path: string | null) => void
   inputDrafts: Record<string, string>
   setInputDraft: (sessionId: string, text: string) => void
@@ -297,6 +298,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       recordOut(payload.length)
       ws.send(payload)
     }
+  },
+  dismissSession: sessionId => {
+    fetch(`/sessions/${sessionId}`, { method: 'DELETE' }).catch(() => {})
+    set(state => ({
+      sessions: state.sessions.filter(s => s.id !== sessionId),
+      selectedSessionId: state.selectedSessionId === sessionId ? null : state.selectedSessionId,
+    }))
   },
 
   getSelectedSession: () => {

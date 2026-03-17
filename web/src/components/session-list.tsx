@@ -45,6 +45,42 @@ function StatusIndicator({ status }: { status: Session['status'] }) {
 
 const EMPTY_EVENTS: HookEvent[] = []
 
+function DismissButton({ sessionId }: { sessionId: string }) {
+  const dismissSession = useSessionsStore(s => s.dismissSession)
+  return (
+    <div
+      onClick={e => {
+        e.stopPropagation()
+        haptic('tap')
+        dismissSession(sessionId)
+      }}
+      className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 text-muted-foreground/40 hover:text-destructive transition-opacity cursor-pointer px-0.5"
+      title="Dismiss session"
+    >
+      {'\u2715'}
+    </div>
+  )
+}
+
+function DismissAllEndedButton({ sessions }: { sessions: Session[] }) {
+  const dismissSession = useSessionsStore(s => s.dismissSession)
+  const ended = sessions.filter(s => s.status === 'ended')
+  if (ended.length === 0) return null
+  return (
+    <div
+      onClick={e => {
+        e.stopPropagation()
+        haptic('tap')
+        for (const s of ended) dismissSession(s.id)
+      }}
+      className="text-[9px] text-muted-foreground/40 hover:text-destructive cursor-pointer px-1 transition-colors"
+      title={`Dismiss ${ended.length} ended session${ended.length > 1 ? 's' : ''}`}
+    >
+      {'\u2715'} ended
+    </div>
+  )
+}
+
 function SessionItemContent({ session, compact }: { session: Session; compact?: boolean }) {
   const selectedSessionId = useSessionsStore(s => s.selectedSessionId)
   const selectedSubagentId = useSessionsStore(s => s.selectedSubagentId)
@@ -103,6 +139,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
               compacting
             </span>
           )}
+          {session.status === 'ended' && <DismissButton sessionId={session.id} />}
         </div>
       )}
       {compact && (
@@ -117,6 +154,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
             {session.id.slice(0, 8)}
           </span>
           {session.compacting && <span className="text-[9px] text-amber-400 font-bold animate-pulse">COMPACT</span>}
+          {session.status === 'ended' && <DismissButton sessionId={session.id} />}
         </div>
       )}
       {(session.activeTasks.length > 0 ||
@@ -318,6 +356,7 @@ function SessionCwdGroup({
             {name}
           </span>
           <span className="text-[10px] text-muted-foreground font-mono">{sessions.length} sessions</span>
+          {sessions.some(s => s.status === 'ended') && <DismissAllEndedButton sessions={sessions} />}
           <ProjectSettingsButton
             onClick={e => {
               e.stopPropagation()

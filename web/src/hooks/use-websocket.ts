@@ -242,6 +242,15 @@ function processMessage(msg: DashboardMessage) {
       }
       break
     }
+    case 'session_dismissed': {
+      if (msg.sessionId) {
+        useSessionsStore.setState(state => ({
+          sessions: state.sessions.filter(s => s.id !== msg.sessionId),
+          selectedSessionId: state.selectedSessionId === msg.sessionId ? null : state.selectedSessionId,
+        }))
+      }
+      break
+    }
   }
 }
 
