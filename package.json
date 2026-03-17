@@ -47,6 +47,7 @@
     "@vitejs/plugin-react-swc": "^4.3.0",
     "chokidar": "^5.0.0",
     "diff": "^8.0.3",
+    "hono": "^4.12.8",
     "jsdom": "^28.1.0",
     "lucide-react": "^0.577.0",
     "marked": "^17.0.4",
