@@ -803,5 +803,5 @@ export interface SubscriptionsDiag {
 export const DEFAULT_CONCENTRATOR_URL = 'ws://localhost:9999'
 export const DEFAULT_CONCENTRATOR_PORT = 9999
 export const HEARTBEAT_INTERVAL_MS = 30000
-// Idle timeout is now configured via global settings (idleTimeoutMinutes)
+// Session status is driven by hooks (active/idle/ended), no configurable timeout
 // Server evaluates idle status - clients trust session.status

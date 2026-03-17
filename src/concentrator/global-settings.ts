@@ -9,7 +9,6 @@ import { dirname, join } from 'node:path'
 import { z } from 'zod/v4'
 
 export const GlobalSettingsSchema = z.object({
-  idleTimeoutMinutes: z.number().min(1).max(120).default(10),
   userLabel: z.string().max(20).default(''),
   agentLabel: z.string().max(20).default(''),
   userColor: z.string().max(50).default(''),

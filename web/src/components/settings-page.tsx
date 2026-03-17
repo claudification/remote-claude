@@ -310,22 +310,6 @@ const SETTINGS: SettingItem[] = [
   // --- General ---
   {
     group: 'General',
-    label: 'Idle timeout',
-    description: 'Minutes before active session is marked idle',
-    server: true,
-    render: ctx => (
-      <input
-        type="number"
-        min={1}
-        max={120}
-        value={(ctx.server.idleTimeoutMinutes as number) ?? 10}
-        onChange={e => ctx.setServer('idleTimeoutMinutes', Number(e.target.value))}
-        className="w-16 px-2 py-1 text-xs font-mono bg-muted border border-border text-foreground text-right"
-      />
-    ),
-  },
-  {
-    group: 'General',
     label: 'User label',
     description: 'Tag shown next to user messages',
     server: true,
