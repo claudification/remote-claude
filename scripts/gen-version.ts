@@ -19,9 +19,7 @@ try {
   const porcelain = execSync('git status --porcelain', { cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'] })
     .toString()
     .trim()
-  dirty = porcelain
-    .split('\n')
-    .some(line => line.trim() && !line.includes('src/shared/version.ts'))
+  dirty = porcelain.split('\n').some(line => line.trim() && !line.includes('src/shared/version.ts'))
 } catch {
   // No git available (Docker build, CI, etc.)
   // If version.ts already has a real hash (pre-generated on host), keep it

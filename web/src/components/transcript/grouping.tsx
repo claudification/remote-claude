@@ -4,12 +4,7 @@
  */
 
 import { useMemo, useRef } from 'react'
-import type {
-  TranscriptAssistantEntry,
-  TranscriptEntry,
-  TranscriptQueueEntry,
-  TranscriptUserEntry,
-} from '@/lib/types'
+import type { TranscriptAssistantEntry, TranscriptEntry, TranscriptQueueEntry, TranscriptUserEntry } from '@/lib/types'
 
 function isUser(e: TranscriptEntry): e is TranscriptUserEntry {
   return e.type === 'user'

@@ -3,10 +3,10 @@
  * Replaces hand-rolled routing in api.ts and auth-routes.ts
  */
 
-import { Hono } from 'hono'
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { Hono } from 'hono'
 import type { ListDirsResult, SendInput, Session, SpawnResult, TeamInfo } from '../shared/protocol'
 import { handleAuthRoute, requireAuth } from './auth-routes'
 import { getGlobalSettings, updateGlobalSettings } from './global-settings'
@@ -28,12 +28,15 @@ const fileRegistry = new Map<string, string>()
 const blobRegistry = new Map<string, { bytes: Uint8Array; mediaType: string; createdAt: number }>()
 
 const BLOB_MAX_AGE_MS = 24 * 60 * 60 * 1000
-setInterval(() => {
-  const now = Date.now()
-  for (const [hash, entry] of blobRegistry) {
-    if (now - entry.createdAt > BLOB_MAX_AGE_MS) blobRegistry.delete(hash)
-  }
-}, 60 * 60 * 1000)
+setInterval(
+  () => {
+    const now = Date.now()
+    for (const [hash, entry] of blobRegistry) {
+      if (now - entry.createdAt > BLOB_MAX_AGE_MS) blobRegistry.delete(hash)
+    }
+  },
+  60 * 60 * 1000,
+)
 
 function hashString(input: string): string {
   let hash = 0
@@ -258,20 +261,20 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   // ─── Auth routes (/auth/*) ─────────────────────────────────────────
-  app.all('/auth/*', async (c) => {
+  app.all('/auth/*', async c => {
     const response = await handleAuthRoute(c.req.raw)
     if (response) return response
     return c.json({ error: 'Not found' }, 404)
   })
 
   // ─── Health check ──────────────────────────────────────────────────
-  app.get('/health', (c) => c.text('ok'))
+  app.get('/health', c => c.text('ok'))
 
   // ─── Server capabilities ───────────────────────────────────────────
-  app.get('/api/capabilities', (c) => c.json({ voice: !!process.env.DEEPGRAM_API_KEY }))
+  app.get('/api/capabilities', c => c.json({ voice: !!process.env.DEEPGRAM_API_KEY }))
 
   // ─── File serving by hash ──────────────────────────────────────────
-  app.get('/file/:hash', async (c) => {
+  app.get('/file/:hash', async c => {
     const hash = c.req.param('hash').replace(/\.[a-z]+$/i, '') // strip extension
     const source = getImageSource(hash)
     if (!source) return c.json({ error: 'Image not found' }, 404)
@@ -294,19 +297,19 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   // ─── Sessions ──────────────────────────────────────────────────────
-  app.get('/sessions', (c) => {
+  app.get('/sessions', c => {
     const activeOnly = c.req.query('active') === 'true'
     const sessions = activeOnly ? sessionStore.getActiveSessions() : sessionStore.getAllSessions()
     return c.json(sessions.map(s => sessionToOverview(s, sessionStore)))
   })
 
-  app.get('/sessions/:id', (c) => {
+  app.get('/sessions/:id', c => {
     const session = sessionStore.getSession(c.req.param('id'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
     return c.json(sessionToOverview(session, sessionStore))
   })
 
-  app.get('/sessions/:id/events', (c) => {
+  app.get('/sessions/:id/events', c => {
     const sessionId = c.req.param('id')
     const limit = parseInt(c.req.query('limit') || '0', 10)
     const since = parseInt(c.req.query('since') || '0', 10)
@@ -317,13 +320,13 @@ export function createRouter(options: RouteOptions): Hono {
     return c.json(events)
   })
 
-  app.get('/sessions/:id/subagents', (c) => {
+  app.get('/sessions/:id/subagents', c => {
     const session = sessionStore.getSession(c.req.param('id'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
     return c.json(session.subagents)
   })
 
-  app.get('/sessions/:id/transcript', (c) => {
+  app.get('/sessions/:id/transcript', c => {
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
@@ -335,7 +338,7 @@ export function createRouter(options: RouteOptions): Hono {
     return c.json(entries.map((e: any) => processImagesInEntry(e)))
   })
 
-  app.get('/sessions/:id/subagents/:agentId/transcript', (c) => {
+  app.get('/sessions/:id/subagents/:agentId/transcript', c => {
     const sessionId = c.req.param('id')
     const agentId = c.req.param('agentId')
     const session = sessionStore.getSession(sessionId)
@@ -348,7 +351,7 @@ export function createRouter(options: RouteOptions): Hono {
     return c.json(entries.map((e: any) => processImagesInEntry(e)))
   })
 
-  app.get('/sessions/:id/diag', (c) => {
+  app.get('/sessions/:id/diag', c => {
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
@@ -377,13 +380,13 @@ export function createRouter(options: RouteOptions): Hono {
     })
   })
 
-  app.get('/sessions/:id/tasks', (c) => {
+  app.get('/sessions/:id/tasks', c => {
     const session = sessionStore.getSession(c.req.param('id'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
     return c.json({ tasks: session.tasks, archivedTasks: session.archivedTasks })
   })
 
-  app.post('/sessions/:id/input', async (c) => {
+  app.post('/sessions/:id/input', async c => {
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
@@ -405,7 +408,7 @@ export function createRouter(options: RouteOptions): Hono {
     return c.json({ success: true })
   })
 
-  app.post('/sessions/:id/revive', async (c) => {
+  app.post('/sessions/:id/revive', async c => {
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
@@ -420,21 +423,21 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   // ─── Agent ─────────────────────────────────────────────────────────
-  app.get('/agent/status', (c) => c.json({ connected: sessionStore.hasAgent() }))
+  app.get('/agent/status', c => c.json({ connected: sessionStore.hasAgent() }))
 
-  app.post('/agent/quit', (c) => {
+  app.post('/agent/quit', c => {
     const agent = sessionStore.getAgent()
     if (!agent) return c.json({ error: 'No agent connected' }, 404)
     agent.send(JSON.stringify({ type: 'quit', reason: 'Requested via API' }))
     return c.json({ success: true })
   })
 
-  app.get('/api/agent/diag', (c) => {
+  app.get('/api/agent/diag', c => {
     return c.json({ connected: sessionStore.hasAgent(), entries: sessionStore.getAgentDiag() })
   })
 
   // ─── Spawn ─────────────────────────────────────────────────────────
-  app.post('/api/spawn', async (c) => {
+  app.post('/api/spawn', async c => {
     const agent = sessionStore.getAgent()
     if (!agent) return c.json({ error: 'No host agent connected' }, 503)
 
@@ -465,7 +468,7 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   // ─── Directory listing (agent relay) ───────────────────────────────
-  app.get('/api/dirs', async (c) => {
+  app.get('/api/dirs', async c => {
     const agent = sessionStore.getAgent()
     if (!agent) return c.json({ error: 'No host agent connected' }, 503)
 
@@ -491,12 +494,12 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   // ─── Push notifications ────────────────────────────────────────────
-  app.get('/api/push/vapid', (c) => {
+  app.get('/api/push/vapid', c => {
     if (!vapidPublicKey) return c.json({ error: 'Push not configured' }, 503)
     return c.json({ publicKey: vapidPublicKey, subscriptions: getSubscriptionCount() })
   })
 
-  app.post('/api/push/subscribe', async (c) => {
+  app.post('/api/push/subscribe', async c => {
     const body = await c.req.json<{
       subscription: { endpoint: string; keys: { p256dh: string; auth: string } }
     }>()
@@ -507,14 +510,14 @@ export function createRouter(options: RouteOptions): Hono {
     return c.json({ success: true, total: getSubscriptionCount() })
   })
 
-  app.post('/api/push/unsubscribe', async (c) => {
+  app.post('/api/push/unsubscribe', async c => {
     const body = await c.req.json<{ endpoint: string }>()
     if (!body.endpoint) return c.json({ error: 'Missing endpoint' }, 400)
     removeSubscription(body.endpoint)
     return c.json({ success: true })
   })
 
-  app.post('/api/push/send', async (c) => {
+  app.post('/api/push/send', async c => {
     // Extra auth: requires rclaude secret specifically (not just any cookie)
     const authHeader = c.req.header('authorization')
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
@@ -546,7 +549,7 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   // ─── Crash reports ─────────────────────────────────────────────────
-  app.post('/api/crash', async (c) => {
+  app.post('/api/crash', async c => {
     if (!cacheDir) return c.json({ error: 'No cache dir configured' }, 503)
 
     const body = await c.req.json()
@@ -568,14 +571,16 @@ export function createRouter(options: RouteOptions): Hono {
       .sort()
     if (files.length > 50) {
       for (const old of files.slice(0, files.length - 50)) {
-        try { unlinkSync(join(crashDir, old)) } catch {}
+        try {
+          unlinkSync(join(crashDir, old))
+        } catch {}
       }
     }
 
     return c.json({ success: true, file: file.split('/').pop() })
   })
 
-  app.get('/api/crashes', (c) => {
+  app.get('/api/crashes', c => {
     if (!cacheDir) return c.json([])
     const crashDir = join(cacheDir, 'crashes')
     if (!existsSync(crashDir)) return c.json([])
@@ -596,9 +601,9 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   // ─── Project settings ──────────────────────────────────────────────
-  app.get('/api/settings/projects', (c) => c.json(getAllProjectSettings()))
+  app.get('/api/settings/projects', c => c.json(getAllProjectSettings()))
 
-  app.post('/api/settings/projects', async (c) => {
+  app.post('/api/settings/projects', async c => {
     const body = await c.req.json<{ cwd: string; settings: { label?: string; icon?: string; color?: string } }>()
     if (!body.cwd) return c.json({ error: 'Missing cwd' }, 400)
     setProjectSettings(body.cwd, body.settings || {})
@@ -607,7 +612,7 @@ export function createRouter(options: RouteOptions): Hono {
     return c.json({ success: true, settings: allSettings })
   })
 
-  app.delete('/api/settings/projects', async (c) => {
+  app.delete('/api/settings/projects', async c => {
     const body = await c.req.json<{ cwd: string }>()
     if (!body.cwd) return c.json({ error: 'Missing cwd' }, 400)
     deleteProjectSettings(body.cwd)
@@ -616,7 +621,7 @@ export function createRouter(options: RouteOptions): Hono {
     return c.json({ success: true, settings: allSettings })
   })
 
-  app.post('/api/settings/projects/generate-keyterms', async (c) => {
+  app.post('/api/settings/projects/generate-keyterms', async c => {
     const openrouterKey = process.env.OPENROUTER_API_KEY
     if (!openrouterKey) return c.json({ error: 'OPENROUTER_API_KEY not configured' }, 500)
 
@@ -715,9 +720,9 @@ Output a JSON array of strings. Each string should be the correct spelling of on
   })
 
   // ─── Global settings ───────────────────────────────────────────────
-  app.get('/api/settings', (c) => c.json(getGlobalSettings()))
+  app.get('/api/settings', c => c.json(getGlobalSettings()))
 
-  app.post('/api/settings', async (c) => {
+  app.post('/api/settings', async c => {
     const body = await c.req.json()
     const result = updateGlobalSettings(body)
     broadcastToSubscribers(sessionStore, { type: 'settings_updated', settings: result.settings })
@@ -725,7 +730,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
   })
 
   // ─── File upload ───────────────────────────────────────────────────
-  app.post('/api/files', async (c) => {
+  app.post('/api/files', async c => {
     const contentType = c.req.header('content-type') || ''
     let bytes: Uint8Array
     let mediaType: string
@@ -761,9 +766,9 @@ Output a JSON array of strings. Each string should be the correct spelling of on
   })
 
   // ─── Session order ─────────────────────────────────────────────────
-  app.get('/api/session-order', (c) => c.json(getSessionOrder()))
+  app.get('/api/session-order', c => c.json(getSessionOrder()))
 
-  app.post('/api/session-order', async (c) => {
+  app.post('/api/session-order', async c => {
     const body = await c.req.json<{
       action?: 'pin' | 'unpin' | 'move' | 'set'
       cwd?: string
@@ -783,7 +788,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
   })
 
   // ─── Transcribe ────────────────────────────────────────────────────
-  app.post('/api/transcribe', async (c) => {
+  app.post('/api/transcribe', async c => {
     const deepgramKey = process.env.DEEPGRAM_API_KEY
     if (!deepgramKey) {
       console.error('[transcribe] DEEPGRAM_API_KEY not configured')
@@ -846,7 +851,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
   })
 
   // ─── Stats ─────────────────────────────────────────────────────────
-  app.get('/api/stats', (c) => {
+  app.get('/api/stats', c => {
     const allSessions = sessionStore.getAllSessions()
     let active = 0
     let idle = 0
@@ -873,7 +878,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     })
   })
 
-  app.get('/api/subscriptions', (c) => c.json(sessionStore.getSubscriptionsDiag()))
+  app.get('/api/subscriptions', c => c.json(sessionStore.getSubscriptionsDiag()))
 
   // ─── Static file serving ───────────────────────────────────────────
 
@@ -905,7 +910,12 @@ Output a JSON array of strings. Each string should be the correct spelling of on
       }
 
       // SPA fallback for non-API paths
-      if (!path.startsWith('/sessions') && !path.startsWith('/health') && !path.startsWith('/api') && !path.startsWith('/file')) {
+      if (
+        !path.startsWith('/sessions') &&
+        !path.startsWith('/health') &&
+        !path.startsWith('/api') &&
+        !path.startsWith('/file')
+      ) {
         const indexHtml = embeddedFiles.get('index.html')
         if (indexHtml) {
           return new Response(indexHtml, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
@@ -942,7 +952,12 @@ Output a JSON array of strings. Each string should be the correct spelling of on
       }
 
       // SPA fallback
-      if (!path.startsWith('/sessions') && !path.startsWith('/health') && !path.startsWith('/api') && !path.startsWith('/file')) {
+      if (
+        !path.startsWith('/sessions') &&
+        !path.startsWith('/health') &&
+        !path.startsWith('/api') &&
+        !path.startsWith('/file')
+      ) {
         try {
           const indexFile = Bun.file(`${webDir}/index.html`)
           if (await indexFile.exists()) {
@@ -957,15 +972,15 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
   // Fallback inline HTML UI (no embedded web or webDir)
   if (!hasEmbeddedWeb && !webDir) {
-    app.get('/', (c) => c.html(UI_HTML))
-    app.get('/ui', (c) => c.html(UI_HTML))
+    app.get('/', c => c.html(UI_HTML))
+    app.get('/ui', c => c.html(UI_HTML))
   }
 
   // ─── CORS preflight ────────────────────────────────────────────────
-  app.options('*', (c) => new Response(null, { status: 204 }))
+  app.options('*', c => new Response(null, { status: 204 }))
 
   // ─── 404 catch-all ─────────────────────────────────────────────────
-  app.all('*', (c) => c.json({ error: 'Not found' }, 404))
+  app.all('*', c => c.json({ error: 'Not found' }, 404))
 
   // ─── Centralized error handler ─────────────────────────────────────
   app.onError((err, c) => {

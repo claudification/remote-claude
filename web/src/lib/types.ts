@@ -89,15 +89,15 @@ export interface TranscriptImage {
 
 // Re-export all typed entry variants from shared protocol
 export type {
-  TranscriptContentBlock,
-  TranscriptEntry,
-  TranscriptUserEntry,
   TranscriptAssistantEntry,
   TranscriptAssistantMessage,
-  TranscriptProgressEntry,
-  TranscriptSystemEntry,
-  TranscriptQueueEntry,
   TranscriptCompactingEntry,
+  TranscriptContentBlock,
+  TranscriptEntry,
+  TranscriptProgressEntry,
+  TranscriptQueueEntry,
+  TranscriptSystemEntry,
+  TranscriptUserEntry,
 } from '@shared/protocol'
 
 // Frontend-specific rendering extensions on transcript entries.
