@@ -408,3 +408,33 @@ body {
 		font-weight: bold;
 	}
 }
+
+/* Mermaid diagram rendering */
+pre.mermaid {
+	visibility: hidden;
+	max-height: 0;
+	overflow: hidden;
+	margin: 0;
+	padding: 0;
+	border: none;
+}
+
+.mermaid-container {
+	margin: 0.75em 0;
+	text-align: center;
+}
+
+.mermaid-container svg {
+	max-width: 100%;
+	height: auto;
+}
+
+.mermaid-error {
+	margin: 0.75em 0;
+	padding: 0.5em 0.75em;
+	color: var(--destructive);
+	font-size: 0.85em;
+	font-family: var(--font-mono);
+	border: 1px solid var(--destructive);
+	border-radius: 2px;
+}

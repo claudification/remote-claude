@@ -13,8 +13,9 @@ import sql from 'highlight.js/lib/languages/sql'
 import typescript from 'highlight.js/lib/languages/typescript'
 import xml from 'highlight.js/lib/languages/xml'
 import yaml from 'highlight.js/lib/languages/yaml'
+import { renderMermaidSVG } from 'beautiful-mermaid'
 import { Marked } from 'marked'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 // Register languages
 hljs.registerLanguage('javascript', javascript)
@@ -65,6 +66,11 @@ renderer.table = ({ header, rows, raw }) => {
   return `<div class="table-block">${html}<div class="table-source" style="display:none">${escapedRaw}</div></div>`
 }
 renderer.code = ({ text, lang }) => {
+  // Mermaid blocks: emit placeholder, rendered post-mount via useEffect
+  if (lang === 'mermaid') {
+    const escaped = text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return `<pre class="mermaid" data-mermaid-source="${encodeURIComponent(text)}">${escaped}</pre>`
+  }
   const langClass = lang ? ` class="hljs language-${lang}"` : ' class="hljs"'
   let highlighted = text
   if (lang && hljs.getLanguage(lang)) {
@@ -131,6 +137,38 @@ marked.use({
   ],
 })
 
+// Mermaid SVG theme - uses CSS variables for automatic dark mode support
+const MERMAID_THEME = {
+  bg: 'var(--background)',
+  fg: 'var(--foreground)',
+  line: 'var(--muted-foreground)',
+  accent: 'var(--primary)',
+  muted: 'var(--muted-foreground)',
+  surface: 'var(--secondary)',
+  border: 'var(--border)',
+  transparent: true,
+}
+
+function renderMermaidBlocks(container: HTMLElement) {
+  const blocks = container.querySelectorAll('pre.mermaid')
+  for (const block of blocks) {
+    const source = decodeURIComponent(block.getAttribute('data-mermaid-source') || '')
+    if (!source) continue
+    try {
+      const svg = renderMermaidSVG(source, MERMAID_THEME)
+      const wrapper = document.createElement('div')
+      wrapper.className = 'mermaid-container'
+      wrapper.innerHTML = svg
+      block.replaceWith(wrapper)
+    } catch (err) {
+      const errDiv = document.createElement('div')
+      errDiv.className = 'mermaid-error'
+      errDiv.textContent = `Mermaid error: ${err instanceof Error ? err.message : String(err)}`
+      block.replaceWith(errDiv)
+    }
+  }
+}
+
 interface MarkdownProps {
   children: string
 }
@@ -141,6 +179,11 @@ export function Markdown({ children }: MarkdownProps) {
   }, [children])
 
   const ref = useRef<HTMLDivElement>(null)
+
+  // Post-mount: render mermaid blocks into SVG
+  useEffect(() => {
+    if (ref.current) renderMermaidBlocks(ref.current)
+  }, [html])
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     const btn = (e.target as HTMLElement).closest('.code-copy-btn') as HTMLButtonElement | null
