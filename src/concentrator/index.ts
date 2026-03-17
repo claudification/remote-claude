@@ -7,9 +7,9 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DEFAULT_CONCENTRATOR_PORT } from '../shared/protocol'
-import { createApiHandler } from './api'
 import { getUser, initAuth, reloadState } from './auth'
-import { getAuthenticatedUser, handleAuthRoute, requireAuth, setRclaudeSecret } from './auth-routes'
+import { getAuthenticatedUser, requireAuth, setRclaudeSecret } from './auth-routes'
+import { createRouter } from './routes'
 import { initGlobalSettings } from './global-settings'
 import { addAllowedRoot, addPathMapping, getAllowedRoots } from './path-jail'
 import { initProjectSettings } from './project-settings'
@@ -344,9 +344,9 @@ async function main() {
     },
   })
 
-  // Create REST API server (on same or different port)
+  // Create Hono router with all HTTP routes
   const serverStartTime = Date.now()
-  const apiHandler = createApiHandler({
+  const router = createRouter({
     sessionStore,
     webDir,
     vapidPublicKey,
@@ -356,14 +356,14 @@ async function main() {
   })
 
   if (apiPort && apiPort !== port) {
-    // Separate API server
+    // Separate API server (Hono handles all HTTP)
     Bun.serve({
       port: apiPort,
-      fetch: apiHandler,
+      fetch: router.fetch,
     })
     console.log(`REST API listening on http://localhost:${apiPort}`)
   } else {
-    // Combine API with WebSocket server - need to create new combined server
+    // Combined HTTP + WebSocket server
     wsServer.stop()
 
     interface WsData {
@@ -377,34 +377,26 @@ async function main() {
     Bun.serve<WsData>({
       port,
       async fetch(req, server) {
-        // Auth routes first (login, register, status)
-        const authResponse = await handleAuthRoute(req)
-        if (authResponse) return authResponse
-
-        // Auth middleware (blocks unauthenticated access when users exist)
-        const authBlock = requireAuth(req)
-        if (authBlock) return authBlock
-
+        // WebSocket upgrade must happen before Hono (Bun needs server.upgrade -> undefined)
         const url = new URL(req.url)
-
-        // WebSocket upgrade for /ws or /
         if (
           req.headers.get('upgrade')?.toLowerCase() === 'websocket' &&
           (url.pathname === '/' || url.pathname === '/ws')
         ) {
-          // Extract authenticated user for revocation tracking
+          // Auth check for WS connections (requireAuth handles secret/cookie/token)
+          const authBlock = requireAuth(req)
+          if (authBlock) return authBlock
+
           const wsUserName = getAuthenticatedUser(req) ?? undefined
           const success = server.upgrade(req, {
             data: { userName: wsUserName } as WsData,
           })
-          if (success) {
-            return undefined
-          }
+          if (success) return undefined
           return new Response('WebSocket upgrade failed', { status: 500 })
         }
 
-        // REST API for other routes
-        return apiHandler(req)
+        // All HTTP routes handled by Hono (auth middleware included)
+        return router.fetch(req)
       },
       websocket: {
         open(_ws) {
