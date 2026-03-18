@@ -173,6 +173,29 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
                 .map(c => c.text)
                 .join('')
             : ''
+
+      // Deduplicate: queue-operation enqueue creates a synthetic user group,
+      // then the real user entry arrives with the same text. The synthetic has
+      // no uuid (created by us), while real entries have one. Replace synthetic
+      // with real to avoid showing the message twice.
+      if (textContent) {
+        for (let gi = groups.length - 1; gi >= 0; gi--) {
+          const g = groups[gi]
+          if (g.type !== 'user') continue
+          const synth = g.entries[0] as unknown as Record<string, unknown> | undefined
+          if (synth && !synth.uuid) {
+            const synthMsg = synth as unknown as TranscriptUserEntry
+            const synthText =
+              typeof synthMsg.message?.content === 'string' ? synthMsg.message.content : undefined
+            if (synthText === textContent) {
+              groups.splice(gi, 1)
+              break
+            }
+          }
+          break // only check the most recent user group
+        }
+      }
+
       if (textContent.includes('<system-reminder>')) continue
       if (
         textContent.includes('<command-name>') ||
@@ -353,6 +376,26 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
                   .map(c => c.text)
                   .join('')
               : ''
+
+        // Deduplicate queue-operation synthetic (same as batch grouper)
+        if (textContent) {
+          for (let gi = newGroups.length - 1; gi >= 0; gi--) {
+            const g = newGroups[gi]
+            if (g.type !== 'user') continue
+            const synth = g.entries[0] as unknown as Record<string, unknown> | undefined
+            if (synth && !synth.uuid) {
+              const synthMsg = synth as unknown as TranscriptUserEntry
+              const synthText =
+                typeof synthMsg.message?.content === 'string' ? synthMsg.message.content : undefined
+              if (synthText === textContent) {
+                newGroups.splice(gi, 1)
+                break
+              }
+            }
+            break
+          }
+        }
+
         if (textContent.includes('<system-reminder>')) continue
         if (
           textContent.includes('<command-name>') ||
