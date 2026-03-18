@@ -214,7 +214,15 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   const pendingAgentDescriptions = new Map<string, string[]>()
 
   // Hooks that don't indicate Claude is actively working (hoisted to avoid per-call allocation)
-  const PASSIVE_HOOKS = new Set(['Stop', 'StopFailure', 'Notification', 'TeammateIdle', 'TaskCompleted', 'SessionEnd'])
+  // Hooks that don't indicate Claude is actively working on a task
+  // SessionStart/InstructionsLoaded = initialization, not work
+  // ConfigChange/Setup/Elicitation = configuration, not work
+  const PASSIVE_HOOKS = new Set([
+    'Stop', 'StopFailure', 'SessionStart', 'SessionEnd',
+    'Notification', 'TeammateIdle', 'TaskCompleted',
+    'InstructionsLoaded', 'ConfigChange', 'Setup',
+    'Elicitation', 'ElicitationResult',
+  ])
   const MAX_EVENTS = 1000
 
   // Transcript cache: sessionId -> entries (ring buffer, max 500 per session)
