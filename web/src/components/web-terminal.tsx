@@ -148,38 +148,20 @@ export function WebTerminal({ wrapperId, onClose, popout }: WebTerminalProps) {
       sendWsMessage({ type: 'terminal_data', wrapperId, data })
     })
 
-    // Paste handler: intercept Cmd+V / Ctrl+V directly since xterm v6
-    // doesn't reliably handle paste via its hidden textarea
+    // Paste: intercept Cmd+V / Ctrl+V and preventDefault to stop native paste
+    // from also firing (which would double-paste via xterm's onData)
     function handleKeyPaste(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'v' && e.type === 'keydown') {
-        console.log('[terminal] Cmd+V keydown detected, reading clipboard...')
+        e.preventDefault()
         navigator.clipboard
           .readText()
           .then(text => {
-            if (text) {
-              console.log('[terminal] clipboard read OK:', { length: text.length })
-              terminal.paste(text)
-            } else {
-              console.log('[terminal] clipboard empty')
-            }
+            if (text) terminal.paste(text)
           })
-          .catch(err => {
-            console.warn('[terminal] clipboard read failed:', err.message)
-          })
+          .catch(() => {})
       }
     }
     terminalRef.current.addEventListener('keydown', handleKeyPaste)
-
-    // Fallback: DOM paste event on container
-    function handlePaste(e: ClipboardEvent) {
-      const text = e.clipboardData?.getData('text')
-      console.log('[terminal] paste event:', { length: text?.length ?? 0, target: (e.target as HTMLElement)?.tagName })
-      if (text) {
-        e.preventDefault()
-        terminal.paste(text)
-      }
-    }
-    terminalRef.current.addEventListener('paste', handlePaste)
 
     const handler = (msg: TerminalMessage) => {
       if (msg.wrapperId !== wrapperId) return
@@ -231,7 +213,6 @@ export function WebTerminal({ wrapperId, onClose, popout }: WebTerminalProps) {
       resizeObserver.disconnect()
       dataDisposable.dispose()
       termEl?.removeEventListener('keydown', handleKeyPaste)
-      termEl?.removeEventListener('paste', handlePaste)
       setTerminalHandler(null)
       sendWsMessage({ type: 'terminal_detach', wrapperId })
       terminal.dispose()
