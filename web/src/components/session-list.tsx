@@ -498,19 +498,6 @@ function GroupNode({
         {collapsed && <span className="text-muted-foreground/40 font-normal normal-case">({childCount})</span>}
         <span className="flex-1 h-px bg-border/50" />
       </div>
-      {!collapsed && (
-        <div className="space-y-1">
-          {group.children.map(child => {
-            if (child.type === 'group') {
-              return null // Nested groups not supported yet
-            }
-            const cwd = child.id.startsWith('cwd:') ? child.id.slice(4) : child.id
-            const sessions = sessionsByCwd.get(cwd)
-            if (!sessions || sessions.length === 0) return null
-            return <CwdNode key={child.id} cwd={cwd} sessions={sessions} />
-          })}
-        </div>
-      )}
     </div>
   )
 }
