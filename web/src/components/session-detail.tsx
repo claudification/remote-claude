@@ -198,7 +198,6 @@ export function SessionDetail() {
   useEffect(() => {
     if (requestedTab) {
       setActiveTab(requestedTab as Tab)
-      useSessionsStore.setState({ requestedTab: null })
     }
   }, [requestedTab, requestedTabSeq])
 
