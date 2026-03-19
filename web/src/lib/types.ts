@@ -28,6 +28,8 @@ export interface Session {
   cwd: string
   model?: string
   capabilities?: WrapperCapability[]
+  version?: string
+  buildTime?: string
   wrapperIds?: string[]
   status: 'active' | 'idle' | 'ended' | 'starting'
   compacting?: boolean

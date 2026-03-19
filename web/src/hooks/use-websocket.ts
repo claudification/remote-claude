@@ -72,10 +72,19 @@ function toSession(summary: SessionSummary): Session {
     bgTasks: summary.bgTasks ?? [],
     teammates: summary.teammates ?? [],
     team: summary.team,
+    effortLevel: summary.effortLevel,
     lastError: summary.lastError,
+    pendingAttention: summary.pendingAttention,
+    summary: summary.summary,
+    title: summary.title,
+    agentName: summary.agentName,
+    prLinks: summary.prLinks,
     tokenUsage: summary.tokenUsage,
     stats: summary.stats,
     gitBranch: summary.gitBranch,
+    version: summary.version,
+    buildTime: summary.buildTime,
+    claudeVersion: summary.claudeVersion,
   }
 }
 

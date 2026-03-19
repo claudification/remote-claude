@@ -1644,8 +1644,12 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     if (session) {
       // Ensure stats object exists (sessions created before this feature)
       if (!session.stats || isInitial) {
-        // Reset stats on initial load to avoid double-counting when
+        // Reset stats + metadata on initial load to avoid double-counting when
         // transcript watcher re-reads the full file (restart, reconnect, truncation recovery)
+        session.summary = undefined
+        session.title = undefined
+        session.agentName = undefined
+        session.prLinks = undefined
         session.stats = {
           totalInputTokens: 0,
           totalOutputTokens: 0,
@@ -1686,6 +1690,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           if (typeof s === 'string' && s.trim()) {
             session.summary = s.trim()
             sessionChanged = true
+            console.log(`[meta] summary: "${session.summary.slice(0, 60)}" (session ${sessionId.slice(0, 8)})`)
           }
         }
         if (entry.type === 'custom-title') {
@@ -1693,6 +1698,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           if (typeof t === 'string' && t.trim()) {
             session.title = t.trim()
             sessionChanged = true
+            console.log(`[meta] title: "${session.title}" (session ${sessionId.slice(0, 8)})`)
           }
         }
         if (entry.type === 'agent-name') {
@@ -1700,6 +1706,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           if (typeof n === 'string' && n.trim()) {
             session.agentName = n.trim()
             sessionChanged = true
+            console.log(`[meta] agent: "${session.agentName}" (session ${sessionId.slice(0, 8)})`)
           }
         }
         if (entry.type === 'pr-link') {
@@ -1717,6 +1724,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
                 prRepository: prRepository || '',
                 timestamp: (e.timestamp as string) || new Date().toISOString(),
               })
+              console.log(`[meta] pr-link: ${prRepository}#${prNumber} (session ${sessionId.slice(0, 8)}, total: ${session.prLinks.length})`)
               sessionChanged = true
             }
           }
