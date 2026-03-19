@@ -77,6 +77,7 @@ interface SessionsState {
   serverCapabilities: { voice: boolean }
   setServerCapabilities: (caps: { voice: boolean }) => void
   isConnected: boolean
+  connectSeq: number // increments on each WS connect, used to trigger re-fetches
   agentConnected: boolean
   error: string | null
   ws: WebSocket | null
@@ -174,6 +175,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   serverCapabilities: { voice: false },
   setServerCapabilities: caps => set({ serverCapabilities: caps }),
   isConnected: false,
+  connectSeq: 0,
   agentConnected: false,
   error: null,
   ws: null,
@@ -285,7 +287,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   setTasks: (sessionId, tasks) => set(state => ({ tasks: { ...state.tasks, [sessionId]: tasks } })),
   setProjectSettings: settings => set({ projectSettings: settings }),
   setSessionOrder: order => set({ sessionOrder: order }),
-  setConnected: connected => set({ isConnected: connected }),
+  setConnected: connected =>
+    set(state => ({
+      isConnected: connected,
+      ...(connected && { connectSeq: state.connectSeq + 1 }),
+    })),
   setAgentConnected: connected => set({ agentConnected: connected }),
   setError: error => set({ error }),
   setWs: ws => set({ ws }),
@@ -330,10 +336,14 @@ export async function fetchSessionEvents(sessionId: string): Promise<HookEvent[]
   return res.json()
 }
 
-export async function fetchTranscript(sessionId: string): Promise<TranscriptEntry[]> {
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}/transcript?limit=500`)
-  if (!res.ok) return []
-  return res.json()
+export async function fetchTranscript(sessionId: string): Promise<TranscriptEntry[] | null> {
+  try {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/transcript?limit=500`)
+    if (!res.ok) return null // null = fetch failed, don't overwrite existing
+    return res.json()
+  } catch {
+    return null // network error
+  }
 }
 
 export async function fetchSubagents(sessionId: string): Promise<SubagentInfo[]> {

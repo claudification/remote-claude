@@ -89,18 +89,22 @@ function Dashboard() {
     fetchSessionOrder().then(o => useSessionsStore.getState().setSessionOrder(o))
   }, [])
 
-  // Fetch events when session selected or WS reconnects (fills gaps from disconnection)
+  // Fetch events/transcript when session selected or WS reconnects.
+  // connectSeq monotonically increases on each connect, ensuring re-fetch even if
+  // isConnected transitions false->true faster than React can observe.
   const isConnected = useSessionsStore(state => state.isConnected)
+  const connectSeq = useSessionsStore(state => state.connectSeq)
   useEffect(() => {
     if (!selectedSessionId || !isConnected) return
     fetchSessionEvents(selectedSessionId).then(events => setEvents(selectedSessionId, events))
-  }, [selectedSessionId, isConnected, setEvents])
+  }, [selectedSessionId, connectSeq, setEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch transcript when session selected or WS reconnects (fills gaps from disconnection)
   useEffect(() => {
     if (!selectedSessionId || !isConnected) return
-    fetchTranscript(selectedSessionId).then(transcript => setTranscript(selectedSessionId, transcript))
-  }, [selectedSessionId, isConnected, setTranscript])
+    fetchTranscript(selectedSessionId).then(transcript => {
+      if (transcript) setTranscript(selectedSessionId, transcript)
+    })
+  }, [selectedSessionId, connectSeq, setTranscript]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close sheet when a session is selected (mobile UX)
   useEffect(() => {
