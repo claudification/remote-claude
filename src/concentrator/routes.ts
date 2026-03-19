@@ -252,6 +252,10 @@ function sessionToOverview(session: Session, sessionStore: SessionStore): Sessio
     activeSubagentCount: session.subagents.filter(a => a.status === 'running').length,
     totalSubagentCount: session.subagents.length,
     team: session.team,
+    summary: session.summary,
+    title: session.title,
+    agentName: session.agentName,
+    prLinks: session.prLinks,
     lastEvent: lastEvent ? { hookEvent: lastEvent.hookEvent, timestamp: lastEvent.timestamp } : undefined,
   }
 }
