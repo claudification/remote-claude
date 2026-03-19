@@ -144,17 +144,29 @@ function Dashboard() {
         useSessionsStore.getState().toggleDebugConsole()
       }
       // Ctrl+Shift+T - toggle between transcript and TTY tab
-      if (e.ctrlKey && e.shiftKey && e.key === 'T') {
+      if (e.ctrlKey && e.shiftKey && !e.altKey && e.key === 'T') {
         e.preventDefault()
         const store = useSessionsStore.getState()
         if (store.showTerminal) {
-          // Fullscreen terminal open -> close it, back to transcript
           store.setShowTerminal(false)
           if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'transcript')
         } else if (store.selectedSessionId) {
-          // Toggle tab: tty -> transcript, anything else -> tty
           const currentTab = store.requestedTab
           store.openTab(store.selectedSessionId, currentTab === 'tty' ? 'transcript' : 'tty')
+        }
+      }
+      // Ctrl+Shift+Alt+T - toggle fullscreen terminal
+      if (e.ctrlKey && e.shiftKey && e.altKey && e.key === 'T') {
+        e.preventDefault()
+        const store = useSessionsStore.getState()
+        if (store.showTerminal) {
+          store.setShowTerminal(false)
+          if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'transcript')
+        } else {
+          const session = store.sessions.find(s => s.id === store.selectedSessionId)
+          if (session && canTerminal(session) && session.wrapperIds?.[0]) {
+            store.openTerminal(session.wrapperIds[0])
+          }
         }
       }
       // Ctrl+Shift+S - open spawn session dialog (Ctrl+K with S: prefilled)
