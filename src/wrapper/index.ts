@@ -809,6 +809,8 @@ async function main() {
     }
   }
 
+  let devChannelConfirmed = false
+
   // Initialize MCP channel if enabled
   if (channelEnabled) {
     diag('channel', 'Channel mode enabled')
@@ -1043,6 +1045,14 @@ async function main() {
     concentratorUrl: concentratorHttpUrl,
     concentratorSecret,
     onData(data) {
+      // Auto-confirm dev channel warning prompt (fires once on startup)
+      if (channelEnabled && !devChannelConfirmed && data.includes('Loading development channels')) {
+        devChannelConfirmed = true
+        // Wait for the prompt to render, then press Enter (option 1 is pre-selected)
+        setTimeout(() => ptyProcess?.write('\r'), 500)
+        diag('channel', 'Auto-confirmed dev channel warning')
+      }
+
       // Forward PTY output to remote terminal viewer when attached
       if (terminalAttached && claudeSessionId && wsClient?.isConnected()) {
         wsClient.sendTerminalData(data)
