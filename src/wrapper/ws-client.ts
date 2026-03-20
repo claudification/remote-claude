@@ -49,6 +49,10 @@ export interface WsClientOptions {
   onFileEditorMessage?: (message: Record<string, unknown>) => void
   onAck?: (origins: string[]) => void
   onTranscriptKick?: () => void
+  onChannelSessionsList?: (sessions: any[]) => void
+  onChannelSendResult?: (result: any) => void
+  onChannelDeliver?: (delivery: any) => void
+  onChannelLinkRequest?: (request: any) => void
 }
 
 export interface WsClient {
@@ -93,6 +97,10 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onFileEditorMessage,
     onAck,
     onTranscriptKick,
+    onChannelSessionsList,
+    onChannelSendResult,
+    onChannelDeliver,
+    onChannelLinkRequest,
   } = options
 
   let sessionId = initialSessionId
@@ -221,9 +229,22 @@ export function createWsClient(options: WsClientOptions): WsClient {
             case 'transcript_kick':
               onTranscriptKick?.()
               break
+            case 'channel_sessions_list':
+              onChannelSessionsList?.((message as any).sessions)
+              break
+            case 'channel_deliver':
+              onChannelDeliver?.(message as any)
+              break
+            case 'channel_link_request':
+              onChannelLinkRequest?.(message as any)
+              break
             default: {
-              // File editor messages are relayed as generic JSON (not part of ConcentratorMessage type)
               const msgType = (message as any).type as string
+              // Inter-session send result (not in formal ConcentratorMessage type)
+              if (msgType === 'channel_send_result') {
+                onChannelSendResult?.(message as any)
+                break
+              }
               if (msgType?.startsWith('file_') || msgType === 'quick_note_append') {
                 onFileEditorMessage?.(message as unknown as Record<string, unknown>)
               }

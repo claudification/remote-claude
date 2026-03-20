@@ -150,6 +150,12 @@ export interface SessionStore {
   addFileListener: (requestId: string, cb: (result: any) => void) => void
   removeFileListener: (requestId: string) => void
   resolveFile: (requestId: string, result: any) => boolean
+  // Inter-session messaging
+  checkSessionLink: (from: string, to: string) => 'linked' | 'blocked' | 'unknown'
+  linkSessions: (a: string, b: string) => void
+  blockSession: (blocker: string, blocked: string) => void
+  queueInterSessionMessage: (from: string, to: string, message: Record<string, unknown>) => void
+  drainQueuedMessages: (from: string, to: string) => Array<Record<string, unknown>>
   recordTraffic: (direction: 'in' | 'out', bytes: number) => void
   getTrafficStats: () => {
     in: { messagesPerSec: number; bytesPerSec: number }
@@ -1997,6 +2003,50 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     scheduleSessionUpdate(sessionId)
   }
 
+  // ─── Inter-session link registry ──────────────────────────────────────
+  // Links are bidirectional. If A->B is approved, B->A is also approved.
+  const sessionLinks = new Set<string>() // "a:b" format (sorted)
+  const sessionBlocks = new Map<string, number>() // "a:b" -> block timestamp
+  const messageQueue = new Map<string, Array<Record<string, unknown>>>() // "from:to" -> queued messages
+
+  function linkKey(a: string, b: string): string {
+    return [a, b].sort().join(':')
+  }
+
+  function checkSessionLink(from: string, to: string): 'linked' | 'blocked' | 'unknown' {
+    const key = linkKey(from, to)
+    if (sessionLinks.has(key)) return 'linked'
+    const blockTs = sessionBlocks.get(key)
+    if (blockTs && Date.now() - blockTs < 60_000) return 'blocked' // 1 min debounce
+    if (blockTs) sessionBlocks.delete(key) // expired
+    return 'unknown'
+  }
+
+  function linkSessions(a: string, b: string): void {
+    sessionLinks.add(linkKey(a, b))
+    sessionBlocks.delete(linkKey(a, b))
+  }
+
+  function blockSession(blocker: string, blocked: string): void {
+    const key = linkKey(blocker, blocked)
+    sessionLinks.delete(key)
+    sessionBlocks.set(key, Date.now())
+  }
+
+  function queueInterSessionMessage(from: string, to: string, message: Record<string, unknown>): void {
+    const key = `${from}:${to}`
+    const queue = messageQueue.get(key) || []
+    queue.push(message)
+    messageQueue.set(key, queue)
+  }
+
+  function drainQueuedMessages(from: string, to: string): Array<Record<string, unknown>> {
+    const key = `${from}:${to}`
+    const msgs = messageQueue.get(key) || []
+    messageQueue.delete(key)
+    return msgs
+  }
+
   return {
     createSession,
     resumeSession,
@@ -2056,6 +2106,11 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     addFileListener,
     removeFileListener,
     resolveFile,
+    checkSessionLink,
+    linkSessions,
+    blockSession,
+    queueInterSessionMessage,
+    drainQueuedMessages,
     recordTraffic,
     getTrafficStats,
     saveState,

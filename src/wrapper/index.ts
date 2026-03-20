@@ -528,6 +528,35 @@ async function main() {
           debug('Transcript kick received but no transcript path known')
         }
       },
+      onChannelSessionsList(sessions) {
+        pendingListSessions?.(sessions)
+      },
+      onChannelSendResult(result) {
+        pendingSendResult?.(result)
+      },
+      onChannelDeliver(delivery) {
+        if (channelEnabled && isMcpChannelReady()) {
+          const meta: Record<string, string> = {
+            sender: 'session',
+            from_session: delivery.fromSession,
+            from_project: delivery.fromProject,
+            intent: delivery.intent,
+          }
+          if (delivery.conversationId) meta.conversation_id = delivery.conversationId
+          if (delivery.context) meta.context = delivery.context
+          pushChannelMessage(delivery.message, meta)
+          diag('channel', `Received from ${delivery.fromProject}: ${delivery.message.slice(0, 60)}`)
+        }
+      },
+      onChannelLinkRequest(request) {
+        if (channelEnabled && isMcpChannelReady()) {
+          pushChannelMessage(
+            `Session "${request.fromProject}" (${request.fromSession.slice(0, 8)}) wants to communicate with you.\nUse mcp__rclaude__approve_session or mcp__rclaude__block_session with session_id="${request.fromSession}".`,
+            { sender: 'system', intent: 'permission_request', from_session: request.fromSession, from_project: request.fromProject },
+          )
+          diag('channel', `Link request from ${request.fromProject} (${request.fromSession.slice(0, 8)})`)
+        }
+      },
     })
   }
 
@@ -851,11 +880,55 @@ async function main() {
           return null
         }
       },
+      async onListSessions(status) {
+        if (!wsClient?.isConnected()) return []
+        return new Promise((resolve) => {
+          const timeout = setTimeout(() => resolve([]), 5000)
+          pendingListSessions = (sessions) => {
+            clearTimeout(timeout)
+            pendingListSessions = null
+            resolve(sessions)
+          }
+          wsClient!.send({ type: 'channel_list_sessions', status } as any)
+        })
+      },
+      async onSendMessage(to, intent, message, context, conversationId) {
+        if (!wsClient?.isConnected()) return { ok: false, error: 'Not connected' }
+        return new Promise((resolve) => {
+          const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
+          pendingSendResult = (result) => {
+            clearTimeout(timeout)
+            pendingSendResult = null
+            resolve(result)
+          }
+          wsClient!.send({
+            type: 'channel_send',
+            fromSession: claudeSessionId || internalId,
+            toSession: to,
+            intent,
+            message,
+            context,
+            conversationId,
+          } as any)
+        })
+      },
+      onApproveSession(sessionId) {
+        wsClient?.send({ type: 'channel_link_response', sessionId, action: 'approve' } as any)
+        diag('channel', `Approved link: ${sessionId.slice(0, 8)}`)
+      },
+      onBlockSession(sessionId) {
+        wsClient?.send({ type: 'channel_link_response', sessionId, action: 'block' } as any)
+        diag('channel', `Blocked link: ${sessionId.slice(0, 8)}`)
+      },
       onDisconnect() {
         diag('channel', 'Channel disconnected')
       },
     })
   }
+
+  // Pending callbacks for inter-session request/response
+  let pendingListSessions: ((sessions: any[]) => void) | null = null
+  let pendingSendResult: ((result: any) => void) | null = null
 
   // Start local HTTP server for hook callbacks (+ MCP endpoint when channels enabled)
   const { server: localServer, port: localServerPort } = await startLocalServer({
@@ -1057,8 +1130,23 @@ async function main() {
             '- `mcp__rclaude__notify` - Send a push notification to the user\'s devices (phone, browser)',
             '- `mcp__rclaude__share_file` - Upload a local file and get a public URL for the dashboard user',
             '',
+            '',
             'Prefer the MCP `notify` tool over the curl endpoint when the channel is active.',
             'Use `share_file` to share screenshots, images, build artifacts, or any file the user needs to see.',
+            '',
+            '# Inter-Session Communication (rclaude)',
+            '',
+            'You can communicate with other active Claude Code sessions that have channels enabled:',
+            '- `mcp__rclaude__list_sessions` - discover live sessions (only shows channel-capable sessions)',
+            '- `mcp__rclaude__send_message` - send a message to another session (requires approval on first contact)',
+            '- `mcp__rclaude__approve_session` / `mcp__rclaude__block_session` - manage session links',
+            '',
+            'Messages from other sessions arrive as `<channel sender="session">`. They include:',
+            '- `from_session` / `from_project`: who sent it',
+            '- `intent`: request (they need something), response (answering you), notify (FYI), progress (status update)',
+            '- `conversation_id`: include this in replies to maintain thread context',
+            '',
+            'Always include conversation_id when replying to maintain context threading.',
           ]
         : []),
     ].join('\n'),

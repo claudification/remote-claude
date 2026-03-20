@@ -21,9 +21,22 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { debug } from './debug'
 
+export interface SessionInfo {
+  id: string
+  name: string
+  cwd: string
+  status: 'live' | 'inactive'
+  title?: string
+  summary?: string
+}
+
 export interface McpChannelCallbacks {
   onNotify?: (message: string, title?: string) => void
-  onShareFile?: (filePath: string) => Promise<string | null> // returns public URL or null
+  onShareFile?: (filePath: string) => Promise<string | null>
+  onListSessions?: (status?: string) => Promise<SessionInfo[]>
+  onSendMessage?: (to: string, intent: string, message: string, context?: string, conversationId?: string) => Promise<{ ok: boolean; error?: string; conversationId?: string }>
+  onApproveSession?: (sessionId: string) => void
+  onBlockSession?: (sessionId: string) => void
   onDisconnect?: () => void
 }
 
@@ -55,7 +68,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
     },
   )
 
-  // Register MCP tools for dashboard communication
+  // Register MCP tools
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
       {
@@ -81,6 +94,53 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           required: ['file_path'],
         },
       },
+      {
+        name: 'list_sessions',
+        description: 'List other active Claude Code sessions that support channel communication. Returns session ID, project name, status, and optional title/summary.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            status: { type: 'string', enum: ['live', 'inactive', 'all'], description: 'Filter by status (default: live)' },
+          },
+        },
+      },
+      {
+        name: 'send_message',
+        description: 'Send a message to another Claude Code session. Requires an established link (first contact triggers approval prompt on the receiving session). Include conversation_id in replies to maintain thread context.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            to: { type: 'string', description: 'Target session ID (from list_sessions)' },
+            intent: { type: 'string', enum: ['request', 'response', 'notify', 'progress'], description: 'Message intent' },
+            message: { type: 'string', description: 'Message content' },
+            context: { type: 'string', description: 'Brief context about what this relates to' },
+            conversation_id: { type: 'string', description: 'Thread ID for multi-turn exchanges' },
+          },
+          required: ['to', 'intent', 'message'],
+        },
+      },
+      {
+        name: 'approve_session',
+        description: 'Approve a session link request, allowing inter-session messaging. Use when you receive a permission_request from another session.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            session_id: { type: 'string', description: 'Session ID to approve' },
+          },
+          required: ['session_id'],
+        },
+      },
+      {
+        name: 'block_session',
+        description: 'Block a session from sending messages. Blocked sessions cannot send permission requests for 1 minute.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            session_id: { type: 'string', description: 'Session ID to block' },
+          },
+          required: ['session_id'],
+        },
+      },
     ],
   }))
 
@@ -104,6 +164,41 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         if (!url) return { content: [{ type: 'text', text: `Failed to upload ${filePath}` }], isError: true }
         debug(`[channel] share_file: ${filePath} -> ${url}`)
         return { content: [{ type: 'text', text: url }] }
+      }
+      case 'list_sessions': {
+        const sessions = await callbacks.onListSessions?.(params.status) || []
+        debug(`[channel] list_sessions: ${sessions.length} results`)
+        return { content: [{ type: 'text', text: JSON.stringify(sessions, null, 2) }] }
+      }
+      case 'send_message': {
+        const { to, intent, message, context, conversation_id } = params
+        if (!to || !intent || !message) {
+          return { content: [{ type: 'text', text: 'Error: to, intent, and message are required' }], isError: true }
+        }
+        const result = await callbacks.onSendMessage?.(to, intent, message, context, conversation_id)
+        if (!result?.ok) {
+          debug(`[channel] send_message failed: ${result?.error}`)
+          return { content: [{ type: 'text', text: result?.error || 'Failed to send message' }], isError: true }
+        }
+        debug(`[channel] send_message to ${to}: ${message.slice(0, 60)}`)
+        const response = result.conversationId
+          ? `Sent. conversation_id: ${result.conversationId}`
+          : 'Sent.'
+        return { content: [{ type: 'text', text: response }] }
+      }
+      case 'approve_session': {
+        const sid = params.session_id
+        if (!sid) return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
+        callbacks.onApproveSession?.(sid)
+        debug(`[channel] approved session: ${sid}`)
+        return { content: [{ type: 'text', text: `Session ${sid} approved for messaging` }] }
+      }
+      case 'block_session': {
+        const sid = params.session_id
+        if (!sid) return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
+        callbacks.onBlockSession?.(sid)
+        debug(`[channel] blocked session: ${sid}`)
+        return { content: [{ type: 'text', text: `Session ${sid} blocked` }] }
       }
       default:
         return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }

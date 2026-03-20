@@ -11,7 +11,7 @@ import { getUser, initAuth, reloadState } from './auth'
 import { getAuthenticatedUser, requireAuth, setRclaudeSecret } from './auth-routes'
 import { initGlobalSettings } from './global-settings'
 import { addAllowedRoot, addPathMapping, getAllowedRoots } from './path-jail'
-import { initProjectSettings } from './project-settings'
+import { getProjectSettings, initProjectSettings } from './project-settings'
 import { initPush, isPushConfigured, sendPushToAll } from './push'
 import { createRouter } from './routes'
 import { initSessionOrder } from './session-order'
@@ -637,6 +637,112 @@ async function main() {
                   for (const entry of data.entries) {
                     sessionStore.pushAgentDiag(entry)
                   }
+                }
+                break
+              }
+
+              // Inter-session messaging (channel-enabled sessions)
+              case 'channel_list_sessions': {
+                const status = data.status || 'live'
+                const all = Array.from(sessionStore.getAllSessions())
+                const result = all
+                  .filter(s => s.capabilities?.includes('channel'))
+                  .filter(s => {
+                    if (status === 'all') return true
+                    const isLive = sessionStore.getActiveWrapperCount(s.id) > 0
+                    return status === 'live' ? isLive : !isLive
+                  })
+                  .filter(s => s.id !== ws.data.sessionId) // exclude self
+                  .map(s => ({
+                    id: s.id,
+                    name: s.title || getProjectSettings(s.cwd)?.label || s.cwd.split('/').pop() || s.cwd,
+                    cwd: s.cwd,
+                    status: (sessionStore.getActiveWrapperCount(s.id) > 0 ? 'live' : 'inactive') as 'live' | 'inactive',
+                    title: s.title,
+                    summary: s.summary,
+                  }))
+                ws.send(JSON.stringify({ type: 'channel_sessions_list', sessions: result }))
+                break
+              }
+              case 'channel_send': {
+                const fromSession = ws.data.sessionId || data.fromSession
+                const toSession = data.toSession
+                if (!fromSession || !toSession) break
+
+                const fromSess = sessionStore.getSession(fromSession)
+                const toSess = sessionStore.getSession(toSession)
+                if (!toSess) {
+                  ws.send(JSON.stringify({ type: 'channel_send_result', ok: false, error: 'Target session not found' }))
+                  break
+                }
+
+                const fromProject = fromSess?.title || getProjectSettings(fromSess?.cwd || '')?.label || fromSess?.cwd?.split('/').pop() || fromSession.slice(0, 8)
+
+                // Check link
+                const linkStatus = sessionStore.checkSessionLink(fromSession, toSession)
+                if (linkStatus === 'blocked') {
+                  ws.send(JSON.stringify({ type: 'channel_send_result', ok: false, error: 'Session has blocked your messages' }))
+                  break
+                }
+
+                const conversationId = data.conversationId || `conv_${Date.now().toString(36)}`
+                const delivery = {
+                  type: 'channel_deliver',
+                  fromSession,
+                  fromProject,
+                  intent: data.intent,
+                  message: data.message,
+                  context: data.context,
+                  conversationId,
+                }
+
+                if (linkStatus === 'linked') {
+                  // Deliver directly
+                  const targetWs = sessionStore.getSessionSocket(toSession)
+                  if (targetWs) {
+                    targetWs.send(JSON.stringify(delivery))
+                    ws.send(JSON.stringify({ type: 'channel_send_result', ok: true, conversationId }))
+                  } else {
+                    ws.send(JSON.stringify({ type: 'channel_send_result', ok: false, error: 'Target session not connected' }))
+                  }
+                } else {
+                  // Not linked -- queue message + send link request to target
+                  sessionStore.queueInterSessionMessage(fromSession, toSession, delivery)
+                  const targetWs = sessionStore.getSessionSocket(toSession)
+                  if (targetWs) {
+                    targetWs.send(JSON.stringify({
+                      type: 'channel_link_request',
+                      fromSession,
+                      fromProject,
+                    }))
+                  }
+                  ws.send(JSON.stringify({ type: 'channel_send_result', ok: true, conversationId, queued: true }))
+                }
+                if (verbose) {
+                  console.log(`[inter-session] ${fromSession.slice(0, 8)} -> ${toSession.slice(0, 8)}: ${data.intent} (${linkStatus})`)
+                }
+                break
+              }
+              case 'channel_link_response': {
+                const respondingSession = ws.data.sessionId
+                const targetSession = data.sessionId
+                if (!respondingSession || !targetSession) break
+
+                if (data.action === 'approve') {
+                  sessionStore.linkSessions(respondingSession, targetSession)
+                  // Deliver queued messages
+                  const queued = sessionStore.drainQueuedMessages(targetSession, respondingSession)
+                  const targetWs = sessionStore.getSessionSocket(respondingSession)
+                  if (targetWs) {
+                    for (const msg of queued) {
+                      targetWs.send(JSON.stringify(msg))
+                    }
+                  }
+                  if (verbose) console.log(`[inter-session] Link approved: ${respondingSession.slice(0, 8)} <-> ${targetSession.slice(0, 8)}`)
+                } else {
+                  sessionStore.blockSession(respondingSession, targetSession)
+                  sessionStore.drainQueuedMessages(targetSession, respondingSession) // discard
+                  if (verbose) console.log(`[inter-session] Link blocked: ${respondingSession.slice(0, 8)} X ${targetSession.slice(0, 8)}`)
                 }
                 break
               }

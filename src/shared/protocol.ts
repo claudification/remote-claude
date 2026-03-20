@@ -284,6 +284,9 @@ export type WrapperMessage =
   | FileResponse
   | BgTaskOutput
   | WrapperNotify
+  | InterSessionMessage
+  | InterSessionLinkResponse
+  | InterSessionListRequest
 
 // Concentrator -> Wrapper messages
 export interface Ack {
@@ -329,6 +332,58 @@ export interface TranscriptKick {
   sessionId: string
 }
 
+// Inter-session messaging (channel-enabled sessions only)
+export type InterSessionIntent = 'request' | 'response' | 'notify' | 'progress'
+
+export interface InterSessionMessage {
+  type: 'channel_send'
+  fromSession: string
+  toSession: string
+  intent: InterSessionIntent
+  message: string
+  context?: string
+  conversationId?: string
+}
+
+export interface InterSessionDelivery {
+  type: 'channel_deliver'
+  fromSession: string
+  fromProject: string
+  intent: InterSessionIntent
+  message: string
+  context?: string
+  conversationId?: string
+}
+
+export interface InterSessionLinkRequest {
+  type: 'channel_link_request'
+  fromSession: string
+  fromProject: string
+}
+
+export interface InterSessionLinkResponse {
+  type: 'channel_link_response'
+  sessionId: string
+  action: 'approve' | 'block'
+}
+
+export interface InterSessionListRequest {
+  type: 'channel_list_sessions'
+  status?: 'live' | 'inactive' | 'all'
+}
+
+export interface InterSessionListResponse {
+  type: 'channel_sessions_list'
+  sessions: Array<{
+    id: string
+    name: string
+    cwd: string
+    status: 'live' | 'inactive'
+    title?: string
+    summary?: string
+  }>
+}
+
 export type ConcentratorMessage =
   | Ack
   | ConcentratorError
@@ -341,6 +396,9 @@ export type ConcentratorMessage =
   | SubagentTranscriptRequest
   | FileRequest
   | TranscriptKick
+  | InterSessionDelivery
+  | InterSessionLinkRequest
+  | InterSessionListResponse
 
 // Hook event types from Claude Code
 export type HookEventType =
