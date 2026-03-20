@@ -372,10 +372,10 @@ async function main() {
         if (channelEnabled && isMcpChannelReady()) {
           const sent = pushChannelMessage(input)
           if (sent) {
-            debug(`[channel] Input routed via MCP channel (${input.length} chars)`)
+            diag('channel', `Input via MCP (${input.length} chars)`)
             return
           }
-          debug('[channel] MCP push failed, falling back to PTY')
+          diag('channel', 'MCP push failed, falling back to PTY')
         }
 
         const trimmed = input.replace(/[\r\n]+$/, '')
@@ -793,14 +793,16 @@ async function main() {
 
   // Initialize MCP channel if enabled
   if (channelEnabled) {
-    debug('[channel] Channel mode enabled')
+    diag('channel', 'Channel mode enabled')
     initMcpChannel({
       onReply(message) {
+        diag('channel', `Reply: ${message.slice(0, 80)}`)
         if (wsClient?.isConnected()) {
           wsClient.send({ type: 'channel_reply', sessionId: claudeSessionId || internalId, message })
         }
       },
       onNotify(message, title) {
+        diag('channel', `Notify: ${title ? `[${title}] ` : ''}${message.slice(0, 80)}`)
         if (wsClient?.isConnected()) {
           wsClient.send({ type: 'notify', sessionId: claudeSessionId || internalId, message, title })
         }
@@ -1065,13 +1067,13 @@ async function main() {
   // Handle unexpected exits
   process.on('exit', cleanup)
   process.on('uncaughtException', error => {
-    console.error('[rclaude] Uncaught exception:', error)
+    debug(`Uncaught exception: ${error instanceof Error ? error.stack || error.message : error}`)
     cleanup()
     process.exit(1)
   })
 }
 
 main().catch(error => {
-  console.error('[rclaude] Fatal error:', error)
+  debug(`Fatal error: ${error instanceof Error ? error.stack || error.message : error}`)
   process.exit(1)
 })

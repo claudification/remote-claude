@@ -91,7 +91,7 @@ async function readUserSettings(): Promise<ClaudeSettings> {
     try {
       return (await file.json()) as ClaudeSettings
     } catch (error) {
-      console.error(`Warning: Failed to parse ${settingsPath}:`, error)
+      // Silently fall back to empty settings on parse error
       return {}
     }
   }

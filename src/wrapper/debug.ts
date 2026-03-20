@@ -1,16 +1,16 @@
 import { appendFileSync } from 'node:fs'
 
 export const DEBUG = !!process.env.RCLAUDE_DEBUG
-const DEBUG_LOG = process.env.RCLAUDE_DEBUG_LOG || (DEBUG ? '/tmp/rclaude-debug.log' : '')
+const DEBUG_LOG = process.env.RCLAUDE_DEBUG_LOG || '/tmp/rclaude-debug.log'
 
+/**
+ * Debug logging -- always writes to file, NEVER to console/stderr.
+ * rclaude shares a PTY with Claude Code, so any console output
+ * would corrupt the terminal display.
+ */
 export function debug(msg: string) {
   if (!DEBUG) return
-  const line = `[${new Date().toISOString()}] ${msg}\n`
-  if (DEBUG_LOG) {
-    try {
-      appendFileSync(DEBUG_LOG, line)
-    } catch {}
-  } else {
-    console.error(`[rclaude] ${msg}`)
-  }
+  try {
+    appendFileSync(DEBUG_LOG, `[${new Date().toISOString()}] ${msg}\n`)
+  } catch {}
 }

@@ -117,7 +117,7 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
 
           return new Response(null, { status: 200 })
         } catch (error) {
-          console.error(`Error processing hook ${eventType}:`, error)
+          // Hook processing error -- silently return 500
           return new Response('Error processing hook', { status: 500 })
         }
       }
