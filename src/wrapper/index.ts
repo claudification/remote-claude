@@ -1020,6 +1020,22 @@ async function main() {
       '- `title` (optional): Notification title (defaults to project name)',
       '',
       "This sends a real push notification to the user's phone/browser AND shows a toast in the dashboard.",
+      ...(channelEnabled
+        ? [
+            '',
+            '# MCP Channel (rclaude)',
+            '',
+            'This session has an active MCP channel connection to the rclaude remote dashboard.',
+            'Messages from the dashboard arrive as `<channel source="rclaude">` -- treat them as regular user input.',
+            'The user may be on their phone or another device, not at the terminal.',
+            '',
+            '**Available MCP tools (rclaude server):**',
+            '- `mcp__rclaude__reply` - Send a structured message back to the dashboard',
+            '- `mcp__rclaude__notify` - Send a push notification to the user\'s devices',
+            '',
+            'Prefer the MCP `notify` tool over the curl endpoint when the channel is active.',
+          ]
+        : []),
     ].join('\n'),
   )
   claudeArgs.push('--append-system-prompt-file', promptFile)
