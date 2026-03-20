@@ -66,7 +66,10 @@ setInterval(
 function hashString(input: string): string {
   const hasher = new Bun.CryptoHasher('sha256')
   hasher.update(input)
-  return hasher.digest('hex').slice(0, 16) // 16 hex chars = 64 bits, ~10^19 combinations
+  const bytes = hasher.digest()
+  // Read 8 bytes as BigInt, convert to base36 for shorter URLs
+  const n = bytes.readBigUInt64BE(0)
+  return n.toString(36) // ~12-13 chars base36, ~10^19 combinations
 }
 
 export function registerFilePath(path: string): string {
