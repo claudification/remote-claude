@@ -3,7 +3,7 @@
  * Shows in the "Files" tab of session detail
  */
 
-import { AlertTriangle, ChevronLeft, Clock, Eye, FileText, Loader2, Pencil, RefreshCw, Save } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, Clock, Eye, FileText, Loader2, Maximize2, Minimize2, Pencil, RefreshCw, Save } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { type FileInfo, useFileEditor } from '@/hooks/use-file-editor'
 import { useSessionsStore } from '@/hooks/use-sessions'
@@ -203,6 +203,20 @@ export const FileEditor = memo(function FileEditor({ sessionId }: { sessionId: s
 
   const [showHistory, setShowHistory] = useState(false)
   const [previewMode, setPreviewMode] = useState(true)
+  const [fullscreen, setFullscreen] = useState(false)
+
+  // ESC closes fullscreen
+  useEffect(() => {
+    if (!fullscreen) return
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setFullscreen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [fullscreen])
 
   // Load file list on mount
   useEffect(() => {
@@ -369,6 +383,16 @@ export const FileEditor = memo(function FileEditor({ sessionId }: { sessionId: s
                   <Eye className="w-2.5 h-2.5" />
                 </button>
               </div>
+              {previewMode && (
+                <button
+                  type="button"
+                  onClick={() => setFullscreen(!fullscreen)}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  title={fullscreen ? 'Exit fullscreen' : 'Fullscreen preview'}
+                >
+                  {fullscreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleShowHistory}
@@ -396,7 +420,23 @@ export const FileEditor = memo(function FileEditor({ sessionId }: { sessionId: s
 
         {/* Editor / Preview content */}
         {activeFile ? (
-          previewMode ? (
+          previewMode && fullscreen ? (
+            <div className="fixed inset-0 z-[998] bg-background flex flex-col">
+              <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-border">
+                <span className="text-xs font-mono text-muted-foreground">{activeFile}</span>
+                <button
+                  type="button"
+                  onClick={() => setFullscreen(false)}
+                  className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 text-xs"
+                >
+                  <Minimize2 className="w-3 h-3" /> ESC
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full">
+                <Markdown>{content}</Markdown>
+              </div>
+            </div>
+          ) : previewMode ? (
             <div className="flex-1 min-h-0 overflow-y-auto p-4">
               <Markdown>{content}</Markdown>
             </div>
