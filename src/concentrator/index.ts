@@ -655,13 +655,15 @@ async function main() {
                   })
                   .filter(s => s.id !== callerSession) // exclude self
                   .map(s => {
-                    const isLinked = callerSession ? sessionStore.checkSessionLink(callerSession, s.id) === 'linked' : false
+                    const linkStatus = callerSession ? sessionStore.checkSessionLink(callerSession, s.id) : 'unknown'
+                    const isLinked = linkStatus === 'linked'
                     const shortCwd = s.cwd.split('/').slice(-2).join('/')
                     return {
                       id: s.id,
                       name: s.title || getProjectSettings(s.cwd)?.label || s.cwd.split('/').pop() || s.cwd,
-                      cwd: isLinked ? s.cwd : shortCwd, // full CWD only for linked sessions
+                      cwd: isLinked ? s.cwd : shortCwd,
                       status: (sessionStore.getActiveWrapperCount(s.id) > 0 ? 'live' : 'inactive') as 'live' | 'inactive',
+                      link: isLinked ? 'connected' : linkStatus === 'blocked' ? 'blocked' : undefined,
                       title: s.title,
                       summary: s.summary,
                     }
