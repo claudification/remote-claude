@@ -1046,11 +1046,15 @@ async function main() {
     concentratorSecret,
     onData(data) {
       // Auto-confirm dev channel warning prompt (fires once on startup)
-      if (channelEnabled && !devChannelConfirmed && data.includes('Loading development channels')) {
-        devChannelConfirmed = true
-        // Wait for the prompt to render, then press Enter (option 1 is pre-selected)
-        setTimeout(() => ptyProcess?.write('\r'), 500)
-        diag('channel', 'Auto-confirmed dev channel warning')
+      // Strip ANSI escape codes before matching since PTY output includes formatting
+      if (channelEnabled && !devChannelConfirmed) {
+        const plain = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+        if (plain.includes('Loading development channels')) {
+          devChannelConfirmed = true
+          // Wait for the prompt to fully render, then press Enter (option 1 is pre-selected)
+          setTimeout(() => ptyProcess?.write('\r'), 800)
+          diag('channel', 'Auto-confirmed dev channel warning')
+        }
       }
 
       // Forward PTY output to remote terminal viewer when attached
