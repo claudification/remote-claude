@@ -32,9 +32,6 @@ interface McpChannelState {
   connected: boolean
 }
 
-// Track active transports by session ID for multi-request support
-const transports = new Map<string, WebStandardStreamableHTTPServerTransport>()
-
 let state: McpChannelState | null = null
 let callbacks: McpChannelCallbacks = {}
 
@@ -109,52 +106,34 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
     }
   })
 
-  state = { server, transport: null as any, connected: false }
+  // Create stateful transport -- single session, single client (Claude Code)
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+  })
+
+  state = { server, transport, connected: false }
   debug('[channel] MCP channel server initialized')
 }
 
 /**
+ * Connect the MCP server to the transport.
+ * Must be called once before handling requests.
+ */
+export async function connectMcpChannel(): Promise<void> {
+  if (!state || state.connected) return
+  await state.server.connect(state.transport)
+  state.connected = true
+  debug('[channel] MCP server connected to transport')
+}
+
+/**
  * Handle an incoming HTTP request on the /mcp endpoint.
- * Creates a new transport per MCP session (initialize request),
- * reuses existing transport for subsequent requests with session ID.
+ * All requests go to the single transport instance.
  */
 export async function handleMcpRequest(req: Request): Promise<Response> {
   if (!state) return new Response('MCP channel not initialized', { status: 503 })
-
-  // Check for existing session
-  const sessionId = req.headers.get('mcp-session-id')
-
-  if (sessionId && transports.has(sessionId)) {
-    // Existing session -- reuse transport
-    return transports.get(sessionId)!.handleRequest(req)
-  }
-
-  if (req.method === 'DELETE' && sessionId) {
-    // Session termination
-    const transport = transports.get(sessionId)
-    if (transport) {
-      await transport.close()
-      transports.delete(sessionId)
-      debug(`[channel] Session closed: ${sessionId}`)
-    }
-    return new Response(null, { status: 200 })
-  }
-
-  // New session -- create transport, connect server
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: () => randomUUID(),
-    onsessioninitialized: (id) => {
-      transports.set(id, transport)
-      state!.transport = transport
-      state!.connected = true
-      debug(`[channel] MCP session initialized: ${id}`)
-    },
-  })
-
-  // Connect the server to this transport
-  await state.server.connect(transport)
-
-  return transport.handleRequest(req)
+  if (!state.connected) await connectMcpChannel()
+  return state.transport.handleRequest(req)
 }
 
 /**
@@ -162,7 +141,7 @@ export async function handleMcpRequest(req: Request): Promise<Response> {
  * This is the primary input path -- dashboard messages go through here.
  */
 export async function pushChannelMessage(message: string, meta?: Record<string, string>): Promise<boolean> {
-  if (!state?.connected || transports.size === 0) {
+  if (!state?.connected) {
     debug('[channel] Cannot push: not connected')
     return false
   }
@@ -201,10 +180,7 @@ export function isMcpChannelReady(): boolean {
  */
 export async function closeMcpChannel(): Promise<void> {
   if (state) {
-    for (const [id, transport] of transports) {
-      try { await transport.close() } catch {}
-      transports.delete(id)
-    }
+    try { await state.transport.close() } catch {}
     try { await state.server.close() } catch {}
     state = null
     debug('[channel] MCP channel server closed')
