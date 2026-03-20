@@ -49,6 +49,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
     {
       capabilities: {
         tools: {},
+        logging: {},
         experimental: { 'claude/channel': {} },
       },
     },
