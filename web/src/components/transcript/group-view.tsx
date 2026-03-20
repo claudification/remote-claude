@@ -140,14 +140,25 @@ export function GroupView({
     if (typeof content === 'string') {
       if (content.trim()) {
         const hasBashTags = /<bash-(input|stdout|stderr)>/.test(content)
-        const channelMatch = content.match(/^<channel\s+source="([^"]*)"[^>]*>\n?([\s\S]*?)\n?<\/channel>$/)
+        const channelMatch = content.match(/^<channel\s+([^>]*)>\n?([\s\S]*?)\n?<\/channel>$/)
         if (channelMatch) {
-          const source = channelMatch[1]
+          const attrs = channelMatch[1]
           const msg = channelMatch[2].trim()
-          // rclaude channel = our own dashboard input, strip wrapper and show as text
-          if (source === 'rclaude') {
+          const getAttr = (name: string) => { const m = attrs.match(new RegExp(`${name}="([^"]*)"`)); return m?.[1] }
+          const source = getAttr('source') || 'unknown'
+          const sender = getAttr('sender')
+          const fromProject = getAttr('from_project')
+          const intent = getAttr('intent')
+
+          if (sender === 'session' && fromProject) {
+            // Inter-session message -- always show decorated
+            const intentLabel = intent ? ` [${intent}]` : ''
+            items.push({ kind: 'channel', text: msg, source: `${fromProject}${intentLabel}` })
+          } else if (source === 'rclaude') {
+            // Our own dashboard input -- strip wrapper, show as text
             items.push({ kind: 'text', text: msg })
           } else {
+            // External channel (telegram, discord, etc.)
             items.push({ kind: 'channel', text: msg, source })
           }
         } else if (hasBashTags) {

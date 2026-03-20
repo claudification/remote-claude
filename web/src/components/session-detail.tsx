@@ -24,6 +24,49 @@ type Tab = 'transcript' | 'tty' | 'events' | 'agents' | 'tasks' | 'files' | 'dia
 const EMPTY_EVENTS: any[] = []
 const EMPTY_TRANSCRIPT: TranscriptEntry[] = []
 
+function LinkRequestBanners() {
+  const requests = useSessionsStore(s => s.pendingLinkRequests)
+  const respond = useSessionsStore(s => s.respondToLinkRequest)
+  if (requests.length === 0) return null
+  return (
+    <div className="shrink-0 space-y-1 p-2">
+      {requests.map(req => (
+        <div
+          key={`${req.fromSession}:${req.toSession}`}
+          className="flex items-center gap-2 px-3 py-2 bg-teal-500/10 border border-teal-500/30 rounded font-mono text-xs"
+        >
+          <span className="text-teal-400 font-bold shrink-0">LINK</span>
+          <span className="text-foreground/80 flex-1 truncate">
+            <span className="text-teal-300">{req.fromProject}</span>
+            {' -> '}
+            <span className="text-teal-300">{req.toProject}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              haptic('success')
+              respond(req.fromSession, req.toSession, 'approve')
+            }}
+            className="px-2 py-0.5 text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 transition-colors"
+          >
+            ALLOW
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              haptic('error')
+              respond(req.fromSession, req.toSession, 'block')
+            }}
+            className="px-2 py-0.5 text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30 transition-colors"
+          >
+            BLOCK
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ScrollToBottomButton({ onClick, direction = 'down' }: { onClick: () => void; direction?: 'down' | 'up' }) {
   const Icon = direction === 'up' ? ChevronUp : ChevronDown
   return (
@@ -333,6 +376,8 @@ export function SessionDetail() {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
+      {/* Link Request Banners */}
+      <LinkRequestBanners />
       {/* Session Info - Collapsible */}
       <div className="shrink-0 border-b border-border max-h-[30vh] overflow-y-auto">
         <button

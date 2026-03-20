@@ -87,6 +87,8 @@ interface SessionsState {
   showSwitcher: boolean
   switcherInitialFilter: string
   showDebugConsole: boolean
+  pendingLinkRequests: Array<{ fromSession: string; fromProject: string; toSession: string; toProject: string }>
+  respondToLinkRequest: (fromSession: string, toSession: string, action: 'approve' | 'block') => void
   requestedTab: string | null
   requestedTabSeq: number
   pendingFilePath: string | null
@@ -186,6 +188,18 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   showSwitcher: false,
   switcherInitialFilter: '',
   showDebugConsole: false,
+  pendingLinkRequests: [],
+  respondToLinkRequest: (fromSession, toSession, action) => {
+    const ws = useSessionsStore.getState().ws
+    if (ws) {
+      ws.send(JSON.stringify({ type: 'channel_link_response', fromSession, toSession, action }))
+    }
+    useSessionsStore.setState(state => ({
+      pendingLinkRequests: state.pendingLinkRequests.filter(
+        r => !(r.fromSession === fromSession && r.toSession === toSession),
+      ),
+    }))
+  },
   requestedTab: null,
   requestedTabSeq: 0,
   pendingFilePath: null,

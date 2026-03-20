@@ -252,6 +252,26 @@ function processMessage(msg: DashboardMessage) {
       }
       break
     }
+    case 'channel_link_request': {
+      const req = msg as any
+      if (req.fromSession && req.toSession) {
+        useSessionsStore.setState(state => {
+          // Deduplicate
+          if (state.pendingLinkRequests.some(r => r.fromSession === req.fromSession && r.toSession === req.toSession)) {
+            return state
+          }
+          return {
+            pendingLinkRequests: [...state.pendingLinkRequests, {
+              fromSession: req.fromSession,
+              fromProject: req.fromProject || req.fromSession.slice(0, 8),
+              toSession: req.toSession,
+              toProject: req.toProject || req.toSession.slice(0, 8),
+            }],
+          }
+        })
+      }
+      break
+    }
     case 'session_dismissed': {
       if (msg.sessionId) {
         useSessionsStore.setState(state => ({
