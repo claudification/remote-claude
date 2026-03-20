@@ -72,7 +72,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
       },
       {
         name: 'share_file',
-        description: 'Upload a local file to the rclaude concentrator and get a public URL back. To present the file to the user, use markdown image syntax: ![description](url). Works for images, screenshots, build artifacts, or any file.',
+        description: 'Upload a local file to the rclaude concentrator and get a public URL back. For images use ![description](url), for other files use [filename](url). Works for images, screenshots, build artifacts, logs, or any file.',
         inputSchema: {
           type: 'object' as const,
           properties: {
