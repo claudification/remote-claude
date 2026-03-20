@@ -188,6 +188,13 @@ export function GroupView({
       ? { symbol: '\u25CF', label: 'high' } // ●
       : null
 
+  // Detect channel origin from entry metadata
+  const channelOrigin = isUser
+    ? ((group.entries.find(e => (e as unknown as Record<string, unknown>).origin) as unknown as Record<string, unknown>)
+        ?.origin as { kind: string; server: string } | undefined)
+    : undefined
+  const channelServer = channelOrigin?.kind === 'channel' ? channelOrigin.server : undefined
+
   const label = isUser ? userLabel : agentLabel
   const customColor = isUser ? userColor : agentColor
   const borderColor = isUser ? 'border-event-prompt' : 'border-primary'
@@ -207,6 +214,17 @@ export function GroupView({
         >
           {label}
         </span>
+        {channelServer && (
+          channelServer === 'rclaude' ? (
+            <span className="text-[9px] text-teal-400/50 font-mono">
+              via channel
+            </span>
+          ) : (
+            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-teal-400/20 text-teal-400 border border-teal-400/50 animate-pulse">
+              CHANNEL: {channelServer}
+            </span>
+          )
+        )}
         {effortBadge && (
           <span className="px-1.5 py-0.5 text-[10px] font-bold bg-orange-400/20 text-orange-400">
             {effortBadge.symbol} {effortBadge.label}
