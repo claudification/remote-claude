@@ -67,14 +67,14 @@ export class FileEditor {
     const files: FileInfo[] = []
 
     // Scan root *.md
-    await this.scanDir('.', files)
-    // Scan .claude/*.md
-    await this.scanDir('.claude', files)
+    await this.scanDir('.', files, false)
+    // Scan .claude/**/*.md (recursive)
+    await this.scanDir('.claude', files, true)
 
     return files
   }
 
-  private async scanDir(relDir: string, out: FileInfo[]): Promise<void> {
+  private async scanDir(relDir: string, out: FileInfo[], recursive: boolean): Promise<void> {
     const absDir = join(this.cwd, relDir)
     let entries: string[]
     try {
@@ -84,12 +84,13 @@ export class FileEditor {
     }
 
     for (const name of entries) {
-      if (!name.endsWith('.md')) continue
       const relPath = relDir === '.' ? name : join(relDir, name)
       const absPath = join(absDir, name)
       try {
         const s = await stat(absPath)
-        if (s.isFile()) {
+        if (s.isDirectory() && recursive) {
+          await this.scanDir(relPath, out, true)
+        } else if (s.isFile() && name.endsWith('.md')) {
           out.push({
             path: relPath,
             name,
