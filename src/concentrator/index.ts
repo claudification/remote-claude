@@ -399,6 +399,9 @@ async function main() {
         return router.fetch(req)
       },
       websocket: {
+        // Keep connections alive through proxies (Cloudflare, nginx, etc.)
+        idleTimeout: 120, // seconds - close after 120s of no data
+        sendPings: true, // auto-send WebSocket pings to keep alive
         open(_ws) {
           // Connection established
         },
@@ -1162,7 +1165,12 @@ async function main() {
             )
           }
         },
-        close(ws) {
+        close(ws, code, reason) {
+          if (verbose) {
+            const id = ws.data.sessionId?.slice(0, 8) || (ws.data.isDashboard ? 'dashboard' : 'unknown')
+            console.log(`[ws] Connection closed: ${id} code=${code} reason=${reason || 'none'}`)
+          }
+
           // Handle agent disconnection
           if (ws.data.isAgent) {
             sessionStore.removeAgent(ws)
