@@ -125,12 +125,25 @@ case "$CONC_CHOICE" in
       CONCENTRATOR_URL="wss://${CONC_HOST}"
     fi
 
-    # Generate secret
-    RCLAUDE_SECRET="$(openssl rand -hex 32)"
-    ok "Generated RCLAUDE_SECRET"
+    # Generate or reuse secret
+    ENV_FILE="${REPO_DIR}/.env"
+    if [ -f "$ENV_FILE" ] && grep -q "^RCLAUDE_SECRET=" "$ENV_FILE"; then
+      warn ".env already exists with RCLAUDE_SECRET"
+      ask "Overwrite with new secret? [y/N]:"
+      read -r OVERWRITE
+      if [ "$OVERWRITE" = "y" ] || [ "$OVERWRITE" = "Y" ]; then
+        RCLAUDE_SECRET="$(openssl rand -hex 32)"
+        ok "Generated new RCLAUDE_SECRET"
+      else
+        RCLAUDE_SECRET="$(grep '^RCLAUDE_SECRET=' "$ENV_FILE" | cut -d= -f2-)"
+        ok "Keeping existing RCLAUDE_SECRET from .env"
+      fi
+    else
+      RCLAUDE_SECRET="$(openssl rand -hex 32)"
+      ok "Generated RCLAUDE_SECRET"
+    fi
 
     # Write .env for docker-compose
-    ENV_FILE="${REPO_DIR}/.env"
     {
       echo "RCLAUDE_SECRET=${RCLAUDE_SECRET}"
       echo "PORT=9999"
@@ -178,20 +191,30 @@ case "$CONC_CHOICE" in
     read -r RCLAUDE_SECRET
     ;;
   3|*)
-    info "Skipping concentrator setup. Set RCLAUDE_SECRET and concentrator URL later."
+    info "Skipping concentrator setup."
     ;;
 esac
 
 # ─── Shell configuration ────────────────────────────────────────
 echo ""
 MARKER="# rclaude config"
+
+# Extract existing values from shell rc before removing the old block
+EXISTING_SECRET=""
+EXISTING_CONCENTRATOR=""
 if grep -qF "$MARKER" "$SHELL_RC" 2>/dev/null; then
+  EXISTING_SECRET="$(sed -n '/# rclaude config/,/# end rclaude config/{s/^export RCLAUDE_SECRET="\(.*\)"/\1/p;}' "$SHELL_RC")"
+  EXISTING_CONCENTRATOR="$(sed -n '/# rclaude config/,/# end rclaude config/{s/^export RCLAUDE_CONCENTRATOR="\(.*\)"/\1/p;}' "$SHELL_RC")"
   warn "rclaude config already exists in $SHELL_RC - updating"
   # Remove old block (resolve symlinks for sed -i compatibility)
   REAL_SHELL_RC="$(readlink -f "$SHELL_RC" 2>/dev/null || realpath "$SHELL_RC" 2>/dev/null || echo "$SHELL_RC")"
   sed -i.bak "/$MARKER/,/# end rclaude config/d" "$REAL_SHELL_RC"
   rm -f "${REAL_SHELL_RC}.bak"
 fi
+
+# For option 3 (skip), fall back to values parsed from the existing rc block
+RCLAUDE_SECRET="${RCLAUDE_SECRET:-$EXISTING_SECRET}"
+CONCENTRATOR_URL="${CONCENTRATOR_URL:-$EXISTING_CONCENTRATOR}"
 
 SHELL_BLOCK="${MARKER}
 export RCLAUDE_SECRET=\"${RCLAUDE_SECRET:-}\"
