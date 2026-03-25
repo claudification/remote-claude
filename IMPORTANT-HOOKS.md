@@ -246,7 +246,8 @@ Stops on completion or after 10s of file-not-found (20 retries).
 ### Settings Merge (Primary Mechanism)
 
 `settings-merge.ts` reads user's `~/.claude/settings.json`, injects hook matchers
-for all 18 events, writes to `/tmp/rclaude-settings-{internalId}.json`.
+for supported events (filtered by detected Claude Code version), writes to
+`/tmp/rclaude-settings-{internalId}.json`.
 Claude CLI spawned with `--settings {path}`.
 
 Each hook fires a curl command:

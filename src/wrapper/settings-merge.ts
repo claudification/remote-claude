@@ -54,7 +54,10 @@ interface ClaudeSettings {
   [key: string]: unknown
 }
 
-const HOOK_EVENTS = [
+/**
+ * Core hook events supported by all Claude Code versions with hooks support.
+ */
+const CORE_HOOK_EVENTS = [
   'SessionStart',
   'UserPromptSubmit',
   'PreToolUse',
@@ -66,7 +69,6 @@ const HOOK_EVENTS = [
   'SubagentStart',
   'SubagentStop',
   'PreCompact',
-  'PostCompact',
   'PermissionRequest',
   'TeammateIdle',
   'TaskCompleted',
@@ -74,11 +76,42 @@ const HOOK_EVENTS = [
   'ConfigChange',
   'WorktreeCreate',
   'WorktreeRemove',
-  'Elicitation',
-  'ElicitationResult',
-  'StopFailure',
   'Setup',
 ] as const
+
+/**
+ * Hook events added in specific Claude Code versions.
+ * Each entry maps a minimum version to the events it introduced.
+ */
+const VERSIONED_HOOK_EVENTS: { minVersion: string; events: string[] }[] = [
+  { minVersion: '2.1.76', events: ['PostCompact', 'Elicitation', 'ElicitationResult', 'StopFailure'] },
+]
+
+/**
+ * Compare two semver version strings. Returns true if actual >= required.
+ */
+function isVersionAtLeast(actual: string, required: string): boolean {
+  const [aMajor, aMinor, aPatch] = actual.split('.').map(Number)
+  const [rMajor, rMinor, rPatch] = required.split('.').map(Number)
+  if (aMajor !== rMajor) return aMajor > rMajor
+  if (aMinor !== rMinor) return aMinor > rMinor
+  return aPatch >= rPatch
+}
+
+/**
+ * Get the list of hook events supported by the given Claude Code version.
+ */
+function getSupportedHookEvents(claudeVersion?: string): string[] {
+  const events = [...CORE_HOOK_EVENTS]
+  if (claudeVersion) {
+    for (const { minVersion, events: versionEvents } of VERSIONED_HOOK_EVENTS) {
+      if (isVersionAtLeast(claudeVersion, minVersion)) {
+        events.push(...versionEvents)
+      }
+    }
+  }
+  return events
+}
 
 /**
  * Read user's existing Claude settings
@@ -154,13 +187,14 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Partial
 /**
  * Generate merged settings with hook injection
  */
-export async function generateMergedSettings(sessionId: string, port: number): Promise<ClaudeSettings> {
+export async function generateMergedSettings(sessionId: string, port: number, claudeVersion?: string): Promise<ClaudeSettings> {
   const userSettings = await readUserSettings()
 
-  // Create our hook configuration
+  // Create our hook configuration, filtered by Claude Code version
+  const supportedEvents = getSupportedHookEvents(claudeVersion)
   const ourHooks: ClaudeSettings['hooks'] = {}
-  for (const event of HOOK_EVENTS) {
-    ourHooks[event] = [createHookMatcher(event, port, sessionId)]
+  for (const event of supportedEvents) {
+    ourHooks[event as keyof ClaudeSettings['hooks']] = [createHookMatcher(event, port, sessionId)]
   }
 
   // Whitelist our local hook server URLs for HTTP hooks
@@ -173,8 +207,8 @@ export async function generateMergedSettings(sessionId: string, port: number): P
 /**
  * Write merged settings to a temp file and return the path
  */
-export async function writeMergedSettings(sessionId: string, port: number): Promise<string> {
-  const settings = await generateMergedSettings(sessionId, port)
+export async function writeMergedSettings(sessionId: string, port: number, claudeVersion?: string): Promise<string> {
+  const settings = await generateMergedSettings(sessionId, port, claudeVersion)
   const settingsPath = `/tmp/rclaude-settings-${sessionId}.json`
 
   await Bun.write(settingsPath, JSON.stringify(settings, null, 2))

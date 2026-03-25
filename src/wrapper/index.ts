@@ -233,6 +233,9 @@ async function main() {
   const subagentWatchers = new Map<string, TranscriptWatcher>()
   const bgTaskOutputWatchers = new Map<string, { stop: () => void }>()
 
+  // Detect Claude Code version early - needed for settings merge and concentrator
+  const claudeVersion = detectClaudeVersion()
+
   // Queue events until we have the real session ID
   const eventQueue: HookEvent[] = []
 
@@ -364,7 +367,7 @@ async function main() {
       wrapperId: internalId,
       cwd,
       args: claudeArgs,
-      claudeVersion: detectClaudeVersion(),
+      claudeVersion,
       capabilities,
       onConnected() {
         diag('ws', 'Connected to concentrator', { sessionId })
@@ -1112,7 +1115,8 @@ async function main() {
   })
 
   // Generate merged settings with hook injection
-  const settingsPath = await writeMergedSettings(internalId, localServerPort)
+  // Generate merged settings with hook injection (version-aware to avoid invalid keys)
+  const settingsPath = await writeMergedSettings(internalId, localServerPort, claudeVersion)
 
   // Set terminal title to last 2 path segments (shows in tmux)
   setTerminalTitle(cwd)
