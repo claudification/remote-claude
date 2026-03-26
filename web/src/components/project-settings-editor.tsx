@@ -600,11 +600,13 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
 
   async function handleSave() {
     setSaving(true)
-    const settings: ProjectSettings = {}
-    if (label.trim()) settings.label = label.trim()
-    if (icon) settings.icon = icon
-    if (color) settings.color = color
-    if (keyterms.length) settings.keyterms = keyterms
+    // Send empty string for cleared fields - server strips them on merge
+    const settings: ProjectSettings = {
+      label: label.trim() || '',
+      icon: icon || '',
+      color: color || '',
+      keyterms: keyterms.length ? keyterms : [],
+    }
 
     const result = await updateProjectSettings(cwd, settings)
     if (result) setProjectSettings(result)
