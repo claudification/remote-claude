@@ -113,12 +113,14 @@ function Dashboard() {
   const isConnected = useSessionsStore(state => state.isConnected)
   const connectSeq = useSessionsStore(state => state.connectSeq)
 
-  // Re-fetch session list (sidebar) on reconnect/visibility restore
+  // Re-fetch session list (sidebar) on reconnect/visibility restore.
+  // Uses lightweight refresh_sessions (no subscription reset) to avoid
+  // clearing channel subscriptions that addSubscriber would reset.
   useEffect(() => {
     if (!isConnected) return
     const ws = useSessionsStore.getState().ws
     if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'subscribe', protocolVersion: 2 }))
+      ws.send(JSON.stringify({ type: 'refresh_sessions' }))
     }
   }, [connectSeq]) // eslint-disable-line react-hooks/exhaustive-deps
 

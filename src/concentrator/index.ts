@@ -564,6 +564,12 @@ async function main() {
                 }
                 break
               }
+              // Lightweight session list refresh (no subscription reset).
+              // Used by dashboard on visibility restore to catch up after iOS background.
+              case 'refresh_sessions': {
+                sessionStore.sendSessionsList(ws)
+                break
+              }
               case 'channel_subscribe': {
                 const { channel, sessionId: chSid, agentId } = data
                 if (!channel || !chSid) break

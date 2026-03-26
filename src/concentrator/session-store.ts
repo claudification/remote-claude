@@ -109,6 +109,7 @@ export interface SessionStore {
   hasTerminalViewers: (wrapperId: string) => boolean
   // Dashboard subscriber methods
   addSubscriber: (ws: ServerWebSocket<unknown>, protocolVersion?: number) => void
+  sendSessionsList: (ws: ServerWebSocket<unknown>) => void
   removeSubscriber: (ws: ServerWebSocket<unknown>) => void
   getSubscriberCount: () => number
   getSubscribers: () => Set<ServerWebSocket<unknown>>
@@ -1405,6 +1406,13 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
   }
 
+  function sendSessionsList(ws: ServerWebSocket<unknown>): void {
+    const sessionsList = Array.from(sessions.values()).map(toSessionSummary)
+    try {
+      ws.send(JSON.stringify({ type: 'sessions_list', sessions: sessionsList, serverVersion: BUILD_VERSION.gitHashShort }))
+    } catch {}
+  }
+
   function removeSubscriber(ws: ServerWebSocket<unknown>): void {
     dashboardSubscribers.delete(ws)
     v2Subscribers.delete(ws)
@@ -2125,6 +2133,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     removeTerminalViewerBySocket,
     hasTerminalViewers,
     addSubscriber,
+    sendSessionsList,
     removeSubscriber,
     getSubscriberCount,
     getSubscribers,
