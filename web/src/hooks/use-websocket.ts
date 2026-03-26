@@ -154,10 +154,12 @@ function processMessage(msg: DashboardMessage) {
         applyHashRoute()
       }
       // Check for version mismatch between server and this frontend bundle
+      // Compare just the 7-char git hash, ignoring -dirty suffix
       const sessionsMsg = msg as DashboardMessage & { serverVersion?: string }
       if (sessionsMsg.serverVersion) {
-        const mismatch = sessionsMsg.serverVersion !== BUILD_VERSION.gitHashShort
-        if (mismatch) useSessionsStore.setState({ versionMismatch: true })
+        const serverHash = sessionsMsg.serverVersion.replace(/-dirty$/, '')
+        const clientHash = BUILD_VERSION.gitHashShort.replace(/-dirty$/, '')
+        if (serverHash !== clientHash) useSessionsStore.setState({ versionMismatch: true })
       }
       break
     }
