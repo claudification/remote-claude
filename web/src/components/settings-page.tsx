@@ -538,6 +538,20 @@ const SETTINGS: SettingItem[] = [
   },
   {
     group: 'Display',
+    label: 'Context bar in sidebar',
+    description: 'Show context window usage on session cards',
+    keywords: 'tokens progress percentage',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.showContextInList}
+        onChange={e => ctx.updatePrefs({ showContextInList: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
+  {
+    group: 'Display',
     label: 'WS traffic stats',
     description: 'Show msg/s and KB/s in header bar',
     keywords: 'websocket bandwidth',

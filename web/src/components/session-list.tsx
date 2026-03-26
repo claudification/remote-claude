@@ -14,7 +14,7 @@ import type { HookEvent } from '@shared/protocol'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { saveSessionOrder, useSessionsStore } from '@/hooks/use-sessions'
 import type { Session, SessionOrderGroup, SessionOrderNode, SessionOrderV2 } from '@/lib/types'
-import { cn, formatAge, formatModel, haptic, lastPathSegments } from '@/lib/utils'
+import { cn, contextWindowSize, formatAge, formatModel, haptic, lastPathSegments } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from './project-settings-editor'
 
 // ─── Shared visual components ──────────────────────────────────────
@@ -144,6 +144,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
   const openTab = useSessionsStore(s => s.openTab)
   const cachedEvents = useSessionsStore(s => s.events[session.id] || EMPTY_EVENTS)
   const ps = useSessionsStore(s => s.projectSettings[session.cwd])
+  const showContextBar = useSessionsStore(s => s.dashboardPrefs.showContextInList)
   const isSelected = selectedSessionId === session.id
   const sessionStartEvent = cachedEvents.find(e => e.hookEvent === 'SessionStart')
   const model = (sessionStartEvent?.data as { model?: string } | undefined)?.model
@@ -344,6 +345,37 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           {'\u2194'} {session.linkedSessions.map(s => s.name).join(', ')}
         </div>
       )}
+      {!compact &&
+        showContextBar &&
+        session.tokenUsage &&
+        (() => {
+          const { input, cacheCreation, cacheRead } = session.tokenUsage
+          const total = input + cacheCreation + cacheRead
+          if (total === 0) return null
+          const maxTokens = contextWindowSize(model || session.model)
+          const pct = Math.min(100, Math.round((total / maxTokens) * 100))
+          return (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <div className="flex-1 h-1 bg-muted/50 rounded-full overflow-hidden">
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-all',
+                    pct < 60 ? 'bg-emerald-400/60' : pct < 85 ? 'bg-amber-400/60' : 'bg-red-400/70',
+                  )}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <span
+                className={cn(
+                  'text-[9px] font-mono tabular-nums shrink-0',
+                  pct < 60 ? 'text-emerald-400/50' : pct < 85 ? 'text-amber-400/50' : 'text-red-400/60',
+                )}
+              >
+                {pct}%
+              </span>
+            </div>
+          )
+        })()}
     </div>
   )
 }
