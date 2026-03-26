@@ -100,10 +100,13 @@ function Dashboard() {
     function handleVisibility() {
       if (document.hidden) {
         hiddenAt = Date.now()
+        console.log('[visibility] hidden')
       } else if (hiddenAt) {
         const elapsed = Date.now() - hiddenAt
         hiddenAt = 0
-        if (isTouch || elapsed > 60_000) {
+        const willRefresh = isTouch || elapsed > 60_000
+        console.log(`[visibility] restored after ${(elapsed / 1000).toFixed(1)}s (touch=${isTouch}, refresh=${willRefresh})`)
+        if (willRefresh) {
           useSessionsStore.setState(s => ({ connectSeq: s.connectSeq + 1 }))
         }
       }
@@ -125,12 +128,14 @@ function Dashboard() {
     if (!isConnected) return
     const ws = useSessionsStore.getState().ws
     if (ws?.readyState === WebSocket.OPEN) {
+      console.log(`[sync] refresh_sessions (connectSeq=${connectSeq})`)
       ws.send(JSON.stringify({ type: 'refresh_sessions' }))
     }
   }, [connectSeq]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!selectedSessionId || !isConnected) return
+    console.log(`[sync] fetchEvents + fetchTranscript for ${selectedSessionId.slice(0, 8)} (connectSeq=${connectSeq})`)
     fetchSessionEvents(selectedSessionId).then(events => setEvents(selectedSessionId, events))
   }, [selectedSessionId, connectSeq, setEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 
