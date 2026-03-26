@@ -89,16 +89,17 @@ function Dashboard() {
     fetchSessionOrder().then(o => useSessionsStore.getState().setSessionOrder(o))
   }, [])
 
-  // Re-fetch transcript when page returns from background (iOS/Android PWA, tab switch).
-  // Mobile browsers throttle/pause WS delivery while backgrounded - transcript entries
-  // can be silently lost even if the WS stays connected. Bump connectSeq to trigger
-  // a full re-fetch if we were hidden for 30s+.
+  // Re-fetch everything when page returns from background (iOS/Android PWA, tab switch).
+  // iOS suspends the JS runtime entirely when backgrounded - WS messages are silently
+  // lost even after just a few seconds. Always bump connectSeq on visibility restore
+  // to trigger full re-fetch of sessions, events, and transcript.
   useEffect(() => {
     let hiddenAt = 0
     function handleVisibility() {
       if (document.hidden) {
         hiddenAt = Date.now()
-      } else if (hiddenAt && Date.now() - hiddenAt > 30_000) {
+      } else if (hiddenAt) {
+        hiddenAt = 0
         useSessionsStore.setState(s => ({ connectSeq: s.connectSeq + 1 }))
       }
     }
@@ -106,11 +107,21 @@ function Dashboard() {
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
 
-  // Fetch events/transcript when session selected or WS reconnects.
-  // connectSeq monotonically increases on each connect, ensuring re-fetch even if
-  // isConnected transitions false->true faster than React can observe.
+  // Fetch events/transcript/sessions when session selected or WS reconnects.
+  // connectSeq monotonically increases on each connect AND on visibility restore,
+  // ensuring re-fetch even if the WS stayed connected but lost messages in background.
   const isConnected = useSessionsStore(state => state.isConnected)
   const connectSeq = useSessionsStore(state => state.connectSeq)
+
+  // Re-fetch session list (sidebar) on reconnect/visibility restore
+  useEffect(() => {
+    if (!isConnected) return
+    const ws = useSessionsStore.getState().ws
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'subscribe', protocolVersion: 2 }))
+    }
+  }, [connectSeq]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!selectedSessionId || !isConnected) return
     fetchSessionEvents(selectedSessionId).then(events => setEvents(selectedSessionId, events))
