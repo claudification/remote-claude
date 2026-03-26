@@ -9,6 +9,9 @@ import type {
   FileResponse,
   Heartbeat,
   HookEvent,
+  InterSessionDelivery,
+  InterSessionLinkRequest,
+  InterSessionListResponse,
   SessionClear,
   SessionEnd,
   SessionMeta,
@@ -49,10 +52,10 @@ export interface WsClientOptions {
   onFileEditorMessage?: (message: Record<string, unknown>) => void
   onAck?: (origins: string[]) => void
   onTranscriptKick?: () => void
-  onChannelSessionsList?: (sessions: any[]) => void
-  onChannelSendResult?: (result: any) => void
-  onChannelDeliver?: (delivery: any) => void
-  onChannelLinkRequest?: (request: any) => void
+  onChannelSessionsList?: (sessions: InterSessionListResponse['sessions']) => void
+  onChannelSendResult?: (result: unknown) => void
+  onChannelDeliver?: (delivery: InterSessionDelivery) => void
+  onChannelLinkRequest?: (request: InterSessionLinkRequest) => void
   onPermissionResponse?: (requestId: string, behavior: 'allow' | 'deny') => void
 }
 
@@ -237,22 +240,22 @@ export function createWsClient(options: WsClientOptions): WsClient {
               onTranscriptKick?.()
               break
             case 'channel_sessions_list':
-              onChannelSessionsList?.((message as any).sessions)
+              onChannelSessionsList?.(message.sessions)
               break
             case 'channel_deliver':
-              onChannelDeliver?.(message as any)
+              onChannelDeliver?.(message)
               break
             case 'channel_link_request':
-              onChannelLinkRequest?.(message as any)
+              onChannelLinkRequest?.(message)
               break
             case 'permission_response':
-              onPermissionResponse?.((message as any).requestId, (message as any).behavior)
+              onPermissionResponse?.(message.requestId, message.behavior)
               break
             default: {
-              const msgType = (message as any).type as string
+              const msgType = (message as Record<string, unknown>).type as string
               // Inter-session send result (not in formal ConcentratorMessage type)
               if (msgType === 'channel_send_result') {
-                onChannelSendResult?.(message as any)
+                onChannelSendResult?.(message)
                 break
               }
               if (msgType?.startsWith('file_') || msgType === 'quick_note_append') {

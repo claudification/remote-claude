@@ -24,7 +24,7 @@ export interface ResultListProps {
 export interface SessionResultsProps extends ResultListProps {
   sessions: Session[]
   selectedSessionId: string | null
-  projectSettings: Record<string, any>
+  projectSettings: Record<string, { label?: string; icon?: string; color?: string; keyterms?: string[] }>
   onSelect: (sessionId: string) => void
 }
 

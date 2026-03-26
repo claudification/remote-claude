@@ -130,12 +130,14 @@ export function InlineTerminal({ wrapperId }: InlineTerminalProps) {
 
   return (
     <div
+      role="application"
       className="flex flex-col h-full"
       style={{ background: themeColors.background }}
       onClick={e => {
         if ((e.target as HTMLElement).closest('button, input, select, textarea')) return
         xtermRef.current?.focus()
       }}
+      onKeyDown={() => xtermRef.current?.focus()}
     >
       {showDisconnected && (
         <div

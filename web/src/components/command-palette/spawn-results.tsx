@@ -67,7 +67,7 @@ export function SpawnResults({
           <span className="text-xs text-[#a9b1d6]">{dir}/</span>
         </button>
       ))}
-      {path && path.endsWith('/') && !spawning && (
+      {path?.endsWith('/') && !spawning && (
         <button
           type="button"
           onClick={() => onSpawn(path.slice(0, -1))}

@@ -55,8 +55,8 @@ export function buildResultMap(entries: TranscriptEntry[]) {
 export function parseTaskNotifications(text: string): TaskNotification[] {
   const results: TaskNotification[] = []
   const blockRegex = /<task-notification>([\s\S]*?)(?:<\/task-notification>|$)/g
-  let blockMatch: RegExpExecArray | null
-  while ((blockMatch = blockRegex.exec(text)) !== null) {
+  let blockMatch: RegExpExecArray | null = blockRegex.exec(text)
+  while (blockMatch !== null) {
     const xml = `<root>${blockMatch[1]}</root>`
     try {
       const doc = new DOMParser().parseFromString(xml, 'text/xml')
@@ -85,6 +85,7 @@ export function parseTaskNotifications(text: string): TaskNotification[] {
     } catch {
       // Malformed XML - skip
     }
+    blockMatch = blockRegex.exec(text)
   }
   return results
 }
@@ -213,7 +214,7 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
             prevSystem?.type === 'system' &&
             prevSystem.notifications?.length === notifications.length &&
             notifications.every(n =>
-              prevSystem.notifications!.some(p => p.taskId === n.taskId && p.status === n.status),
+              prevSystem.notifications?.some(p => p.taskId === n.taskId && p.status === n.status),
             )
           if (!isDuplicate) {
             current = null
@@ -422,7 +423,7 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
               prevSystem?.type === 'system' &&
               prevSystem.notifications?.length === notifications.length &&
               notifications.every(n =>
-                prevSystem.notifications!.some(p => p.taskId === n.taskId && p.status === n.status),
+                prevSystem.notifications?.some(p => p.taskId === n.taskId && p.status === n.status),
               )
             if (!isDuplicate) {
               lastGroup = null

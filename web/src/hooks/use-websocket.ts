@@ -12,7 +12,7 @@ import { unstable_batchedUpdates as batchUpdates } from 'react-dom'
 const batch: (fn: () => void) => void = batchUpdates ?? (fn => fn())
 
 import type { SessionSummary } from '@shared/protocol'
-import type { HookEvent, Session, TaskInfo, TranscriptEntry } from '@/lib/types'
+import type { HookEvent, Session, SessionOrderV2, TaskInfo, TranscriptEntry } from '@/lib/types'
 import { BUILD_VERSION } from '../../../src/shared/version'
 import { applyHashRoute, handleBgTaskOutputMessage, type ProjectSettingsMap, useSessionsStore } from './use-sessions'
 import { recordIn, recordOut } from './ws-stats'
@@ -106,7 +106,7 @@ function flushMessages() {
   let maxSeq = prevSeq
   let epoch = prevEpoch
   for (const msg of pending) {
-    const m = msg as any
+    const m = msg as DashboardMessage & { _epoch?: string; _seq?: number }
     if (m._epoch && m._seq) {
       epoch = m._epoch
       if (m._seq > maxSeq) maxSeq = m._seq
@@ -126,21 +126,26 @@ function flushMessages() {
 function processMessage(msg: DashboardMessage) {
   switch (msg.type) {
     // Sync protocol responses
-    case 'sync_ok' as any: {
-      console.log(`[sync] ok (epoch=${(msg as any).epoch?.slice(0, 8)} seq=${(msg as any).seq})`)
+    case 'sync_ok': {
+      const ok = msg as DashboardMessage & { epoch?: string; seq?: number }
+      console.log(`[sync] ok (epoch=${ok.epoch?.slice(0, 8)} seq=${ok.seq})`)
       break
     }
-    case 'sync_catchup' as any: {
-      const m = msg as any
-      console.log(`[sync] catchup: ${m.count} missed messages (epoch=${m.epoch?.slice(0, 8)} seq=${m.seq})`)
+    case 'sync_catchup': {
+      const cu = msg as DashboardMessage & { count?: number; epoch?: string; seq?: number }
+      console.log(`[sync] catchup: ${cu.count} missed messages (epoch=${cu.epoch?.slice(0, 8)} seq=${cu.seq})`)
       // The missed messages will arrive as subsequent WS messages and be processed normally
       break
     }
-    case 'sync_stale' as any: {
-      const m = msg as any
-      console.log(`[sync] stale: ${m.reason || 'unknown'} (missed=${m.missed || '?'})`)
+    case 'sync_stale': {
+      const stale = msg as DashboardMessage & { reason?: string; missed?: number; epoch?: string; seq?: number }
+      console.log(`[sync] stale: ${stale.reason || 'unknown'} (missed=${stale.missed || '?'})`)
       // Full resync needed - bump connectSeq
-      useSessionsStore.setState(s => ({ connectSeq: s.connectSeq + 1, syncEpoch: m.epoch || '', syncSeq: m.seq || 0 }))
+      useSessionsStore.setState(s => ({
+        connectSeq: s.connectSeq + 1,
+        syncEpoch: stale.epoch || '',
+        syncSeq: stale.seq || 0,
+      }))
       break
     }
     case 'sessions_list': {
@@ -149,8 +154,9 @@ function processMessage(msg: DashboardMessage) {
         applyHashRoute()
       }
       // Check for version mismatch between server and this frontend bundle
-      if ((msg as any).serverVersion) {
-        const mismatch = (msg as any).serverVersion !== BUILD_VERSION.gitHashShort
+      const sessionsMsg = msg as DashboardMessage & { serverVersion?: string }
+      if (sessionsMsg.serverVersion) {
+        const mismatch = sessionsMsg.serverVersion !== BUILD_VERSION.gitHashShort
         if (mismatch) useSessionsStore.setState({ versionMismatch: true })
       }
       break
@@ -170,25 +176,28 @@ function processMessage(msg: DashboardMessage) {
     case 'session_ended':
     case 'session_update': {
       if (msg.session && msg.sessionId) {
-        const matchId = msg.previousSessionId || msg.sessionId
+        const sessionId = msg.sessionId
+        const session = msg.session
+        const prevId = msg.previousSessionId
+        const matchId = prevId || sessionId
         useSessionsStore.setState(state => {
-          const updated = toSession(msg.session!)
+          const updated = toSession(session)
           const newState: Partial<typeof state> = {
             sessions: state.sessions.map(s => (s.id === matchId ? { ...s, ...updated } : s)),
           }
-          if (msg.previousSessionId && state.selectedSessionId === msg.previousSessionId) {
-            newState.selectedSessionId = msg.sessionId!
-            const oldEvents = state.events[msg.previousSessionId]
-            const oldTranscripts = state.transcripts[msg.previousSessionId]
+          if (prevId && state.selectedSessionId === prevId) {
+            newState.selectedSessionId = sessionId
+            const oldEvents = state.events[prevId]
+            const oldTranscripts = state.transcripts[prevId]
             if (oldEvents || oldTranscripts) {
               const events = { ...state.events }
               const transcripts = { ...state.transcripts }
-              delete events[msg.previousSessionId]
-              delete transcripts[msg.previousSessionId]
+              delete events[prevId]
+              delete transcripts[prevId]
               // Preserve any data already received for the new session ID
               // (e.g. compacting marker broadcast during rekey)
-              if (!events[msg.sessionId!]) events[msg.sessionId!] = []
-              if (!transcripts[msg.sessionId!]) transcripts[msg.sessionId!] = []
+              if (!events[sessionId]) events[sessionId] = []
+              if (!transcripts[sessionId]) transcripts[sessionId] = []
               newState.events = events
               newState.transcripts = transcripts
             }
@@ -200,22 +209,24 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'channel_ack': {
       // Channel subscription acknowledgment - log for debugging
-      const ack = msg as any
+      const ack = msg as DashboardMessage & { channel?: string; previousSessionId?: string }
       if (ack.previousSessionId) {
         console.log(
-          `[ws] Channel ${ack.channel} rolled over: ${ack.previousSessionId.slice(0, 8)} -> ${ack.sessionId.slice(0, 8)}`,
+          `[ws] Channel ${ack.channel} rolled over: ${ack.previousSessionId.slice(0, 8)} -> ${ack.sessionId?.slice(0, 8)}`,
         )
       }
       break
     }
     case 'event': {
       if (msg.event && msg.sessionId) {
+        const sid = msg.sessionId
+        const evt = msg.event
         useSessionsStore.setState(state => {
-          const currentEvents = state.events[msg.sessionId!] || []
+          const currentEvents = state.events[sid] || []
           return {
             events: {
               ...state.events,
-              [msg.sessionId!]: [...currentEvents, msg.event!],
+              [sid]: [...currentEvents, evt],
             },
           }
         })
@@ -224,12 +235,15 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'transcript_entries': {
       if (msg.sessionId && msg.entries?.length) {
+        const sid = msg.sessionId
+        const newEntries = msg.entries
+        const initial = msg.isInitial
         useSessionsStore.setState(state => {
-          const existing = state.transcripts[msg.sessionId!] || []
+          const existing = state.transcripts[sid] || []
           return {
             transcripts: {
               ...state.transcripts,
-              [msg.sessionId!]: msg.isInitial ? msg.entries! : [...existing, ...msg.entries!],
+              [sid]: initial ? newEntries : [...existing, ...newEntries],
             },
           }
         })
@@ -238,15 +252,19 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'subagent_transcript': {
       if (msg.sessionId && msg.entries?.length) {
-        const agentId = (msg as any).agentId
+        const subMsg = msg as DashboardMessage & { agentId?: string }
+        const agentId = subMsg.agentId
         if (agentId) {
-          const key = `${msg.sessionId}:${agentId}`
+          const sid = msg.sessionId
+          const newEntries = msg.entries
+          const initial = msg.isInitial
+          const key = `${sid}:${agentId}`
           useSessionsStore.setState(state => {
             const existing = state.subagentTranscripts[key] || []
             return {
               subagentTranscripts: {
                 ...state.subagentTranscripts,
-                [key]: (msg as any).isInitial ? msg.entries! : [...existing, ...msg.entries!],
+                [key]: initial ? newEntries : [...existing, ...newEntries],
               },
             }
           })
@@ -256,8 +274,10 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'tasks_update': {
       if (msg.sessionId && msg.tasks) {
+        const sid = msg.sessionId
+        const taskList = msg.tasks
         useSessionsStore.setState(state => ({
-          tasks: { ...state.tasks, [msg.sessionId!]: msg.tasks! },
+          tasks: { ...state.tasks, [sid]: taskList },
         }))
       }
       break
@@ -282,26 +302,33 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'session_order_updated': {
       if (msg.order) {
-        useSessionsStore.getState().setSessionOrder(msg.order as any)
+        useSessionsStore.getState().setSessionOrder(msg.order as SessionOrderV2)
       }
       break
     }
     case 'channel_link_request': {
-      const req = msg as any
-      if (req.fromSession && req.toSession) {
+      const req = msg as DashboardMessage & {
+        fromSession?: string
+        fromProject?: string
+        toSession?: string
+        toProject?: string
+      }
+      const fromSession = req.fromSession
+      const toSession = req.toSession
+      if (fromSession && toSession) {
         useSessionsStore.setState(state => {
           // Deduplicate
-          if (state.pendingLinkRequests.some(r => r.fromSession === req.fromSession && r.toSession === req.toSession)) {
+          if (state.pendingLinkRequests.some(r => r.fromSession === fromSession && r.toSession === toSession)) {
             return state
           }
           return {
             pendingLinkRequests: [
               ...state.pendingLinkRequests,
               {
-                fromSession: req.fromSession,
-                fromProject: req.fromProject || req.fromSession.slice(0, 8),
-                toSession: req.toSession,
-                toProject: req.toProject || req.toSession.slice(0, 8),
+                fromSession,
+                fromProject: req.fromProject || fromSession.slice(0, 8),
+                toSession,
+                toProject: req.toProject || toSession.slice(0, 8),
               },
             ],
           }
@@ -310,16 +337,23 @@ function processMessage(msg: DashboardMessage) {
       break
     }
     case 'permission_request': {
-      const req = msg as any
-      if (req.sessionId && req.requestId) {
+      const req = msg as DashboardMessage & {
+        requestId?: string
+        toolName?: string
+        description?: string
+        inputPreview?: string
+      }
+      const permSid = req.sessionId
+      const permRid = req.requestId
+      if (permSid && permRid) {
         useSessionsStore.setState(state => {
-          if (state.pendingPermissions.some(p => p.requestId === req.requestId)) return state
+          if (state.pendingPermissions.some(p => p.requestId === permRid)) return state
           return {
             pendingPermissions: [
               ...state.pendingPermissions,
               {
-                sessionId: req.sessionId,
-                requestId: req.requestId,
+                sessionId: permSid,
+                requestId: permRid,
                 toolName: req.toolName || 'Unknown',
                 description: req.description || '',
                 inputPreview: req.inputPreview || '',
@@ -387,7 +421,12 @@ export function useWebSocket() {
             send({ type: 'channel_subscribe', channel: ch, sessionId: selectedSessionId })
           }
           if (selectedSubagentId) {
-            send({ type: 'channel_subscribe', channel: 'session:subagent_transcript', sessionId: selectedSessionId, agentId: selectedSubagentId })
+            send({
+              type: 'channel_subscribe',
+              channel: 'session:subagent_transcript',
+              sessionId: selectedSessionId,
+              agentId: selectedSubagentId,
+            })
           }
         }
       }
@@ -434,7 +473,7 @@ export function useWebSocket() {
             msg.type === 'file_changed'
           ) {
             const handler = useSessionsStore.getState().fileHandler
-            handler?.(msg)
+            handler?.(msg as unknown as Record<string, unknown>)
             return
           }
 
@@ -443,7 +482,7 @@ export function useWebSocket() {
             const handler = useSessionsStore.getState().terminalHandler
             handler?.({
               type: msg.type as 'terminal_data' | 'terminal_error',
-              wrapperId: (msg as any).wrapperId || '',
+              wrapperId: (msg as DashboardMessage & { wrapperId?: string }).wrapperId || '',
               data: msg.data,
               error: msg.error,
             })
@@ -522,7 +561,12 @@ export function useWebSocket() {
 
       if (prevKey) {
         const [prevSid, prevAid] = prevKey.split(':')
-        send({ type: 'channel_unsubscribe', channel: 'session:subagent_transcript', sessionId: prevSid, agentId: prevAid })
+        send({
+          type: 'channel_unsubscribe',
+          channel: 'session:subagent_transcript',
+          sessionId: prevSid,
+          agentId: prevAid,
+        })
       }
       if (key && sessionId && agentId) {
         send({ type: 'channel_subscribe', channel: 'session:subagent_transcript', sessionId, agentId })

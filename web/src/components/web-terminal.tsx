@@ -311,12 +311,14 @@ export function WebTerminal({ wrapperId, onClose, popout }: WebTerminalProps) {
   return (
     <div
       data-terminal-overlay
+      role="application"
       className="fixed inset-0 z-50 flex flex-col overflow-hidden"
       style={{ background: currentTheme.background, overscrollBehavior: 'none' }}
       onClick={e => {
         if ((e.target as HTMLElement).closest('button, input, select, textarea')) return
         xtermRef.current?.focus()
       }}
+      onKeyDown={() => xtermRef.current?.focus()}
     >
       {/* Minimal header */}
       <div

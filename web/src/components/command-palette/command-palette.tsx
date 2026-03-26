@@ -11,10 +11,20 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
   const palette = useCommandPalette(onClose)
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-start justify-center pt-[15vh]" onClick={onClose}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop overlay closes on click
+    <div
+      role="presentation"
+      className="fixed inset-0 z-[60] flex items-start justify-center pt-[15vh]"
+      onClick={onClose}
+      onKeyDown={e => {
+        if (e.key === 'Escape') onClose()
+      }}
+    >
       <div
+        role="dialog"
         className="w-full max-w-lg bg-[#16161e] border border-[#33467c] shadow-2xl font-mono"
         onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
       >
         {/* Search input */}
         <div className="px-3 py-2 border-b border-[#33467c] flex items-center gap-2">

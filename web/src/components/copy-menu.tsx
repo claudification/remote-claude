@@ -100,7 +100,7 @@ async function copyAsImage(element: HTMLElement) {
     const p = pad * 2 // pixelRatio already applied by toBlob
     canvas.width = img.width + p * 2
     canvas.height = img.height + p * 2
-    const ctx = canvas.getContext('2d')!
+    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D
     ctx.fillStyle = bgColor
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     ctx.drawImage(img, p, p)

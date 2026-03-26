@@ -104,7 +104,9 @@ function Dashboard() {
         const elapsed = Date.now() - hiddenAt
         hiddenAt = 0
         const { syncEpoch, syncSeq } = useSessionsStore.getState()
-        console.log(`[sync] restored after ${(elapsed / 1000).toFixed(1)}s - sending sync_check (epoch=${syncEpoch.slice(0, 8)} seq=${syncSeq})`)
+        console.log(
+          `[sync] restored after ${(elapsed / 1000).toFixed(1)}s - sending sync_check (epoch=${syncEpoch.slice(0, 8)} seq=${syncSeq})`,
+        )
         wsSend('sync_check', { epoch: syncEpoch, lastSeq: syncSeq })
       }
     }
@@ -128,7 +130,9 @@ function Dashboard() {
 
   useEffect(() => {
     if (!selectedSessionId || !isConnected) return
-    console.log(`[sync] full resync: fetchEvents + fetchTranscript for ${selectedSessionId.slice(0, 8)} (connectSeq=${connectSeq})`)
+    console.log(
+      `[sync] full resync: fetchEvents + fetchTranscript for ${selectedSessionId.slice(0, 8)} (connectSeq=${connectSeq})`,
+    )
     fetchSessionEvents(selectedSessionId).then(events => setEvents(selectedSessionId, events))
   }, [selectedSessionId, connectSeq, setEvents]) // eslint-disable-line react-hooks/exhaustive-deps
 

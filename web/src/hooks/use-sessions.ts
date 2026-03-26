@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import {
   type DashboardPrefs,
-  DEFAULT_TOOL_DISPLAY,
   loadPrefs,
   resolveToolDisplay,
   type ToolDisplayKey,
@@ -19,6 +18,7 @@ import type {
   TranscriptEntry,
 } from '@/lib/types'
 import { recordOut } from './ws-stats'
+
 export type { ProjectSettingsMap }
 
 // Background task output streaming - module-level to avoid Zustand re-renders on every chunk
@@ -133,8 +133,8 @@ interface SessionsState {
   setError: (error: string | null) => void
   setWs: (ws: WebSocket | null) => void
   setTerminalHandler: (handler: ((msg: TerminalMessage) => void) | null) => void
-  fileHandler: ((msg: any) => void) | null
-  setFileHandler: (handler: ((msg: any) => void) | null) => void
+  fileHandler: ((msg: Record<string, unknown>) => void) | null
+  setFileHandler: (handler: ((msg: Record<string, unknown>) => void) | null) => void
   sendWsMessage: (msg: Record<string, unknown>) => void
   dismissSession: (sessionId: string) => void
   setPendingFilePath: (path: string | null) => void
@@ -477,9 +477,9 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
     }
 
     return { success: true }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[push] Subscribe error:', error)
-    return { success: false, error: error?.message || 'Unknown error' }
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
 

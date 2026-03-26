@@ -47,9 +47,11 @@ export function ToastContainer() {
           key={t.id}
           className={`bg-background border border-accent/50 rounded-lg shadow-lg p-3 animate-in slide-in-from-right-5 fade-in duration-200 ${t.sessionId ? 'cursor-pointer hover:border-accent' : ''}`}
           onClick={() => handleClick(t)}
-          onKeyDown={e => e.key === 'Enter' && handleClick(t)}
-          role={t.sessionId ? 'button' : undefined}
-          tabIndex={t.sessionId ? 0 : undefined}
+          onKeyDown={e => {
+            if (e.key === 'Enter') handleClick(t)
+          }}
+          role="button"
+          tabIndex={0}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">

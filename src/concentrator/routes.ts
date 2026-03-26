@@ -18,7 +18,7 @@ import {
   setProjectSettings,
 } from './project-settings'
 import { addSubscription, getSubscriptionCount, isPushConfigured, removeSubscription, sendPushToAll } from './push'
-import { getSessionOrder, setSessionOrder } from './session-order'
+import { getSessionOrder, type SessionOrderV2, setSessionOrder } from './session-order'
 import type { SessionStore } from './session-store'
 import { UI_HTML } from './ui'
 
@@ -138,38 +138,36 @@ function mediaTypeToExt(mediaType: string): string {
   return map[mediaType] || 'png'
 }
 
-export function processImagesInEntry(entry: any): any {
+export function processImagesInEntry(entry: Record<string, unknown>): Record<string, unknown> {
   const images: Array<{ hash: string; ext: string; url: string; originalPath: string }> = []
   let modified = false
 
-  const content = entry?.message?.content
+  const msg = entry?.message as Record<string, unknown> | undefined
+  const content = msg?.content
   if (Array.isArray(content)) {
     for (let i = 0; i < content.length; i++) {
-      const block = content[i]
-      if (
-        block?.type === 'image' &&
-        block?.source?.type === 'base64' &&
-        block?.source?.data &&
-        block?.source?.media_type
-      ) {
-        const mt = block.source.media_type as string
+      const block = content[i] as Record<string, unknown> | undefined
+      const source = block?.source as Record<string, unknown> | undefined
+      if (block?.type === 'image' && source?.type === 'base64' && source?.data && source?.media_type) {
+        const mt = source.media_type as string
         const ext = mediaTypeToExt(mt)
-        const hash = registerBlob(block.source.data, mt)
+        const hash = registerBlob(source.data as string, mt)
         images.push({ hash, ext, url: `/file/${hash}.${ext}`, originalPath: `inline:${mt}` })
         if (!modified) {
-          entry = { ...entry, message: { ...entry.message, content: [...content] } }
+          entry = { ...entry, message: { ...msg, content: [...content] } }
           modified = true
         }
-        entry.message.content[i] = { type: 'text', text: `[Image: ${hash}.${ext}]` }
+        const entryMsg = entry.message as Record<string, unknown>
+        ;(entryMsg.content as unknown[])[i] = { type: 'text', text: `[Image: ${hash}.${ext}]` }
       }
     }
   }
 
   const imagePattern = /\[Image:\s*source:\s*([^\]]+)\]/gi
-  function scanText(value: any): void {
+  function scanText(value: unknown): void {
     if (typeof value === 'string') {
-      let match
-      while ((match = imagePattern.exec(value)) !== null) {
+      let match: RegExpExecArray | null = imagePattern.exec(value)
+      while (match !== null) {
         const imagePath = match[1].trim()
         const ext = imagePath.split('.').pop()?.toLowerCase() || 'png'
         if (IMAGE_EXTENSIONS.includes(ext)) {
@@ -178,6 +176,7 @@ export function processImagesInEntry(entry: any): any {
             images.push({ hash, ext, url: `/file/${hash}.${ext}`, originalPath: imagePath })
           }
         }
+        match = imagePattern.exec(value)
       }
     } else if (Array.isArray(value)) {
       value.forEach(scanText)
@@ -396,7 +395,7 @@ export function createRouter(options: RouteOptions): Hono {
       return c.json({ error: 'No transcript in cache (rclaude not streaming yet?)' }, 404)
     }
     const entries = sessionStore.getTranscriptEntries(sessionId, limit)
-    return c.json(entries.map((e: any) => processImagesInEntry(e)))
+    return c.json(entries.map(e => processImagesInEntry(e as Record<string, unknown>)))
   })
 
   app.get('/sessions/:id/subagents/:agentId/transcript', c => {
@@ -409,7 +408,7 @@ export function createRouter(options: RouteOptions): Hono {
       return c.json({ error: 'No subagent transcript in cache' }, 404)
     }
     const entries = sessionStore.getSubagentTranscriptEntries(sessionId, agentId, limit)
-    return c.json(entries.map((e: any) => processImagesInEntry(e)))
+    return c.json(entries.map(e => processImagesInEntry(e as Record<string, unknown>)))
   })
 
   app.get('/sessions/:id/diag', c => {
@@ -534,9 +533,9 @@ export function createRouter(options: RouteOptions): Hono {
         reject(new Error('Spawn timed out (15s)'))
       }, 15000)
 
-      sessionStore.addSpawnListener(requestId, (msg: SpawnResult) => {
+      sessionStore.addSpawnListener(requestId, msg => {
         clearTimeout(timeout)
-        resolve(msg)
+        resolve(msg as SpawnResult)
       })
 
       agent.send(JSON.stringify({ type: 'spawn', requestId, cwd: body.cwd, wrapperId, mkdir: body.mkdir || false }))
@@ -562,9 +561,9 @@ export function createRouter(options: RouteOptions): Hono {
         reject(new Error('Directory listing timed out (5s)'))
       }, 5000)
 
-      sessionStore.addDirListener(requestId, (msg: ListDirsResult) => {
+      sessionStore.addDirListener(requestId, msg => {
         clearTimeout(timeout)
-        resolve(msg)
+        resolve(msg as ListDirsResult)
       })
 
       agent.send(JSON.stringify({ type: 'list_dirs', requestId, path: dirPath }))
@@ -733,8 +732,9 @@ export function createRouter(options: RouteOptions): Hono {
             reject(new Error(`File read timed out (5s): ${filePath}`))
           }, 5000)
 
-          sessionStore.addFileListener(requestId, (msg: { data?: string; error?: string }) => {
+          sessionStore.addFileListener(requestId, raw => {
             clearTimeout(timeout)
+            const msg = raw as { data?: string; error?: string }
             if (msg.error || !msg.data) resolve(null)
             else resolve(Buffer.from(msg.data, 'base64').toString('utf-8'))
           })
@@ -852,7 +852,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     if (body.version !== 2 || !Array.isArray(body.tree)) {
       return c.json({ error: 'Invalid session order: expected { version: 2, tree: [...] }' }, 400)
     }
-    setSessionOrder(body as any)
+    setSessionOrder(body as SessionOrderV2)
     const order = getSessionOrder()
     broadcastToSubscribers(sessionStore, { type: 'session_order_updated', order })
     return c.json({ success: true, order })
@@ -1048,7 +1048,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
   }
 
   // ─── CORS preflight ────────────────────────────────────────────────
-  app.options('*', c => new Response(null, { status: 204 }))
+  app.options('*', _c => new Response(null, { status: 204 }))
 
   // ─── 404 catch-all ─────────────────────────────────────────────────
   app.all('*', c => c.json({ error: 'Not found' }, 404))

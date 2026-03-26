@@ -37,7 +37,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/dashboard-prefs'
 import { defaultOpenApplied, expandedState } from '@/lib/expanded-state'
-import { cn } from '@/lib/utils'
 
 // ANSI to HTML converter - vibrant colors for dark backgrounds
 const ansiConverter = new AnsiToHtml({

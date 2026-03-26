@@ -1,3 +1,4 @@
+import type { HookEvent } from '@shared/protocol'
 import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Copy, Terminal } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -21,7 +22,7 @@ type Tab = 'transcript' | 'tty' | 'events' | 'agents' | 'tasks' | 'files' | 'dia
 
 // Stable empty references to avoid re-render loops with Zustand selectors
 // (Zustand uses Object.is - a new [] !== previous [], causing infinite re-renders)
-const EMPTY_EVENTS: any[] = []
+const EMPTY_EVENTS: HookEvent[] = []
 const EMPTY_TRANSCRIPT: TranscriptEntry[] = []
 
 function LinkRequestBanners() {
@@ -70,7 +71,7 @@ function LinkRequestBanners() {
 function formatPermissionInput(toolName: string, inputPreview: string, cwd?: string): React.ReactNode {
   try {
     const input = JSON.parse(inputPreview)
-    const relativize = (p: string) => cwd && p.startsWith(cwd + '/') ? p.slice(cwd.length + 1) : p
+    const relativize = (p: string) => (cwd && p.startsWith(`${cwd}/`) ? p.slice(cwd.length + 1) : p)
 
     if (toolName === 'Write' || toolName === 'Edit') {
       const path = input.file_path || input.path
@@ -268,11 +269,20 @@ const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
     <div ref={containerRef} className="shrink-0 p-3 border-t border-border bg-background z-10">
       {showAttention && pendingAttention && (
         <div
+          role="button"
+          tabIndex={0}
           className="mb-2 px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded font-mono text-xs text-amber-400 flex items-center gap-2 animate-pulse cursor-pointer hover:bg-amber-500/20 transition-colors"
           onClick={() => {
             haptic('tap')
             const store = useSessionsStore.getState()
             if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'tty')
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              haptic('tap')
+              const store = useSessionsStore.getState()
+              if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'tty')
+            }
           }}
         >
           <span className="text-amber-500 font-bold shrink-0">!</span>
@@ -473,7 +483,7 @@ export function SessionDetail() {
     )
   }
 
-  const model = events.find(e => e.hookEvent === 'SessionStart' && e.data?.model)?.data?.model as string | undefined
+  const model = (events.find(e => e.hookEvent === 'SessionStart')?.data as { model?: string } | undefined)?.model
 
   const canSendInput = session != null && session.status !== 'ended'
   const hasTerminal = session ? canTerminal(session) : false

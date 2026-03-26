@@ -51,10 +51,20 @@ export function ShortcutHelp() {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center" onClick={() => setOpen(false)}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop overlay closes on click
+    <div
+      role="presentation"
+      className="fixed inset-0 z-[70] flex items-center justify-center"
+      onClick={() => setOpen(false)}
+      onKeyDown={e => {
+        if (e.key === 'Escape') setOpen(false)
+      }}
+    >
       <div
+        role="dialog"
         className="w-full max-w-md bg-[#16161e] border border-[#33467c] shadow-2xl font-mono p-6"
         onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
       >
         <pre className="text-[#7aa2f7] text-[10px] leading-tight mb-4 select-none">
           {`┌──────────────────────────────────────┐

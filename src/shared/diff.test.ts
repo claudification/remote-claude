@@ -208,7 +208,7 @@ describe('merge3way', () => {
     // From empty base, both sides add at position 0. The diff library produces
     // non-overlapping insertions (baseStart=0, baseEnd=0 for both), so they
     // don't conflict - they both insert at the same point sequentially.
-    const { result, hasConflicts } = merge3way('', 'ours', 'theirs')
+    const { result, hasConflicts: _hasConflicts } = merge3way('', 'ours', 'theirs')
     // Both insertions are at baseStart=0, baseEnd=0 - they overlap, so the
     // merge engine checks if they're the same. They differ, so it's a conflict.
     // Actually: with context:0, two insertions at same point may not overlap
@@ -337,7 +337,7 @@ describe('merge3way', () => {
     const base = 'line1\nline2\nline3'
     const ours = 'line1\nline3'
     const theirs = 'line1\nmodified-line2\nline3'
-    const { result, hasConflicts } = merge3way(base, ours, theirs)
+    const { result: _result, hasConflicts } = merge3way(base, ours, theirs)
     expect(hasConflicts).toBe(true)
   })
 

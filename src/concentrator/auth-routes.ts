@@ -6,7 +6,11 @@
  */
 
 import { timingSafeEqual } from 'node:crypto'
-import type { AuthenticatorTransportFuture } from '@simplewebauthn/server'
+import type {
+  AuthenticationResponseJSON,
+  AuthenticatorTransportFuture,
+  RegistrationResponseJSON,
+} from '@simplewebauthn/server'
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -217,7 +221,7 @@ export async function handleAuthRoute(req: Request): Promise<Response | null> {
 
   // --- Registration: verify ---
   if (path === '/auth/register/verify' && req.method === 'POST') {
-    const { token, response } = (await req.json()) as { token: string; response: any }
+    const { token, response } = (await req.json()) as { token: string; response: RegistrationResponseJSON }
     const invite = validateInvite(token)
     if (!invite) {
       return jsonResponse({ error: 'Invalid or expired invite' }, 400)
@@ -291,7 +295,10 @@ export async function handleAuthRoute(req: Request): Promise<Response | null> {
 
   // --- Authentication: verify ---
   if (path === '/auth/login/verify' && req.method === 'POST') {
-    const { challengeKey, response } = (await req.json()) as { challengeKey: string; response: any }
+    const { challengeKey, response } = (await req.json()) as {
+      challengeKey: string
+      response: AuthenticationResponseJSON
+    }
 
     const expectedChallenge = getChallenge(`auth:${challengeKey}`)
     if (!expectedChallenge) {

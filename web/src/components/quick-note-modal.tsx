@@ -83,11 +83,21 @@ export function QuickNoteModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" onClick={() => setOpen(false)}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop overlay closes on click
+    <div
+      role="presentation"
+      className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]"
+      onClick={() => setOpen(false)}
+      onKeyDown={e => {
+        if (e.key === 'Escape') setOpen(false)
+      }}
+    >
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
       <div
+        role="dialog"
         className="relative w-full max-w-lg mx-4 bg-background border border-border shadow-2xl flex flex-col max-h-[50vh]"
         onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
           <FileText className="w-4 h-4 text-accent" />

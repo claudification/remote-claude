@@ -62,7 +62,7 @@ export function SessionResults({
                     projectSettings[session.cwd]?.color ? { color: projectSettings[session.cwd].color } : undefined
                   }
                 >
-                  {renderProjectIcon(projectSettings[session.cwd].icon!, 'w-3 h-3 inline')}
+                  {renderProjectIcon(projectSettings[session.cwd]?.icon || '', 'w-3 h-3 inline')}
                 </span>
               )}
               <span

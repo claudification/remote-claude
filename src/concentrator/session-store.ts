@@ -24,6 +24,7 @@ import type {
 } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
 import { getProjectSettings } from './project-settings'
+
 export type { SessionSummary }
 
 // Dashboard broadcast message (concentrator -> browser)
@@ -147,15 +148,15 @@ export interface SessionStore {
   pushAgentDiag: (entry: { t: number; type: string; msg: string; args?: unknown }) => void
   getAgentDiag: () => Array<{ t: number; type: string; msg: string; args?: unknown }>
   // Request-response listeners for agent relay (spawn, dir listing)
-  addSpawnListener: (requestId: string, cb: (result: any) => void) => void
+  addSpawnListener: (requestId: string, cb: (result: unknown) => void) => void
   removeSpawnListener: (requestId: string) => void
-  resolveSpawn: (requestId: string, result: any) => void
-  addDirListener: (requestId: string, cb: (result: any) => void) => void
+  resolveSpawn: (requestId: string, result: unknown) => void
+  addDirListener: (requestId: string, cb: (result: unknown) => void) => void
   removeDirListener: (requestId: string) => void
-  resolveDir: (requestId: string, result: any) => void
-  addFileListener: (requestId: string, cb: (result: any) => void) => void
+  resolveDir: (requestId: string, result: unknown) => void
+  addFileListener: (requestId: string, cb: (result: unknown) => void) => void
   removeFileListener: (requestId: string) => void
-  resolveFile: (requestId: string, result: any) => boolean
+  resolveFile: (requestId: string, result: unknown) => boolean
   // Inter-session messaging
   checkSessionLink: (from: string, to: string) => 'linked' | 'blocked' | 'unknown'
   getLinkedSessions: (sessionId: string) => string[]
@@ -585,23 +586,23 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         const session: Session = {
           ...sessionData,
           events: [],
-          subagents: ((sessionData as any).subagents || []).map((a: any) => ({
+          subagents: (sessionData.subagents || []).map(a => ({
             ...a,
             events: a.events || [],
             // Restored sessions are ended - all subagents must be stopped
-            status: 'stopped',
+            status: 'stopped' as const,
             stoppedAt: a.stoppedAt || a.startedAt,
           })),
-          tasks: (sessionData as any).tasks || [],
-          archivedTasks: (sessionData as any).archivedTasks || [],
-          bgTasks: ((sessionData as any).bgTasks || []).map((t: any) => ({
+          tasks: sessionData.tasks || [],
+          archivedTasks: sessionData.archivedTasks || [],
+          bgTasks: (sessionData.bgTasks || []).map(t => ({
             ...t,
-            status: t.status === 'running' ? 'completed' : t.status,
+            status: t.status === 'running' ? ('completed' as const) : t.status,
             completedAt: t.completedAt || t.startedAt,
           })),
-          teammates: (sessionData as any).teammates || [],
-          team: (sessionData as any).team,
-          diagLog: (sessionData as any).diagLog || [],
+          teammates: sessionData.teammates || [],
+          team: sessionData.team,
+          diagLog: sessionData.diagLog || [],
           // Mark restored sessions as ended unless they reconnect
           status: 'ended',
         }
@@ -1887,7 +1888,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
 
     // Detect bg task completions from <task-notification> in user transcript entries
-    if (session && session.bgTasks.some(t => t.status === 'running')) {
+    if (session?.bgTasks.some(t => t.status === 'running')) {
       for (const entry of entries) {
         if (entry.type !== 'user') continue
         const msg = entry.message as Record<string, unknown> | undefined
@@ -1897,16 +1898,16 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
             ? content
             : Array.isArray(content)
               ? content
-                  .filter((c: any) => c.type === 'text')
-                  .map((c: any) => c.text)
+                  .filter((c: Record<string, unknown>) => c.type === 'text')
+                  .map((c: Record<string, unknown>) => c.text)
                   .join('')
               : ''
         if (!text.includes('<task-notification>')) continue
 
         // Extract task IDs and statuses
         const re = /<task-id>([^<]+)<\/task-id>[\s\S]*?<status>([^<]+)<\/status>/g
-        let match: RegExpExecArray | null
-        while ((match = re.exec(text)) !== null) {
+        let match: RegExpExecArray | null = re.exec(text)
+        while (match !== null) {
           const taskId = match[1]
           const status = match[2]
           const bgTask = session.bgTasks.find(t => t.taskId === taskId && t.status === 'running')
@@ -1915,6 +1916,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
             bgTask.completedAt = Date.now()
             sessionChanged = true
           }
+          match = re.exec(text)
         }
       }
     }
@@ -2064,29 +2066,29 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   }
 
   // Request-response listener maps for agent relay
-  const spawnListeners = new Map<string, (result: any) => void>()
-  const dirListeners = new Map<string, (result: any) => void>()
+  const spawnListeners = new Map<string, (result: unknown) => void>()
+  const dirListeners = new Map<string, (result: unknown) => void>()
 
-  function addSpawnListener(requestId: string, cb: (result: any) => void) {
+  function addSpawnListener(requestId: string, cb: (result: unknown) => void) {
     spawnListeners.set(requestId, cb)
   }
   function removeSpawnListener(requestId: string) {
     spawnListeners.delete(requestId)
   }
-  function resolveSpawn(requestId: string, result: any) {
+  function resolveSpawn(requestId: string, result: unknown) {
     const cb = spawnListeners.get(requestId)
     if (cb) {
       spawnListeners.delete(requestId)
       cb(result)
     }
   }
-  function addDirListener(requestId: string, cb: (result: any) => void) {
+  function addDirListener(requestId: string, cb: (result: unknown) => void) {
     dirListeners.set(requestId, cb)
   }
   function removeDirListener(requestId: string) {
     dirListeners.delete(requestId)
   }
-  function resolveDir(requestId: string, result: any) {
+  function resolveDir(requestId: string, result: unknown) {
     const cb = dirListeners.get(requestId)
     if (cb) {
       dirListeners.delete(requestId)
@@ -2094,14 +2096,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
   }
 
-  const fileListeners = new Map<string, (result: any) => void>()
-  function addFileListener(requestId: string, cb: (result: any) => void) {
+  const fileListeners = new Map<string, (result: unknown) => void>()
+  function addFileListener(requestId: string, cb: (result: unknown) => void) {
     fileListeners.set(requestId, cb)
   }
   function removeFileListener(requestId: string) {
     fileListeners.delete(requestId)
   }
-  function resolveFile(requestId: string, result: any): boolean {
+  function resolveFile(requestId: string, result: unknown): boolean {
     const cb = fileListeners.get(requestId)
     if (cb) {
       fileListeners.delete(requestId)

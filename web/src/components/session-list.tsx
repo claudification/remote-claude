@@ -53,19 +53,38 @@ function DismissButton({ sessionId }: { sessionId: string }) {
 
   if (confirming) {
     return (
-      <div className="flex items-center gap-1 text-[9px]" onClick={e => e.stopPropagation()}>
+      <div
+        className="flex items-center gap-1 text-[9px]"
+        role="group"
+        onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
+      >
         <div
+          role="button"
+          tabIndex={0}
           onClick={() => {
             haptic('tap')
             dismissSession(sessionId)
             setConfirming(false)
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              haptic('tap')
+              dismissSession(sessionId)
+              setConfirming(false)
+            }
           }}
           className="text-destructive hover:text-destructive/80 cursor-pointer font-bold"
         >
           yes
         </div>
         <div
+          role="button"
+          tabIndex={0}
           onClick={() => setConfirming(false)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') setConfirming(false)
+          }}
           className="text-muted-foreground hover:text-foreground cursor-pointer"
         >
           no
@@ -76,10 +95,19 @@ function DismissButton({ sessionId }: { sessionId: string }) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={e => {
         e.stopPropagation()
         haptic('tap')
         setConfirming(true)
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.stopPropagation()
+          haptic('tap')
+          setConfirming(true)
+        }
       }}
       className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 text-muted-foreground/40 hover:text-destructive transition-opacity cursor-pointer px-0.5"
       title="Dismiss session"
@@ -97,20 +125,39 @@ function DismissAllEndedButton({ sessions }: { sessions: Session[] }) {
 
   if (confirming) {
     return (
-      <div className="flex items-center gap-1 text-[9px]" onClick={e => e.stopPropagation()}>
+      <div
+        className="flex items-center gap-1 text-[9px]"
+        role="group"
+        onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
+      >
         <span className="text-muted-foreground">dismiss {ended.length}?</span>
         <div
+          role="button"
+          tabIndex={0}
           onClick={() => {
             haptic('tap')
             for (const s of ended) dismissSession(s.id)
             setConfirming(false)
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              haptic('tap')
+              for (const s of ended) dismissSession(s.id)
+              setConfirming(false)
+            }
           }}
           className="text-destructive hover:text-destructive/80 cursor-pointer font-bold"
         >
           yes
         </div>
         <div
+          role="button"
+          tabIndex={0}
           onClick={() => setConfirming(false)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') setConfirming(false)
+          }}
           className="text-muted-foreground hover:text-foreground cursor-pointer"
         >
           no
@@ -121,10 +168,19 @@ function DismissAllEndedButton({ sessions }: { sessions: Session[] }) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={e => {
         e.stopPropagation()
         haptic('tap')
         setConfirming(true)
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.stopPropagation()
+          haptic('tap')
+          setConfirming(true)
+        }
       }}
       className="text-[9px] text-muted-foreground/40 hover:text-destructive cursor-pointer px-1 transition-colors"
       title={`Dismiss ${ended.length} ended session${ended.length > 1 ? 's' : ''}`}
@@ -159,7 +215,12 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') handleClick()
+      }}
       className={cn(
         'w-full text-left border transition-colors group cursor-pointer',
         compact ? 'p-2 pl-4 text-[11px]' : 'p-3',
@@ -252,6 +313,8 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
             .map(a => (
               <div
                 key={a.agentId}
+                role="button"
+                tabIndex={0}
                 className={cn(
                   'text-[11px] text-pink-400/80 font-mono truncate pl-1 cursor-pointer hover:text-pink-300',
                   selectedSubagentId === a.agentId && 'text-pink-300 font-bold',
@@ -260,6 +323,13 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
                   e.stopPropagation()
                   selectSession(session.id)
                   selectSubagent(a.agentId)
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.stopPropagation()
+                    selectSession(session.id)
+                    selectSubagent(a.agentId)
+                  }
                 }}
               >
                 <span className="text-pink-400 mr-1">{'\u25CF'}</span>
@@ -271,6 +341,8 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
             .map(a => (
               <div
                 key={a.agentId}
+                role="button"
+                tabIndex={0}
                 className={cn(
                   'text-[11px] text-pink-400/40 font-mono truncate pl-1 cursor-pointer hover:text-pink-400/70',
                   selectedSubagentId === a.agentId && 'text-pink-400/80 font-bold',
@@ -279,6 +351,13 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
                   e.stopPropagation()
                   selectSession(session.id)
                   selectSubagent(a.agentId)
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.stopPropagation()
+                    selectSession(session.id)
+                    selectSubagent(a.agentId)
+                  }
                 }}
               >
                 <span className="mr-1">{'\u25CB'}</span>
@@ -300,10 +379,18 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
         <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
           {session.runningBgTaskCount > 0 && (
             <span
+              role="button"
+              tabIndex={0}
               className="px-1.5 py-0.5 bg-emerald-400/20 text-emerald-400 border border-emerald-400/50 text-[10px] font-bold cursor-pointer hover:bg-emerald-400/30"
               onClick={e => {
                 e.stopPropagation()
                 openTab(session.id, 'agents')
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.stopPropagation()
+                  openTab(session.id, 'agents')
+                }
               }}
             >
               [{session.runningBgTaskCount}] bg
@@ -519,10 +606,18 @@ function GroupNode({
   return (
     <div>
       <div
+        role="button"
+        tabIndex={0}
         className="text-[10px] font-bold uppercase tracking-wider px-1 py-1 mb-1 flex items-center gap-1.5 cursor-pointer select-none text-primary/60"
         onClick={() => {
           haptic('tick')
           onToggle()
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            haptic('tick')
+            onToggle()
+          }
         }}
       >
         <span>{collapsed ? '\u25B8' : '\u25BE'}</span>
@@ -549,9 +644,17 @@ function GroupNode({
           />
         ) : (
           <span
+            role="textbox"
+            tabIndex={0}
             onDoubleClick={e => {
               e.stopPropagation()
               setEditing(true)
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.stopPropagation()
+                setEditing(true)
+              }
             }}
           >
             {group.name}
@@ -576,9 +679,17 @@ function InactiveProjectItem({ sessions }: { sessions: Session[] }) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => {
         haptic('tap')
         selectSession(latest.id)
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          haptic('tap')
+          selectSession(latest.id)
+        }
       }}
       className="w-full text-left border border-border hover:border-primary p-2 pl-3 transition-colors cursor-pointer"
       style={displayColor ? { borderLeftColor: displayColor, borderLeftWidth: '3px' } : undefined}

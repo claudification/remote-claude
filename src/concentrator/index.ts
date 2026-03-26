@@ -50,8 +50,7 @@ function parseArgs(): Args {
   let rpId: string | undefined
   const origins: string[] = []
   let rclaudeSecret: string | undefined
-  let vapidPublicKey: string | undefined
-  let vapidPrivateKey: string | undefined
+  // vapidPublicKey and vapidPrivateKey declared after arg parsing (env-only)
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
@@ -92,8 +91,8 @@ function parseArgs(): Args {
 
   // Env fallbacks
   if (!rclaudeSecret) rclaudeSecret = process.env.RCLAUDE_SECRET
-  vapidPublicKey = process.env.VAPID_PUBLIC_KEY
-  vapidPrivateKey = process.env.VAPID_PRIVATE_KEY
+  const vapidPublicKey = process.env.VAPID_PUBLIC_KEY
+  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY
 
   return {
     port,
@@ -575,7 +574,9 @@ async function main() {
               case 'sync_check': {
                 sessionStore.handleSyncCheck(ws, data.epoch || '', data.lastSeq || 0)
                 if (verbose) {
-                  console.log(`[sync] check from dashboard: epoch=${(data.epoch || '').slice(0, 8)} seq=${data.lastSeq || 0}`)
+                  console.log(
+                    `[sync] check from dashboard: epoch=${(data.epoch || '').slice(0, 8)} seq=${data.lastSeq || 0}`,
+                  )
                 }
                 break
               }
@@ -588,7 +589,7 @@ async function main() {
                 )
                 if (verbose) {
                   console.log(
-                    `[channel] ${channel}:${chSid.slice(0, 8)}${agentId ? ':' + agentId.slice(0, 8) : ''} +sub`,
+                    `[channel] ${channel}:${chSid.slice(0, 8)}${agentId ? `:${agentId.slice(0, 8)}` : ''} +sub`,
                   )
                 }
                 break
@@ -602,7 +603,7 @@ async function main() {
                 )
                 if (verbose) {
                   console.log(
-                    `[channel] ${channel}:${chSid.slice(0, 8)}${agentId ? ':' + agentId.slice(0, 8) : ''} -sub`,
+                    `[channel] ${channel}:${chSid.slice(0, 8)}${agentId ? `:${agentId.slice(0, 8)}` : ''} -sub`,
                   )
                 }
                 break

@@ -162,7 +162,8 @@ export function createEditorView(
             tree,
             tokyoNightHighlight,
             (hFrom, hTo, cls) => {
-              const mark = markCache[cls] || (markCache[cls] = Decoration.mark({ class: cls }))
+              if (!markCache[cls]) markCache[cls] = Decoration.mark({ class: cls })
+              const mark = markCache[cls]
               builder.add(hFrom, hTo, mark)
             },
             from,
@@ -193,6 +194,7 @@ export function createEditorView(
       editorTheme,
       directHighlightPlugin,
       // Mount the HighlightStyle's CSS (syntaxHighlighting() normally does this)
+      // biome-ignore lint/style/noNonNullAssertion: module is always defined after HighlightStyle.define
       EditorView.styleModule.of(tokyoNightHighlight.module!),
       updateListener,
       EditorView.lineWrapping,

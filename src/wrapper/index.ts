@@ -11,7 +11,7 @@ import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { type FSWatcher as ChokidarWatcher, watch as chokidarWatch } from 'chokidar'
 import { isPathWithinCwd } from '../shared/path-guard'
-import type { HookEvent, TaskInfo, TasksUpdate, TranscriptEntry } from '../shared/protocol'
+import type { HookEvent, TaskInfo, TasksUpdate, TranscriptEntry, WrapperMessage } from '../shared/protocol'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
 import { DEBUG, debug } from './debug'
 import { FileEditor } from './file-editor'
@@ -21,6 +21,7 @@ import {
   initMcpChannel,
   isMcpChannelReady,
   pushChannelMessage,
+  type SessionInfo,
   sendPermissionResponse,
 } from './mcp-channel'
 import { getTerminalSize, type PtyProcess, setupTerminalPassthrough, spawnClaude } from './pty-spawn'
@@ -263,7 +264,7 @@ async function main() {
     if (diagBuffer.length === 0) return
     if (!wsClient?.isConnected() || !claudeSessionId) return
     const entries = diagBuffer.splice(0)
-    wsClient.send({ type: 'diag', sessionId: claudeSessionId, entries } as any)
+    wsClient.send({ type: 'diag', sessionId: claudeSessionId, entries } as unknown as WrapperMessage)
   }
 
   function diag(type: string, msg: string, args?: unknown) {
@@ -308,7 +309,7 @@ async function main() {
       const tasks: TaskInfo[] = []
       for (const file of files) {
         try {
-          const raw = readFileSync(join(tasksDir!, file), 'utf-8')
+          const raw = readFileSync(join(tasksDir as string, file), 'utf-8')
           const task = JSON.parse(raw)
           tasks.push({
             id: String(task.id || ''),
@@ -573,7 +574,7 @@ async function main() {
         pendingListSessions?.(sessions)
       },
       onChannelSendResult(result) {
-        pendingSendResult?.(result)
+        pendingSendResult?.(result as { ok: boolean; error?: string; conversationId?: string })
       },
       onChannelDeliver(delivery) {
         if (channelEnabled && isMcpChannelReady()) {
@@ -615,7 +616,7 @@ async function main() {
     const editor = ensureFileEditor()
 
     function respond(responseType: string, data: Record<string, unknown>) {
-      wsClient?.send({ type: responseType, requestId, sessionId, ...data } as any)
+      wsClient?.send({ type: responseType, requestId, sessionId, ...data } as unknown as WrapperMessage)
     }
 
     function respondError(responseType: string, err: unknown) {
@@ -655,7 +656,7 @@ async function main() {
         break
       case 'file_watch':
         editor.watchFile(msg.path as string, event => {
-          wsClient?.send({ type: 'file_changed', sessionId, ...event } as any)
+          wsClient?.send({ type: 'file_changed', sessionId, ...event } as unknown as WrapperMessage)
         })
         break
       case 'file_unwatch':
@@ -697,8 +698,8 @@ async function main() {
     }
     const send = (chunk: TranscriptEntry[], initial: boolean) =>
       agentId
-        ? wsClient!.sendSubagentTranscript(agentId, chunk, initial)
-        : wsClient!.sendTranscriptEntries(chunk, initial)
+        ? wsClient?.sendSubagentTranscript(agentId, chunk, initial)
+        : wsClient?.sendTranscriptEntries(chunk, initial)
 
     // Split into fixed-size chunks to avoid oversized WS frames
     for (let i = 0; i < entries.length; i += TRANSCRIPT_CHUNK_SIZE) {
@@ -729,7 +730,7 @@ async function main() {
           offset = size
           totalBytes += text.length
           if (text) {
-            wsClient!.sendBgTaskOutput(taskId, text, false)
+            wsClient?.sendBgTaskOutput(taskId, text, false)
           }
         }
       } catch {
@@ -761,19 +762,21 @@ async function main() {
   }
 
   function extractEntryText(entry: TranscriptEntry): string {
-    const content = (entry as any).message?.content
+    const content = (entry as Record<string, unknown>).message
+      ? ((entry as Record<string, unknown>).message as Record<string, unknown>)?.content
+      : undefined
     if (typeof content === 'string') return content
     if (!Array.isArray(content)) return ''
     return content
-      .filter((c: any) => typeof c === 'string' || c?.type === 'text')
-      .map((c: any) => (typeof c === 'string' ? c : c.text))
+      .filter((c: unknown) => typeof c === 'string' || (c as Record<string, unknown>)?.type === 'text')
+      .map((c: unknown) => (typeof c === 'string' ? c : (c as Record<string, string>).text))
       .join('')
   }
 
   // Scan transcript entries for background task IDs and start output watchers
   function scanForBgTasks(entries: TranscriptEntry[]) {
     for (const entry of entries) {
-      const tur = (entry as any).toolUseResult
+      const tur = (entry as Record<string, unknown>).toolUseResult as Record<string, unknown> | undefined
       if (!tur?.backgroundTaskId) continue
       const taskId = tur.backgroundTaskId as string
       if (bgTaskOutputWatchers.has(taskId)) continue
@@ -792,13 +795,14 @@ async function main() {
       const text = extractEntryText(entry)
       if (!text.includes('<task-notification>')) continue
       const re = /<task-id>([^<]+)<\/task-id>/g
-      let match: RegExpExecArray | null
-      while ((match = re.exec(text)) !== null) {
+      let match: RegExpExecArray | null = re.exec(text)
+      while (match !== null) {
         const watcher = bgTaskOutputWatchers.get(match[1])
         if (watcher) {
           diag('bgout', `Task completed, stopping watcher`, { taskId: match[1] })
           watcher.stop()
         }
+        match = re.exec(text)
       }
     }
   }
@@ -933,7 +937,7 @@ async function main() {
             pendingListSessions = null
             resolve(sessions)
           }
-          wsClient!.send({ type: 'channel_list_sessions', status } as any)
+          wsClient?.send({ type: 'channel_list_sessions', status } as unknown as WrapperMessage)
         })
       },
       async onSendMessage(to, intent, message, context, conversationId) {
@@ -945,7 +949,7 @@ async function main() {
             pendingSendResult = null
             resolve(result)
           }
-          wsClient!.send({
+          wsClient?.send({
             type: 'channel_send',
             fromSession: claudeSessionId || internalId,
             toSession: to,
@@ -953,7 +957,7 @@ async function main() {
             message,
             context,
             conversationId,
-          } as any)
+          } as unknown as WrapperMessage)
         })
       },
       onPermissionRequest(data) {
@@ -976,8 +980,8 @@ async function main() {
   }
 
   // Pending callbacks for inter-session request/response
-  let pendingListSessions: ((sessions: any[]) => void) | null = null
-  let pendingSendResult: ((result: any) => void) | null = null
+  let pendingListSessions: ((sessions: SessionInfo[]) => void) | null = null
+  let pendingSendResult: ((result: { ok: boolean; error?: string; conversationId?: string }) => void) | null = null
 
   // Start local HTTP server for hook callbacks (+ MCP endpoint when channels enabled)
   const { server: localServer, port: localServerPort } = await startLocalServer({
@@ -1209,16 +1213,19 @@ async function main() {
   let mcpConfigPath: string | undefined
   if (channelEnabled) {
     mcpConfigPath = join(rclaudeDir, `mcp-${internalId}.json`)
-    await Bun.write(mcpConfigPath, JSON.stringify({
-      mcpServers: { rclaude: { type: 'http', url: `http://localhost:${localServerPort}/mcp` } },
-    }))
+    await Bun.write(
+      mcpConfigPath,
+      JSON.stringify({
+        mcpServers: { rclaude: { type: 'http', url: `http://localhost:${localServerPort}/mcp` } },
+      }),
+    )
   }
   const finalClaudeArgs = channelEnabled
     ? [
         '--dangerously-load-development-channels',
         'server:rclaude',
         '--mcp-config',
-        mcpConfigPath!,
+        mcpConfigPath as string,
         ...claudeArgs,
       ]
     : claudeArgs
@@ -1283,7 +1290,10 @@ async function main() {
     cleanupSettings(internalId, rclaudeDir).catch(() => {})
     if (channelEnabled) {
       closeMcpChannel().catch(() => {})
-      if (mcpConfigPath) try { unlinkSync(mcpConfigPath) } catch {}
+      if (mcpConfigPath)
+        try {
+          unlinkSync(mcpConfigPath)
+        } catch {}
     }
     try {
       unlinkSync(promptFile)

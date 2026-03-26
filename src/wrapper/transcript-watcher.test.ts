@@ -23,7 +23,7 @@ describe('TranscriptWatcher', () => {
       { type: 'user', message: { content: 'hello' } },
       { type: 'assistant', message: { content: 'world' } },
     ]
-    await writeFile(testFile, entries.map(e => JSON.stringify(e)).join('\n') + '\n')
+    await writeFile(testFile, `${entries.map(e => JSON.stringify(e)).join('\n')}\n`)
 
     const received: { entries: TranscriptEntry[]; isInitial: boolean }[] = []
     const watcher = createTranscriptWatcher({
@@ -61,7 +61,7 @@ describe('TranscriptWatcher', () => {
 
     // Append new entries
     const entry = { type: 'user', message: { content: 'new entry' } }
-    await appendFile(testFile, JSON.stringify(entry) + '\n')
+    await appendFile(testFile, `${JSON.stringify(entry)}\n`)
 
     // Wait for fs.watch/poll to pick it up
     await delay(1500)
@@ -98,7 +98,7 @@ describe('TranscriptWatcher', () => {
     expect(received.length).toBe(0)
 
     // Complete the line
-    await appendFile(testFile, json.slice(20) + '\n')
+    await appendFile(testFile, `${json.slice(20)}\n`)
     await delay(1500)
 
     // Now it should be emitted
@@ -110,7 +110,7 @@ describe('TranscriptWatcher', () => {
 
   it('skips malformed JSON lines', async () => {
     const validEntry = { type: 'user', message: { content: 'valid' } }
-    const content = ['not valid json', JSON.stringify(validEntry), '{ broken: }'].join('\n') + '\n'
+    const content = `${['not valid json', JSON.stringify(validEntry), '{ broken: }'].join('\n')}\n`
 
     await writeFile(testFile, content)
 
@@ -146,7 +146,7 @@ describe('TranscriptWatcher', () => {
     // Create file after a delay
     await delay(600)
     const entry = { type: 'user', message: { content: 'late arrival' } }
-    await writeFile(latePath, JSON.stringify(entry) + '\n')
+    await writeFile(latePath, `${JSON.stringify(entry)}\n`)
 
     await startPromise
     await delay(100)
@@ -159,7 +159,7 @@ describe('TranscriptWatcher', () => {
 
   it('stops cleanly and does not emit after stop', async () => {
     const entry = { type: 'user', message: { content: 'before stop' } }
-    await writeFile(testFile, JSON.stringify(entry) + '\n')
+    await writeFile(testFile, `${JSON.stringify(entry)}\n`)
 
     let emitCount = 0
     const watcher = createTranscriptWatcher({
@@ -175,7 +175,7 @@ describe('TranscriptWatcher', () => {
     watcher.stop()
 
     // Append after stop - should not trigger
-    await appendFile(testFile, JSON.stringify({ type: 'user', message: { content: 'after stop' } }) + '\n')
+    await appendFile(testFile, `${JSON.stringify({ type: 'user', message: { content: 'after stop' } })}\n`)
     await delay(1500)
 
     expect(emitCount).toBe(1)
@@ -197,7 +197,7 @@ describe('TranscriptWatcher', () => {
     // Rapid-fire appends
     const count = 10
     for (let i = 0; i < count; i++) {
-      await appendFile(testFile, JSON.stringify({ type: 'user', index: i }) + '\n')
+      await appendFile(testFile, `${JSON.stringify({ type: 'user', index: i })}\n`)
     }
 
     await delay(2000)

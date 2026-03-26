@@ -4,6 +4,7 @@
  */
 
 // Lazy singleton highlighter
+// biome-ignore lint/suspicious/noExplicitAny: shiki's HighlighterGeneric type is complex and internal
 let highlighterPromise: Promise<any> | null = null
 
 const EAGER_LANGS = [
@@ -39,7 +40,7 @@ export async function ensureLang(lang: string): Promise<boolean> {
   if (loaded.includes(lang)) return true
   try {
     const mod = await import('shiki/bundle/web')
-    const available = mod.bundledLanguagesInfo.map((l: any) => l.id)
+    const available = mod.bundledLanguagesInfo.map((l: { id: string }) => l.id)
     if (!available.includes(lang)) return false
     await hl.loadLanguage(lang)
     return true

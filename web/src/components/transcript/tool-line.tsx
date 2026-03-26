@@ -79,7 +79,8 @@ export function ToolLine({
     case 'Edit': {
       const path = input.file_path as string
       summary = shortPath(path) || path
-      const patches = (toolUseResult as any)?.structuredPatch
+      const patches = (toolUseResult as { structuredPatch?: Array<{ oldStart: number; lines: string[] }> })
+        ?.structuredPatch
       if (patches?.length) {
         details = <DiffView patches={patches} filePath={path} />
       }

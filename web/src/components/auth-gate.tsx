@@ -136,9 +136,12 @@ function InviteInput({ onSubmit }: { onSubmit: (token: string) => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
-      <label className="text-muted-foreground text-[10px] uppercase tracking-wider">Have an invite?</label>
+      <label htmlFor="invite-input" className="text-muted-foreground text-[10px] uppercase tracking-wider">
+        Have an invite?
+      </label>
       <div className="flex gap-2">
         <input
+          id="invite-input"
           type="text"
           value={value}
           onChange={e => setValue(e.target.value)}

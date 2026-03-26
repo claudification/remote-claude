@@ -268,7 +268,10 @@ export function GroupView({
             case 'text': {
               const isApiError = /^API Error:\s*\d+\s*\{/.test(item.text)
               return isApiError ? (
-                <div key={i} className="text-sm px-3 py-2 bg-destructive/15 border border-destructive/40 rounded font-mono">
+                <div
+                  key={i}
+                  className="text-sm px-3 py-2 bg-destructive/15 border border-destructive/40 rounded font-mono"
+                >
                   <div className="text-destructive font-bold text-xs uppercase mb-1">API Error</div>
                   <pre className="text-[11px] text-destructive/80 whitespace-pre-wrap break-all">{item.text}</pre>
                 </div>

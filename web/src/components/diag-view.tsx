@@ -64,7 +64,8 @@ function toYaml(obj: unknown, indent = 0): string {
 }
 
 // Lazy Shiki highlighter (reuses transcript-view's singleton)
-let highlightPromise: Promise<any> | null = null
+let highlightPromise: Promise<{ codeToHtml: (code: string, opts: { lang: string; theme: string }) => string }> | null =
+  null
 
 function getHighlighter() {
   if (!highlightPromise) {

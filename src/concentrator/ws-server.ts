@@ -4,15 +4,7 @@
  */
 
 import type { Server, ServerWebSocket } from 'bun'
-import type {
-  Ack,
-  ConcentratorError,
-  Heartbeat,
-  HookEvent,
-  SessionEnd,
-  SessionMeta,
-  WrapperMessage,
-} from '../shared/protocol'
+import type { Ack, ConcentratorError, HookEvent, SessionEnd, SessionMeta, WrapperMessage } from '../shared/protocol'
 import type { SessionStore } from './session-store'
 
 interface WsData {

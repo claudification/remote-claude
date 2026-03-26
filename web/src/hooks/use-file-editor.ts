@@ -18,7 +18,7 @@ export interface VersionInfo {
 }
 
 interface PendingRequest {
-  resolve: (data: any) => void
+  resolve: (data: Record<string, unknown>) => void
   reject: (err: Error) => void
   timeout: ReturnType<typeof setTimeout>
 }
@@ -48,7 +48,7 @@ export function useFileEditor(sessionId: string | null) {
 
   const sendWsMessage = useSessionsStore(state => state.sendWsMessage)
 
-  function sendRequest(msg: Record<string, unknown>): Promise<any> {
+  function sendRequest(msg: Record<string, unknown>): Promise<Record<string, unknown>> {
     const requestId = crypto.randomUUID()
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -62,15 +62,16 @@ export function useFileEditor(sessionId: string | null) {
 
   // Handle incoming WS messages for file editor
   const handleMessage = useCallback(
-    (msg: any) => {
+    (msg: Record<string, unknown>) => {
       // Resolve pending requests by requestId
-      if (msg.requestId) {
-        const pending = pendingRequests.current.get(msg.requestId)
+      const requestId = msg.requestId as string | undefined
+      if (requestId) {
+        const pending = pendingRequests.current.get(requestId)
         if (pending) {
           clearTimeout(pending.timeout)
-          pendingRequests.current.delete(msg.requestId)
+          pendingRequests.current.delete(requestId)
           if (msg.error) {
-            pending.reject(new Error(msg.error))
+            pending.reject(new Error(msg.error as string))
           } else {
             pending.resolve(msg)
           }
@@ -83,11 +84,11 @@ export function useFileEditor(sessionId: string | null) {
         if (msg.path === activeFileRef.current) {
           if (dirty) {
             // User has unsaved changes - show conflict
-            setConflict(msg.content)
+            setConflict(msg.content as string)
           } else {
             // No local changes - update content directly
-            setContent(msg.content)
-            setVersion(msg.version)
+            setContent(msg.content as string)
+            setVersion(msg.version as number)
           }
         }
       }
@@ -113,9 +114,9 @@ export function useFileEditor(sessionId: string | null) {
         type: 'file_list_request',
         sessionId,
       })
-      setFiles(response.files || [])
-    } catch (err: any) {
-      setError(err.message)
+      setFiles((response.files as FileInfo[] | undefined) || [])
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoading(false)
     }
@@ -136,12 +137,12 @@ export function useFileEditor(sessionId: string | null) {
           path,
         })
         setActiveFile(path)
-        setContent(response.content)
-        setVersion(response.version)
+        setContent(response.content as string)
+        setVersion(response.version as number)
         // Start watching for disk changes
         sendWsMessage({ type: 'file_watch', sessionId, path })
-      } catch (err: any) {
-        setError(err.message)
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err))
       } finally {
         setLoading(false)
       }
@@ -180,14 +181,14 @@ export function useFileEditor(sessionId: string | null) {
         baseVersion: versionRef.current,
       })
       if (response.conflict) {
-        setConflict(response.mergedContent || null)
+        setConflict((response.mergedContent as string | undefined) || null)
       } else {
-        setVersion(response.version)
+        setVersion(response.version as number)
         setDirty(false)
         setConflict(null)
       }
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
     } finally {
       setSaving(false)
     }
@@ -229,9 +230,9 @@ export function useFileEditor(sessionId: string | null) {
           sessionId,
           path,
         })
-        setHistory(response.versions || [])
-      } catch (err: any) {
-        setError(err.message)
+        setHistory((response.versions as VersionInfo[] | undefined) || [])
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err))
       }
     },
     [sessionId],
@@ -248,12 +249,12 @@ export function useFileEditor(sessionId: string | null) {
           path,
           version: ver,
         })
-        setContent(response.content || contentRef.current)
-        setVersion(response.version || ver)
+        setContent((response.content as string | undefined) || contentRef.current)
+        setVersion((response.version as number | undefined) || ver)
         setDirty(false)
         setConflict(null)
-      } catch (err: any) {
-        setError(err.message)
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err))
       }
     },
     [sessionId],
@@ -269,8 +270,8 @@ export function useFileEditor(sessionId: string | null) {
           sessionId,
           text,
         })
-      } catch (err: any) {
-        setError(err.message)
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err))
       }
     },
     [sessionId],

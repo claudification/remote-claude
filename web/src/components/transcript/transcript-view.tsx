@@ -47,6 +47,7 @@ export function TranscriptView({
     let content: string | undefined
     let path: string | undefined
     for (const entry of entries) {
+      // biome-ignore lint/suspicious/noExplicitAny: transcript entry message has variable structure
       const msg = (entry as any)?.message
       if (msg?.role !== 'assistant') continue
       const blocks = msg.content

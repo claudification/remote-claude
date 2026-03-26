@@ -9,9 +9,9 @@ export interface BuildVersion {
 }
 
 export const BUILD_VERSION: BuildVersion = {
-  gitHash: 'e93a0b8ad9a504cd3d0dcd839df2a32c78a3d3e3',
-  gitHashShort: 'e93a0b8-dirty',
-  buildTime: '2026-03-26T06:09:42.308Z',
+  gitHash: '44c7b737d247001e09990e86eb5e5e30f1cfffed',
+  gitHashShort: '44c7b73-dirty',
+  buildTime: '2026-03-26T14:00:48.351Z',
   dirty: true,
-  recentCommits: [{"hash":"e93a0b8","message":"(HEAD -> main, origin/main, origin/HEAD) feat: Epoch+seq sync protocol + WS send refactor + zero TS errors"},{"hash":"77a4cc4","message":"debug: Add console logging for visibility restore + sync flow"},{"hash":"05f6424","message":"fix: Only force-refresh on visibility restore for touch devices"}],
+  recentCommits: [{"hash":"44c7b73","message":"(HEAD -> main, origin/main, origin/HEAD) feat: Context window usage bar in session sidebar"},{"hash":"fc5e7e6","message":"feat: Rich permission dialog with tool-specific formatting"},{"hash":"d9e8494","message":"fix: Allow clearing project icon/label/color on save"}],
 }

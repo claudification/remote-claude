@@ -622,7 +622,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
         s.label.toLowerCase().includes(lowerFilter) ||
         s.description.toLowerCase().includes(lowerFilter) ||
         s.group.toLowerCase().includes(lowerFilter) ||
-        (s.keywords && s.keywords.toLowerCase().includes(lowerFilter)),
+        s.keywords?.toLowerCase().includes(lowerFilter),
     )
   }, [lowerFilter])
 

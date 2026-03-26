@@ -147,7 +147,7 @@ export function VoiceFab() {
     }
     mediaRecorderRef.current = null
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop())
+      for (const t of streamRef.current.getTracks()) t.stop()
       streamRef.current = null
     }
     if (utteranceTimerRef.current) {
@@ -188,7 +188,7 @@ export function VoiceFab() {
 
       // User released finger (or cancelled) while we were waiting for mic permission
       if (cancelledRef.current || pendingStopRef.current) {
-        stream.getTracks().forEach(t => t.stop())
+        for (const t of stream.getTracks()) t.stop()
         if (pendingStopRef.current) {
           pendingStopRef.current = false
           cleanup()
@@ -261,7 +261,7 @@ export function VoiceFab() {
       }
       mediaRecorderRef.current = null
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop())
+        for (const t of streamRef.current.getTracks()) t.stop()
         streamRef.current = null
       }
       sendWs({ type: 'voice_stop' })

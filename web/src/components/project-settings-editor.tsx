@@ -18,8 +18,8 @@ import {
   Bed,
   Beer,
   Bell,
-  Binary,
   Bike,
+  Binary,
   Bird,
   Blocks,
   Bone,
@@ -105,8 +105,8 @@ import {
   GitFork,
   GitMerge,
   GitPullRequest,
-  GlassWater,
   Glasses,
+  GlassWater,
   Globe,
   GraduationCap,
   Grape,
@@ -127,7 +127,7 @@ import {
   HousePlug,
   IceCreamCone,
   Image,
-  Infinity,
+  Infinity as InfinityIcon,
   Key,
   Lamp,
   LampDesk,
@@ -141,7 +141,7 @@ import {
   Lollipop,
   type LucideIcon,
   Mail,
-  Map,
+  Map as MapIcon,
   Martini,
   Megaphone,
   MessageCircle,
@@ -205,8 +205,8 @@ import {
   Sparkle,
   Sparkles,
   Speaker,
-  Squirrel,
   SquareCode,
+  Squirrel,
   Stamp,
   Star,
   Stethoscope,
@@ -321,7 +321,7 @@ const ICONS: IconEntry[] = [
   { id: 'mail', icon: Mail, keywords: 'mail email letter message envelope' },
   { id: 'calendar', icon: Calendar, keywords: 'calendar date schedule event plan' },
   { id: 'clock', icon: Clock, keywords: 'clock time timer schedule wait' },
-  { id: 'map', icon: Map, keywords: 'map location geography place route' },
+  { id: 'map', icon: MapIcon, keywords: 'map location geography place route' },
   { id: 'navigation', icon: Navigation, keywords: 'navigation direction compass arrow guide' },
   { id: 'compass', icon: Compass, keywords: 'compass direction explore navigate discover' },
   { id: 'anchor', icon: Anchor, keywords: 'anchor dock port harbor stable' },
@@ -342,7 +342,7 @@ const ICONS: IconEntry[] = [
   { id: 'flag', icon: Flag, keywords: 'flag mark milestone important checkpoint' },
   { id: 'gift', icon: Gift, keywords: 'gift present surprise reward bonus' },
   { id: 'headphones', icon: Headphones, keywords: 'headphones audio listen music podcast' },
-  { id: 'infinity', icon: Infinity, keywords: 'infinity loop endless forever eternal' },
+  { id: 'infinity', icon: InfinityIcon, keywords: 'infinity loop endless forever eternal' },
   { id: 'lightbulb', icon: Lightbulb, keywords: 'lightbulb idea innovation creative bright' },
   { id: 'link', icon: Link, keywords: 'link chain url connection reference' },
   { id: 'chat', icon: MessageCircle, keywords: 'chat message bubble conversation talk' },
@@ -623,8 +623,8 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
         setKeyterms(result.keyterms)
         setProjectSettings(result.settings)
       }
-    } catch (err: any) {
-      setGenerateError(err.message || 'Failed to generate')
+    } catch (err: unknown) {
+      setGenerateError(err instanceof Error ? err.message : 'Failed to generate')
     }
     setGenerating(false)
   }
@@ -673,8 +673,11 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
 
           {/* Label */}
           <div>
-            <label className="text-muted-foreground text-[10px] uppercase tracking-wider block mb-1">Label</label>
+            <label htmlFor="ps-label" className="text-muted-foreground text-[10px] uppercase tracking-wider block mb-1">
+              Label
+            </label>
             <input
+              id="ps-label"
               type="text"
               value={label}
               onChange={e => setLabel(e.target.value)}
@@ -686,11 +689,17 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
 
           {/* Icon picker with search */}
           <div>
-            <label className="text-muted-foreground text-[10px] uppercase tracking-wider block mb-1">Icon</label>
+            <label
+              htmlFor="ps-icon-search"
+              className="text-muted-foreground text-[10px] uppercase tracking-wider block mb-1"
+            >
+              Icon
+            </label>
             <div className="relative mb-1.5">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
               <input
                 type="text"
+                id="ps-icon-search"
                 value={iconSearch}
                 onChange={e => setIconSearch(e.target.value)}
                 placeholder="Search icons... (rocket, cloud, database...)"
@@ -744,7 +753,7 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
 
           {/* Color picker */}
           <div>
-            <label className="text-muted-foreground text-[10px] uppercase tracking-wider block mb-1">Color</label>
+            <span className="text-muted-foreground text-[10px] uppercase tracking-wider block mb-1">Color</span>
             <div className="flex flex-wrap gap-1">
               {COLOR_OPTIONS.map(c => (
                 <button
@@ -770,7 +779,7 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
           {/* Voice Keyterms */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-muted-foreground text-[10px] uppercase tracking-wider">Voice Keyterms</label>
+              <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Voice Keyterms</span>
               <button
                 type="button"
                 onClick={handleGenerateKeyterms}

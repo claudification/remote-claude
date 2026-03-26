@@ -74,7 +74,7 @@ export function handleVoiceStart(
 
   const dgWs = new WebSocket(dgUrl, {
     headers: { Authorization: `Token ${deepgramKey}` },
-  } as any)
+  } as unknown as string)
 
   const voiceSession: VoiceSession = {
     dgWs,

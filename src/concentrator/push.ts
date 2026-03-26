@@ -84,9 +84,10 @@ export async function sendPushToAll(payload: PushPayload): Promise<{ sent: numbe
         urgency: 'high',
       })
       sent++
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 404 or 410 = subscription expired/unsubscribed
-      if (error?.statusCode === 404 || error?.statusCode === 410) {
+      const statusCode = (error as Record<string, unknown>)?.statusCode
+      if (statusCode === 404 || statusCode === 410) {
         staleEndpoints.push(subscription.endpoint)
       }
       failed++

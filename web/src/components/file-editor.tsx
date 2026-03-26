@@ -143,6 +143,7 @@ function EditorPane({
   filePath?: string
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  // biome-ignore lint/suspicious/noExplicitAny: EditorView type from lazy-loaded codemirror
   const viewRef = useRef<any>(null)
   const onChangeRef = useRef(onChange)
   const contentRef = useRef(content)
@@ -319,6 +320,9 @@ export const FileEditor = memo(function FileEditor({ sessionId }: { sessionId: s
 
       {/* Draggable resize handle */}
       <div
+        role="separator"
+        tabIndex={0}
+        aria-valuenow={sidebarWidth}
         className="w-1 shrink-0 cursor-col-resize hover:bg-accent/30 active:bg-accent/50 transition-colors"
         onMouseDown={e => {
           e.preventDefault()

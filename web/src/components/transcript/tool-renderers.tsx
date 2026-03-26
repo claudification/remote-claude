@@ -43,12 +43,11 @@ export function DiffView({
         try {
           const code = codeLines.join('\n')
           const tokens = highlighter.codeToTokens(code, { lang, theme: 'tokyo-night' })
-          tokens.tokens.forEach((lineTokens: any[], idx: number) => {
-            const html = lineTokens
-              .map((t: any) => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`)
-              .join('')
+          for (let idx = 0; idx < tokens.tokens.length; idx++) {
+            const lineTokens = tokens.tokens[idx] as Array<{ color?: string; content: string }>
+            const html = lineTokens.map(t => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`).join('')
             lineMap.set(codeLines[idx], html)
-          })
+          }
         } catch {
           // Highlighting failed - fall back to plain
         }
@@ -135,8 +134,8 @@ export function ShellCommand({ command }: { command: string }) {
         try {
           const tokens = highlighter.codeToTokens(command, { lang: 'shellscript', theme: 'tokyo-night' })
           const highlighted = tokens.tokens
-            .map((lineTokens: any[]) =>
-              lineTokens.map((t: any) => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`).join(''),
+            .map((lineTokens: Array<{ color?: string; content: string }>) =>
+              lineTokens.map(t => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`).join(''),
             )
             .join('\n')
           setHtml(highlighted)
@@ -181,8 +180,8 @@ export function WritePreview({ content, filePath }: { content: string; filePath?
         try {
           const tokens = highlighter.codeToTokens(truncated, { lang, theme: 'tokyo-night' })
           const highlighted = tokens.tokens
-            .map((lineTokens: any[]) =>
-              lineTokens.map((t: any) => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`).join(''),
+            .map((lineTokens: Array<{ color?: string; content: string }>) =>
+              lineTokens.map(t => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`).join(''),
             )
             .join('\n')
           setHtml(highlighted)
@@ -285,10 +284,10 @@ export function BashOutput({ result, command }: { result: string; command?: stri
   return (
     <div className="space-y-1">
       {displayCommand && <ShellCommand command={displayCommand.trim()} />}
-      {hasStdout && <TruncatedPre text={parts.stdout!.trim()} tool="Bash" />}
-      {hasStderr && (
+      {hasStdout && parts.stdout && <TruncatedPre text={parts.stdout.trim()} tool="Bash" />}
+      {hasStderr && parts.stderr && (
         <div className="border-l-2 border-red-500/40">
-          <TruncatedPre text={parts.stderr!.trim()} tool="Bash" />
+          <TruncatedPre text={parts.stderr.trim()} tool="Bash" />
         </div>
       )}
       {!hasStdout && !hasStderr && !displayCommand && (

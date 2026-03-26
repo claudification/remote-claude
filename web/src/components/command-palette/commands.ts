@@ -14,7 +14,7 @@ export function getPaletteCommands(onClose: () => void): PaletteCommand[] {
             shortcut: 'Esc',
             action: () => {
               store.selectSubagent(null)
-              store.openTab(store.selectedSessionId!, 'transcript')
+              if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'transcript')
               onClose()
               requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('textarea')?.focus())
             },
@@ -55,7 +55,7 @@ export function getPaletteCommands(onClose: () => void): PaletteCommand[] {
             label: 'Open NOTES.md in file editor',
             shortcut: 'Ctrl+Shift+Alt+N',
             action: () => {
-              store.openTab(store.selectedSessionId!, 'files')
+              if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'files')
               store.setPendingFilePath('NOTES.md')
               onClose()
             },
@@ -72,7 +72,7 @@ export function getPaletteCommands(onClose: () => void): PaletteCommand[] {
               if (store.showTerminal) {
                 store.setShowTerminal(false)
               } else {
-                store.openTerminal(session.wrapperIds![0])
+                if (session.wrapperIds?.[0]) store.openTerminal(session.wrapperIds[0])
               }
               onClose()
             },

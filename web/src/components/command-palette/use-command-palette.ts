@@ -196,8 +196,8 @@ export function useCommandPalette(onClose: () => void) {
       } else {
         setSpawnError(data.error || 'Spawn failed')
       }
-    } catch (err: any) {
-      setSpawnError(err.message || 'Network error')
+    } catch (err: unknown) {
+      setSpawnError(err instanceof Error ? err.message : 'Network error')
     } finally {
       setSpawning(false)
     }

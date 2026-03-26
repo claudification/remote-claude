@@ -46,7 +46,7 @@ export function setProjectSettings(cwd: string, update: ProjectSettings): void {
   // Remove empty string values
   for (const [key, val] of Object.entries(settings[cwd])) {
     if (val === '' || val === undefined) {
-      delete (settings[cwd] as any)[key]
+      delete (settings[cwd] as Record<string, unknown>)[key]
     }
   }
   // Remove entry if empty

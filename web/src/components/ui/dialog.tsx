@@ -66,4 +66,4 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   )
 }
 
-export { Dialog, DialogTrigger, DialogContent, DialogTitle }
+export { Dialog, DialogContent, DialogTitle, DialogTrigger }

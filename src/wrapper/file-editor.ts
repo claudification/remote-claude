@@ -307,7 +307,7 @@ export class FileEditor {
     const absPath = resolve(this.cwd, relPath)
 
     // Must resolve within cwd
-    if (!absPath.startsWith(this.cwd + '/') && absPath !== this.cwd) {
+    if (!absPath.startsWith(`${this.cwd}/`) && absPath !== this.cwd) {
       throw new Error(`Path escapes working directory: ${relPath}`)
     }
 

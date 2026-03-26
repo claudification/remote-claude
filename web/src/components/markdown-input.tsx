@@ -46,7 +46,7 @@ function highlightMarkdown(text: string): string {
   // Bold, italic, headings, etc. must not match inside already-highlighted code spans.
   // Split on code spans (already wrapped in <span>...</span> from above), process only non-code parts.
   html = html
-    .split(/(<span class="text-cyan-[^"]*">[^]*?<\/span>)/g)
+    .split(/(<span class="text-cyan-[^"]*">[\s\S]*?<\/span>)/g)
     .map((part, i) => {
       // Odd indices are code spans - leave them alone
       if (i % 2 === 1) return part
@@ -360,7 +360,7 @@ export function MarkdownInput({
       const file = imageItem.getAsFile()
       if (!file) return
       // Read the text to check if it's worth offering a choice
-      const text = await new Promise<string>(resolve => textItem!.getAsString(resolve))
+      const text = await new Promise<string>(resolve => textItem?.getAsString(resolve))
       const trimmed = text.trim()
       const isJustFilename =
         /^[^\n]{1,500}\.(png|jpe?g|gif|webp|svg|bmp|tiff?|ico|heic)$/i.test(trimmed) || /^(\/|~|[A-Z]:\\)/.test(trimmed) // file paths (Unix or Windows)
@@ -446,7 +446,7 @@ export function MarkdownInput({
     const before = value.slice(0, pos)
     const after = value.slice(pos)
     const spacer = before.length > 0 && !before.endsWith(' ') && !before.endsWith('\n') ? ' ' : ''
-    onChange(before + spacer + 'voice-to-text: ' + text + after)
+    onChange(`${before + spacer}voice-to-text: ${text}${after}`)
     // Focus synchronously - iOS Safari requires focus within the user gesture call stack
     // (rAF/setTimeout break the gesture chain and Safari refuses the focus)
     ta?.focus()

@@ -129,7 +129,7 @@ async function readUserSettings(): Promise<ClaudeSettings> {
   if (await file.exists()) {
     try {
       return (await file.json()) as ClaudeSettings
-    } catch (error) {
+    } catch (_error) {
       // Silently fall back to empty settings on parse error
       return {}
     }
@@ -193,7 +193,11 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Partial
 /**
  * Generate merged settings with hook injection
  */
-export async function generateMergedSettings(sessionId: string, port: number, claudeVersion?: string): Promise<ClaudeSettings> {
+export async function generateMergedSettings(
+  sessionId: string,
+  port: number,
+  claudeVersion?: string,
+): Promise<ClaudeSettings> {
   const userSettings = await readUserSettings()
 
   // Create our hook configuration, filtered by Claude Code version
@@ -213,7 +217,12 @@ export async function generateMergedSettings(sessionId: string, port: number, cl
 /**
  * Write merged settings to a temp file and return the path
  */
-export async function writeMergedSettings(sessionId: string, port: number, claudeVersion?: string, dir?: string): Promise<string> {
+export async function writeMergedSettings(
+  sessionId: string,
+  port: number,
+  claudeVersion?: string,
+  dir?: string,
+): Promise<string> {
   const settings = await generateMergedSettings(sessionId, port, claudeVersion)
   const settingsPath = dir ? `${dir}/settings-${sessionId}.json` : `/tmp/rclaude-settings-${sessionId}.json`
 
@@ -244,7 +253,7 @@ export async function writeMcpConfig(cwd: string, port: number): Promise<void> {
     url: `http://localhost:${port}/mcp`,
   }
 
-  await Bun.write(mcpPath, JSON.stringify({ ...existing, mcpServers }, null, 2) + '\n')
+  await Bun.write(mcpPath, `${JSON.stringify({ ...existing, mcpServers }, null, 2)}\n`)
 }
 
 /**
@@ -259,7 +268,7 @@ export async function cleanupMcpConfig(cwd: string): Promise<void> {
     const mcpServers = config.mcpServers as Record<string, unknown> | undefined
     if (mcpServers?.rclaude) {
       delete mcpServers.rclaude
-      await Bun.write(mcpPath, JSON.stringify(config, null, 2) + '\n')
+      await Bun.write(mcpPath, `${JSON.stringify(config, null, 2)}\n`)
     }
   } catch {
     /* ignore */

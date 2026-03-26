@@ -252,7 +252,7 @@ async function spawnSession(
   wrapperId: string,
   reviveScript: string,
   secret: string,
-  verbose: boolean,
+  _verbose: boolean,
   mkdir = false,
 ): Promise<{ success: boolean; error?: string; tmuxSession?: string }> {
   // Diagnostic dump
@@ -274,8 +274,8 @@ async function spawnSession(
       try {
         mkdirSync(cwd, { recursive: true })
         diag('spawn', 'Created directory', { cwd })
-      } catch (e: any) {
-        return { success: false, error: `Failed to create directory: ${e.message}` }
+      } catch (e: unknown) {
+        return { success: false, error: `Failed to create directory: ${(e as Error).message}` }
       }
     } else {
       return { success: false, error: `Directory not found: ${cwd}` }
@@ -394,12 +394,14 @@ function connect(
           shouldReconnect = false
           ws.close()
           process.exit(1)
+          break
 
         case 'quit':
           log(`Quit requested: ${'reason' in msg ? msg.reason : 'no reason'}`)
           shouldReconnect = false
           ws.close()
           process.exit(0)
+          break
 
         case 'revive': {
           const reviveMsg = msg as { sessionId: string; cwd: string; wrapperId: string }

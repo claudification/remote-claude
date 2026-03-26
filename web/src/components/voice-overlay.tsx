@@ -192,7 +192,7 @@ export function VoiceOverlay({ onResult, onClose, holdMode = false, onMicGranted
     }
     mediaRecorderRef.current = null
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop())
+      for (const t of streamRef.current.getTracks()) t.stop()
       streamRef.current = null
     }
     if (utteranceTimerRef.current) {

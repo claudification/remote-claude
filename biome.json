@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.6/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.9/schema.json",
   "assist": {
     "actions": {
       "source": {
@@ -37,7 +37,8 @@
       "a11y": {
         "noStaticElementInteractions": "warn",
         "useKeyWithClickEvents": "warn",
-        "noLabelWithoutControl": "warn"
+        "noLabelWithoutControl": "warn",
+        "useSemanticElements": "off"
       }
     }
   },
