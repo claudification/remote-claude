@@ -124,15 +124,22 @@ export function DiffView({
   )
 }
 
+/** Strip leading `# comment` line from shell commands -- redundant with the description field */
+function stripLeadingComment(cmd: string): string {
+  const m = cmd.match(/^#[^\n]*\\?\s*\n/)
+  return m ? cmd.slice(m[0].length) : cmd
+}
+
 // Syntax-highlighted shell command block
 export function ShellCommand({ command }: { command: string }) {
   const [html, setHtml] = useState<string | null>(null)
+  const cleaned = stripLeadingComment(command)
 
   useEffect(() => {
     getHighlighter()
       .then(highlighter => {
         try {
-          const tokens = highlighter.codeToTokens(command, { lang: 'shellscript', theme: 'tokyo-night' })
+          const tokens = highlighter.codeToTokens(cleaned, { lang: 'shellscript', theme: 'tokyo-night' })
           const highlighted = tokens.tokens
             .map((lineTokens: Array<{ color?: string; content: string }>) =>
               lineTokens.map(t => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`).join(''),
@@ -144,7 +151,7 @@ export function ShellCommand({ command }: { command: string }) {
         }
       })
       .catch(() => {})
-  }, [command])
+  }, [cleaned])
 
   return (
     <pre className="text-[10px] bg-black/30 p-2 overflow-auto whitespace-pre-wrap font-mono border-l-2 border-green-500/40">
@@ -152,7 +159,7 @@ export function ShellCommand({ command }: { command: string }) {
       {html ? (
         <code dangerouslySetInnerHTML={{ __html: html }} />
       ) : (
-        <span className="text-foreground/80">{command}</span>
+        <span className="text-foreground/80">{cleaned}</span>
       )}
     </pre>
   )
