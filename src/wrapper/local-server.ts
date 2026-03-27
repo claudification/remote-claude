@@ -5,16 +5,74 @@
  */
 
 import type { Server } from 'bun'
-import type { HookEvent, HookEventData, HookEventType } from '../shared/protocol'
+import type { AskQuestionItem, AskQuestionRequest, HookEvent, HookEventData, HookEventType } from '../shared/protocol'
 import { handleMcpRequest } from './mcp-channel'
 
 type HttpServer = Server<unknown>
+
+/** Hook response JSON for AskUserQuestion -- returned to CC via PreToolUse hook stdout */
+interface AskHookResponse {
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse'
+    permissionDecision: 'allow'
+    updatedInput: {
+      questions: AskQuestionItem[]
+      answers: Record<string, string>
+      annotations?: Record<string, { preview?: string; notes?: string }>
+    }
+  }
+}
+
+/** Pending AskUserQuestion request waiting for dashboard answer */
+interface PendingAskRequest {
+  resolve: (response: AskHookResponse | null) => void
+  timer: ReturnType<typeof setTimeout>
+  questions: AskQuestionItem[]
+}
+
+/** Map of toolUseId -> pending ask request resolver */
+const pendingAskRequests = new Map<string, PendingAskRequest>()
+
+/** Resolve a pending AskUserQuestion request with the user's answer (or null for skip/timeout) */
+export function resolveAskRequest(
+  toolUseId: string,
+  answers?: Record<string, string>,
+  annotations?: Record<string, { preview?: string; notes?: string }>,
+  skip?: boolean,
+): boolean {
+  const pending = pendingAskRequests.get(toolUseId)
+  if (!pending) return false
+
+  clearTimeout(pending.timer)
+  pendingAskRequests.delete(toolUseId)
+
+  if (skip || !answers) {
+    pending.resolve(null) // Fall through to terminal UI
+  } else {
+    pending.resolve({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'allow',
+        updatedInput: {
+          questions: pending.questions,
+          answers,
+          ...(annotations && { annotations }),
+        },
+      },
+    })
+  }
+  return true
+}
+
+const ASK_TIMEOUT_MS = 90_000 // 90s -- must be under curl's 120s --max-time
 
 export interface LocalServerOptions {
   sessionId: string
   channelEnabled: boolean
   onHookEvent: (event: HookEvent) => void
   onNotify?: (message: string, title?: string) => void
+  onAskQuestion?: (request: AskQuestionRequest) => void
+  hasDashboardSubscribers?: () => boolean
 }
 
 /**
@@ -43,7 +101,7 @@ async function findAvailablePort(startPort: number): Promise<number> {
  * Create and start the local HTTP server for hook callbacks
  */
 export async function startLocalServer(options: LocalServerOptions): Promise<{ server: HttpServer; port: number }> {
-  const { sessionId, channelEnabled, onHookEvent, onNotify } = options
+  const { sessionId, channelEnabled, onHookEvent, onNotify, onAskQuestion, hasDashboardSubscribers } = options
 
   const port = await findAvailablePort(19000 + Math.floor(Math.random() * 1000))
 
@@ -81,6 +139,52 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
             status: 400,
             headers: { 'Content-Type': 'application/json' },
           })
+        }
+      }
+
+      // AskUserQuestion endpoint: POST /hook/AskUserQuestion
+      // This is the long-timeout hook (120s curl). Blocks until dashboard answers or timeout.
+      if (req.method === 'POST' && url.pathname === '/hook/AskUserQuestion') {
+        try {
+          const body = await req.text()
+          const data = body.trim() ? (JSON.parse(body) as Record<string, unknown>) : {}
+          const toolInput = data.tool_input as Record<string, unknown> | undefined
+          const toolUseId = (data.tool_use_id as string) || `ask_${Date.now()}`
+          const questions = (toolInput?.questions as AskQuestionItem[]) || []
+
+          // No dashboard? Return immediately -- CC falls through to terminal UI
+          if (!hasDashboardSubscribers?.()) {
+            return new Response(null, { status: 200 })
+          }
+
+          // Forward to dashboard and block until answer or timeout
+          const hookResponse = await new Promise<AskHookResponse | null>(resolve => {
+            const timer = setTimeout(() => {
+              pendingAskRequests.delete(toolUseId)
+              resolve(null) // Timeout -- fall through to terminal
+            }, ASK_TIMEOUT_MS)
+
+            pendingAskRequests.set(toolUseId, { resolve, timer, questions })
+
+            // Notify the wrapper to forward to concentrator -> dashboard
+            onAskQuestion?.({
+              type: 'ask_question',
+              sessionId,
+              toolUseId,
+              questions,
+            })
+          })
+
+          if (hookResponse) {
+            return new Response(JSON.stringify(hookResponse), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            })
+          }
+          // null = skip/timeout, return empty 200
+          return new Response(null, { status: 200 })
+        } catch {
+          return new Response(null, { status: 200 }) // Don't block CC on errors
         }
       }
 

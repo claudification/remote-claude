@@ -49,15 +49,13 @@ interface HistoryEntry {
 
 export class FileEditor {
   private cwd: string
-  private sessionId: string
   private versions = new Map<string, VersionEntry[]>()
   private currentVersion = new Map<string, number>()
   private watchers = new Map<string, ChokidarWatcher>()
   private skipNextChange = new Map<string, boolean>()
 
-  constructor(cwd: string, sessionId: string) {
+  constructor(cwd: string, _sessionId: string) {
     this.cwd = resolve(cwd)
-    this.sessionId = sessionId
   }
 
   /**

@@ -15,7 +15,7 @@ import type { HookEvent, TaskInfo, TasksUpdate, TranscriptEntry, WrapperMessage 
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
 import { DEBUG, debug } from './debug'
 import { FileEditor } from './file-editor'
-import { startLocalServer, stopLocalServer } from './local-server'
+import { resolveAskRequest, startLocalServer, stopLocalServer } from './local-server'
 import {
   closeMcpChannel,
   initMcpChannel,
@@ -599,6 +599,13 @@ async function main() {
           diag('channel', `Permission response: ${requestId} -> ${behavior}`)
         }
       },
+      onAskAnswer(toolUseId, answers, annotations, skip) {
+        const resolved = resolveAskRequest(toolUseId, answers, annotations, skip)
+        diag(
+          'ask',
+          resolved ? `Answer resolved: ${toolUseId.slice(0, 12)}` : `No pending request: ${toolUseId.slice(0, 12)}`,
+        )
+      },
     })
   }
 
@@ -1130,6 +1137,15 @@ async function main() {
       if (wsClient?.isConnected()) {
         wsClient.send({ type: 'notify', sessionId, message, title })
       }
+    },
+    onAskQuestion(request) {
+      debug(`AskUserQuestion: ${request.questions.length} questions, toolUseId=${request.toolUseId.slice(0, 12)}`)
+      if (wsClient?.isConnected()) {
+        wsClient.send({ ...request, sessionId: claudeSessionId || internalId })
+      }
+    },
+    hasDashboardSubscribers() {
+      return wsClient?.isConnected() ?? false
     },
   })
 

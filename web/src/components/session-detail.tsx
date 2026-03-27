@@ -176,6 +176,191 @@ function PermissionBanners() {
   )
 }
 
+function AskQuestionBanners() {
+  const questions = useSessionsStore(s => s.pendingAskQuestions)
+  const respond = useSessionsStore(s => s.respondToAskQuestion)
+  const selectedSession = useSessionsStore(s => s.selectedSessionId)
+  const relevant = questions.filter(q => q.sessionId === selectedSession)
+
+  if (relevant.length === 0) return null
+
+  return (
+    <div className="shrink-0 space-y-2 p-2">
+      {relevant.map(askReq => (
+        <AskQuestionCard key={askReq.toolUseId} request={askReq} onRespond={respond} />
+      ))}
+    </div>
+  )
+}
+
+function AskQuestionCard({
+  request,
+  onRespond,
+}: {
+  request: {
+    sessionId: string
+    toolUseId: string
+    questions: Array<{
+      question: string
+      header: string
+      options: Array<{ label: string; description: string; preview?: string }>
+      multiSelect?: boolean
+    }>
+    timestamp: number
+  }
+  onRespond: (
+    sessionId: string,
+    toolUseId: string,
+    answers?: Record<string, string>,
+    annotations?: Record<string, { preview?: string; notes?: string }>,
+    skip?: boolean,
+  ) => void
+}) {
+  const [selections, setSelections] = useState<Record<string, Set<string>>>({})
+  const [notes, setNotes] = useState<Record<string, string>>({})
+  const [elapsed, setElapsed] = useState(0)
+
+  // Countdown timer
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - request.timestamp) / 1000))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [request.timestamp])
+
+  const timeLeft = Math.max(0, 90 - elapsed)
+  const isExpiring = timeLeft < 20
+
+  function toggleOption(question: string, label: string, multiSelect?: boolean) {
+    haptic('tap')
+    setSelections(prev => {
+      const current = prev[question] || new Set<string>()
+      const next = new Set(current)
+      if (multiSelect) {
+        if (next.has(label)) next.delete(label)
+        else next.add(label)
+      } else {
+        next.clear()
+        next.add(label)
+      }
+      return { ...prev, [question]: next }
+    })
+  }
+
+  function handleSubmit() {
+    haptic('success')
+    const answers: Record<string, string> = {}
+    const annots: Record<string, { notes?: string }> = {}
+    for (const q of request.questions) {
+      const selected = selections[q.question]
+      if (selected && selected.size > 0) {
+        answers[q.question] = [...selected].join(', ')
+      }
+      if (notes[q.question]?.trim()) {
+        annots[q.question] = { notes: notes[q.question].trim() }
+      }
+    }
+    const hasAnnotations = Object.keys(annots).length > 0
+    onRespond(request.sessionId, request.toolUseId, answers, hasAnnotations ? annots : undefined)
+  }
+
+  function handleSkip() {
+    haptic('tick')
+    onRespond(request.sessionId, request.toolUseId, undefined, undefined, true)
+  }
+
+  const allAnswered = request.questions.every(q => {
+    const selected = selections[q.question]
+    return selected && selected.size > 0
+  })
+
+  return (
+    <div className="flex flex-col gap-2 px-3 py-2.5 bg-violet-500/10 border border-violet-500/30 rounded font-mono text-xs">
+      <div className="flex items-center gap-2">
+        <span className="text-violet-400 font-bold shrink-0">QUESTION</span>
+        <span className="text-muted-foreground text-[10px] ml-auto tabular-nums">
+          <span className={isExpiring ? 'text-red-400 font-bold animate-pulse' : ''}>{timeLeft}s</span>
+        </span>
+      </div>
+
+      {request.questions.map(q => (
+        <div key={q.question} className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 text-[10px] font-bold uppercase">
+              {q.header}
+            </span>
+            {q.multiSelect && <span className="text-[9px] text-muted-foreground">(select multiple)</span>}
+          </div>
+          <div className="text-foreground text-[11px] leading-relaxed">{q.question}</div>
+          <div className="space-y-1">
+            {q.options.map(opt => {
+              const isSelected = selections[q.question]?.has(opt.label)
+              return (
+                <button
+                  type="button"
+                  key={opt.label}
+                  onClick={() => toggleOption(q.question, opt.label, q.multiSelect)}
+                  className={cn(
+                    'w-full text-left px-2.5 py-1.5 border rounded transition-all',
+                    isSelected
+                      ? 'border-violet-500/60 bg-violet-500/20 text-violet-300'
+                      : 'border-border/50 hover:border-violet-500/40 hover:bg-violet-500/5 text-foreground/80',
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'shrink-0 w-3.5 h-3.5 border flex items-center justify-center text-[9px]',
+                        q.multiSelect ? 'rounded-sm' : 'rounded-full',
+                        isSelected ? 'border-violet-400 bg-violet-500/30' : 'border-muted-foreground/40',
+                      )}
+                    >
+                      {isSelected && (q.multiSelect ? '\u2713' : '\u25CF')}
+                    </span>
+                    <span className="font-bold text-[11px]">{opt.label}</span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground ml-5.5 mt-0.5">{opt.description}</div>
+                </button>
+              )
+            })}
+          </div>
+          {/* Optional notes field */}
+          <input
+            type="text"
+            placeholder="Add a note (optional)"
+            value={notes[q.question] || ''}
+            onChange={e => setNotes(prev => ({ ...prev, [q.question]: e.target.value }))}
+            className="w-full px-2 py-1 text-[10px] bg-muted/30 border border-border/30 rounded text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-violet-500/50"
+          />
+        </div>
+      ))}
+
+      <div className="flex items-center gap-2 mt-1">
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!allAnswered}
+          className={cn(
+            'px-4 py-1.5 text-[11px] font-bold border transition-colors',
+            allAnswered
+              ? 'bg-violet-500/20 text-violet-400 border-violet-500/40 hover:bg-violet-500/30'
+              : 'bg-muted/20 text-muted-foreground border-border/30 cursor-not-allowed',
+          )}
+        >
+          SUBMIT
+        </button>
+        <button
+          type="button"
+          onClick={handleSkip}
+          className="px-3 py-1.5 text-[11px] font-bold bg-muted/20 text-muted-foreground border border-border/30 hover:bg-muted/30 transition-colors"
+        >
+          SKIP TO TERMINAL
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ScrollToBottomButton({ onClick, direction = 'down' }: { onClick: () => void; direction?: 'down' | 'up' }) {
   const Icon = direction === 'up' ? ChevronUp : ChevronDown
   return (
@@ -516,6 +701,8 @@ export function SessionDetail() {
       <LinkRequestBanners />
       {/* Permission Relay Banners */}
       <PermissionBanners />
+      {/* AskUserQuestion Banners */}
+      <AskQuestionBanners />
       {/* Session Info - Collapsible */}
       <div className="shrink-0 border-b border-border max-h-[30vh] overflow-y-auto">
         <button

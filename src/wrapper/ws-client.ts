@@ -57,6 +57,12 @@ export interface WsClientOptions {
   onChannelDeliver?: (delivery: InterSessionDelivery) => void
   onChannelLinkRequest?: (request: InterSessionLinkRequest) => void
   onPermissionResponse?: (requestId: string, behavior: 'allow' | 'deny') => void
+  onAskAnswer?: (
+    toolUseId: string,
+    answers?: Record<string, string>,
+    annotations?: Record<string, { preview?: string; notes?: string }>,
+    skip?: boolean,
+  ) => void
 }
 
 export interface WsClient {
@@ -106,6 +112,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onChannelDeliver,
     onChannelLinkRequest,
     onPermissionResponse,
+    onAskAnswer,
   } = options
 
   let sessionId = initialSessionId
@@ -250,6 +257,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
               break
             case 'permission_response':
               onPermissionResponse?.(message.requestId, message.behavior)
+              break
+            case 'ask_answer':
+              onAskAnswer?.(message.toolUseId, message.answers, message.annotations, message.skip)
               break
             default: {
               const msgType = (message as Record<string, unknown>).type as string

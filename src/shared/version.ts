@@ -9,9 +9,9 @@ export interface BuildVersion {
 }
 
 export const BUILD_VERSION: BuildVersion = {
-  gitHash: '44c7b737d247001e09990e86eb5e5e30f1cfffed',
-  gitHashShort: '44c7b73-dirty',
-  buildTime: '2026-03-26T14:00:48.351Z',
+  gitHash: '53302af251db4690a8058eb556ac45db082e7344',
+  gitHashShort: '53302af-dirty',
+  buildTime: '2026-03-27T02:25:25.185Z',
   dirty: true,
-  recentCommits: [{"hash":"44c7b73","message":"(HEAD -> main, origin/main, origin/HEAD) feat: Context window usage bar in session sidebar"},{"hash":"fc5e7e6","message":"feat: Rich permission dialog with tool-specific formatting"},{"hash":"d9e8494","message":"fix: Allow clearing project icon/label/color on save"}],
+  recentCommits: [{"hash":"53302af","message":"(HEAD -> main, origin/main, origin/HEAD) fix: Version mismatch check ignores -dirty suffix"},{"hash":"3512b92","message":"fix: Resolve all biome lint issues and last TS error"},{"hash":"44c7b73","message":"feat: Context window usage bar in session sidebar"}],
 }

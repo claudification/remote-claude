@@ -100,6 +100,24 @@ interface SessionsState {
     timestamp: number
   }>
   respondToPermission: (sessionId: string, requestId: string, behavior: 'allow' | 'deny') => void
+  pendingAskQuestions: Array<{
+    sessionId: string
+    toolUseId: string
+    questions: Array<{
+      question: string
+      header: string
+      options: Array<{ label: string; description: string; preview?: string }>
+      multiSelect?: boolean
+    }>
+    timestamp: number
+  }>
+  respondToAskQuestion: (
+    sessionId: string,
+    toolUseId: string,
+    answers?: Record<string, string>,
+    annotations?: Record<string, { preview?: string; notes?: string }>,
+    skip?: boolean,
+  ) => void
   requestedTab: string | null
   requestedTabSeq: number
   pendingFilePath: string | null
@@ -215,6 +233,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     wsSend('permission_response', { sessionId, requestId, behavior })
     useSessionsStore.setState(state => ({
       pendingPermissions: state.pendingPermissions.filter(p => p.requestId !== requestId),
+    }))
+  },
+  pendingAskQuestions: [],
+  respondToAskQuestion: (sessionId, toolUseId, answers, annotations, skip) => {
+    wsSend('ask_answer', { sessionId, toolUseId, answers, annotations, skip })
+    useSessionsStore.setState(state => ({
+      pendingAskQuestions: state.pendingAskQuestions.filter(q => q.toolUseId !== toolUseId),
     }))
   },
   requestedTab: null,

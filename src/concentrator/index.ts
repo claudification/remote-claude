@@ -827,6 +827,53 @@ async function main() {
                 break
               }
 
+              // AskUserQuestion relay: wrapper -> dashboard (broadcast)
+              case 'ask_question': {
+                const sessionId = ws.data.sessionId || data.sessionId
+                if (!sessionId) break
+                const msg = JSON.stringify({
+                  type: 'ask_question',
+                  sessionId,
+                  toolUseId: data.toolUseId,
+                  questions: data.questions,
+                })
+                for (const sub of sessionStore.getSubscribers()) {
+                  try {
+                    sub.send(msg)
+                  } catch {}
+                }
+                if (verbose) {
+                  console.log(
+                    `[ask] Question: ${data.toolUseId?.slice(0, 12)} ${(data.questions as unknown[])?.length || 0}q (session ${sessionId.slice(0, 8)})`,
+                  )
+                }
+                break
+              }
+
+              // AskUserQuestion relay: dashboard -> wrapper (forward)
+              case 'ask_answer': {
+                const sessionId = data.sessionId
+                const targetWs = sessionId ? sessionStore.getSessionSocket(sessionId) : null
+                if (targetWs) {
+                  targetWs.send(
+                    JSON.stringify({
+                      type: 'ask_answer',
+                      sessionId,
+                      toolUseId: data.toolUseId,
+                      answers: data.answers,
+                      annotations: data.annotations,
+                      skip: data.skip,
+                    }),
+                  )
+                  if (verbose) {
+                    console.log(
+                      `[ask] Answer: ${data.toolUseId?.slice(0, 12)} ${data.skip ? 'SKIP' : 'answered'} (session ${sessionId.slice(0, 8)})`,
+                    )
+                  }
+                }
+                break
+              }
+
               case 'channel_link_response': {
                 // Comes from DASHBOARD, not from a session wrapper
                 const fromSession = data.fromSession

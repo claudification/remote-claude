@@ -288,6 +288,7 @@ export type WrapperMessage =
   | InterSessionLinkResponse
   | InterSessionListRequest
   | PermissionRequest
+  | AskQuestionRequest
 
 // Concentrator -> Wrapper messages
 export interface Ack {
@@ -385,6 +386,36 @@ export interface InterSessionListResponse {
   }>
 }
 
+// AskUserQuestion relay (CC 2.1.85+ PreToolUse hook -> dashboard -> hook response)
+export interface AskQuestionOption {
+  label: string
+  description: string
+  preview?: string
+}
+
+export interface AskQuestionItem {
+  question: string
+  header: string
+  options: AskQuestionOption[]
+  multiSelect?: boolean
+}
+
+export interface AskQuestionRequest {
+  type: 'ask_question'
+  sessionId: string
+  toolUseId: string
+  questions: AskQuestionItem[]
+}
+
+export interface AskQuestionResponse {
+  type: 'ask_answer'
+  sessionId: string
+  toolUseId: string
+  answers: Record<string, string> // question text -> selected label(s)
+  annotations?: Record<string, { preview?: string; notes?: string }>
+  skip?: boolean // true = fall through to terminal UI
+}
+
 // Permission relay (CC -> channel -> dashboard -> channel -> CC)
 export interface PermissionRequest {
   type: 'permission_request'
@@ -418,6 +449,7 @@ export type ConcentratorMessage =
   | InterSessionLinkRequest
   | InterSessionListResponse
   | PermissionResponse
+  | AskQuestionResponse
 
 // Hook event types from Claude Code
 export type HookEventType =

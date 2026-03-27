@@ -367,6 +367,36 @@ function processMessage(msg: DashboardMessage) {
       }
       break
     }
+    case 'ask_question': {
+      const askMsg = msg as DashboardMessage & {
+        toolUseId?: string
+        questions?: Array<{
+          question: string
+          header: string
+          options: Array<{ label: string; description: string; preview?: string }>
+          multiSelect?: boolean
+        }>
+      }
+      const askSid = askMsg.sessionId
+      const askTuid = askMsg.toolUseId
+      if (askSid && askTuid && askMsg.questions) {
+        useSessionsStore.setState(state => {
+          if (state.pendingAskQuestions.some(q => q.toolUseId === askTuid)) return state
+          return {
+            pendingAskQuestions: [
+              ...state.pendingAskQuestions,
+              {
+                sessionId: askSid,
+                toolUseId: askTuid,
+                questions: askMsg.questions || [],
+                timestamp: Date.now(),
+              },
+            ],
+          }
+        })
+      }
+      break
+    }
     case 'session_dismissed': {
       if (msg.sessionId) {
         useSessionsStore.setState(state => ({

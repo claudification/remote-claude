@@ -23,6 +23,7 @@ type Hook = CommandHook | HttpHook
 interface HookMatcher {
   matcher: string
   hooks: Hook[]
+  if?: string // CC 2.1.85+: permission rule syntax filter (e.g. "AskUserQuestion", "Bash(git *)")
 }
 
 interface ClaudeSettings {
@@ -205,6 +206,24 @@ export async function generateMergedSettings(
   const ourHooks: ClaudeSettings['hooks'] = {}
   for (const event of supportedEvents) {
     ourHooks[event as keyof ClaudeSettings['hooks']] = [createHookMatcher(event, port, sessionId)]
+  }
+
+  // CC 2.1.85+: Add a long-timeout PreToolUse hook specifically for AskUserQuestion.
+  // Uses the `if` field to only fire for AskUserQuestion tool calls.
+  // The general PreToolUse hook (3s) still fires for tracking; this one blocks
+  // until the dashboard user answers (or 120s timeout, whichever comes first).
+  if (claudeVersion && isVersionAtLeast(claudeVersion, '2.1.85')) {
+    const askHook: HookMatcher = {
+      matcher: '',
+      if: 'AskUserQuestion',
+      hooks: [
+        {
+          type: 'command',
+          command: `curl -sf --max-time 120 -X POST "http://127.0.0.1:${port}/hook/AskUserQuestion" -H "Content-Type: application/json" -H "X-Session-Id: ${sessionId}" -d @- 2>/dev/null || true`,
+        },
+      ],
+    }
+    ourHooks.PreToolUse = [...(ourHooks.PreToolUse || []), askHook]
   }
 
   // Whitelist our local hook server URLs for HTTP hooks
