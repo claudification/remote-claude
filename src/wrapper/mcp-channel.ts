@@ -47,6 +47,7 @@ export interface McpChannelCallbacks {
   ) => Promise<{ ok: boolean; error?: string; conversationId?: string }>
   onPermissionRequest?: (data: PermissionRequestData) => void
   onDisconnect?: () => void
+  onTogglePlanMode?: () => void
 }
 
 interface McpChannelState {
@@ -143,6 +144,15 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           required: ['to', 'intent', 'message'],
         },
       },
+      {
+        name: 'toggle_plan_mode',
+        description:
+          'Toggle plan mode off via the terminal session. Use this as a fallback ONLY when ExitPlanMode is not available as a deferred tool but plan mode is still active. The toggle takes effect after your current response completes.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {},
+        },
+      },
     ],
   }))
 
@@ -185,6 +195,11 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         debug(`[channel] send_message to ${to}: ${message.slice(0, 60)}`)
         const response = result.conversationId ? `Sent. conversation_id: ${result.conversationId}` : 'Sent.'
         return { content: [{ type: 'text', text: response }] }
+      }
+      case 'toggle_plan_mode': {
+        callbacks.onTogglePlanMode?.()
+        debug('[channel] toggle_plan_mode: sent /plan via PTY')
+        return { content: [{ type: 'text', text: 'Plan mode toggle sent via PTY. Plan mode will turn off after your current response.' }] }
       }
       default:
         return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }

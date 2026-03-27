@@ -564,6 +564,7 @@ OPTIONS:
   --no-terminal          Disable remote terminal capability
   --no-channels          Disable MCP channel (channels are ON by default)
   --channels             Enable MCP channel (already default, for explicitness)
+  --mcp-tools-only       Run MCP server without channel input (fixes plan mode)
   --rclaude-help         Show rclaude help
 
 All other arguments pass through to claude CLI.
@@ -572,10 +573,11 @@ All other arguments pass through to claude CLI.
 **MCP Channel mode** (enabled by default) connects Claude Code to rclaude via MCP,
 enabling dashboard input without PTY keystroke injection and inter-session messaging.
 
-> **Note:** Claude Code 2.1.83+ disables `AskUserQuestion` and plan mode tools when
-> channels are active. These features require interactive terminal prompts that can't
-> flow through the channel yet. Use `--no-channels` or `RCLAUDE_CHANNELS=0` if you
-> need plan mode or structured questions. Terminal TTY access still works regardless.
+> **Note:** When channel input is active (`--dangerously-load-development-channels` is passed),
+> `ExitPlanMode` may appear in the deferred tools list but ToolSearch cannot resolve its schema.
+> Use `--mcp-tools-only` (or `RCLAUDE_CHANNEL_INPUT=0`) to keep MCP tools while disabling channel
+> input — this restores native plan mode behavior. As a fallback, Claude can call
+> `mcp__rclaude__toggle_plan_mode` to inject a `/plan` toggle via the terminal session.
 
 **Environment variables:**
 
@@ -583,7 +585,8 @@ enabling dashboard input without PTY keystroke injection and inter-session messa
 |----------|-------------|
 | `RCLAUDE_SECRET` | Shared secret (alternative to `--rclaude-secret`) |
 | `RCLAUDE_CONCENTRATOR` | Concentrator URL (alternative to `--concentrator`) |
-| `RCLAUDE_CHANNELS` | Set to `0` to disable MCP channel (enabled by default) |
+| `RCLAUDE_CHANNELS` | Set to `0` to disable MCP channel entirely (enabled by default) |
+| `RCLAUDE_CHANNEL_INPUT` | Set to `0` to disable channel input while keeping MCP tools (`--mcp-tools-only`) |
 | `RCLAUDE_DEBUG` | Set to `1` to enable debug logging |
 | `RCLAUDE_DEBUG_LOG` | Debug log file path (default: `/tmp/rclaude-debug.log`) |
 
