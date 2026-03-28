@@ -68,7 +68,7 @@ const ASK_TIMEOUT_MS = 90_000 // 90s -- must be under curl's 120s --max-time
 
 export interface LocalServerOptions {
   sessionId: string
-  channelEnabled: boolean
+  mcpEnabled: boolean
   onHookEvent: (event: HookEvent) => void
   onNotify?: (message: string, title?: string) => void
   onAskQuestion?: (request: AskQuestionRequest) => void
@@ -101,7 +101,7 @@ async function findAvailablePort(startPort: number): Promise<number> {
  * Create and start the local HTTP server for hook callbacks
  */
 export async function startLocalServer(options: LocalServerOptions): Promise<{ server: HttpServer; port: number }> {
-  const { sessionId, channelEnabled, onHookEvent, onNotify, onAskQuestion, hasDashboardSubscribers } = options
+  const { sessionId, mcpEnabled, onHookEvent, onNotify, onAskQuestion, hasDashboardSubscribers } = options
 
   const port = await findAvailablePort(19000 + Math.floor(Math.random() * 1000))
 
@@ -238,7 +238,7 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
       }
 
       // MCP Streamable HTTP endpoint for channel communication
-      if (channelEnabled && (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/'))) {
+      if (mcpEnabled && (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/'))) {
         return handleMcpRequest(req)
       }
 

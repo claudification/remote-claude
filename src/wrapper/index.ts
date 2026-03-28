@@ -137,6 +137,7 @@ OPTIONS:
   --no-terminal          Disable remote terminal capability
   --no-channels          Disable MCP channel (channels are ON by default)
   --channels             Enable MCP channel (already default, for explicitness)
+  --mcp-tools-only       Run MCP server without channel input (fixes plan mode)
   --rclaude-help         Show this help message
 
 ENVIRONMENT:
@@ -194,7 +195,8 @@ async function main() {
   let concentratorSecret = process.env.RCLAUDE_SECRET
   let noConcentrator = false
   let noTerminal = false
-  let channelEnabled = process.env.RCLAUDE_CHANNELS !== '0'
+  let mcpEnabled = process.env.RCLAUDE_CHANNELS !== '0'
+  let channelInputEnabled = mcpEnabled && process.env.RCLAUDE_CHANNEL_INPUT !== '0'
   const claudeArgs: string[] = []
 
   debug(`Concentrator URL: ${concentratorUrl} (source: ${process.env.RCLAUDE_CONCENTRATOR ? 'env' : 'default'})`)
@@ -215,9 +217,14 @@ async function main() {
     } else if (arg === '--no-terminal') {
       noTerminal = true
     } else if (arg === '--channels') {
-      channelEnabled = true
+      mcpEnabled = true
+      channelInputEnabled = true
     } else if (arg === '--no-channels') {
-      channelEnabled = false
+      mcpEnabled = false
+      channelInputEnabled = false
+    } else if (arg === '--mcp-tools-only') {
+      mcpEnabled = true
+      channelInputEnabled = false
     } else {
       claudeArgs.push(arg)
     }
@@ -373,7 +380,7 @@ async function main() {
     // Build capabilities list
     const capabilities = [
       ...(!noTerminal ? ['terminal' as const] : []),
-      ...(channelEnabled ? ['channel' as const] : []),
+      ...(channelInputEnabled ? ['channel' as const] : []),
     ]
 
     wsClient = createWsClient({
@@ -412,7 +419,7 @@ async function main() {
         const isSlashCommand = input.trimStart().startsWith('/')
 
         // Channel mode: push through MCP instead of PTY injection
-        if (channelEnabled && isMcpChannelReady() && !isSlashCommand) {
+        if (channelInputEnabled && isMcpChannelReady() && !isSlashCommand) {
           pushChannelMessage(input).then(sent => {
             if (sent) {
               diag('channel', `Input via MCP (${input.length} chars)`)
@@ -577,7 +584,7 @@ async function main() {
         pendingSendResult?.(result as { ok: boolean; error?: string; conversationId?: string })
       },
       onChannelDeliver(delivery) {
-        if (channelEnabled && isMcpChannelReady()) {
+        if (channelInputEnabled && isMcpChannelReady()) {
           const meta: Record<string, string> = {
             sender: 'session',
             from_session: delivery.fromSession,
@@ -594,7 +601,7 @@ async function main() {
         // Link requests are handled by the dashboard UI, not by Claude
       },
       onPermissionResponse(requestId: string, behavior: 'allow' | 'deny') {
-        if (channelEnabled && isMcpChannelReady()) {
+        if (channelInputEnabled && isMcpChannelReady()) {
           sendPermissionResponse(requestId, behavior)
           diag('channel', `Permission response: ${requestId} -> ${behavior}`)
         }
@@ -891,8 +898,8 @@ async function main() {
   let devChannelConfirmed = false
 
   // Initialize MCP channel if enabled
-  if (channelEnabled) {
-    diag('channel', 'Channel mode enabled')
+  if (mcpEnabled) {
+    diag('channel', `MCP mode enabled (channel input: ${channelInputEnabled})`)
     initMcpChannel({
       onNotify(message, title) {
         diag('channel', `Notify: ${title ? `[${title}] ` : ''}${message.slice(0, 80)}`)
@@ -983,6 +990,10 @@ async function main() {
       onDisconnect() {
         diag('channel', 'Channel disconnected')
       },
+      onTogglePlanMode() {
+        diag('channel', 'toggle_plan_mode: injecting /plan via PTY')
+        if (ptyProcess) ptyProcess.write('/plan\r')
+      },
     })
   }
 
@@ -993,7 +1004,7 @@ async function main() {
   // Start local HTTP server for hook callbacks (+ MCP endpoint when channels enabled)
   const { server: localServer, port: localServerPort } = await startLocalServer({
     sessionId: internalId,
-    channelEnabled,
+    mcpEnabled,
     onHookEvent(event: HookEvent) {
       // Extract Claude's real session ID from SessionStart
       if (event.hookEvent === 'SessionStart' && event.data) {
@@ -1184,7 +1195,7 @@ async function main() {
       '- `title` (optional): Notification title (defaults to project name)',
       '',
       "This sends a real push notification to the user's phone/browser AND shows a toast in the dashboard.",
-      ...(channelEnabled
+      ...(channelInputEnabled
         ? [
             '',
             '# MCP Channel (rclaude)',
@@ -1214,8 +1225,31 @@ async function main() {
             '',
             'Session linking is managed by the user via the dashboard -- you cannot approve or block sessions.',
             'Always include conversation_id when replying to maintain context threading.',
+            '',
+            '# Plan Mode (rclaude)',
+            '',
+            'When using MCP channels, ExitPlanMode may be listed as a deferred tool but',
+            'cannot be invoked (a known Claude Code interaction with development channels).',
+            'If you are in plan mode and ExitPlanMode is uncallable for any reason,',
+            'call `mcp__rclaude__toggle_plan_mode` directly as a fallback — do NOT use',
+            'ToolSearch for this, MCP tools are always directly callable by their full name.',
+            'Do NOT try Skill() workarounds or Bash commands -- they will not work.',
           ]
-        : []),
+        : mcpEnabled
+          ? [
+              '',
+              '# MCP Tools (rclaude)',
+              '',
+              '**Available MCP tools (rclaude server):**',
+              "- `mcp__rclaude__notify` - Send a push notification to the user's devices (phone, browser)",
+              '- `mcp__rclaude__share_file` - Upload a local file and get a public URL for the dashboard user',
+              '- `mcp__rclaude__list_sessions` - Discover other active Claude Code sessions',
+              '- `mcp__rclaude__send_message` - Send a message to another session',
+              '',
+              'Prefer the MCP `notify` tool over the curl endpoint.',
+              'Use `share_file` to share screenshots, images, build artifacts, or any file the user needs to see.',
+            ]
+          : []),
     ].join('\n'),
   )
   claudeArgs.push('--append-system-prompt-file', promptFile)
@@ -1224,10 +1258,10 @@ async function main() {
   // Convert WS URL to HTTP for tools/scripts that need to call the concentrator REST API
   const concentratorHttpUrl = noConcentrator ? undefined : wsToHttpUrl(concentratorUrl)
 
-  // Add --channels + --mcp-config for MCP channel support
+  // Add --mcp-config (always when MCP enabled) and optionally --dangerously-load-development-channels
   // Write MCP config to a temp file (CC 2.1.83+ may resolve file configs before inline JSON)
   let mcpConfigPath: string | undefined
-  if (channelEnabled) {
+  if (mcpEnabled) {
     mcpConfigPath = join(rclaudeDir, `mcp-${internalId}.json`)
     await Bun.write(
       mcpConfigPath,
@@ -1236,7 +1270,7 @@ async function main() {
       }),
     )
   }
-  const finalClaudeArgs = channelEnabled
+  const finalClaudeArgs = channelInputEnabled
     ? [
         '--dangerously-load-development-channels',
         'server:rclaude',
@@ -1244,7 +1278,9 @@ async function main() {
         mcpConfigPath as string,
         ...claudeArgs,
       ]
-    : claudeArgs
+    : mcpEnabled
+      ? ['--mcp-config', mcpConfigPath!, ...claudeArgs]
+      : claudeArgs
 
   ptyProcess = spawnClaude({
     args: finalClaudeArgs,
@@ -1258,7 +1294,7 @@ async function main() {
       // CC uses Ink/React TUI -- the warning text is painted via cursor positioning,
       // not as sequential text. But "Entertoconfirm" appears in the raw stream
       // (ANSI-stripped, no spaces due to Ink rendering). Detect that + confirm.
-      if (channelEnabled && !devChannelConfirmed) {
+      if (channelInputEnabled && !devChannelConfirmed) {
         const plain = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b[=>?][0-9]*[a-zA-Z]/g, '')
         if (plain.includes('Entertoconfirm')) {
           devChannelConfirmed = true
@@ -1304,7 +1340,7 @@ async function main() {
     stopLocalServer(localServer)
     wsClient?.close()
     cleanupSettings(internalId, rclaudeDir).catch(() => {})
-    if (channelEnabled) {
+    if (mcpEnabled) {
       closeMcpChannel().catch(() => {})
       if (mcpConfigPath)
         try {
