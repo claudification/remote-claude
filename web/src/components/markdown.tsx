@@ -73,8 +73,10 @@ const ALERT_STYLES: Record<string, { icon: string; color: string; border: string
   CAUTION: { icon: '🔴', color: 'text-red-400', border: 'border-red-500/40' },
 }
 renderer.blockquote = ({ text }) => {
-  // Check for [!TYPE] pattern at the start of the blockquote content
-  const alertMatch = text.match(/^\s*(?:<p>)?\s*\[!(TIP|NOTE|IMPORTANT|WARNING|CAUTION)\]\s*(?:<br\s*\/?>)?\s*/i)
+  // Check for [!TYPE] pattern at the start of the blockquote content.
+  // The `text` is already HTML-rendered by marked, so [!TIP] may be inside <p> tags.
+  // Pattern: optional <p>, then [!TYPE], then optional </p> or <br>, then the rest.
+  const alertMatch = text.match(/^\s*(?:<p>)?\s*\[!(TIP|NOTE|IMPORTANT|WARNING|CAUTION)\]\s*(?:<\/p>|<br\s*\/?>)?\s*/i)
   if (alertMatch) {
     const type = alertMatch[1].toUpperCase()
     const style = ALERT_STYLES[type]
