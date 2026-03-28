@@ -186,9 +186,39 @@ function extToMediaType(ext: string): string {
   return map[ext] || 'application/octet-stream'
 }
 
+// Claude CLI subcommands that should be passed through directly (no wrapper logic)
+const CLAUDE_PASSTHROUGH_SUBCOMMANDS = new Set([
+  'agents',
+  'auth',
+  'auto-mode',
+  'doctor',
+  'install',
+  'mcp',
+  'plugin',
+  'plugins',
+  'setup-token',
+  'update',
+  'upgrade',
+])
+
 async function main() {
   // Parse our specific args, pass the rest to claude
   const args = process.argv.slice(2)
+
+  // Detect Claude CLI subcommands and pass them through directly — these are
+  // management commands that don't need the rclaude wrapper (concentrator, MCP,
+  // system prompt, PTY, etc.). Passing them through the wrapper causes spurious
+  // errors like "unknown option '--append-system-prompt-file'".
+  const firstNonFlag = args.find(a => !a.startsWith('-'))
+  if (firstNonFlag && CLAUDE_PASSTHROUGH_SUBCOMMANDS.has(firstNonFlag)) {
+    debug(`Passthrough subcommand detected: ${firstNonFlag} — exec'ing claude directly`)
+    const proc = Bun.spawnSync(['claude', ...args], {
+      stdin: 'inherit',
+      stdout: 'inherit',
+      stderr: 'inherit',
+    })
+    process.exit(proc.exitCode ?? 1)
+  }
 
   let concentratorUrl = process.env.RCLAUDE_CONCENTRATOR || DEFAULT_CONCENTRATOR_URL
   let concentratorSecret = process.env.RCLAUDE_SECRET
