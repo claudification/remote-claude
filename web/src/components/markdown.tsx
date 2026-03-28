@@ -64,6 +64,28 @@ renderer.table = ({ header, rows, raw }) => {
   html += '</tbody></table>'
   return `<div class="table-block">${html}<div class="table-source" style="display:none">${escapedRaw}</div></div>`
 }
+// GitHub-flavored markdown alerts/callouts: > [!TIP], > [!NOTE], > [!WARNING], etc.
+const ALERT_STYLES: Record<string, { icon: string; color: string; border: string }> = {
+  TIP: { icon: '💡', color: 'text-emerald-400', border: 'border-emerald-500/40' },
+  NOTE: { icon: 'ℹ️', color: 'text-blue-400', border: 'border-blue-500/40' },
+  IMPORTANT: { icon: '❗', color: 'text-violet-400', border: 'border-violet-500/40' },
+  WARNING: { icon: '⚠️', color: 'text-amber-400', border: 'border-amber-500/40' },
+  CAUTION: { icon: '🔴', color: 'text-red-400', border: 'border-red-500/40' },
+}
+renderer.blockquote = ({ text }) => {
+  // Check for [!TYPE] pattern at the start of the blockquote content
+  const alertMatch = text.match(/^\s*(?:<p>)?\s*\[!(TIP|NOTE|IMPORTANT|WARNING|CAUTION)\]\s*(?:<br\s*\/?>)?\s*/i)
+  if (alertMatch) {
+    const type = alertMatch[1].toUpperCase()
+    const style = ALERT_STYLES[type]
+    if (style) {
+      const content = text.slice(alertMatch[0].length)
+      return `<div class="alert-callout border-l-2 ${style.border} pl-3 py-1.5 my-2"><div class="${style.color} font-bold text-[10px] uppercase mb-0.5">${style.icon} ${type}</div><div class="text-foreground/80">${content}</div></div>`
+    }
+  }
+  return `<blockquote>${text}</blockquote>`
+}
+
 renderer.code = ({ text, lang }) => {
   // Mermaid blocks: emit placeholder, rendered post-mount via useEffect
   if (lang === 'mermaid') {
