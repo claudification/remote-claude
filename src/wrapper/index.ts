@@ -1218,7 +1218,7 @@ async function main() {
         : []),
     ].join('\n'),
   )
-  claudeArgs.push('--append-system-prompt-file', promptFile)
+  claudeArgs.push('--append-system-prompt', readFileSync(promptFile, 'utf-8'))
 
   // Spawn claude with PTY
   // Convert WS URL to HTTP for tools/scripts that need to call the concentrator REST API

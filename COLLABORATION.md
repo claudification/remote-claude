@@ -185,7 +185,7 @@ curl -s localhost:$RCLAUDE_PORT/collab/send \
 ## System Prompt Extension
 
 When a session has active links, rclaude appends to the system prompt
-file (`--append-system-prompt-file`):
+via `--append-system-prompt`:
 
 ```
 # Session Collaboration
