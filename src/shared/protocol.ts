@@ -674,7 +674,8 @@ export interface ArchivedTaskGroup {
 
 export interface Session {
   id: string
-  cwd: string
+  cwd: string // project root (where rclaude launched -- session identity)
+  currentCwd?: string // where Claude is currently working (CwdChanged hook)
   model?: string
   args?: string[]
   capabilities?: WrapperCapability[]

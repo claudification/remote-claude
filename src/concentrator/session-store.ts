@@ -952,11 +952,13 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         }
       }
 
-      // Update CWD when Claude changes directory
+      // Track current working directory (NOT the session's project root).
+      // session.cwd stays as the launch directory (project identity).
+      // session.currentCwd tracks where Claude is working right now.
       if (event.hookEvent === 'CwdChanged' && event.data) {
         const data = event.data as Record<string, unknown>
         if (data.cwd && typeof data.cwd === 'string') {
-          session.cwd = data.cwd
+          session.currentCwd = data.cwd
         }
       }
 
