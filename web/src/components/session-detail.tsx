@@ -245,34 +245,20 @@ function ClipboardBanners() {
           <div className="flex items-center gap-2 relative z-10">
             <button
               type="button"
-              onPointerDown={async (e) => {
-                e.stopPropagation()
-                try {
-                  if (cap.contentType === 'text' && cap.text) {
-                    await navigator.clipboard.writeText(cap.text)
-                  } else if (cap.contentType === 'image' && cap.base64) {
-                    const binary = atob(cap.base64)
-                    const bytes = new Uint8Array(binary.length)
-                    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-                    const blob = new Blob([bytes], { type: cap.mimeType || 'image/png' })
-                    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
-                  }
+              onClick={() => {
+                // Synchronous textarea copy -- works on iOS Safari without async gesture chain issues
+                const text = cap.text || (cap.base64 ? atob(cap.base64) : '')
+                if (text) {
+                  const ta = document.createElement('textarea')
+                  ta.value = text
+                  ta.style.cssText = 'position:fixed;left:-9999px;top:0'
+                  document.body.appendChild(ta)
+                  ta.focus()
+                  ta.select()
+                  document.execCommand('copy')
+                  document.body.removeChild(ta)
                   haptic('success')
                   dismiss(cap.id)
-                } catch {
-                  if (cap.text) {
-                    const ta = document.createElement('textarea')
-                    ta.value = cap.text
-                    ta.style.cssText = 'position:fixed;left:-9999px'
-                    document.body.appendChild(ta)
-                    ta.select()
-                    document.execCommand('copy')
-                    document.body.removeChild(ta)
-                    haptic('success')
-                    dismiss(cap.id)
-                  } else {
-                    haptic('error')
-                  }
                 }
               }}
               className="px-3 py-2 text-[11px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 hover:bg-cyan-500/30 active:bg-cyan-500/40 transition-colors cursor-pointer touch-manipulation"
@@ -281,8 +267,7 @@ function ClipboardBanners() {
             </button>
             <button
               type="button"
-              onPointerDown={(e) => {
-                e.stopPropagation()
+              onClick={() => {
                 haptic('tick')
                 dismiss(cap.id)
               }}
