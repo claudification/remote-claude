@@ -308,7 +308,7 @@ function AskQuestionCard({
   })
 
   return (
-    <div className="flex flex-col gap-2 px-3 py-2.5 bg-violet-500/10 border border-violet-500/30 rounded font-mono text-xs">
+    <div className="flex flex-col gap-2 px-3 py-2.5 bg-violet-500/10 border border-violet-400/40 rounded font-mono text-xs">
       <div className="flex items-center gap-2">
         <span className="text-violet-400 font-bold shrink-0">QUESTION</span>
         <span className="text-muted-foreground text-[10px] ml-auto tabular-nums">
@@ -336,8 +336,8 @@ function AskQuestionCard({
                   className={cn(
                     'w-full text-left px-2.5 py-1.5 border rounded transition-all',
                     isSelected
-                      ? 'border-violet-500/60 bg-violet-500/20 text-violet-300'
-                      : 'border-border/50 hover:border-violet-500/40 hover:bg-violet-500/5 text-foreground/80',
+                      ? 'border-violet-400/70 bg-violet-500/25 text-violet-200'
+                      : 'border-border hover:border-violet-400/50 hover:bg-violet-500/10 text-foreground/90',
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -345,14 +345,14 @@ function AskQuestionCard({
                       className={cn(
                         'shrink-0 w-3.5 h-3.5 border flex items-center justify-center text-[9px]',
                         q.multiSelect ? 'rounded-sm' : 'rounded-full',
-                        isSelected ? 'border-violet-400 bg-violet-500/30' : 'border-muted-foreground/40',
+                        isSelected ? 'border-violet-400 bg-violet-500/40' : 'border-muted-foreground/50',
                       )}
                     >
                       {isSelected && (q.multiSelect ? '\u2713' : '\u25CF')}
                     </span>
                     <span className="font-bold text-[11px]">{opt.label}</span>
                   </div>
-                  <div className="text-[10px] text-muted-foreground ml-5.5 mt-0.5">{opt.description}</div>
+                  <div className="text-[10px] text-muted-foreground/80 ml-5.5 mt-0.5">{opt.description}</div>
                 </button>
               )
             })}
