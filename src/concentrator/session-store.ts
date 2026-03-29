@@ -27,6 +27,15 @@ import { getProjectSettings } from './project-settings'
 
 export type { SessionSummary }
 
+/** Detect image MIME type from base64 prefix (same logic as osc52-parser.ts) */
+function detectClipboardMime(base64: string): string | null {
+  if (base64.startsWith('iVBORw0K')) return 'image/png'
+  if (base64.startsWith('/9j/')) return 'image/jpeg'
+  if (base64.startsWith('R0lGOD')) return 'image/gif'
+  if (base64.startsWith('UklGR')) return 'image/webp'
+  return null
+}
+
 // Dashboard broadcast message (concentrator -> browser)
 export interface DashboardMessage {
   type:
@@ -39,6 +48,7 @@ export interface DashboardMessage {
     | 'toast'
     | 'settings_updated'
     | 'project_settings_updated'
+    | 'clipboard_capture'
   sessionId?: string
   previousSessionId?: string
   session?: SessionSummary
@@ -1847,6 +1857,35 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
                 `[meta] pr-link: ${prRepository}#${prNumber} (session ${sessionId.slice(0, 8)}, total: ${session.prLinks.length})`,
               )
               sessionChanged = true
+            }
+          }
+        }
+
+        // Detect OSC 52 clipboard sequences in Bash tool results.
+        // terminal-copy and CC's own clipboard writes emit OSC 52 which CC captures
+        // as tool output text. Extract the base64 payload and broadcast to dashboard.
+        if (entry.type === 'user') {
+          const userContent = (entry as TranscriptUserEntry).message?.content
+          if (Array.isArray(userContent)) {
+            for (const block of userContent) {
+              if (block.type !== 'tool_result' || typeof block.content !== 'string') continue
+              // Match OSC 52: direct (\x1b]52;c;BASE64\x07) or tmux-wrapped (Ptmux;\x1b]52;c;BASE64)
+              const osc52Match =
+                block.content.match(/(?:\x1bPtmux;\x1b)?(?:\x1b)?\]52;[a-z]*;([A-Za-z0-9+/=]+)/) ||
+                block.content.match(/Ptmux;[^\]]*\]52;[a-z]*;([A-Za-z0-9+/=]+)/)
+              if (osc52Match?.[1] && osc52Match[1].length > 4) {
+                const base64 = osc52Match[1]
+                const mime = detectClipboardMime(base64)
+                const capture = {
+                  type: 'clipboard_capture' as const,
+                  sessionId,
+                  contentType: mime ? ('image' as const) : ('text' as const),
+                  ...(mime ? { base64, mimeType: mime } : { text: Buffer.from(base64, 'base64').toString('utf-8') }),
+                  timestamp: Date.now(),
+                }
+                broadcast(capture)
+                console.log(`[clipboard] ${capture.contentType} from transcript (session ${sessionId.slice(0, 8)})`)
+              }
             }
           }
         }
