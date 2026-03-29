@@ -34,6 +34,9 @@ services:
       caddy: "${CADDY_HOST:-}"
       caddy.import: "tls_cloudflare"
       caddy.reverse_proxy: "{{upstreams 9999}}"
+      # Keep WS connections alive for 5 min during Caddy config reloads
+      # (other container starts/stops trigger reloads that would kill all WS)
+      caddy.reverse_proxy.stream_close_delay: "5m"
 
 volumes:
   concentrator-data:
