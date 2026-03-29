@@ -245,16 +245,32 @@ function ClipboardBanners() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                haptic('success')
-                if (cap.contentType === 'text' && cap.text) {
-                  navigator.clipboard.writeText(cap.text)
-                } else if (cap.contentType === 'image' && cap.base64) {
-                  const binary = atob(cap.base64)
-                  const bytes = new Uint8Array(binary.length)
-                  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-                  const blob = new Blob([bytes], { type: cap.mimeType || 'image/png' })
-                  navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
+              onClick={async () => {
+                try {
+                  if (cap.contentType === 'text' && cap.text) {
+                    await navigator.clipboard.writeText(cap.text)
+                  } else if (cap.contentType === 'image' && cap.base64) {
+                    const binary = atob(cap.base64)
+                    const bytes = new Uint8Array(binary.length)
+                    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+                    const blob = new Blob([bytes], { type: cap.mimeType || 'image/png' })
+                    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
+                  }
+                  haptic('success')
+                } catch {
+                  // Fallback: textarea select+copy for text
+                  if (cap.text) {
+                    const ta = document.createElement('textarea')
+                    ta.value = cap.text
+                    ta.style.cssText = 'position:fixed;left:-9999px'
+                    document.body.appendChild(ta)
+                    ta.select()
+                    document.execCommand('copy')
+                    document.body.removeChild(ta)
+                    haptic('success')
+                  } else {
+                    haptic('error')
+                  }
                 }
               }}
               className="px-3 py-1 text-[11px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 hover:bg-cyan-500/30 transition-colors"
