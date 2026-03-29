@@ -75,6 +75,14 @@ export function spawnClaude(options: PtyOptions): PtyProcess {
       // Force xterm-256color regardless of outer shell (tmux sets screen-256color)
       // Remote viewer is xterm.js which IS xterm - must match
       TERM: 'xterm-256color',
+      // Force CC to use OSC 52 for clipboard instead of pbcopy.
+      // CC checks SSH_TTY to decide clipboard provider: if set, it writes
+      // \x1b]52;c;BASE64\x07 to stdout (the PTY) which rclaude's OSC 52
+      // parser intercepts and relays to the dashboard as clipboard_capture.
+      // Without this, CC uses pbcopy (native macOS) which bypasses the PTY.
+      // Side effects: terminal type reported as "ssh-session" (telemetry only),
+      // copy-on-select skips pbcopy (irrelevant for headless sessions).
+      SSH_TTY: process.env.SSH_TTY || '/dev/pts/0',
     },
     terminal: {
       cols,
