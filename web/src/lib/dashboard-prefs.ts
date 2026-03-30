@@ -37,6 +37,7 @@ export interface DashboardPrefs {
   showWsStats: boolean
   showThinking: boolean
   showContextInList: boolean
+  chatBubbles: boolean
   defaultView: 'transcript' | 'tty'
   toolDisplay: Partial<Record<ToolDisplayKey, Partial<ToolDisplayPrefs>>>
 }
@@ -49,6 +50,7 @@ export const defaultPrefs: DashboardPrefs = {
   showWsStats: false,
   showThinking: false,
   showContextInList: true,
+  chatBubbles: false,
   defaultView: 'transcript',
   toolDisplay: {},
 }

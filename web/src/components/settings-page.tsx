@@ -538,6 +538,20 @@ const SETTINGS: SettingItem[] = [
   },
   {
     group: 'Display',
+    label: 'Chat bubbles',
+    description: 'iMessage-style bubbles for user messages',
+    keywords: 'bubble imessage chat style',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.chatBubbles}
+        onChange={e => ctx.updatePrefs({ chatBubbles: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
+  {
+    group: 'Display',
     label: 'Context bar in sidebar',
     description: 'Show context window usage on session cards',
     keywords: 'tokens progress percentage',

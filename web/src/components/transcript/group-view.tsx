@@ -219,6 +219,46 @@ export function GroupView({
   const sizeClass =
     { xs: 'text-[8px]', sm: 'text-[9px]', '': 'text-[10px]', lg: 'text-[13px]', xl: 'text-[16px]' }[sizeKey] ||
     'text-[10px]'
+  const chatBubbles = useSessionsStore(s => s.dashboardPrefs.chatBubbles)
+
+  // Chat bubble layout for user messages (opt-in)
+  if (chatBubbles && isUser) {
+    return (
+      <div className="mb-3 flex justify-end">
+        <div className={cn('max-w-[85%] sm:max-w-[75%]', group.queued && 'opacity-50')}>
+          <div className={cn('rounded-2xl rounded-br-sm px-4 py-2.5 bg-[#2563eb]/90 text-white', sizeClass)}>
+            {items.map((item, i) => {
+              if (item.kind === 'text') {
+                return (
+                  <div
+                    key={i}
+                    className="text-sm [&_a]:text-blue-200 [&_a]:underline [&_code]:bg-white/15 [&_code]:px-1 [&_code]:rounded"
+                  >
+                    <Markdown>{item.text}</Markdown>
+                  </div>
+                )
+              }
+              if (item.kind === 'images') {
+                return (
+                  <div key={i} className="flex gap-1 flex-wrap mt-1">
+                    {item.images.map(img => (
+                      <img key={img.hash} src={img.url} alt="" className="max-h-24 rounded" />
+                    ))}
+                  </div>
+                )
+              }
+              return null
+            })}
+          </div>
+          <div className="flex items-center justify-end gap-1.5 mt-0.5 px-1">
+            <span className="text-muted-foreground/50 text-[9px]">{time}</span>
+            {channelServer === 'rclaude' && <span className="text-teal-400/40 text-[9px]">channel</span>}
+            {effortBadge && <span className="text-orange-400/60 text-[9px]">{effortBadge.symbol}</span>}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="mb-4">
