@@ -1056,6 +1056,10 @@ async function main() {
       onDisconnect() {
         diag('channel', 'Channel disconnected')
       },
+      onTogglePlanMode() {
+        diag('channel', 'toggle_plan_mode: injecting /plan via PTY')
+        if (ptyProcess) ptyProcess.write('/plan\r')
+      },
     })
   }
 
