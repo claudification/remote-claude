@@ -506,7 +506,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   }
 
   // Periodically mark idle sessions, clean stale agents, evict old sessions, and save state
-  const EVICTION_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours after ending
+  const ENDED_EVICTION_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours after ending
+  const ZOMBIE_EVICTION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days for stale STARTING sessions
   const MAX_ENDED_SESSIONS = 50 // hard cap on ended sessions in memory
 
   setInterval(() => {
@@ -538,14 +539,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       }
 
       // Mark ended sessions for eviction after TTL
-      if (session.status === 'ended' && now - session.lastActivity > EVICTION_TTL_MS) {
+      if (session.status === 'ended' && now - session.lastActivity > ENDED_EVICTION_TTL_MS) {
         toEvict.push(session.id)
       }
 
       // Evict zombie sessions: STARTING with 0 events, idle > 24h, no active wrapper
       if (session.status === 'starting' && session.events.length === 0) {
         const idleMs = now - session.lastActivity
-        if (idleMs > EVICTION_TTL_MS && !sessionSockets.has(session.id)) {
+        if (idleMs > ZOMBIE_EVICTION_TTL_MS && !sessionSockets.has(session.id)) {
           const hours = Math.round(idleMs / 3600000)
           console.log(`[evict] Zombie session ${session.id.slice(0, 8)} (STARTING, 0 events, idle ${hours}h)`)
           toEvict.push(session.id)
