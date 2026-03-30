@@ -57,6 +57,10 @@ function parseTaskIdFromResult(result: string | undefined): string {
   return match ? match[1] : ''
 }
 
+// Snapshot lookup - intentionally NOT reactive (no Zustand selector).
+// Transcript entries are immutable once rendered; if task data arrives later,
+// the entry won't re-render, but that's acceptable since the subject is
+// best-effort display info, not critical data.
 function lookupTaskSubject(taskId: string | undefined): string {
   if (!taskId) return ''
   const state = useSessionsStore.getState()
@@ -70,6 +74,26 @@ function lookupTaskSubject(taskId: string | undefined): string {
     session.archivedTasks?.find(t => t.id === taskId)?.subject ||
     ''
   )
+}
+
+function taskSummaryJsx(
+  taskId: string | undefined,
+  status: string | undefined,
+  subject: string,
+  desc: string | undefined,
+): { summary: React.ReactNode; details: React.ReactNode } {
+  return {
+    summary: (
+      <span className="flex items-center gap-1.5">
+        {taskId && <span className="text-muted-foreground font-bold">#{taskId}</span>}
+        {status && <TaskStatusBadge status={status} />}
+        {subject && <span className="truncate">{subject}</span>}
+      </span>
+    ),
+    details: desc ? (
+      <div className="text-[10px] text-muted-foreground pl-1 border-l border-border/30 ml-1">{desc}</div>
+    ) : null,
+  }
 }
 
 export function ToolLine({
@@ -285,36 +309,19 @@ export function ToolLine({
       break
     }
     case 'TaskCreate': {
-      const subject = (input.subject as string) || ''
-      const desc = input.description as string | undefined
       const taskId = parseTaskIdFromResult(result)
-      summary = (
-        <span className="flex items-center gap-1.5">
-          {taskId && <span className="text-muted-foreground font-bold">#{taskId}</span>}
-          <TaskStatusBadge status="pending" />
-          <span className="truncate">{subject}</span>
-        </span>
-      )
-      if (desc) {
-        details = <div className="text-[10px] text-muted-foreground pl-1 border-l border-border/30 ml-1">{desc}</div>
-      }
+      const jsx = taskSummaryJsx(taskId, 'pending', (input.subject as string) || '', input.description as string)
+      summary = jsx.summary
+      details = jsx.details
       break
     }
     case 'TaskUpdate': {
       const taskId = (input.taskId || input.id || input.task_id) as string | undefined
       const status = (input.status || input.state) as string | undefined
       const subject = (input.subject as string) || parseTaskSubjectFromResult(result) || lookupTaskSubject(taskId)
-      const desc = input.description as string | undefined
-      summary = (
-        <span className="flex items-center gap-1.5">
-          {taskId && <span className="text-muted-foreground font-bold">#{taskId}</span>}
-          {status && <TaskStatusBadge status={status} />}
-          {subject && <span className="truncate">{subject}</span>}
-        </span>
-      )
-      if (desc) {
-        details = <div className="text-[10px] text-muted-foreground pl-1 border-l border-border/30 ml-1">{desc}</div>
-      }
+      const jsx = taskSummaryJsx(taskId, status, subject, input.description as string)
+      summary = jsx.summary
+      details = jsx.details
       break
     }
     case 'TaskOutput':

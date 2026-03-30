@@ -138,12 +138,13 @@ function flushMessages() {
 
 function refetchStaleTranscripts(staleTranscripts?: Record<string, number>): void {
   if (!staleTranscripts) return
-  const sids = Object.keys(staleTranscripts)
+  const { transcripts, setTranscript, selectedSessionId } = useSessionsStore.getState()
+  // Skip selected session - the connectSeq effect handles it to avoid double-fetch
+  const sids = Object.keys(staleTranscripts).filter(s => s !== selectedSessionId)
   if (sids.length === 0) {
     console.log('[sync] transcript counts: all in sync')
     return
   }
-  const { transcripts, setTranscript } = useSessionsStore.getState()
   console.log(
     `[sync] STALE transcripts: ${sids.map(s => `${s.slice(0, 8)} server=${staleTranscripts[s]} local=${transcripts[s]?.length ?? 0}`).join(', ')}`,
   )
@@ -158,43 +159,31 @@ function refetchStaleTranscripts(staleTranscripts?: Record<string, number>): voi
 }
 
 function processMessage(msg: DashboardMessage) {
+  // All sync responses may carry staleTranscripts - handle once before type-specific logic
+  const syncMsg = msg as DashboardMessage & { staleTranscripts?: Record<string, number> }
+  if (syncMsg.staleTranscripts) refetchStaleTranscripts(syncMsg.staleTranscripts)
+
   switch (msg.type) {
     // Sync protocol responses
     case 'sync_ok': {
-      const ok = msg as DashboardMessage & { epoch?: string; seq?: number; staleTranscripts?: Record<string, number> }
+      const ok = msg as DashboardMessage & { epoch?: string; seq?: number }
       console.log(`[sync] ok (epoch=${ok.epoch?.slice(0, 8)} seq=${ok.seq})`)
-      refetchStaleTranscripts(ok.staleTranscripts)
       break
     }
     case 'sync_catchup': {
-      const cu = msg as DashboardMessage & {
-        count?: number
-        epoch?: string
-        seq?: number
-        staleTranscripts?: Record<string, number>
-      }
+      const cu = msg as DashboardMessage & { count?: number; epoch?: string; seq?: number }
       console.log(`[sync] catchup: ${cu.count} missed messages (epoch=${cu.epoch?.slice(0, 8)} seq=${cu.seq})`)
-      // The missed messages will arrive as subsequent WS messages and be processed normally
-      refetchStaleTranscripts(cu.staleTranscripts)
       break
     }
     case 'sync_stale': {
-      const stale = msg as DashboardMessage & {
-        reason?: string
-        missed?: number
-        epoch?: string
-        seq?: number
-        staleTranscripts?: Record<string, number>
-      }
+      const stale = msg as DashboardMessage & { reason?: string; missed?: number; epoch?: string; seq?: number }
       console.log(`[sync] stale: ${stale.reason || 'unknown'} (missed=${stale.missed || '?'})`)
-      // Full resync needed - bump connectSeq
+      // Full resync needed - bump connectSeq (triggers LIFO eviction + re-fetch in onopen)
       useSessionsStore.setState(s => ({
         connectSeq: s.connectSeq + 1,
         syncEpoch: stale.epoch || '',
         syncSeq: stale.seq || 0,
       }))
-      // Also handle stale transcripts (may have data even though epoch changed)
-      refetchStaleTranscripts(stale.staleTranscripts)
       break
     }
     case 'sessions_list': {
@@ -261,6 +250,8 @@ function processMessage(msg: DashboardMessage) {
           console.log(
             `[sync] session_update: REKEY ${prevId.slice(0, 8)} -> ${sessionId.slice(0, 8)} status=${session.status}`,
           )
+          // Delay: concentrator processes rekey and re-receives transcript from rclaude.
+          // 500ms gives the transcript watcher time to stream initial entries to the new ID.
           setTimeout(() => {
             fetchTranscript(sessionId).then(transcript => {
               console.log(`[sync] rekey refetch ${sessionId.slice(0, 8)}: ${transcript?.length ?? 'null'} entries`)
@@ -268,12 +259,13 @@ function processMessage(msg: DashboardMessage) {
             })
           }, 500)
         } else if (session.status === 'starting') {
-          // Session resumed (rclaude reconnects) with empty transcript - fetch it.
           const state = useSessionsStore.getState()
           const cached = state.transcripts[sessionId]?.length ?? 0
           const isSelected = state.selectedSessionId === sessionId
           console.log(`[sync] session_update: RESUME ${sessionId.slice(0, 8)} selected=${isSelected} cached=${cached}`)
           if (isSelected && cached === 0) {
+            // Delay: rclaude just reconnected, transcript watcher needs time to read
+            // the JSONL file and stream entries to concentrator before our fetch returns data.
             setTimeout(() => {
               fetchTranscript(sessionId).then(transcript => {
                 console.log(`[sync] resume refetch ${sessionId.slice(0, 8)}: ${transcript?.length ?? 'null'} entries`)

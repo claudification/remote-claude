@@ -8,8 +8,9 @@ export function isMobileViewport() {
   return window.innerWidth < MOBILE_BREAKPOINT
 }
 
+const IS_TOUCH = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
 export function isTouchDevice() {
-  return window.matchMedia('(pointer: coarse)').matches
+  return IS_TOUCH
 }
 
 export function cn(...inputs: ClassValue[]) {

@@ -441,7 +441,10 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         .slice(0, 4)
         .map(t => ({ id: t.id, subject: t.subject })),
       archivedTaskCount: session.archivedTasks.reduce((sum, g) => sum + g.tasks.length, 0),
-      archivedTasks: session.archivedTasks.flatMap(g => g.tasks).map(t => ({ id: t.id, subject: t.subject })),
+      archivedTasks: session.archivedTasks
+        .flatMap(g => g.tasks)
+        .slice(-50)
+        .map(t => ({ id: t.id, subject: t.subject })),
       runningBgTaskCount: session.bgTasks.filter(t => t.status === 'running').length,
       bgTasks: session.bgTasks.map(t => ({
         taskId: t.taskId,
