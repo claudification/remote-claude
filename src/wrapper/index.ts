@@ -921,6 +921,7 @@ async function main() {
             method: 'POST',
             headers: {
               'Content-Type': file.type || 'application/octet-stream',
+              'X-Session-Id': claudeSessionId || internalId,
               ...(concentratorSecret ? { Authorization: `Bearer ${concentratorSecret}` } : {}),
             },
             body: file,

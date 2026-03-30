@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Hono } from 'hono'
 import type { ListDirsResult, SendInput, Session, SpawnResult, TeamInfo } from '../shared/protocol'
@@ -120,6 +120,49 @@ function storeBlobDirect(hash: string, bytes: Uint8Array, mediaType: string): vo
   if (!existsSync(blobPath)) {
     writeFileSync(blobPath, bytes)
     writeFileSync(`${blobPath}.meta`, JSON.stringify({ mediaType, createdAt: Date.now() }))
+  }
+}
+
+// ─── Shared files log ─────────────────────────────────────────────
+interface SharedFileEntry {
+  hash: string
+  filename: string
+  mediaType: string
+  sessionId?: string
+  size: number
+  url: string
+  createdAt: number
+}
+
+let sharedFilesLogPath: string | null = null
+const SHARED_FILES_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000 // 90 days
+
+function initSharedFilesLog(cacheDir: string): void {
+  sharedFilesLogPath = join(cacheDir, 'shared-files.jsonl')
+}
+
+function appendSharedFile(entry: SharedFileEntry): void {
+  if (!sharedFilesLogPath) return
+  try {
+    appendFileSync(sharedFilesLogPath, `${JSON.stringify(entry)}\n`)
+  } catch {
+    // First write or permission issue
+  }
+}
+
+function readSharedFiles(): SharedFileEntry[] {
+  if (!sharedFilesLogPath || !existsSync(sharedFilesLogPath)) return []
+  try {
+    const cutoff = Date.now() - SHARED_FILES_MAX_AGE_MS
+    return readFileSync(sharedFilesLogPath, 'utf-8')
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map(line => JSON.parse(line) as SharedFileEntry)
+      .filter(e => e.createdAt > cutoff)
+      .reverse() // newest first
+  } catch {
+    return []
   }
 }
 
@@ -302,8 +345,11 @@ export interface RouteOptions {
 export function createRouter(options: RouteOptions): Hono {
   const { sessionStore, webDir, vapidPublicKey, rclaudeSecret, cacheDir, serverStartTime = Date.now() } = options
 
-  // Initialize disk-backed blob store
-  if (cacheDir) initBlobStore(cacheDir)
+  // Initialize disk-backed blob store + shared files log
+  if (cacheDir) {
+    initBlobStore(cacheDir)
+    initSharedFilesLog(cacheDir)
+  }
 
   const app = new Hono()
 
@@ -837,11 +883,24 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
     const ext = mediaType.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
     const filePath = `/file/${hash}.${ext}`
-    const host = c.req.header('host') || 'localhost:9999'
+    const fwdHost = c.req.header('x-forwarded-host')
+    const host = fwdHost || c.req.header('host') || 'localhost:9999'
     const proto = c.req.header('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
     const url = `${proto}://${host}${filePath}`
 
+    // Log to shared files index
+    const sessionId = c.req.header('x-session-id') || c.req.query('sessionId') || undefined
+    appendSharedFile({ hash, filename, mediaType, sessionId, size: bytes.length, url, createdAt: Date.now() })
+
     return c.json({ hash, url, filename, mediaType })
+  })
+
+  // ─── Shared files ─────────────────────────────────────────────────
+  app.get('/api/shared-files', c => {
+    const sessionId = c.req.query('sessionId')
+    let files = readSharedFiles()
+    if (sessionId) files = files.filter(f => f.sessionId === sessionId)
+    return c.json({ files })
   })
 
   // ─── Session order ─────────────────────────────────────────────────
