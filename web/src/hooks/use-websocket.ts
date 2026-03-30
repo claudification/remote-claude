@@ -585,24 +585,35 @@ export function useWebSocket() {
     connect()
 
     // Watch for session selection changes and manage channel subscriptions
-    let lastSubscribedSession: string | null = null
+    // Diff-based: keep subscriptions alive for LIFO-cached sessions
+    let subscribedSessions = new Set<string>()
     const unsubSessionion = useSessionsStore.subscribe(state => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
-      const newId = state.selectedSessionId
 
-      if (newId === lastSubscribedSession) return
-      const prevId = lastSubscribedSession
-      lastSubscribedSession = newId
-
-      if (prevId) {
-        send({ type: 'channel_unsubscribe_all' })
-        lastSubagentKey = null
+      // Desired subscriptions: selected + all sessions with cached transcripts
+      const desired = new Set<string>()
+      if (state.selectedSessionId) desired.add(state.selectedSessionId)
+      for (const sid of Object.keys(state.transcripts)) {
+        if (state.transcripts[sid]?.length) desired.add(sid)
       }
-      if (newId) {
-        for (const ch of SESSION_CHANNELS) {
-          send({ type: 'channel_subscribe', channel: ch, sessionId: newId })
+
+      // Unsubscribe sessions no longer in cache
+      for (const sid of subscribedSessions) {
+        if (!desired.has(sid)) {
+          for (const ch of SESSION_CHANNELS) {
+            send({ type: 'channel_unsubscribe', channel: ch, sessionId: sid })
+          }
         }
       }
+      // Subscribe new sessions
+      for (const sid of desired) {
+        if (!subscribedSessions.has(sid)) {
+          for (const ch of SESSION_CHANNELS) {
+            send({ type: 'channel_subscribe', channel: ch, sessionId: sid })
+          }
+        }
+      }
+      subscribedSessions = desired
     })
 
     // Watch for subagent selection and subscribe to its transcript channel

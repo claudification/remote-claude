@@ -537,6 +537,38 @@ const SETTINGS: SettingItem[] = [
     ),
   },
   {
+    group: 'Performance',
+    label: 'Session cache size',
+    description: 'Keep N recent sessions in memory for instant switching (0 = disabled)',
+    keywords: 'cache lifo mru fast switch',
+    render: ctx => (
+      <input
+        type="number"
+        min={0}
+        max={10}
+        value={ctx.prefs.sessionCacheSize}
+        onChange={e => ctx.updatePrefs({ sessionCacheSize: Math.max(0, Math.min(10, Number(e.target.value) || 0)) })}
+        className="w-16 bg-muted border border-border rounded px-2 py-1 text-xs"
+      />
+    ),
+  },
+  {
+    group: 'Performance',
+    label: 'Cache timeout (min)',
+    description: 'Evict cached non-selected sessions after N minutes (0 = never)',
+    keywords: 'cache timeout evict memory',
+    render: ctx => (
+      <input
+        type="number"
+        min={0}
+        max={60}
+        value={ctx.prefs.sessionCacheTimeout}
+        onChange={e => ctx.updatePrefs({ sessionCacheTimeout: Math.max(0, Math.min(60, Number(e.target.value) || 0)) })}
+        className="w-16 bg-muted border border-border rounded px-2 py-1 text-xs"
+      />
+    ),
+  },
+  {
     group: 'Display',
     label: 'Chat bubbles',
     description: 'iMessage-style bubbles for user messages',

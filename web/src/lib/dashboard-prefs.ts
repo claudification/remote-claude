@@ -40,6 +40,8 @@ export interface DashboardPrefs {
   showThinking: boolean
   showContextInList: boolean
   chatBubbles: boolean
+  sessionCacheSize: number // LIFO cache: 0 = disabled, N = keep N recent sessions in memory
+  sessionCacheTimeout: number // minutes before cached non-selected sessions are evicted (0 = never)
   defaultView: 'transcript' | 'tty'
   toolDisplay: Partial<Record<ToolDisplayKey, Partial<ToolDisplayPrefs>>>
 }
@@ -53,6 +55,8 @@ export const defaultPrefs: DashboardPrefs = {
   showThinking: false,
   showContextInList: true,
   chatBubbles: true,
+  sessionCacheSize: 3,
+  sessionCacheTimeout: 10,
   defaultView: 'transcript',
   toolDisplay: {},
 }

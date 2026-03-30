@@ -302,18 +302,24 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     const defaultView = get().dashboardPrefs.defaultView
     set(state => {
       const mru = id ? [id, ...state.sessionMru.filter(s => s !== id)] : state.sessionMru
-      // Evict cached data for non-selected sessions to prevent memory bloat
+      const { sessionCacheSize } = state.dashboardPrefs
+
+      // LIFO cache: keep data for the N most recently viewed sessions
+      // Sessions beyond the cache limit get their data evicted
+      const cachedIds = new Set(mru.slice(0, Math.max(1, sessionCacheSize)))
+      if (id) cachedIds.add(id)
+
       const events: Record<string, HookEvent[]> = {}
       const transcripts: Record<string, TranscriptEntry[]> = {}
       const subagentTranscripts: Record<string, TranscriptEntry[]> = {}
-      if (id) {
-        // Keep only selected session's data
-        if (state.events[id]) events[id] = state.events[id]
-        if (state.transcripts[id]) transcripts[id] = state.transcripts[id]
+      for (const sid of cachedIds) {
+        if (state.events[sid]) events[sid] = state.events[sid]
+        if (state.transcripts[sid]) transcripts[sid] = state.transcripts[sid]
         for (const key of Object.keys(state.subagentTranscripts)) {
-          if (key.startsWith(`${id}:`)) subagentTranscripts[key] = state.subagentTranscripts[key]
+          if (key.startsWith(`${sid}:`)) subagentTranscripts[key] = state.subagentTranscripts[key]
         }
       }
+
       // Close terminal on session switch - PTY is tied to a wrapperId,
       // keeping it open would stream the old session's terminal
       const closeTerminal = state.showTerminal ? { showTerminal: false, terminalWrapperId: null } : {}

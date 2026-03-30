@@ -150,12 +150,58 @@ function Dashboard() {
     if (sid) fetchSessionData(sid, connectSeq)
   }, [connectSeq, fetchSessionData]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // On session switch: always fetch. selectSession evicts non-selected transcripts
-  // to prevent memory bloat, so data must be re-fetched on every switch.
+  // On session switch: fetch only if transcript is empty (not in LIFO cache)
   useEffect(() => {
     if (!selectedSessionId || !isConnected) return
-    fetchSessionData(selectedSessionId, connectSeq)
+    const cached = (useSessionsStore.getState().transcripts[selectedSessionId]?.length ?? 0) > 0
+    if (!cached) {
+      fetchSessionData(selectedSessionId, connectSeq)
+    }
   }, [selectedSessionId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // LIFO cache timeout: evict non-selected sessions older than sessionCacheTimeout
+  const cacheTimestamps = useRef<Record<string, number>>({})
+  useEffect(() => {
+    if (selectedSessionId) cacheTimestamps.current[selectedSessionId] = Date.now()
+  }, [selectedSessionId])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const { sessionCacheTimeout } = useSessionsStore.getState().dashboardPrefs
+      if (sessionCacheTimeout <= 0) return // 0 = never timeout
+      const now = Date.now()
+      const timeoutMs = sessionCacheTimeout * 60_000
+      const selected = useSessionsStore.getState().selectedSessionId
+      const transcripts = useSessionsStore.getState().transcripts
+      let evicted = false
+      for (const sid of Object.keys(transcripts)) {
+        if (sid === selected) continue // never evict selected
+        const lastViewed = cacheTimestamps.current[sid] || 0
+        if (now - lastViewed > timeoutMs) {
+          delete cacheTimestamps.current[sid]
+          evicted = true
+        }
+      }
+      if (evicted) {
+        // Trigger a store update to clear evicted transcripts
+        useSessionsStore.setState(state => {
+          const kept = new Set(state.sessionMru.slice(0, state.dashboardPrefs.sessionCacheSize))
+          if (state.selectedSessionId) kept.add(state.selectedSessionId)
+          // Remove timed-out entries
+          const events = { ...state.events }
+          const transcripts = { ...state.transcripts }
+          for (const sid of Object.keys(transcripts)) {
+            if (!kept.has(sid)) {
+              delete events[sid]
+              delete transcripts[sid]
+            }
+          }
+          return { events, transcripts }
+        })
+      }
+    }, 60_000) // check every minute
+    return () => clearInterval(interval)
+  }, [])
 
   // Close sheet when a session is selected (mobile UX)
   useEffect(() => {
