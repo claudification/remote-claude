@@ -187,6 +187,20 @@ export function applyHashRoute() {
   if (hashApplied) return
   hashApplied = true
 
+  processHash()
+
+  // Listen for hash changes from service worker navigation (push notification deep links)
+  window.addEventListener('hashchange', () => processHash())
+
+  // Listen for postMessage from service worker (notification click deep links)
+  navigator.serviceWorker?.addEventListener('message', (event) => {
+    if (event.data?.type === 'navigate-session' && event.data.sessionId) {
+      useSessionsStore.getState().selectSession(event.data.sessionId)
+    }
+  })
+}
+
+function processHash() {
   const hash = window.location.hash.slice(1)
   if (!hash) return
 

@@ -35,18 +35,23 @@ self.addEventListener('notificationclick', event => {
   event.notification.close()
 
   const url = event.notification.data?.url || '/'
+  const sessionId = event.notification.data?.sessionId
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
-      // Focus existing window if available
+      // Focus existing window and navigate to session
       for (const client of clientList) {
         if (client.url.includes(self.location.origin)) {
           client.focus()
-          client.navigate(url)
+          // Post message to the app so it can handle navigation internally
+          // (hash-only changes via client.navigate don't trigger hashchange)
+          if (sessionId) {
+            client.postMessage({ type: 'navigate-session', sessionId })
+          }
           return
         }
       }
-      // Open new window
+      // No existing window -- open new one with hash route
       return clients.openWindow(url)
     }),
   )
