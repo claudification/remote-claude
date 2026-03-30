@@ -1,7 +1,7 @@
 import { Bell, BellOff, Settings } from 'lucide-react'
 import { useEffect, useState, useSyncExternalStore } from 'react'
+import { NerdModal } from '@/components/nerd-modal'
 import { SettingsDialog } from '@/components/settings-page'
-import { WsStatsModal } from '@/components/ws-stats-modal'
 import { getPushStatus, subscribeToPush, useSessionsStore } from '@/hooks/use-sessions'
 import { getRates, subscribe as subscribeStats } from '@/hooks/ws-stats'
 import { haptic } from '@/lib/utils'
@@ -128,7 +128,7 @@ export function Header() {
       </div>
 
       <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
-      <WsStatsModal open={showStatsModal} onClose={() => setShowStatsModal(false)} />
+      <NerdModal open={showStatsModal} onClose={() => setShowStatsModal(false)} />
     </header>
   )
 }
