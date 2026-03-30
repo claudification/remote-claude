@@ -248,15 +248,19 @@ async function main() {
   let transcriptWatcher: TranscriptWatcher | null = null
   let parentTranscriptPath: string | null = null // stored to derive subagent transcript paths
   const subagentWatchers = new Map<string, TranscriptWatcher>()
+  const MAX_SUBAGENT_WATCHERS = 50
   const bgTaskOutputWatchers = new Map<string, { stop: () => void }>()
+  const MAX_BG_TASK_WATCHERS = 50
 
   // Detect Claude Code version early - needed for settings merge and concentrator
   const claudeVersion = detectClaudeVersion()
 
-  // Queue events until we have the real session ID
+  // Queue events until we have the real session ID (capped to prevent unbounded growth)
+  const MAX_EVENT_QUEUE = 200
   const eventQueue: HookEvent[] = []
 
-  // Diagnostic log - sends structured debug entries to concentrator
+  // Diagnostic log - sends structured debug entries to concentrator (capped)
+  const MAX_DIAG_BUFFER = 500
   const diagBuffer: Array<{ t: number; type: string; msg: string; args?: unknown }> = []
   let diagFlushTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -270,6 +274,11 @@ async function main() {
 
   function diag(type: string, msg: string, args?: unknown) {
     debug(`[diag] ${type}: ${msg}${args ? ` ${JSON.stringify(args)}` : ''}`)
+    if (diagBuffer.length >= MAX_DIAG_BUFFER) {
+      // Drop oldest entries when buffer is full (concentrator unreachable)
+      diagBuffer.splice(0, Math.floor(MAX_DIAG_BUFFER / 4))
+      debug(`[diag] Buffer full, dropped ${Math.floor(MAX_DIAG_BUFFER / 4)} oldest entries`)
+    }
     diagBuffer.push({ t: Date.now(), type, msg, args })
     if (!diagFlushTimer) {
       diagFlushTimer = setTimeout(flushDiag, 500)
@@ -729,6 +738,16 @@ async function main() {
   // Watch a background task .output file and stream chunks to concentrator
   function startBgTaskOutputWatcher(taskId: string, outputPath: string) {
     if (bgTaskOutputWatchers.has(taskId)) return
+
+    // Evict oldest bg task watcher if at capacity
+    if (bgTaskOutputWatchers.size >= MAX_BG_TASK_WATCHERS) {
+      const oldest = bgTaskOutputWatchers.keys().next().value
+      if (oldest) {
+        debug(`BG task watcher limit (${MAX_BG_TASK_WATCHERS}) reached, evicting: ${oldest}`)
+        bgTaskOutputWatchers.get(oldest)?.stop()
+      }
+    }
+
     diag('bgout', `Watching output for bg task ${taskId}`, { taskId, outputPath })
 
     let offset = 0
@@ -858,6 +877,17 @@ async function main() {
 
   function startSubagentWatcher(agentId: string, transcriptPath: string, live: boolean) {
     if (subagentWatchers.has(agentId)) return
+
+    // Evict oldest live watchers if at capacity (prevents unbounded growth if SubagentStop never fires)
+    if (subagentWatchers.size >= MAX_SUBAGENT_WATCHERS) {
+      const oldest = subagentWatchers.keys().next().value
+      if (oldest) {
+        debug(`Subagent watcher limit (${MAX_SUBAGENT_WATCHERS}) reached, evicting: ${oldest.slice(0, 7)}`)
+        const evicted = subagentWatchers.get(oldest)
+        evicted?.stop()
+        subagentWatchers.delete(oldest)
+      }
+    }
 
     const watcher = createTranscriptWatcher({
       debug: DEBUG ? (msg: string) => debug(`[tw:${agentId.slice(0, 7)}] ${msg}`) : undefined,
@@ -1141,6 +1171,10 @@ async function main() {
       if (claudeSessionId && wsClient?.isConnected()) {
         wsClient.sendHookEvent({ ...event, sessionId: claudeSessionId })
       } else {
+        if (eventQueue.length >= MAX_EVENT_QUEUE) {
+          const dropped = eventQueue.shift()
+          debug(`Event queue full (${MAX_EVENT_QUEUE}), dropping oldest: ${dropped?.hookEvent}`)
+        }
         eventQueue.push(event)
       }
 
@@ -1338,6 +1372,13 @@ async function main() {
     cleanupTerminal()
     stopLocalServer(localServer)
     wsClient?.close()
+    // Clear diag buffer and timer
+    if (diagFlushTimer) {
+      clearTimeout(diagFlushTimer)
+      diagFlushTimer = null
+    }
+    diagBuffer.length = 0
+    eventQueue.length = 0
     cleanupSettings(internalId, rclaudeDir).catch(() => {})
     if (channelEnabled) {
       closeMcpChannel().catch(() => {})

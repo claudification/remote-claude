@@ -32,6 +32,7 @@ interface PendingAskRequest {
 
 /** Map of toolUseId -> pending ask request resolver */
 const pendingAskRequests = new Map<string, PendingAskRequest>()
+const MAX_PENDING_ASK = 20
 
 /** Resolve a pending AskUserQuestion request with the user's answer (or null for skip/timeout) */
 export function resolveAskRequest(
@@ -166,6 +167,19 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
               return new Response(null, { status: 200 })
             }
 
+            // Evict oldest pending request if at capacity (prevents unbounded growth)
+            if (pendingAskRequests.size >= MAX_PENDING_ASK) {
+              const oldest = pendingAskRequests.keys().next().value
+              if (oldest) {
+                const stale = pendingAskRequests.get(oldest)
+                if (stale) {
+                  clearTimeout(stale.timer)
+                  stale.resolve(null)
+                  pendingAskRequests.delete(oldest)
+                }
+              }
+            }
+
             // Forward to dashboard and block until answer or timeout
             const hookResponse = await new Promise<AskHookResponse | null>(resolve => {
               const timer = setTimeout(() => {
@@ -264,8 +278,14 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
 }
 
 /**
- * Stop the local server
+ * Stop the local server and clean up all pending ask requests
  */
 export function stopLocalServer(server: HttpServer): void {
+  // Resolve all pending ask requests so their Promises don't leak
+  for (const [_id, pending] of pendingAskRequests) {
+    clearTimeout(pending.timer)
+    pending.resolve(null)
+  }
+  pendingAskRequests.clear()
   server.stop(true)
 }
