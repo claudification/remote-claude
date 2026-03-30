@@ -263,30 +263,48 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     ws.send(JSON.stringify({ type, epoch: SYNC_EPOCH, seq: syncSeq, ...extra }))
   }
 
-  function handleSyncCheck(ws: ServerWebSocket<unknown>, clientEpoch: string, clientSeq: number): void {
+  function handleSyncCheck(
+    ws: ServerWebSocket<unknown>,
+    clientEpoch: string,
+    clientSeq: number,
+    clientTranscripts?: Record<string, number>,
+  ): void {
+    // Compare client transcript counts with server cache.
+    // Returns session IDs where server has more entries than client.
+    const staleTranscripts: Record<string, number> = {}
+    if (clientTranscripts) {
+      for (const [sid, clientCount] of Object.entries(clientTranscripts)) {
+        const serverCount = transcriptCache.get(sid)?.length ?? 0
+        if (serverCount > clientCount) {
+          staleTranscripts[sid] = serverCount
+        }
+      }
+    }
+    const transcriptExtra = Object.keys(staleTranscripts).length > 0 ? { staleTranscripts } : undefined
+
     if (clientEpoch !== SYNC_EPOCH) {
-      sendSyncResponse(ws, 'sync_stale', { reason: 'epoch_changed' })
+      sendSyncResponse(ws, 'sync_stale', { reason: 'epoch_changed', ...transcriptExtra })
       return
     }
     if (clientSeq >= syncSeq) {
-      sendSyncResponse(ws, 'sync_ok')
+      sendSyncResponse(ws, 'sync_ok', transcriptExtra)
       return
     }
     // Find oldest buffered seq
     if (syncBufferCount === 0) {
-      sendSyncResponse(ws, 'sync_ok')
+      sendSyncResponse(ws, 'sync_ok', transcriptExtra)
       return
     }
     const oldestIdx = (syncBufferHead - syncBufferCount + SYNC_BUFFER_SIZE) % SYNC_BUFFER_SIZE
     const oldestSeq = syncBuffer[oldestIdx].seq
     if (clientSeq < oldestSeq) {
-      sendSyncResponse(ws, 'sync_stale', { reason: 'gap_too_large', missed: syncSeq - clientSeq })
+      sendSyncResponse(ws, 'sync_stale', { reason: 'gap_too_large', missed: syncSeq - clientSeq, ...transcriptExtra })
       return
     }
     // Direct index arithmetic: seqs are monotonic, offset = clientSeq - oldestSeq + 1
     const startOffset = clientSeq - oldestSeq + 1
     const count = syncBufferCount - startOffset
-    sendSyncResponse(ws, 'sync_catchup', { count })
+    sendSyncResponse(ws, 'sync_catchup', { count, ...transcriptExtra })
     for (let i = 0; i < count; i++) {
       const idx = (oldestIdx + startOffset + i) % SYNC_BUFFER_SIZE
       try {
@@ -423,6 +441,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         .slice(0, 4)
         .map(t => ({ id: t.id, subject: t.subject })),
       archivedTaskCount: session.archivedTasks.reduce((sum, g) => sum + g.tasks.length, 0),
+      archivedTasks: session.archivedTasks.flatMap(g => g.tasks).map(t => ({ id: t.id, subject: t.subject })),
       runningBgTaskCount: session.bgTasks.filter(t => t.status === 'running').length,
       bgTasks: session.bgTasks.map(t => ({
         taskId: t.taskId,
@@ -769,6 +788,12 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           bgTask.completedAt = Date.now()
         }
       }
+      // Notify dashboards that this session resumed - triggers transcript re-fetch
+      broadcast({
+        type: 'session_update',
+        sessionId: id,
+        session: toSessionSummary(session),
+      })
     }
   }
 

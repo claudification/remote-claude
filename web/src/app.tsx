@@ -26,7 +26,7 @@ import {
 } from '@/hooks/use-sessions'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { canTerminal } from '@/lib/types'
-import { isMobileViewport } from '@/lib/utils'
+import { isMobileViewport, isTouchDevice } from '@/lib/utils'
 
 // Swipe-right from left edge to open session list (mobile)
 function useSwipeToOpen(onOpen: () => void) {
@@ -103,11 +103,16 @@ function Dashboard() {
       } else if (hiddenAt) {
         const elapsed = Date.now() - hiddenAt
         hiddenAt = 0
-        const { syncEpoch, syncSeq } = useSessionsStore.getState()
+        const { syncEpoch, syncSeq, transcripts } = useSessionsStore.getState()
+        // Include transcript entry counts for cached sessions so server can detect gaps
+        const transcriptCounts: Record<string, number> = {}
+        for (const [sid, entries] of Object.entries(transcripts)) {
+          if (entries && entries.length > 0) transcriptCounts[sid] = entries.length
+        }
         console.log(
-          `[sync] restored after ${(elapsed / 1000).toFixed(1)}s - sending sync_check (epoch=${syncEpoch.slice(0, 8)} seq=${syncSeq})`,
+          `[sync] restored after ${(elapsed / 1000).toFixed(1)}s - sending sync_check (epoch=${syncEpoch.slice(0, 8)} seq=${syncSeq} transcripts=${Object.keys(transcriptCounts).length})`,
         )
-        wsSend('sync_check', { epoch: syncEpoch, lastSeq: syncSeq })
+        wsSend('sync_check', { epoch: syncEpoch, lastSeq: syncSeq, transcripts: transcriptCounts })
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
@@ -125,37 +130,61 @@ function Dashboard() {
   // When connectSeq bumps, sessions with fetchedAt < connectSeq are stale.
   const fetchedAtRef = useRef<Record<string, number>>({})
 
-  // Helper: fetch events + transcript for a session and mark it as fetched
+  // Helper: fetch events + transcript for a session.
+  // Deduplicates within a short window to prevent storm on rapid switches.
   const fetchSessionData = useCallback(
-    (sessionId: string, seq: number) => {
-      fetchedAtRef.current[sessionId] = seq
-      console.log(`[sync] fetch events + transcript for ${sessionId.slice(0, 8)} (connectSeq=${seq})`)
-      fetchSessionEvents(sessionId).then(events => setEvents(sessionId, events))
+    (sessionId: string, reason?: string) => {
+      const now = Date.now()
+      const lastFetch = fetchedAtRef.current[sessionId] || 0
+      const elapsed = now - lastFetch
+      if (elapsed < 2000) {
+        console.log(`[sync] SKIP fetch ${sessionId.slice(0, 8)} (${reason || '?'}) - fetched ${elapsed}ms ago`)
+        return
+      }
+      const cachedCount = useSessionsStore.getState().transcripts[sessionId]?.length ?? 0
+      console.log(
+        `[sync] FETCH ${sessionId.slice(0, 8)} (${reason || '?'}) cached=${cachedCount} lastFetch=${lastFetch ? `${elapsed}ms ago` : 'never'}`,
+      )
+      fetchedAtRef.current[sessionId] = now
+      fetchSessionEvents(sessionId).then(events => {
+        console.log(`[sync] GOT events ${sessionId.slice(0, 8)}: ${events.length} entries`)
+        setEvents(sessionId, events)
+      })
       fetchTranscript(sessionId).then(transcript => {
-        if (transcript) setTranscript(sessionId, transcript)
+        if (transcript) {
+          console.log(
+            `[sync] GOT transcript ${sessionId.slice(0, 8)}: ${transcript.length} entries (was ${cachedCount})`,
+          )
+          setTranscript(sessionId, transcript)
+        } else {
+          console.log(`[sync] GOT transcript ${sessionId.slice(0, 8)}: null (server has no cache)`)
+        }
       })
     },
     [setEvents, setTranscript],
   )
 
   // On connectSeq bump (WS reconnect or sync_stale): refresh session list
-  // and re-fetch ONLY the currently selected session. Other sessions will
-  // lazy-fetch when the user switches to them.
+  // and re-fetch current session. Non-current sessions were evicted from LIFO
+  // cache in onopen - they'll be fetched fresh when the user navigates to them.
   useEffect(() => {
     if (!isConnected) return
-    console.log(`[sync] resync: refresh_sessions (connectSeq=${connectSeq})`)
-    wsSend('refresh_sessions')
-
     const sid = useSessionsStore.getState().selectedSessionId
-    if (sid) fetchSessionData(sid, connectSeq)
+    console.log(`[sync] connectSeq=${connectSeq} - refresh sessions, re-fetch ${sid?.slice(0, 8) || 'none'}`)
+    wsSend('refresh_sessions')
+    fetchedAtRef.current = {}
+    if (sid) fetchSessionData(sid, 'reconnect')
   }, [connectSeq, fetchSessionData]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // On session switch: fetch only if transcript is empty (not in LIFO cache)
+  // On session switch: fetch only if transcript not in LIFO cache.
+  // Cached sessions have active WS subscriptions pushing entries in real-time.
+  // The subscription diff subscriber ensures all cached sessions stay subscribed
+  // even across WS reconnects (clearSubscribedSessions in onopen).
   useEffect(() => {
     if (!selectedSessionId || !isConnected) return
     const cached = (useSessionsStore.getState().transcripts[selectedSessionId]?.length ?? 0) > 0
     if (!cached) {
-      fetchSessionData(selectedSessionId, connectSeq)
+      fetchSessionData(selectedSessionId, 'session-switch-empty')
     }
   }, [selectedSessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -426,13 +455,12 @@ function Dashboard() {
   )
 }
 
-// Voice FAB gate - only show on mobile with pref enabled and active session
+// Voice FAB gate - show on touch devices with pref enabled and active session
 function VoiceFabGate() {
   const showVoiceFab = useSessionsStore(state => state.dashboardPrefs.showVoiceFab)
   const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
-  const isMobile = isMobileViewport()
 
-  if (!isMobile || !showVoiceFab || !selectedSessionId) return null
+  if (!isTouchDevice() || !showVoiceFab || !selectedSessionId) return null
   return <VoiceFab />
 }
 

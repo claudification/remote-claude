@@ -444,8 +444,8 @@ const SETTINGS: SettingItem[] = [
   },
   {
     group: 'Input',
-    label: 'Voice FAB (mobile)',
-    description: 'Floating hold-to-record button on right edge',
+    label: 'Voice FAB (touch)',
+    description: 'Floating hold-to-record button on touch devices',
     keywords: 'mic microphone fab',
     render: ctx => (
       <input
@@ -698,7 +698,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-0 gap-0 max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-md p-0 gap-0 max-h-[85vh] overflow-hidden flex flex-col">
         <DialogTitle className="uppercase tracking-wider px-6 pt-6 pb-0">Settings</DialogTitle>
 
         {/* Filter input */}

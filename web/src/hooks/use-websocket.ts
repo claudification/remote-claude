@@ -14,7 +14,13 @@ const batch: (fn: () => void) => void = batchUpdates ?? (fn => fn())
 import type { SessionSummary } from '@shared/protocol'
 import type { HookEvent, Session, SessionOrderV2, TaskInfo, TranscriptEntry } from '@/lib/types'
 import { BUILD_VERSION } from '../../../src/shared/version'
-import { applyHashRoute, handleBgTaskOutputMessage, type ProjectSettingsMap, useSessionsStore } from './use-sessions'
+import {
+  applyHashRoute,
+  fetchTranscript,
+  handleBgTaskOutputMessage,
+  type ProjectSettingsMap,
+  useSessionsStore,
+} from './use-sessions'
 import { recordIn, recordOut } from './ws-stats'
 
 // Dashboard message from concentrator WS (loose type field for extensibility)
@@ -47,6 +53,12 @@ const SESSION_CHANNELS = ['session:events', 'session:transcript', 'session:tasks
 let msgBuffer: DashboardMessage[] = []
 let rafScheduled = false
 
+// Module-level subscription tracking - must be clearable from onopen handler
+let _subscribedSessions = new Set<string>()
+function clearSubscribedSessions() {
+  _subscribedSessions = new Set<string>()
+}
+
 function toSession(summary: SessionSummary): Session {
   return {
     id: summary.id,
@@ -68,6 +80,7 @@ function toSession(summary: SessionSummary): Session {
     activeTasks: summary.activeTasks ?? [],
     pendingTasks: summary.pendingTasks ?? [],
     archivedTaskCount: summary.archivedTaskCount ?? 0,
+    archivedTasks: summary.archivedTasks ?? [],
     runningBgTaskCount: summary.runningBgTaskCount ?? 0,
     bgTasks: summary.bgTasks ?? [],
     teammates: summary.teammates ?? [],
@@ -123,22 +136,56 @@ function flushMessages() {
   })
 }
 
+function refetchStaleTranscripts(staleTranscripts?: Record<string, number>): void {
+  if (!staleTranscripts) return
+  const sids = Object.keys(staleTranscripts)
+  if (sids.length === 0) {
+    console.log('[sync] transcript counts: all in sync')
+    return
+  }
+  const { transcripts, setTranscript } = useSessionsStore.getState()
+  console.log(
+    `[sync] STALE transcripts: ${sids.map(s => `${s.slice(0, 8)} server=${staleTranscripts[s]} local=${transcripts[s]?.length ?? 0}`).join(', ')}`,
+  )
+  for (const sid of sids) {
+    fetchTranscript(sid).then(transcript => {
+      if (transcript) {
+        console.log(`[sync] REFETCH transcript ${sid.slice(0, 8)}: ${transcript.length} entries`)
+        setTranscript(sid, transcript)
+      }
+    })
+  }
+}
+
 function processMessage(msg: DashboardMessage) {
   switch (msg.type) {
     // Sync protocol responses
     case 'sync_ok': {
-      const ok = msg as DashboardMessage & { epoch?: string; seq?: number }
+      const ok = msg as DashboardMessage & { epoch?: string; seq?: number; staleTranscripts?: Record<string, number> }
       console.log(`[sync] ok (epoch=${ok.epoch?.slice(0, 8)} seq=${ok.seq})`)
+      refetchStaleTranscripts(ok.staleTranscripts)
       break
     }
     case 'sync_catchup': {
-      const cu = msg as DashboardMessage & { count?: number; epoch?: string; seq?: number }
+      const cu = msg as DashboardMessage & {
+        count?: number
+        epoch?: string
+        seq?: number
+        staleTranscripts?: Record<string, number>
+      }
       console.log(`[sync] catchup: ${cu.count} missed messages (epoch=${cu.epoch?.slice(0, 8)} seq=${cu.seq})`)
       // The missed messages will arrive as subsequent WS messages and be processed normally
+      refetchStaleTranscripts(cu.staleTranscripts)
       break
     }
     case 'sync_stale': {
-      const stale = msg as DashboardMessage & { reason?: string; missed?: number; epoch?: string; seq?: number }
+      const stale = msg as DashboardMessage & {
+        reason?: string
+        missed?: number
+        epoch?: string
+        seq?: number
+        staleTranscripts?: Record<string, number>
+      }
       console.log(`[sync] stale: ${stale.reason || 'unknown'} (missed=${stale.missed || '?'})`)
       // Full resync needed - bump connectSeq
       useSessionsStore.setState(s => ({
@@ -146,6 +193,8 @@ function processMessage(msg: DashboardMessage) {
         syncEpoch: stale.epoch || '',
         syncSeq: stale.seq || 0,
       }))
+      // Also handle stale transcripts (may have data even though epoch changed)
+      refetchStaleTranscripts(stale.staleTranscripts)
       break
     }
     case 'sessions_list': {
@@ -206,6 +255,33 @@ function processMessage(msg: DashboardMessage) {
           }
           return newState
         })
+        // Rekey: transcript moved from old-id to new-id locally, but we may have
+        // missed channel entries under new-id while backgrounded. Re-fetch.
+        if (prevId) {
+          console.log(
+            `[sync] session_update: REKEY ${prevId.slice(0, 8)} -> ${sessionId.slice(0, 8)} status=${session.status}`,
+          )
+          setTimeout(() => {
+            fetchTranscript(sessionId).then(transcript => {
+              console.log(`[sync] rekey refetch ${sessionId.slice(0, 8)}: ${transcript?.length ?? 'null'} entries`)
+              if (transcript) useSessionsStore.getState().setTranscript(sessionId, transcript)
+            })
+          }, 500)
+        } else if (session.status === 'starting') {
+          // Session resumed (rclaude reconnects) with empty transcript - fetch it.
+          const state = useSessionsStore.getState()
+          const cached = state.transcripts[sessionId]?.length ?? 0
+          const isSelected = state.selectedSessionId === sessionId
+          console.log(`[sync] session_update: RESUME ${sessionId.slice(0, 8)} selected=${isSelected} cached=${cached}`)
+          if (isSelected && cached === 0) {
+            setTimeout(() => {
+              fetchTranscript(sessionId).then(transcript => {
+                console.log(`[sync] resume refetch ${sessionId.slice(0, 8)}: ${transcript?.length ?? 'null'} entries`)
+                if (transcript) useSessionsStore.getState().setTranscript(sessionId, transcript)
+              })
+            }, 1000)
+          }
+        }
       }
       break
     }
@@ -238,14 +314,20 @@ function processMessage(msg: DashboardMessage) {
     case 'transcript_entries': {
       if (msg.sessionId && msg.entries?.length) {
         const sid = msg.sessionId
-        const newEntries = msg.entries
+        const newEntries = msg.entries as TranscriptEntry[]
         const initial = msg.isInitial
         useSessionsStore.setState(state => {
           const existing = state.transcripts[sid] || []
+          const result = initial ? newEntries : [...existing, ...newEntries]
+          if (initial || newEntries.length > 2) {
+            console.log(
+              `[ws] transcript ${sid.slice(0, 8)}: +${newEntries.length} ${initial ? 'INITIAL' : 'incremental'} (total=${result.length})`,
+            )
+          }
           return {
             transcripts: {
               ...state.transcripts,
-              [sid]: initial ? newEntries : [...existing, ...newEntries],
+              [sid]: result,
             },
           }
         })
@@ -472,12 +554,32 @@ export function useWebSocket() {
         setWs(ws)
         send({ type: 'subscribe', protocolVersion: 2 })
 
-        // Subscribe to channels for currently selected session
-        const { selectedSessionId, selectedSubagentId } = useSessionsStore.getState()
+        // On reconnect: evict all non-selected sessions from LIFO cache.
+        // Their data is potentially stale (missed WS entries during disconnect).
+        // They'll be re-fetched fresh when the user navigates to them.
+        // Only the current session keeps its cache + gets re-subscribed.
+        const { selectedSessionId, selectedSubagentId, transcripts, events } = useSessionsStore.getState()
+        const evictedSids = Object.keys(transcripts).filter(sid => sid !== selectedSessionId)
+        if (evictedSids.length > 0) {
+          const newTranscripts = { ...transcripts }
+          const newEvents = { ...events }
+          for (const sid of evictedSids) {
+            delete newTranscripts[sid]
+            delete newEvents[sid]
+          }
+          console.log(`[sync] reconnect: evicted ${evictedSids.length} stale sessions from LIFO cache`)
+          useSessionsStore.setState({ transcripts: newTranscripts, events: newEvents })
+        }
+
+        // Reset subscription tracking - only current session
+        clearSubscribedSessions()
+
+        // Subscribe current session immediately
         if (selectedSessionId) {
           for (const ch of SESSION_CHANNELS) {
             send({ type: 'channel_subscribe', channel: ch, sessionId: selectedSessionId })
           }
+          _subscribedSessions.add(selectedSessionId)
           if (selectedSubagentId) {
             send({
               type: 'channel_subscribe',
@@ -487,6 +589,9 @@ export function useWebSocket() {
             })
           }
         }
+
+        // Bump connectSeq to trigger re-fetch of current session
+        useSessionsStore.setState(s => ({ connectSeq: s.connectSeq + 1 }))
       }
 
       ws.onclose = e => {
@@ -586,7 +691,7 @@ export function useWebSocket() {
 
     // Watch for session selection changes and manage channel subscriptions
     // Diff-based: keep subscriptions alive for LIFO-cached sessions
-    let subscribedSessions = new Set<string>()
+    _subscribedSessions = new Set<string>()
     const unsubSessionion = useSessionsStore.subscribe(state => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
 
@@ -598,7 +703,7 @@ export function useWebSocket() {
       }
 
       // Unsubscribe sessions no longer in cache
-      for (const sid of subscribedSessions) {
+      for (const sid of _subscribedSessions) {
         if (!desired.has(sid)) {
           for (const ch of SESSION_CHANNELS) {
             send({ type: 'channel_unsubscribe', channel: ch, sessionId: sid })
@@ -607,13 +712,13 @@ export function useWebSocket() {
       }
       // Subscribe new sessions
       for (const sid of desired) {
-        if (!subscribedSessions.has(sid)) {
+        if (!_subscribedSessions.has(sid)) {
           for (const ch of SESSION_CHANNELS) {
             send({ type: 'channel_subscribe', channel: ch, sessionId: sid })
           }
         }
       }
-      subscribedSessions = desired
+      _subscribedSessions = desired
     })
 
     // Watch for subagent selection and subscribe to its transcript channel

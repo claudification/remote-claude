@@ -54,6 +54,7 @@ export interface Session {
   activeTasks: Array<{ id: string; subject: string }>
   pendingTasks: Array<{ id: string; subject: string }>
   archivedTaskCount?: number
+  archivedTasks?: Array<{ id: string; subject: string }>
   runningBgTaskCount: number
   bgTasks: BgTaskSummary[]
   teammates: Array<{

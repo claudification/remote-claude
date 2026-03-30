@@ -573,10 +573,10 @@ async function main() {
               // Sync protocol: client sends epoch+lastSeq, server responds with
               // sync_ok, sync_catchup (missed messages), or sync_stale (full resync).
               case 'sync_check': {
-                sessionStore.handleSyncCheck(ws, data.epoch || '', data.lastSeq || 0)
+                sessionStore.handleSyncCheck(ws, data.epoch || '', data.lastSeq || 0, data.transcripts)
                 if (verbose) {
                   console.log(
-                    `[sync] check from dashboard: epoch=${(data.epoch || '').slice(0, 8)} seq=${data.lastSeq || 0}`,
+                    `[sync] check from dashboard: epoch=${(data.epoch || '').slice(0, 8)} seq=${data.lastSeq || 0} transcripts=${data.transcripts ? Object.keys(data.transcripts).length : 0}`,
                   )
                 }
                 break

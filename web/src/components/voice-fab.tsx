@@ -5,7 +5,7 @@
  * Mobile-only, gated by showVoiceFab dashboard pref.
  */
 
-import { Mic, X } from 'lucide-react'
+import { Mic, MicOff, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { cn, haptic } from '@/lib/utils'
@@ -13,9 +13,11 @@ import { cn, haptic } from '@/lib/utils'
 const CANCEL_THRESHOLD = 80 // px drag left to cancel
 
 type FabState = 'idle' | 'connecting' | 'recording' | 'refining' | 'submitting' | 'error'
+type MicPermission = 'unknown' | 'prompt' | 'granted' | 'denied'
 
 export function VoiceFab() {
   const [state, setState] = useState<FabState>('idle')
+  const [micPermission, setMicPermission] = useState<MicPermission>('unknown')
   const [interimText, setInterimText] = useState('')
   const [finalText, setFinalText] = useState('')
   const [refinedText, setRefinedText] = useState('')
@@ -39,6 +41,25 @@ export function VoiceFab() {
 
   const sendWs = useCallback((msg: Record<string, unknown>) => {
     useSessionsStore.getState().sendWsMessage(msg)
+  }, [])
+
+  // Query mic permission on mount + listen for changes
+  useEffect(() => {
+    let permStatus: PermissionStatus | null = null
+    navigator.permissions
+      ?.query({ name: 'microphone' as PermissionName })
+      .then(status => {
+        permStatus = status
+        setMicPermission(status.state as MicPermission)
+        status.onchange = () => setMicPermission(status.state as MicPermission)
+      })
+      .catch(() => {
+        // Permissions API not supported (older Safari) - assume prompt
+        setMicPermission('prompt')
+      })
+    return () => {
+      if (permStatus) permStatus.onchange = null
+    }
   }, [])
 
   // Clean up WS listener on unmount
@@ -169,8 +190,31 @@ export function VoiceFab() {
     resetState()
   }
 
+  async function requestMicPermission() {
+    haptic('tap')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // Got permission - immediately release the stream
+      for (const t of stream.getTracks()) t.stop()
+      setMicPermission('granted')
+      haptic('success')
+    } catch (err) {
+      console.error('[voice-fab] Mic permission denied:', err)
+      setMicPermission('denied')
+      haptic('error')
+    }
+  }
+
   async function handlePointerDown(e: React.PointerEvent) {
     if (stateRef.current !== 'idle') return
+
+    // First-click unlock: request permission without starting recording
+    if (micPermission === 'prompt' || micPermission === 'unknown') {
+      e.preventDefault()
+      requestMicPermission()
+      return
+    }
+
     e.preventDefault()
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
 
@@ -217,7 +261,11 @@ export function VoiceFab() {
       mediaRecorderRef.current = recorder
     } catch (err) {
       console.error('[voice-fab] Recording failed:', err)
-      setErrorMsg(err instanceof Error ? err.message : 'Mic access denied')
+      const msg = err instanceof Error ? err.message : 'Mic access denied'
+      if (msg.includes('Permission') || msg.includes('denied') || msg.includes('NotAllowedError')) {
+        setMicPermission('denied')
+      }
+      setErrorMsg(msg)
       setState('error')
       haptic('error')
       setTimeout(resetState, 2000)
@@ -272,12 +320,16 @@ export function VoiceFab() {
     }
   }
 
+  const needsUnlock = micPermission === 'prompt' || micPermission === 'unknown'
   const isRecording = state === 'recording'
   const isActive = state !== 'idle'
   const isCancelling = Math.abs(dragOffset) >= CANCEL_THRESHOLD
   const displayText = refinedText || finalText
   const displayInterim = state === 'recording' ? interimText : ''
   const hasText = !!(displayText || displayInterim)
+
+  // Hide FAB entirely when mic permission is denied
+  if (micPermission === 'denied') return null
 
   return (
     <>
@@ -359,7 +411,8 @@ export function VoiceFab() {
           'w-12 h-12 rounded-full flex items-center justify-center',
           'shadow-lg border transition-all duration-150',
           'touch-none select-none',
-          state === 'idle' && 'bg-background/80 border-border/50 text-muted-foreground active:scale-95',
+          needsUnlock && 'bg-background/60 border-border/30 text-muted-foreground/50 active:scale-95',
+          !needsUnlock && state === 'idle' && 'bg-background/80 border-border/50 text-muted-foreground active:scale-95',
           isRecording && !isCancelling && 'bg-red-500/20 border-red-500/50 text-red-400 scale-110',
           isRecording && isCancelling && 'bg-red-950/80 border-red-500/50 text-red-400',
           state === 'connecting' && 'bg-accent/10 border-accent/30 text-accent animate-pulse',
@@ -376,7 +429,9 @@ export function VoiceFab() {
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
-        {isCancelling ? (
+        {needsUnlock ? (
+          <MicOff className="w-5 h-5" />
+        ) : isCancelling ? (
           <X className="w-5 h-5" />
         ) : isRecording ? (
           <span className="relative flex h-4 w-4">

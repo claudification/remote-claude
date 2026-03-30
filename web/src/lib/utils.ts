@@ -8,6 +8,10 @@ export function isMobileViewport() {
   return window.innerWidth < MOBILE_BREAKPOINT
 }
 
+export function isTouchDevice() {
+  return window.matchMedia('(pointer: coarse)').matches
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
