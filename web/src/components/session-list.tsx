@@ -216,6 +216,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
 
   return (
     <div
+      data-session-id={session.id}
       role="button"
       tabIndex={0}
       onClick={handleClick}
@@ -830,6 +831,7 @@ function InactiveProjectItem({ sessions }: { sessions: Session[] }) {
   return (
     <SessionContextMenu session={latest}>
       <div
+        data-session-id={latest.id}
         role="button"
         tabIndex={0}
         onClick={() => {
@@ -871,10 +873,12 @@ function InactiveProjectItem({ sessions }: { sessions: Session[] }) {
 
 export function SessionList() {
   const sessions = useSessionsStore(s => s.sessions)
+  const selectedSessionId = useSessionsStore(s => s.selectedSessionId)
   const rawSessionOrder = useSessionsStore(s => s.sessionOrder)
   const sessionOrder = rawSessionOrder?.tree ? rawSessionOrder : { version: 2 as const, tree: [] }
   const dashPrefs = useSessionsStore(s => s.dashboardPrefs)
   const [showInactive, setShowInactive] = useState(dashPrefs.showInactiveByDefault)
+  const [pulseSessionId, setPulseSessionId] = useState<string | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem('collapsed-groups')
@@ -965,6 +969,42 @@ export function SessionList() {
       return next
     })
   }
+
+  // Auto-expand group + scroll into view + pulse when session is selected (e.g. via Ctrl+K)
+  useEffect(() => {
+    if (!selectedSessionId) return
+    const session = sessions.find(s => s.id === selectedSessionId)
+    if (!session) return
+    const cwdKey = `cwd:${session.cwd}`
+
+    // Find which group contains this session and expand it
+    for (const node of sessionOrder.tree) {
+      if (node.type === 'group' && node.children.some(c => c.id === cwdKey)) {
+        if (collapsedGroups.has(node.id)) {
+          setCollapsedGroups(prev => {
+            const next = new Set(prev)
+            next.delete(node.id)
+            localStorage.setItem('collapsed-groups', JSON.stringify([...next]))
+            return next
+          })
+        }
+        break
+      }
+    }
+
+    // Scroll into view + pulse after a tick (group expansion needs to render first)
+    setPulseSessionId(selectedSessionId)
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-session-id="${selectedSessionId}"]`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        el.classList.add('session-pulse')
+        setTimeout(() => el.classList.remove('session-pulse'), 1500)
+      }
+    })
+    const timer = setTimeout(() => setPulseSessionId(null), 1500)
+    return () => clearTimeout(timer)
+  }, [selectedSessionId])
 
   // Rename group
   const handleRename = useCallback(

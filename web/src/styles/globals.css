@@ -438,3 +438,12 @@ pre.mermaid {
 	border: 1px solid var(--destructive);
 	border-radius: 2px;
 }
+
+/* Session pulse animation (triggered on Ctrl+K selection) */
+@keyframes session-pulse-glow {
+	0%, 100% { box-shadow: none; }
+	50% { box-shadow: 0 0 12px 2px oklch(0.7 0.15 260 / 0.4); }
+}
+.session-pulse {
+	animation: session-pulse-glow 0.5s ease-in-out 3;
+}
