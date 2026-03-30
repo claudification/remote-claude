@@ -13,12 +13,13 @@ import { FileEditor } from './file-editor'
 import { InlineTerminal } from './inline-terminal'
 import { MarkdownInput } from './markdown-input'
 import { renderProjectIcon } from './project-settings-editor'
+import { SharedView } from './shared-view'
 import { SubagentView } from './subagent-view'
 import { TasksView } from './tasks-view'
 import { TranscriptView } from './transcript'
 import { WebTerminal } from './web-terminal'
 
-type Tab = 'transcript' | 'tty' | 'events' | 'agents' | 'tasks' | 'files' | 'diag'
+type Tab = 'transcript' | 'tty' | 'events' | 'agents' | 'tasks' | 'files' | 'shared' | 'diag'
 
 // Stable empty references to avoid re-render loops with Zustand selectors
 // (Zustand uses Object.is - a new [] !== previous [], causing infinite re-renders)
@@ -846,10 +847,7 @@ export function SessionDetail() {
                       {renderProjectIcon(ps.icon, 'w-3.5 h-3.5')}
                     </span>
                   )}
-                  <span
-                    className="text-sm font-bold truncate"
-                    style={ps?.color ? { color: ps.color } : undefined}
-                  >
+                  <span className="text-sm font-bold truncate" style={ps?.color ? { color: ps.color } : undefined}>
                     {session.title || ps?.label || session.cwd.split('/').slice(-2).join('/')}
                   </span>
                   <span>
@@ -1326,6 +1324,21 @@ export function SessionDetail() {
               type="button"
               onClick={() => {
                 haptic('tick')
+                setActiveTab('shared')
+              }}
+              className={cn(
+                'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
+                activeTab === 'shared'
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Shared
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                haptic('tick')
                 setActiveTab('diag')
               }}
               className={cn(
@@ -1413,6 +1426,7 @@ export function SessionDetail() {
               <FileEditor sessionId={selectedSessionId} />
             </div>
           )}
+          {activeTab === 'shared' && selectedSessionId && <SharedView sessionId={selectedSessionId} />}
           {activeTab === 'diag' && selectedSessionId && <DiagView sessionId={selectedSessionId} />}
         </>
       )}
