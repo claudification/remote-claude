@@ -352,6 +352,7 @@ async function main() {
     rclaudeSecret,
     cacheDir: authCacheDir,
     serverStartTime,
+    publicOrigin: origins[0],
   })
 
   if (apiPort && apiPort !== port) {

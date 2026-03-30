@@ -340,10 +340,11 @@ export interface RouteOptions {
   rclaudeSecret?: string
   cacheDir?: string
   serverStartTime?: number
+  publicOrigin?: string // public base URL from --origin (e.g. "https://your-host.example.com")
 }
 
 export function createRouter(options: RouteOptions): Hono {
-  const { sessionStore, webDir, vapidPublicKey, rclaudeSecret, cacheDir, serverStartTime = Date.now() } = options
+  const { sessionStore, webDir, vapidPublicKey, rclaudeSecret, cacheDir, serverStartTime = Date.now(), publicOrigin } = options
 
   // Initialize disk-backed blob store + shared files log
   if (cacheDir) {
@@ -883,10 +884,9 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
     const ext = mediaType.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
     const filePath = `/file/${hash}.${ext}`
-    const fwdHost = c.req.header('x-forwarded-host')
-    const host = fwdHost || c.req.header('host') || 'localhost:9999'
-    const proto = c.req.header('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
-    const url = `${proto}://${host}${filePath}`
+    const url = publicOrigin
+      ? `${publicOrigin}${filePath}`
+      : `http://${c.req.header('host') || 'localhost:9999'}${filePath}`
 
     // Log to shared files index
     const sessionId = c.req.header('x-session-id') || c.req.query('sessionId') || undefined
