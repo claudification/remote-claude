@@ -123,14 +123,18 @@ function storeBlobDirect(hash: string, bytes: Uint8Array, mediaType: string): vo
   }
 }
 
-// ─── Shared files log ─────────────────────────────────────────────
-interface SharedFileEntry {
+// ─── Shared files + clipboard log (per-CWD, server-side) ─────────
+export interface SharedFileEntry {
+  type: 'file' | 'clipboard'
   hash: string
   filename: string
   mediaType: string
-  sessionId?: string
+  cwd?: string // project directory (primary query key)
+  sessionId?: string // for attribution
   size: number
   url: string
+  text?: string // clipboard text content
+  dismissed?: boolean
   createdAt: number
 }
 
@@ -141,7 +145,7 @@ function initSharedFilesLog(cacheDir: string): void {
   sharedFilesLogPath = join(cacheDir, 'shared-files.jsonl')
 }
 
-function appendSharedFile(entry: SharedFileEntry): void {
+export function appendSharedFile(entry: SharedFileEntry): void {
   if (!sharedFilesLogPath) return
   try {
     appendFileSync(sharedFilesLogPath, `${JSON.stringify(entry)}\n`)
@@ -159,10 +163,26 @@ function readSharedFiles(): SharedFileEntry[] {
       .split('\n')
       .filter(Boolean)
       .map(line => JSON.parse(line) as SharedFileEntry)
-      .filter(e => e.createdAt > cutoff)
+      .filter(e => e.createdAt > cutoff && !e.dismissed)
       .reverse() // newest first
   } catch {
     return []
+  }
+}
+
+function dismissSharedFile(hash: string): boolean {
+  if (!sharedFilesLogPath || !existsSync(sharedFilesLogPath)) return false
+  try {
+    const lines = readFileSync(sharedFilesLogPath, 'utf-8').trim().split('\n').filter(Boolean)
+    const updated = lines.map(line => {
+      const entry = JSON.parse(line) as SharedFileEntry
+      if (entry.hash === hash) return JSON.stringify({ ...entry, dismissed: true })
+      return line
+    })
+    writeFileSync(sharedFilesLogPath, `${updated.join('\n')}\n`)
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -344,7 +364,15 @@ export interface RouteOptions {
 }
 
 export function createRouter(options: RouteOptions): Hono {
-  const { sessionStore, webDir, vapidPublicKey, rclaudeSecret, cacheDir, serverStartTime = Date.now(), publicOrigin } = options
+  const {
+    sessionStore,
+    webDir,
+    vapidPublicKey,
+    rclaudeSecret,
+    cacheDir,
+    serverStartTime = Date.now(),
+    publicOrigin,
+  } = options
 
   // Initialize disk-backed blob store + shared files log
   if (cacheDir) {
@@ -888,19 +916,38 @@ Output a JSON array of strings. Each string should be the correct spelling of on
       ? `${publicOrigin}${filePath}`
       : `http://${c.req.header('host') || 'localhost:9999'}${filePath}`
 
-    // Log to shared files index
+    // Log to shared files index (keyed by CWD for per-project queries)
     const sessionId = c.req.header('x-session-id') || c.req.query('sessionId') || undefined
-    appendSharedFile({ hash, filename, mediaType, sessionId, size: bytes.length, url, createdAt: Date.now() })
+    const sessionCwd = sessionId ? sessionStore.getSession(sessionId)?.cwd : undefined
+    appendSharedFile({
+      type: 'file',
+      hash,
+      filename,
+      mediaType,
+      cwd: sessionCwd,
+      sessionId,
+      size: bytes.length,
+      url,
+      createdAt: Date.now(),
+    })
 
     return c.json({ hash, url, filename, mediaType })
   })
 
-  // ─── Shared files ─────────────────────────────────────────────────
+  // ─── Shared files + clipboard (per-CWD) ─────────────────────────
   app.get('/api/shared-files', c => {
+    const cwd = c.req.query('cwd')
     const sessionId = c.req.query('sessionId')
     let files = readSharedFiles()
-    if (sessionId) files = files.filter(f => f.sessionId === sessionId)
+    if (cwd) files = files.filter(f => f.cwd === cwd)
+    else if (sessionId) files = files.filter(f => f.sessionId === sessionId)
     return c.json({ files })
+  })
+
+  app.delete('/api/shared-files/:hash', c => {
+    const hash = c.req.param('hash')
+    const ok = dismissSharedFile(hash)
+    return c.json({ ok })
   })
 
   // ─── Session order ─────────────────────────────────────────────────

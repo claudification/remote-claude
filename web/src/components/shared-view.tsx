@@ -1,21 +1,23 @@
 /**
- * Shared files + clipboard copy history view
+ * Shared files + clipboard copy history view (per-CWD, server-side)
  * Shows uploads via share_file MCP tool and clipboard captures from OSC 52
  */
 
 import { useEffect, useState } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
 import { cn, haptic } from '@/lib/utils'
 
 const API_BASE = ''
 
-interface SharedFile {
+interface SharedFileEntry {
+  type: 'file' | 'clipboard'
   hash: string
   filename: string
   mediaType: string
+  cwd?: string
   sessionId?: string
   size: number
   url: string
+  text?: string
   createdAt: number
 }
 
@@ -51,32 +53,26 @@ function copyText(text: string) {
   document.body.removeChild(ta)
 }
 
-export function SharedView({ sessionId }: { sessionId: string }) {
-  const [files, setFiles] = useState<SharedFile[]>([])
+export function SharedView({ cwd }: { cwd: string }) {
+  const [files, setFiles] = useState<SharedFileEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const clipboardCaptures = useSessionsStore(s => s.clipboardCaptures)
-  const sessionClips = clipboardCaptures.filter(c => c.sessionId === sessionId)
+  const [seq, setSeq] = useState(0) // bump to re-fetch after delete
 
   useEffect(() => {
     setLoading(true)
-    fetch(`${API_BASE}/api/shared-files?sessionId=${sessionId}`)
+    fetch(`${API_BASE}/api/shared-files?cwd=${encodeURIComponent(cwd)}`)
       .then(r => r.json())
-      .then((data: { files: SharedFile[] }) => setFiles(data.files || []))
+      .then((data: { files: SharedFileEntry[] }) => setFiles(data.files || []))
       .catch(() => setFiles([]))
       .finally(() => setLoading(false))
-  }, [sessionId])
+  }, [cwd, seq])
 
-  // Merge files + clips into a unified timeline
-  type Item = { kind: 'file'; file: SharedFile } | { kind: 'clip'; clip: (typeof sessionClips)[0] }
-
-  const items: Item[] = [
-    ...sessionClips.map(clip => ({ kind: 'clip' as const, clip })),
-    ...files.map(file => ({ kind: 'file' as const, file })),
-  ].sort((a, b) => {
-    const ta = a.kind === 'file' ? a.file.createdAt : a.clip.timestamp
-    const tb = b.kind === 'file' ? b.file.createdAt : b.clip.timestamp
-    return tb - ta // newest first
-  })
+  function handleDelete(hash: string) {
+    haptic('tick')
+    fetch(`${API_BASE}/api/shared-files/${hash}`, { method: 'DELETE' })
+      .then(() => setSeq(s => s + 1))
+      .catch(() => {})
+  }
 
   if (loading) {
     return (
@@ -84,7 +80,7 @@ export function SharedView({ sessionId }: { sessionId: string }) {
     )
   }
 
-  if (items.length === 0) {
+  if (files.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground text-xs font-mono">
         No shared files or clipboard copies yet
@@ -94,41 +90,66 @@ export function SharedView({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-2">
-      {items.map(item => {
-        if (item.kind === 'file') {
-          const f = item.file
-          return (
+      {files.map(f => (
+        <div
+          key={f.hash}
+          className={cn(
+            'flex items-start gap-3 p-2.5 border rounded',
+            f.type === 'clipboard'
+              ? 'border-cyan-500/20 bg-cyan-500/5'
+              : 'border-border hover:bg-muted/20 transition-colors',
+          )}
+        >
+          {/* Thumbnail / icon */}
+          {f.type === 'file' && isImage(f.mediaType) ? (
+            <a href={f.url} target="_blank" rel="noopener noreferrer">
+              <img
+                src={f.url}
+                alt={f.filename}
+                className="w-16 h-16 object-cover rounded border border-border/30 shrink-0"
+              />
+            </a>
+          ) : (
             <div
-              key={f.hash}
-              className="flex items-start gap-3 p-2.5 border border-border rounded hover:bg-muted/20 transition-colors"
-            >
-              {isImage(f.mediaType) ? (
-                <a href={f.url} target="_blank" rel="noopener noreferrer">
-                  <img
-                    src={f.url}
-                    alt={f.filename}
-                    className="w-16 h-16 object-cover rounded border border-border/30 shrink-0"
-                  />
-                </a>
-              ) : (
-                <div className="w-16 h-16 flex items-center justify-center bg-muted/30 rounded border border-border/30 shrink-0">
-                  <span className="text-[10px] text-muted-foreground font-mono uppercase">
-                    {f.mediaType.split('/')[1]?.slice(0, 4) || 'file'}
-                  </span>
-                </div>
+              className={cn(
+                'w-16 h-16 flex items-center justify-center rounded border shrink-0',
+                f.type === 'clipboard' ? 'bg-cyan-500/10 border-cyan-500/20' : 'bg-muted/30 border-border/30',
               )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-500/20 text-emerald-400 uppercase">
-                    shared
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">{formatTime(f.createdAt)}</span>
-                  <span className="text-[10px] text-muted-foreground/50">{formatSize(f.size)}</span>
-                </div>
-                <div className="text-xs font-mono text-foreground/80 truncate mt-0.5" title={f.filename}>
-                  {f.filename}
-                </div>
-                <div className="flex items-center gap-1.5 mt-1.5">
+            >
+              <span className="text-lg">{f.type === 'clipboard' ? '\uD83D\uDCCB' : '\uD83D\uDCC4'}</span>
+            </div>
+          )}
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  'px-1.5 py-0.5 text-[9px] font-bold uppercase',
+                  f.type === 'clipboard' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-emerald-500/20 text-emerald-400',
+                )}
+              >
+                {f.type === 'clipboard' ? 'copy' : 'shared'}
+              </span>
+              <span className="text-[10px] text-muted-foreground">{formatTime(f.createdAt)}</span>
+              {f.type === 'file' && <span className="text-[10px] text-muted-foreground/50">{formatSize(f.size)}</span>}
+            </div>
+
+            {f.type === 'file' && (
+              <div className="text-xs font-mono text-foreground/80 truncate mt-0.5" title={f.filename}>
+                {f.filename}
+              </div>
+            )}
+
+            {f.type === 'clipboard' && f.text && (
+              <pre className="text-[10px] text-foreground/70 font-mono truncate mt-0.5 max-w-full overflow-hidden whitespace-pre-wrap max-h-16">
+                {f.text.length > 200 ? `${f.text.slice(0, 200)}...` : f.text}
+              </pre>
+            )}
+
+            <div className="flex items-center gap-1.5 mt-1.5">
+              {f.type === 'file' && f.url && (
+                <>
                   <button
                     type="button"
                     onClick={() => {
@@ -147,58 +168,31 @@ export function SharedView({ sessionId }: { sessionId: string }) {
                   >
                     OPEN
                   </a>
-                </div>
-              </div>
-            </div>
-          )
-        }
-
-        // Clipboard capture
-        const c = item.clip
-        return (
-          <div key={c.id} className="flex items-start gap-3 p-2.5 border border-cyan-500/20 rounded bg-cyan-500/5">
-            <div className="w-16 h-16 flex items-center justify-center bg-cyan-500/10 rounded border border-cyan-500/20 shrink-0">
-              <span className="text-lg">{c.contentType === 'image' ? '\uD83D\uDDBC' : '\uD83D\uDCCB'}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.5 text-[9px] font-bold bg-cyan-500/20 text-cyan-400 uppercase">copy</span>
-                <span className="text-[10px] text-muted-foreground">{formatTime(c.timestamp)}</span>
-              </div>
-              {c.contentType === 'text' && c.text && (
-                <pre className="text-[10px] text-foreground/70 font-mono truncate mt-0.5 max-w-full overflow-hidden">
-                  {c.text.length > 120 ? `${c.text.slice(0, 120)}...` : c.text}
-                </pre>
+                </>
               )}
-              {c.contentType === 'image' && c.base64 && (
-                <img
-                  src={`data:${c.mimeType || 'image/png'};base64,${c.base64}`}
-                  alt="clipboard"
-                  className="max-h-16 rounded mt-0.5"
-                />
-              )}
-              <div className="flex items-center gap-1.5 mt-1.5">
+              {f.type === 'clipboard' && f.text && (
                 <button
                   type="button"
                   onClick={() => {
                     haptic('tap')
-                    if (c.text) copyText(c.text)
+                    copyText(f.text || '')
                   }}
-                  className={cn(
-                    'px-2 py-0.5 text-[10px] font-bold border transition-colors',
-                    c.text
-                      ? 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/25'
-                      : 'bg-muted/10 text-muted-foreground/30 border-border/20 cursor-not-allowed',
-                  )}
-                  disabled={!c.text}
+                  className="px-2 py-0.5 text-[10px] font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/25 transition-colors"
                 >
                   COPY
                 </button>
-              </div>
+              )}
+              <button
+                type="button"
+                onClick={() => handleDelete(f.hash)}
+                className="px-2 py-0.5 text-[10px] font-bold bg-muted/10 text-muted-foreground/50 border border-border/20 hover:text-destructive hover:border-destructive/30 transition-colors"
+              >
+                DELETE
+              </button>
             </div>
           </div>
-        )
-      })}
+        </div>
+      ))}
     </div>
   )
 }

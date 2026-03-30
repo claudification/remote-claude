@@ -1426,7 +1426,7 @@ export function SessionDetail() {
               <FileEditor sessionId={selectedSessionId} />
             </div>
           )}
-          {activeTab === 'shared' && selectedSessionId && <SharedView sessionId={selectedSessionId} />}
+          {activeTab === 'shared' && session && <SharedView cwd={session.cwd} />}
           {activeTab === 'diag' && selectedSessionId && <DiagView sessionId={selectedSessionId} />}
         </>
       )}

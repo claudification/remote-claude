@@ -193,7 +193,7 @@ export function applyHashRoute() {
   window.addEventListener('hashchange', () => processHash())
 
   // Listen for postMessage from service worker (notification click deep links)
-  navigator.serviceWorker?.addEventListener('message', (event) => {
+  navigator.serviceWorker?.addEventListener('message', event => {
     if (event.data?.type === 'navigate-session' && event.data.sessionId) {
       useSessionsStore.getState().selectSession(event.data.sessionId)
     }

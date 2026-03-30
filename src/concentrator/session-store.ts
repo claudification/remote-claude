@@ -24,6 +24,7 @@ import type {
 } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
 import { getProjectSettings } from './project-settings'
+import { appendSharedFile } from './routes'
 
 export type { SessionSummary }
 
@@ -1877,14 +1878,29 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
               if (osc52Match?.[1] && osc52Match[1].length > 4) {
                 const base64 = osc52Match[1]
                 const mime = detectClipboardMime(base64)
+                const decodedText = mime ? undefined : Buffer.from(base64, 'base64').toString('utf-8')
                 const capture = {
                   type: 'clipboard_capture' as const,
                   sessionId,
                   contentType: mime ? ('image' as const) : ('text' as const),
-                  ...(mime ? { base64, mimeType: mime } : { text: Buffer.from(base64, 'base64').toString('utf-8') }),
+                  ...(mime ? { base64, mimeType: mime } : { text: decodedText }),
                   timestamp: Date.now(),
                 }
                 broadcast(capture)
+                // Persist to shared files log (per-CWD, survives restarts)
+                const clipHash = `clip_${Date.now().toString(36)}_${base64.slice(0, 8)}`
+                appendSharedFile({
+                  type: 'clipboard',
+                  hash: clipHash,
+                  filename: mime ? `clipboard.${mime.split('/')[1]}` : 'clipboard.txt',
+                  mediaType: mime || 'text/plain',
+                  cwd: session.cwd,
+                  sessionId,
+                  size: base64.length,
+                  url: '',
+                  text: decodedText,
+                  createdAt: Date.now(),
+                })
                 console.log(`[clipboard] ${capture.contentType} from transcript (session ${sessionId.slice(0, 8)})`)
               }
             }

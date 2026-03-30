@@ -9,9 +9,9 @@ export interface BuildVersion {
 }
 
 export const BUILD_VERSION: BuildVersion = {
-  gitHash: 'f711f10510d6614f87d7a2742d2882ff1101fe33',
-  gitHashShort: 'f711f10-dirty',
-  buildTime: '2026-03-29T06:20:04.701Z',
+  gitHash: '649baaf5250462e41195c3383dc8b673953d1c7c',
+  gitHashShort: '649baaf-dirty',
+  buildTime: '2026-03-30T11:05:05.815Z',
   dirty: true,
-  recentCommits: [{"hash":"f711f10","message":"(HEAD -> main, origin/main, origin/HEAD) fix: Add stream_close_delay to Caddy reverse proxy for WS resilience"},{"hash":"a038a85","message":"fix: Defensive re-clear of input after successful send"},{"hash":"8b8e099","message":"fix: Improve AskUserQuestion card contrast"}],
+  recentCommits: [{"hash":"649baaf","message":"(HEAD -> main, origin/main, origin/HEAD) feat: Shared tab with uploaded files + clipboard copy history"},{"hash":"7a1ffe3","message":"fix: Memory leak audit - cap all unbounded collections"},{"hash":"2d15ea8","message":"fix: Wrapper crash resilience audit - 18 fixes, zero crash paths"}],
 }
