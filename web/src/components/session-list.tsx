@@ -474,6 +474,7 @@ function SessionContextMenu({ session, children }: { session: Session; children:
   const rawSessionOrder = useSessionsStore(s => s.sessionOrder) as SessionOrderV2 | null
   const sessionOrder = rawSessionOrder?.tree ? rawSessionOrder : { version: 2 as const, tree: [] }
   const dismissSession = useSessionsStore(s => s.dismissSession)
+  const selectSession = useSessionsStore(s => s.selectSession)
 
   const groups = sessionOrder.tree.filter((n): n is SessionOrderGroup => n.type === 'group')
   const sessionCwdKey = `cwd:${session.cwd}`
@@ -570,23 +571,29 @@ function SessionContextMenu({ session, children }: { session: Session; children:
           <ContextMenu.Item className={menuItemClass} onSelect={createGroupAndMove}>
             New group...
           </ContextMenu.Item>
+          <ContextMenu.Separator className="h-px bg-border my-1" />
           {session.status !== 'ended' && (
-            <>
-              <ContextMenu.Separator className="h-px bg-border my-1" />
-              <ContextMenu.Item
-                className={cn(menuItemClass, 'text-destructive')}
-                onSelect={() => {
-                  haptic('error')
-                  wsSend('quit_session', { sessionId: session.id })
-                }}
-              >
-                Quit session
-              </ContextMenu.Item>
-            </>
+            <ContextMenu.Item
+              className={cn(menuItemClass, 'text-destructive')}
+              onSelect={() => {
+                haptic('error')
+                wsSend('quit_session', { sessionId: session.id })
+              }}
+            >
+              Quit session
+            </ContextMenu.Item>
           )}
           {session.status === 'ended' && (
             <>
-              <ContextMenu.Separator className="h-px bg-border my-1" />
+              <ContextMenu.Item
+                className={cn(menuItemClass, 'text-emerald-400')}
+                onSelect={() => {
+                  haptic('tap')
+                  selectSession(session.id)
+                }}
+              >
+                Revive
+              </ContextMenu.Item>
               <ContextMenu.Item
                 className={cn(menuItemClass, 'text-destructive')}
                 onSelect={() => {
@@ -821,40 +828,42 @@ function InactiveProjectItem({ sessions }: { sessions: Session[] }) {
   const displayColor = ps?.color
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => {
-        haptic('tap')
-        selectSession(latest.id)
-      }}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') {
+    <SessionContextMenu session={latest}>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => {
           haptic('tap')
           selectSession(latest.id)
-        }
-      }}
-      className="w-full text-left border border-border hover:border-primary p-2 pl-3 transition-colors cursor-pointer"
-      style={displayColor ? { borderLeftColor: displayColor, borderLeftWidth: '3px' } : undefined}
-      title={`${sessions.length} session${sessions.length > 1 ? 's' : ''}\n${latest.cwd}`}
-    >
-      <div className="flex items-center gap-1.5">
-        {ps?.icon && (
-          <span className="text-muted-foreground" style={displayColor ? { color: displayColor } : undefined}>
-            {renderProjectIcon(ps.icon)}
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            haptic('tap')
+            selectSession(latest.id)
+          }
+        }}
+        className="w-full text-left border border-border hover:border-primary p-2 pl-3 transition-colors cursor-pointer"
+        style={displayColor ? { borderLeftColor: displayColor, borderLeftWidth: '3px' } : undefined}
+        title={`${sessions.length} session${sessions.length > 1 ? 's' : ''}\n${latest.cwd}`}
+      >
+        <div className="flex items-center gap-1.5">
+          {ps?.icon && (
+            <span className="text-muted-foreground" style={displayColor ? { color: displayColor } : undefined}>
+              {renderProjectIcon(ps.icon)}
+            </span>
+          )}
+          <span
+            className="font-mono text-xs text-muted-foreground truncate flex-1"
+            style={displayColor ? { color: `${displayColor}99` } : undefined}
+          >
+            {displayName}
           </span>
-        )}
-        <span
-          className="font-mono text-xs text-muted-foreground truncate flex-1"
-          style={displayColor ? { color: `${displayColor}99` } : undefined}
-        >
-          {displayName}
-        </span>
-        <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
-          {formatAge(latest.lastActivity)}
-        </span>
+          <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
+            {formatAge(latest.lastActivity)}
+          </span>
+        </div>
       </div>
-    </div>
+    </SessionContextMenu>
   )
 }
 
