@@ -970,29 +970,10 @@ export function SessionList() {
     })
   }
 
-  // Auto-expand group + scroll into view + pulse when session is selected (e.g. via Ctrl+K)
+  // Scroll into view + pulse when session is selected (e.g. via Ctrl+K)
+  // Groups stay collapsed -- the selected session "peeks" below the group header
   useEffect(() => {
     if (!selectedSessionId) return
-    const session = sessions.find(s => s.id === selectedSessionId)
-    if (!session) return
-    const cwdKey = `cwd:${session.cwd}`
-
-    // Find which group contains this session and expand it
-    for (const node of sessionOrder.tree) {
-      if (node.type === 'group' && node.children.some(c => c.id === cwdKey)) {
-        if (collapsedGroups.has(node.id)) {
-          setCollapsedGroups(prev => {
-            const next = new Set(prev)
-            next.delete(node.id)
-            localStorage.setItem('collapsed-groups', JSON.stringify([...next]))
-            return next
-          })
-        }
-        break
-      }
-    }
-
-    // Scroll into view + pulse after a tick (group expansion needs to render first)
     setPulseSessionId(selectedSessionId)
     requestAnimationFrame(() => {
       const el = document.querySelector(`[data-session-id="${selectedSessionId}"]`)
@@ -1220,7 +1201,7 @@ export function SessionList() {
                     onToggle={() => toggleGroup(node.id)}
                     onRename={name => handleRename(node.id, name)}
                   />
-                  {!isCollapsed && (
+                  {!isCollapsed ? (
                     <div className="space-y-1">
                       {node.children.map(child => {
                         if (child.type === 'group') return null
@@ -1234,6 +1215,20 @@ export function SessionList() {
                         )
                       })}
                     </div>
+                  ) : (
+                    (() => {
+                      // Peek: show selected session even when group is collapsed
+                      if (!selectedSessionId) return null
+                      const selectedSession = sessions.find(s => s.id === selectedSessionId)
+                      if (!selectedSession) return null
+                      const selectedCwdKey = `cwd:${selectedSession.cwd}`
+                      if (!node.children.some(c => c.id === selectedCwdKey)) return null
+                      return (
+                        <div className="opacity-80">
+                          <SessionItemContent session={selectedSession} compact />
+                        </div>
+                      )
+                    })()
                   )}
                 </SortableNode>
               )
