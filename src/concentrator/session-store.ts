@@ -479,6 +479,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         return {
           id,
           name: s?.title || getProjectSettings(s?.cwd || '')?.label || s?.cwd?.split('/').pop() || id.slice(0, 8),
+          cwd: s?.cwd || '',
         }
       }),
       tokenUsage: session.tokenUsage,

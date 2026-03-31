@@ -7,6 +7,7 @@ import { fetchSubagentTranscript, reviveSession, sendInput, useSessionsStore, ws
 import { canTerminal, type TranscriptEntry } from '@/lib/types'
 import { cn, contextWindowSize, formatAge, formatEffort, formatModel, haptic, isMobileViewport } from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
+import { ConversationView } from './conversation-view'
 import { DiagView } from './diag-view'
 import { EventsView } from './events-view'
 import { FileEditor } from './file-editor'
@@ -656,6 +657,12 @@ export function SessionDetail() {
   const showThinking = useSessionsStore(s => s.dashboardPrefs.showThinking)
   const [reviveState, setReviveState] = useState<'idle' | 'sending' | 'waiting' | 'error'>('idle')
   const [reviveError, setReviveError] = useState<string | null>(null)
+  const [conversationTarget, setConversationTarget] = useState<{
+    cwdA: string
+    cwdB: string
+    nameA: string
+    nameB: string
+  } | null>(null)
   const [reviveCountdown, setReviveCountdown] = useState(0)
   const disableFollow = useCallback(() => setFollow(false), [])
   const enableFollow = useCallback(() => setFollow(true), [])
@@ -676,6 +683,7 @@ export function SessionDetail() {
     setReviveError(null)
     setReviveCountdown(0)
     reviveStartRef.current = 0
+    setConversationTarget(null)
   }, [selectedSessionId])
 
   // Apply requested tab - fires on selectSession (always 'transcript'), openTab, and badge clicks
@@ -1129,7 +1137,27 @@ export function SessionDetail() {
                     <span className="text-[10px] text-teal-400/60">linked:</span>
                     {session.linkedSessions.map(ls => (
                       <span key={ls.id} className="inline-flex items-center gap-1 text-[10px] font-mono">
-                        <span className="text-teal-400">{ls.name}</span>
+                        <button
+                          type="button"
+                          className="text-teal-400 hover:text-teal-300 hover:underline cursor-pointer"
+                          onClick={() => {
+                            haptic('tap')
+                            const myName =
+                              session.title ||
+                              projectSettings?.label ||
+                              session.cwd.split('/').pop() ||
+                              session.id.slice(0, 8)
+                            setConversationTarget({
+                              cwdA: session.cwd,
+                              cwdB: ls.cwd,
+                              nameA: myName,
+                              nameB: ls.name,
+                            })
+                          }}
+                          title={`View conversation with ${ls.name}`}
+                        >
+                          {ls.name}
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
@@ -1375,7 +1403,20 @@ export function SessionDetail() {
             </div>
           </div>
 
-          {(activeTab === 'transcript' || (activeTab === 'tty' && !hasTerminal)) && (
+          {/* Conversation view overlay - replaces content when viewing inter-session messages */}
+          {conversationTarget && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <ConversationView
+                cwdA={conversationTarget.cwdA}
+                cwdB={conversationTarget.cwdB}
+                nameA={conversationTarget.nameA}
+                nameB={conversationTarget.nameB}
+                onBack={() => setConversationTarget(null)}
+              />
+            </div>
+          )}
+
+          {!conversationTarget && (activeTab === 'transcript' || (activeTab === 'tty' && !hasTerminal)) && (
             <div className="flex-1 min-h-0 overflow-hidden relative">
               <TranscriptView
                 key={selectedSessionId}
@@ -1393,7 +1434,7 @@ export function SessionDetail() {
               <InlineTerminal wrapperId={session.wrapperIds[0]} />
             </div>
           )}
-          {activeTab === 'events' && (
+          {!conversationTarget && activeTab === 'events' && (
             <div className="flex-1 min-h-0 overflow-hidden relative">
               <EventsView
                 key={selectedSessionId}
@@ -1405,7 +1446,7 @@ export function SessionDetail() {
               {!follow && events.length > 0 && <ScrollToBottomButton onClick={enableFollow} direction="up" />}
             </div>
           )}
-          {activeTab === 'agents' && selectedSessionId && (
+          {!conversationTarget && activeTab === 'agents' && selectedSessionId && (
             <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-4">
               <SubagentView sessionId={selectedSessionId} />
               {session.bgTasks.length > 0 && (
@@ -1420,23 +1461,26 @@ export function SessionDetail() {
               )}
             </div>
           )}
-          {activeTab === 'tasks' && selectedSessionId && (
+          {!conversationTarget && activeTab === 'tasks' && selectedSessionId && (
             <div className="flex-1 min-h-0 overflow-hidden">
               <TasksView sessionId={selectedSessionId} pendingCount={session.pendingTaskCount} />
             </div>
           )}
-          {activeTab === 'files' && selectedSessionId && (
+          {!conversationTarget && activeTab === 'files' && selectedSessionId && (
             <div className="flex-1 min-h-0 overflow-hidden">
               <FileEditor sessionId={selectedSessionId} />
             </div>
           )}
-          {activeTab === 'shared' && session && <SharedView cwd={session.cwd} />}
-          {activeTab === 'diag' && selectedSessionId && <DiagView sessionId={selectedSessionId} />}
+          {!conversationTarget && activeTab === 'shared' && session && <SharedView cwd={session.cwd} />}
+          {!conversationTarget && activeTab === 'diag' && selectedSessionId && (
+            <DiagView sessionId={selectedSessionId} />
+          )}
         </>
       )}
 
       {/* Input box - isolated to prevent transcript rerenders on typing */}
-      {canSendInput &&
+      {!conversationTarget &&
+        canSendInput &&
         (activeTab === 'transcript' || (activeTab === 'tty' && !hasTerminal)) &&
         !selectedSubagentId &&
         selectedSessionId && <InputBar sessionId={selectedSessionId} />}
