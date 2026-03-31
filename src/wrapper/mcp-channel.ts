@@ -48,6 +48,8 @@ export interface McpChannelCallbacks {
   onPermissionRequest?: (data: PermissionRequestData) => void
   onDisconnect?: () => void
   onTogglePlanMode?: () => void
+  onReviveSession?: (sessionId: string) => Promise<{ ok: boolean; error?: string; name?: string }>
+  onQuitSession?: (sessionId: string) => Promise<{ ok: boolean; error?: string; name?: string }>
 }
 
 interface McpChannelState {
@@ -150,6 +152,30 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           'Toggle plan mode via the terminal session. Use as a fallback when ExitPlanMode is not available. The toggle takes effect after your current response completes.',
         inputSchema: { type: 'object' as const, properties: {} },
       },
+      {
+        name: 'revive_session',
+        description:
+          'Revive an ended/inactive session. Requires benevolent trust level on your project. This is ASYNC - the session takes 10-30 seconds to boot. Use list_sessions to poll for status change after waiting.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            session_id: { type: 'string', description: 'Target session ID to revive (from list_sessions)' },
+          },
+          required: ['session_id'],
+        },
+      },
+      {
+        name: 'quit_session',
+        description:
+          'Send quit signal to an active session. Requires benevolent trust level on your project. The session will end within a few seconds. Use list_sessions to confirm after 5-10 seconds.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            session_id: { type: 'string', description: 'Target session ID to quit (from list_sessions)' },
+          },
+          required: ['session_id'],
+        },
+      },
     ],
   }))
 
@@ -197,6 +223,42 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         case 'toggle_plan_mode': {
           callbacks.onTogglePlanMode?.()
           return { content: [{ type: 'text', text: 'Plan mode toggle sent via PTY.' }] }
+        }
+        case 'revive_session': {
+          const sessionId = params.session_id
+          if (!sessionId) return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
+          const result = await callbacks.onReviveSession?.(sessionId)
+          if (!result?.ok) {
+            debug(`[channel] revive_session failed: ${result?.error}`)
+            return { content: [{ type: 'text', text: result?.error || 'Failed to revive session' }], isError: true }
+          }
+          debug(`[channel] revive_session: ${sessionId.slice(0, 8)} (${result.name})`)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Reviving session ${result.name || sessionId.slice(0, 8)}. This is async - the session takes 10-30 seconds to start. Use list_sessions to check when status changes to "live".`,
+              },
+            ],
+          }
+        }
+        case 'quit_session': {
+          const sessionId = params.session_id
+          if (!sessionId) return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
+          const result = await callbacks.onQuitSession?.(sessionId)
+          if (!result?.ok) {
+            debug(`[channel] quit_session failed: ${result?.error}`)
+            return { content: [{ type: 'text', text: result?.error || 'Failed to quit session' }], isError: true }
+          }
+          debug(`[channel] quit_session: ${sessionId.slice(0, 8)} (${result.name})`)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Quit signal sent to ${result.name || sessionId.slice(0, 8)}. The session will end within a few seconds. Use list_sessions after 5-10 seconds to confirm.`,
+              },
+            ],
+          }
         }
         default:
           return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }

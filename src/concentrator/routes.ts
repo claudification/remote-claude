@@ -551,12 +551,24 @@ export function createRouter(options: RouteOptions): Hono {
     if (!session) return c.json({ error: 'Session not found' }, 404)
     if (session.status === 'active') return c.json({ error: 'Session is already active' }, 400)
 
+    // If called with X-Caller-Session header, check benevolent trust
+    const callerSessionId = c.req.header('X-Caller-Session')
+    if (callerSessionId) {
+      const callerSess = sessionStore.getSession(callerSessionId)
+      const callerTrust = callerSess?.cwd ? getProjectSettings(callerSess.cwd)?.trustLevel : undefined
+      if (callerTrust !== 'benevolent') {
+        return c.json({ error: 'Requires benevolent trust level' }, 403)
+      }
+    }
+
     const agent = sessionStore.getAgent()
     if (!agent) return c.json({ error: 'No host agent connected' }, 503)
 
     const wrapperId = randomUUID()
+    const name =
+      session.title || getProjectSettings(session.cwd)?.label || session.cwd.split('/').pop() || sessionId.slice(0, 8)
     agent.send(JSON.stringify({ type: 'revive', sessionId, cwd: session.cwd, wrapperId }))
-    return c.json({ success: true, message: 'Revive command sent to agent', wrapperId }, 202)
+    return c.json({ success: true, name, message: 'Revive command sent to agent', wrapperId }, 202)
   })
 
   app.delete('/sessions/:id', c => {

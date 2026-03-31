@@ -1059,6 +1059,45 @@ async function main() {
                 break
               }
 
+              case 'quit_remote_session': {
+                // Benevolent session requests quit of another session
+                const targetSession = data.targetSession
+                const fromSession = data.fromSession || ws.data.sessionId
+                if (!targetSession) break
+
+                // Check benevolent trust
+                const callerSess = sessionStore.getSession(fromSession)
+                const callerTrust = callerSess?.cwd ? getProjectSettings(callerSess.cwd)?.trustLevel : undefined
+                if (callerTrust !== 'benevolent') {
+                  ws.send(
+                    JSON.stringify({ type: 'quit_remote_result', ok: false, error: 'Requires benevolent trust level' }),
+                  )
+                  break
+                }
+
+                const targetWs = sessionStore.getSessionSocket(targetSession)
+                if (targetWs) {
+                  const targetSess = sessionStore.getSession(targetSession)
+                  targetWs.send(JSON.stringify({ type: 'quit_session', sessionId: targetSession }))
+                  ws.send(
+                    JSON.stringify({
+                      type: 'quit_remote_result',
+                      ok: true,
+                      name: targetSess?.title || targetSess?.cwd?.split('/').pop(),
+                    }),
+                  )
+                  if (verbose)
+                    console.log(
+                      `[inter-session] Benevolent quit: ${fromSession.slice(0, 8)} -> ${targetSession.slice(0, 8)}`,
+                    )
+                } else {
+                  ws.send(
+                    JSON.stringify({ type: 'quit_remote_result', ok: false, error: 'Target session not connected' }),
+                  )
+                }
+                break
+              }
+
               // Terminal relay: dashboard -> rclaude
               // Terminal messages: all routed by wrapperId (physical PTY identity)
               case 'terminal_attach': {

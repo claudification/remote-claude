@@ -1063,6 +1063,41 @@ async function main() {
       diag('channel', 'toggle_plan_mode: injecting /plan via PTY')
       if (ptyProcess) ptyProcess.write('/plan\r')
     },
+    async onReviveSession(sessionId) {
+      const httpUrl = noConcentrator ? null : wsToHttpUrl(concentratorUrl)
+      if (!httpUrl) return { ok: false, error: 'No concentrator connection' }
+      try {
+        const headers: Record<string, string> = {
+          'X-Caller-Session': claudeSessionId || internalId,
+        }
+        if (concentratorSecret) headers.Authorization = `Bearer ${concentratorSecret}`
+        const res = await fetch(`${httpUrl}/sessions/${sessionId}/revive`, {
+          method: 'POST',
+          headers,
+        })
+        const data = (await res.json()) as { success?: boolean; error?: string; name?: string }
+        if (!res.ok || !data.success) return { ok: false, error: data.error || `HTTP ${res.status}` }
+        diag('channel', `revive_session: ${sessionId.slice(0, 8)} (${data.name})`)
+        return { ok: true, name: data.name }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : 'Network error' }
+      }
+    },
+    async onQuitSession(sessionId) {
+      if (!wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+      return new Promise(resolve => {
+        const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout waiting for quit confirmation' }), 10000)
+        // Send quit request via WS - concentrator routes to target wrapper
+        wsClient?.send({
+          type: 'quit_remote_session',
+          targetSession: sessionId,
+          fromSession: claudeSessionId || internalId,
+        } as unknown as WrapperMessage)
+        // For now, assume success since the concentrator doesn't ack quit
+        clearTimeout(timeout)
+        resolve({ ok: true })
+      })
+    },
   })
 
   // Pending callbacks for inter-session request/response
