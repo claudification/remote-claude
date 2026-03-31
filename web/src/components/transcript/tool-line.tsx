@@ -429,6 +429,73 @@ export function ToolLine({
       summary = jobId ? `delete ${jobId.slice(0, 8)}` : 'delete'
       break
     }
+    // rclaude inter-session tools - rich display
+    case 'mcp__rclaude__send_message': {
+      const to = (input.to as string) || ''
+      const intent = (input.intent as string) || ''
+      const msg = (input.message as string) || ''
+      const intentStyles: Record<string, string> = {
+        request: 'bg-yellow-400/15 text-yellow-400 border-yellow-400/30',
+        response: 'bg-green-400/15 text-green-400 border-green-400/30',
+        notify: 'bg-blue-400/15 text-blue-400 border-blue-400/30',
+        progress: 'bg-zinc-400/15 text-zinc-400 border-zinc-400/30',
+      }
+      summary = (
+        <span className="flex items-center gap-1.5">
+          <span className="text-teal-400/60">to</span>
+          <span className="text-teal-400 font-bold">{to.slice(0, 8)}</span>
+          {intent && (
+            <span
+              className={cn(
+                'px-1 py-0.5 text-[8px] font-bold uppercase border rounded',
+                intentStyles[intent] || intentStyles.notify,
+              )}
+            >
+              {intent}
+            </span>
+          )}
+        </span>
+      )
+      if (msg) {
+        details = (
+          <div className="text-[10px] text-foreground/80 pl-1 border-l border-teal-400/30 ml-1 whitespace-pre-wrap">
+            {msg.length > 300 ? `${msg.slice(0, 300)}...` : msg}
+          </div>
+        )
+      }
+      break
+    }
+    case 'mcp__rclaude__revive_session':
+    case 'mcp__rclaude__quit_session': {
+      const sessionId = (input.session_id as string) || ''
+      const action = name.includes('revive') ? 'revive' : 'quit'
+      const actionColor = action === 'revive' ? 'text-green-400' : 'text-red-400'
+      summary = (
+        <span className="flex items-center gap-1.5">
+          <span className={actionColor}>{action}</span>
+          <span className="text-muted-foreground font-mono">{sessionId.slice(0, 8)}</span>
+        </span>
+      )
+      if (result) details = <TruncatedPre text={result} tool="MCP" />
+      break
+    }
+    case 'mcp__rclaude__list_sessions': {
+      summary = input.status ? `status=${input.status}` : 'all'
+      if (result) {
+        try {
+          const sessions = JSON.parse(result) as Array<{ name: string; status: string }>
+          summary = `${sessions.length} sessions`
+        } catch {
+          /* use default */
+        }
+      }
+      if (result) details = <TruncatedPre text={result} tool="MCP" />
+      break
+    }
+    case 'mcp__rclaude__notify': {
+      summary = (input.message as string)?.slice(0, 80) || 'notification'
+      break
+    }
     default: {
       if (name.startsWith('mcp__')) {
         const parts = name.split('__')

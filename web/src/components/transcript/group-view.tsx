@@ -6,7 +6,7 @@
 import { memo, useState } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import type { TranscriptContentBlock, TranscriptImage, TranscriptToolUseResult } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import { cn, haptic } from '@/lib/utils'
 
 // Chat bubble color presets - keys match dashboardPrefs.chatBubbleColor
 const BUBBLE_COLORS: Record<string, string> = {
@@ -141,7 +141,7 @@ export function GroupView({
     | { kind: 'thinking'; text: string }
     | { kind: 'tool'; tool: TranscriptContentBlock; result?: string; extra?: Record<string, unknown> }
     | { kind: 'bash'; text: string }
-    | { kind: 'channel'; text: string; source: string }
+    | { kind: 'channel'; text: string; source: string; sessionId?: string; intent?: string; isInterSession?: boolean }
     | { kind: 'images'; images: Array<{ hash: string; ext: string; url: string; originalPath: string }> }
 
   const items: RenderItem[] = []
@@ -170,9 +170,16 @@ export function GroupView({
           const intent = getAttr('intent')
 
           if (sender === 'session' && fromProject) {
-            // Inter-session message -- always show decorated
-            const intentLabel = intent ? ` [${intent}]` : ''
-            items.push({ kind: 'channel', text: msg, source: `${fromProject}${intentLabel}` })
+            // Inter-session message -- rich display
+            const fromSessionId = getAttr('from_session')
+            items.push({
+              kind: 'channel',
+              text: msg,
+              source: fromProject,
+              sessionId: fromSessionId,
+              intent: intent || undefined,
+              isInterSession: true,
+            })
           } else if (source === 'rclaude') {
             // Our own dashboard input -- strip wrapper, show as text
             items.push({ kind: 'text', text: msg })
@@ -365,6 +372,52 @@ export function GroupView({
                 </div>
               )
             case 'channel':
+              if (item.isInterSession) {
+                const intentStyles: Record<string, string> = {
+                  request: 'bg-yellow-400/15 text-yellow-400 border-yellow-400/30',
+                  response: 'bg-green-400/15 text-green-400 border-green-400/30',
+                  notify: 'bg-blue-400/15 text-blue-400 border-blue-400/30',
+                  progress: 'bg-zinc-400/15 text-zinc-400 border-zinc-400/30',
+                }
+                const iStyle = intentStyles[item.intent || ''] || intentStyles.notify
+                return (
+                  <div key={i} className="rounded-lg border border-teal-500/30 bg-teal-500/5 px-3 py-2.5 my-1">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-mono text-teal-400/60">from</span>
+                      <button
+                        type="button"
+                        className="text-xs font-bold text-teal-400 hover:text-teal-300 hover:underline"
+                        onClick={() => {
+                          // Find and select the sender session
+                          if (item.sessionId) {
+                            const store = useSessionsStore.getState()
+                            const target = store.sessions.find(s => s.id === item.sessionId)
+                            if (target) {
+                              haptic('tap')
+                              store.selectSession(item.sessionId)
+                            }
+                          }
+                        }}
+                      >
+                        {item.source}
+                      </button>
+                      {item.intent && (
+                        <span
+                          className={cn(
+                            'px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider border rounded',
+                            iStyle,
+                          )}
+                        >
+                          {item.intent}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm">
+                      <Markdown>{item.text}</Markdown>
+                    </div>
+                  </div>
+                )
+              }
               return (
                 <div key={i} className="text-sm border-l-2 border-teal-400/40 pl-3 py-1">
                   <div className="text-[10px] text-teal-400/70 uppercase font-bold tracking-wider mb-1">
