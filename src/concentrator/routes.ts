@@ -10,6 +10,7 @@ import { Hono } from 'hono'
 import type { ListDirsResult, SendInput, Session, SpawnResult, TeamInfo } from '../shared/protocol'
 import { handleAuthRoute, requireAuth } from './auth-routes'
 import { getGlobalSettings, updateGlobalSettings } from './global-settings'
+import { purgeMessages, queryMessages } from './inter-session-log'
 import { resolveInJail } from './path-jail'
 import {
   deleteProjectSettings,
@@ -18,6 +19,7 @@ import {
   setProjectSettings,
 } from './project-settings'
 import { addSubscription, getSubscriptionCount, isPushConfigured, removeSubscription, sendPushToAll } from './push'
+import { addPersistedLink, getPersistedLinks, removePersistedLink } from './session-links'
 import { getSessionOrder, type SessionOrderV2, setSessionOrder } from './session-order'
 import type { SessionStore } from './session-store'
 import { UI_HTML } from './ui'
@@ -1155,6 +1157,93 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
   // ─── CORS preflight ────────────────────────────────────────────────
   app.options('*', _c => new Response(null, { status: 204 }))
+
+  // ─── Inter-session links ─────────────────────────────────────────
+  app.get('/api/links', c => {
+    const persisted = getPersistedLinks()
+    const activeSessions = sessionStore.getActiveSessions()
+
+    const links = persisted.map(pl => {
+      const sessA = activeSessions.find(s => s.cwd === pl.cwdA)
+      const sessB = activeSessions.find(s => s.cwd === pl.cwdB)
+      const nameA = getProjectSettings(pl.cwdA)?.label || pl.cwdA.split('/').pop() || pl.cwdA
+      const nameB = getProjectSettings(pl.cwdB)?.label || pl.cwdB.split('/').pop() || pl.cwdB
+      return {
+        cwdA: pl.cwdA,
+        cwdB: pl.cwdB,
+        nameA,
+        nameB,
+        createdAt: pl.createdAt,
+        lastUsed: pl.lastUsed,
+        online: !!(sessA && sessB),
+        sessionIdA: sessA?.id,
+        sessionIdB: sessB?.id,
+      }
+    })
+    return c.json({ links })
+  })
+
+  app.post('/api/links', async c => {
+    const body = await c.req.json<{ cwdA: string; cwdB: string }>()
+    if (!body.cwdA || !body.cwdB) return c.json({ error: 'cwdA and cwdB required' }, 400)
+    if (body.cwdA === body.cwdB) return c.json({ error: 'Cannot link a project to itself' }, 400)
+
+    const link = addPersistedLink(body.cwdA, body.cwdB)
+
+    // Auto-link any active sessions for these CWDs
+    const active = sessionStore.getActiveSessions()
+    const sessionsA = active.filter(s => s.cwd === link.cwdA)
+    const sessionsB = active.filter(s => s.cwd === link.cwdB)
+    for (const a of sessionsA) {
+      for (const b of sessionsB) {
+        sessionStore.linkSessions(a.id, b.id)
+      }
+    }
+
+    return c.json({ ok: true, link })
+  })
+
+  app.delete('/api/links', async c => {
+    const body = await c.req.json<{ cwdA: string; cwdB: string; purgeHistory?: boolean }>()
+    if (!body.cwdA || !body.cwdB) return c.json({ error: 'cwdA and cwdB required' }, 400)
+
+    const removed = removePersistedLink(body.cwdA, body.cwdB)
+
+    // Also sever active session-ID links
+    const active = sessionStore.getActiveSessions()
+    const sessionsA = active.filter(s => s.cwd === body.cwdA)
+    const sessionsB = active.filter(s => s.cwd === body.cwdB)
+    for (const a of sessionsA) {
+      for (const b of sessionsB) {
+        sessionStore.unlinkSessions(a.id, b.id)
+      }
+    }
+
+    let purged = 0
+    if (body.purgeHistory) {
+      purged = purgeMessages(body.cwdA, body.cwdB)
+    }
+
+    return c.json({ ok: true, removed, purged })
+  })
+
+  // ─── Inter-session message history ──────────────────────────────────
+  app.get('/api/links/messages', c => {
+    const cwdA = c.req.query('cwdA')
+    const cwdB = c.req.query('cwdB')
+    const cwd = c.req.query('cwd')
+    const limit = Number.parseInt(c.req.query('limit') || '50', 10)
+    const before = c.req.query('before') ? Number.parseInt(c.req.query('before')!, 10) : undefined
+
+    const result = queryMessages({
+      cwdA: cwdA || undefined,
+      cwdB: cwdB || undefined,
+      cwd: cwd || undefined,
+      limit,
+      before,
+    })
+    return c.json(result)
+  })
 
   // ─── 404 catch-all ─────────────────────────────────────────────────
   app.all('*', c => c.json({ error: 'Not found' }, 404))

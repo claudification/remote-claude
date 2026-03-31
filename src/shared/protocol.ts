@@ -346,6 +346,19 @@ export interface TranscriptKick {
   sessionId: string
 }
 
+// Persistent inter-session link (CWD-pair based, survives restarts)
+export interface LinkSummary {
+  cwdA: string
+  cwdB: string
+  nameA: string
+  nameB: string
+  createdAt: number
+  lastUsed: number
+  online: boolean // true if both CWDs have active sessions
+  sessionIdA?: string
+  sessionIdB?: string
+}
+
 // Inter-session messaging (channel-enabled sessions only)
 export type InterSessionIntent = 'request' | 'response' | 'notify' | 'progress'
 
@@ -849,6 +862,7 @@ export interface SessionSummary {
   activeTasks: Array<{ id: string; subject: string }>
   pendingTasks: Array<{ id: string; subject: string }>
   archivedTaskCount: number
+  archivedTasks?: Array<{ id: string; subject: string }>
   runningBgTaskCount: number
   bgTasks: Array<{
     taskId: string

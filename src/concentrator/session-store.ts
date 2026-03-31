@@ -122,7 +122,12 @@ export interface SessionStore {
   // Dashboard subscriber methods
   addSubscriber: (ws: ServerWebSocket<unknown>, protocolVersion?: number) => void
   sendSessionsList: (ws: ServerWebSocket<unknown>) => void
-  handleSyncCheck: (ws: ServerWebSocket<unknown>, clientEpoch: string, clientSeq: number) => void
+  handleSyncCheck: (
+    ws: ServerWebSocket<unknown>,
+    clientEpoch: string,
+    clientSeq: number,
+    clientTranscripts?: Record<string, number>,
+  ) => void
   getSyncState: () => { epoch: string; seq: number }
   removeSubscriber: (ws: ServerWebSocket<unknown>) => void
   getSubscriberCount: () => number

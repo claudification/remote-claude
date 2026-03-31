@@ -10,10 +10,20 @@ import { DEFAULT_CONCENTRATOR_PORT } from '../shared/protocol'
 import { getUser, initAuth, reloadState } from './auth'
 import { getAuthenticatedUser, requireAuth, setRclaudeSecret } from './auth-routes'
 import { initGlobalSettings } from './global-settings'
+import { appendMessage, initInterSessionLog, purgeMessages, queryMessages } from './inter-session-log'
 import { addAllowedRoot, addPathMapping, getAllowedRoots } from './path-jail'
 import { getProjectSettings, initProjectSettings } from './project-settings'
 import { initPush, isPushConfigured, sendPushToAll } from './push'
 import { createRouter } from './routes'
+import {
+  addPersistedLink,
+  findLink,
+  getLinksForCwd,
+  getPersistedLinks,
+  initSessionLinks,
+  removePersistedLink,
+  touchLink,
+} from './session-links'
 import { initSessionOrder } from './session-order'
 import { createSessionStore } from './session-store'
 import { cleanupVoiceForWs, handleVoiceData, handleVoiceStart, handleVoiceStop } from './voice-stream'
@@ -228,6 +238,8 @@ async function main() {
   initProjectSettings(authCacheDir)
   initGlobalSettings(authCacheDir)
   initSessionOrder(authCacheDir)
+  initSessionLinks(authCacheDir)
+  initInterSessionLog(authCacheDir)
 
   // Initialize web push (optional - needs VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY env vars)
   if (vapidPublicKey && vapidPrivateKey) {
@@ -452,6 +464,26 @@ async function main() {
 
                 // Track socket by wrapperId (multiple wrappers can share a sessionId)
                 sessionStore.setSessionSocket(data.sessionId, wrapperId, ws)
+
+                // Auto-restore persisted links for this session's CWD
+                const sessionCwd = (existingSession || sessionStore.getSession(data.sessionId))?.cwd
+                if (sessionCwd) {
+                  const persistedLinks = getLinksForCwd(sessionCwd)
+                  for (const pl of persistedLinks) {
+                    const otherCwd = pl.cwdA === sessionCwd ? pl.cwdB : pl.cwdA
+                    // Find active sessions for the other CWD
+                    for (const s of sessionStore.getActiveSessions()) {
+                      if (s.cwd === otherCwd && s.id !== data.sessionId) {
+                        sessionStore.linkSessions(data.sessionId, s.id)
+                        if (verbose) {
+                          console.log(
+                            `[links] Auto-restored: ${data.sessionId.slice(0, 8)} (${sessionCwd.split('/').pop()}) <-> ${s.id.slice(0, 8)} (${otherCwd.split('/').pop()})`,
+                          )
+                        }
+                      }
+                    }
+                  }
+                }
 
                 // Broadcast session update so dashboard picks up new wrapperIds and status
                 sessionStore.broadcastSessionUpdate(data.sessionId)
@@ -740,12 +772,51 @@ async function main() {
                   conversationId,
                 }
 
-                if (linkStatus === 'linked') {
+                // Check if CWD pair has a persisted link (auto-approve)
+                const effectiveLinkStatus =
+                  linkStatus === 'unknown' && fromSess?.cwd && toSess.cwd && findLink(fromSess.cwd, toSess.cwd)
+                    ? 'persisted'
+                    : linkStatus
+
+                if (effectiveLinkStatus === 'linked' || effectiveLinkStatus === 'persisted') {
+                  // Auto-link runtime session IDs if restored from persisted link
+                  if (effectiveLinkStatus === 'persisted') {
+                    sessionStore.linkSessions(fromSession, toSession)
+                    if (verbose)
+                      console.log(
+                        `[links] Auto-linked from persisted: ${fromSession.slice(0, 8)} <-> ${toSession.slice(0, 8)}`,
+                      )
+                  }
+
                   // Deliver directly
                   const targetWs = sessionStore.getSessionSocket(toSession)
                   if (targetWs) {
                     targetWs.send(JSON.stringify(delivery))
                     ws.send(JSON.stringify({ type: 'channel_send_result', ok: true, conversationId }))
+
+                    // Log message + touch persisted link
+                    const toProject =
+                      toSess.title ||
+                      getProjectSettings(toSess.cwd)?.label ||
+                      toSess.cwd.split('/').pop() ||
+                      toSession.slice(0, 8)
+                    if (fromSess?.cwd && toSess.cwd) {
+                      touchLink(fromSess.cwd, toSess.cwd)
+                      appendMessage({
+                        ts: Date.now(),
+                        from: {
+                          sessionId: fromSession,
+                          wrapperId: ws.data.wrapperId,
+                          cwd: fromSess.cwd,
+                          name: fromProject,
+                        },
+                        to: { sessionId: toSession, cwd: toSess.cwd, name: toProject },
+                        intent: data.intent || 'notify',
+                        conversationId,
+                        preview: (data.message || '').slice(0, 200),
+                        fullLength: (data.message || '').length,
+                      })
+                    }
                   } else {
                     ws.send(
                       JSON.stringify({ type: 'channel_send_result', ok: false, error: 'Target session not connected' }),
@@ -922,6 +993,12 @@ async function main() {
 
                 if (data.action === 'approve') {
                   sessionStore.linkSessions(fromSession, toSession)
+                  // Persist the CWD-pair link for future sessions
+                  const fromSess = sessionStore.getSession(fromSession)
+                  const toSess = sessionStore.getSession(toSession)
+                  if (fromSess?.cwd && toSess?.cwd) {
+                    addPersistedLink(fromSess.cwd, toSess.cwd)
+                  }
                   // Deliver queued messages to target session
                   const queued = sessionStore.drainQueuedMessages(fromSession, toSession)
                   const targetWs = sessionStore.getSessionSocket(toSession)
@@ -932,13 +1009,21 @@ async function main() {
                   }
                   if (verbose)
                     console.log(
-                      `[inter-session] Link approved: ${fromSession.slice(0, 8)} <-> ${toSession.slice(0, 8)}`,
+                      `[inter-session] Link approved + persisted: ${fromSession.slice(0, 8)} <-> ${toSession.slice(0, 8)}`,
                     )
                 } else {
                   sessionStore.blockSession(fromSession, toSession)
+                  // Block also removes persisted link (explicit rejection)
+                  const fromSess = sessionStore.getSession(fromSession)
+                  const toSess = sessionStore.getSession(toSession)
+                  if (fromSess?.cwd && toSess?.cwd) {
+                    removePersistedLink(fromSess.cwd, toSess.cwd)
+                  }
                   sessionStore.drainQueuedMessages(fromSession, toSession) // discard
                   if (verbose)
-                    console.log(`[inter-session] Link blocked: ${fromSession.slice(0, 8)} X ${toSession.slice(0, 8)}`)
+                    console.log(
+                      `[inter-session] Link blocked + persisted removed: ${fromSession.slice(0, 8)} X ${toSession.slice(0, 8)}`,
+                    )
                 }
                 break
               }
@@ -948,10 +1033,18 @@ async function main() {
                 const { sessionA, sessionB } = data
                 if (sessionA && sessionB) {
                   sessionStore.unlinkSessions(sessionA, sessionB)
+                  // Also remove persisted link if requested
+                  const sessA = sessionStore.getSession(sessionA)
+                  const sessB = sessionStore.getSession(sessionB)
+                  if (sessA?.cwd && sessB?.cwd) {
+                    removePersistedLink(sessA.cwd, sessB.cwd)
+                  }
                   sessionStore.broadcastSessionUpdate(sessionA)
                   sessionStore.broadcastSessionUpdate(sessionB)
                   if (verbose)
-                    console.log(`[inter-session] Link severed: ${sessionA.slice(0, 8)} X ${sessionB.slice(0, 8)}`)
+                    console.log(
+                      `[inter-session] Link severed + persisted removed: ${sessionA.slice(0, 8)} X ${sessionB.slice(0, 8)}`,
+                    )
                 }
                 break
               }
