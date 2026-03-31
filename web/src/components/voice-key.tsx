@@ -115,8 +115,6 @@ export function VoiceKey() {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.code !== voiceHoldKey) return
       if (e.repeat) return
-      const tag = (e.target as HTMLElement).tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
 
       e.preventDefault()
       console.log(
