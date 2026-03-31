@@ -213,12 +213,13 @@ function renderMermaidBlocks(container: HTMLElement) {
 
 interface MarkdownProps {
   children: string
+  inline?: boolean
 }
 
-export function Markdown({ children }: MarkdownProps) {
+export function Markdown({ children, inline }: MarkdownProps) {
   const html = useMemo(() => {
-    return marked.parse(children) as string
-  }, [children])
+    return inline ? (marked.parseInline(children) as string) : (marked.parse(children) as string)
+  }, [children, inline])
 
   const ref = useRef<HTMLDivElement>(null)
 

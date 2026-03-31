@@ -620,9 +620,11 @@ export function MarkdownInput({
             onBlur={handleExpandedBlur}
             disabled={disabled}
             placeholder={placeholder}
+            autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={true}
+            data-form-type="other"
             className={cn(
               'absolute inset-0 w-full h-full bg-transparent px-3 py-3 resize-none',
               textClasses,
@@ -779,9 +781,11 @@ export function MarkdownInput({
         disabled={disabled}
         placeholder={placeholder}
         rows={1}
+        autoComplete="off"
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}
+        data-form-type="other"
         className={cn(
           'relative w-full bg-transparent border border-border rounded pl-3 pr-14 py-2 resize-none',
           textClasses,

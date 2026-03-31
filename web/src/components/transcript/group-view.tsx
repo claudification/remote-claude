@@ -248,9 +248,9 @@ export function GroupView({
                 return (
                   <div
                     key={i}
-                    className="text-sm [&_a]:text-blue-200 [&_a]:underline [&_code]:bg-white/15 [&_code]:px-1 [&_code]:rounded [&_p]:mb-0 [&_p:last-child]:mb-0"
+                    className="text-sm [&_a]:text-blue-200 [&_a]:underline [&_code]:bg-white/15 [&_code]:px-1 [&_code]:rounded"
                   >
-                    <Markdown>{item.text}</Markdown>
+                    <Markdown inline>{item.text}</Markdown>
                   </div>
                 )
               }
