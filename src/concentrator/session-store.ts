@@ -1818,15 +1818,6 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       } else {
         transcriptCache.set(sessionId, existing)
       }
-      // Non-initial transcript entries = session is actively working.
-      // Catches cases where hooks aren't flowing (stale claudeSessionId after
-      // compaction/rekey) but transcript streaming still works.
-      const session = sessions.get(sessionId)
-      if (session && (session.status === 'starting' || session.status === 'idle')) {
-        session.status = 'active'
-        session.lastActivity = Date.now()
-        scheduleSessionUpdate(sessionId)
-      }
     }
 
     // Extract stats from transcript entries
