@@ -104,7 +104,11 @@ async function findAvailablePort(startPort: number): Promise<number> {
 export async function startLocalServer(options: LocalServerOptions): Promise<{ server: HttpServer; port: number }> {
   const { sessionId, mcpEnabled, onHookEvent, onNotify, onAskQuestion, hasDashboardSubscribers } = options
 
-  const port = await findAvailablePort(19000 + Math.floor(Math.random() * 1000))
+  // Derive port deterministically from session/wrapper ID so it survives restarts.
+  // CC's hook settings bake in the port at launch time - if the wrapper restarts
+  // with a different port, hooks silently fail (curl to dead port, || true hides it).
+  const hash = sessionId.split('').reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0)
+  const port = await findAvailablePort(19000 + (Math.abs(hash) % 900))
 
   const server = Bun.serve({
     port,
