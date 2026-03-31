@@ -434,6 +434,9 @@ export function ToolLine({
       const to = (input.to as string) || ''
       const intent = (input.intent as string) || ''
       const msg = (input.message as string) || ''
+      // Look up session name from store
+      const targetSession = useSessionsStore.getState().sessions.find(s => s.id === to)
+      const targetName = targetSession?.title || targetSession?.cwd?.split('/').pop() || to.slice(0, 8)
       const intentStyles: Record<string, string> = {
         request: 'bg-yellow-400/15 text-yellow-400 border-yellow-400/30',
         response: 'bg-green-400/15 text-green-400 border-green-400/30',
@@ -443,7 +446,7 @@ export function ToolLine({
       summary = (
         <span className="flex items-center gap-1.5">
           <span className="text-teal-400/60">to</span>
-          <span className="text-teal-400 font-bold">{to.slice(0, 8)}</span>
+          <span className="text-teal-400 font-bold">{targetName}</span>
           {intent && (
             <span
               className={cn(
@@ -470,10 +473,12 @@ export function ToolLine({
       const sessionId = (input.session_id as string) || ''
       const action = name.includes('revive') ? 'revive' : 'quit'
       const actionColor = action === 'revive' ? 'text-green-400' : 'text-red-400'
+      const sess = useSessionsStore.getState().sessions.find(s => s.id === sessionId)
+      const sessName = sess?.title || sess?.cwd?.split('/').pop() || sessionId.slice(0, 8)
       summary = (
         <span className="flex items-center gap-1.5">
           <span className={actionColor}>{action}</span>
-          <span className="text-muted-foreground font-mono">{sessionId.slice(0, 8)}</span>
+          <span className="text-teal-400 font-bold">{sessName}</span>
         </span>
       )
       if (result) details = <TruncatedPre text={result} tool="MCP" />
@@ -483,13 +488,28 @@ export function ToolLine({
       summary = input.status ? `status=${input.status}` : 'all'
       if (result) {
         try {
-          const sessions = JSON.parse(result) as Array<{ name: string; status: string }>
+          const sessions = JSON.parse(result) as Array<{ id: string; name: string; cwd: string; status: string }>
           summary = `${sessions.length} sessions`
+          details = (
+            <div className="text-[10px] font-mono space-y-0.5 mt-1">
+              {sessions.map(s => (
+                <div key={s.id} className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      'w-1.5 h-1.5 rounded-full shrink-0',
+                      s.status === 'live' ? 'bg-green-400' : 'bg-zinc-600',
+                    )}
+                  />
+                  <span className="text-teal-400">{s.name}</span>
+                  <span className="text-muted-foreground/40 truncate">{s.cwd}</span>
+                </div>
+              ))}
+            </div>
+          )
         } catch {
-          /* use default */
+          details = <TruncatedPre text={result} tool="MCP" />
         }
       }
-      if (result) details = <TruncatedPre text={result} tool="MCP" />
       break
     }
     case 'mcp__rclaude__notify': {
