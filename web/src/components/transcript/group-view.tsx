@@ -244,7 +244,9 @@ export function GroupView({
   const bubbleColor = useSessionsStore(s => s.dashboardPrefs.chatBubbleColor) || 'blue'
 
   // Chat bubble layout for user messages (opt-in)
-  if (chatBubbles && isUser) {
+  // Skip bubbles for inter-session messages - they use the teal card renderer instead
+  const hasInterSessionContent = items.some(it => it.kind === 'channel' && it.isInterSession)
+  if (chatBubbles && isUser && !hasInterSessionContent) {
     const bubbleBg = BUBBLE_COLORS[bubbleColor] || BUBBLE_COLORS.blue
     return (
       <div className="mb-3 flex justify-end">
