@@ -71,9 +71,13 @@ export function VoiceKey() {
     }
 
     async function startRecording() {
-      if (recordingRef.current) return
       const sessionId = useSessionsStore.getState().selectedSessionId
-      if (!sessionId) return
+      if (!sessionId) {
+        console.log('[voice-key] No session selected, aborting')
+        recordingRef.current = false
+        return
+      }
+      console.log(`[voice-key] Starting recording for ${sessionId.slice(0, 8)}`)
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -110,22 +114,27 @@ export function VoiceKey() {
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.code !== voiceHoldKey) return
-      if (e.repeat) return // ignore key repeat
-      // Don't capture if user is typing in an input/textarea
+      if (e.repeat) return
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
 
       e.preventDefault()
+      console.log(
+        `[voice-key] DOWN: ${e.code} (selected=${useSessionsStore.getState().selectedSessionId?.slice(0, 8)})`,
+      )
       recordingRef.current = true
       startRecording()
     }
 
     function handleKeyUp(e: KeyboardEvent) {
       if (e.code !== voiceHoldKey) return
-      if (!recordingRef.current) return
+      if (!recordingRef.current) {
+        console.log(`[voice-key] UP: ${e.code} (not recording, ignoring)`)
+        return
+      }
 
       e.preventDefault()
-      // Stop recording, send stop to trigger refinement
+      console.log(`[voice-key] UP: ${e.code} - stopping, recorder=${recorderRef.current?.state}`)
       if (recorderRef.current?.state === 'recording') recorderRef.current.stop()
       recorderRef.current = null
       if (streamRef.current) {
