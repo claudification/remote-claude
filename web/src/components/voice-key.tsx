@@ -115,6 +115,7 @@ export function VoiceKey() {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.code !== voiceHoldKey) return
       if (e.repeat) return
+      if (recordingRef.current) return // already recording or getUserMedia in flight
 
       e.preventDefault()
       console.log(
