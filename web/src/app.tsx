@@ -13,6 +13,7 @@ import { ToastContainer } from '@/components/toast'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { VoiceFab } from '@/components/voice-fab'
+import { VoiceKey } from '@/components/voice-key'
 import { WebTerminal } from '@/components/web-terminal'
 import {
   fetchGlobalSettings,
@@ -446,8 +447,9 @@ function Dashboard() {
       {/* Shift+? shortcut help */}
       <ShortcutHelp />
 
-      {/* Voice FAB - mobile only, gated by pref */}
+      {/* Voice FAB (touch) + Voice Key (keyboard push-to-talk) */}
       <VoiceFabGate />
+      <VoiceKey />
 
       {/* Toast notifications */}
       <ToastContainer />

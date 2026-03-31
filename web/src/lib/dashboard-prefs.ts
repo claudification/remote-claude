@@ -43,6 +43,8 @@ export interface DashboardPrefs {
   sessionCacheSize: number // LIFO cache: 0 = disabled, N = keep N recent sessions in memory
   sessionCacheTimeout: number // minutes before cached non-selected sessions are evicted (0 = never)
   defaultView: 'transcript' | 'tty'
+  voiceHoldKey: string | null // KeyboardEvent.code for push-to-talk (e.g. 'F13', 'ScrollLock')
+  chatBubbleColor: string // tailwind color class prefix (e.g. 'blue', 'teal', 'purple')
   toolDisplay: Partial<Record<ToolDisplayKey, Partial<ToolDisplayPrefs>>>
 }
 
@@ -58,6 +60,8 @@ export const defaultPrefs: DashboardPrefs = {
   sessionCacheSize: 3,
   sessionCacheTimeout: 10,
   defaultView: 'transcript',
+  voiceHoldKey: null,
+  chatBubbleColor: 'blue',
   toolDisplay: {},
 }
 

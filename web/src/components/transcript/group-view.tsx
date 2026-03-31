@@ -8,6 +8,20 @@ import { useSessionsStore } from '@/hooks/use-sessions'
 import type { TranscriptContentBlock, TranscriptImage, TranscriptToolUseResult } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
+// Chat bubble color presets - keys match dashboardPrefs.chatBubbleColor
+const BUBBLE_COLORS: Record<string, string> = {
+  blue: 'bg-[#2563eb]/90',
+  teal: 'bg-teal-600/90',
+  purple: 'bg-purple-600/90',
+  green: 'bg-emerald-600/90',
+  orange: 'bg-amber-600/90',
+  pink: 'bg-pink-600/90',
+  indigo: 'bg-indigo-600/90',
+}
+
+// Exported for settings color picker
+export const BUBBLE_COLOR_OPTIONS = Object.keys(BUBBLE_COLORS)
+
 // Transcript entries are augmented by the concentrator API with rendering data
 // (images extracted from base64, structured tool use results) before being sent
 // to the dashboard. This extends the base entry type for rendering purposes.
@@ -220,13 +234,15 @@ export function GroupView({
     { xs: 'text-[8px]', sm: 'text-[9px]', '': 'text-[10px]', lg: 'text-[13px]', xl: 'text-[16px]' }[sizeKey] ||
     'text-[10px]'
   const chatBubbles = useSessionsStore(s => s.dashboardPrefs.chatBubbles)
+  const bubbleColor = useSessionsStore(s => s.dashboardPrefs.chatBubbleColor) || 'blue'
 
   // Chat bubble layout for user messages (opt-in)
   if (chatBubbles && isUser) {
+    const bubbleBg = BUBBLE_COLORS[bubbleColor] || BUBBLE_COLORS.blue
     return (
       <div className="mb-3 flex justify-end">
         <div className={cn('max-w-[85%] sm:max-w-[75%]', group.queued && 'opacity-50')}>
-          <div className={cn('rounded-2xl rounded-br-sm px-4 py-2.5 bg-[#2563eb]/90 text-white', sizeClass)}>
+          <div className={cn('rounded-2xl rounded-br-sm px-4 py-2.5 text-white', bubbleBg, sizeClass)}>
             {items.map((item, i) => {
               if (item.kind === 'text') {
                 return (
