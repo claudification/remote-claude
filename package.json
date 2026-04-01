@@ -13,6 +13,7 @@
     "build:web": "cd web && bun run build",
     "build:wrapper": "bun run gen-version && bun build src/wrapper/index.ts --compile --minify --outfile bin/rclaude",
     "build:concentrator": "bun run scripts/build-concentrator.ts",
+    "deploy": "bun run build:web && bun run build:concentrator && docker compose build --no-cache && docker compose up -d",
     "typecheck": "tsc --noEmit && cd web && bun run typecheck",
     "format": "bunx biome format --write .",
     "lint": "bunx biome check --fix .",
