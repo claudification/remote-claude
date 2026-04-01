@@ -100,6 +100,7 @@ export function ToolLine({
   tool,
   result,
   toolUseResult,
+  isError,
   subagents,
   renderAgentInline,
   planContent,
@@ -108,6 +109,7 @@ export function ToolLine({
   tool: TranscriptContentBlock
   result?: string
   toolUseResult?: Record<string, unknown>
+  isError?: boolean
   planContent?: string
   planPath?: string
   subagents?: Array<{
@@ -545,19 +547,27 @@ export function ToolLine({
     ? name.split('__').slice(2).join('/') || name.split('__')[1] || name
     : name
 
+  // Show error result when no details are set but tool returned an error
+  if (isError && !details && result) {
+    details = <pre className="text-[10px] text-red-400 bg-red-400/10 p-2 rounded whitespace-pre-wrap">{result}</pre>
+  }
+
   return (
-    <div className="font-mono text-xs">
+    <div className={cn('font-mono text-xs', isError && 'border-l-2 border-red-500/60 pl-1.5')}>
       <div className="flex items-center gap-2">
-        <span className={cn('shrink-0 flex items-center gap-1', style.color)} title={name}>
+        <span className={cn('shrink-0 flex items-center gap-1', isError ? 'text-red-400' : style.color)} title={name}>
           <Icon className="w-3 h-3 shrink-0" />
           <span className="truncate max-w-[120px]">{displayName}</span>
         </span>
-        <span className="text-foreground/80 truncate flex-1">{summary}</span>
+        <span className={cn('truncate flex-1', isError ? 'text-red-400/80' : 'text-foreground/80')}>
+          {isError && <span className="text-red-500 font-bold mr-1">ERROR</span>}
+          {summary}
+        </span>
         {agentBadge}
         <JsonInspector title={name} data={input} result={result} extra={toolUseResult} />
       </div>
       {details && (
-        <Collapsible id={tool.id ? `tool-${tool.id}` : undefined} label="output" defaultOpen={toolDefaultOpen}>
+        <Collapsible id={tool.id ? `tool-${tool.id}` : undefined} label="output" defaultOpen={isError || toolDefaultOpen}>
           {details}
         </Collapsible>
       )}

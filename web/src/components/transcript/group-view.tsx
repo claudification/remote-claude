@@ -110,7 +110,7 @@ export function GroupView({
   planContext,
 }: {
   group: DisplayGroup
-  resultMap: Map<string, { result: string; extra?: Record<string, unknown> }>
+  resultMap: Map<string, { result: string; extra?: Record<string, unknown>; isError?: boolean }>
   showThinking?: boolean
   subagents?: SubagentRef
   planContext?: { content: string; path?: string }
@@ -139,7 +139,7 @@ export function GroupView({
   type RenderItem =
     | { kind: 'text'; text: string }
     | { kind: 'thinking'; text: string }
-    | { kind: 'tool'; tool: TranscriptContentBlock; result?: string; extra?: Record<string, unknown> }
+    | { kind: 'tool'; tool: TranscriptContentBlock; result?: string; extra?: Record<string, unknown>; isError?: boolean }
     | { kind: 'bash'; text: string }
     | { kind: 'channel'; text: string; source: string; sessionId?: string; intent?: string; isInterSession?: boolean }
     | { kind: 'images'; images: Array<{ hash: string; ext: string; url: string; originalPath: string }> }
@@ -214,7 +214,7 @@ export function GroupView({
         } else if (block.type === 'tool_use') {
           const id = block.id
           const res = id ? resultMap.get(id) : undefined
-          items.push({ kind: 'tool', tool: block, result: res?.result, extra: res?.extra })
+          items.push({ kind: 'tool', tool: block, result: res?.result, extra: res?.extra, isError: res?.isError })
         }
       }
     }
@@ -443,6 +443,7 @@ export function GroupView({
                   tool={item.tool}
                   result={item.result}
                   toolUseResult={item.extra}
+                  isError={item.isError}
                   subagents={subagents}
                   renderAgentInline={(agentId, toolId) => <AgentTranscriptInline agentId={agentId} toolId={toolId} />}
                   {...(item.tool.name === 'ExitPlanMode' && planContext

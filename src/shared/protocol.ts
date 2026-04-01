@@ -133,6 +133,7 @@ export interface TranscriptContentBlock {
   input?: Record<string, unknown>
   tool_use_id?: string
   content?: string | unknown
+  is_error?: boolean
 }
 
 // Common fields present on most JSONL transcript entries

@@ -34,7 +34,7 @@ export interface DisplayGroup {
 
 // Build map of tool_use_id -> result
 export function buildResultMap(entries: TranscriptEntry[]) {
-  const map = new Map<string, { result: string; extra?: Record<string, unknown> }>()
+  const map = new Map<string, { result: string; extra?: Record<string, unknown>; isError?: boolean }>()
   for (const entry of entries) {
     if (!isUser(entry)) continue
     const content = entry.message?.content
@@ -44,6 +44,7 @@ export function buildResultMap(entries: TranscriptEntry[]) {
         map.set(block.tool_use_id, {
           result: typeof block.content === 'string' ? block.content : JSON.stringify(block.content),
           extra: entry.toolUseResult as Record<string, unknown> | undefined,
+          isError: block.is_error === true,
         })
       }
     }
@@ -259,7 +260,7 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
 export function useIncrementalGroups(entries: TranscriptEntry[]) {
   const cacheRef = useRef<{
     len: number
-    resultMap: Map<string, { result: string; extra?: Record<string, unknown> }>
+    resultMap: Map<string, { result: string; extra?: Record<string, unknown>; isError?: boolean }>
     groups: DisplayGroup[]
     lastGroup: DisplayGroup | null
   }>({ len: 0, resultMap: new Map(), groups: [], lastGroup: null })
@@ -296,6 +297,7 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
           newResultMap.set(block.tool_use_id, {
             result: typeof block.content === 'string' ? block.content : JSON.stringify(block.content),
             extra: entry.toolUseResult as Record<string, unknown> | undefined,
+            isError: block.is_error === true,
           })
         }
       }
