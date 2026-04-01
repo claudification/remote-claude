@@ -10,8 +10,8 @@ RUN bun install --frozen-lockfile && cd web && bun install --frozen-lockfile
 # Copy source
 COPY . .
 
-# Build everything
-RUN bun run build
+# Build only server targets (skip wrapper + agent client binaries)
+RUN bun run gen-version && bun run build:server
 
 # Runtime stage - minimal image
 FROM debian:bookworm-slim
