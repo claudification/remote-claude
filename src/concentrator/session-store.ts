@@ -538,9 +538,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   }
 
   // Periodically mark idle sessions, clean stale agents, evict old sessions, and save state
-  const ENDED_EVICTION_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours after ending
+  const ENDED_EVICTION_TTL_MS = 28 * 24 * 60 * 60 * 1000 // 28 days after ending (user can manually dismiss)
   const ZOMBIE_EVICTION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days for stale STARTING sessions
-  const MAX_ENDED_SESSIONS = 50 // hard cap on ended sessions in memory
+  const MAX_ENDED_SESSIONS = 200 // hard cap on ended sessions in memory
 
   setInterval(() => {
     const now = Date.now()
