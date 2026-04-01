@@ -676,6 +676,7 @@ export interface ProjectSettings {
   label?: string
   icon?: string
   color?: string
+  description?: string // user-provided purpose, shown in list_sessions for routing
   keyterms?: string[]
   trustLevel?: 'default' | 'open' | 'benevolent' // open = accepts from anyone, benevolent = can message anyone
 }

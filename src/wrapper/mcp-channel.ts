@@ -24,6 +24,7 @@ export interface SessionInfo {
   cwd: string
   status: 'live' | 'inactive'
   wrapperIds?: string[]
+  description?: string
   title?: string
   summary?: string
 }

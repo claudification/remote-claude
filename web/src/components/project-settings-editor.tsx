@@ -577,6 +577,7 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
   const [label, setLabel] = useState(current.label || '')
   const [icon, setIcon] = useState(current.icon || '')
   const [color, setColor] = useState(current.color || '')
+  const [description, setDescription] = useState(current.description || '')
   const [keyterms, setKeyterms] = useState<string[]>(current.keyterms || [])
   const [trustLevel, setTrustLevel] = useState<string>(current.trustLevel || 'default')
   const [keytermInput, setKeytermInput] = useState('')
@@ -590,6 +591,7 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
     setLabel(c.label || '')
     setIcon(c.icon || '')
     setColor(c.color || '')
+    setDescription(c.description || '')
     setKeyterms(c.keyterms || [])
     setTrustLevel(c.trustLevel || 'default')
   }, [projectSettings, cwd])
@@ -607,6 +609,7 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
       label: label.trim() || '',
       icon: icon || '',
       color: color || '',
+      description: description.trim() || '',
       keyterms: keyterms.length ? keyterms : [],
       trustLevel: trustLevel === 'default' ? undefined : (trustLevel as 'open' | 'benevolent'),
     }
@@ -656,11 +659,17 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
     label.trim() !== (current.label || '') ||
     icon !== (current.icon || '') ||
     color !== (current.color || '') ||
+    description.trim() !== (current.description || '') ||
     JSON.stringify(keyterms) !== JSON.stringify(current.keyterms || []) ||
     trustLevel !== (current.trustLevel || 'default')
 
   const hasAnySettings =
-    current.label || current.icon || current.color || (current.keyterms?.length ?? 0) > 0 || current.trustLevel
+    current.label ||
+    current.icon ||
+    current.color ||
+    current.description ||
+    (current.keyterms?.length ?? 0) > 0 ||
+    current.trustLevel
 
   return (
     <Dialog
@@ -837,6 +846,23 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
                 +
               </button>
             </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label htmlFor="ps-desc" className="text-muted-foreground text-[10px] uppercase tracking-wider block mb-1">
+              Description
+            </label>
+            <textarea
+              id="ps-desc"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="e.g. Send all music generation requests here"
+              rows={2}
+              className="w-full bg-background border border-border px-2 py-1.5 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50 resize-none"
+              style={{ fontSize: '16px' }}
+            />
+            <div className="text-[9px] text-muted-foreground mt-0.5">Visible to other sessions via list_sessions</div>
           </div>
 
           {/* Trust level */}

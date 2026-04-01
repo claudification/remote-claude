@@ -720,14 +720,16 @@ async function main() {
                     // Benevolent callers see full CWD + wrapperIds; others see short CWD only
                     const showFull = isBenevolent || isLinked
                     const shortCwd = s.cwd.split('/').slice(-2).join('/')
+                    const projSettings = getProjectSettings(s.cwd)
                     return {
                       id: s.id,
-                      name: s.title || getProjectSettings(s.cwd)?.label || s.cwd.split('/').pop() || s.cwd,
+                      name: s.title || projSettings?.label || s.cwd.split('/').pop() || s.cwd,
                       cwd: showFull ? s.cwd : shortCwd,
                       status: (sessionStore.getActiveWrapperCount(s.id) > 0 ? 'live' : 'inactive') as
                         | 'live'
                         | 'inactive',
                       ...(showFull ? { wrapperIds: sessionStore.getWrapperIds(s.id) } : {}),
+                      ...(projSettings?.description ? { description: projSettings.description } : {}),
                       link: isLinked ? 'connected' : linkStatus === 'blocked' ? 'blocked' : undefined,
                       title: s.title,
                       summary: s.summary,
