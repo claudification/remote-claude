@@ -1362,6 +1362,13 @@ async function main() {
             '',
             'Session linking is managed by the user via the dashboard -- you cannot approve or block sessions.',
             'Always include conversation_id when replying to maintain context threading.',
+            '',
+            '**IMPORTANT: When you receive a `<channel sender="session">` message and want to reply,',
+            'ALWAYS use `mcp__rclaude__send_message` -- NEVER the built-in `SendMessage` tool.**',
+            'The built-in `SendMessage` writes to a local file inbox that is invisible to the user',
+            'and the dashboard. `mcp__rclaude__send_message` routes through the concentrator where',
+            'the user can see, approve, and track all inter-session messages. This applies to ALL',
+            'inter-session replies, regardless of how the original message arrived.',
           ]
         : []),
     ].join('\n'),

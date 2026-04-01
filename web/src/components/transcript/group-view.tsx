@@ -254,12 +254,14 @@ export function GroupView({
           <div className={cn('rounded-2xl rounded-br-sm px-4 py-2.5 text-white', bubbleBg, sizeClass)}>
             {items.map((item, i) => {
               if (item.kind === 'text') {
+                // Use full markdown when text contains block-level elements (code fences, tables, etc.)
+                const hasBlocks = /^```/m.test(item.text) || /^\|.*\|.*\|/m.test(item.text)
                 return (
                   <div
                     key={i}
                     className="text-sm [&_a]:text-blue-200 [&_a]:underline [&_code]:bg-white/15 [&_code]:px-1 [&_code]:rounded"
                   >
-                    <Markdown inline>{item.text}</Markdown>
+                    <Markdown inline={!hasBlocks}>{item.text}</Markdown>
                   </div>
                 )
               }
