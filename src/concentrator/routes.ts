@@ -610,8 +610,24 @@ export function createRouter(options: RouteOptions): Hono {
     const agent = sessionStore.getAgent()
     if (!agent) return c.json({ error: 'No host agent connected' }, 503)
 
-    const body = await c.req.json<{ cwd: string; mkdir?: boolean }>()
+    const body = await c.req.json<{
+      cwd: string
+      mkdir?: boolean
+      mode?: 'fresh' | 'continue' | 'resume'
+      resumeId?: string
+    }>()
     if (!body.cwd || typeof body.cwd !== 'string') return c.json({ error: 'Missing cwd field' }, 400)
+    if (body.mode === 'resume' && !body.resumeId) return c.json({ error: 'resumeId required for resume mode' }, 400)
+
+    // Benevolent trust check for MCP callers (X-Caller-Session header)
+    const callerSessionId = c.req.header('X-Caller-Session')
+    if (callerSessionId) {
+      const callerSess = sessionStore.getSession(callerSessionId)
+      const callerTrust = callerSess?.cwd ? getProjectSettings(callerSess.cwd)?.trustLevel : undefined
+      if (callerTrust !== 'benevolent') {
+        return c.json({ error: 'Spawn requires benevolent trust level' }, 403)
+      }
+    }
 
     const requestId = randomUUID()
     const wrapperId = randomUUID()
@@ -627,7 +643,17 @@ export function createRouter(options: RouteOptions): Hono {
         resolve(msg as SpawnResult)
       })
 
-      agent.send(JSON.stringify({ type: 'spawn', requestId, cwd: body.cwd, wrapperId, mkdir: body.mkdir || false }))
+      agent.send(
+        JSON.stringify({
+          type: 'spawn',
+          requestId,
+          cwd: body.cwd,
+          wrapperId,
+          mkdir: body.mkdir || false,
+          mode: body.mode,
+          resumeId: body.resumeId,
+        }),
+      )
     })
 
     if (result.success) {

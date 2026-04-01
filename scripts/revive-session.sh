@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 #
-# revive-session.sh - Revive a Claude Code session in tmux
+# revive-session.sh - Revive/spawn a Claude Code session in tmux
 #
-# Called by rclaude-agent when the dashboard requests a session revival.
+# Called by rclaude-agent when the dashboard requests a session revival or spawn.
 # Customize this script to change tmux behavior, rclaude flags, etc.
 #
-# Usage: revive-session.sh <session-id> <cwd>
+# Usage: revive-session.sh <session-id> <cwd> [--mode fresh|continue|resume] [--resume-id <claude-session-id>]
+#
+# Modes:
+#   fresh    - Start a new session (default for spawn, uses --session-id for deterministic ID)
+#   continue - Resume the most recent session in the CWD (claude --continue)
+#   resume   - Resume a specific Claude session by ID (claude --resume <id>)
 #
 # Exit codes:
 #   0 = success
@@ -15,6 +20,18 @@
 set -euo pipefail
 
 CWD="$2"
+SPAWN_MODE=""
+RESUME_ID=""
+
+# Parse optional flags after positional args
+shift 2
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --mode) SPAWN_MODE="$2"; shift 2 ;;
+    --resume-id) RESUME_ID="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
 
 # Validate directory exists
 if [[ ! -d "$CWD" ]]; then
@@ -23,9 +40,27 @@ if [[ ! -d "$CWD" ]]; then
 fi
 
 TMUX_NAME="remote-claude"
-# Use rclaude-boot.sh which tries --continue first, falls back to fresh start
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BASE_CMD="$SCRIPT_DIR/rclaude-boot.sh --dangerously-skip-permissions"
+
+# Build the launch command based on spawn mode
+case "$SPAWN_MODE" in
+  resume)
+    # Resume a specific Claude session by ID - direct rclaude, no boot script
+    BASE_CMD="rclaude --dangerously-skip-permissions --resume $RESUME_ID"
+    ;;
+  continue)
+    # Resume the most recent session in this CWD - direct rclaude, no boot script
+    BASE_CMD="rclaude --dangerously-skip-permissions --continue"
+    ;;
+  fresh)
+    # Fresh start - direct rclaude, no boot script
+    BASE_CMD="rclaude --dangerously-skip-permissions"
+    ;;
+  *)
+    # Default: use rclaude-boot.sh which tries --continue first, falls back to fresh
+    BASE_CMD="$SCRIPT_DIR/rclaude-boot.sh --dangerously-skip-permissions"
+    ;;
+esac
 
 # Unset Claude Code env vars that prevent nested sessions.
 # Agent may inherit these if launched from within a Claude session.

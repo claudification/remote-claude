@@ -23,6 +23,7 @@ export interface SessionInfo {
   name: string
   cwd: string
   status: 'live' | 'inactive'
+  wrapperIds?: string[]
   title?: string
   summary?: string
 }
@@ -50,6 +51,12 @@ export interface McpChannelCallbacks {
   onTogglePlanMode?: () => void
   onReviveSession?: (sessionId: string) => Promise<{ ok: boolean; error?: string; name?: string }>
   onQuitSession?: (sessionId: string) => Promise<{ ok: boolean; error?: string; name?: string }>
+  onSpawnSession?: (params: {
+    cwd: string
+    mode?: 'fresh' | 'continue' | 'resume'
+    resumeId?: string
+    mkdir?: boolean
+  }) => Promise<{ ok: boolean; error?: string; wrapperId?: string }>
 }
 
 interface McpChannelState {
@@ -176,6 +183,35 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           required: ['session_id'],
         },
       },
+      {
+        name: 'spawn_session',
+        description:
+          'Spawn a new Claude Code session at a given directory. Requires benevolent trust level. Supports three modes: fresh start, continue latest session in that directory, or resume a specific Claude session by ID. The session boots in tmux on the host - takes 10-30 seconds. Use list_sessions to poll for the new session.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            cwd: {
+              type: 'string',
+              description: 'Working directory for the new session (absolute path, ~ supported)',
+            },
+            mode: {
+              type: 'string',
+              enum: ['fresh', 'continue', 'resume'],
+              description:
+                'Spawn mode: "fresh" = new session, "continue" = resume latest in that dir, "resume" = resume specific session. Default: tries continue first, falls back to fresh.',
+            },
+            resume_id: {
+              type: 'string',
+              description: 'Claude Code session ID to resume (required when mode is "resume")',
+            },
+            mkdir: {
+              type: 'boolean',
+              description: 'Create the directory if it does not exist (default: false)',
+            },
+          },
+          required: ['cwd'],
+        },
+      },
     ],
   }))
 
@@ -256,6 +292,35 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
               {
                 type: 'text',
                 text: `Quit signal sent to ${result.name || sessionId.slice(0, 8)}. The session will end within a few seconds. Use list_sessions after 5-10 seconds to confirm.`,
+              },
+            ],
+          }
+        }
+        case 'spawn_session': {
+          const cwd = params.cwd
+          if (!cwd) return { content: [{ type: 'text', text: 'Error: cwd is required' }], isError: true }
+          const mode = params.mode as 'fresh' | 'continue' | 'resume' | undefined
+          const resumeId = params.resume_id
+          if (mode === 'resume' && !resumeId) {
+            return {
+              content: [{ type: 'text', text: 'Error: resume_id is required when mode is "resume"' }],
+              isError: true,
+            }
+          }
+          const mkdir = String(params.mkdir) === 'true'
+          const result = await callbacks.onSpawnSession?.({ cwd, mode, resumeId, mkdir })
+          if (!result?.ok) {
+            debug(`[channel] spawn_session failed: ${result?.error}`)
+            return { content: [{ type: 'text', text: result?.error || 'Failed to spawn session' }], isError: true }
+          }
+          const modeDesc =
+            mode === 'resume' ? `resuming ${resumeId}` : mode === 'continue' ? 'continuing latest' : 'fresh start'
+          debug(`[channel] spawn_session: ${cwd} (${modeDesc})`)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Spawning session at ${cwd} (${modeDesc}). This is async - takes 10-30 seconds to boot. Use list_sessions to check when the new session appears.`,
               },
             ],
           }

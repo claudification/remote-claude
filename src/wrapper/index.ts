@@ -1083,6 +1083,28 @@ async function main() {
         return { ok: false, error: err instanceof Error ? err.message : 'Network error' }
       }
     },
+    async onSpawnSession({ cwd, mode, resumeId, mkdir }) {
+      const httpUrl = noConcentrator ? null : wsToHttpUrl(concentratorUrl)
+      if (!httpUrl) return { ok: false, error: 'No concentrator connection' }
+      try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'X-Caller-Session': claudeSessionId || internalId,
+        }
+        if (concentratorSecret) headers.Authorization = `Bearer ${concentratorSecret}`
+        const res = await fetch(`${httpUrl}/api/spawn`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ cwd, mode, resumeId, mkdir }),
+        })
+        const data = (await res.json()) as { success?: boolean; error?: string; wrapperId?: string }
+        if (!res.ok || !data.success) return { ok: false, error: data.error || `HTTP ${res.status}` }
+        diag('channel', `spawn_session: ${cwd} mode=${mode || 'default'}`)
+        return { ok: true, wrapperId: data.wrapperId }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : 'Network error' }
+      }
+    },
     async onQuitSession(sessionId) {
       if (!wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
       return new Promise(resolve => {

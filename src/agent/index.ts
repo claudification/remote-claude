@@ -254,6 +254,8 @@ async function spawnSession(
   secret: string,
   _verbose: boolean,
   mkdir = false,
+  mode?: 'fresh' | 'continue' | 'resume',
+  resumeId?: string,
 ): Promise<{ success: boolean; error?: string; tmuxSession?: string }> {
   // Diagnostic dump
   const whichRclaude = Bun.spawnSync(['which', 'rclaude'])
@@ -289,6 +291,8 @@ async function spawnSession(
   // Use "spawn-<timestamp>" as synthetic sessionId (revive-session.sh uses it for tmux window naming)
   const syntheticId = `spawn-${Date.now()}`
   const scriptArgs = [reviveScript, syntheticId, cwd]
+  if (mode) scriptArgs.push('--mode', mode)
+  if (mode === 'resume' && resumeId) scriptArgs.push('--resume-id', resumeId)
   const scriptEnv = { ...process.env, RCLAUDE_SECRET: secret, RCLAUDE_WRAPPER_ID: wrapperId }
 
   diag('spawn', 'Running revive script', { args: scriptArgs })
@@ -426,7 +430,14 @@ function connect(
         }
 
         case 'spawn': {
-          const spawnMsg = msg as { requestId: string; cwd: string; wrapperId: string; mkdir?: boolean }
+          const spawnMsg = msg as {
+            requestId: string
+            cwd: string
+            wrapperId: string
+            mkdir?: boolean
+            mode?: 'fresh' | 'continue' | 'resume'
+            resumeId?: string
+          }
           if (noSpawn) {
             ws.send(
               JSON.stringify({
@@ -445,6 +456,8 @@ function connect(
             expandedCwd,
             wrapperId: spawnMsg.wrapperId,
             mkdir: spawnMsg.mkdir,
+            mode: spawnMsg.mode,
+            resumeId: spawnMsg.resumeId,
           })
           const spawnRes = await spawnSession(
             expandedCwd,
@@ -453,6 +466,8 @@ function connect(
             secret,
             verbose,
             spawnMsg.mkdir,
+            spawnMsg.mode,
+            spawnMsg.resumeId,
           )
           const response: SpawnResult = {
             type: 'spawn_result',
