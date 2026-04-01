@@ -82,6 +82,7 @@ interface SessionsState {
   syncSeq: number // last received sequence number
   agentConnected: boolean
   error: string | null
+  authExpired: boolean
   ws: WebSocket | null
   terminalHandler: ((msg: TerminalMessage) => void) | null
   showTerminal: boolean
@@ -159,6 +160,7 @@ interface SessionsState {
   setConnected: (connected: boolean) => void
   setAgentConnected: (connected: boolean) => void
   setError: (error: string | null) => void
+  setAuthExpired: (expired: boolean) => void
   setWs: (ws: WebSocket | null) => void
   setTerminalHandler: (handler: ((msg: TerminalMessage) => void) | null) => void
   fileHandler: ((msg: Record<string, unknown>) => void) | null
@@ -264,6 +266,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   syncSeq: 0,
   agentConnected: false,
   error: null,
+  authExpired: false,
   ws: null,
   terminalHandler: null,
   fileHandler: null,
@@ -414,6 +417,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     })),
   setAgentConnected: connected => set({ agentConnected: connected }),
   setError: error => set({ error }),
+  setAuthExpired: authExpired => set({ authExpired }),
   setWs: ws => set({ ws }),
   setTerminalHandler: handler => set({ terminalHandler: handler }),
   setFileHandler: handler => set({ fileHandler: handler }),

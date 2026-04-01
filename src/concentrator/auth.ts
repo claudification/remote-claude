@@ -309,6 +309,32 @@ export function validateSession(signedToken: string): { name: string } | null {
   return { name: session.name }
 }
 
+/**
+ * Renew a session token's expiry if it's past the halfway point.
+ * Returns true if renewed (caller should re-set the cookie).
+ */
+export function renewSessionIfNeeded(signedToken: string): boolean {
+  const parts = signedToken.split('.')
+  if (parts.length !== 2) return false
+
+  const [token, sig] = parts
+  const expectedSig = createHmac('sha256', hmacSecret).update(token).digest('base64url')
+  if (sig.length !== expectedSig.length) return false
+  if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) return false
+
+  const session = state.sessions[token]
+  if (!session) return false
+
+  // Renew if past halfway (e.g. > 3.5 days into a 7-day session)
+  const halfLife = SESSION_MAX_AGE_MS / 2
+  const remaining = session.expiresAt - Date.now()
+  if (remaining > halfLife) return false
+
+  session.expiresAt = Date.now() + SESSION_MAX_AGE_MS
+  save()
+  return true
+}
+
 export function revokeSession(signedToken: string): void {
   const parts = signedToken.split('.')
   if (parts.length === 2) {

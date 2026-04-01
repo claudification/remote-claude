@@ -592,8 +592,12 @@ export function useWebSocket() {
         wsRef.current = null
 
         if (e.code === 1008 || e.code === 4401) {
-          setError(`WebSocket rejected: ${e.reason || 'Unauthorized'}`)
-        } else if (e.code !== 1000) {
+          // Auth failure - don't reconnect, show expiry modal
+          useSessionsStore.getState().setAuthExpired(true)
+          setError(`Session expired or unauthorized`)
+          return
+        }
+        if (e.code !== 1000) {
           setError(`WebSocket closed (${e.code}${e.reason ? `: ${e.reason}` : ''})`)
         }
 

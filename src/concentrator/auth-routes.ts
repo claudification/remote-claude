@@ -29,6 +29,7 @@ import {
   getRpName,
   getUser,
   hasAnyUsers,
+  renewSessionIfNeeded,
   revokeSession,
   SESSION_MAX_AGE_MS,
   type StoredCredential,
@@ -175,11 +176,21 @@ export async function handleAuthRoute(req: Request): Promise<Response | null> {
   // --- Status ---
   if (path === '/auth/status' && req.method === 'GET') {
     const user = getAuthenticatedUser(req)
-    return jsonResponse({
-      authenticated: !!user,
-      name: user,
-      hasUsers: hasAnyUsers(),
-    })
+    const token = getCookieValue(req)
+    const headers: Record<string, string> = {}
+    // Silently renew session cookie if past halfway point
+    if (user && token && renewSessionIfNeeded(token)) {
+      headers['Set-Cookie'] = setCookie(token)
+    }
+    return jsonResponse(
+      {
+        authenticated: !!user,
+        name: user,
+        hasUsers: hasAnyUsers(),
+      },
+      200,
+      headers,
+    )
   }
 
   // --- Validate invite ---
