@@ -9,9 +9,16 @@ export interface BuildVersion {
 }
 
 export const BUILD_VERSION: BuildVersion = {
-  gitHash: 'dddfefc6e973b9b9f00684d5c339aee26b8eb44c',
-  gitHashShort: 'dddfefc-dirty',
-  buildTime: '2026-03-30T15:35:35.290Z',
+  gitHash: '596de15311f9423059aa31353100e16f53da0175',
+  gitHashShort: '596de15-dirty',
+  buildTime: '2026-03-31T14:52:51.350Z',
   dirty: true,
-  recentCommits: [{"hash":"dddfefc","message":"(HEAD -> main, origin/main, origin/HEAD) fix: Zombie session eviction at 30 days, not 24 hours"},{"hash":"53c4862","message":"fix: Evict zombie sessions, log broadcast errors, fix resync storm"},{"hash":"7fa92d0","message":"feat: MCP tool output display with configurable line limits"}],
+  recentCommits: [
+    {
+      hash: '596de15',
+      message: '(HEAD -> main, origin/main, origin/HEAD) fix: Move terminal toolbar from bottom to top',
+    },
+    { hash: '8e3219b', message: 'docs: Update README with new features + add CHANGELOG' },
+    { hash: '0336b8f', message: 'fix: MCP tool display - session names, clean list rendering' },
+  ],
 }
