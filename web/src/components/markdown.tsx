@@ -96,13 +96,16 @@ renderer.code = ({ text, lang }) => {
     return `<pre class="mermaid" data-mermaid-source="${encodeURIComponent(text)}">${escaped}</pre>`
   }
   const langClass = lang ? ` class="hljs language-${lang}"` : ' class="hljs"'
-  let highlighted = text
+  let highlighted: string | undefined
   if (lang && hljs.getLanguage(lang)) {
     try {
       highlighted = hljs.highlight(text, { language: lang }).value
     } catch {}
   }
-  return `<div class="code-block-wrap"><pre><code${langClass}>${highlighted}</code></pre><button class="code-copy-btn" title="Copy">⧉</button></div>`
+  // hljs.highlight escapes <> internally, but the fallback path (no lang match)
+  // must escape manually or raw <tag> in code blocks becomes invisible HTML elements
+  const safe = highlighted ?? text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return `<div class="code-block-wrap"><pre><code${langClass}>${safe}</code></pre><button class="code-copy-btn" title="Copy">⧉</button></div>`
 }
 
 // Configure marked options

@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'bun:test'
 import { Marked } from 'marked'
+import { describe, expect, test } from 'vitest'
 
 // Replicate the exact strikethrough setup from markdown.tsx
 const marked = new Marked()
