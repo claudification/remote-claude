@@ -567,7 +567,7 @@ export function createRouter(options: RouteOptions): Hono {
     const wrapperId = randomUUID()
     const name =
       session.title || getProjectSettings(session.cwd)?.label || session.cwd.split('/').pop() || sessionId.slice(0, 8)
-    agent.send(JSON.stringify({ type: 'revive', sessionId, cwd: session.cwd, wrapperId }))
+    agent.send(JSON.stringify({ type: 'revive', sessionId, cwd: session.cwd, wrapperId, mode: 'continue' }))
     return c.json({ success: true, name, message: 'Revive command sent to agent', wrapperId }, 202)
   })
 

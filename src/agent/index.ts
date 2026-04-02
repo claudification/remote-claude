@@ -163,6 +163,7 @@ async function reviveSession(
   reviveScript: string,
   secret: string,
   verbose: boolean,
+  mode?: string,
 ): Promise<ReviveResult> {
   const result: ReviveResult = {
     type: 'revive_result',
@@ -172,9 +173,12 @@ async function reviveSession(
     continued: false,
   }
 
-  debug(`Running: ${reviveScript} ${sessionId} ${cwd}`, verbose)
+  const scriptArgs = [reviveScript, sessionId, cwd]
+  if (mode) scriptArgs.push('--mode', mode)
 
-  const proc = Bun.spawnSync([reviveScript, sessionId, cwd], {
+  debug(`Running: ${scriptArgs.join(' ')}`, verbose)
+
+  const proc = Bun.spawnSync(scriptArgs, {
     stdout: 'pipe',
     stderr: 'pipe',
     env: { ...process.env, RCLAUDE_SECRET: secret, RCLAUDE_WRAPPER_ID: wrapperId },
@@ -408,9 +412,9 @@ function connect(
           break
 
         case 'revive': {
-          const reviveMsg = msg as { sessionId: string; cwd: string; wrapperId: string }
+          const reviveMsg = msg as { sessionId: string; cwd: string; wrapperId: string; mode?: string }
           log(
-            `Reviving session ${reviveMsg.sessionId.slice(0, 8)}... wrapper=${reviveMsg.wrapperId.slice(0, 8)} (${reviveMsg.cwd})`,
+            `Reviving session ${reviveMsg.sessionId.slice(0, 8)}... wrapper=${reviveMsg.wrapperId.slice(0, 8)} mode=${reviveMsg.mode || 'default'} (${reviveMsg.cwd})`,
           )
           const result = await reviveSession(
             reviveMsg.sessionId,
@@ -419,6 +423,7 @@ function connect(
             reviveScript,
             secret,
             verbose,
+            reviveMsg.mode,
           )
           ws.send(JSON.stringify(result))
           if (result.success) {
