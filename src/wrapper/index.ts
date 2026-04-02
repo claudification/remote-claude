@@ -63,6 +63,30 @@ function detectClaudeVersion(): string | undefined {
   return undefined
 }
 
+interface ClaudeAuthInfo {
+  email?: string
+  orgId?: string
+  orgName?: string
+  subscriptionType?: string
+}
+
+function detectClaudeAuth(): ClaudeAuthInfo | undefined {
+  try {
+    const proc = Bun.spawnSync(['claude', 'auth', 'status', '--json'], { timeout: 5000 })
+    if (proc.exitCode !== 0) return undefined
+    const data = JSON.parse(proc.stdout.toString().trim())
+    if (!data.loggedIn) return undefined
+    return {
+      email: data.email || undefined,
+      orgId: data.orgId || undefined,
+      orgName: data.orgName || undefined,
+      subscriptionType: data.subscriptionType || undefined,
+    }
+  } catch {
+    return undefined
+  }
+}
+
 function wsToHttpUrl(url: string): string {
   return url.replace('ws://', 'http://').replace('wss://', 'https://')
 }
@@ -284,8 +308,9 @@ async function main() {
   const bgTaskOutputWatchers = new Map<string, { stop: () => void }>()
   const MAX_BG_TASK_WATCHERS = 50
 
-  // Detect Claude Code version early - needed for settings merge and concentrator
+  // Detect Claude Code version and auth info early - needed for settings merge and concentrator
   const claudeVersion = detectClaudeVersion()
+  const claudeAuth = detectClaudeAuth()
 
   // Queue events until we have the real session ID (capped to prevent unbounded growth)
   const MAX_EVENT_QUEUE = 200
@@ -426,6 +451,7 @@ async function main() {
       cwd,
       args: claudeArgs,
       claudeVersion,
+      claudeAuth,
       capabilities,
       onConnected() {
         diag('ws', 'Connected to concentrator', { sessionId })

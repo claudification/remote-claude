@@ -461,6 +461,7 @@ async function main() {
                   if (data.version) existingSession.version = data.version
                   if (data.buildTime) existingSession.buildTime = data.buildTime
                   if (data.claudeVersion) existingSession.claudeVersion = data.claudeVersion
+                  if (data.claudeAuth) existingSession.claudeAuth = data.claudeAuth
                   if (verbose) {
                     const wrapperCount = sessionStore.getActiveWrapperCount(data.sessionId) + 1
                     console.log(

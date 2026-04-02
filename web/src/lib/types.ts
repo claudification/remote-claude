@@ -89,6 +89,7 @@ export interface Session {
     compactionCount: number
   }
   claudeVersion?: string
+  claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
   gitBranch?: string
   lastEvent?: {
     hookEvent: string

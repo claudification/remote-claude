@@ -37,6 +37,7 @@ export interface WsClientOptions {
   model?: string
   args?: string[]
   claudeVersion?: string
+  claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
   onConnected?: () => void
   onDisconnected?: () => void
   onError?: (error: Error) => void
@@ -94,6 +95,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     model,
     args,
     claudeVersion,
+    claudeAuth,
     onConnected,
     onDisconnected,
     onError,
@@ -156,6 +158,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
             version: `rclaude/${BUILD_VERSION.gitHashShort}`,
             buildTime: BUILD_VERSION.buildTime,
             claudeVersion,
+            claudeAuth,
           }
           ws?.send(JSON.stringify(meta))
 

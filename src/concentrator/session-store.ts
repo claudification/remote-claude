@@ -420,6 +420,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       version: session.version,
       buildTime: session.buildTime,
       claudeVersion: session.claudeVersion,
+      claudeAuth: session.claudeAuth,
       wrapperIds: wrappers ? Array.from(wrappers.keys()) : [],
       startedAt: session.startedAt,
       lastActivity: session.lastActivity,

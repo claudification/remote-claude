@@ -99,6 +99,7 @@ function toSession(summary: SessionSummary): Session {
     version: summary.version,
     buildTime: summary.buildTime,
     claudeVersion: summary.claudeVersion,
+    claudeAuth: summary.claudeAuth,
   }
 }
 

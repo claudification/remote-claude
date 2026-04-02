@@ -27,6 +27,12 @@ export interface SessionMeta {
   version?: string
   buildTime?: string
   claudeVersion?: string
+  claudeAuth?: {
+    email?: string
+    orgId?: string
+    orgName?: string
+    subscriptionType?: string
+  }
 }
 
 export interface SessionEnd {
@@ -718,6 +724,7 @@ export interface Session {
   version?: string
   buildTime?: string
   claudeVersion?: string
+  claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
   startedAt: number
   lastActivity: number
   status: 'active' | 'idle' | 'ended' | 'starting'
@@ -841,6 +848,7 @@ export interface SessionSummary {
   version?: string
   buildTime?: string
   claudeVersion?: string
+  claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
   wrapperIds: string[]
   startedAt: number
   lastActivity: number

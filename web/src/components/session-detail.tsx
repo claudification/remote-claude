@@ -972,6 +972,15 @@ export function SessionDetail() {
                   {session.claudeVersion && (
                     <span className="text-muted-foreground text-[10px]">cc/{session.claudeVersion}</span>
                   )}
+                  {session.claudeAuth?.email && (
+                    <span className="text-cyan-400/70 text-[10px]">
+                      {session.claudeAuth.email.split('@')[0]}
+                      {session.claudeAuth.orgName ? ` / ${session.claudeAuth.orgName}` : ''}
+                      {session.claudeAuth.subscriptionType ? (
+                        <span className="text-muted-foreground ml-1">[{session.claudeAuth.subscriptionType}]</span>
+                      ) : null}
+                    </span>
+                  )}
                   {session.gitBranch && (
                     <span className="text-purple-400 text-[10px]">
                       <span className="text-muted-foreground">branch:</span> {session.gitBranch}
