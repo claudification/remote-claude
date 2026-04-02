@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-04-02
+
+### Features
+- `ddd18b0` Spawn/revive rendezvous callback protocol (no more polling with list_sessions)
+- `b65ccf9` Show Claude account info (email, subscription) in session header
+- `242fee1` Add Read support + absolute path patterns to permission auto-approve (21 tests)
+
+### Fixes
+- `160dd7d` Boot script auto-spawns fresh session after QUIT (duplicate session bug)
+- `f796a7f` Revive sends `--mode continue` to prevent boot script fallthrough
+- `9feb9ac` Force transcript refetch after mobile background resume (>5s)
+- `dd49448` Inline code styling in chat bubbles (bg-black/25, rounded, lighter text)
+
 ## 2026-04-01
 
 ### Features
