@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-04-01
+
+### Features
+- `2da3e5d` Permission auto-approve rules via `.claude/rclaude.json` + ALWAYS ALLOW button
+- `45079ed` JSON Schema for `.claude/rclaude.json` with IDE autocompletion
+- `35d98a7` Error styling on failed tool calls (red border, ERROR badge, auto-expand)
+- `efc65ef` Auth session renewal + expired session modal
+- `3851b22` Project description field visible in list_sessions
+
+### Fixes
+- `f091598` Escape angle brackets in markdown code blocks (raw `<tag>` in unfenced code was invisible)
+- `61883a0` User input chat bubbles render code fences and tables correctly
+- `61883a0` System prompt guards against CC native SendMessage for inter-session replies
+- `6cde640` Server-side WS auth expiry + linkedSessions type mismatch
+- `30983dd` Ended sessions persist 28 days instead of 24 hours
+
+### Refactors
+- `0d333f3` Limit permission auto-approve to Write/Edit only (CC handles the rest)
+
 ## 2026-03-31
 
 ### Features
