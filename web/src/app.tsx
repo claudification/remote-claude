@@ -133,6 +133,18 @@ function Dashboard() {
           `[sync] restored after ${(elapsed / 1000).toFixed(1)}s - sending sync_check (epoch=${syncEpoch.slice(0, 8)} seq=${syncSeq} transcripts=${Object.keys(transcriptCounts).length})`,
         )
         wsSend('sync_check', { epoch: syncEpoch, lastSeq: syncSeq, transcripts: transcriptCounts })
+
+        // Force-refetch selected session transcript after significant background period.
+        // Mobile browsers freeze JS during background - transcript entries received by the
+        // WS buffer may be incomplete. Don't trust the WS kept up; just refetch.
+        if (elapsed > 5000) {
+          const sid = useSessionsStore.getState().selectedSessionId
+          if (sid) {
+            console.log(`[sync] force refetch after ${(elapsed / 1000).toFixed(0)}s background`)
+            fetchedAtRef.current = {}
+            fetchSessionData(sid, 'visibility-restore')
+          }
+        }
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
