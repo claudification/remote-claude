@@ -68,7 +68,9 @@ Voice recording support for hands-free input on mobile.
 Watch Claude work in real-time from anywhere. Full transcript with syntax-highlighted code blocks
 (Shiki), inline images, markdown rendering, and diff visualization. See every tool call as it
 happens -- Bash commands, file reads, edits, grep results -- with expandable input/output details.
-Auto-follow mode scrolls with new content; scroll up to pause, scroll back down to resume.
+Skill/command content is auto-collapsed into compact teal pills (click to expand) instead of
+flooding the transcript with walls of injected markdown. Auto-follow mode scrolls with new
+content; scroll up to pause, scroll back down to resume.
 
 ### Multi-Machine Aggregation
 
@@ -188,11 +190,32 @@ is already available in Claude's shell when running under `rclaude`.
 
 Auth: `Bearer` token must match your `RCLAUDE_SECRET`.
 
+### MCP Channel & Tools
+
+When running with channels (default), Claude gets MCP tools for interacting with the dashboard:
+
+| Tool | Description |
+|------|-------------|
+| `notify` | Send push notification to user's devices |
+| `share_file` | Upload a file and get a public URL |
+| `list_sessions` | Discover other running sessions |
+| `send_message` | Message another session (with intent + threading) |
+| `spawn_session` | Launch a new session in a project |
+| `quit_session` | Stop another session (benevolent trust only) |
+| `revive_session` | Restart an ended session (benevolent trust only) |
+| `toggle_plan_mode` | Switch plan mode on/off |
+
+### Session Organization
+
+Drag-and-drop session grouping in the sidebar. Create named groups, drag sessions between
+them, collapse/expand groups. Groups persist across restarts. Unorganized sessions appear
+below the tree. Ended sessions can be dismissed individually or batch-cleared per group.
+
 ### Session Revival
 
-Session went idle? Revive it from the dashboard. The host agent (`rclaude-agent`) listens for
-revive commands and spawns a new tmux session with `rclaude --resume`, reconnecting your Claude
-session without touching the host machine.
+Session went idle? Revive it from the dashboard or via MCP tool. The host agent
+(`rclaude-agent`) listens for revive commands and spawns a new tmux session with
+`rclaude --resume`, reconnecting your Claude session without touching the host machine.
 
 ### Inter-Session Communication
 
@@ -277,10 +300,10 @@ sharing between host and Docker.
 
 | Component | What it does |
 |-----------|-------------|
-| **rclaude** | CLI wrapper. Spawns claude with PTY, injects hooks, MCP channel, streams to concentrator |
-| **concentrator** | Central server. HTTP + WS + WebAuthn auth + inter-session routing. Runs in Docker |
-| **dashboard** | React SPA. Vite + Tailwind + Zustand. Voice, terminal, transcript, chat. Served by concentrator |
-| **rclaude-agent** | Host-side agent. Listens for revive commands, spawns tmux sessions |
+| **rclaude** | CLI wrapper. Spawns claude with PTY, injects hooks, MCP channel server, streams to concentrator |
+| **concentrator** | Central server. Hono HTTP + WS + WebAuthn + inter-session routing + voice relay. Runs in Docker |
+| **dashboard** | React SPA. Vite + Tailwind + Zustand. Voice, terminal, transcript, DnD, chat. Served by concentrator |
+| **rclaude-agent** | Host-side agent. Listens for revive/spawn commands, manages tmux sessions |
 | **concentrator-cli** | CLI for auth management. Create invites, list/revoke users |
 
 ---
@@ -584,12 +607,26 @@ docker exec concentrator concentrator-cli unrevoke --name rehabilitated
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+K` | Session switcher (fuzzy finder) |
-| `Ctrl+K` then `F:` | File picker (browse .md files in session) |
+| `Ctrl+K` | Command palette (fuzzy finder) |
+| `Ctrl+K` then `F:` | File browser (browse files in session) |
+| `Ctrl+K` then `S:` | Spawn session picker |
+| `Ctrl+Shift+S` | Spawn new session (direct) |
 | `Ctrl+Shift+N` | Quick note (append to NOTES.md) |
-| `Ctrl+Shift+T` | Open terminal for current session |
-| `Shift+click` TTY badge | Popout terminal to separate window |
-| `Esc` | Close modal / exit file picker |
+| `Ctrl+Shift+Alt+N` | Open NOTES.md in file editor |
+| `Ctrl+Shift+T` | Toggle terminal for current session |
+| `Ctrl+Shift+D` | Toggle debug console |
+| `Ctrl+O` | Toggle verbose / expand all |
+| `Shift+Click` TTY badge | Popout terminal to separate window |
+| `Shift+?` | Keyboard shortcut help |
+| `Esc` | Close modal / exit picker |
+
+**Input bar:**
+
+| Shortcut | Action |
+|----------|--------|
+| `Enter` | Submit prompt |
+| `Shift+Enter` | New line |
+| `Ctrl+V` / Paste | Paste text or images |
 
 ## CLI Reference
 
@@ -664,52 +701,84 @@ OPTIONS:
 
 ## REST API
 
-All API endpoints require authentication when passkey users exist.
+All API endpoints require authentication (passkey cookie or `Authorization: Bearer $RCLAUDE_SECRET`).
+
+### Sessions
 
 ```bash
-# Health check (always public)
-curl http://localhost:9999/health
+GET  /health                              # Health check (always public)
+GET  /sessions                            # List all sessions (?active=true for active only)
+GET  /sessions/:id                        # Session details
+GET  /sessions/:id/events                 # Session hook events
+GET  /sessions/:id/subagents              # Sub-agent list
+GET  /sessions/:id/transcript             # Transcript entries (cached)
+GET  /sessions/:id/subagents/:aid/transcript  # Sub-agent transcript
+GET  /sessions/:id/tasks                  # Tasks + background tasks
+GET  /sessions/:id/diag                   # Full diagnostic dump
+POST /sessions/:id/input                  # Send input to session
+POST /sessions/:id/revive                 # Revive ended session via tmux
+DELETE /sessions/:id                      # Dismiss ended session
+```
 
-# List all sessions
-curl http://localhost:9999/sessions
+### Spawn & Agent
 
-# List active sessions only
-curl http://localhost:9999/sessions?active=true
+```bash
+POST /api/spawn                           # Spawn new session (cwd, prompt, model)
+GET  /agent/status                        # Host agent connection status
+POST /agent/quit                          # Request session quit via agent
+GET  /api/agent/diag                      # Agent diagnostic info
+```
 
-# Get session details
-curl http://localhost:9999/sessions/:id
+### Settings & Organization
 
-# Get session events
-curl http://localhost:9999/sessions/:id/events
+```bash
+GET  /api/settings                        # Global settings
+POST /api/settings                        # Update global settings
+GET  /api/settings/projects               # Project settings (label/icon/color/trust)
+POST /api/settings/projects               # Create/update project settings
+DELETE /api/settings/projects              # Delete project settings
+POST /api/settings/projects/generate-keyterms  # AI-generate project keywords
+GET  /api/session-order                   # Session tree order (groups)
+POST /api/session-order                   # Update session tree order
+```
 
-# Get session sub-agents
-curl http://localhost:9999/sessions/:id/subagents
+### Inter-Session Links
 
-# Get session transcript
-curl http://localhost:9999/sessions/:id/transcript
+```bash
+GET  /api/links                           # List session links + trust levels
+POST /api/links                           # Create/update link (allow/block/trust)
+DELETE /api/links                         # Remove link
+GET  /api/links/messages                  # Inter-session message history
+```
 
-# Get session tasks
-curl http://localhost:9999/sessions/:id/tasks
+### Files & Sharing
 
-# Send input to session
-curl -X POST http://localhost:9999/sessions/:id/input \
-  -H "Content-Type: application/json" \
-  -d '{"input": "hello world"}'
+```bash
+POST /api/files                           # Upload file (multipart)
+GET  /file/:hash                          # Download shared file by hash
+GET  /api/shared-files                    # List shared files for a session
+DELETE /api/shared-files/:hash            # Delete shared file
+GET  /api/dirs                            # List directories for spawn picker
+```
 
-# Project settings (label/icon/color per project path)
-curl http://localhost:9999/api/project-settings
-curl -X PUT http://localhost:9999/api/project-settings \
-  -H "Content-Type: application/json" \
-  -d '{"cwd": "/home/user/project", "label": "My API", "icon": "rocket", "color": "#ff6600"}'
+### Push Notifications
 
-# Push notifications (requires RCLAUDE_SECRET as Bearer token)
-curl -X POST http://localhost:9999/api/push/send \
-  -H "Authorization: Bearer $RCLAUDE_SECRET" \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Hello", "body": "Test notification", "tag": "test"}'
+```bash
+GET  /api/push/vapid                      # VAPID public key
+POST /api/push/subscribe                  # Register push subscription
+POST /api/push/unsubscribe                # Remove push subscription
+POST /api/push/send                       # Send push (requires Bearer token)
+```
 
-# Get VAPID public key (for browser push subscription)
-curl http://localhost:9999/api/push/vapid
+### Voice & Misc
+
+```bash
+POST /api/transcribe                      # Voice transcription (Deepgram)
+GET  /api/capabilities                    # Server capabilities (voice, etc.)
+GET  /api/stats                           # WS connection statistics
+GET  /api/subscriptions                   # Session subscription diagnostics
+POST /api/crash                           # Report client crash
+GET  /api/crashes                         # List recent crash reports
 ```
 
 ## Shell Integration
@@ -848,62 +917,135 @@ cc                           # auto-creates tmux session "my-api"
 | `UserPromptSubmit` | User entered a prompt |
 | `PreToolUse` | About to execute a tool |
 | `PostToolUse` | Tool execution completed |
+| `PostToolUseFailure` | Tool execution failed |
 | `Stop` | Claude stopped (waiting for input) |
+| `StopFailure` | Turn ended due to API error (rate limit, auth) |
 | `Notification` | System notification |
 | `SubagentStart` | Spawned a sub-agent |
 | `SubagentStop` | Sub-agent completed |
 | `PreCompact` | Context window compaction started |
+| `PostCompact` | Context window compaction finished |
+| `PermissionRequest` | Tool needs user approval |
 | `TeammateIdle` | Team member waiting for work |
 | `TaskCompleted` | Task finished in team context |
+| `InstructionsLoaded` | CLAUDE.md / config loaded |
+| `ConfigChange` | Settings changed |
+| `WorktreeCreate` | Git worktree created for agent |
+| `WorktreeRemove` | Git worktree cleaned up |
+| `Elicitation` | Structured question sent to user |
+| `ElicitationResult` | User answered structured question |
+| `Setup` | Initial setup event |
+
+See [IMPORTANT-HOOKS.md](./IMPORTANT-HOOKS.md) for the complete reference including
+data fields, firing order, and known quirks.
 
 ## Project Structure
 
 ```
 remote-claude/
-├── bin/                       # Built binaries (gitignored)
-│   ├── rclaude               # Wrapper CLI
-│   ├── rclaude-agent         # Host agent for session revival
-│   ├── concentrator          # Aggregation server
-│   └── concentrator-cli      # Passkey management CLI
+├── bin/                          # Built binaries (gitignored)
+│   ├── rclaude                   # Wrapper CLI
+│   ├── rclaude-agent             # Host agent for session revival
+│   ├── concentrator              # Aggregation server
+│   └── concentrator-cli          # Passkey management CLI
 ├── src/
-│   ├── wrapper/              # rclaude implementation
-│   │   ├── index.ts          # CLI entry, session lifecycle
-│   │   ├── pty-spawn.ts      # PTY subprocess management
-│   │   ├── ws-client.ts      # WebSocket client with reconnection
-│   │   ├── transcript-watcher.ts  # JSONL file watcher (chokidar)
-│   │   ├── file-editor.ts    # File operations for dashboard editor
-│   │   ├── local-server.ts   # Hook callback receiver
-│   │   └── settings-merge.ts # Claude settings injection
-│   ├── concentrator/         # Server implementation
-│   │   ├── index.ts          # Server entry, WS relay
-│   │   ├── session-store.ts  # Session registry + persistence
-│   │   ├── api.ts            # REST API + file upload
-│   │   ├── auth.ts           # WebAuthn passkey auth
-│   │   ├── auth-routes.ts    # Auth HTTP endpoints
-│   │   ├── push.ts           # Web Push notifications (VAPID)
-│   │   ├── project-settings.ts # Per-project label/icon/color
-│   │   └── cli.ts            # CLI tool entry point
-│   ├── agent/                # Host agent for session revival
+│   ├── wrapper/                  # rclaude implementation
+│   │   ├── index.ts              # CLI entry, session lifecycle
+│   │   ├── pty-spawn.ts          # PTY subprocess management + OSC 52
+│   │   ├── ws-client.ts          # WebSocket client with reconnection
+│   │   ├── transcript-watcher.ts # JSONL file watcher (chokidar)
+│   │   ├── mcp-channel.ts        # MCP Streamable HTTP server (channel + tools)
+│   │   ├── local-server.ts       # Hook callback + MCP endpoint
+│   │   ├── file-editor.ts        # File operations for dashboard editor
+│   │   ├── osc52-parser.ts       # Clipboard capture (OSC 52 interception)
+│   │   ├── permission-rules.ts   # Auto-approve rules from rclaude.json
+│   │   ├── settings-merge.ts     # Claude settings injection
+│   │   └── debug.ts              # Debug logging
+│   ├── concentrator/             # Server implementation
+│   │   ├── index.ts              # Server entry, WS relay
+│   │   ├── routes.ts             # Hono HTTP routes (REST API)
+│   │   ├── ws-server.ts          # WebSocket message handling
+│   │   ├── session-store.ts      # Session registry + persistence
+│   │   ├── session-order.ts      # Tree-based session organization (DnD)
+│   │   ├── session-links.ts      # Inter-session permission management
+│   │   ├── inter-session-log.ts  # Message history between sessions
+│   │   ├── auth.ts               # WebAuthn passkey auth
+│   │   ├── auth-routes.ts        # Auth HTTP endpoints
+│   │   ├── push.ts               # Web Push notifications (VAPID)
+│   │   ├── voice-stream.ts       # Deepgram voice transcription relay
+│   │   ├── global-settings.ts    # Server-wide settings (Zod validated)
+│   │   ├── project-settings.ts   # Per-project label/icon/color/trust
+│   │   ├── path-jail.ts          # File path traversal validation
+│   │   ├── cli.ts                # CLI tool entry point
+│   │   └── ui.ts                 # Fallback UI when no web/dist
+│   ├── agent/                    # Host agent for session revival
+│   │   └── index.ts              # tmux spawn + WS listener
 │   └── shared/
-│       └── protocol.ts       # WebSocket protocol types
-├── web/                      # React dashboard
+│       ├── protocol.ts           # WebSocket protocol types
+│       ├── path-guard.ts         # File path validation (wrapper-side)
+│       ├── diff.ts               # Diff utilities
+│       └── version.ts            # Build-time git hash + timestamp
+├── web/                          # React dashboard
 │   └── src/
-│       ├── components/       # UI components
-│       │   ├── web-terminal.tsx      # xterm.js remote terminal
-│       │   ├── transcript-view.tsx   # Shiki-highlighted transcript
-│       │   ├── session-switcher.tsx  # Ctrl+K fuzzy finder + file picker
-│       │   ├── file-editor.tsx       # CodeMirror markdown editor
-│       │   ├── markdown-input.tsx    # Input with syntax overlay + file upload
-│       │   ├── subagent-view.tsx     # Agent list + transcript viewer
+│       ├── components/
+│       │   ├── command-palette/   # Ctrl+K command palette
+│       │   │   ├── command-palette.tsx  # Main palette container
+│       │   │   ├── session-results.tsx  # Session search results
+│       │   │   ├── file-results.tsx     # File browser results
+│       │   │   ├── spawn-results.tsx    # Session spawn picker
+│       │   │   └── command-results.tsx  # Command search results
+│       │   ├── transcript/        # Transcript renderer (split modules)
+│       │   │   ├── transcript-view.tsx  # Virtualized main view
+│       │   │   ├── group-view.tsx       # Group rendering + skill pills
+│       │   │   ├── grouping.tsx         # Entry grouping + skill detection
+│       │   │   ├── tool-line.tsx        # Tool call rendering
+│       │   │   ├── tool-renderers.tsx   # DiffView, ShellCommand, WritePreview
+│       │   │   ├── agent-views.tsx      # Inline agent transcripts
+│       │   │   ├── shared.tsx           # AnsiText, helpers, Collapsible
+│       │   │   └── syntax.ts           # Shiki highlighter singleton
+│       │   ├── web-terminal.tsx         # xterm.js remote terminal
+│       │   ├── inline-terminal.tsx      # Embedded terminal panel
+│       │   ├── terminal-toolbar.tsx     # Touch shortcut buttons
+│       │   ├── terminal-settings.tsx    # Theme/font/size picker
+│       │   ├── session-list.tsx         # Sidebar with DnD groups
+│       │   ├── session-detail.tsx       # Main panel (tabs + input)
+│       │   ├── file-editor.tsx          # CodeMirror markdown editor
+│       │   ├── markdown-input.tsx       # Input with syntax overlay
+│       │   ├── markdown.tsx             # Markdown renderer (mermaid support)
+│       │   ├── subagent-view.tsx        # Agent list + transcripts
+│       │   ├── conversation-view.tsx    # Inter-session message view
+│       │   ├── voice-fab.tsx            # Mobile hold-to-record FAB
+│       │   ├── voice-overlay.tsx        # Recording UI overlay
+│       │   ├── voice-key.tsx            # Desktop push-to-talk
+│       │   ├── copy-menu.tsx            # Copy format picker (Rich/MD/Text/Image)
+│       │   ├── json-inspector.tsx       # Collapsible JSON tree viewer
+│       │   ├── settings-page.tsx        # Settings panel
+│       │   ├── project-settings-editor.tsx # Project label/icon/color/trust
+│       │   ├── shortcut-help.tsx        # Shift+? keyboard help overlay
+│       │   ├── debug-console.tsx        # Ctrl+Shift+D debug panel
+│       │   ├── shared-view.tsx          # Shared files + clipboard history
+│       │   ├── diag-view.tsx            # Session diagnostic viewer
+│       │   ├── nerd-modal.tsx           # Session stats/nerd info
 │       │   └── ...
-│       ├── hooks/            # React hooks + Zustand stores
-│       └── styles/           # Tokyo Night theme
-├── install.sh                # Interactive installer
-├── Dockerfile                # Multi-stage build
-├── docker-compose.yml        # Production (caddy-docker-proxy)
+│       ├── hooks/                 # React hooks + Zustand stores
+│       │   ├── use-sessions.ts    # Session state + WS message sending
+│       │   ├── use-websocket.ts   # WS connection + message routing
+│       │   ├── use-file-editor.ts # File editor state
+│       │   └── ws-stats.ts        # WebSocket statistics
+│       └── styles/                # Tokyo Night theme
+├── scripts/
+│   ├── gen-version.ts             # Bakes git hash + build time
+│   ├── build-concentrator.ts      # Concentrator build script
+│   ├── rclaude-boot.sh            # Smart tmux launcher (continue/fresh)
+│   ├── revive-session.sh          # Session revival via tmux
+│   └── start-agent.sh             # Agent startup helper
+├── schemas/
+│   └── rclaude.schema.json        # Permission auto-approve schema
+├── install.sh                     # Interactive installer
+├── Dockerfile                     # Multi-stage build
+├── docker-compose.yml             # Production (caddy-docker-proxy)
 ├── docker-compose.standalone.yml  # Standalone deployment
-├── Caddyfile.example         # Caddy config template
-└── NAMES.md                  # Name candidates (we need a better name)
+└── Caddyfile.example              # Caddy config template
 ```
 
 ## Development
@@ -951,16 +1093,20 @@ rclaude authenticates to the concentrator with a shared secret (`RCLAUDE_SECRET`
 ## Tech Stack
 
 - **Runtime**: [Bun](https://bun.sh) - JavaScript runtime with native PTY support
-- **Backend**: TypeScript, WebSocket, REST API
+- **Backend**: TypeScript, [Hono](https://hono.dev/) HTTP framework, WebSocket
 - **Auth**: WebAuthn / FIDO2 passkeys via [@simplewebauthn](https://simplewebauthn.dev/)
 - **Frontend**: React 19, Vite 7, Tailwind CSS v4, shadcn/ui
 - **State**: [Zustand](https://github.com/pmndrs/zustand) for reactive stores
 - **Terminal**: [xterm.js](https://xtermjs.org/) with WebGL renderer + fit addon
-- **Editor**: [CodeMirror](https://codemirror.net/) for file editing
+- **Editor**: [CodeMirror](https://codemirror.net/) 6 for file editing
 - **Syntax**: [Shiki](https://shiki.matsu.io/) for code/diff highlighting
+- **Diagrams**: [beautiful-mermaid](https://github.com/nicepkg/beautiful-mermaid) for Mermaid rendering
+- **DnD**: [@dnd-kit](https://dndkit.com/) for drag-and-drop session organization
 - **Virtualization**: [@tanstack/react-virtual](https://tanstack.com/virtual) for large transcript lists
 - **File watching**: [chokidar](https://github.com/paulmillr/chokidar) for cross-platform JSONL streaming
+- **Voice**: [Deepgram](https://deepgram.com/) live WebSocket transcription
 - **Push**: Web Push API with VAPID
+- **Copy**: [html-to-image](https://github.com/nicedaycode/html-to-image) for copy-as-image
 - **Theme**: Tokyo Night color palette
 
 ## License

@@ -7,7 +7,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import type { TranscriptEntry } from '@/lib/types'
-import { CompactedDivider, CompactingBanner, MemoizedGroupView } from './group-view'
+import { CompactedDivider, CompactingBanner, MemoizedGroupView, SkillDivider } from './group-view'
 import { type DisplayGroup, useIncrementalGroups } from './grouping'
 
 interface TranscriptViewProps {
@@ -193,7 +193,13 @@ export function TranscriptView({
   }
 
   return (
-    <div ref={parentRef} className="h-full overflow-y-auto p-3 sm:p-4" onWheel={killFollow} onTouchStart={killFollow}>
+    <div
+      ref={parentRef}
+      className="h-full overflow-y-auto p-3 sm:p-4"
+      style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+      onWheel={killFollow}
+      onTouchStart={killFollow}
+    >
       <div
         style={{
           height: `${virtualizer.getTotalSize()}px`,
@@ -218,6 +224,18 @@ export function TranscriptView({
               const group = mainGroups[virtualItem.index]
               if (group.type === 'compacted') return <CompactedDivider />
               if (group.type === 'compacting') return <CompactingBanner />
+              if (group.type === 'skill') {
+                const entry = group.entries[0] as {
+                  message?: { content?: string | Array<{ type: string; text?: string }> }
+                }
+                const content = Array.isArray(entry?.message?.content)
+                  ? entry.message.content
+                      .filter(b => b.type === 'text')
+                      .map(b => b.text || '')
+                      .join('')
+                  : ''
+                return <SkillDivider name={group.skillName || 'skill'} content={content} />
+              }
               return (
                 <MemoizedGroupView
                   group={group}

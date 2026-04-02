@@ -25,11 +25,12 @@ export interface TaskNotification {
 }
 
 export interface DisplayGroup {
-  type: 'user' | 'assistant' | 'system' | 'compacting' | 'compacted'
+  type: 'user' | 'assistant' | 'system' | 'compacting' | 'compacted' | 'skill'
   timestamp: string
   entries: TranscriptEntry[]
   notifications?: TaskNotification[]
   queued?: boolean // user interject waiting to be consumed
+  skillName?: string // skill/command name for 'skill' groups
 }
 
 // Build map of tool_use_id -> result
@@ -91,10 +92,36 @@ export function parseTaskNotifications(text: string): TaskNotification[] {
   return results
 }
 
+// Extract skill/command name from a user entry that precedes skill content injection.
+// Path A: tool_result with toolUseResult.commandName (Skill tool)
+// Path B: <command-message>name</command-message> (direct /slash command)
+function extractSkillName(entry: TranscriptUserEntry): string | undefined {
+  const extra = entry.toolUseResult as Record<string, unknown> | undefined
+  if (extra?.commandName) return extra.commandName as string
+  const text = typeof entry.message?.content === 'string' ? entry.message.content : ''
+  const match = text.match(/<command-message>([^<]+)<\/command-message>/)
+  return match?.[1]
+}
+
+// Detect if a user entry is a skill content injection (the big markdown dump)
+function isSkillContent(entry: TranscriptUserEntry): boolean {
+  if (!entry.isMeta) return false
+  const content = entry.message?.content
+  if (Array.isArray(content)) {
+    const text = content
+      .filter(c => c.type === 'text')
+      .map(c => c.text)
+      .join('')
+    return text.length > 300 && (!!entry.sourceToolUseID || text.startsWith('#') || text.startsWith('Base directory'))
+  }
+  return false
+}
+
 // Group consecutive entries by role, filtering out noise
 export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
   const groups: DisplayGroup[] = []
   let current: DisplayGroup | null = null
+  let pendingSkillName: string | undefined
 
   for (const entry of entries) {
     if (entry.type === 'compacting' || entry.type === 'compacted') {
@@ -161,7 +188,12 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
     if (!content) continue
 
     if (entry.type === 'user' && Array.isArray(content)) {
-      if (content.some(c => c.type === 'tool_result')) continue
+      // Capture skill name from Skill tool_result before skipping (Path A)
+      if (content.some(c => c.type === 'tool_result')) {
+        const name = extractSkillName(entry as TranscriptUserEntry)
+        if (name) pendingSkillName = name
+        continue
+      }
     }
     if (typeof content === 'string' && !content.trim()) continue
 
@@ -204,8 +236,26 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
         textContent.includes('<command-name>') ||
         textContent.includes('<local-command-caveat>') ||
         textContent.includes('<local-command-stdout>')
-      )
+      ) {
+        // Capture skill name from /slash command before skipping (Path B)
+        const name = extractSkillName(entry as TranscriptUserEntry)
+        if (name) pendingSkillName = name
         continue
+      }
+
+      // Detect skill content injection (the big markdown dump after Skill tool or /slash command)
+      if (isSkillContent(entry as TranscriptUserEntry) && pendingSkillName) {
+        current = null
+        groups.push({
+          type: 'skill',
+          timestamp: entry.timestamp || '',
+          entries: [entry],
+          skillName: pendingSkillName,
+        })
+        pendingSkillName = undefined
+        continue
+      }
+      pendingSkillName = undefined
       if (textContent.includes('<task-notification>')) {
         const notifications = parseTaskNotifications(textContent)
         if (notifications.length > 0) {
@@ -263,6 +313,7 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
     resultMap: Map<string, { result: string; extra?: Record<string, unknown>; isError?: boolean }>
     groups: DisplayGroup[]
     lastGroup: DisplayGroup | null
+    pendingSkillName?: string
   }>({ len: 0, resultMap: new Map(), groups: [], lastGroup: null })
 
   return useMemo(() => {
@@ -275,6 +326,7 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
       cache.resultMap = new Map()
       cache.groups = []
       cache.lastGroup = null
+      cache.pendingSkillName = undefined
     }
 
     // Nothing new - return stable references
@@ -376,7 +428,12 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
       if (!content) continue
 
       if (entry.type === 'user' && Array.isArray(content)) {
-        if (content.some(c => c.type === 'tool_result')) continue
+        // Capture skill name from Skill tool_result before skipping (Path A)
+        if (content.some(c => c.type === 'tool_result')) {
+          const name = extractSkillName(entry as TranscriptUserEntry)
+          if (name) cache.pendingSkillName = name
+          continue
+        }
       }
       if (typeof content === 'string' && !content.trim()) continue
 
@@ -415,8 +472,26 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
           textContent.includes('<command-name>') ||
           textContent.includes('<local-command-caveat>') ||
           textContent.includes('<local-command-stdout>')
-        )
+        ) {
+          // Capture skill name from /slash command before skipping (Path B)
+          const name = extractSkillName(entry as TranscriptUserEntry)
+          if (name) cache.pendingSkillName = name
           continue
+        }
+
+        // Detect skill content injection
+        if (isSkillContent(entry as TranscriptUserEntry) && cache.pendingSkillName) {
+          lastGroup = null
+          newGroups.push({
+            type: 'skill',
+            timestamp: entry.timestamp || '',
+            entries: [entry],
+            skillName: cache.pendingSkillName,
+          })
+          cache.pendingSkillName = undefined
+          continue
+        }
+        cache.pendingSkillName = undefined
         if (textContent.includes('<task-notification>')) {
           const notifications = parseTaskNotifications(textContent)
           if (notifications.length > 0) {
