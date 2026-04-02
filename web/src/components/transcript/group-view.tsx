@@ -259,7 +259,7 @@ export function GroupView({
                 return (
                   <div
                     key={i}
-                    className="text-sm [&_a]:text-blue-200 [&_a]:underline [&_code]:bg-white/15 [&_code]:px-1 [&_code]:rounded"
+                    className="text-sm [&_a]:text-blue-200 [&_a]:underline [&_code]:!bg-black/25 [&_code]:!px-1.5 [&_code]:!py-0.5 [&_code]:!rounded-sm [&_code]:!text-white/80 [&_code]:!text-[0.85em]"
                   >
                     <Markdown inline={!hasBlocks}>{item.text}</Markdown>
                   </div>
