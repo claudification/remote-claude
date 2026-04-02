@@ -550,6 +550,9 @@ export function ToolLine({
         const sid = (spawnedSession.id as string) || ''
         const ver = spawnedSession.claudeVersion as string
         const model = spawnedSession.model as string
+        const rcVer = spawnedSession.version as string
+        const caps = spawnedSession.capabilities as string[] | undefined
+        const auth = spawnedSession.claudeAuth as { email?: string; subscriptionType?: string } | undefined
         details = (
           <div className="text-[10px] font-mono text-green-400/80 bg-green-400/5 p-2 rounded space-y-0.5">
             <div>
@@ -563,6 +566,22 @@ export function ToolLine({
             {ver && (
               <div>
                 <span className="text-muted-foreground">cc:</span> {ver}
+              </div>
+            )}
+            {rcVer && (
+              <div>
+                <span className="text-muted-foreground">rclaude:</span> {rcVer}
+              </div>
+            )}
+            {caps?.length && (
+              <div>
+                <span className="text-muted-foreground">capabilities:</span> {caps.join(', ')}
+              </div>
+            )}
+            {auth?.email && (
+              <div>
+                <span className="text-muted-foreground">account:</span> {auth.email}
+                {auth.subscriptionType ? ` [${auth.subscriptionType}]` : ''}
               </div>
             )}
           </div>
