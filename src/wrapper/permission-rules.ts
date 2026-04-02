@@ -2,35 +2,33 @@
  * Permission auto-approve rules for rclaude.
  *
  * Two sources of rules, checked in order:
- * 1. Project-level: .claude/rclaude.json (checked into repo, shared across sessions)
+ * 1. Project-level: .claude/rclaude.json (per-project, Write/Edit path patterns)
  * 2. Session-level: in-memory Set<toolName> (from dashboard "ALWAYS ALLOW" button, dies with process)
  *
- * If either matches, the wrapper auto-approves without forwarding to dashboard.
+ * Only Write and Edit are supported for project-level rules. These are the tools
+ * that trigger CC's protected-directory permission prompts for .claude/, .git/, etc.
+ * All other tool permissions are handled by Claude Code's own permission system.
  */
 
 import { existsSync, readFileSync } from 'node:fs'
 import { isAbsolute, join, relative } from 'node:path'
 
 interface PermissionConfig {
-  permissions?: Record<string, { allow?: string[] | boolean }>
+  permissions?: {
+    Write?: { allow?: string[] }
+    Edit?: { allow?: string[] }
+  }
 }
 
 interface RulesEngine {
-  /** Check if a permission request should be auto-approved */
   shouldAutoApprove(toolName: string, inputPreview: string): boolean
-  /** Add a session-scoped rule (from dashboard ALWAYS ALLOW) */
   addSessionRule(toolName: string): void
-  /** Remove a session-scoped rule */
   removeSessionRule(toolName: string): void
-  /** Get active session rules */
   getSessionRules(): string[]
-  /** Get loaded project rules summary (for diag) */
-  getProjectRulesSummary(): Record<string, string[] | boolean>
+  getProjectRulesSummary(): Record<string, string[]>
 }
 
-/** Simple glob matching - supports * and ** */
 function matchGlob(pattern: string, value: string): boolean {
-  // Convert glob to regex
   const escaped = pattern
     .replace(/[.+^${}()|[\]\\]/g, '\\$&')
     .replace(/\*\*/g, '\0')
@@ -39,19 +37,16 @@ function matchGlob(pattern: string, value: string): boolean {
   return new RegExp(`^${escaped}$`).test(value)
 }
 
-function extractInput(inputPreview: string): Record<string, unknown> {
+function extractFilePath(inputPreview: string): string | undefined {
   try {
-    return JSON.parse(inputPreview)
+    const input = JSON.parse(inputPreview)
+    return (input.file_path || input.path) as string | undefined
   } catch {
-    // Truncated JSON - try regex extraction
-    const filePath = inputPreview.match(/"file_path"\s*:\s*"([^"]+)"/)?.[1]
-    const command = inputPreview.match(/"command"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/)?.[1]
-    return { file_path: filePath, command: command?.replace(/\\"/g, '"').replace(/\\n/g, '\n') }
+    return inputPreview.match(/"file_path"\s*:\s*"([^"]+)"/)?.[1]
   }
 }
 
 export function createRulesEngine(cwd: string): RulesEngine {
-  // Load project rules from .claude/rclaude.json
   let projectRules: PermissionConfig = {}
   const configPath = join(cwd, '.claude', 'rclaude.json')
   if (existsSync(configPath)) {
@@ -62,52 +57,26 @@ export function createRulesEngine(cwd: string): RulesEngine {
     }
   }
 
-  // Session-scoped rules (from dashboard ALWAYS ALLOW button)
   const sessionRules = new Set<string>()
 
   function checkProjectRules(toolName: string, inputPreview: string): boolean {
-    const rules = projectRules.permissions?.[toolName]
-    if (!rules?.allow) return false
+    if (toolName !== 'Write' && toolName !== 'Edit') return false
 
-    // Boolean allow = allow everything for this tool
-    if (rules.allow === true) return true
+    const patterns = projectRules.permissions?.[toolName]?.allow
+    if (!patterns?.length) return false
 
-    if (!Array.isArray(rules.allow)) return false
+    const filePath = extractFilePath(inputPreview)
+    if (!filePath) return false
 
-    const input = extractInput(inputPreview)
+    const rel = isAbsolute(filePath) ? relative(cwd, filePath) : filePath
+    if (rel.startsWith('..')) return false
 
-    // File-based tools: match file_path against patterns
-    if (
-      toolName === 'Write' ||
-      toolName === 'Edit' ||
-      toolName === 'Read' ||
-      toolName === 'Glob' ||
-      toolName === 'Grep'
-    ) {
-      const filePath = (input.file_path || input.path) as string | undefined
-      if (!filePath) return false
-      const rel = isAbsolute(filePath) ? relative(cwd, filePath) : filePath
-      // Reject paths outside CWD (../something)
-      if (rel.startsWith('..')) return false
-      return rules.allow.some(pattern => matchGlob(pattern, rel))
-    }
-
-    // Bash: match command against patterns
-    if (toolName === 'Bash') {
-      const command = input.command as string | undefined
-      if (!command) return false
-      return rules.allow.some(pattern => matchGlob(pattern, command))
-    }
-
-    // Other tools: wildcard match
-    return rules.allow.includes('*')
+    return patterns.some(pattern => matchGlob(pattern, rel))
   }
 
   return {
     shouldAutoApprove(toolName: string, inputPreview: string): boolean {
-      // 1. Check project rules (.claude/rclaude.json)
       if (checkProjectRules(toolName, inputPreview)) return true
-      // 2. Check session rules (ALWAYS ALLOW button)
       if (sessionRules.has(toolName)) return true
       return false
     },
@@ -124,11 +93,10 @@ export function createRulesEngine(cwd: string): RulesEngine {
       return Array.from(sessionRules)
     },
 
-    getProjectRulesSummary(): Record<string, string[] | boolean> {
-      const summary: Record<string, string[] | boolean> = {}
-      for (const [tool, rule] of Object.entries(projectRules.permissions || {})) {
-        if (rule.allow) summary[tool] = rule.allow
-      }
+    getProjectRulesSummary(): Record<string, string[]> {
+      const summary: Record<string, string[]> = {}
+      if (projectRules.permissions?.Write?.allow) summary.Write = projectRules.permissions.Write.allow
+      if (projectRules.permissions?.Edit?.allow) summary.Edit = projectRules.permissions.Edit.allow
       return summary
     },
   }

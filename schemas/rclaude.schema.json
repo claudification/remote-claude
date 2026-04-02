@@ -11,46 +11,39 @@
     },
     "permissions": {
       "type": "object",
-      "description": "Auto-approve rules for Claude Code tool permission requests. Matched permissions are approved by the wrapper without reaching the dashboard.",
-      "additionalProperties": {
-        "type": "object",
-        "description": "Rules for a specific tool (e.g. Write, Edit, Read, Bash, Glob, Grep)",
-        "properties": {
-          "allow": {
-            "oneOf": [
-              {
-                "type": "boolean",
-                "description": "true = auto-approve all invocations of this tool"
-              },
-              {
-                "type": "array",
-                "items": { "type": "string" },
-                "description": "Glob patterns to match against. For file tools (Write, Edit, Read, Glob, Grep): matches relative file paths. For Bash: matches the full command string. Use ** for recursive directory matching."
-              }
-            ]
-          }
+      "description": "Auto-approve rules for Write/Edit permission requests on protected directories (.claude/, .git/, etc). Only Write and Edit are supported - all other tool permissions are handled by Claude Code's own permission system.",
+      "properties": {
+        "Write": {
+          "$ref": "#/$defs/fileRule"
         },
-        "required": ["allow"],
-        "additionalProperties": false
-      },
-      "examples": [
-        {
-          "Write": { "allow": [".claude/docs/**", "CHANGELOG.md"] },
-          "Read": { "allow": true },
-          "Bash": { "allow": ["bun run *", "git status", "git diff *"] }
+        "Edit": {
+          "$ref": "#/$defs/fileRule"
         }
-      ]
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false,
+  "$defs": {
+    "fileRule": {
+      "type": "object",
+      "properties": {
+        "allow": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns matching relative file paths from the project root. Use ** for recursive directory matching. Example: .claude/docs/** allows all files under .claude/docs/"
+        }
+      },
+      "required": ["allow"],
+      "additionalProperties": false
+    }
+  },
   "examples": [
     {
       "$schema": "https://raw.githubusercontent.com/claudification/remote-claude/main/schemas/rclaude.schema.json",
       "permissions": {
-        "Write": { "allow": [".claude/docs/**"] },
-        "Edit": { "allow": [".claude/docs/**"] },
-        "Read": { "allow": ["**"] },
-        "Bash": { "allow": ["bun run *", "git status"] }
+        "Write": { "allow": [".claude/docs/**", ".claude/notes/**", "CHANGELOG.md"] },
+        "Edit": { "allow": [".claude/docs/**", ".claude/notes/**", "CHANGELOG.md"] }
       }
     }
   ]
