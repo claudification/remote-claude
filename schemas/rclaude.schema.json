@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/claudification/remote-claude/main/schemas/rclaude.schema.json",
+  "title": "rclaude project configuration",
+  "description": "Per-project configuration for rclaude sessions. Place at .claude/rclaude.json in your project root.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference (IDE autocompletion)"
+    },
+    "permissions": {
+      "type": "object",
+      "description": "Auto-approve rules for Claude Code tool permission requests. Matched permissions are approved by the wrapper without reaching the dashboard.",
+      "additionalProperties": {
+        "type": "object",
+        "description": "Rules for a specific tool (e.g. Write, Edit, Read, Bash, Glob, Grep)",
+        "properties": {
+          "allow": {
+            "oneOf": [
+              {
+                "type": "boolean",
+                "description": "true = auto-approve all invocations of this tool"
+              },
+              {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Glob patterns to match against. For file tools (Write, Edit, Read, Glob, Grep): matches relative file paths. For Bash: matches the full command string. Use ** for recursive directory matching."
+              }
+            ]
+          }
+        },
+        "required": ["allow"],
+        "additionalProperties": false
+      },
+      "examples": [
+        {
+          "Write": { "allow": [".claude/docs/**", "CHANGELOG.md"] },
+          "Read": { "allow": true },
+          "Bash": { "allow": ["bun run *", "git status", "git diff *"] }
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "$schema": "https://raw.githubusercontent.com/claudification/remote-claude/main/schemas/rclaude.schema.json",
+      "permissions": {
+        "Write": { "allow": [".claude/docs/**"] },
+        "Edit": { "allow": [".claude/docs/**"] },
+        "Read": { "allow": ["**"] },
+        "Bash": { "allow": ["bun run *", "git status"] }
+      }
+    }
+  ]
+}
