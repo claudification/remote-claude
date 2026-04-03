@@ -43,25 +43,29 @@ export function VoiceKey() {
           const msg = JSON.parse(event.data)
           if (msg.type === 'voice_transcript') {
             if (msg.isFinal) {
-              finalTextRef.current = msg.text || ''
-              setFinalText(msg.text || '')
+              finalTextRef.current = msg.accumulated || msg.transcript || ''
+              setFinalText(msg.accumulated || msg.transcript || '')
+              setInterimText('')
             } else {
-              setInterimText(msg.text || '')
+              setInterimText(msg.transcript || '')
             }
-          } else if (msg.type === 'voice_refined') {
-            refinedTextRef.current = msg.text || ''
-            setFinalText(msg.text || '')
-            setState('submitting')
+          } else if (msg.type === 'voice_refining') {
+            setState('refining')
           } else if (msg.type === 'voice_done') {
-            const text = refinedTextRef.current || finalTextRef.current
+            const text = msg.refined || msg.raw || finalTextRef.current
             if (text.trim()) {
+              setFinalText(text)
+              setState('submitting')
               const sessionId = useSessionsStore.getState().selectedSessionId
               if (sessionId) sendInput(sessionId, text)
             }
-            cleanup()
-            setState('idle')
-            setInterimText('')
-            setFinalText('')
+            // Brief flash of submitting state, then cleanup
+            setTimeout(() => {
+              cleanup()
+              setState('idle')
+              setInterimText('')
+              setFinalText('')
+            }, 300)
           }
         } catch {
           /* ignore */
