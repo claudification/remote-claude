@@ -12,7 +12,9 @@ import { getAuthenticatedUser, requireAuth, setRclaudeSecret } from './auth-rout
 import { type ContextDeps, createContext } from './create-context'
 import { initGlobalSettings } from './global-settings'
 import type { WsData } from './handler-context'
+import { registerAgentHandlers } from './handlers/agent'
 import { registerInterSessionHandlers } from './handlers/inter-session'
+import { registerVoiceHandlers } from './handlers/voice'
 import { appendMessage, initInterSessionLog } from './inter-session-log'
 import { routeMessage } from './message-router'
 import { addAllowedRoot, addPathMapping, getAllowedRoots } from './path-jail'
@@ -29,7 +31,7 @@ import {
 } from './session-links'
 import { initSessionOrder } from './session-order'
 import { createSessionStore } from './session-store'
-import { cleanupVoiceForWs, handleVoiceData, handleVoiceStart, handleVoiceStop } from './voice-stream'
+import { cleanupVoiceForWs } from './voice-stream'
 import { createWsServer } from './ws-server'
 
 interface Args {
@@ -400,7 +402,9 @@ async function main() {
     wsServer.stop()
 
     // Register message handlers
+    registerAgentHandlers()
     registerInterSessionHandlers()
+    registerVoiceHandlers()
 
     // Context deps shared by all handler contexts
     const contextDeps: ContextDeps = {
@@ -691,57 +695,6 @@ async function main() {
               case 'channel_unsubscribe_all': {
                 sessionStore.unsubscribeAllChannels(ws)
                 if (verbose) console.log('[channel] unsubscribed all')
-                break
-              }
-              case 'agent_identify': {
-                // Host agent connecting (exclusive - only one allowed)
-                const agentMeta = {
-                  machineId: typeof data.machineId === 'string' ? data.machineId : undefined,
-                  hostname: typeof data.hostname === 'string' ? data.hostname : undefined,
-                }
-                const accepted = sessionStore.setAgent(ws, agentMeta)
-                if (accepted) {
-                  ws.data.isAgent = true
-                  ws.send(JSON.stringify({ type: 'ack', eventId: 'agent' }))
-                  if (verbose) {
-                    const label = agentMeta.hostname ? ` (${agentMeta.hostname} / ${agentMeta.machineId})` : ''
-                    console.log(`[agent] Host agent connected${label}`)
-                  }
-                } else {
-                  ws.send(JSON.stringify({ type: 'agent_reject', reason: 'Another agent is already connected' }))
-                  ws.close(4409, 'Agent already connected')
-                }
-                break
-              }
-              case 'revive_result': {
-                // Agent reporting result of a revive command
-                if (verbose) {
-                  const ok = data.success ? 'OK' : 'FAIL'
-                  console.log(
-                    `[agent] Revive ${data.sessionId?.slice(0, 8)}... ${ok}${data.error ? ` (${data.error})` : ''}`,
-                  )
-                }
-                break
-              }
-              case 'spawn_result': {
-                if (verbose) {
-                  const ok = data.success ? 'OK' : 'FAIL'
-                  console.log(`[agent] Spawn ${ok}${data.error ? ` (${data.error})` : ''}`)
-                }
-                sessionStore.resolveSpawn(data.requestId, data)
-                break
-              }
-              case 'list_dirs_result': {
-                sessionStore.resolveDir(data.requestId, data)
-                break
-              }
-              case 'agent_diag': {
-                // Structured diagnostic entries from the host agent
-                if (Array.isArray(data.entries)) {
-                  for (const entry of data.entries) {
-                    sessionStore.pushAgentDiag(entry)
-                  }
-                }
                 break
               }
 
@@ -1436,19 +1389,6 @@ async function main() {
                     }
                   }
                 }
-                break
-              }
-              // Voice streaming: browser <-> Deepgram via concentrator relay
-              case 'voice_start': {
-                handleVoiceStart(ws, data, sessionStore)
-                break
-              }
-              case 'voice_data': {
-                handleVoiceData(ws, data.audio)
-                break
-              }
-              case 'voice_stop': {
-                handleVoiceStop(ws)
                 break
               }
 
