@@ -88,6 +88,7 @@ function toSession(summary: SessionSummary): Session {
     effortLevel: summary.effortLevel,
     lastError: summary.lastError,
     pendingAttention: summary.pendingAttention,
+    hasNotification: summary.hasNotification,
     summary: summary.summary,
     title: summary.title,
     agentName: summary.agentName,

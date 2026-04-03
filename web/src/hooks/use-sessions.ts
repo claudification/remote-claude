@@ -372,6 +372,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       }
     })
     updateHash(id ? `session/${id}` : '')
+    // Clear notification badge when viewing a session
+    if (id) {
+      const session = get().sessions.find(s => s.id === id)
+      if (session?.hasNotification) {
+        get().sendWsMessage({ type: 'session_viewed', sessionId: id })
+      }
+    }
   },
   selectSubagent: agentId => {
     set({ selectedSubagentId: agentId })

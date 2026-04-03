@@ -747,6 +747,7 @@ export interface Session {
     question?: string
     timestamp: number
   }
+  hasNotification?: boolean // unread notification (cleared when session is viewed)
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
   // Transcript-derived metadata (from special JSONL entry types)
   summary?: string // AI-generated session summary
@@ -893,6 +894,7 @@ export interface SessionSummary {
   effortLevel?: string
   lastError?: Session['lastError']
   pendingAttention?: Session['pendingAttention']
+  hasNotification?: boolean
   summary?: string
   title?: string
   agentName?: string

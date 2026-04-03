@@ -271,6 +271,18 @@ const quitSession: MessageHandler = (ctx, data) => {
   }
 }
 
+// ─── Session viewed (clear notification badge) ────────────────────
+
+const sessionViewed: MessageHandler = (ctx, data) => {
+  const sessionId = data.sessionId as string
+  if (!sessionId) return
+  const session = ctx.sessions.getSession(sessionId)
+  if (session?.hasNotification) {
+    session.hasNotification = false
+    ctx.sessions.broadcastSessionUpdate(sessionId)
+  }
+}
+
 // ─── Link management (dashboard actions) ───────────────────────────
 
 const channelLinkResponse: MessageHandler = (ctx, data) => {
@@ -328,6 +340,8 @@ export function registerChannelHandlers(): void {
     channel_send: channelSend,
     // Session quit relay
     quit_session: quitSession,
+    // Notification badge
+    session_viewed: sessionViewed,
     // Link management
     channel_link_response: channelLinkResponse,
     channel_unlink: channelUnlink,

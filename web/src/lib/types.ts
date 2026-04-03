@@ -73,6 +73,7 @@ export interface Session {
     question?: string
     timestamp: number
   }
+  hasNotification?: boolean
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
   summary?: string
   title?: string

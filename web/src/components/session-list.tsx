@@ -285,6 +285,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           {session.pendingAttention && (
             <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>
           )}
+          {session.hasNotification && <span className="text-[9px] text-teal-400 font-bold">NOTIFY</span>}
           {session.status === 'ended' && <DismissButton sessionId={session.id} />}
         </div>
       )}

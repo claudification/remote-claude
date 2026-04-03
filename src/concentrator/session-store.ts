@@ -481,6 +481,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       effortLevel: session.effortLevel,
       lastError: session.lastError,
       pendingAttention: session.pendingAttention,
+      hasNotification: session.hasNotification,
       summary: session.summary,
       title: session.title,
       agentName: session.agentName,
@@ -1297,8 +1298,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         }
       }
 
-      // Notification hook -> toast to all dashboards
+      // Notification hook -> toast + unread badge
       if (event.hookEvent === 'Notification') {
+        session.hasNotification = true
         const data = event.data as Record<string, unknown>
         const message = typeof data.message === 'string' ? data.message : 'Needs attention'
         const projectName = getProjectSettings(session.cwd)?.label || session.cwd.split('/').pop() || session.cwd
