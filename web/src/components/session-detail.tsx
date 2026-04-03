@@ -802,7 +802,7 @@ export function SessionDetail() {
 
   const model = (events.find(e => e.hookEvent === 'SessionStart')?.data as { model?: string } | undefined)?.model
 
-  const canSendInput = session != null && session.status !== 'ended'
+  const canSendInput = session != null && session.status !== 'ended' && canChat
   const hasTerminal = session ? canTerminal(session) : false
   const canRevive = session?.status === 'ended' && agentConnected
 
