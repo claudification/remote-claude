@@ -1,9 +1,10 @@
 import type { HookEvent } from '@shared/protocol'
 import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Copy, Terminal } from 'lucide-react'
-import { Suspense, lazy, memo, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { fetchSubagentTranscript, reviveSession, sendInput, useSessionsStore, wsSend } from '@/hooks/use-sessions'
+import { resolvePermissionsFor } from '@/lib/permissions'
 import { canTerminal, type TranscriptEntry } from '@/lib/types'
 import { cn, contextWindowSize, formatAge, formatEffort, formatModel, haptic, isMobileViewport } from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
@@ -18,6 +19,7 @@ import { SharedView } from './shared-view'
 import { SubagentView } from './subagent-view'
 import { TasksView } from './tasks-view'
 import { TranscriptView } from './transcript'
+
 const WebTerminal = lazy(() => import('./web-terminal').then(m => ({ default: m.WebTerminal })))
 
 type Tab = 'transcript' | 'tty' | 'events' | 'agents' | 'tasks' | 'files' | 'shared' | 'diag'
@@ -654,6 +656,7 @@ export function SessionDetail() {
   const [activeTab, setActiveTab] = useState<Tab>('transcript')
   const [follow, setFollow] = useState(true)
   const showThinking = useSessionsStore(s => s.dashboardPrefs.showThinking)
+  const grants = useSessionsStore(s => s.grants)
   const [reviveState, setReviveState] = useState<'idle' | 'sending' | 'waiting' | 'error'>('idle')
   const [reviveError, setReviveError] = useState<string | null>(null)
   const [conversationTarget, setConversationTarget] = useState<{
@@ -694,6 +697,7 @@ export function SessionDetail() {
   }, [requestedTab, requestedTabSeq])
 
   const session = useSessionsStore(state => state.sessions.find(s => s.id === state.selectedSessionId))
+  const { canAdmin, canChat, canReadTerminal, canReadFiles, canVoice } = resolvePermissionsFor(grants, session?.cwd)
 
   // Track activeTab in a ref so selectors can skip updates when data isn't visible.
   // This prevents transcript/event updates from re-rendering the file editor and vice versa.
@@ -1268,7 +1272,7 @@ export function SessionDetail() {
             >
               Transcript
             </button>
-            {hasTerminal && (
+            {hasTerminal && canReadTerminal && (
               <button
                 type="button"
                 onClick={e => {
@@ -1293,43 +1297,46 @@ export function SessionDetail() {
                 TTY
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                haptic('tick')
-                setActiveTab('events')
-              }}
-              className={cn(
-                'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
-                activeTab === 'events'
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-muted-foreground hover:text-foreground',
-              )}
-            >
-              Events
-            </button>
-            {(session.totalSubagentCount > 0 || session.activeSubagentCount > 0 || session.bgTasks.length > 0) && (
+            {canAdmin && (
               <button
                 type="button"
                 onClick={() => {
                   haptic('tick')
-                  setActiveTab('agents')
+                  setActiveTab('events')
                 }}
                 className={cn(
                   'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
-                  activeTab === 'agents'
+                  activeTab === 'events'
                     ? 'border-accent text-accent'
                     : 'border-transparent text-muted-foreground hover:text-foreground',
                 )}
               >
-                Agents
-                {(session.activeSubagentCount > 0 || session.runningBgTaskCount > 0) && (
-                  <span className="ml-1.5 px-1.5 py-0.5 bg-active/20 text-active text-[10px] font-bold">
-                    {session.activeSubagentCount + session.runningBgTaskCount}
-                  </span>
-                )}
+                Events
               </button>
             )}
+            {canAdmin &&
+              (session.totalSubagentCount > 0 || session.activeSubagentCount > 0 || session.bgTasks.length > 0) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptic('tick')
+                    setActiveTab('agents')
+                  }}
+                  className={cn(
+                    'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
+                    activeTab === 'agents'
+                      ? 'border-accent text-accent'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  Agents
+                  {(session.activeSubagentCount > 0 || session.runningBgTaskCount > 0) && (
+                    <span className="ml-1.5 px-1.5 py-0.5 bg-active/20 text-active text-[10px] font-bold">
+                      {session.activeSubagentCount + session.runningBgTaskCount}
+                    </span>
+                  )}
+                </button>
+              )}
             {(session.taskCount > 0 || (session.archivedTaskCount ?? 0) > 0) && (
               <button
                 type="button"
@@ -1352,7 +1359,7 @@ export function SessionDetail() {
                 )}
               </button>
             )}
-            {session.status !== 'ended' && (
+            {canReadFiles && session.status !== 'ended' && (
               <button
                 type="button"
                 onClick={() => {
@@ -1384,40 +1391,44 @@ export function SessionDetail() {
             >
               Shared
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                haptic('tick')
-                setActiveTab('diag')
-              }}
-              className={cn(
-                'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
-                activeTab === 'diag'
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-muted-foreground hover:text-foreground',
-              )}
-            >
-              Diag
-            </button>
+            {canAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  haptic('tick')
+                  setActiveTab('diag')
+                }}
+                className={cn(
+                  'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
+                  activeTab === 'diag'
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+              >
+                Diag
+              </button>
+            )}
             {/* Follow/verbose - pushed to right */}
             <div className="ml-auto pr-3 flex items-center gap-2">
               <div className="w-px h-4 bg-border" />
             </div>
-            <div className="pr-3 hidden sm:flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="verbose"
-                  checked={expandAll}
-                  onCheckedChange={checked => {
-                    if (checked !== expandAll) useSessionsStore.getState().toggleExpandAll()
-                  }}
-                  className="h-3.5 w-3.5"
-                />
-                <label htmlFor="verbose" className="text-[10px] text-muted-foreground cursor-pointer select-none">
-                  verbose
-                </label>
+            {canAdmin && (
+              <div className="pr-3 hidden sm:flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    id="verbose"
+                    checked={expandAll}
+                    onCheckedChange={checked => {
+                      if (checked !== expandAll) useSessionsStore.getState().toggleExpandAll()
+                    }}
+                    className="h-3.5 w-3.5"
+                  />
+                  <label htmlFor="verbose" className="text-[10px] text-muted-foreground cursor-pointer select-none">
+                    verbose
+                  </label>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Conversation view overlay - replaces content when viewing inter-session messages */}
@@ -1504,7 +1515,13 @@ export function SessionDetail() {
 
       {/* Terminal overlay - routed by wrapperId (physical PTY) */}
       {showTerminal && terminalWrapperId && (
-        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center bg-background text-muted-foreground">Loading terminal...</div>}>
+        <Suspense
+          fallback={
+            <div className="absolute inset-0 flex items-center justify-center bg-background text-muted-foreground">
+              Loading terminal...
+            </div>
+          }
+        >
           <WebTerminal
             wrapperId={terminalWrapperId}
             onClose={() => {

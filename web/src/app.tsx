@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Command, FileText, Menu } from 'lucide-react'
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { AuthGate } from '@/components/auth-gate'
 import { CommandPalette } from '@/components/command-palette'
 import { DebugConsole } from '@/components/debug-console'
@@ -14,7 +14,9 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { VoiceFab } from '@/components/voice-fab'
 import { VoiceKey } from '@/components/voice-key'
+
 const WebTerminal = lazy(() => import('@/components/web-terminal').then(m => ({ default: m.WebTerminal })))
+
 import {
   fetchGlobalSettings,
   fetchProjectSettings,
@@ -26,6 +28,7 @@ import {
   wsSend,
 } from '@/hooks/use-sessions'
 import { useWebSocket } from '@/hooks/use-websocket'
+import { resolvePermissionsFor } from '@/lib/permissions'
 import { canTerminal } from '@/lib/types'
 import { isMobileViewport, isTouchDevice } from '@/lib/utils'
 
@@ -370,82 +373,93 @@ function Dashboard() {
     }
   }
 
+  const grants = useSessionsStore(s => s.grants)
+  const { canAdmin, canSpawn } = resolvePermissionsFor(grants)
+  const showSessionList = canAdmin || canSpawn
+
   return (
     <div className="h-full flex flex-col p-2 sm:p-4 max-w-[1400px] mx-auto overflow-hidden" {...swipeHandlers}>
       {/* Header with mobile menu */}
       <div className="flex items-center gap-2 mb-4 shrink-0">
-        {/* Mobile menu button */}
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="lg:hidden shrink-0">
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle sessions</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-[320px] sm:w-[380px] p-0">
-            <SheetHeader className="sr-only">
-              <SheetTitle>Sessions</SheetTitle>
-            </SheetHeader>
-            <div className="flex-1 overflow-y-auto p-2 h-full">
-              <SessionList />
-            </div>
-          </SheetContent>
-        </Sheet>
+        {/* Mobile menu button - only if session list is visible */}
+        {showSessionList && (
+          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="icon" className="lg:hidden shrink-0">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle sessions</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[320px] sm:w-[380px] p-0">
+              <SheetHeader className="sr-only">
+                <SheetTitle>Sessions</SheetTitle>
+              </SheetHeader>
+              <div className="flex-1 overflow-y-auto p-2 h-full">
+                <SessionList />
+              </div>
+            </SheetContent>
+          </Sheet>
+        )}
 
         <div className="flex-1">
           <Header />
         </div>
 
         {/* Mobile-only buttons for touch screens without keyboards */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="shrink-0 sm:hidden"
-          onClick={() => window.dispatchEvent(new Event('open-quick-note'))}
-          title="Quick note"
-        >
-          <FileText className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className="shrink-0 sm:hidden"
-          onClick={() => useSessionsStore.getState().toggleSwitcher()}
-          title="Command palette"
-        >
-          <Command className="h-4 w-4" />
-        </Button>
+        {canAdmin && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0 sm:hidden"
+            onClick={() => window.dispatchEvent(new Event('open-quick-note'))}
+            title="Quick note"
+          >
+            <FileText className="h-4 w-4" />
+          </Button>
+        )}
+        {canAdmin && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0 sm:hidden"
+            onClick={() => useSessionsStore.getState().toggleSwitcher()}
+            title="Command palette"
+          >
+            <Command className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       {/* Main content */}
       <div className="flex gap-4 flex-1 min-h-0 relative">
-        {/* Desktop sidebar */}
-        {sidebarCollapsed ? (
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            className="hidden lg:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 items-center justify-center w-5 h-10 rounded-r-md bg-muted/80 hover:bg-muted border border-l-0 border-border text-muted-foreground hover:text-foreground transition-colors"
-            title="Expand sidebar (Ctrl+B)"
-          >
-            <ChevronRight className="h-3 w-3" />
-          </button>
-        ) : (
-          <div className="hidden lg:flex w-[350px] shrink-0 border border-border overflow-hidden flex-col">
-            <div className="flex items-center justify-end px-1 pt-1 shrink-0">
-              <button
-                type="button"
-                onClick={toggleSidebar}
-                className="p-1 rounded hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
-                title="Collapse sidebar (Ctrl+B)"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
+        {/* Desktop sidebar - only if session list is visible */}
+        {showSessionList &&
+          (sidebarCollapsed ? (
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className="hidden lg:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 items-center justify-center w-5 h-10 rounded-r-md bg-muted/80 hover:bg-muted border border-l-0 border-border text-muted-foreground hover:text-foreground transition-colors"
+              title="Expand sidebar (Ctrl+B)"
+            >
+              <ChevronRight className="h-3 w-3" />
+            </button>
+          ) : (
+            <div className="hidden lg:flex w-[350px] shrink-0 border border-border overflow-hidden flex-col">
+              <div className="flex items-center justify-end px-1 pt-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="p-1 rounded hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
+                  title="Collapse sidebar (Ctrl+B)"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto p-2 pt-0">
+                <SessionList />
+              </div>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto p-2 pt-0">
-              <SessionList />
-            </div>
-          </div>
-        )}
+          ))}
 
         {/* Detail panel */}
         <div className="flex-1 border border-border overflow-hidden flex flex-col min-w-0">
@@ -453,11 +467,13 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Debug console (Ctrl+Shift+D) - in flex flow, shrinks main content */}
-      {showDebugConsole && <DebugConsole onClose={() => useSessionsStore.getState().toggleDebugConsole()} />}
+      {/* Debug console (Ctrl+Shift+D) - admin only */}
+      {canAdmin && showDebugConsole && (
+        <DebugConsole onClose={() => useSessionsStore.getState().toggleDebugConsole()} />
+      )}
 
-      {/* Global session switcher (Ctrl+K from anywhere) */}
-      {showSwitcher && (
+      {/* Global session switcher (Ctrl+K from anywhere) - admin only */}
+      {canAdmin && showSwitcher && (
         <CommandPalette
           onSelect={handleSwitcherSelect}
           onFileSelect={(sessionId, path) => {
@@ -473,10 +489,10 @@ function Dashboard() {
 
       {/* Global JSON inspector dialog (survives virtualizer remounts) */}
       <JsonInspectorDialog />
-      {/* Ctrl+Shift+N quick note modal */}
-      <QuickNoteModal />
-      {/* Shift+? shortcut help */}
-      <ShortcutHelp />
+      {/* Ctrl+Shift+N quick note modal - admin only */}
+      {canAdmin && <QuickNoteModal />}
+      {/* Shift+? shortcut help - admin only */}
+      {canAdmin && <ShortcutHelp />}
 
       {/* Voice FAB (touch) + Voice Key (keyboard push-to-talk) */}
       <VoiceFabGate />
@@ -535,7 +551,11 @@ function PopoutTerminal({ wrapperId }: { wrapperId: string }) {
 
   return (
     <div className="h-full w-full">
-      <Suspense fallback={<div className="flex items-center justify-center h-full text-muted-foreground">Loading terminal...</div>}>
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center h-full text-muted-foreground">Loading terminal...</div>
+        }
+      >
         <WebTerminal wrapperId={wrapperId} onClose={() => window.close()} popout />
       </Suspense>
     </div>
