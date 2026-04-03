@@ -288,11 +288,16 @@ export function createWsClient(options: WsClientOptions): WsClient {
             case 'ask_answer':
               onAskAnswer?.(message.toolUseId, message.answers, message.annotations, message.skip)
               break
-            case 'quit_session':
+            case 'terminate_session':
               onQuitSession?.()
               break
             default: {
               const msgType = (message as Record<string, unknown>).type as string
+              // Deprecated alias for terminate_session
+              if (msgType === 'quit_session') {
+                onQuitSession?.()
+                break
+              }
               // Inter-session send result (not in formal ConcentratorMessage type)
               if (msgType === 'channel_send_result') {
                 onChannelSendResult?.(message)

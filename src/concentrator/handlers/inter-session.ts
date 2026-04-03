@@ -26,7 +26,7 @@ const handleQuitRemoteSession: MessageHandler = (ctx, data) => {
     return
   }
 
-  targetWs.send(JSON.stringify({ type: 'quit_session', sessionId: targetSess.id }))
+  targetWs.send(JSON.stringify({ type: 'terminate_session', sessionId: targetSess.id }))
   ctx.reply({
     type: 'quit_remote_result',
     ok: true,

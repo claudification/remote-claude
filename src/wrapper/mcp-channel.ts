@@ -131,7 +131,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
       {
         name: 'list_sessions',
         description:
-          'List other Claude Code sessions. Returns a stable addressable ID per session (persisted, survives restarts). Use the returned ID for send_message, quit_session, configure_session. Messages to offline sessions are queued for delivery on reconnect. Use show_metadata for icon/color/keyterms (benevolent only).',
+          'List other Claude Code sessions. Returns a stable addressable ID per session (persisted, survives restarts). Use the returned ID for send_message, terminate_session, configure_session. Messages to offline sessions are queued for delivery on reconnect. Use show_metadata for icon/color/keyterms (benevolent only).',
         inputSchema: {
           type: 'object' as const,
           properties: {
@@ -190,9 +190,9 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         },
       },
       {
-        name: 'quit_session',
+        name: 'terminate_session',
         description:
-          'Send quit signal to an active session. Requires benevolent trust level on your project. The session will end within a few seconds. Use list_sessions to confirm after 5-10 seconds.',
+          'Terminate an active session. Requires benevolent trust level on your project. The session will end within a few seconds. Use list_sessions to confirm after 5-10 seconds.',
         inputSchema: {
           type: 'object' as const,
           properties: {
@@ -348,20 +348,21 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           debug(`[channel] configure_session: ${sessionId.slice(0, 8)} ${Object.keys(update).join(',')}`)
           return { content: [{ type: 'text', text: `Session configured: ${Object.keys(update).join(', ')} updated` }] }
         }
-        case 'quit_session': {
+        case 'terminate_session':
+        case 'quit_session': { // deprecated alias
           const sessionId = params.session_id
           if (!sessionId) return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
           const result = await callbacks.onQuitSession?.(sessionId)
           if (!result?.ok) {
-            debug(`[channel] quit_session failed: ${result?.error}`)
-            return { content: [{ type: 'text', text: result?.error || 'Failed to quit session' }], isError: true }
+            debug(`[channel] terminate_session failed: ${result?.error}`)
+            return { content: [{ type: 'text', text: result?.error || 'Failed to terminate session' }], isError: true }
           }
-          debug(`[channel] quit_session: ${sessionId.slice(0, 8)} (${result.name})`)
+          debug(`[channel] terminate_session: ${sessionId.slice(0, 8)} (${result.name})`)
           return {
             content: [
               {
                 type: 'text',
-                text: `Quit signal sent to ${result.name || sessionId.slice(0, 8)}. The session will end within a few seconds. Use list_sessions after 5-10 seconds to confirm.`,
+                text: `Terminate signal sent to ${result.name || sessionId.slice(0, 8)}. The session will end within a few seconds. Use list_sessions after 5-10 seconds to confirm.`,
               },
             ],
           }

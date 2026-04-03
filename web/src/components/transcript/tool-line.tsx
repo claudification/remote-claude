@@ -471,9 +471,10 @@ export function ToolLine({
       break
     }
     case 'mcp__rclaude__revive_session':
-    case 'mcp__rclaude__quit_session': {
+    case 'mcp__rclaude__terminate_session':
+    case 'mcp__rclaude__quit_session': { // deprecated alias
       const sessionId = (input.session_id as string) || ''
-      const action = name.includes('revive') ? 'revive' : 'quit'
+      const action = name.includes('revive') ? 'revive' : 'terminate'
       const actionColor = action === 'revive' ? 'text-green-400' : 'text-red-400'
       const sess = useSessionsStore.getState().sessions.find(s => s.id === sessionId)
       const sessName = sess?.title || sess?.cwd?.split('/').pop() || sessionId.slice(0, 8)
@@ -624,13 +625,14 @@ export function ToolLine({
       }
       break
     }
-    case 'mcp__rclaude__quit_session': {
+    case 'mcp__rclaude__terminate_session':
+    case 'mcp__rclaude__quit_session': { // deprecated alias
       const sessionId = (input.session_id as string) || ''
       const sess = useSessionsStore.getState().sessions.find(s => s.id === sessionId)
       const sessName = sess?.title || sess?.cwd?.split('/').pop() || sessionId.slice(0, 8)
       summary = (
         <span className="flex items-center gap-1.5">
-          <span className="text-red-400">quit</span>
+          <span className="text-red-400">terminate</span>
           <span className="text-foreground font-bold">{sessName}</span>
         </span>
       )

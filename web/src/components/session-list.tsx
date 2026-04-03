@@ -579,10 +579,10 @@ function SessionContextMenu({ session, children }: { session: Session; children:
               className={cn(menuItemClass, 'text-destructive')}
               onSelect={() => {
                 haptic('error')
-                wsSend('quit_session', { sessionId: session.id })
+                wsSend('terminate_session', { sessionId: session.id })
               }}
             >
-              Quit session
+              Terminate session
             </ContextMenu.Item>
           )}
           {session.status === 'ended' && (

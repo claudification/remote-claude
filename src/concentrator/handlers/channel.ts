@@ -266,7 +266,7 @@ const quitSession: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   const targetWs = sessionId ? ctx.sessions.getSessionSocket(sessionId) : null
   if (targetWs) {
-    targetWs.send(JSON.stringify({ type: 'quit_session', sessionId }))
+    targetWs.send(JSON.stringify({ type: 'terminate_session', sessionId }))
     ctx.log.debug(`Session ${sessionId.slice(0, 8)} - SIGTERM sent to wrapper`)
   }
 }
@@ -338,8 +338,9 @@ export function registerChannelHandlers(): void {
     channel_list_sessions: channelListSessions,
     // Inter-session messaging
     channel_send: channelSend,
-    // Session quit relay
-    quit_session: quitSession,
+    // Session terminate relay
+    terminate_session: quitSession,
+    quit_session: quitSession, // deprecated alias
     // Notification badge
     session_viewed: sessionViewed,
     // Link management

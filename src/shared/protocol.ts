@@ -485,7 +485,7 @@ export type ConcentratorMessage =
   | QuitSession
 
 export interface QuitSession {
-  type: 'quit_session'
+  type: 'terminate_session'
   sessionId: string
 }
 
