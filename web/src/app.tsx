@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Command, FileText, Menu } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { AuthGate } from '@/components/auth-gate'
 import { CommandPalette } from '@/components/command-palette'
 import { DebugConsole } from '@/components/debug-console'
@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { VoiceFab } from '@/components/voice-fab'
 import { VoiceKey } from '@/components/voice-key'
-import { WebTerminal } from '@/components/web-terminal'
+const WebTerminal = lazy(() => import('@/components/web-terminal').then(m => ({ default: m.WebTerminal })))
 import {
   fetchGlobalSettings,
   fetchProjectSettings,
@@ -535,7 +535,9 @@ function PopoutTerminal({ wrapperId }: { wrapperId: string }) {
 
   return (
     <div className="h-full w-full">
-      <WebTerminal wrapperId={wrapperId} onClose={() => window.close()} popout />
+      <Suspense fallback={<div className="flex items-center justify-center h-full text-muted-foreground">Loading terminal...</div>}>
+        <WebTerminal wrapperId={wrapperId} onClose={() => window.close()} popout />
+      </Suspense>
     </div>
   )
 }

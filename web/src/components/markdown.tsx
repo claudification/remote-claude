@@ -1,4 +1,3 @@
-import { renderMermaidSVG } from 'beautiful-mermaid'
 import hljs from 'highlight.js/lib/core'
 import bash from 'highlight.js/lib/languages/bash'
 import css from 'highlight.js/lib/languages/css'
@@ -194,13 +193,18 @@ const MERMAID_THEME = {
   transparent: true,
 }
 
-function renderMermaidBlocks(container: HTMLElement) {
-  const blocks = container.querySelectorAll('pre.mermaid')
-  for (const block of blocks) {
+// Lazy-loaded mermaid renderer -- only fetched when a mermaid block exists
+let mermaidModule: typeof import('beautiful-mermaid') | null = null
+let mermaidLoading = false
+const mermaidQueue: HTMLElement[] = []
+
+function processMermaidQueue() {
+  if (!mermaidModule) return
+  for (const block of mermaidQueue.splice(0)) {
     const source = decodeURIComponent(block.getAttribute('data-mermaid-source') || '')
     if (!source) continue
     try {
-      const svg = renderMermaidSVG(source, MERMAID_THEME)
+      const svg = mermaidModule.renderMermaidSVG(source, MERMAID_THEME)
       const wrapper = document.createElement('div')
       wrapper.className = 'mermaid-container'
       wrapper.innerHTML = svg
@@ -211,6 +215,26 @@ function renderMermaidBlocks(container: HTMLElement) {
       errDiv.textContent = `Mermaid error: ${err instanceof Error ? err.message : String(err)}`
       block.replaceWith(errDiv)
     }
+  }
+}
+
+function renderMermaidBlocks(container: HTMLElement) {
+  const blocks = container.querySelectorAll('pre.mermaid')
+  if (blocks.length === 0) return
+
+  for (const block of blocks) mermaidQueue.push(block as HTMLElement)
+
+  if (mermaidModule) {
+    processMermaidQueue()
+    return
+  }
+
+  if (!mermaidLoading) {
+    mermaidLoading = true
+    import('beautiful-mermaid').then(mod => {
+      mermaidModule = mod
+      processMermaidQueue()
+    })
   }
 }
 

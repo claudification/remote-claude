@@ -1,6 +1,6 @@
 import type { HookEvent } from '@shared/protocol'
 import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Copy, Terminal } from 'lucide-react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { fetchSubagentTranscript, reviveSession, sendInput, useSessionsStore, wsSend } from '@/hooks/use-sessions'
@@ -18,7 +18,7 @@ import { SharedView } from './shared-view'
 import { SubagentView } from './subagent-view'
 import { TasksView } from './tasks-view'
 import { TranscriptView } from './transcript'
-import { WebTerminal } from './web-terminal'
+const WebTerminal = lazy(() => import('./web-terminal').then(m => ({ default: m.WebTerminal })))
 
 type Tab = 'transcript' | 'tty' | 'events' | 'agents' | 'tasks' | 'files' | 'shared' | 'diag'
 
@@ -1504,14 +1504,16 @@ export function SessionDetail() {
 
       {/* Terminal overlay - routed by wrapperId (physical PTY) */}
       {showTerminal && terminalWrapperId && (
-        <WebTerminal
-          wrapperId={terminalWrapperId}
-          onClose={() => {
-            setShowTerminal(false)
-            const store = useSessionsStore.getState()
-            if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'transcript')
-          }}
-        />
+        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center bg-background text-muted-foreground">Loading terminal...</div>}>
+          <WebTerminal
+            wrapperId={terminalWrapperId}
+            onClose={() => {
+              setShowTerminal(false)
+              const store = useSessionsStore.getState()
+              if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'transcript')
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Revive button for ended sessions */}
