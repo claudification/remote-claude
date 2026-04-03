@@ -116,7 +116,12 @@ const channelSend: MessageHandler = (ctx, data) => {
   const fromSess = ctx.sessions.getSession(fromSession)
   const toSess = ctx.sessions.getSession(toSession)
   if (!toSess) {
-    ctx.reply({ type: 'channel_send_result', ok: false, error: 'Target session not found' })
+    ctx.reply({
+      type: 'channel_send_result',
+      ok: false,
+      error:
+        'Target session not found. It may have restarted with a new ID. Use list_sessions to discover current sessions.',
+    })
     return
   }
 
@@ -185,7 +190,11 @@ const channelSend: MessageHandler = (ctx, data) => {
         })
       }
     } else {
-      ctx.reply({ type: 'channel_send_result', ok: false, error: 'Target session not connected' })
+      ctx.reply({
+        type: 'channel_send_result',
+        ok: false,
+        error: 'Target session not connected. It may have restarted. Use list_sessions to resolve current IDs.',
+      })
     }
   } else {
     ctx.sessions.queueInterSessionMessage(fromSession, toSession, delivery)

@@ -16,7 +16,11 @@ const handleQuitRemoteSession: MessageHandler = (ctx, data) => {
 
   const targetWs = ctx.sessions.getSessionSocket(targetSession)
   if (!targetWs) {
-    ctx.reply({ type: 'quit_remote_result', ok: false, error: 'Target session not connected' })
+    ctx.reply({
+      type: 'quit_remote_result',
+      ok: false,
+      error: 'Target session not connected. Use list_sessions to find current sessions.',
+    })
     return
   }
 
@@ -40,7 +44,11 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
 
   const target = ctx.sessions.getSession(targetSessionId)
   if (!target) {
-    ctx.reply({ type: 'channel_revive_result', ok: false, error: 'Session not found' })
+    ctx.reply({
+      type: 'channel_revive_result',
+      ok: false,
+      error: 'Session not found. Use list_sessions to discover current sessions.',
+    })
     return
   }
   if (target.status === 'active') {
@@ -201,7 +209,11 @@ const handleChannelConfigure: MessageHandler = (ctx, data) => {
 
   const target = ctx.sessions.getSession(targetSessionId)
   if (!target) {
-    ctx.reply({ type: 'channel_configure_result', ok: false, error: 'Session not found' })
+    ctx.reply({
+      type: 'channel_configure_result',
+      ok: false,
+      error: 'Session not found. Use list_sessions to discover current sessions.',
+    })
     return
   }
 
