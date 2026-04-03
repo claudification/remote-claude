@@ -5,6 +5,7 @@
 
 import type { ServerWebSocket } from 'bun'
 import type { ProjectSettings } from '../shared/protocol'
+import type { Permission, UserGrant } from './permissions'
 import type { SessionStore } from './session-store'
 
 export interface WsData {
@@ -14,6 +15,7 @@ export interface WsData {
   isAgent?: boolean
   userName?: string
   authToken?: string
+  grants?: UserGrant[]
 }
 
 /** Thrown by guard methods (requireBenevolent, requireAgent, etc.) */
@@ -103,6 +105,11 @@ export interface HandlerContext {
   requireAgent(): ServerWebSocket<unknown>
   /** Guard: throws GuardError if caller has no session */
   requireSession(): NonNullable<ReturnType<SessionStore['getSession']>>
+  /**
+   * Guard: throws GuardError if dashboard user lacks the required permission
+   * for the given CWD. Wrappers/agents bypass all permission checks.
+   */
+  requirePermission(permission: Permission, cwd?: string): void
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: WS JSON data is untyped at the parse boundary

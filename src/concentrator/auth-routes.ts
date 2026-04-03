@@ -175,18 +175,20 @@ export async function handleAuthRoute(req: Request): Promise<Response | null> {
 
   // --- Status ---
   if (path === '/auth/status' && req.method === 'GET') {
-    const user = getAuthenticatedUser(req)
+    const userName = getAuthenticatedUser(req)
     const token = getCookieValue(req)
     const headers: Record<string, string> = {}
     // Silently renew session cookie if past halfway point
-    if (user && token && renewSessionIfNeeded(token)) {
+    if (userName && token && renewSessionIfNeeded(token)) {
       headers['Set-Cookie'] = setCookie(token)
     }
+    const userObj = userName ? getUser(userName) : undefined
     return jsonResponse(
       {
-        authenticated: !!user,
-        name: user,
+        authenticated: !!userName,
+        name: userName,
         hasUsers: hasAnyUsers(),
+        grants: userObj?.grants,
       },
       200,
       headers,
@@ -257,10 +259,10 @@ export async function handleAuthRoute(req: Request): Promise<Response | null> {
 
       const { credential } = verification.registrationInfo
 
-      // Create user + store credential
+      // Create user + store credential (pass grants from invite)
       let user = getUser(invite.name)
       if (!user) {
-        user = createUser(invite.name)
+        user = createUser(invite.name, invite.grants)
       }
 
       const storedCred: StoredCredential = {

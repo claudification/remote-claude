@@ -9,6 +9,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AuthenticatorTransportFuture } from '@simplewebauthn/server'
+import type { UserGrant } from './permissions'
 
 // --- Types ---
 
@@ -26,6 +27,7 @@ export interface PasskeyUser {
   createdAt: number
   lastUsedAt?: number
   revoked: boolean
+  grants: UserGrant[]
 }
 
 export interface Invite {
@@ -34,6 +36,7 @@ export interface Invite {
   createdAt: number
   expiresAt: number
   used: boolean
+  grants?: UserGrant[]
 }
 
 interface AuthState {
@@ -91,6 +94,18 @@ export function initAuth(opts: {
   if (existsSync(authFilePath)) {
     try {
       state = JSON.parse(readFileSync(authFilePath, 'utf-8'))
+      // Migrate: add grants to existing users that don't have them (admin by default)
+      let migrated = false
+      for (const user of state.users) {
+        if (!user.grants) {
+          user.grants = [{ cwd: '*', permissions: ['admin'] }]
+          migrated = true
+        }
+      }
+      if (migrated) {
+        writeFileSync(authFilePath, JSON.stringify(state, null, 2), { mode: 0o600 })
+        console.log('[auth] Migrated existing users to grant-based permissions (admin)')
+      }
       // Clean expired sessions on load
       const now = Date.now()
       for (const [token, session] of Object.entries(state.sessions)) {
@@ -134,7 +149,7 @@ export function getExpectedOrigins(): string[] {
 
 // --- Invite management ---
 
-export function createInvite(name: string): { token: string; expiresAt: number } {
+export function createInvite(name: string, grants?: UserGrant[]): { token: string; expiresAt: number } {
   // Enforce unique names
   if (state.users.some(u => u.name === name)) {
     throw new Error(`Name "${name}" already taken by an existing passkey user`)
@@ -151,6 +166,7 @@ export function createInvite(name: string): { token: string; expiresAt: number }
     createdAt: now,
     expiresAt: now + INVITE_MAX_AGE_MS,
     used: false,
+    grants,
   }
 
   state.invites.push(invite)
@@ -177,7 +193,7 @@ export function consumeInvite(token: string): void {
 
 // --- User management ---
 
-export function createUser(name: string): PasskeyUser {
+export function createUser(name: string, grants?: UserGrant[]): PasskeyUser {
   if (state.users.some(u => u.name === name)) {
     throw new Error(`User "${name}" already exists`)
   }
@@ -187,6 +203,7 @@ export function createUser(name: string): PasskeyUser {
     credentials: [],
     createdAt: Date.now(),
     revoked: false,
+    grants: grants || [{ cwd: '*', permissions: ['admin'] }],
   }
   state.users.push(user)
   save()
@@ -241,6 +258,34 @@ export function unrevokeUser(name: string): boolean {
   const user = state.users.find(u => u.name === name)
   if (!user) return false
   user.revoked = false
+  save()
+  return true
+}
+
+// --- Grant management ---
+
+export function setUserGrants(name: string, grants: UserGrant[]): boolean {
+  const user = state.users.find(u => u.name === name)
+  if (!user) return false
+  user.grants = grants
+  save()
+  return true
+}
+
+export function addUserGrant(name: string, grant: UserGrant): boolean {
+  const user = state.users.find(u => u.name === name)
+  if (!user) return false
+  user.grants.push(grant)
+  save()
+  return true
+}
+
+export function removeUserGrant(name: string, cwd: string): boolean {
+  const user = state.users.find(u => u.name === name)
+  if (!user) return false
+  const before = user.grants.length
+  user.grants = user.grants.filter(g => g.cwd !== cwd)
+  if (user.grants.length === before) return false
   save()
   return true
 }

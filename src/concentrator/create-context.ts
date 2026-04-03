@@ -6,6 +6,8 @@
 import type { ServerWebSocket } from 'bun'
 import type { ProjectSettings } from '../shared/protocol'
 import { GuardError, type HandlerContext, logPrefix, type WsData } from './handler-context'
+import type { Permission } from './permissions'
+import { resolvePermissions } from './permissions'
 import type { SessionStore } from './session-store'
 
 export interface ContextDeps {
@@ -113,6 +115,20 @@ export function createContext(ws: ServerWebSocket<WsData>, deps: ContextDeps): H
     requireSession() {
       if (!caller) throw new GuardError('No session')
       return caller
+    },
+
+    requirePermission(permission: Permission, cwd?: string) {
+      // Wrappers and agents bypass all permission checks (trusted infrastructure)
+      if (!ws.data.isDashboard) return
+      // No grants on WS data = legacy connection or bearer auth (treat as admin)
+      const grants = ws.data.grants
+      if (!grants) return
+      const targetCwd = cwd || caller?.cwd
+      if (!targetCwd) throw new GuardError('No session context for permission check')
+      const perms = resolvePermissions(grants, targetCwd)
+      if (!perms.has(permission)) {
+        throw new GuardError(`Permission denied: ${permission} required`)
+      }
     },
   }
 }

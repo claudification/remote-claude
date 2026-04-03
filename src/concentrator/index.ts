@@ -299,6 +299,9 @@ async function main() {
           try {
             ws.close(4401, 'User revoked')
           } catch {}
+        } else {
+          // Hot-reload grants on live connections
+          ;(ws.data as { grants?: unknown }).grants = user.grants
         }
       }
     }
@@ -446,8 +449,10 @@ async function main() {
           const cookieHeader = req.headers.get('cookie')
           const tokenMatch = cookieHeader?.match(/concentrator-session=([^;]+)/)
           const authToken = tokenMatch?.[1]
+          // Load grants for permission enforcement on WS messages
+          const wsUser = wsUserName ? getUser(wsUserName) : undefined
           const success = server.upgrade(req, {
-            data: { userName: wsUserName, authToken } as WsData,
+            data: { userName: wsUserName, authToken, grants: wsUser?.grants } as WsData,
           })
           if (success) return undefined
           return new Response('WebSocket upgrade failed', { status: 500 })
