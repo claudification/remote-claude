@@ -13,9 +13,11 @@ import { type ContextDeps, createContext } from './create-context'
 import { initGlobalSettings } from './global-settings'
 import type { WsData } from './handler-context'
 import { registerAgentHandlers } from './handlers/agent'
+import { registerFileHandlers } from './handlers/files'
 import { registerInterSessionHandlers } from './handlers/inter-session'
 import { registerPermissionHandlers } from './handlers/permissions'
 import { registerTerminalHandlers } from './handlers/terminal'
+import { registerTranscriptHandlers } from './handlers/transcript'
 import { registerVoiceHandlers } from './handlers/voice'
 import { appendMessage, initInterSessionLog } from './inter-session-log'
 import { routeMessage } from './message-router'
@@ -405,9 +407,11 @@ async function main() {
 
     // Register message handlers
     registerAgentHandlers()
+    registerFileHandlers()
     registerInterSessionHandlers()
     registerPermissionHandlers()
     registerTerminalHandlers()
+    registerTranscriptHandlers()
     registerVoiceHandlers()
 
     // Context deps shared by all handler contexts
@@ -960,216 +964,6 @@ async function main() {
                     console.log(
                       `[inter-session] Link severed + persisted removed: ${sessionA.slice(0, 8)} X ${sessionB.slice(0, 8)}`,
                     )
-                }
-                break
-              }
-
-              // quit_remote_session, channel_revive, channel_spawn, channel_configure
-              // -> migrated to handlers/inter-session.ts (handled by router above)
-
-              case 'tasks_update': {
-                const sessionId = ws.data.sessionId || data.sessionId
-                if (sessionId) {
-                  sessionStore.updateTasks(sessionId, data.tasks || [])
-                  // Forward active task list to subscribed dashboards
-                  sessionStore.broadcastToChannel('session:tasks', sessionId, {
-                    type: 'tasks_update',
-                    sessionId,
-                    tasks: data.tasks || [],
-                  })
-                  if (verbose) {
-                    console.log(`[*] ${sessionId.slice(0, 8)}... tasks_update (${(data.tasks || []).length} tasks)`)
-                  }
-                }
-                break
-              }
-
-              case 'diag': {
-                const sessionId = ws.data.sessionId || data.sessionId
-                if (sessionId && Array.isArray(data.entries)) {
-                  const session = sessionStore.getSession(sessionId)
-                  if (session) {
-                    session.diagLog.push(...data.entries)
-                    // Cap at 500 entries
-                    if (session.diagLog.length > 500) {
-                      session.diagLog.splice(0, session.diagLog.length - 500)
-                    }
-                  }
-                }
-                break
-              }
-
-              // Transcript streaming: rclaude -> concentrator (cache + forward to dashboard)
-              case 'transcript_entries': {
-                const sessionId = ws.data.sessionId || data.sessionId
-                if (sessionId) {
-                  const entryCount = (data.entries || []).length
-                  sessionStore.addTranscriptEntries(sessionId, data.entries || [], data.isInitial || false)
-                  // Broadcast to subscribed dashboards
-                  sessionStore.broadcastToChannel('session:transcript', sessionId, data)
-                  // Always log transcript events (new feature - needs visibility)
-                  console.log(
-                    `[transcript] ${sessionId.slice(0, 8)}... ${entryCount} entries (initial: ${data.isInitial})`,
-                  )
-                }
-                break
-              }
-              case 'subagent_transcript': {
-                const sessionId = ws.data.sessionId || data.sessionId
-                if (sessionId && data.agentId) {
-                  const entryCount = (data.entries || []).length
-                  sessionStore.addSubagentTranscriptEntries(
-                    sessionId,
-                    data.agentId,
-                    data.entries || [],
-                    data.isInitial || false,
-                  )
-                  // Broadcast to subscribed dashboards
-                  sessionStore.broadcastToChannel('session:subagent_transcript', sessionId, data, data.agentId)
-                  console.log(
-                    `[transcript] ${sessionId.slice(0, 8)}... subagent ${data.agentId.slice(0, 7)} ${entryCount} entries`,
-                  )
-                }
-                break
-              }
-              case 'bg_task_output': {
-                const sessionId = ws.data.sessionId || data.sessionId
-                if (sessionId && data.taskId) {
-                  sessionStore.addBgTaskOutput(sessionId, data.taskId, data.data || '', data.done || false)
-                  // Broadcast to subscribed dashboards
-                  sessionStore.broadcastToChannel('session:bg_output', sessionId, data)
-                }
-                break
-              }
-              case 'file_response': {
-                // Check if this is a server-side request (e.g. keyterm generation)
-                if (data.requestId && sessionStore.resolveFile(data.requestId, data)) {
-                  break // Handled server-side, don't broadcast
-                }
-                // rclaude responding to a dashboard file request - forward to subscribers
-                const msg = JSON.stringify(data)
-                for (const sub of sessionStore.getSubscribers()) {
-                  try {
-                    sub.send(msg)
-                  } catch {}
-                }
-                break
-              }
-
-              // File editor relay: dashboard <-> wrapper
-              // Dashboard sends request (with sessionId + requestId), concentrator forwards to wrapper.
-              // Wrapper sends response (with requestId), concentrator forwards back to requesting dashboard.
-              case 'file_list_request':
-              case 'file_content_request':
-              case 'file_save':
-              case 'file_watch':
-              case 'file_unwatch':
-              case 'file_history_request':
-              case 'file_restore':
-              case 'quick_note_append': {
-                if (ws.data.isDashboard && data.sessionId) {
-                  // Path validation is done by the wrapper (rclaude), not here.
-                  // The concentrator is OS-agnostic and can't reliably validate paths.
-                  // Future: scope/permission gating goes here (is user allowed this operation?)
-
-                  // Dashboard -> wrapper: forward to the session's wrapper
-                  const targetSocket = sessionStore.getSessionSocket(data.sessionId)
-                  if (targetSocket) {
-                    // Tag with the dashboard socket so we can route the response back
-                    targetSocket.send(JSON.stringify(data))
-                  } else {
-                    ws.send(
-                      JSON.stringify({
-                        type: data.type.replace('_request', '_response').replace('_save', '_save_response'),
-                        requestId: data.requestId,
-                        error: 'Session not connected',
-                      }),
-                    )
-                  }
-                }
-                break
-              }
-              case 'file_list_response':
-              case 'file_content_response':
-              case 'file_save_response':
-              case 'file_history_response':
-              case 'file_restore_response':
-              case 'quick_note_response':
-              case 'file_changed': {
-                // Wrapper -> dashboard: forward to all dashboard subscribers
-                // (requestId-based correlation handles routing on the client side)
-                const msg = JSON.stringify(data)
-                for (const sub of sessionStore.getSubscribers()) {
-                  try {
-                    sub.send(msg)
-                  } catch {}
-                }
-                break
-              }
-
-              // Transcript streaming: dashboard -> rclaude (request cached or proxied transcript)
-              case 'transcript_request': {
-                if (data.sessionId) {
-                  // Serve from cache if available
-                  if (sessionStore.hasTranscriptCache(data.sessionId)) {
-                    const entries = sessionStore.getTranscriptEntries(data.sessionId, data.limit)
-                    ws.send(
-                      JSON.stringify({
-                        type: 'transcript_entries',
-                        sessionId: data.sessionId,
-                        entries,
-                        isInitial: true,
-                      }),
-                    )
-                  } else {
-                    // Forward request to rclaude so it can send transcript
-                    const sessionSocket = sessionStore.getSessionSocket(data.sessionId)
-                    if (sessionSocket) {
-                      sessionSocket.send(JSON.stringify(data))
-                    }
-                  }
-                }
-                break
-              }
-              case 'subagent_transcript_request': {
-                if (data.sessionId && data.agentId) {
-                  if (sessionStore.hasSubagentTranscriptCache(data.sessionId, data.agentId)) {
-                    const entries = sessionStore.getSubagentTranscriptEntries(data.sessionId, data.agentId, data.limit)
-                    ws.send(
-                      JSON.stringify({
-                        type: 'subagent_transcript',
-                        sessionId: data.sessionId,
-                        agentId: data.agentId,
-                        entries,
-                        isInitial: true,
-                      }),
-                    )
-                  } else {
-                    const sessionSocket = sessionStore.getSessionSocket(data.sessionId)
-                    if (sessionSocket) {
-                      sessionSocket.send(JSON.stringify(data))
-                    }
-                  }
-                }
-                break
-              }
-
-              case 'file_request': {
-                // Dashboard requesting a file - proxy to rclaude
-                if (data.sessionId) {
-                  // Path traversal guard
-                  const sessionSocket = sessionStore.getSessionSocket(data.sessionId)
-                  if (sessionSocket) {
-                    sessionSocket.send(JSON.stringify(data))
-                  } else {
-                    ws.send(
-                      JSON.stringify({
-                        type: 'file_response',
-                        requestId: data.requestId,
-                        error: 'Session not connected',
-                      }),
-                    )
-                  }
                 }
                 break
               }
