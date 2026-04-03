@@ -12,8 +12,19 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { createInvite, getAllUsers, initAuth, revokeUser, unrevokeUser } from './auth'
+import {
+  addUserGrant,
+  createInvite,
+  getAllUsers,
+  getUser,
+  initAuth,
+  removeUserGrant,
+  revokeUser,
+  setUserGrants,
+  unrevokeUser,
+} from './auth'
 import { addAllowedRoot, addPathMapping, resolveInJail } from './path-jail'
+import type { UserGrant } from './permissions'
 
 /** Send SIGHUP to running server so it reloads auth state from disk */
 function notifyServer(cacheDir: string): void {
@@ -35,20 +46,31 @@ const DEFAULT_CACHE_DIR = join(process.env.HOME || process.env.USERPROFILE || '/
 
 function printUsage(): void {
   console.log(`
-concentrator-cli - Passkey management for Claude Concentrator
+concentrator-cli - User & passkey management for Claude Concentrator
 
 COMMANDS:
-  create-invite --name <name>           Create a one-time invite link (unique name required)
-  list-users                             List all passkey users and their status
-  revoke --name <name>                  Revoke a user's access
-  unrevoke --name <name>                Restore a revoked user
-  resolve-path <path>                   Debug: test path jail resolution
+  create-invite --name <name> [--grant "cwd:perm,perm"]   Create invite with grants
+  list-users                                                List all users with grants
+  revoke --name <name>                                     Revoke a user's access
+  unrevoke --name <name>                                   Restore a revoked user
+  grant --name <name> --cwd <path> --permissions <p,p>     Add grant to user
+  revoke-grant --name <name> --cwd <path>                  Remove grant from user
+  resolve-path <path>                                       Debug: test path jail resolution
+
+GRANT FORMAT:
+  --grant "cwd:permission,permission"     (repeatable)
+  --grant "/Users/jonas/projects/foo:chat"
+  --grant "*:admin"                        (admin for all projects)
+
+  Omit --grant for admin access (default).
+
+PERMISSIONS:
+  admin, chat, chat:read, terminal, terminal:read,
+  files, files:read, spawn, settings, voice
 
 OPTIONS:
   --cache-dir <dir>    Auth storage directory (default: ~/.cache/concentrator)
   --url <url>          Concentrator URL for invite links (default: http://localhost:9999)
-  --allow-root <dir>   Add allowed root for resolve-path (repeatable)
-  --path-map <f>:<t>   Add path mapping for resolve-path (repeatable)
   -h, --help           Show this help
 `)
 }
@@ -64,6 +86,9 @@ function main(): void {
   let baseUrl = 'http://localhost:9999'
   let name = ''
   let command = ''
+  let cwdArg = ''
+  let permissionsArg = ''
+  const grantArgs: string[] = []
   const allowRoots: string[] = []
   const pathMapArgs: Array<{ from: string; to: string }> = []
   let testPath = ''
@@ -76,6 +101,12 @@ function main(): void {
       baseUrl = args[++i]
     } else if (arg === '--name') {
       name = args[++i]
+    } else if (arg === '--grant') {
+      grantArgs.push(args[++i])
+    } else if (arg === '--cwd') {
+      cwdArg = args[++i]
+    } else if (arg === '--permissions') {
+      permissionsArg = args[++i]
     } else if (arg === '--allow-root') {
       allowRoots.push(args[++i])
     } else if (arg === '--path-map') {
@@ -91,6 +122,23 @@ function main(): void {
         command = arg
       }
     }
+  }
+
+  /** Parse --grant "cwd:perm,perm" into UserGrant[] */
+  function parseGrants(grantStrs: string[]): UserGrant[] {
+    return grantStrs.map(s => {
+      const colonIdx = s.indexOf(':')
+      if (colonIdx <= 0) {
+        console.error(`Invalid grant format: "${s}" (expected "cwd:permission,permission")`)
+        process.exit(1)
+      }
+      const cwd = s.slice(0, colonIdx)
+      const permissions = s
+        .slice(colonIdx + 1)
+        .split(',')
+        .map(p => p.trim()) as UserGrant['permissions']
+      return { cwd, permissions }
+    })
   }
 
   // resolve-path doesn't need auth
@@ -123,22 +171,24 @@ function main(): void {
         process.exit(1)
       }
 
+      const grants = grantArgs.length > 0 ? parseGrants(grantArgs) : undefined
+      const grantLabel = grants
+        ? grants.map(g => `${g.cwd}: ${g.permissions.join(', ')}`).join('\n│           ')
+        : '* (admin -- full access)'
+
       try {
-        const invite = createInvite(name)
+        const invite = createInvite(name, grants)
         const inviteUrl = `${baseUrl}/#/invite/${invite.token}`
 
         console.log(`
-┌─────────────────────────────────────────────────────────────┐
-│  PASSKEY INVITE CREATED                                     │
-├─────────────────────────────────────────────────────────────┤
-│  Name:    ${name.padEnd(49)}│
-│  Expires: ${new Date(invite.expiresAt).toLocaleString().padEnd(49)}│
-├─────────────────────────────────────────────────────────────┤
-│  Share this link (one-time use, 30 min expiry):             │
-│                                                             │
-│  ${inviteUrl.padEnd(59)}│
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+  PASSKEY INVITE CREATED
+
+  Name:    ${name}
+  Grants:  ${grantLabel}
+  Expires: ${new Date(invite.expiresAt).toLocaleString()}
+
+  Share this link (one-time use, 30 min expiry):
+  ${inviteUrl}
 `)
         notifyServer(cacheDir)
       } catch (err) {
@@ -155,25 +205,66 @@ function main(): void {
         return
       }
 
-      console.log(`
-┌────────────────────────────────────────────────────────────────────────┐
-│  REGISTERED PASSKEY USERS                                              │
-├──────────────────┬──────────┬──────────┬──────────────────────────────┤
-│  Name             │  Status   │  Keys     │  Last Used                    │
-├──────────────────┼──────────┼──────────┼──────────────────────────────┤`)
-
       for (const user of users) {
         const status = user.revoked ? 'REVOKED' : 'ACTIVE'
-        const statusColor = user.revoked ? status : status
-        const keys = String(user.credentials.length)
+        const keys = user.credentials.length
         const lastUsed = user.lastUsedAt ? new Date(user.lastUsedAt).toLocaleString() : 'never'
+        const grants = (user.grants || [])
+          .map(g => {
+            let label = `${g.cwd}: ${g.permissions.join(', ')}`
+            if (g.notBefore) label += ` [from ${new Date(g.notBefore).toLocaleDateString()}]`
+            if (g.notAfter) label += ` [until ${new Date(g.notAfter).toLocaleDateString()}]`
+            return label
+          })
+          .join('\n           ')
 
-        console.log(
-          `│  ${user.name.padEnd(16)}│  ${statusColor.padEnd(8)}│  ${keys.padEnd(8)}│  ${lastUsed.padEnd(28)}│`,
-        )
+        console.log(`  ${user.name} (${status}, ${keys} key${keys !== 1 ? 's' : ''}, last: ${lastUsed})`)
+        console.log(`    grants: ${grants || '(none)'}`)
+        console.log()
       }
+      break
+    }
 
-      console.log('└──────────────────┴──────────┴──────────┴──────────────────────────────┘')
+    case 'grant': {
+      if (!name) {
+        console.error('ERROR: --name is required')
+        process.exit(1)
+      }
+      if (!cwdArg) {
+        console.error('ERROR: --cwd is required')
+        process.exit(1)
+      }
+      if (!permissionsArg) {
+        console.error('ERROR: --permissions is required')
+        process.exit(1)
+      }
+      const perms = permissionsArg.split(',').map(p => p.trim()) as UserGrant['permissions']
+      if (addUserGrant(name, { cwd: cwdArg, permissions: perms })) {
+        console.log(`Added grant: ${cwdArg} -> ${perms.join(', ')} for "${name}"`)
+        notifyServer(cacheDir)
+      } else {
+        console.error(`ERROR: User "${name}" not found.`)
+        process.exit(1)
+      }
+      break
+    }
+
+    case 'revoke-grant': {
+      if (!name) {
+        console.error('ERROR: --name is required')
+        process.exit(1)
+      }
+      if (!cwdArg) {
+        console.error('ERROR: --cwd is required')
+        process.exit(1)
+      }
+      if (removeUserGrant(name, cwdArg)) {
+        console.log(`Removed grant for cwd "${cwdArg}" from "${name}"`)
+        notifyServer(cacheDir)
+      } else {
+        console.error(`ERROR: User "${name}" not found or no grant for that cwd.`)
+        process.exit(1)
+      }
       break
     }
 
