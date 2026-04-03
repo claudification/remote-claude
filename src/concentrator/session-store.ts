@@ -484,14 +484,17 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       title: session.title,
       agentName: session.agentName,
       prLinks: session.prLinks,
-      linkedSessions: getLinkedSessions(session.id).map(id => {
-        const s = sessions.get(id)
-        return {
-          id,
-          name: s?.title || getProjectSettings(s?.cwd || '')?.label || s?.cwd?.split('/').pop() || id.slice(0, 8),
-          cwd: s?.cwd || '',
-        }
-      }),
+      linkedSessions: getLinkedSessions(session.id)
+        .map(id => {
+          const s = sessions.get(id)
+          if (!s) return null // session evicted, stale link
+          return {
+            id,
+            name: s.title || getProjectSettings(s.cwd)?.label || s.cwd.split('/').pop() || id.slice(0, 8),
+            cwd: s.cwd,
+          }
+        })
+        .filter(Boolean) as Array<{ id: string; name: string; cwd: string }>,
       tokenUsage: session.tokenUsage,
       stats: session.stats,
       gitBranch: session.gitBranch,
@@ -923,6 +926,16 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         }
       }
       channelSubscribers.delete(oldKey)
+    }
+
+    // Migrate session links from oldId to newId
+    for (const key of sessionLinks) {
+      const [a, b] = key.split(':')
+      if (a === oldId || b === oldId) {
+        sessionLinks.delete(key)
+        const other = a === oldId ? b : a
+        sessionLinks.add(linkKey(newId, other))
+      }
     }
 
     // Clear subagent transcript subscriptions (subagents are reset on rekey)
