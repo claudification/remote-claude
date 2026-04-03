@@ -60,6 +60,8 @@ const bgTaskOutput: MessageHandler = (ctx, data) => {
 
 const transcriptRequest: MessageHandler = (ctx, data) => {
   if (!data.sessionId) return
+  const sess = ctx.sessions.getSession(data.sessionId as string)
+  if (sess) ctx.requirePermission('chat:read', sess.cwd)
   if (ctx.sessions.hasTranscriptCache(data.sessionId)) {
     const entries = ctx.sessions.getTranscriptEntries(data.sessionId, data.limit)
     ctx.reply({ type: 'transcript_entries', sessionId: data.sessionId, entries, isInitial: true })
@@ -71,6 +73,8 @@ const transcriptRequest: MessageHandler = (ctx, data) => {
 
 const subagentTranscriptRequest: MessageHandler = (ctx, data) => {
   if (!data.sessionId || !data.agentId) return
+  const sess = ctx.sessions.getSession(data.sessionId as string)
+  if (sess) ctx.requirePermission('chat:read', sess.cwd)
   if (ctx.sessions.hasSubagentTranscriptCache(data.sessionId, data.agentId)) {
     const entries = ctx.sessions.getSubagentTranscriptEntries(data.sessionId, data.agentId, data.limit)
     ctx.reply({

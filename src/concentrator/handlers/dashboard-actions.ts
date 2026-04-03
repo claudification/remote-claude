@@ -30,6 +30,7 @@ const sendInput: MessageHandler = (ctx, data) => {
   const session = ctx.sessions.getSession(sessionId)
   if (!session) throw new GuardError('Session not found')
   if (session.status === 'ended') throw new GuardError('Session has ended')
+  ctx.requirePermission('chat', session.cwd)
 
   const ws = ctx.sessions.getSessionSocket(sessionId)
   if (!ws) throw new GuardError('Session not connected')
@@ -54,6 +55,7 @@ const dismissSession: MessageHandler = (ctx, data) => {
   const session = ctx.sessions.getSession(sessionId)
   if (!session) throw new GuardError('Session not found')
   if (session.status !== 'ended') throw new GuardError('Only ended sessions can be dismissed')
+  ctx.requirePermission('admin', session.cwd)
 
   ctx.sessions.removeSession(sessionId)
   ctx.broadcast({ type: 'session_dismissed', sessionId })
@@ -66,6 +68,7 @@ const updateSettings: MessageHandler = (ctx, data) => {
   // Settings update is handled by the imported module
   const settings = data.settings as Record<string, unknown>
   if (!settings || typeof settings !== 'object') throw new GuardError('Missing settings object')
+  ctx.requirePermission('settings')
 
   const result = updateGlobalSettings(settings)
   ctx.broadcast({ type: 'settings_updated', settings: result.settings })
@@ -78,6 +81,7 @@ const updateProjectSettings: MessageHandler = (ctx, data) => {
   const cwd = data.cwd as string
   const settings = data.settings as Record<string, unknown>
   if (!cwd || !settings) throw new GuardError('Missing cwd or settings')
+  ctx.requirePermission('settings')
 
   setProjectSettings(cwd, settings)
   const all = getAllProjectSettings()
@@ -90,6 +94,7 @@ const updateProjectSettings: MessageHandler = (ctx, data) => {
 const deleteProjectSettingsHandler: MessageHandler = (ctx, data) => {
   const cwd = data.cwd as string
   if (!cwd) throw new GuardError('Missing cwd')
+  ctx.requirePermission('settings')
 
   deleteProjectSettings(cwd)
   const all = getAllProjectSettings()
@@ -104,6 +109,7 @@ const updateSessionOrder: MessageHandler = (ctx, data) => {
   if (!order || order.version !== 2 || !Array.isArray(order.tree)) {
     throw new GuardError('Invalid session order: expected { version: 2, tree: [...] }')
   }
+  ctx.requirePermission('admin')
 
   setSessionOrder(order)
   const saved = getSessionOrder()
@@ -120,6 +126,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
   const session = ctx.sessions.getSession(sessionId)
   if (!session) throw new GuardError('Session not found')
   if (session.status === 'active') throw new GuardError('Session is already active')
+  ctx.requirePermission('spawn', session.cwd)
 
   const agent = ctx.getAgent()
   if (!agent) throw new GuardError('No host agent connected')

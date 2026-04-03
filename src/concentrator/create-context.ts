@@ -123,8 +123,8 @@ export function createContext(ws: ServerWebSocket<WsData>, deps: ContextDeps): H
       // No grants on WS data = legacy connection or bearer auth (treat as admin)
       const grants = ws.data.grants
       if (!grants) return
-      const targetCwd = cwd || caller?.cwd
-      if (!targetCwd) throw new GuardError('No session context for permission check')
+      // Use provided CWD, fall back to caller session CWD, then '*' for global checks
+      const targetCwd = cwd || caller?.cwd || '*'
       const perms = resolvePermissions(grants, targetCwd)
       if (!perms.has(permission)) {
         throw new GuardError(`Permission denied: ${permission} required`)

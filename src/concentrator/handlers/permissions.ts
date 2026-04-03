@@ -28,6 +28,8 @@ const permissionRequest: MessageHandler = (ctx, data) => {
 // Permission relay: dashboard -> wrapper (forward)
 const permissionResponse: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
+  const sess = sessionId ? ctx.sessions.getSession(sessionId) : undefined
+  if (sess) ctx.requirePermission('chat', sess.cwd)
   const targetWs = sessionId ? ctx.sessions.getSessionSocket(sessionId) : null
   if (targetWs) {
     targetWs.send(
@@ -105,6 +107,8 @@ const askQuestion: MessageHandler = (ctx, data) => {
 // AskUserQuestion relay: dashboard -> wrapper (forward)
 const askAnswer: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
+  const sess = sessionId ? ctx.sessions.getSession(sessionId) : undefined
+  if (sess) ctx.requirePermission('chat', sess.cwd)
   const targetWs = sessionId ? ctx.sessions.getSessionSocket(sessionId) : null
   if (targetWs) {
     targetWs.send(

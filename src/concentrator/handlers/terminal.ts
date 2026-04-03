@@ -8,6 +8,8 @@ import { registerHandlers } from '../message-router'
 
 const terminalAttach: MessageHandler = (ctx, data) => {
   const wid = data.wrapperId as string
+  const sess = ctx.sessions.getSessionByWrapper(wid)
+  if (sess) ctx.requirePermission('terminal:read', sess.cwd)
   const targetSocket = ctx.sessions.getSessionSocketByWrapper(wid)
   if (targetSocket) {
     const isFirstViewer = !ctx.sessions.hasTerminalViewers(wid)
@@ -40,7 +42,9 @@ const terminalDetach: MessageHandler = (ctx, data) => {
 const terminalData: MessageHandler = (ctx, data) => {
   const wid = data.wrapperId as string
   if (ctx.ws.data.isDashboard) {
-    // Dashboard -> rclaude (user keystrokes)
+    // Dashboard -> rclaude (user keystrokes) - requires terminal write
+    const sess = ctx.sessions.getSessionByWrapper(wid)
+    if (sess) ctx.requirePermission('terminal', sess.cwd)
     const targetSocket = ctx.sessions.getSessionSocketByWrapper(wid)
     if (targetSocket) {
       targetSocket.send(JSON.stringify(data))
@@ -58,6 +62,8 @@ const terminalData: MessageHandler = (ctx, data) => {
 }
 
 const terminalResize: MessageHandler = (ctx, data) => {
+  const sess = ctx.sessions.getSessionByWrapper(data.wrapperId as string)
+  if (sess) ctx.requirePermission('terminal', sess.cwd)
   const targetSocket = ctx.sessions.getSessionSocketByWrapper(data.wrapperId as string)
   if (targetSocket) {
     targetSocket.send(JSON.stringify(data))

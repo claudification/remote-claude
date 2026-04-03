@@ -8,6 +8,7 @@ import { registerHandlers } from '../message-router'
 import { handleVoiceData, handleVoiceStart, handleVoiceStop } from '../voice-stream'
 
 const voiceStart: MessageHandler = (ctx, data) => {
+  ctx.requirePermission('voice')
   handleVoiceStart(ctx.ws, data, ctx.sessions)
 }
 

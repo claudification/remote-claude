@@ -19,6 +19,11 @@ const fileResponse: MessageHandler = (ctx, data) => {
 // Dashboard -> wrapper: file operation requests
 const fileEditorRequest: MessageHandler = (ctx, data) => {
   if (!ctx.ws.data.isDashboard || !data.sessionId) return
+  // Permission: write ops need 'files', read ops need 'files:read'
+  const msgType = data.type as string
+  const isWrite = msgType === 'file_save' || msgType === 'file_restore' || msgType === 'quick_note_append'
+  const sess = ctx.sessions.getSession(data.sessionId as string)
+  if (sess) ctx.requirePermission(isWrite ? 'files' : 'files:read', sess.cwd)
   const targetSocket = ctx.sessions.getSessionSocket(data.sessionId as string)
   if (targetSocket) {
     targetSocket.send(JSON.stringify(data))
@@ -37,6 +42,8 @@ const fileEditorResponse: MessageHandler = (ctx, data) => {
 const fileRequest: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   if (!sessionId) return
+  const sess = ctx.sessions.getSession(sessionId)
+  if (sess) ctx.requirePermission('files:read', sess.cwd)
   const sessionSocket = ctx.sessions.getSessionSocket(sessionId)
   if (sessionSocket) {
     sessionSocket.send(JSON.stringify(data))

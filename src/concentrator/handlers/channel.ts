@@ -40,6 +40,8 @@ const channelSubscribe: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   const agentId = data.agentId as string | undefined
   if (!channel || !sessionId) return
+  const sess = ctx.sessions.getSession(sessionId)
+  if (sess) ctx.requirePermission('chat:read', sess.cwd)
   ctx.sessions.subscribeChannel(ctx.ws, channel, sessionId, agentId)
   ctx.reply({ type: 'channel_ack', channel, sessionId, agentId, status: 'subscribed' })
   ctx.log.debug(`[channel] ${channel}:${sessionId.slice(0, 8)}${agentId ? `:${agentId.slice(0, 8)}` : ''} +sub`)
