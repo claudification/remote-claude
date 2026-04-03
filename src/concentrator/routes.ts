@@ -8,6 +8,17 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlin
 import { join } from 'node:path'
 import { Hono } from 'hono'
 import type { ListDirsResult, SendInput, Session, SpawnResult, TeamInfo } from '../shared/protocol'
+import {
+  createInvite,
+  getAllUsers,
+  getUser,
+  hasServerRole,
+  revokeUser,
+  type ServerRole,
+  setServerRoles,
+  setUserGrants,
+  unrevokeUser,
+} from './auth'
 import { getAuthenticatedUser, handleAuthRoute, requireAuth } from './auth-routes'
 import { getGlobalSettings, updateGlobalSettings } from './global-settings'
 import { purgeMessages, queryMessages } from './inter-session-log'
@@ -1141,6 +1152,122 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
     if (!rawText.trim()) return c.json({ raw: '', refined: '' })
     return c.json({ raw: rawText, refined: rawText })
+  })
+
+  // ─── User admin (gated behind user-editor server role) ─────────────
+
+  function requireUserEditor(c: { req: { raw: Request } }): Response | null {
+    const userName = getAuthenticatedUser(c.req.raw)
+    if (!userName)
+      return c.req.raw.headers.get('accept')?.includes('json')
+        ? new Response(JSON.stringify({ error: 'Not authenticated' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        : new Response('Unauthorized', { status: 401 })
+    if (!hasServerRole(userName, 'user-editor')) {
+      return new Response(JSON.stringify({ error: 'Forbidden: user-editor role required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    return null
+  }
+
+  app.get('/api/users', c => {
+    const block = requireUserEditor(c)
+    if (block) return block
+    const users = getAllUsers().map(u => ({
+      name: u.name,
+      createdAt: u.createdAt,
+      lastUsedAt: u.lastUsedAt,
+      revoked: u.revoked,
+      grants: u.grants,
+      serverRoles: u.serverRoles,
+      credentialCount: u.credentials.length,
+      pushSubscriptionCount: u.pushSubscriptions?.length || 0,
+    }))
+    return c.json({ users })
+  })
+
+  app.post('/api/users/invite', async c => {
+    const block = requireUserEditor(c)
+    if (block) return block
+    const body = await c.req.json<{ name: string; grants?: unknown[]; serverRoles?: string[] }>()
+    if (!body.name) return c.json({ error: 'name is required' }, 400)
+    try {
+      const invite = createInvite(body.name, body.grants as Parameters<typeof createInvite>[1])
+      const origin = c.req.header('origin') || ''
+      const inviteUrl = `${origin}/#/invite/${invite.token}`
+      return c.json({ token: invite.token, expiresAt: invite.expiresAt, inviteUrl })
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 400)
+    }
+  })
+
+  app.post('/api/users/:name/grants', async c => {
+    const block = requireUserEditor(c)
+    if (block) return block
+    const name = c.req.param('name')
+    const body = await c.req.json<{ grants: unknown[] }>()
+    if (!Array.isArray(body.grants)) return c.json({ error: 'grants array required' }, 400)
+    if (setUserGrants(name, body.grants as Parameters<typeof setUserGrants>[1])) {
+      return c.json({ ok: true })
+    }
+    return c.json({ error: 'User not found' }, 404)
+  })
+
+  app.post('/api/users/:name/server-roles', async c => {
+    const block = requireUserEditor(c)
+    if (block) return block
+    const name = c.req.param('name')
+    const body = await c.req.json<{ serverRoles: string[] }>()
+    if (!Array.isArray(body.serverRoles)) return c.json({ error: 'serverRoles array required' }, 400)
+    if (setServerRoles(name, body.serverRoles as ServerRole[])) {
+      return c.json({ ok: true })
+    }
+    return c.json({ error: 'User not found' }, 404)
+  })
+
+  app.post('/api/users/:name/revoke', c => {
+    const block = requireUserEditor(c)
+    if (block) return block
+    const name = c.req.param('name')
+    if (revokeUser(name)) {
+      // Kill active WS connections for revoked user
+      for (const ws of sessionStore.getSubscribers()) {
+        if ((ws.data as { userName?: string }).userName === name) {
+          sessionStore.removeTerminalViewerBySocket(ws)
+          sessionStore.removeSubscriber(ws)
+          try {
+            ws.close(4401, 'User revoked')
+          } catch {}
+        }
+      }
+      return c.json({ ok: true })
+    }
+    return c.json({ error: 'User not found' }, 404)
+  })
+
+  app.post('/api/users/:name/unrevoke', c => {
+    const block = requireUserEditor(c)
+    if (block) return block
+    if (unrevokeUser(c.req.param('name'))) return c.json({ ok: true })
+    return c.json({ error: 'User not found' }, 404)
+  })
+
+  app.delete('/api/users/:name', c => {
+    const block = requireUserEditor(c)
+    if (block) return block
+    const name = c.req.param('name')
+    // Don't allow deleting yourself
+    const caller = getAuthenticatedUser(c.req.raw)
+    if (caller === name) return c.json({ error: 'Cannot delete yourself' }, 400)
+    const user = getUser(name)
+    if (!user) return c.json({ error: 'User not found' }, 404)
+    // Revoke first (kills sessions), then we'd need a deleteUser -- for now revoke is enough
+    revokeUser(name)
+    return c.json({ ok: true })
   })
 
   // ─── Stats ─────────────────────────────────────────────────────────
