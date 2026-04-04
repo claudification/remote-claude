@@ -172,8 +172,24 @@ const channelSend: MessageHandler = (ctx, data) => {
       conversationId,
     }
     ctx.messageQueue.enqueue(targetCwd, callerCwd || '', fromProject, delivery)
-    ctx.reply({ type: 'channel_send_result', ok: true, conversationId, status: 'queued' })
-    ctx.log.debug(`[inter-session] ${fromSession.slice(0, 8)} -> ${toTarget} (queued, target offline)`)
+
+    // Brief wait: if target reconnects within 1s, the queue drains automatically
+    // and we can report 'delivered' instead of 'queued'
+    async function checkDelivered() {
+      for (let i = 0; i < 4; i++) {
+        await new Promise(r => setTimeout(r, 250))
+        if (ctx.messageQueue.getQueueSize(targetCwd!) === 0) {
+          ctx.reply({ type: 'channel_send_result', ok: true, conversationId, status: 'delivered' })
+          ctx.log.debug(`[inter-session] ${fromSession.slice(0, 8)} -> ${toTarget} (queued then delivered)`)
+          return
+        }
+      }
+      ctx.reply({ type: 'channel_send_result', ok: true, conversationId, status: 'queued' })
+      ctx.log.debug(`[inter-session] ${fromSession.slice(0, 8)} -> ${toTarget} (queued, target offline)`)
+    }
+    checkDelivered().catch(() => {
+      ctx.reply({ type: 'channel_send_result', ok: true, conversationId, status: 'queued' })
+    })
     return
   }
 
