@@ -24,6 +24,7 @@ import {
   pushChannelMessage,
   type SessionInfo,
   sendPermissionResponse,
+  setClaudeCodeVersion,
 } from './mcp-channel'
 import { Osc52Parser } from './osc52-parser'
 import { createRulesEngine } from './permission-rules'
@@ -266,11 +267,11 @@ async function main() {
       printHelp()
       process.exit(0)
     } else if (arg === '--rclaude-version') {
-      console.log(formatVersion())
+      console.log(formatVersion(detectClaudeVersion()))
       process.exit(0)
     } else if (arg === '--rclaude-check-update') {
       const result = await checkForUpdate()
-      console.log(formatUpdateResult(result))
+      console.log(formatUpdateResult(result, detectClaudeVersion()))
       process.exit(0)
     } else if (arg === '--concentrator') {
       concentratorUrl = args[++i] || DEFAULT_CONCENTRATOR_URL
@@ -296,6 +297,18 @@ async function main() {
   }
   debug(`Concentrator: ${noConcentrator ? 'DISABLED' : 'ENABLED'} (url: ${concentratorUrl})`)
 
+  // Non-blocking update check at startup — fire and forget
+  checkForUpdate()
+    .then(result => {
+      if (!result.upToDate && !result.error) {
+        const behind = result.behindBy ? `${result.behindBy} commit(s)` : 'commits'
+        console.error(
+          `\x1b[33m⚠ rclaude update available (${behind} behind) — git pull && bun run build:client\x1b[0m`,
+        )
+      }
+    })
+    .catch(() => {}) // silently ignore network errors on startup
+
   // Unique wrapper identity - use pre-assigned ID from revive flow if available
   const internalId = process.env.RCLAUDE_WRAPPER_ID || randomUUID()
   const cwd = process.cwd()
@@ -320,6 +333,7 @@ async function main() {
 
   // Detect Claude Code version and auth info early - needed for settings merge and concentrator
   const claudeVersion = detectClaudeVersion()
+  setClaudeCodeVersion(claudeVersion)
   const claudeAuth = detectClaudeAuth()
 
   // Queue events until we have the real session ID (capped to prevent unbounded growth)

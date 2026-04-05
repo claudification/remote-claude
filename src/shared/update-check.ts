@@ -34,12 +34,13 @@ export function getVersionInfo(): UpdateCheckResult['current'] {
   }
 }
 
-export function formatVersion(): string {
+export function formatVersion(claudeCodeVersion?: string): string {
   const v = getVersionInfo()
-  const lines = [`rclaude ${v.hashShort} (built ${v.buildTime})`]
+  const lines = [`rclaude wrapper ${v.hashShort} (built ${v.buildTime})`]
   lines.push(`  commit: ${v.hash}`)
   if (v.branch) lines.push(`  branch: ${v.branch}`)
   if (v.repo) lines.push(`  repo:   ${v.repo}`)
+  if (claudeCodeVersion) lines.push(`  Claude Code CLI: ${claudeCodeVersion}`)
   if (v.recentCommits.length > 0) {
     lines.push('  recent:')
     for (const c of v.recentCommits) {
@@ -104,8 +105,8 @@ export async function checkForUpdate(): Promise<UpdateCheckResult> {
   }
 }
 
-export function formatUpdateResult(result: UpdateCheckResult): string {
-  const lines = [formatVersion(), '']
+export function formatUpdateResult(result: UpdateCheckResult, claudeCodeVersion?: string): string {
+  const lines = [formatVersion(claudeCodeVersion), '']
 
   if (result.error) {
     lines.push(result.error)

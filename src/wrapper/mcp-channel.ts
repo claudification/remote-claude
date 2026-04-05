@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { checkForUpdate, formatUpdateResult } from '../shared/update-check'
 import { debug } from './debug'
 
 export interface SessionInfo {
@@ -78,6 +79,7 @@ interface McpChannelState {
 let state: McpChannelState | null = null
 let callbacks: McpChannelCallbacks = {}
 let keepaliveTimer: ReturnType<typeof setInterval> | null = null
+let claudeCodeVersion: string | undefined
 
 /**
  * Initialize the MCP channel server.
@@ -251,6 +253,12 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           required: ['session_id'],
         },
       },
+      {
+        name: 'check_update',
+        description:
+          'Check if a newer version of rclaude is available. Queries the GitHub API to compare the installed build against the latest commit on the branch it was built from. No arguments needed.',
+        inputSchema: { type: 'object' as const, properties: {} },
+      },
     ],
   }))
 
@@ -419,6 +427,11 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             ],
           }
         }
+        case 'check_update': {
+          const result = await checkForUpdate()
+          debug(`[channel] check_update: ${result.upToDate ? 'up to date' : `${result.behindBy} behind`}`)
+          return { content: [{ type: 'text', text: formatUpdateResult(result, claudeCodeVersion) }] }
+        }
         default:
           return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }
       }
@@ -558,6 +571,13 @@ export async function pushChannelMessage(message: string, meta?: Record<string, 
  */
 export function isMcpChannelReady(): boolean {
   return state?.connected ?? false
+}
+
+/**
+ * Set the Claude Code CLI version for use in update check responses.
+ */
+export function setClaudeCodeVersion(version: string | undefined): void {
+  claudeCodeVersion = version
 }
 
 /**

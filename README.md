@@ -205,6 +205,7 @@ When running with channels (default), Claude gets MCP tools for interacting with
 | `quit_session` | Stop another session (benevolent) |
 | `revive_session` | Restart an ended session (benevolent) |
 | `toggle_plan_mode` | Switch plan mode on/off |
+| `check_update` | Check if a newer rclaude version is available on GitHub |
 
 ### Session Organization
 
@@ -676,6 +677,11 @@ enabling dashboard input without PTY keystroke injection and inter-session messa
 | `RCLAUDE_CHANNELS` | Set to `0` to disable MCP channel (enabled by default) |
 | `RCLAUDE_DEBUG` | Set to `1` to enable debug logging |
 | `RCLAUDE_DEBUG_LOG` | Debug log file path (default: `/tmp/rclaude-debug.log`) |
+
+**Update checking:** On startup, rclaude queries GitHub to check if a newer version is
+available on the branch it was built from. If behind, it prints a yellow one-liner warning.
+This is non-blocking and silently fails if offline. Use `--rclaude-check-update` for the
+full changelog, or ask Claude to call the `check_update` MCP tool from inside a session.
 
 ### concentrator
 
