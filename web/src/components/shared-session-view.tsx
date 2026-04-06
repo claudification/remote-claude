@@ -148,7 +148,9 @@ export function SharedSessionView({ token: _token }: { token: string }) {
       </div>
 
       {/* Session detail (transcript + input) */}
-      <div className="flex-1 min-h-0">{selectedSessionId && <SessionDetail />}</div>
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        {selectedSessionId && <SessionDetail />}
+      </div>
     </div>
   )
 }
