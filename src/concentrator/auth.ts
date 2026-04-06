@@ -272,18 +272,54 @@ export function findUserByCredentialId(credentialId: string): PasskeyUser | unde
   return state.users.find(u => !u.revoked && u.credentials.some(c => c.credentialId === credentialId))
 }
 
+/** Kill all active auth sessions for a user. Returns count of killed sessions. */
+export function killUserSessions(name: string): number {
+  let killed = 0
+  for (const [token, session] of Object.entries(state.sessions)) {
+    if (session.name === name) {
+      delete state.sessions[token]
+      killed++
+    }
+  }
+  return killed
+}
+
 export function revokeUser(name: string): boolean {
   const user = state.users.find(u => u.name === name)
   if (!user) return false
   user.revoked = true
+  killUserSessions(name)
+  save()
+  return true
+}
 
-  // Also kill all active sessions for this user
-  for (const [token, session] of Object.entries(state.sessions)) {
-    if (session.name === name) delete state.sessions[token]
+/**
+ * Remove a specific passkey credential from a user.
+ * Kills all active sessions for that user (can't track per-credential sessions).
+ * If it's the user's last credential, the user is revoked entirely.
+ * Returns: 'removed' | 'removed_and_revoked' | 'not_found' | 'user_not_found'
+ */
+export function removeCredential(
+  name: string,
+  credentialId: string,
+): 'removed' | 'removed_and_revoked' | 'not_found' | 'user_not_found' {
+  const user = state.users.find(u => u.name === name)
+  if (!user) return 'user_not_found'
+
+  const idx = user.credentials.findIndex(c => c.credentialId === credentialId)
+  if (idx === -1) return 'not_found'
+
+  user.credentials.splice(idx, 1)
+  killUserSessions(name)
+
+  if (user.credentials.length === 0) {
+    user.revoked = true
+    save()
+    return 'removed_and_revoked'
   }
 
   save()
-  return true
+  return 'removed'
 }
 
 export function unrevokeUser(name: string): boolean {

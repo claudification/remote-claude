@@ -18,9 +18,11 @@ import {
   getAllUsers,
   getUser,
   initAuth,
+  removeCredential,
   removeUserGrant,
   revokeUser,
-  setUserGrants,
+  type ServerRole,
+  setServerRoles,
   unrevokeUser,
 } from './auth'
 import { addAllowedRoot, addPathMapping, resolveInJail } from './path-jail'
@@ -55,6 +57,10 @@ COMMANDS:
   unrevoke --name <name>                                   Restore a revoked user
   grant --name <name> --cwd <path> --permissions <p,p>     Add grant to user
   revoke-grant --name <name> --cwd <path>                  Remove grant from user
+  set-role --name <name> --role <role>                     Add a server role
+  remove-role --name <name> --role <role>                  Remove a server role
+  list-passkeys --name <name>                               List passkeys for a user
+  delete-passkey --name <name> --credential-id <id>        Delete a passkey (kills sessions)
   resolve-path <path>                                       Debug: test path jail resolution
 
 GRANT FORMAT:
@@ -64,9 +70,16 @@ GRANT FORMAT:
 
   Omit --grant for admin access (default).
 
+  Time bounds (optional, for grant command):
+  --not-before "2026-04-01"                Grant active from this date
+  --not-after "2026-06-30"                 Grant expires after this date
+
 PERMISSIONS:
   admin, chat, chat:read, terminal, terminal:read,
   files, files:read, spawn, settings, voice
+
+SERVER ROLES:
+  user-editor                              Can manage users via API/dashboard
 
 OPTIONS:
   --cache-dir <dir>    Auth storage directory (default: ~/.cache/concentrator)
@@ -88,6 +101,10 @@ function main(): void {
   let command = ''
   let cwdArg = ''
   let permissionsArg = ''
+  let roleArg = ''
+  let credentialIdArg = ''
+  let notBeforeArg = ''
+  let notAfterArg = ''
   const grantArgs: string[] = []
   const allowRoots: string[] = []
   const pathMapArgs: Array<{ from: string; to: string }> = []
@@ -107,6 +124,14 @@ function main(): void {
       cwdArg = args[++i]
     } else if (arg === '--permissions') {
       permissionsArg = args[++i]
+    } else if (arg === '--role') {
+      roleArg = args[++i]
+    } else if (arg === '--credential-id') {
+      credentialIdArg = args[++i]
+    } else if (arg === '--not-before') {
+      notBeforeArg = args[++i]
+    } else if (arg === '--not-after') {
+      notAfterArg = args[++i]
     } else if (arg === '--allow-root') {
       allowRoots.push(args[++i])
     } else if (arg === '--path-map') {
@@ -126,7 +151,7 @@ function main(): void {
 
   const KNOWN_ROLES = new Set(['admin'])
 
-  /** Parse --grant "cwd:role_or_perm,role_or_perm" into UserGrant[] */
+  /** Parse --grant "cwd:role_or_perm,role_or_perm" into UserGrant[], applying time bounds if set */
   function parseGrants(grantStrs: string[]): UserGrant[] {
     return grantStrs.map(s => {
       const colonIdx = s.indexOf(':')
@@ -145,6 +170,8 @@ function main(): void {
         cwd,
         ...(roles && roles.length > 0 && { roles }),
         ...(permissions && permissions.length > 0 && { permissions }),
+        ...(notBeforeArg && { notBefore: new Date(notBeforeArg).getTime() }),
+        ...(notAfterArg && { notAfter: new Date(notAfterArg).getTime() }),
       }
     })
   }
@@ -256,6 +283,8 @@ function main(): void {
         cwd: cwdArg,
         ...(roles && roles.length > 0 && { roles }),
         ...(perms && perms.length > 0 && { permissions: perms }),
+        ...(notBeforeArg && { notBefore: new Date(notBeforeArg).getTime() }),
+        ...(notAfterArg && { notAfter: new Date(notAfterArg).getTime() }),
       }
       if (addUserGrant(name, grant)) {
         console.log(`Added grant: ${cwdArg} -> ${items.join(', ')} for "${name}"`)
@@ -313,6 +342,110 @@ function main(): void {
         console.error(`ERROR: User "${name}" not found.`)
         process.exit(1)
       }
+      break
+    }
+
+    case 'set-role': {
+      if (!name) {
+        console.error('ERROR: --name is required')
+        process.exit(1)
+      }
+      if (!roleArg) {
+        console.error('ERROR: --role is required')
+        process.exit(1)
+      }
+      const user = getUser(name)
+      if (!user) {
+        console.error(`ERROR: User "${name}" not found.`)
+        process.exit(1)
+      }
+      const currentRoles = user.serverRoles || []
+      if (currentRoles.includes(roleArg as ServerRole)) {
+        console.log(`User "${name}" already has role "${roleArg}"`)
+        break
+      }
+      const newRoles = [...currentRoles, roleArg as ServerRole]
+      setServerRoles(name, newRoles)
+      console.log(`Added role "${roleArg}" to "${name}" (roles: ${newRoles.join(', ')})`)
+      notifyServer(cacheDir)
+      break
+    }
+
+    case 'remove-role': {
+      if (!name) {
+        console.error('ERROR: --name is required')
+        process.exit(1)
+      }
+      if (!roleArg) {
+        console.error('ERROR: --role is required')
+        process.exit(1)
+      }
+      const user = getUser(name)
+      if (!user) {
+        console.error(`ERROR: User "${name}" not found.`)
+        process.exit(1)
+      }
+      const currentRoles = user.serverRoles || []
+      if (!currentRoles.includes(roleArg as ServerRole)) {
+        console.error(`User "${name}" does not have role "${roleArg}"`)
+        process.exit(1)
+      }
+      const newRoles = currentRoles.filter(r => r !== roleArg)
+      setServerRoles(name, newRoles)
+      console.log(
+        `Removed role "${roleArg}" from "${name}"${newRoles.length ? ` (remaining: ${newRoles.join(', ')})` : ''}`,
+      )
+      notifyServer(cacheDir)
+      break
+    }
+
+    case 'list-passkeys': {
+      if (!name) {
+        console.error('ERROR: --name is required')
+        process.exit(1)
+      }
+      const user = getUser(name)
+      if (!user) {
+        console.error(`ERROR: User "${name}" not found.`)
+        process.exit(1)
+      }
+      if (user.credentials.length === 0) {
+        console.log(`User "${name}" has no passkeys.`)
+        break
+      }
+      console.log(`Passkeys for "${name}" (${user.credentials.length}):`)
+      for (const cred of user.credentials) {
+        const registered = new Date(cred.registeredAt).toLocaleString()
+        const transports = cred.transports?.join(', ') || 'unknown'
+        console.log(`  ID: ${cred.credentialId}`)
+        console.log(`    registered: ${registered}, counter: ${cred.counter}, transports: ${transports}`)
+      }
+      break
+    }
+
+    case 'delete-passkey': {
+      if (!name) {
+        console.error('ERROR: --name is required')
+        process.exit(1)
+      }
+      if (!credentialIdArg) {
+        console.error('ERROR: --credential-id is required')
+        process.exit(1)
+      }
+      const result = removeCredential(name, credentialIdArg)
+      if (result === 'user_not_found') {
+        console.error(`ERROR: User "${name}" not found.`)
+        process.exit(1)
+      } else if (result === 'not_found') {
+        console.error(`ERROR: Credential not found for user "${name}".`)
+        process.exit(1)
+      } else if (result === 'removed_and_revoked') {
+        console.log(`Passkey deleted. This was "${name}"'s last passkey - user has been REVOKED.`)
+        console.log('All active sessions terminated.')
+      } else {
+        console.log(`Passkey deleted for "${name}". All active sessions terminated.`)
+      }
+      notifyServer(cacheDir)
       break
     }
 

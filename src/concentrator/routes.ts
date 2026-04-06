@@ -13,6 +13,7 @@ import {
   getAllUsers,
   getUser,
   hasServerRole,
+  removeCredential,
   revokeUser,
   type ServerRole,
   setServerRoles,
@@ -1268,6 +1269,24 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     // Revoke first (kills sessions), then we'd need a deleteUser -- for now revoke is enough
     revokeUser(name)
     return c.json({ ok: true })
+  })
+
+  app.delete('/api/users/:name/credentials/:credentialId', c => {
+    const block = requireUserEditor(c)
+    if (block) return block
+    const name = c.req.param('name')
+    const credentialId = decodeURIComponent(c.req.param('credentialId'))
+    const result = removeCredential(name, credentialId)
+    switch (result) {
+      case 'user_not_found':
+        return c.json({ error: 'User not found' }, 404)
+      case 'not_found':
+        return c.json({ error: 'Credential not found' }, 404)
+      case 'removed_and_revoked':
+        return c.json({ ok: true, revoked: true, message: 'Last passkey removed - user revoked' })
+      case 'removed':
+        return c.json({ ok: true, revoked: false, message: 'Passkey removed, all sessions killed' })
+    }
   })
 
   // ─── Stats ─────────────────────────────────────────────────────────
