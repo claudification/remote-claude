@@ -229,6 +229,15 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
       sendWs({ type: 'voice_stop' })
     }
     setState('refining')
+
+    // Safety timeout: if stuck in refining for >10s, reset to idle
+    // (handles cases where voice_done is lost, WS disconnects, etc.)
+    setTimeout(() => {
+      if (stateRef.current === 'refining') {
+        console.warn('[voice] Stuck in refining for 10s, resetting')
+        reset()
+      }
+    }, 10_000)
   }, [sendWs, reset])
 
   const cancel = useCallback(() => {
