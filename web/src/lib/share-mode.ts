@@ -10,7 +10,7 @@ let shareToken: string | null = null
 /** Check URL hash for share token. Call once on app init. */
 export function detectShareMode(): string | null {
   const hash = window.location.hash.slice(1)
-  const match = hash.match(/^share\/(.+)$/)
+  const match = hash.match(/^\/?share\/(.+)$/)
   if (match) {
     shareToken = match[1]
     return shareToken

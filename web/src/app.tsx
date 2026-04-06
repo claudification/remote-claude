@@ -594,7 +594,7 @@ export function App() {
   const hash = window.location.hash.slice(1)
 
   // Share mode: /#/share/TOKEN - bypasses auth gate, limited UI
-  const shareMatch = hash.match(/^share\/(.+)$/)
+  const shareMatch = hash.match(/^\/?share\/(.+)$/)
   if (shareMatch) {
     // Detect share mode before any WS connections (sets the share token for WS URL)
     detectShareMode()
