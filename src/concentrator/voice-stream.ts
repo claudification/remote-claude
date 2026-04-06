@@ -240,27 +240,90 @@ function stopVoiceSession(ws: ServerWebSocket<unknown>, reason: string) {
   clearTimeout(session.timeoutTimer)
   clearInterval(session.keepaliveTimer)
 
-  // Flush pending results then close
   if (session.dgWs.readyState === WebSocket.OPEN) {
+    // DG connected - flush pending results then close
     session.dgWs.send(JSON.stringify({ type: 'Finalize' }))
-    // Give Deepgram a moment to flush, then close
     setTimeout(() => {
       if (session.dgWs.readyState === WebSocket.OPEN) {
         session.dgWs.send(JSON.stringify({ type: 'CloseStream' }))
       }
     }, 500)
-  }
 
-  // Don't wait for Deepgram close - send what we have and refine
-  // Use a short delay to catch any last final results from Finalize
-  setTimeout(() => {
+    // Short delay to catch last final results from Finalize
+    setTimeout(() => {
+      if (session.finalTranscript) {
+        refineAndSend(ws, session.finalTranscript, session.keyterms)
+      } else {
+        ws.send(JSON.stringify({ type: 'voice_done', raw: '', refined: '' }))
+        cleanupVoiceSession(ws)
+      }
+    }, 800)
+  } else if (session.dgWs.readyState === WebSocket.CONNECTING) {
+    // DG still connecting - wait up to 3s for it, then flush or give up
+    console.log(`[voice-stream] DG still connecting at stop time, waiting up to 3s...`)
+    const bufferedChunks = session.audioBuffer.length
+    let resolved = false
+
+    const giveUp = setTimeout(() => {
+      if (resolved) return
+      resolved = true
+      console.warn(`[voice-stream] DG WS never connected (had ${bufferedChunks} buffered chunks)`)
+      ws.send(
+        JSON.stringify({
+          type: 'voice_error',
+          error: 'Voice service connection timed out. Try again.',
+        }),
+      )
+      cleanupVoiceSession(ws)
+    }, 3000)
+
+    // If DG connects within the window, flush audio and do normal stop
+    const origOnOpen = session.dgWs.onopen
+    session.dgWs.onopen = (ev: Event) => {
+      if (resolved) return
+      resolved = true
+      clearTimeout(giveUp)
+      // Let original onopen flush the buffer
+      if (origOnOpen) (origOnOpen as (ev: Event) => void)(ev)
+      // Then do normal finalize flow
+      session.dgWs.send(JSON.stringify({ type: 'Finalize' }))
+      setTimeout(() => {
+        if (session.dgWs.readyState === WebSocket.OPEN) {
+          session.dgWs.send(JSON.stringify({ type: 'CloseStream' }))
+        }
+      }, 500)
+      setTimeout(() => {
+        if (session.finalTranscript) {
+          refineAndSend(ws, session.finalTranscript, session.keyterms)
+        } else {
+          ws.send(JSON.stringify({ type: 'voice_done', raw: '', refined: '' }))
+          cleanupVoiceSession(ws)
+        }
+      }, 1500) // longer delay since DG just connected and needs to process buffered audio
+    }
+
+    // If DG errors out during the wait
+    session.dgWs.onerror = () => {
+      if (resolved) return
+      resolved = true
+      clearTimeout(giveUp)
+      ws.send(
+        JSON.stringify({
+          type: 'voice_error',
+          error: 'Voice service connection failed. Try again.',
+        }),
+      )
+      cleanupVoiceSession(ws)
+    }
+  } else {
+    // DG already closed/closing
     if (session.finalTranscript) {
       refineAndSend(ws, session.finalTranscript, session.keyterms)
     } else {
       ws.send(JSON.stringify({ type: 'voice_done', raw: '', refined: '' }))
       cleanupVoiceSession(ws)
     }
-  }, 800)
+  }
 }
 
 /**
