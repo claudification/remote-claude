@@ -63,6 +63,30 @@ export function SharedSessionView({ token: _token }: { token: string }) {
   // via a permissions message or just show "Shared session" without countdown
   // TODO: Server could send share metadata on subscribe
 
+  const expiredQuotes = [
+    '"This is your mom, and you are not my baby." - Jian-Yang',
+    '"You just brought piss to a shit fight." - Erlich Bachman',
+    '"I\'ve been known to fuck myself." - Russ Hanneman',
+    '"That guy fucks." - Russ Hanneman',
+    '"Delete that footage. Delete it. DELETE IT." - Gavin Belson',
+    '"The only winning move is not to play." - WOPR',
+    '"I am not a robot. Unless... wait, am I?" - TARS',
+    '"Not hot dog." - Jian-Yang',
+    '"Consider the tortoise." - Peter Gregory',
+    '"Bitches on my dick like fleas on a dog." - Erlich Bachman',
+  ]
+  const connectingQuotes = [
+    'Compressing middle-out...',
+    'Calculating Weissman score...',
+    'Feeding the neural network...',
+    'Pivoting to video...',
+    'Not a hot dog...',
+    'Achieving optimal D2F ratio...',
+    'Negotiating with Hooli...',
+  ]
+
+  const randomQuote = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)]
+
   if (expired) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
@@ -72,7 +96,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
           <p className="text-sm text-muted-foreground">
             The person who shared this session has either revoked the link or it has reached its time limit.
           </p>
-          <p className="text-xs text-muted-foreground/60 font-mono">"The only winning move is not to play." - WOPR</p>
+          <p className="text-xs text-muted-foreground/60 font-mono">{randomQuote(expiredQuotes)}</p>
         </div>
       </div>
     )
@@ -82,7 +106,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-2">
-          <div className="text-sm text-muted-foreground animate-pulse">Connecting to shared session...</div>
+          <div className="text-sm text-muted-foreground animate-pulse">{randomQuote(connectingQuotes)}</div>
         </div>
       </div>
     )
@@ -92,7 +116,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-2">
-          <div className="text-sm text-muted-foreground">Waiting for session data...</div>
+          <div className="text-sm text-muted-foreground animate-pulse">Waiting for session data...</div>
         </div>
       </div>
     )
