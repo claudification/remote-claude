@@ -1335,8 +1335,19 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
   // ─── Session Shares ────────────────────────────────────────────────
 
+  /** Get caller identity from cookie or bearer token */
+  function getCallerIdentity(c: { req: { raw: Request } }): string | null {
+    const user = getAuthenticatedUser(c.req.raw)
+    if (user) return user
+    // Bearer token = admin
+    const authHeader = c.req.raw.headers.get('authorization')
+    const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+    if (rclaudeSecret && bearer && bearer === rclaudeSecret) return 'admin'
+    return null
+  }
+
   app.post('/api/shares', async c => {
-    const caller = getAuthenticatedUser(c.req.raw)
+    const caller = getCallerIdentity(c)
     if (!caller) return c.json({ error: 'Not authenticated' }, 401)
     const body = await c.req.json<{
       sessionCwd: string
@@ -1367,7 +1378,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
   })
 
   app.get('/api/shares', c => {
-    const caller = getAuthenticatedUser(c.req.raw)
+    const caller = getCallerIdentity(c)
     if (!caller) return c.json({ error: 'Not authenticated' }, 401)
     const active = listAllShares()
     // Include connected viewer count per share
@@ -1379,7 +1390,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
   })
 
   app.get('/api/shares/:token', c => {
-    const caller = getAuthenticatedUser(c.req.raw)
+    const caller = getCallerIdentity(c)
     if (!caller) return c.json({ error: 'Not authenticated' }, 401)
     const share = getShareByToken(c.req.param('token'))
     if (!share) return c.json({ error: 'Share not found' }, 404)
@@ -1390,7 +1401,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
   })
 
   app.delete('/api/shares/:token', c => {
-    const caller = getAuthenticatedUser(c.req.raw)
+    const caller = getCallerIdentity(c)
     if (!caller) return c.json({ error: 'Not authenticated' }, 401)
     const token = c.req.param('token')
     if (revokeSessionShare(token)) {
