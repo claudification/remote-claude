@@ -37,7 +37,14 @@ export function SharedSessionView({ token: _token }: { token: string }) {
       useSessionsStore.getState().setEvents(selectedSessionId, events)
     })
     fetchTranscript(selectedSessionId).then(transcript => {
-      if (transcript) useSessionsStore.getState().setTranscript(selectedSessionId, transcript)
+      if (transcript) {
+        useSessionsStore.getState().setTranscript(selectedSessionId, transcript)
+        // Bump newDataSeq again after a delay to trigger scroll-to-bottom
+        // after the virtualizer has measured all items
+        setTimeout(() => {
+          useSessionsStore.setState(s => ({ newDataSeq: s.newDataSeq + 1 }))
+        }, 200)
+      }
     })
   }, [selectedSessionId, isConnected])
 
