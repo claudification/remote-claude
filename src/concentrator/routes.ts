@@ -24,7 +24,7 @@ import { getAuthenticatedUser, handleAuthRoute, requireAuth } from './auth-route
 import { getGlobalSettings, updateGlobalSettings } from './global-settings'
 import { purgeMessages, queryMessages } from './inter-session-log'
 import { resolveInJail } from './path-jail'
-import { resolvePermissionFlags } from './permissions'
+import { type Permission, resolvePermissionFlags, resolvePermissions, type UserGrant } from './permissions'
 import {
   deleteProjectSettings,
   getAllProjectSettings,
@@ -40,6 +40,8 @@ import {
   getShare as getShareByToken,
   listShares as listAllShares,
   revokeShare as revokeSessionShare,
+  shareToGrants,
+  validateShare,
 } from './shares'
 import { UI_HTML } from './ui'
 
@@ -395,6 +397,58 @@ export function createRouter(options: RouteOptions): Hono {
     publicOrigin,
   } = options
 
+  /**
+   * Resolve the caller's grants from an HTTP request.
+   * Returns null for admin/bearer auth (full access).
+   * Returns UserGrant[] for cookie users and share viewers.
+   */
+  function resolveHttpGrants(req: Request): UserGrant[] | null {
+    // Bearer token with shared secret = admin, no restrictions
+    const authHeader = req.headers.get('authorization')
+    const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+    if (rclaudeSecret && bearer && bearer === rclaudeSecret) return null
+
+    // Cookie auth = user grants
+    const userName = getAuthenticatedUser(req)
+    if (userName) {
+      const user = getUser(userName)
+      return user?.grants || []
+    }
+
+    // Share token auth
+    const url = new URL(req.url)
+    const shareToken = url.searchParams.get('share')
+    if (shareToken) {
+      const share = validateShare(shareToken)
+      if (share) return shareToGrants(share)
+    }
+
+    return [] // no auth = no access
+  }
+
+  /** Check if the caller has a specific permission for a session's CWD. */
+  function httpHasPermission(req: Request, permission: Permission, cwd: string): boolean {
+    const grants = resolveHttpGrants(req)
+    if (grants === null) return true // admin
+    const { permissions } = resolvePermissions(grants, cwd)
+    return permissions.has(permission)
+  }
+
+  /** Check if the caller is an admin (no grant restrictions). */
+  function httpIsAdmin(req: Request): boolean {
+    return resolveHttpGrants(req) === null
+  }
+
+  /** Filter sessions by caller's grants. */
+  function filterSessionsByHttpGrants<T extends { cwd: string }>(req: Request, sessions: T[]): T[] {
+    const grants = resolveHttpGrants(req)
+    if (grants === null) return sessions // admin sees all
+    return sessions.filter(s => {
+      const { permissions } = resolvePermissions(grants, s.cwd)
+      return permissions.has('chat:read')
+    })
+  }
+
   // Initialize disk-backed blob store + shared files log
   if (cacheDir) {
     initBlobStore(cacheDir)
@@ -452,33 +506,36 @@ export function createRouter(options: RouteOptions): Hono {
     })
   })
 
-  // ─── Sessions ──────────────────────────────────────────────────────
+  // ─── Sessions (all gated by grants) ────────────────────────────────
   app.get('/sessions', c => {
     const activeOnly = c.req.query('active') === 'true'
     const sessions = activeOnly ? sessionStore.getActiveSessions() : sessionStore.getAllSessions()
-    return c.json(sessions.map(s => sessionToOverview(s, sessionStore)))
+    const filtered = filterSessionsByHttpGrants(c.req.raw, sessions)
+    return c.json(filtered.map(s => sessionToOverview(s, sessionStore)))
   })
 
   app.get('/sessions/:id', c => {
     const session = sessionStore.getSession(c.req.param('id'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
+    if (!httpHasPermission(c.req.raw, 'chat:read', session.cwd)) return c.json({ error: 'Forbidden' }, 403)
     return c.json(sessionToOverview(session, sessionStore))
   })
 
   app.get('/sessions/:id/events', c => {
     const sessionId = c.req.param('id')
+    const session = sessionStore.getSession(sessionId)
+    if (!session) return c.json({ error: 'Session not found' }, 404)
+    if (!httpHasPermission(c.req.raw, 'chat:read', session.cwd)) return c.json({ error: 'Forbidden' }, 403)
     const limit = parseInt(c.req.query('limit') || '0', 10)
     const since = parseInt(c.req.query('since') || '0', 10)
     const events = sessionStore.getSessionEvents(sessionId, limit || undefined, since || undefined)
-    if (events.length === 0 && !sessionStore.getSession(sessionId)) {
-      return c.json({ error: 'Session not found' }, 404)
-    }
     return c.json(events)
   })
 
   app.get('/sessions/:id/subagents', c => {
     const session = sessionStore.getSession(c.req.param('id'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
+    if (!httpHasPermission(c.req.raw, 'chat:read', session.cwd)) return c.json({ error: 'Forbidden' }, 403)
     return c.json(session.subagents)
   })
 
@@ -486,6 +543,7 @@ export function createRouter(options: RouteOptions): Hono {
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
+    if (!httpHasPermission(c.req.raw, 'chat:read', session.cwd)) return c.json({ error: 'Forbidden' }, 403)
     const limit = parseInt(c.req.query('limit') || '20', 10)
     if (!sessionStore.hasTranscriptCache(sessionId)) {
       return c.json({ error: 'No transcript in cache (rclaude not streaming yet?)' }, 404)
@@ -499,6 +557,7 @@ export function createRouter(options: RouteOptions): Hono {
     const agentId = c.req.param('agentId')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
+    if (!httpHasPermission(c.req.raw, 'chat:read', session.cwd)) return c.json({ error: 'Forbidden' }, 403)
     const limit = parseInt(c.req.query('limit') || '100', 10)
     if (!sessionStore.hasSubagentTranscriptCache(sessionId, agentId)) {
       return c.json({ error: 'No subagent transcript in cache' }, 404)
@@ -508,6 +567,7 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   app.get('/sessions/:id/diag', c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
@@ -539,6 +599,7 @@ export function createRouter(options: RouteOptions): Hono {
   app.get('/sessions/:id/tasks', c => {
     const session = sessionStore.getSession(c.req.param('id'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
+    if (!httpHasPermission(c.req.raw, 'chat:read', session.cwd)) return c.json({ error: 'Forbidden' }, 403)
     return c.json({ tasks: session.tasks, archivedTasks: session.archivedTasks })
   })
 
@@ -546,6 +607,7 @@ export function createRouter(options: RouteOptions): Hono {
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
+    if (!httpHasPermission(c.req.raw, 'chat', session.cwd)) return c.json({ error: 'Forbidden' }, 403)
     if (session.status === 'ended') return c.json({ error: 'Session has ended' }, 400)
 
     const ws = sessionStore.getSessionSocket(sessionId)
@@ -565,6 +627,8 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   app.post('/sessions/:id/revive', async c => {
+    if (!httpHasPermission(c.req.raw, 'spawn', '*'))
+      return c.json({ error: 'Forbidden: spawn permission required' }, 403)
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
@@ -626,6 +690,7 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   app.delete('/sessions/:id', c => {
+    if (!httpHasPermission(c.req.raw, 'settings', '*')) return c.json({ error: 'Forbidden' }, 403)
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
@@ -643,6 +708,7 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   app.post('/agent/quit', c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const agent = sessionStore.getAgent()
     if (!agent) return c.json({ error: 'No agent connected' }, 404)
     agent.send(JSON.stringify({ type: 'quit', reason: 'Requested via API' }))
@@ -661,6 +727,8 @@ export function createRouter(options: RouteOptions): Hono {
 
   // ─── Spawn ─────────────────────────────────────────────────────────
   app.post('/api/spawn', async c => {
+    if (!httpHasPermission(c.req.raw, 'spawn', '*'))
+      return c.json({ error: 'Forbidden: spawn permission required' }, 403)
     const agent = sessionStore.getAgent()
     if (!agent) return c.json({ error: 'No host agent connected' }, 503)
 
@@ -894,6 +962,8 @@ export function createRouter(options: RouteOptions): Hono {
   app.get('/api/settings/projects', c => c.json(getAllProjectSettings()))
 
   app.post('/api/settings/projects', async c => {
+    if (!httpHasPermission(c.req.raw, 'settings', '*'))
+      return c.json({ error: 'Forbidden: settings permission required' }, 403)
     const body = await c.req.json<{ cwd: string; settings: { label?: string; icon?: string; color?: string } }>()
     if (!body.cwd) return c.json({ error: 'Missing cwd' }, 400)
     setProjectSettings(body.cwd, body.settings || {})
@@ -903,6 +973,8 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   app.delete('/api/settings/projects', async c => {
+    if (!httpHasPermission(c.req.raw, 'settings', '*'))
+      return c.json({ error: 'Forbidden: settings permission required' }, 403)
     const body = await c.req.json<{ cwd: string }>()
     if (!body.cwd) return c.json({ error: 'Missing cwd' }, 400)
     deleteProjectSettings(body.cwd)
@@ -1014,6 +1086,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
   app.get('/api/settings', c => c.json(getGlobalSettings()))
 
   app.post('/api/settings', async c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const body = await c.req.json()
     const result = updateGlobalSettings(body)
     broadcastToSubscribers(sessionStore, { type: 'settings_updated', settings: result.settings })
@@ -1089,6 +1162,8 @@ Output a JSON array of strings. Each string should be the correct spelling of on
   app.get('/api/session-order', c => c.json(getSessionOrder()))
 
   app.post('/api/session-order', async c => {
+    if (!httpHasPermission(c.req.raw, 'settings', '*'))
+      return c.json({ error: 'Forbidden: settings permission required' }, 403)
     const body = await c.req.json<{ version: number; tree: unknown[] }>()
     if (body.version !== 2 || !Array.isArray(body.tree)) {
       return c.json({ error: 'Invalid session order: expected { version: 2, tree: [...] }' }, 400)
@@ -1421,6 +1496,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
   // ─── Stats ─────────────────────────────────────────────────────────
   app.get('/api/stats', c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const allSessions = sessionStore.getAllSessions()
     let active = 0
     let idle = 0
