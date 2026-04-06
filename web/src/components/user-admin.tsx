@@ -55,7 +55,53 @@ interface GrantEditorProps {
   onChange: (grants: UserSummary['grants']) => void
 }
 
+function PermissionToggles({
+  roles,
+  permissions,
+  onToggleRole,
+  onTogglePerm,
+}: {
+  roles: string[]
+  permissions: string[]
+  onToggleRole: (role: string) => void
+  onTogglePerm: (perm: string) => void
+}) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {AVAILABLE_ROLES.map(r => (
+        <button
+          key={r}
+          type="button"
+          onClick={() => onToggleRole(r)}
+          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+            roles.includes(r)
+              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+              : 'bg-secondary text-muted-foreground border border-transparent hover:border-border'
+          }`}
+        >
+          {r}
+        </button>
+      ))}
+      {AVAILABLE_PERMISSIONS.map(p => (
+        <button
+          key={p}
+          type="button"
+          onClick={() => onTogglePerm(p)}
+          className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
+            permissions.includes(p)
+              ? 'bg-accent/20 text-accent border border-accent/40'
+              : 'bg-secondary text-muted-foreground border border-transparent hover:border-border'
+          }`}
+        >
+          {p}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function GrantEditor({ grants, onChange }: GrantEditorProps) {
+  const [editingIdx, setEditingIdx] = useState<number | null>(null)
   const [newCwd, setNewCwd] = useState('')
   const [newPerms, setNewPerms] = useState<string[]>(['chat'])
   const [newRoles, setNewRoles] = useState<string[]>([])
@@ -78,49 +124,117 @@ function GrantEditor({ grants, onChange }: GrantEditorProps) {
 
   function removeGrant(idx: number) {
     haptic('tick')
+    if (editingIdx === idx) setEditingIdx(null)
     onChange(grants.filter((_, i) => i !== idx))
   }
 
-  function togglePerm(perm: string) {
-    setNewPerms(prev => (prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]))
+  function updateGrant(idx: number, update: Partial<UserSummary['grants'][0]>) {
+    onChange(grants.map((g, i) => (i === idx ? { ...g, ...update } : g)))
   }
 
-  function toggleRole(role: string) {
-    setNewRoles(prev => (prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]))
+  function toggleGrantPerm(idx: number, perm: string) {
+    const g = grants[idx]
+    const perms = g.permissions || []
+    const next = perms.includes(perm) ? perms.filter(p => p !== perm) : [...perms, perm]
+    updateGrant(idx, { permissions: next })
+  }
+
+  function toggleGrantRole(idx: number, role: string) {
+    const g = grants[idx]
+    const roles = g.roles || []
+    const next = roles.includes(role) ? roles.filter(r => r !== role) : [...roles, role]
+    updateGrant(idx, { roles: next })
   }
 
   return (
     <div className="space-y-3">
-      {/* Existing grants */}
+      {/* Existing grants - click to edit */}
       {grants.map((g, i) => (
-        <div key={`${g.cwd}-${i}`} className="flex items-start gap-2 bg-secondary/50 rounded px-3 py-2 text-xs">
-          <div className="flex-1 min-w-0">
-            <div className="font-mono text-foreground truncate">{g.cwd}</div>
-            <div className="text-muted-foreground mt-0.5">
-              {[
-                ...(g.roles || []).map(r => (
-                  <span key={r} className="text-amber-400">
-                    {r}
-                  </span>
-                )),
-                ...(g.permissions || []).map(p => <span key={p}>{p}</span>),
-              ].reduce<React.ReactNode[]>((acc, el, idx) => (idx === 0 ? [el] : [...acc, ', ', el]), [])}
-            </div>
-            {(g.notBefore || g.notAfter) && (
-              <div className="text-muted-foreground/60 mt-0.5">
-                {g.notBefore && `from ${new Date(g.notBefore).toLocaleDateString()}`}
-                {g.notBefore && g.notAfter && ' '}
-                {g.notAfter && `until ${new Date(g.notAfter).toLocaleDateString()}`}
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => removeGrant(i)}
-            className="text-muted-foreground hover:text-destructive p-1"
+        <div key={`${g.cwd}-${i}`} className="bg-secondary/50 rounded text-xs">
+          <div
+            className="flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-secondary/80 transition-colors"
+            onClick={() => {
+              haptic('tap')
+              setEditingIdx(editingIdx === i ? null : i)
+            }}
           >
-            <X className="w-3 h-3" />
-          </button>
+            <div className="flex-1 min-w-0">
+              <div className="font-mono text-foreground truncate">{g.cwd}</div>
+              <div className="text-muted-foreground mt-0.5">
+                {[
+                  ...(g.roles || []).map(r => (
+                    <span key={r} className="text-amber-400">
+                      {r}
+                    </span>
+                  )),
+                  ...(g.permissions || []).map(p => <span key={p}>{p}</span>),
+                ].reduce<React.ReactNode[]>((acc, el, idx) => (idx === 0 ? [el] : [...acc, ', ', el]), [])}
+              </div>
+              {(g.notBefore || g.notAfter) && (
+                <div className="text-muted-foreground/60 mt-0.5">
+                  {g.notBefore && `from ${new Date(g.notBefore).toLocaleDateString()}`}
+                  {g.notBefore && g.notAfter && ' '}
+                  {g.notAfter && `until ${new Date(g.notAfter).toLocaleDateString()}`}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation()
+                removeGrant(i)
+              }}
+              className="text-muted-foreground hover:text-destructive p-1"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* Expanded edit mode */}
+          {editingIdx === i && (
+            <div className="px-3 pb-3 pt-1 border-t border-border/50 space-y-2">
+              <input
+                type="text"
+                value={g.cwd}
+                onChange={e => updateGrant(i, { cwd: e.target.value })}
+                className="w-full bg-background border border-border rounded px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-accent"
+              />
+              <PermissionToggles
+                roles={g.roles || []}
+                permissions={g.permissions || []}
+                onToggleRole={role => toggleGrantRole(i, role)}
+                onTogglePerm={perm => toggleGrantPerm(i, perm)}
+              />
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-[9px] text-muted-foreground uppercase">From</label>
+                  <input
+                    type="date"
+                    value={g.notBefore ? new Date(g.notBefore).toISOString().split('T')[0] : ''}
+                    onChange={e =>
+                      updateGrant(i, {
+                        notBefore: e.target.value ? new Date(e.target.value).getTime() : undefined,
+                      })
+                    }
+                    className="w-full bg-background border border-border rounded px-2 py-1 text-[10px] font-mono focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-[9px] text-muted-foreground uppercase">Until</label>
+                  <input
+                    type="date"
+                    value={g.notAfter ? new Date(g.notAfter).toISOString().split('T')[0] : ''}
+                    onChange={e =>
+                      updateGrant(i, {
+                        notAfter: e.target.value ? new Date(e.target.value).getTime() : undefined,
+                      })
+                    }
+                    className="w-full bg-background border border-border rounded px-2 py-1 text-[10px] font-mono focus:outline-none focus:border-accent"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ))}
 
@@ -133,36 +247,16 @@ function GrantEditor({ grants, onChange }: GrantEditorProps) {
           onChange={e => setNewCwd(e.target.value)}
           className="w-full bg-background border border-border rounded px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-accent"
         />
-        <div className="flex flex-wrap gap-1">
-          {AVAILABLE_ROLES.map(r => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => toggleRole(r)}
-              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
-                newRoles.includes(r)
-                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                  : 'bg-secondary text-muted-foreground border border-transparent hover:border-border'
-              }`}
-            >
-              {r}
-            </button>
-          ))}
-          {AVAILABLE_PERMISSIONS.map(p => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => togglePerm(p)}
-              className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-                newPerms.includes(p)
-                  ? 'bg-accent/20 text-accent border border-accent/40'
-                  : 'bg-secondary text-muted-foreground border border-transparent hover:border-border'
-              }`}
-            >
-              {p}
-            </button>
-          ))}
-        </div>
+        <PermissionToggles
+          roles={newRoles}
+          permissions={newPerms}
+          onToggleRole={role =>
+            setNewRoles(prev => (prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]))
+          }
+          onTogglePerm={perm =>
+            setNewPerms(prev => (prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]))
+          }
+        />
         <Button size="sm" variant="outline" onClick={addGrant} disabled={!newCwd.trim()} className="text-xs h-7">
           <Plus className="w-3 h-3 mr-1" /> Add grant
         </Button>

@@ -24,6 +24,7 @@ import { getAuthenticatedUser, handleAuthRoute, requireAuth } from './auth-route
 import { getGlobalSettings, updateGlobalSettings } from './global-settings'
 import { purgeMessages, queryMessages } from './inter-session-log'
 import { resolveInJail } from './path-jail'
+import { resolvePermissionFlags } from './permissions'
 import {
   deleteProjectSettings,
   getAllProjectSettings,
@@ -1217,6 +1218,30 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     }
   })
 
+  /** After changing grants/roles, hot-reload on live WS connections and push updated permissions + session list */
+  function refreshUserPermissions(userName: string) {
+    const user = getUser(userName)
+    if (!user) return
+    for (const ws of sessionStore.getSubscribers()) {
+      if ((ws.data as { userName?: string }).userName === userName) {
+        // Hot-reload grants on the live WS connection
+        ;(ws.data as { grants?: unknown }).grants = user.grants
+        // Push updated permissions
+        const serverRoles = user.serverRoles
+        const global = resolvePermissionFlags(user.grants, '*', serverRoles)
+        const perSessionPerms: Record<string, ReturnType<typeof resolvePermissionFlags>> = {}
+        for (const s of sessionStore.getActiveSessions()) {
+          perSessionPerms[s.id] = resolvePermissionFlags(user.grants, s.cwd, serverRoles)
+        }
+        try {
+          ws.send(JSON.stringify({ type: 'permissions', global, sessions: perSessionPerms }))
+        } catch {}
+        // Re-send filtered session list (user might gain/lose access)
+        sessionStore.sendSessionsList(ws)
+      }
+    }
+  }
+
   app.post('/api/users/:name/grants', async c => {
     const block = requireUserEditor(c)
     if (block) return block
@@ -1224,6 +1249,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     const body = await c.req.json<{ grants: unknown[] }>()
     if (!Array.isArray(body.grants)) return c.json({ error: 'grants array required' }, 400)
     if (setUserGrants(name, body.grants as Parameters<typeof setUserGrants>[1])) {
+      refreshUserPermissions(name)
       return c.json({ ok: true })
     }
     return c.json({ error: 'User not found' }, 404)
@@ -1236,6 +1262,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     const body = await c.req.json<{ serverRoles: string[] }>()
     if (!Array.isArray(body.serverRoles)) return c.json({ error: 'serverRoles array required' }, 400)
     if (setServerRoles(name, body.serverRoles as ServerRole[])) {
+      refreshUserPermissions(name)
       return c.json({ ok: true })
     }
     return c.json({ error: 'User not found' }, 404)
