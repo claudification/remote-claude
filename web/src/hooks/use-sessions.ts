@@ -8,6 +8,7 @@ import {
 } from '@/lib/dashboard-prefs'
 import { clearExpandedState } from '@/lib/expanded-state'
 import { DEFAULT_PERMISSIONS, type ResolvedPermissions } from '@/lib/permissions'
+import { appendShareParam } from '@/lib/share-mode'
 import type {
   HookEvent,
   ProjectSettings,
@@ -495,14 +496,14 @@ export function wsSend(type: string, data?: Record<string, unknown>): boolean {
 }
 
 export async function fetchSessionEvents(sessionId: string): Promise<HookEvent[]> {
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}/events?limit=200`)
+  const res = await fetch(appendShareParam(`${API_BASE}/sessions/${sessionId}/events?limit=200`))
   if (!res.ok) throw new Error('Failed to fetch events')
   return res.json()
 }
 
 export async function fetchTranscript(sessionId: string): Promise<TranscriptEntry[] | null> {
   try {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/transcript?limit=500`)
+    const res = await fetch(appendShareParam(`${API_BASE}/sessions/${sessionId}/transcript?limit=500`))
     if (!res.ok) return null // null = fetch failed, don't overwrite existing
     return res.json()
   } catch {

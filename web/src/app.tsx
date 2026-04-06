@@ -8,12 +8,14 @@ import { JsonInspectorDialog } from '@/components/json-inspector'
 import { QuickNoteModal } from '@/components/quick-note-modal'
 import { SessionDetail } from '@/components/session-detail'
 import { SessionList } from '@/components/session-list'
+import { SharedSessionView } from '@/components/shared-session-view'
 import { ShortcutHelp } from '@/components/shortcut-help'
 import { ToastContainer } from '@/components/toast'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { VoiceFab } from '@/components/voice-fab'
 import { VoiceKey } from '@/components/voice-key'
+import { detectShareMode } from '@/lib/share-mode'
 
 const WebTerminal = lazy(() => import('@/components/web-terminal').then(m => ({ default: m.WebTerminal })))
 const UserAdminDialog = lazy(() => import('@/components/user-admin').then(m => ({ default: m.UserAdminDialog })))
@@ -589,10 +591,18 @@ function PopoutTerminal({ wrapperId }: { wrapperId: string }) {
 }
 
 export function App() {
-  // Check for popout terminal route: #popout-terminal/{wrapperId}
   const hash = window.location.hash.slice(1)
-  const popoutMatch = hash.match(/^popout-terminal\/(.+)$/)
 
+  // Share mode: /#/share/TOKEN - bypasses auth gate, limited UI
+  const shareMatch = hash.match(/^share\/(.+)$/)
+  if (shareMatch) {
+    // Detect share mode before any WS connections (sets the share token for WS URL)
+    detectShareMode()
+    return <SharedSessionView token={shareMatch[1]} />
+  }
+
+  // Popout terminal: #popout-terminal/{wrapperId}
+  const popoutMatch = hash.match(/^popout-terminal\/(.+)$/)
   if (popoutMatch) {
     return (
       <AuthGate>

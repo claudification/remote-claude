@@ -12,6 +12,7 @@ import { unstable_batchedUpdates as batchUpdates } from 'react-dom'
 const batch: (fn: () => void) => void = batchUpdates ?? (fn => fn())
 
 import type { SessionSummary } from '@shared/protocol'
+import { buildWsUrl } from '@/lib/share-mode'
 import type { HookEvent, Session, SessionOrderV2, TaskInfo, TranscriptEntry } from '@/lib/types'
 import { BUILD_VERSION } from '../../../src/shared/version'
 import {
@@ -49,7 +50,7 @@ interface DashboardMessage {
   [key: string]: any
 }
 
-const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
+const WS_URL = buildWsUrl()
 const RECONNECT_DELAY_MS = 2000
 const SESSION_CHANNELS = ['session:events', 'session:transcript', 'session:tasks', 'session:bg_output'] as const
 
