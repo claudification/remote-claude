@@ -1,5 +1,72 @@
 # Changelog
 
+## 2026-04-06
+
+### Features
+- `90cc7d7` Session sharing - server foundation (token-based temporary access, persisted to shares.json)
+- `b842be4` Dashboard shared mode (MVP) - limited UI for share viewers at `/#/share/TOKEN`
+- `2fc4adf` Silicon Valley + sci-fi quotes in share screens
+- `07aaa5f` WS-pushed share updates + permission checkboxes (chat, files:read, terminal:read)
+- `be0c947` Share management UI + session list indicator (share icon in sidebar)
+- `c01a9f8` Nicer rendering for tool errors + persisted output
+
+### Fixes
+- `c659b4e` Share API accepts bearer token auth
+- `38e5335` Share hash regex handles leading slash (`/#/share/TOKEN`)
+- `c332601` Detect share token at module load time (before WS URL)
+- `5b7d6dd` Shared view scrolls to bottom after transcript loads
+- `a25fb60` Shared view container needs overflow-hidden + flex col for scroll
+- `94773eb` Move ShareBanner above collapsible info section - always visible
+- `bf21e31` Push initial shares state on WS subscribe for admin users
+- `ab8ec72` broadcastSharesUpdate sent to admin-role users, not just bearer auth
+
+### Security
+- `60e02db` Gate ALL HTTP endpoints with permission checks
+- `eef24a8` Fix broadcast leaks + add missing WS permission checks
+
+---
+
+## 2026-04-05
+
+### Features
+- `517975a` Grant-based permission model with temporal bounds
+- `678d2ff` Wire requirePermission into all WS handlers
+- `b455b00` Grant-based UI gating with named permission flags (canChat, canEditUsers, etc.)
+- `91afcb2` Gate input bar behind canChat permission
+- `049d442` Server-pushed permissions + grant expiry enforcement
+- `bd7c8a4` CLI grant management for multi-user permissions
+- `7ab3a0a` Server roles (user-editor) + canEditUsers permission flag
+- `dc29f1e` Per-user push subscriptions with grant-gated notifications
+- `3bc5682` User admin API endpoints (user-editor gated)
+- `2bfbb1a` User admin UI with grant editor + invite flow
+- `d0dea1b` Passkey delete UI + credential details in admin panel
+- `83e60bd` CLI server roles, time-bounded grants, passkey delete
+- `1ebc7c9` Inline grant editing + immediate permission refresh (hot-reload to live WS)
+- `9afd38e` Frequency-weighted session switcher ordering (LRU top 2 + frequency for rest)
+- `0e1ea99` Startup update check + MCP check_update tool
+- `dca58c8` add --rclaude-version and --rclaude-check-update flags
+- `4131fc8` Rich send_message rendering with clickable targets and markdown
+- `e453f4d` Add C# syntax highlighting (csharp, cs, c#)
+- `b85f68a` Deferred delivery check for queued inter-session messages
+
+### Fixes
+- `50f1086` Filter session list by user grants (chat:read per CWD)
+- `23ba692` CLI auto-detect Docker cache dir + bearer auth for user-editor API
+- `6c440a5` Sidebar always visible + auto-select single session
+- `dd30259` Voice FAB stuck-in-refining safety timeout
+- `96fea2d` Handle voice stop while Deepgram WS still connecting
+- `c50a7c9` Re-fetch sidebar metadata on reconnect and visibility restore
+- `a2c026d` User admin dialog layout - proper padding and scroll area
+- `b2e641b` Remove duplicate case labels in tool-line switch
+
+### Refactors
+- `5adb134` Separate roles from permissions in grant model
+- `15039e0` Lazy-load beautiful-mermaid and xterm.js
+- `a11e70b` Rename quit_session MCP tool to terminate_session
+- `6d08d2b` Migrate dashboard mutations from HTTP to WebSocket
+
+---
+
 ## 2026-04-02
 
 ### Features

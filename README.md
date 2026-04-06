@@ -112,6 +112,37 @@ web interface alone cannot create accounts. The invite flow requires server-side
 Session cookies are HMAC-SHA256 signed. The signing secret is auto-generated and stored with
 0600 permissions. Revoked users are blocked immediately.
 
+### Multi-User Permissions
+
+Fine-grained, grant-based access control for multi-user deployments.
+
+**Grant model:** Each user has a set of grants -- named permissions (`chat`, `chat:read`,
+`files:read`, `files:write`, `terminal:read`, `terminal:write`) scoped to specific session
+CWDs. Grants support temporal bounds (`notBefore`, `notAfter`) for time-limited access.
+Permissions are enforced on every HTTP endpoint and every WS handler (`requirePermission`).
+
+**Server roles:** Users can hold roles like `user-editor` that grant elevated capabilities
+(e.g. managing other users' grants and invites). Roles are separate from per-CWD permissions.
+
+**Session visibility:** The session list is filtered by grants -- users only see sessions
+they have `chat:read` permission for. Broadcasts are session-scoped (`broadcastSessionScoped`)
+so users never receive events for sessions they can't access.
+
+**User admin UI:** Users with `user-editor` role get a full admin panel: create invites,
+edit grants inline (changes take effect immediately via hot-reload to live WS connections),
+view passkey credential details, and delete passkeys (which kills all active sessions for
+that credential).
+
+**CLI management:**
+```bash
+concentrator-cli set-role --name alice --role user-editor
+concentrator-cli remove-role --name alice --role user-editor
+concentrator-cli list-passkeys --name alice
+concentrator-cli delete-passkey --name alice --credential-id <id>
+```
+
+Grants support `--not-before` and `--not-after` flags for time-bounded access windows.
+
 ### Push Notifications
 
 PWA push notifications when Claude needs your attention. Works on mobile browsers -- get
@@ -213,6 +244,10 @@ Drag-and-drop session grouping in the sidebar. Create named groups, drag session
 them, collapse/expand groups. Groups persist across restarts. Unorganized sessions appear
 below the tree. Ended sessions can be dismissed individually or batch-cleared per group.
 
+The command palette (Ctrl+K) uses **frequency-weighted ordering** -- your two most recently
+used sessions appear at the top (LRU), then the rest are ranked by usage frequency. This
+means your most-used sessions are always within easy reach.
+
 ### Session Revival
 
 Session went idle? Revive it from the dashboard or via MCP tool. The host agent
@@ -244,6 +279,29 @@ against the caller's own address book.
 
 Benevolent sessions get extra MCP tools: `revive_session` and `quit_session` for managing
 other sessions' lifecycles remotely.
+
+### Session Sharing
+
+Share a live session with anyone via a temporary link -- no account needed.
+
+Open the share panel from the session detail header, configure permissions, and generate
+a link. Recipients open `/#/share/TOKEN` in their browser and get a read-only (or limited)
+view of the session. No passkey registration, no invite codes -- the token IS the auth.
+
+**Permissions are granular:** Each share link has checkboxes for `chat` (send messages),
+`files:read` (browse files), and `terminal:read` (view terminal output). Defaults to all
+four (including `chat:read`). Permissions can be adjusted after creation.
+
+**Expiry enforcement:** Share tokens have a configurable TTL. Expired tokens are cleaned up
+automatically. Revoke a share at any time from the share panel.
+
+**Dashboard integration:** Active shares show an indicator icon in the sidebar session list.
+The share panel lives above the collapsible info section in session detail -- always visible.
+Admin users see share state pushed in real-time over WS.
+
+**Share viewer experience:** Minimal UI -- just the transcript and whatever permissions allow.
+Decorated with Silicon Valley and sci-fi quotes for flavor. No sidebar, no settings, no
+session switching.
 
 ### Voice Input
 
@@ -606,13 +664,21 @@ docker exec concentrator concentrator-cli revoke --name badactor
 
 # Restore access
 docker exec concentrator concentrator-cli unrevoke --name rehabilitated
+
+# Grant a user the admin role
+docker exec concentrator concentrator-cli set-role --name alice --role user-editor
+
+# Delete a passkey (kills all sessions for that credential)
+docker exec concentrator concentrator-cli delete-passkey --name alice --credential-id <id>
 ```
 
 **Rules:**
 - Names must be **unique** - no duplicates allowed
 - Revoking a user terminates all their active sessions instantly
+- Deleting a passkey also kills all active sessions for that credential
 - Session cookies last 7 days, then re-authentication is required
 - Auth state is stored in the cache directory (`auth.json`, mode 0600)
+- Users with `user-editor` role can manage grants and invites from the dashboard UI
 
 ## Keyboard Shortcuts
 
@@ -707,14 +773,20 @@ OPTIONS:
 concentrator-cli <command> [OPTIONS]
 
 COMMANDS:
-  create-invite --name <name>    Create a one-time passkey invite link
-  list-users                      List all registered passkey users
-  revoke --name <name>           Revoke a user's access
-  unrevoke --name <name>         Restore a revoked user
+  create-invite --name <name>                              Create a one-time passkey invite link
+  list-users                                                List all registered passkey users
+  revoke --name <name>                                     Revoke a user's access
+  unrevoke --name <name>                                   Restore a revoked user
+  set-role --name <name> --role <role>                     Add a server role (e.g. user-editor)
+  remove-role --name <name> --role <role>                  Remove a server role
+  list-passkeys --name <name>                               List passkeys for a user
+  delete-passkey --name <name> --credential-id <id>        Delete a passkey (kills sessions)
 
 OPTIONS:
   --cache-dir <dir>    Auth storage directory (default: ~/.cache/concentrator)
   --url <url>          Base URL for invite links (default: http://localhost:9999)
+  --not-before <date>  Grant valid from (ISO 8601)
+  --not-after <date>   Grant valid until (ISO 8601)
 ```
 
 ## REST API
@@ -767,6 +839,14 @@ GET  /api/links                           # List session links + trust levels
 POST /api/links                           # Create/update link (allow/block/trust)
 DELETE /api/links                         # Remove link
 GET  /api/links/messages                  # Inter-session message history
+```
+
+### Session Shares
+
+```bash
+POST /api/shares                          # Create share link (token, permissions, expiry)
+GET  /api/shares                          # List active shares
+DELETE /api/shares/:token                 # Revoke a share
 ```
 
 ### Files & Sharing
@@ -1008,6 +1088,7 @@ remote-claude/
 │   │   ├── voice-stream.ts       # Deepgram voice transcription relay
 │   │   ├── global-settings.ts    # Server-wide settings (Zod validated)
 │   │   ├── project-settings.ts   # Per-project label/icon/color/trust
+│   │   ├── shares.ts             # Session sharing (token-based temporary access)
 │   │   ├── path-jail.ts          # File path traversal validation
 │   │   ├── cli.ts                # CLI tool entry point
 │   │   └── ui.ts                 # Fallback UI when no web/dist
@@ -1057,6 +1138,8 @@ remote-claude/
 │       │   ├── project-settings-editor.tsx # Project label/icon/color/trust
 │       │   ├── shortcut-help.tsx        # Shift+? keyboard help overlay
 │       │   ├── debug-console.tsx        # Ctrl+Shift+D debug panel
+│       │   ├── share-panel.tsx          # Session sharing management panel
+│       │   ├── shared-session-view.tsx # Share viewer UI (no-auth mode)
 │       │   ├── shared-view.tsx          # Shared files + clipboard history
 │       │   ├── diag-view.tsx            # Session diagnostic viewer
 │       │   ├── nerd-modal.tsx           # Session stats/nerd info
@@ -1066,6 +1149,10 @@ remote-claude/
 │       │   ├── use-websocket.ts   # WS connection + message routing
 │       │   ├── use-file-editor.ts # File editor state
 │       │   └── ws-stats.ts        # WebSocket statistics
+│       ├── lib/
+│       │   ├── share-mode.ts      # Share token detection + WS URL builder
+│       │   ├── session-frequency.ts # Frequency-weighted session ordering
+│       │   └── utils.ts           # Shared utilities (haptic, contextWindow, etc.)
 │       └── styles/                # Tokyo Night theme
 ├── scripts/
 │   ├── gen-version.ts             # Bakes git hash, branch, GitHub repo + build time
@@ -1123,6 +1210,14 @@ rclaude authenticates to the concentrator with a shared secret (`RCLAUDE_SECRET`
 - Session cookies are HMAC-SHA256 signed with a server-side secret
 - The HMAC secret is auto-generated on first run and stored in `auth.secret` (mode 0600)
 - Revoked users are blocked from all access immediately
+
+### Permission enforcement
+
+- **HTTP:** Every API endpoint is gated by grant checks -- no unauthenticated access to session data
+- **WebSocket:** All WS handlers use `requirePermission()` guards before processing messages
+- **Broadcasts:** Session events use `broadcastSessionScoped()` -- only users with grants for that session's CWD receive updates
+- **Share viewers:** Restricted to their specific session CWD scope; cannot access other sessions or admin functions
+- **Grant expiry:** Temporal bounds (`notBefore`/`notAfter`) are enforced at check time -- expired grants silently fail
 
 ## Tech Stack
 
