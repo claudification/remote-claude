@@ -4,13 +4,42 @@
  */
 
 import { memo, type ReactNode } from 'react'
+import { Markdown } from '@/components/markdown'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/dashboard-prefs'
 import type { TranscriptContentBlock } from '@/lib/types'
-import { cn, truncate } from '@/lib/utils'
+import { cn, haptic, truncate } from '@/lib/utils'
 import { JsonInspector } from '../json-inspector'
 import { Collapsible, getToolStyle, shortPath, TruncatedPre } from './shared'
 import { BashOutput, DiffView, ShellCommand, WritePreview } from './tool-renderers'
+
+/** Slugify a name the same way the concentrator address-book does. */
+function slugify(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 24) || 'project'
+  )
+}
+
+/** Find a session matching an address book slug (best-effort client-side match). */
+function findSessionBySlug(slug: string) {
+  const { sessions, projectSettings } = useSessionsStore.getState()
+  const normalizedSlug = slug.toLowerCase()
+  for (const s of sessions) {
+    // Check project label from settings
+    const ps = projectSettings[s.cwd]
+    if (ps?.label && slugify(ps.label) === normalizedSlug) return s
+    // Check session title
+    if (s.title && slugify(s.title) === normalizedSlug) return s
+    // Check dirname
+    const dirname = s.cwd?.split('/').pop() || ''
+    if (dirname && slugify(dirname) === normalizedSlug) return s
+  }
+  return undefined
+}
 
 function formatTokenCount(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M tok`
@@ -436,9 +465,9 @@ export function ToolLine({
       const to = (input.to as string) || ''
       const intent = (input.intent as string) || ''
       const msg = (input.message as string) || ''
-      // Look up session name from store
-      const targetSession = useSessionsStore.getState().sessions.find(s => s.id === to)
-      const targetName = targetSession?.title || targetSession?.cwd?.split('/').pop() || to.slice(0, 8)
+      // Find target session: try direct ID match first, then slug match
+      const targetSession = useSessionsStore.getState().sessions.find(s => s.id === to) || findSessionBySlug(to)
+      const targetName = targetSession?.title || targetSession?.cwd?.split('/').pop() || to
       const intentStyles: Record<string, string> = {
         request: 'bg-yellow-400/15 text-yellow-400 border-yellow-400/30',
         response: 'bg-green-400/15 text-green-400 border-green-400/30',
@@ -448,7 +477,18 @@ export function ToolLine({
       summary = (
         <span className="flex items-center gap-1.5">
           <span className="text-teal-400/60">to</span>
-          <span className="text-teal-400 font-bold">{targetName}</span>
+          <button
+            type="button"
+            className="text-teal-400 font-bold hover:text-teal-300 hover:underline"
+            onClick={() => {
+              if (targetSession) {
+                haptic('tap')
+                useSessionsStore.getState().selectSession(targetSession.id)
+              }
+            }}
+          >
+            {targetName}
+          </button>
           {intent && (
             <span
               className={cn(
@@ -463,8 +503,10 @@ export function ToolLine({
       )
       if (msg) {
         details = (
-          <div className="text-[10px] text-foreground/80 pl-1 border-l border-teal-400/30 ml-1 whitespace-pre-wrap">
-            {msg.length > 300 ? `${msg.slice(0, 300)}...` : msg}
+          <div className="rounded-lg border border-teal-500/20 bg-teal-500/5 px-3 py-2 my-1">
+            <div className="text-sm prose-sm">
+              <Markdown>{msg}</Markdown>
+            </div>
           </div>
         )
       }
