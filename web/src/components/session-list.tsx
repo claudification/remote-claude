@@ -17,6 +17,7 @@ import { saveSessionOrder, useSessionsStore, wsSend } from '@/hooks/use-sessions
 import type { Session, SessionOrderGroup, SessionOrderNode, SessionOrderV2 } from '@/lib/types'
 import { cn, contextWindowSize, formatAge, formatModel, haptic, lastPathSegments } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from './project-settings-editor'
+import { ShareIndicator } from './share-panel'
 
 // ─── Shared visual components ──────────────────────────────────────
 
@@ -266,6 +267,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
               error
             </span>
           )}
+          <ShareIndicator sessionCwd={session.cwd} />
           {session.status === 'ended' && <DismissButton sessionId={session.id} />}
         </div>
       )}

@@ -14,6 +14,7 @@ import { FileEditor } from './file-editor'
 import { InlineTerminal } from './inline-terminal'
 import { MarkdownInput } from './markdown-input'
 import { renderProjectIcon } from './project-settings-editor'
+import { ShareBanner } from './share-panel'
 import { SharedView } from './shared-view'
 import { SubagentView } from './subagent-view'
 import { TasksView } from './tasks-view'
@@ -1103,6 +1104,9 @@ export function SessionDetail() {
                     )}
                   </div>
                 )}
+
+                {/* Share banner (admin only) */}
+                {canAdmin && <ShareBanner sessionCwd={session.cwd} />}
 
                 {/* CWD */}
                 <div className="flex items-center gap-1 group/cwd">
