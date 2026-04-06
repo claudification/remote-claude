@@ -1868,7 +1868,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     return count
   }
 
-  /** Broadcast shares_updated to admin subscribers (no grants = admin) */
+  /** Broadcast shares_updated to admin subscribers (admin role or no grants = bearer auth) */
   function broadcastSharesUpdate(): void {
     const active = listShares()
     const shares = active.map(s => ({
@@ -1883,8 +1883,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }))
     const json = JSON.stringify({ type: 'shares_updated', shares })
     for (const ws of dashboardSubscribers) {
-      const grants = (ws.data as { grants?: UserGrant[] }).grants
-      if (grants) continue // skip non-admin (share viewers, restricted users)
+      const data = ws.data as { grants?: UserGrant[]; isShare?: boolean }
+      // Skip share viewers - they don't manage shares
+      if (data.isShare) continue
+      // Skip restricted users (have grants but no admin role)
+      if (data.grants && data.grants.length > 0) {
+        const isAdmin = data.grants.some(g => g.roles?.includes('admin'))
+        if (!isAdmin) continue
+      }
       try {
         ws.send(json)
         recordTraffic('out', json.length)
