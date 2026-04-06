@@ -35,6 +35,12 @@ import { addSubscription, getSubscriptionCount, isPushConfigured, removeSubscrip
 import { addPersistedLink, getPersistedLinks, removePersistedLink } from './session-links'
 import { getSessionOrder, type SessionOrderV2, setSessionOrder } from './session-order'
 import type { SessionStore } from './session-store'
+import {
+  createShare as createSessionShare,
+  getShare as getShareByToken,
+  listShares as listAllShares,
+  revokeShare as revokeSessionShare,
+} from './shares'
 import { UI_HTML } from './ui'
 
 // ─── Image/Blob Store (disk-only, survives restarts) ────────────────────
@@ -1325,6 +1331,81 @@ Output a JSON array of strings. Each string should be the correct spelling of on
       case 'removed':
         return c.json({ ok: true, revoked: false, message: 'Passkey removed, all sessions killed' })
     }
+  })
+
+  // ─── Session Shares ────────────────────────────────────────────────
+
+  app.post('/api/shares', async c => {
+    const caller = getAuthenticatedUser(c.req.raw)
+    if (!caller) return c.json({ error: 'Not authenticated' }, 401)
+    const body = await c.req.json<{
+      sessionCwd: string
+      expiresIn?: number // ms from now
+      expiresAt?: number // absolute timestamp
+      label?: string
+      permissions?: string[]
+    }>()
+    if (!body.sessionCwd) return c.json({ error: 'sessionCwd is required' }, 400)
+    const expiresAt = body.expiresAt || (body.expiresIn ? Date.now() + body.expiresIn : Date.now() + 4 * 60 * 60 * 1000) // default 4h
+    try {
+      const share = createSessionShare({
+        sessionCwd: body.sessionCwd,
+        expiresAt,
+        createdBy: caller,
+        label: body.label,
+        permissions: body.permissions,
+      })
+      const origin = c.req.header('origin') || ''
+      return c.json({
+        token: share.token,
+        expiresAt: share.expiresAt,
+        shareUrl: `${origin}/#/share/${share.token}`,
+      })
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 400)
+    }
+  })
+
+  app.get('/api/shares', c => {
+    const caller = getAuthenticatedUser(c.req.raw)
+    if (!caller) return c.json({ error: 'Not authenticated' }, 401)
+    const active = listAllShares()
+    // Include connected viewer count per share
+    const shares = active.map(s => ({
+      ...s,
+      viewerCount: sessionStore.getShareViewerCount(s.token),
+    }))
+    return c.json({ shares })
+  })
+
+  app.get('/api/shares/:token', c => {
+    const caller = getAuthenticatedUser(c.req.raw)
+    if (!caller) return c.json({ error: 'Not authenticated' }, 401)
+    const share = getShareByToken(c.req.param('token'))
+    if (!share) return c.json({ error: 'Share not found' }, 404)
+    return c.json({
+      ...share,
+      viewerCount: sessionStore.getShareViewerCount(share.token),
+    })
+  })
+
+  app.delete('/api/shares/:token', c => {
+    const caller = getAuthenticatedUser(c.req.raw)
+    if (!caller) return c.json({ error: 'Not authenticated' }, 401)
+    const token = c.req.param('token')
+    if (revokeSessionShare(token)) {
+      // Kill all WS connections authenticated with this share token
+      for (const ws of sessionStore.getSubscribers()) {
+        if ((ws.data as { shareToken?: string }).shareToken === token) {
+          try {
+            ws.send(JSON.stringify({ type: 'share_expired', reason: 'Share has been revoked' }))
+            ws.close(4403, 'Share revoked')
+          } catch {}
+        }
+      }
+      return c.json({ ok: true })
+    }
+    return c.json({ error: 'Share not found' }, 404)
   })
 
   // ─── Stats ─────────────────────────────────────────────────────────

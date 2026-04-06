@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { DEFAULT_CONCENTRATOR_PORT } from '../shared/protocol'
 import { getOrAssign, initAddressBook, resolve } from './address-book'
 import { getUser, initAuth, reloadState, validateSession } from './auth'
-import { getAuthenticatedUser, requireAuth, setRclaudeSecret } from './auth-routes'
+import { getAuthenticatedUser, requireAuth, setRclaudeSecret, setShareValidator } from './auth-routes'
 import { type ContextDeps, createContext } from './create-context'
 import { initGlobalSettings } from './global-settings'
 import type { WsData } from './handler-context'
@@ -32,6 +32,12 @@ import {
 } from './session-links'
 import { initSessionOrder } from './session-order'
 import { createSessionStore } from './session-store'
+import {
+  cleanExpired as cleanExpiredShares,
+  initShares,
+  shareToGrants as shareToGrantList,
+  validateShare as validateShareToken,
+} from './shares'
 import { cleanupVoiceForWs } from './voice-stream'
 import { createWsServer } from './ws-server'
 
@@ -248,6 +254,8 @@ async function main() {
   initInterSessionLog(authCacheDir)
   initAddressBook(authCacheDir)
   initMessageQueue(authCacheDir)
+  initShares({ cacheDir: authCacheDir })
+  setShareValidator(token => validateShareToken(token) !== null)
 
   // Initialize web push (optional - needs VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY env vars)
   if (vapidPublicKey && vapidPrivateKey) {
@@ -339,6 +347,24 @@ async function main() {
         try {
           ws.close(4403, 'Grants expired')
         } catch {}
+      }
+    }
+  }, 30_000) // check every 30 seconds
+
+  // Periodically expire share tokens and close guest connections
+  setInterval(() => {
+    const expired = cleanExpiredShares()
+    if (expired.length > 0) {
+      const subscribers = sessionStore.getSubscribers()
+      for (const ws of subscribers) {
+        const data = ws.data as { shareToken?: string }
+        if (data.shareToken && expired.includes(data.shareToken)) {
+          console.log(`[shares] Closing expired share viewer (token: ${data.shareToken.slice(0, 8)}...)`)
+          try {
+            ws.send(JSON.stringify({ type: 'share_expired', reason: 'Share session has expired' }))
+            ws.close(4403, 'Share expired')
+          } catch {}
+        }
       }
     }
   }, 30_000) // check every 30 seconds
@@ -458,6 +484,22 @@ async function main() {
           req.headers.get('upgrade')?.toLowerCase() === 'websocket' &&
           (url.pathname === '/' || url.pathname === '/ws')
         ) {
+          // Share token auth (link-based guest access)
+          const shareToken = url.searchParams.get('share')
+          if (shareToken) {
+            const share = validateShareToken(shareToken)
+            if (!share) return new Response('Invalid or expired share link', { status: 401 })
+            const success = server.upgrade(req, {
+              data: {
+                isShare: true,
+                shareToken,
+                grants: shareToGrantList(share),
+              } as WsData,
+            })
+            if (success) return undefined
+            return new Response('WebSocket upgrade failed', { status: 500 })
+          }
+
           // Auth check for WS connections (requireAuth handles secret/cookie/token)
           const authBlock = requireAuth(req)
           if (authBlock) return authBlock

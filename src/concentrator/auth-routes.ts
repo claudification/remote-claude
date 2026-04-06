@@ -40,9 +40,14 @@ import {
 } from './auth'
 
 let rclaudeSecret: string | undefined
+let validateShareFn: ((token: string) => boolean) | undefined
 
 export function setRclaudeSecret(secret: string): void {
   rclaudeSecret = secret
+}
+
+export function setShareValidator(fn: (token: string) => boolean): void {
+  validateShareFn = fn
 }
 
 function safeStringEqual(a: string, b: string): boolean {
@@ -153,6 +158,10 @@ export function requireAuth(req: Request): Response | null {
   const authHeader = req.headers.get('authorization')
   const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
   if (rclaudeSecret && bearerToken && safeStringEqual(bearerToken, rclaudeSecret)) return null
+
+  // Share token auth (guest access via link)
+  const shareToken = url.searchParams.get('share')
+  if (shareToken && validateShareFn?.(shareToken)) return null
 
   // Not authenticated - only allow SPA HTML navigation for non-API paths
   // API paths (/sessions, /file, etc.) must NEVER fall through without auth

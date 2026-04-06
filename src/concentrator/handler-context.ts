@@ -16,6 +16,9 @@ export interface WsData {
   userName?: string
   authToken?: string
   grants?: UserGrant[]
+  // Share (guest) access
+  isShare?: boolean
+  shareToken?: string
 }
 
 /** Thrown by guard methods (requireBenevolent, requireAgent, etc.) */

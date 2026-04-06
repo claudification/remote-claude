@@ -135,6 +135,7 @@ export interface SessionStore {
   removeSubscriber: (ws: ServerWebSocket<unknown>) => void
   getSubscriberCount: () => number
   getSubscribers: () => Set<ServerWebSocket<unknown>>
+  getShareViewerCount: (shareToken: string) => number
   // Channel subscription methods (v2 pub/sub)
   subscribeChannel: (
     ws: ServerWebSocket<unknown>,
@@ -1837,6 +1838,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     return dashboardSubscribers
   }
 
+  function getShareViewerCount(shareToken: string): number {
+    let count = 0
+    for (const ws of dashboardSubscribers) {
+      if ((ws.data as { shareToken?: string }).shareToken === shareToken) count++
+    }
+    return count
+  }
+
   // Agent management (exclusive single connection)
   function setAgent(ws: ServerWebSocket<unknown>, info?: { machineId?: string; hostname?: string }): boolean {
     if (agentSocket) return false // reject - already connected
@@ -2490,6 +2499,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     removeSubscriber,
     getSubscriberCount,
     getSubscribers,
+    getShareViewerCount,
     subscribeChannel,
     unsubscribeChannel,
     unsubscribeAllChannels,
