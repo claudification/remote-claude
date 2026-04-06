@@ -3,19 +3,23 @@
  *
  * When the URL hash is /#/share/TOKEN, the dashboard enters share mode:
  * limited UI, no auth gate, WS connects with ?share=TOKEN.
+ *
+ * Detection runs eagerly at module load time so the WS URL is correct
+ * before any WebSocket connections are established.
  */
 
-let shareToken: string | null = null
+// Detect immediately on module load (before WS_URL const is evaluated)
+const hash = typeof window !== 'undefined' ? window.location.hash.slice(1) : ''
+const shareMatch = hash.match(/^\/?share\/(.+)$/)
+const shareToken: string | null = shareMatch ? shareMatch[1] : null
 
-/** Check URL hash for share token. Call once on app init. */
+if (shareToken) {
+  console.log(`[share] Share mode detected (token: ${shareToken.slice(0, 8)}...)`)
+}
+
+/** Check if we detected a share token. */
 export function detectShareMode(): string | null {
-  const hash = window.location.hash.slice(1)
-  const match = hash.match(/^\/?share\/(.+)$/)
-  if (match) {
-    shareToken = match[1]
-    return shareToken
-  }
-  return null
+  return shareToken
 }
 
 /** Get the current share token (null if not in share mode). */
