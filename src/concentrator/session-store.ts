@@ -23,6 +23,8 @@ import type {
   WrapperCapability,
 } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
+import type { UserGrant } from './permissions'
+import { resolvePermissions } from './permissions'
 import { getProjectSettings } from './project-settings'
 import { appendSharedFile } from './routes'
 
@@ -520,6 +522,28 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
   }
 
+  /** Broadcast a session message only to subscribers who have chat:read for that CWD */
+  function broadcastSessionScoped(message: DashboardMessage, cwd: string): void {
+    const json = stampAndBuffer(message)
+    for (const ws of dashboardSubscribers) {
+      try {
+        const grants = (ws.data as { grants?: UserGrant[] }).grants
+        if (grants) {
+          const { permissions } = resolvePermissions(grants, cwd)
+          if (!permissions.has('chat:read')) continue
+        }
+        ws.send(json)
+        recordTraffic('out', json.length)
+      } catch (err) {
+        const subInfo = subscriberRegistry.get(ws)
+        console.error(
+          `[broadcast] Send failed to ${subInfo?.id || 'unknown'}: ${err instanceof Error ? err.message : err}`,
+        )
+        dashboardSubscribers.delete(ws)
+      }
+    }
+  }
+
   // Coalesced session_update broadcasts: only the last update per session per tick is sent
   const pendingSessionUpdates = new Set<string>()
   let sessionUpdateScheduled = false
@@ -537,11 +561,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     for (const id of pendingSessionUpdates) {
       const session = sessions.get(id)
       if (session) {
-        broadcast({
-          type: 'session_update',
-          sessionId: id,
-          session: toSessionSummary(session),
-        })
+        broadcastSessionScoped(
+          {
+            type: 'session_update',
+            sessionId: id,
+            session: toSessionSummary(session),
+          },
+          session.cwd,
+        )
       }
     }
     pendingSessionUpdates.clear()
@@ -786,12 +813,15 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
     sessions.set(id, session)
 
-    // Broadcast to dashboard subscribers
-    broadcast({
-      type: 'session_created',
-      sessionId: id,
-      session: toSessionSummary(session),
-    })
+    // Broadcast to dashboard subscribers (scoped by grants)
+    broadcastSessionScoped(
+      {
+        type: 'session_created',
+        sessionId: id,
+        session: toSessionSummary(session),
+      },
+      session.cwd,
+    )
 
     return session
   }
@@ -1388,12 +1418,15 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         }
       }
 
-      // Broadcast to dashboard subscribers
-      broadcast({
-        type: 'session_ended',
-        sessionId,
-        session: toSessionSummary(session),
-      })
+      // Broadcast to dashboard subscribers (scoped by grants)
+      broadcastSessionScoped(
+        {
+          type: 'session_ended',
+          sessionId,
+          session: toSessionSummary(session),
+        },
+        session.cwd,
+      )
 
       // Persist immediately so ended sessions survive restarts
       scheduleSave(1000)
@@ -1551,10 +1584,20 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     sendSessionsList(ws)
   }
 
-  function buildSessionsListMessage(): string {
+  /** Filter sessions by user's grants - only show sessions they have chat:read for */
+  function filterSessionsByGrants(allSessions: SessionSummary[], grants?: UserGrant[]): SessionSummary[] {
+    if (!grants) return allSessions // no grants = admin/secret auth = see everything
+    return allSessions.filter(s => {
+      const { permissions } = resolvePermissions(grants, s.cwd)
+      return permissions.has('chat:read')
+    })
+  }
+
+  function buildSessionsListMessage(grants?: UserGrant[]): string {
+    const allSummaries = Array.from(sessions.values()).map(toSessionSummary)
     return JSON.stringify({
       type: 'sessions_list',
-      sessions: Array.from(sessions.values()).map(toSessionSummary),
+      sessions: filterSessionsByGrants(allSummaries, grants),
       serverVersion: BUILD_VERSION.gitHashShort,
       _epoch: SYNC_EPOCH,
       _seq: syncSeq,
@@ -1563,7 +1606,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 
   function sendSessionsList(ws: ServerWebSocket<unknown>): void {
     try {
-      ws.send(buildSessionsListMessage())
+      const grants = (ws.data as { grants?: UserGrant[] }).grants
+      ws.send(buildSessionsListMessage(grants))
     } catch {}
   }
 
