@@ -32,6 +32,11 @@ const subscribe: MessageHandler = (ctx, data) => {
     ctx.reply({ type: 'permissions', global, sessions })
   }
 
+  // Push initial shares state to admin subscribers
+  if (!grants) {
+    ctx.sessions.broadcastSharesUpdate()
+  }
+
   ctx.log.debug(`Subscriber connected (v${pv}, total: ${ctx.sessions.getSubscriberCount()})`)
 }
 
