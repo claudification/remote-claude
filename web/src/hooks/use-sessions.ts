@@ -177,6 +177,29 @@ interface SessionsState {
   inputDrafts: Record<string, string>
   setInputDraft: (sessionId: string, text: string) => void
 
+  shares: Array<{
+    token: string
+    sessionCwd: string
+    createdAt: number
+    expiresAt: number
+    createdBy: string
+    label?: string
+    permissions: string[]
+    viewerCount: number
+  }>
+  setShares: (
+    shares: Array<{
+      token: string
+      sessionCwd: string
+      createdAt: number
+      expiresAt: number
+      createdBy: string
+      label?: string
+      permissions: string[]
+      viewerCount: number
+    }>,
+  ) => void
+
   getSelectedSession: () => Session | undefined
   getSelectedEvents: () => HookEvent[]
   getSelectedTranscript: () => TranscriptEntry[]
@@ -330,6 +353,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   inputDrafts: {},
   setInputDraft: (sessionId, text) => set(state => ({ inputDrafts: { ...state.inputDrafts, [sessionId]: text } })),
   newDataSeq: 0,
+  shares: [],
+  setShares: shares => set({ shares }),
   expandAll: localStorage.getItem('expandAll') === 'true',
   versionMismatch: false,
   toggleExpandAll: () =>

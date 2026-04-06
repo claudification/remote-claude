@@ -366,6 +366,7 @@ async function main() {
           } catch {}
         }
       }
+      sessionStore.broadcastSharesUpdate()
     }
   }, 30_000) // check every 30 seconds
 

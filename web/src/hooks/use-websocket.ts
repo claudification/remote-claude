@@ -389,6 +389,12 @@ function processMessage(msg: DashboardMessage) {
       }
       break
     }
+    case 'shares_updated': {
+      if (msg.shares) {
+        useSessionsStore.getState().setShares(msg.shares)
+      }
+      break
+    }
     case 'channel_link_request': {
       const req = msg as DashboardMessage & {
         fromSession?: string

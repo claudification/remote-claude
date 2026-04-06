@@ -1442,6 +1442,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
         permissions: body.permissions,
       })
       const origin = c.req.header('origin') || ''
+      sessionStore.broadcastSharesUpdate()
       return c.json({
         token: share.token,
         expiresAt: share.expiresAt,
@@ -1489,6 +1490,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
           } catch {}
         }
       }
+      sessionStore.broadcastSharesUpdate()
       return c.json({ ok: true })
     }
     return c.json({ error: 'Share not found' }, 404)

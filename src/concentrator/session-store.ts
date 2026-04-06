@@ -27,6 +27,7 @@ import type { UserGrant } from './permissions'
 import { resolvePermissions } from './permissions'
 import { getProjectSettings } from './project-settings'
 import { appendSharedFile } from './routes'
+import { listShares } from './shares'
 
 export type { SessionSummary }
 
@@ -194,6 +195,7 @@ export interface SessionStore {
   blockSession: (blocker: string, blocked: string) => void
   queueInterSessionMessage: (from: string, to: string, message: Record<string, unknown>) => void
   drainQueuedMessages: (from: string, to: string) => Array<Record<string, unknown>>
+  broadcastSharesUpdate: () => void
   recordTraffic: (direction: 'in' | 'out', bytes: number) => void
   getTrafficStats: () => {
     in: { messagesPerSec: number; bytesPerSec: number }
@@ -1592,6 +1594,11 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     })
 
     sendSessionsList(ws)
+
+    // If this is a share viewer, notify admins about updated viewer counts
+    if ((ws.data as { shareToken?: string }).shareToken) {
+      broadcastSharesUpdate()
+    }
   }
 
   /** Filter sessions by user's grants - only show sessions they have chat:read for */
@@ -1622,10 +1629,16 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   }
 
   function removeSubscriber(ws: ServerWebSocket<unknown>): void {
+    const wasShareViewer = !!(ws.data as { shareToken?: string }).shareToken
     dashboardSubscribers.delete(ws)
     v2Subscribers.delete(ws)
     unsubscribeAllChannels(ws)
     subscriberRegistry.delete(ws)
+
+    // If a share viewer disconnected, notify admins about updated viewer counts
+    if (wasShareViewer) {
+      broadcastSharesUpdate()
+    }
   }
 
   // Channel subscription management (v2 pub/sub)
@@ -1853,6 +1866,30 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       if ((ws.data as { shareToken?: string }).shareToken === shareToken) count++
     }
     return count
+  }
+
+  /** Broadcast shares_updated to admin subscribers (no grants = admin) */
+  function broadcastSharesUpdate(): void {
+    const active = listShares()
+    const shares = active.map(s => ({
+      token: s.token,
+      sessionCwd: s.sessionCwd,
+      createdAt: s.createdAt,
+      expiresAt: s.expiresAt,
+      createdBy: s.createdBy,
+      label: s.label,
+      permissions: s.permissions,
+      viewerCount: getShareViewerCount(s.token),
+    }))
+    const json = JSON.stringify({ type: 'shares_updated', shares })
+    for (const ws of dashboardSubscribers) {
+      const grants = (ws.data as { grants?: UserGrant[] }).grants
+      if (grants) continue // skip non-admin (share viewers, restricted users)
+      try {
+        ws.send(json)
+        recordTraffic('out', json.length)
+      } catch {}
+    }
   }
 
   // Agent management (exclusive single connection)
@@ -2509,6 +2546,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     getSubscriberCount,
     getSubscribers,
     getShareViewerCount,
+    broadcastSharesUpdate,
     subscribeChannel,
     unsubscribeChannel,
     unsubscribeAllChannels,

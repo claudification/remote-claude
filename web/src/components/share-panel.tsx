@@ -3,25 +3,15 @@
  *
  * Shows active shares with viewer counts, create new shares,
  * revoke shares. Displayed as a banner in the session detail header.
+ *
+ * Share data is pushed via WS (shares_updated) - no polling.
  */
 
-import { Copy, Eye, Link2, Trash2, X } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { Copy, Eye, Link2, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { appendShareParam } from '@/lib/share-mode'
+import { useSessionsStore } from '@/hooks/use-sessions'
 import { haptic } from '@/lib/utils'
-
-interface Share {
-  token: string
-  sessionCwd: string
-  createdAt: number
-  expiresAt: number
-  createdBy: string
-  label?: string
-  revoked: boolean
-  permissions: string[]
-  viewerCount: number
-}
 
 interface SharePanelProps {
   sessionCwd: string
@@ -34,30 +24,22 @@ const DURATION_OPTIONS = [
   { label: '7d', ms: 7 * 24 * 60 * 60 * 1000 },
 ]
 
+const EMPTY_SHARES: ReturnType<typeof useSessionsStore.getState>['shares'] = []
+
 export function ShareBanner({ sessionCwd }: SharePanelProps) {
-  const [shares, setShares] = useState<Share[]>([])
+  const allShares = useSessionsStore(s => s.shares) || EMPTY_SHARES
+  const shares = allShares.filter(s => s.sessionCwd === sessionCwd && s.expiresAt > Date.now())
+
   const [expanded, setExpanded] = useState(false)
   const [creating, setCreating] = useState(false)
   const [newLabel, setNewLabel] = useState('')
   const [newDuration, setNewDuration] = useState(DURATION_OPTIONS[1].ms)
+  const [newPerms, setNewPerms] = useState<Record<string, boolean>>({
+    chat: false,
+    'files:read': false,
+    'terminal:read': true,
+  })
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
-
-  const fetchShares = useCallback(async () => {
-    try {
-      const res = await fetch('/api/shares')
-      if (!res.ok) return
-      const data = await res.json()
-      // Filter to shares for this session's CWD
-      setShares((data.shares || []).filter((s: Share) => s.sessionCwd === sessionCwd && !s.revoked))
-    } catch {}
-  }, [sessionCwd])
-
-  useEffect(() => {
-    fetchShares()
-    // Poll for viewer count updates
-    const timer = setInterval(fetchShares, 15_000)
-    return () => clearInterval(timer)
-  }, [fetchShares])
 
   async function handleCreate() {
     setCreating(true)
@@ -69,6 +51,12 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
           sessionCwd,
           expiresIn: newDuration,
           label: newLabel || undefined,
+          permissions: [
+            'chat:read', // always included (base - can see transcript)
+            ...Object.entries(newPerms)
+              .filter(([, v]) => v)
+              .map(([k]) => k),
+          ],
         }),
       })
       if (res.ok) {
@@ -79,7 +67,6 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
         setTimeout(() => setCopyFeedback(null), 3000)
         haptic('success')
         setNewLabel('')
-        fetchShares()
       }
     } catch {}
     setCreating(false)
@@ -89,7 +76,6 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
     haptic('error')
     try {
       await fetch(`/api/shares/${token}`, { method: 'DELETE' })
-      fetchShares()
     } catch {}
   }
 
@@ -102,9 +88,8 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
   }
 
   const totalViewers = shares.reduce((sum, s) => sum + s.viewerCount, 0)
-  const activeShares = shares.filter(s => s.expiresAt > Date.now())
 
-  if (activeShares.length === 0 && !expanded) return null
+  if (shares.length === 0 && !expanded) return null
 
   return (
     <div className="border-b border-teal-500/30 bg-teal-500/5">
@@ -118,7 +103,7 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
         className="w-full px-3 py-1.5 flex items-center gap-2 text-[10px] font-mono hover:bg-teal-500/10 transition-colors"
       >
         <Link2 className="w-3 h-3 text-teal-400" />
-        <span className="text-teal-400 font-bold uppercase tracking-wider">Shared ({activeShares.length})</span>
+        <span className="text-teal-400 font-bold uppercase tracking-wider">Shared ({shares.length})</span>
         {totalViewers > 0 && (
           <span className="flex items-center gap-1 text-teal-400/70">
             <Eye className="w-3 h-3" />
@@ -133,7 +118,7 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
       {expanded && (
         <div className="px-3 pb-3 space-y-2">
           {/* Active shares */}
-          {activeShares.map(share => {
+          {shares.map(share => {
             const timeLeft = share.expiresAt - Date.now()
             const hours = Math.floor(timeLeft / 3600000)
             const mins = Math.floor((timeLeft % 3600000) / 60000)
@@ -178,40 +163,69 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
           })}
 
           {/* Create new share */}
-          <div className="flex items-center gap-2 pt-1">
-            <input
-              type="text"
-              placeholder="Label (optional)"
-              value={newLabel}
-              onChange={e => setNewLabel(e.target.value)}
-              className="flex-1 bg-background border border-border rounded px-2 py-1 text-[10px] font-mono focus:outline-none focus:border-teal-400 min-w-0"
-            />
-            <div className="flex gap-0.5">
-              {DURATION_OPTIONS.map(opt => (
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Label (optional)"
+                value={newLabel}
+                onChange={e => setNewLabel(e.target.value)}
+                className="flex-1 bg-background border border-border rounded px-2 py-1 text-[10px] font-mono focus:outline-none focus:border-teal-400 min-w-0"
+              />
+              <div className="flex gap-0.5">
+                {DURATION_OPTIONS.map(opt => (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    onClick={() => setNewDuration(opt.ms)}
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-colors ${
+                      newDuration === opt.ms
+                        ? 'bg-teal-500/30 text-teal-400 border border-teal-500/50'
+                        : 'bg-secondary text-muted-foreground border border-transparent hover:border-border'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Permissions:</span>
+              {[
+                { key: 'chat', label: 'Can chat', desc: 'Send messages' },
+                { key: 'files:read', label: 'See files', desc: 'View files' },
+                { key: 'terminal:read', label: 'Watch terminal', desc: 'Read-only terminal' },
+              ].map(opt => (
                 <button
-                  key={opt.label}
+                  key={opt.key}
                   type="button"
-                  onClick={() => setNewDuration(opt.ms)}
-                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-colors ${
-                    newDuration === opt.ms
-                      ? 'bg-teal-500/30 text-teal-400 border border-teal-500/50'
-                      : 'bg-secondary text-muted-foreground border border-transparent hover:border-border'
+                  onClick={() => setNewPerms(prev => ({ ...prev, [opt.key]: !prev[opt.key] }))}
+                  title={opt.desc}
+                  className={`px-1.5 py-0.5 rounded text-[9px] transition-colors ${
+                    newPerms[opt.key]
+                      ? 'bg-teal-500/25 text-teal-400 border border-teal-500/40'
+                      : 'bg-secondary text-muted-foreground/50 border border-transparent hover:border-border'
                   }`}
                 >
                   {opt.label}
                 </button>
               ))}
+              {!newPerms.chat && !newPerms['files:read'] && !newPerms['terminal:read'] && (
+                <span className="text-[9px] text-muted-foreground/50 italic">read-only (transcript only)</span>
+              )}
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCreate}
-              disabled={creating}
-              className="text-[10px] h-6 px-2 border-teal-500/30 text-teal-400 hover:bg-teal-500/10"
-            >
-              <Link2 className="w-3 h-3 mr-1" />
-              {creating ? '...' : 'Share'}
-            </Button>
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCreate}
+                disabled={creating}
+                className="text-[10px] h-6 px-2 border-teal-500/30 text-teal-400 hover:bg-teal-500/10"
+              >
+                <Link2 className="w-3 h-3 mr-1" />
+                {creating ? '...' : 'Create share link'}
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -221,28 +235,9 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
 
 /** Small share indicator for the session list sidebar */
 export function ShareIndicator({ sessionCwd }: { sessionCwd: string }) {
-  const [count, setCount] = useState(0)
-
-  useEffect(() => {
-    let mounted = true
-    async function check() {
-      try {
-        const res = await fetch('/api/shares')
-        if (!res.ok || !mounted) return
-        const data = await res.json()
-        const active = (data.shares || []).filter(
-          (s: Share) => s.sessionCwd === sessionCwd && !s.revoked && s.expiresAt > Date.now(),
-        )
-        if (mounted) setCount(active.length)
-      } catch {}
-    }
-    check()
-    const timer = setInterval(check, 30_000)
-    return () => {
-      mounted = false
-      clearInterval(timer)
-    }
-  }, [sessionCwd])
+  const count = useSessionsStore(
+    s => s.shares.filter(sh => sh.sessionCwd === sessionCwd && sh.expiresAt > Date.now()).length,
+  )
 
   if (count === 0) return null
 
