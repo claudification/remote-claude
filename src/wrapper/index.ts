@@ -1128,6 +1128,37 @@ async function main() {
         return null
       }
     },
+    async onUploadFile(filePath) {
+      // Upload file to concentrator blob store -- NO CWD restriction (for explorer images)
+      const httpUrl = noConcentrator ? null : wsToHttpUrl(concentratorUrl)
+      if (!httpUrl) return null
+      try {
+        const file = Bun.file(filePath)
+        if (!(await file.exists())) {
+          debug(`[channel] upload_file: file not found: ${filePath}`)
+          return null
+        }
+        const res = await fetch(`${httpUrl}/api/files`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': file.type || 'application/octet-stream',
+            'X-Session-Id': claudeSessionId || internalId,
+            ...(concentratorSecret ? { Authorization: `Bearer ${concentratorSecret}` } : {}),
+          },
+          body: file,
+        })
+        if (!res.ok) {
+          debug(`[channel] upload_file: upload failed: ${res.status}`)
+          return null
+        }
+        const data = (await res.json()) as { url?: string }
+        diag('explorer', `Uploaded: ${filePath} -> ${data.url}`)
+        return data.url || null
+      } catch (err) {
+        debug(`[channel] upload_file error: ${err instanceof Error ? err.message : err}`)
+        return null
+      }
+    },
     async onListSessions(status, showMetadata) {
       if (!wsClient?.isConnected()) return []
       return new Promise(resolve => {

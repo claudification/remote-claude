@@ -13,7 +13,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { resolve } from 'node:path'
+import { resolve as resolvePath } from 'node:path'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
@@ -72,6 +72,8 @@ export interface McpChannelCallbacks {
     keyterms?: string[]
   }) => Promise<{ ok: boolean; error?: string }>
   onExplore?: (explorerId: string, layout: ExplorerLayout) => void
+  /** Upload a file without CWD restriction (for explorer image auto-upload) */
+  onUploadFile?: (filePath: string) => Promise<string | null>
 }
 
 interface McpChannelState {
@@ -115,38 +117,51 @@ async function resolveExplorerFiles(
   cwd: string,
 ): Promise<string | null> {
   for (const comp of components) {
-    const type = comp.type as string
+    try {
+      const type = comp.type as string
 
-    if (type === 'Image' && typeof comp.url === 'string' && !isUrl(comp.url)) {
-      const absPath = resolve(cwd, comp.url)
-      const file = Bun.file(absPath)
-      if (!(await file.exists())) {
-        return `Image file not found: ${comp.url} (resolved to ${absPath})`
-      }
-      const url = await uploadFile(absPath)
-      if (!url) return `Failed to upload image: ${comp.url}`
-      comp.url = url
-    }
-
-    if (type === 'ImagePicker' && Array.isArray(comp.images)) {
-      for (const img of comp.images as Array<Record<string, unknown>>) {
-        if (typeof img.url === 'string' && !isUrl(img.url)) {
-          const absPath = resolve(cwd, img.url)
+      if (type === 'Image' && typeof comp.url === 'string' && !isUrl(comp.url)) {
+        const absPath = resolvePath(cwd, comp.url)
+        try {
           const file = Bun.file(absPath)
           if (!(await file.exists())) {
-            return `ImagePicker file not found: ${img.url} (resolved to ${absPath})`
+            return `Image file not found: ${comp.url} (resolved to ${absPath})`
           }
-          const url = await uploadFile(absPath)
-          if (!url) return `Failed to upload image: ${img.url}`
-          img.url = url
+        } catch {
+          return `Image file not accessible: ${comp.url} (resolved to ${absPath})`
+        }
+        const url = await uploadFile(absPath)
+        if (!url) return `Failed to upload image: ${comp.url}`
+        comp.url = url
+      }
+
+      if (type === 'ImagePicker' && Array.isArray(comp.images)) {
+        for (const img of comp.images as Array<Record<string, unknown>>) {
+          if (typeof img.url === 'string' && !isUrl(img.url)) {
+            const absPath = resolvePath(cwd, img.url)
+            try {
+              const file = Bun.file(absPath)
+              if (!(await file.exists())) {
+                return `ImagePicker file not found: ${img.url} (resolved to ${absPath})`
+              }
+            } catch {
+              return `ImagePicker file not accessible: ${img.url} (resolved to ${absPath})`
+            }
+            const url = await uploadFile(absPath)
+            if (!url) return `Failed to upload image: ${img.url}`
+            img.url = url
+          }
         }
       }
-    }
 
-    // Recurse into layout children
-    if (Array.isArray(comp.children)) {
-      const err = await resolveExplorerFiles(comp.children as Array<Record<string, unknown>>, uploadFile, cwd)
-      if (err) return err
+      // Recurse into layout children
+      if (Array.isArray(comp.children)) {
+        const err = await resolveExplorerFiles(comp.children as Array<Record<string, unknown>>, uploadFile, cwd)
+        if (err) return err
+      }
+    } catch (err) {
+      debug(`[channel] resolveExplorerFiles error: ${err instanceof Error ? err.message : err}`)
+      return `File resolution error: ${err instanceof Error ? err.message : 'unknown'}`
     }
   }
   return null
@@ -539,8 +554,9 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
               allComponents.push(...page.body)
             }
           }
-          if (callbacks.onShareFile) {
-            const uploadErr = await resolveExplorerFiles(allComponents, callbacks.onShareFile, explorerCwd)
+          const uploader = callbacks.onUploadFile || callbacks.onShareFile
+          if (uploader) {
+            const uploadErr = await resolveExplorerFiles(allComponents, uploader, explorerCwd)
             if (uploadErr) {
               return { content: [{ type: 'text', text: `Explorer file error: ${uploadErr}` }], isError: true }
             }
