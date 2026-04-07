@@ -49,6 +49,22 @@ const PREV_STATUS: Record<string, TaskStatus> = {
   done: 'in-progress',
 }
 
+// Rotating tag pill colors
+const TAG_COLORS = [
+  'bg-[#7aa2f7]/20 text-[#7aa2f7] border-[#7aa2f7]/30',
+  'bg-[#bb9af7]/20 text-[#bb9af7] border-[#bb9af7]/30',
+  'bg-[#2ac3de]/20 text-[#2ac3de] border-[#2ac3de]/30',
+  'bg-[#9ece6a]/20 text-[#9ece6a] border-[#9ece6a]/30',
+  'bg-[#e0af68]/20 text-[#e0af68] border-[#e0af68]/30',
+  'bg-[#f7768e]/20 text-[#f7768e] border-[#f7768e]/30',
+]
+
+function tagColor(tag: string): string {
+  let hash = 0
+  for (const ch of tag) hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0
+  return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length]
+}
+
 const PRIORITY_COLORS: Record<string, string> = {
   high: 'bg-red-500/20 text-red-400 border-red-500/30',
   medium: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
@@ -64,18 +80,28 @@ function NoteEditor({
   onSave: (
     slug: string,
     status: TaskStatus,
-    patch: { title?: string; body?: string; priority?: string },
+    patch: { title?: string; body?: string; priority?: string; tags?: string[] },
   ) => Promise<unknown>
   onClose: () => void
 }) {
   const [title, setTitle] = useState(note.title)
   const [body, setBody] = useState(note.body)
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>(note.priority || 'medium')
+  const [tags, setTags] = useState<string[]>(note.tags || [])
+  const [tagInput, setTagInput] = useState('')
   const [saving, setSaving] = useState(false)
+
+  function addTag() {
+    const t = tagInput.trim().toLowerCase()
+    if (t && !tags.includes(t)) {
+      setTags([...tags, t])
+    }
+    setTagInput('')
+  }
 
   async function handleSave() {
     setSaving(true)
-    await onSave(note.slug, note.status, { title, body, priority })
+    await onSave(note.slug, note.status, { title, body, priority, tags })
     setSaving(false)
     haptic('success')
     onClose()
@@ -123,6 +149,37 @@ function NoteEditor({
           <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground ml-1">
             <X className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* Tags */}
+        <div className="flex items-center gap-1 px-4 py-1.5 border-b border-[#33467c]/30 flex-wrap shrink-0">
+          {tags.map(tag => (
+            <span
+              key={tag}
+              className={cn('text-[9px] px-1.5 py-0.5 border font-mono flex items-center gap-1', tagColor(tag))}
+            >
+              {tag}
+              <button type="button" className="hover:opacity-60" onClick={() => setTags(tags.filter(t => t !== tag))}>
+                x
+              </button>
+            </span>
+          ))}
+          <input
+            type="text"
+            value={tagInput}
+            onChange={e => setTagInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                addTag()
+              }
+              if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
+                setTags(tags.slice(0, -1))
+              }
+            }}
+            placeholder="add tag..."
+            className="text-[10px] bg-transparent text-muted-foreground outline-none w-16 font-mono placeholder:text-muted-foreground/20"
+          />
         </div>
 
         {/* Body */}
@@ -213,7 +270,7 @@ function TaskCard({
               </span>
             )}
             {note.tags.map(tag => (
-              <span key={tag} className="text-[9px] px-1 py-0.5 bg-[#33467c]/20 text-[#565f89] font-mono">
+              <span key={tag} className={cn('text-[9px] px-1 py-0.5 border font-mono', tagColor(tag))}>
                 {tag}
               </span>
             ))}
