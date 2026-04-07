@@ -94,7 +94,7 @@ export function ActionFab() {
   const angles = [-135, -105, -75, -45]
 
   return (
-    <div data-action-fab className="fixed z-[54] right-3 bottom-6" style={{ width: 44, height: 44 }}>
+    <div data-action-fab className="fixed z-[54] right-3" style={{ width: 44, height: 44, top: 'calc(50% + 32px)' }}>
       {/* Fan action buttons */}
       {actions.map((action, i) => {
         const angle = (angles[i] * Math.PI) / 180
