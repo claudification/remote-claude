@@ -1246,6 +1246,16 @@ async function main() {
         } as unknown as WrapperMessage)
       }
     },
+    onExploreDismiss(explorerId) {
+      diag('explorer', `Dismiss: ${explorerId.slice(0, 8)}`)
+      if (wsClient?.isConnected()) {
+        wsClient.send({
+          type: 'explorer_dismiss',
+          sessionId: claudeSessionId || internalId,
+          explorerId,
+        } as unknown as WrapperMessage)
+      }
+    },
     onDisconnect() {
       diag('channel', 'Channel disconnected')
     },

@@ -85,6 +85,7 @@ export interface McpChannelCallbacks {
     keyterms?: string[]
   }) => Promise<{ ok: boolean; error?: string }>
   onExplore?: (explorerId: string, layout: ExplorerLayout) => void
+  onExploreDismiss?: (explorerId: string) => void
   /** Upload a file without CWD restriction (for explorer image auto-upload) */
   onUploadFile?: (filePath: string) => Promise<string | null>
 }
@@ -199,6 +200,8 @@ export function resolveExplorer(explorerId: string, result: ExplorerResult): boo
     const formatted = JSON.stringify(result, null, 2)
     pushChannelMessage(`Explorer result:\n${formatted}`, { source: 'explorer' })
   }
+  // Dismiss on all dashboard subscribers (cleanup for other tabs/devices)
+  callbacks.onExploreDismiss?.(explorerId)
   return true
 }
 
@@ -218,6 +221,7 @@ export function keepaliveExplorer(explorerId: string): boolean {
     pending.timer = setTimeout(() => {
       pendingExplorers.delete(explorerId)
       pushChannelMessage('Explorer timed out - user did not respond.', { source: 'explorer' })
+      callbacks.onExploreDismiss?.(explorerId)
     }, minRemaining)
     elog(`keepalive: ${explorerId.slice(0, 8)} extended to ${Math.round(minRemaining / 1000)}s`)
   }
@@ -638,8 +642,8 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
               if (pending) {
                 pendingExplorers.delete(explorerId)
                 elog(` timeout: ${explorerId.slice(0, 8)}`)
-                // Dismiss on dashboard
-                callbacks.onExplore?.(explorerId, { title: '__dismiss__' } as ExplorerLayout)
+                pushChannelMessage('Explorer timed out - user did not respond.', { source: 'explorer' })
+                callbacks.onExploreDismiss?.(explorerId)
               }
             }, timeout)
 
