@@ -1,13 +1,64 @@
 /**
- * Shiki syntax highlighting - lazy-loaded singleton highlighter
- * Used by DiffView, WritePreview, ShellCommand for code highlighting
+ * Shiki syntax highlighting - using shiki/core with explicit lang/theme imports
+ * Only bundles what we actually use instead of the full web bundle (~120 fewer chunks)
  */
 
-// Lazy singleton highlighter
-// biome-ignore lint/suspicious/noExplicitAny: shiki's HighlighterGeneric type is complex and internal
-let highlighterPromise: Promise<any> | null = null
+import type { HighlighterCore } from 'shiki/core'
 
-const EAGER_LANGS = [
+// Lazy singleton highlighter
+let highlighterPromise: Promise<HighlighterCore> | null = null
+
+// Languages loaded eagerly on init (most common in transcripts)
+const EAGER_LANG_IMPORTS = () =>
+  Promise.all([
+    import('shiki/langs/javascript'),
+    import('shiki/langs/typescript'),
+    import('shiki/langs/tsx'),
+    import('shiki/langs/jsx'),
+    import('shiki/langs/shellscript'),
+    import('shiki/langs/html'),
+    import('shiki/langs/astro'),
+    import('shiki/langs/css'),
+    import('shiki/langs/json'),
+    import('shiki/langs/yaml'),
+    import('shiki/langs/markdown'),
+  ])
+
+// Languages available for lazy loading (less common)
+const LAZY_LANG_LOADERS: Record<string, () => Promise<unknown>> = {
+  python: () => import('shiki/langs/python'),
+  ruby: () => import('shiki/langs/ruby'),
+  rust: () => import('shiki/langs/rust'),
+  go: () => import('shiki/langs/go'),
+  java: () => import('shiki/langs/java'),
+  c: () => import('shiki/langs/c'),
+  cpp: () => import('shiki/langs/cpp'),
+  csharp: () => import('shiki/langs/csharp'),
+  scss: () => import('shiki/langs/scss'),
+  less: () => import('shiki/langs/less'),
+  sass: () => import('shiki/langs/sass'),
+  vue: () => import('shiki/langs/vue'),
+  svelte: () => import('shiki/langs/svelte'),
+  jsonc: () => import('shiki/langs/jsonc'),
+  json5: () => import('shiki/langs/json5'),
+  xml: () => import('shiki/langs/xml'),
+  toml: () => import('shiki/langs/toml'),
+  mdx: () => import('shiki/langs/mdx'),
+  sql: () => import('shiki/langs/sql'),
+  graphql: () => import('shiki/langs/graphql'),
+  php: () => import('shiki/langs/php'),
+  r: () => import('shiki/langs/r'),
+  coffee: () => import('shiki/langs/coffee'),
+  pug: () => import('shiki/langs/pug'),
+  handlebars: () => import('shiki/langs/handlebars'),
+  dockerfile: () => import('shiki/langs/dockerfile'),
+  swift: () => import('shiki/langs/swift'),
+  kotlin: () => import('shiki/langs/kotlin'),
+  lua: () => import('shiki/langs/lua'),
+}
+
+// All known language IDs (eager + lazy)
+const ALL_LANGS = new Set([
   'javascript',
   'typescript',
   'tsx',
@@ -19,30 +70,39 @@ const EAGER_LANGS = [
   'json',
   'yaml',
   'markdown',
-]
+  ...Object.keys(LAZY_LANG_LOADERS),
+])
 
-export function getHighlighter() {
+export function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
-    highlighterPromise = import('shiki/bundle/web').then(m =>
-      m.createHighlighter({
-        themes: ['tokyo-night'],
-        langs: EAGER_LANGS,
-      }),
-    )
+    highlighterPromise = (async () => {
+      const [{ createHighlighterCore }, { createJavaScriptRegexEngine }, tokyoNight, eagerLangs] = await Promise.all([
+        import('shiki/core'),
+        import('shiki/engine/javascript'),
+        import('shiki/themes/tokyo-night'),
+        EAGER_LANG_IMPORTS(),
+      ])
+      return createHighlighterCore({
+        themes: [tokyoNight],
+        langs: eagerLangs.flatMap(m => m.default),
+        engine: createJavaScriptRegexEngine(),
+      })
+    })()
   }
   return highlighterPromise
 }
 
 // Lazy-load a language into the highlighter if not already loaded
 export async function ensureLang(lang: string): Promise<boolean> {
+  if (!ALL_LANGS.has(lang)) return false
   const hl = await getHighlighter()
   const loaded = hl.getLoadedLanguages() as string[]
   if (loaded.includes(lang)) return true
+  const loader = LAZY_LANG_LOADERS[lang]
+  if (!loader) return false
   try {
-    const mod = await import('shiki/bundle/web')
-    const available = mod.bundledLanguagesInfo.map((l: { id: string }) => l.id)
-    if (!available.includes(lang)) return false
-    await hl.loadLanguage(lang)
+    const mod = (await loader()) as { default: unknown[] }
+    await hl.loadLanguage(...(mod.default as Parameters<typeof hl.loadLanguage>))
     return true
   } catch {
     return false
@@ -64,6 +124,7 @@ const EXT_TO_LANG: Record<string, string> = {
   cpp: 'cpp',
   h: 'cpp',
   hpp: 'cpp',
+  cs: 'csharp',
   css: 'css',
   scss: 'scss',
   less: 'less',
@@ -94,6 +155,10 @@ const EXT_TO_LANG: Record<string, string> = {
   coffee: 'coffee',
   pug: 'pug',
   hbs: 'handlebars',
+  dockerfile: 'dockerfile',
+  swift: 'swift',
+  kt: 'kotlin',
+  lua: 'lua',
 }
 
 export function langFromPath(filePath: string): string | undefined {

@@ -67,11 +67,9 @@ function toYaml(obj: unknown, indent = 0): string {
 let highlightPromise: Promise<{ codeToHtml: (code: string, opts: { lang: string; theme: string }) => string }> | null =
   null
 
-function getHighlighter() {
+function getDiagHighlighter() {
   if (!highlightPromise) {
-    highlightPromise = import('shiki/bundle/web').then(m =>
-      m.createHighlighter({ themes: ['tokyo-night'], langs: ['yaml'] }),
-    )
+    highlightPromise = import('./transcript/syntax').then(m => m.getHighlighter())
   }
   return highlightPromise
 }
@@ -98,7 +96,7 @@ export function DiagView({ sessionId }: DiagViewProps) {
 
   useEffect(() => {
     if (!yaml) return
-    getHighlighter()
+    getDiagHighlighter()
       .then(hl => {
         const html = hl.codeToHtml(yaml, { lang: 'yaml', theme: 'tokyo-night' })
         setHighlighted(html)
