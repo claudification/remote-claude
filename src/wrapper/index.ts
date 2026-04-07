@@ -33,6 +33,15 @@ import { Osc52Parser } from './osc52-parser'
 import { createRulesEngine } from './permission-rules'
 import { getTerminalSize, type PtyProcess, setupTerminalPassthrough, spawnClaude } from './pty-spawn'
 import { cleanupSettings, writeMergedSettings } from './settings-merge'
+import {
+  createTaskNote,
+  deleteTaskNote,
+  getTaskNote,
+  listTaskNotes,
+  moveTaskNote,
+  type TaskStatus,
+  updateTaskNote,
+} from './task-notes'
 import { createTranscriptWatcher, type TranscriptWatcher } from './transcript-watcher'
 import { createWsClient, type WsClient } from './ws-client'
 
@@ -868,6 +877,66 @@ async function main() {
           .appendNote(msg.text as string)
           .then(result => respond('quick_note_response', { version: result.version }))
           .catch(err => respondError('quick_note_response', err))
+        break
+      case 'task_notes_list':
+        try {
+          const notes = listTaskNotes(cwd, msg.status as TaskStatus | undefined)
+          respond('task_notes_list_response', { notes })
+        } catch (err) {
+          respondError('task_notes_list_response', err)
+        }
+        break
+      case 'task_notes_create':
+        try {
+          const note = createTaskNote(cwd, {
+            title: msg.title as string | undefined,
+            body: msg.body as string,
+            priority: msg.priority as 'low' | 'medium' | 'high' | undefined,
+            tags: msg.tags as string[] | undefined,
+            refs: msg.refs as string[] | undefined,
+          })
+          respond('task_notes_create_response', { note })
+        } catch (err) {
+          respondError('task_notes_create_response', err)
+        }
+        break
+      case 'task_notes_move':
+        try {
+          const ok = moveTaskNote(cwd, msg.slug as string, msg.from as TaskStatus, msg.to as TaskStatus)
+          respond('task_notes_move_response', { ok })
+        } catch (err) {
+          respondError('task_notes_move_response', err)
+        }
+        break
+      case 'task_notes_delete':
+        try {
+          const ok = deleteTaskNote(cwd, msg.status as TaskStatus, msg.slug as string)
+          respond('task_notes_delete_response', { ok })
+        } catch (err) {
+          respondError('task_notes_delete_response', err)
+        }
+        break
+      case 'task_notes_read':
+        try {
+          const note = getTaskNote(cwd, msg.status as TaskStatus, msg.slug as string)
+          respond('task_notes_read_response', { note })
+        } catch (err) {
+          respondError('task_notes_read_response', err)
+        }
+        break
+      case 'task_notes_update':
+        try {
+          const note = updateTaskNote(cwd, msg.status as TaskStatus, msg.slug as string, {
+            title: msg.title as string | undefined,
+            body: msg.body as string | undefined,
+            priority: msg.priority as 'low' | 'medium' | 'high' | undefined,
+            tags: msg.tags as string[] | undefined,
+            refs: msg.refs as string[] | undefined,
+          })
+          respond('task_notes_update_response', { note })
+        } catch (err) {
+          respondError('task_notes_update_response', err)
+        }
         break
     }
     debug(`File editor: ${type}${msg.path ? ` path=${msg.path}` : ''}`)

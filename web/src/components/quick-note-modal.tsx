@@ -1,12 +1,12 @@
 /**
  * Quick Note Modal - Ctrl+Shift+N shortcut
- * Appends a task item to CWD/NOTES.md
+ * Creates a task note in .claude/.rclaude/tasks/open/
  */
 
 import { FileText, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { useFileEditor } from '@/hooks/use-file-editor'
 import { useSessionsStore } from '@/hooks/use-sessions'
+import { useTaskNotes } from '@/hooks/use-task-notes'
 import { haptic } from '@/lib/utils'
 import { MarkdownInput } from './markdown-input'
 
@@ -22,7 +22,7 @@ export function QuickNoteModal() {
     return s != null && s.status !== 'ended'
   })
 
-  const { appendQuickNote } = useFileEditor(selectedSessionId && isActive ? selectedSessionId : null)
+  const { createNote } = useTaskNotes(selectedSessionId && isActive ? selectedSessionId : null)
 
   // Global keyboard shortcut + programmatic open via custom event
   useEffect(() => {
@@ -58,7 +58,10 @@ export function QuickNoteModal() {
     haptic('tap')
     setSending(true)
     try {
-      await appendQuickNote(text.trim())
+      const lines = text.trim().split('\n')
+      const title = lines[0]
+      const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : text.trim()
+      await createNote({ title, body })
       haptic('success')
       setText('')
       setOpen(false)
@@ -69,13 +72,13 @@ export function QuickNoteModal() {
     } finally {
       setSending(false)
     }
-  }, [text, sending, appendQuickNote])
+  }, [text, sending, createNote])
 
   if (!open) {
     if (flash) {
       return (
         <div className="fixed bottom-4 right-4 z-[100] px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 text-xs font-mono animate-pulse">
-          Note added to NOTES.md
+          Task note created
         </div>
       )
     }
@@ -102,7 +105,7 @@ export function QuickNoteModal() {
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
           <FileText className="w-4 h-4 text-accent" />
           <span className="text-xs font-bold text-foreground">Quick Note</span>
-          <span className="text-[10px] text-muted-foreground ml-1">NOTES.md</span>
+          <span className="text-[10px] text-muted-foreground ml-1">task note</span>
           <button
             type="button"
             onClick={() => setOpen(false)}
@@ -117,7 +120,7 @@ export function QuickNoteModal() {
             onChange={setText}
             onSubmit={handleSubmit}
             disabled={sending}
-            placeholder="Type a note (creates - [ ] item)... Shift+Enter for new line"
+            placeholder="First line = title, rest = body... Shift+Enter for new line"
             autoFocus
             inline
           />

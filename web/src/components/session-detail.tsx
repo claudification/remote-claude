@@ -18,12 +18,13 @@ import { renderProjectIcon } from './project-settings-editor'
 import { ShareBanner } from './share-panel'
 import { SharedView } from './shared-view'
 import { SubagentView } from './subagent-view'
+import { TaskBoard } from './task-board'
 import { TasksView } from './tasks-view'
 import { TranscriptView } from './transcript'
 
 const WebTerminal = lazy(() => import('./web-terminal').then(m => ({ default: m.WebTerminal })))
 
-type Tab = 'transcript' | 'tty' | 'events' | 'agents' | 'tasks' | 'files' | 'shared' | 'diag'
+type Tab = 'transcript' | 'tty' | 'events' | 'agents' | 'tasks' | 'files' | 'shared' | 'notes' | 'diag'
 
 // Stable empty references to avoid re-render loops with Zustand selectors
 // (Zustand uses Object.is - a new [] !== previous [], causing infinite re-renders)
@@ -1423,6 +1424,21 @@ export function SessionDetail() {
               type="button"
               onClick={() => {
                 haptic('tick')
+                setActiveTab('notes')
+              }}
+              className={cn(
+                'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
+                activeTab === 'notes'
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Notes
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                haptic('tick')
                 setActiveTab('shared')
               }}
               className={cn(
@@ -1541,6 +1557,9 @@ export function SessionDetail() {
             <div className="flex-1 min-h-0 overflow-hidden">
               <FileEditor sessionId={selectedSessionId} />
             </div>
+          )}
+          {!conversationTarget && activeTab === 'notes' && selectedSessionId && (
+            <TaskBoard sessionId={selectedSessionId} />
           )}
           {!conversationTarget && activeTab === 'shared' && session && <SharedView cwd={session.cwd} />}
           {!conversationTarget && activeTab === 'diag' && selectedSessionId && (

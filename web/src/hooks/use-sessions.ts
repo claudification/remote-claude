@@ -188,6 +188,7 @@ interface SessionsState {
   setTerminalHandler: (handler: ((msg: TerminalMessage) => void) | null) => void
   fileHandler: ((msg: Record<string, unknown>) => void) | null
   setFileHandler: (handler: ((msg: Record<string, unknown>) => void) | null) => void
+  taskNotesHandler: ((msg: Record<string, unknown>) => void) | null
   sendWsMessage: (msg: Record<string, unknown>) => void
   dismissSession: (sessionId: string) => void
   setPendingFilePath: (path: string | null) => void
@@ -328,6 +329,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   ws: null,
   terminalHandler: null,
   fileHandler: null,
+  taskNotesHandler: null,
   showTerminal: false,
   terminalWrapperId: null,
   showSwitcher: false,

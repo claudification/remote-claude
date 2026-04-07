@@ -715,6 +715,13 @@ export function useWebSocket() {
             return
           }
 
+          // Task notes messages -> direct handler callback
+          if (typeof msg.type === 'string' && msg.type.startsWith('task_notes_') && msg.type.endsWith('_response')) {
+            const handler = useSessionsStore.getState().taskNotesHandler
+            handler?.(msg as unknown as Record<string, unknown>)
+            return
+          }
+
           // Terminal data -> direct handler callback (low latency critical)
           if (msg.type === 'terminal_data' || msg.type === 'terminal_error') {
             const handler = useSessionsStore.getState().terminalHandler

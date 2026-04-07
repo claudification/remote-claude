@@ -341,7 +341,11 @@ export function createWsClient(options: WsClientOptions): WsClient {
                 onRendezvousResult?.(message as Record<string, unknown>)
                 break
               }
-              if (msgType?.startsWith('file_') || msgType === 'quick_note_append') {
+              if (
+                msgType?.startsWith('file_') ||
+                msgType?.startsWith('task_notes_') ||
+                msgType === 'quick_note_append'
+              ) {
                 onFileEditorMessage?.(message as unknown as Record<string, unknown>)
               }
               break

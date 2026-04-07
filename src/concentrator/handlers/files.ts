@@ -21,14 +21,24 @@ const fileEditorRequest: MessageHandler = (ctx, data) => {
   if (!ctx.ws.data.isDashboard || !data.sessionId) return
   // Permission: write ops need 'files', read ops need 'files:read'
   const msgType = data.type as string
-  const isWrite = msgType === 'file_save' || msgType === 'file_restore' || msgType === 'quick_note_append'
+  const isWrite =
+    msgType === 'file_save' ||
+    msgType === 'file_restore' ||
+    msgType === 'quick_note_append' ||
+    msgType === 'task_notes_create' ||
+    msgType === 'task_notes_move' ||
+    msgType === 'task_notes_delete' ||
+    msgType === 'task_notes_update'
   const sess = ctx.sessions.getSession(data.sessionId as string)
   if (sess) ctx.requirePermission(isWrite ? 'files' : 'files:read', sess.cwd)
   const targetSocket = ctx.sessions.getSessionSocket(data.sessionId as string)
   if (targetSocket) {
     targetSocket.send(JSON.stringify(data))
   } else {
-    const replyType = (data.type as string).replace('_request', '_response').replace('_save', '_save_response')
+    const t = data.type as string
+    const replyType = t.startsWith('task_notes_')
+      ? `${t}_response`
+      : t.replace('_request', '_response').replace('_save', '_save_response')
     ctx.reply({ type: replyType, requestId: data.requestId, error: 'Session not connected' })
   }
 }
@@ -64,6 +74,13 @@ export function registerFileHandlers(): void {
     file_history_request: fileEditorRequest,
     file_restore: fileEditorRequest,
     quick_note_append: fileEditorRequest,
+    // Task notes (dashboard -> wrapper)
+    task_notes_list: fileEditorRequest,
+    task_notes_create: fileEditorRequest,
+    task_notes_move: fileEditorRequest,
+    task_notes_delete: fileEditorRequest,
+    task_notes_read: fileEditorRequest,
+    task_notes_update: fileEditorRequest,
     // Wrapper -> dashboard responses (all share the same handler)
     file_list_response: fileEditorResponse,
     file_content_response: fileEditorResponse,
@@ -72,6 +89,13 @@ export function registerFileHandlers(): void {
     file_restore_response: fileEditorResponse,
     quick_note_response: fileEditorResponse,
     file_changed: fileEditorResponse,
+    // Task notes responses (wrapper -> dashboard)
+    task_notes_list_response: fileEditorResponse,
+    task_notes_create_response: fileEditorResponse,
+    task_notes_move_response: fileEditorResponse,
+    task_notes_delete_response: fileEditorResponse,
+    task_notes_read_response: fileEditorResponse,
+    task_notes_update_response: fileEditorResponse,
     // File proxy
     file_request: fileRequest,
   })
