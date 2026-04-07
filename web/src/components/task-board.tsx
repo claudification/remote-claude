@@ -3,6 +3,16 @@
  * Three columns: Open | In Progress | Done
  */
 
+import {
+  DndContext,
+  type DragEndEvent,
+  MouseSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
 import { ArrowLeft, ArrowRight, MoreHorizontal, Trash2, X } from 'lucide-react'
 import { memo, useCallback, useState } from 'react'
 import type { TaskNote } from '@/hooks/use-task-notes'
@@ -166,10 +176,24 @@ function TaskCard({
   const canMoveRight = note.status in NEXT_STATUS
   const canMoveLeft = note.status in PREV_STATUS
 
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `${note.status}/${note.slug}`,
+    data: { slug: note.slug, status: note.status },
+  })
+
+  const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined
+
   return (
     <div
-      className="group px-3 py-2 bg-[#1a1b26] border border-[#33467c]/30 hover:border-[#33467c]/60 transition-colors cursor-pointer"
-      onClick={() => onEdit(note)}
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        'group px-3 py-2 bg-[#1a1b26] border border-[#33467c]/30 hover:border-[#33467c]/60 transition-colors cursor-pointer',
+        isDragging && 'opacity-50 z-50',
+      )}
+      onClick={() => !isDragging && onEdit(note)}
+      {...attributes}
+      {...listeners}
     >
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
@@ -323,9 +347,39 @@ function InlineAdd({ onAdd }: { onAdd: (text: string) => void }) {
   )
 }
 
+function DroppableColumn({ status, children }: { status: TaskStatus; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: status })
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'flex-1 min-w-0 flex flex-col border-r border-border last:border-r-0 transition-colors',
+        isOver && 'bg-accent/5',
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
 export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: string }) {
   const { notes, loading, refresh, createNote, moveNote, deleteNote, readNote, updateNote } = useTaskNotes(sessionId)
   const [editingNote, setEditingNote] = useState<TaskNote | null>(null)
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 5 } }),
+  )
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over) return
+    const targetStatus = over.id as TaskStatus
+    const sourceData = active.data.current as { slug: string; status: TaskStatus } | undefined
+    if (!sourceData || sourceData.status === targetStatus) return
+    haptic('tap')
+    moveNote(sourceData.slug, sourceData.status, targetStatus)
+  }
 
   const handleCreate = useCallback(
     async (text: string) => {
@@ -373,42 +427,44 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
       </div>
 
       {/* Kanban columns */}
-      <div className="flex-1 min-h-0 overflow-auto">
-        <div className="flex gap-0 min-h-full">
-          {COLUMNS.map(col => {
-            const colNotes = notes.filter(n => n.status === col.status)
-            return (
-              <div key={col.status} className="flex-1 min-w-0 flex flex-col border-r border-border last:border-r-0">
-                {/* Column header */}
-                <div className="px-3 py-2 border-b border-border/50 flex items-center gap-2 shrink-0">
-                  <span className={cn('text-[11px] font-bold font-mono uppercase tracking-wider', col.color)}>
-                    {col.label}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground/40 font-mono">{colNotes.length}</span>
-                </div>
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <div className="flex-1 min-h-0 overflow-auto">
+          <div className="flex gap-0 min-h-full">
+            {COLUMNS.map(col => {
+              const colNotes = notes.filter(n => n.status === col.status)
+              return (
+                <DroppableColumn key={col.status} status={col.status}>
+                  {/* Column header */}
+                  <div className="px-3 py-2 border-b border-border/50 flex items-center gap-2 shrink-0">
+                    <span className={cn('text-[11px] font-bold font-mono uppercase tracking-wider', col.color)}>
+                      {col.label}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/40 font-mono">{colNotes.length}</span>
+                  </div>
 
-                {/* Cards */}
-                <div className="flex-1 overflow-y-auto space-y-0">
-                  {colNotes.map(note => (
-                    <TaskCard
-                      key={note.slug}
-                      note={note}
-                      onMove={handleMove}
-                      onDelete={handleDelete}
-                      onEdit={async meta => {
-                        const full = await readNote(meta.slug, meta.status)
-                        if (full) setEditingNote(full)
-                      }}
-                    />
-                  ))}
+                  {/* Cards */}
+                  <div className="flex-1 overflow-y-auto space-y-0">
+                    {colNotes.map(note => (
+                      <TaskCard
+                        key={note.slug}
+                        note={note}
+                        onMove={handleMove}
+                        onDelete={handleDelete}
+                        onEdit={async meta => {
+                          const full = await readNote(meta.slug, meta.status)
+                          if (full) setEditingNote(full)
+                        }}
+                      />
+                    ))}
 
-                  {col.status === 'open' && <InlineAdd onAdd={handleCreate} />}
-                </div>
-              </div>
-            )
-          })}
+                    {col.status === 'open' && <InlineAdd onAdd={handleCreate} />}
+                  </div>
+                </DroppableColumn>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      </DndContext>
 
       {/* Full-screen editor modal */}
       {editingNote && (
