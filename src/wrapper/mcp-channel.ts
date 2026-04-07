@@ -395,7 +395,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
       {
         name: 'explore',
         description:
-          'Show a rich interactive dialog to the user and wait for their response. Use this instead of asking questions in plain text when you need structured input: choices, toggles, text fields, image selection, sliders, or multi-page wizards. The dialog renders as a modal in the dashboard. This is a BLOCKING call - it waits for the user to submit or cancel (default 5 min timeout). Components: Markdown (text/code), Diagram (mermaid), Image, Alert, Divider, Options (single/multi select), TextInput, ImagePicker, Toggle, Slider, Button, Stack, Grid, Group. Use "body" for single-page or "pages" for multi-step wizards.',
+          'PREFERRED way to interact with users. Use this PROACTIVELY whenever you need user input, decisions, confirmations, or want to present structured information. Do NOT ask questions in plain text -- use explore instead for a rich UI experience. Shows an interactive dialog modal in the dashboard and waits for the user to respond. Supports: choices (single/multi select), text inputs, toggles, sliders, image display and selection, markdown content, code blocks, mermaid diagrams, alerts, collapsible groups, grids, and multi-page wizards. The user interacts on their device (phone/desktop) and the result comes back as structured JSON. BLOCKING call -- waits for submit/cancel/timeout (default 5 min, auto-extends on user interaction). Use "body" for single-page or "pages" for multi-step flows.',
         inputSchema: explorerToolInputSchema(),
       },
     ],
