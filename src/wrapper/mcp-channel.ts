@@ -15,7 +15,7 @@
 import { randomUUID } from 'node:crypto'
 import { appendFileSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { ExplorerLayout, ExplorerResult } from '../shared/explorer-schema'
@@ -90,7 +90,7 @@ export interface McpChannelCallbacks {
 }
 
 interface McpChannelState {
-  server: Server
+  mcpServer: McpServer
   transport: WebStandardStreamableHTTPServerTransport
   connected: boolean
 }
@@ -277,7 +277,7 @@ export function keepaliveExplorer(explorerId: string): boolean {
 export function initMcpChannel(cb: McpChannelCallbacks): void {
   callbacks = cb
 
-  const server = new Server(
+  const mcpServer = new McpServer(
     { name: 'rclaude', version: '1.0.0' },
     {
       capabilities: {
@@ -290,6 +290,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
       },
     },
   )
+  const server = mcpServer.server // low-level access for custom handlers
 
   // Register MCP tools
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -770,7 +771,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
     debug(`[channel] Transport error: ${err.message}`)
   }
 
-  state = { server, transport, connected: false }
+  state = { mcpServer, transport, connected: false }
 
   // Keepalive: send periodic no-op notifications to prevent idle timeout.
   // The MCP SDK sends these through the SSE stream as events, keeping it alive.
@@ -778,7 +779,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
     if (!state?.connected) return
     try {
       // Send an empty log notification as keepalive -- lightweight, doesn't pollute Claude's context
-      state.server.notification({
+      state.mcpServer.server.notification({
         method: 'notifications/message',
         params: { level: 'debug', data: 'keepalive', logger: 'rclaude' },
       })
@@ -800,7 +801,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
 export async function connectMcpChannel(): Promise<void> {
   if (!state || state.connected) return
   try {
-    await state.server.connect(state.transport)
+    await state.mcpServer.connect(state.transport)
     state.connected = true
     debug('[channel] MCP server connected to transport')
   } catch (err) {
@@ -846,7 +847,7 @@ export async function pushChannelMessage(message: string, meta?: Record<string, 
         },
       },
     }
-    await state.server.notification(notification)
+    await state.mcpServer.server.notification(notification)
     debug(`[channel] Pushed: ${message.slice(0, 80)}`)
     return true
   } catch (err) {
@@ -880,7 +881,7 @@ export async function sendPermissionResponse(requestId: string, behavior: 'allow
   }
 
   try {
-    await state.server.notification({
+    await state.mcpServer.server.notification({
       method: 'notifications/claude/channel/permission' as const,
       params: { request_id: requestId, behavior },
     })
@@ -905,7 +906,7 @@ export async function closeMcpChannel(): Promise<void> {
       await state.transport.close()
     } catch {}
     try {
-      await state.server.close()
+      await state.mcpServer.close()
     } catch {}
     state = null
     debug('[channel] MCP channel server closed')
