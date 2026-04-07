@@ -136,6 +136,23 @@ async function resolveExplorerFiles(
     try {
       const type = comp.type as string
 
+      // Markdown: resolve file prop -> inline content
+      if (type === 'Markdown' && typeof comp.file === 'string' && !comp.content) {
+        const filePath = comp.file as string
+        const absPath = resolvePath(cwd, filePath)
+        try {
+          const file = Bun.file(absPath)
+          if (!(await file.exists())) {
+            return `Markdown file not found: ${filePath} (resolved to ${absPath})`
+          }
+          comp.content = await file.text()
+          delete comp.file
+          elog(`inlined file: ${filePath} (${(comp.content as string).length} chars)`)
+        } catch (err) {
+          return `Markdown file not readable: ${filePath} (${err instanceof Error ? err.message : 'unknown'})`
+        }
+      }
+
       if (type === 'Image' && typeof comp.url === 'string' && !isUrl(comp.url)) {
         const absPath = resolvePath(cwd, comp.url)
         try {

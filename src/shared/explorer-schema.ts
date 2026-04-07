@@ -29,7 +29,8 @@ export type AlertIntent = 'info' | 'warning' | 'error' | 'success'
 
 export interface MarkdownComponent {
   type: 'Markdown'
-  content: string
+  content?: string // inline markdown text
+  file?: string // path to a markdown/text file (resolved by wrapper, mutually exclusive with content)
   color?: ExplorerColor
 }
 
@@ -321,7 +322,9 @@ function validateComponent(comp: unknown, errors: string[], ids: Set<string>, de
   // Validate required fields per type
   switch (type) {
     case 'Markdown':
-      if (typeof c.content !== 'string') errors.push('Markdown.content is required')
+      if (typeof c.content !== 'string' && typeof c.file !== 'string') {
+        errors.push('Markdown requires either "content" or "file"')
+      }
       break
     case 'Diagram':
       if (typeof c.content !== 'string') errors.push('Diagram.content is required')
@@ -400,7 +403,7 @@ export function explorerToolInputSchema(): Record<string, unknown> {
       body: {
         type: 'array',
         description:
-          'Single-page layout. Array of components. Mutually exclusive with "pages". Component types: Markdown (content, color?), Diagram (content), Image (url, alt?), Alert (intent?: info|warning|error|success, content), Divider, Options (id, options[{value,label,description?}], label?, multi?, required?, default?), TextInput (id, label?, placeholder?, required?, multiline?, default?), ImagePicker (id, images[{value,url,label?}], label?, multi?, allowUpload?), Toggle (id, label, default?), Slider (id, label?, min?, max?, step?, default?), Button (id, label, variant?: default|primary|outline|ghost, intent?: neutral|destructive|success), Stack (direction?: vertical|horizontal, children[]), Grid (columns?, children[]), Group (label, collapsed?, children[]). Colors: primary|secondary|muted|accent|destructive|success|warning|info. All text/label fields support markdown.',
+          'Single-page layout. Array of components. Mutually exclusive with "pages". Component types: Markdown (content OR file -- use file to reference a local path instead of inlining text, saves context tokens; color?), Diagram (content), Image (url, alt?), Alert (intent?: info|warning|error|success, content), Divider, Options (id, options[{value,label,description?}], label?, multi?, required?, default?), TextInput (id, label?, placeholder?, required?, multiline?, default?), ImagePicker (id, images[{value,url,label?}], label?, multi?, allowUpload?), Toggle (id, label, default?), Slider (id, label?, min?, max?, step?, default?), Button (id, label, variant?: default|primary|outline|ghost, intent?: neutral|destructive|success), Stack (direction?: vertical|horizontal, children[]), Grid (columns?, children[]), Group (label, collapsed?, children[]). Colors: primary|secondary|muted|accent|destructive|success|warning|info. All text/label fields support markdown.',
         items: { type: 'object' },
       },
       pages: {

@@ -494,7 +494,7 @@ export const ComponentRenderer = memo(function ComponentRenderer({
   switch (component.type) {
     // Content
     case 'Markdown':
-      return <MarkdownBlock content={component.content} color={component.color} />
+      return <MarkdownBlock content={component.content || ''} color={component.color} />
     case 'Diagram':
       return <DiagramBlock content={component.content} />
     case 'Image':
