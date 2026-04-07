@@ -147,7 +147,17 @@ export function GroupView({
         isError?: boolean
       }
     | { kind: 'bash'; text: string }
-    | { kind: 'channel'; text: string; source: string; sessionId?: string; intent?: string; isInterSession?: boolean }
+    | {
+        kind: 'channel'
+        text: string
+        source: string
+        sessionId?: string
+        intent?: string
+        isInterSession?: boolean
+        isExplorer?: boolean
+        explorerStatus?: string
+        explorerAction?: string
+      }
     | { kind: 'images'; images: Array<{ hash: string; ext: string; url: string; originalPath: string }> }
 
   const items: RenderItem[] = []
@@ -185,6 +195,18 @@ export function GroupView({
               sessionId: fromSessionId,
               intent: intent || undefined,
               isInterSession: true,
+            })
+          } else if (sender === 'explorer') {
+            // Explorer result -- structured display
+            const status = getAttr('status') || 'submitted'
+            const action = getAttr('action')
+            items.push({
+              kind: 'channel',
+              text: msg,
+              source: 'explorer',
+              isExplorer: true,
+              explorerStatus: status,
+              explorerAction: action || undefined,
             })
           } else if (source === 'rclaude') {
             // Our own dashboard input -- strip wrapper, show as text
@@ -251,7 +273,7 @@ export function GroupView({
 
   // Chat bubble layout for user messages (opt-in)
   // Skip bubbles for inter-session messages - they use the teal card renderer instead
-  const hasInterSessionContent = items.some(it => it.kind === 'channel' && it.isInterSession)
+  const hasInterSessionContent = items.some(it => it.kind === 'channel' && (it.isInterSession || it.isExplorer))
   if (chatBubbles && isUser && !hasInterSessionContent) {
     const bubbleBg = BUBBLE_COLORS[bubbleColor] || BUBBLE_COLORS.blue
     return (
@@ -425,6 +447,87 @@ export function GroupView({
                     <div className="text-sm">
                       <Markdown>{item.text}</Markdown>
                     </div>
+                  </div>
+                )
+              }
+              if (item.isExplorer) {
+                const statusStyles: Record<string, string> = {
+                  submitted: 'bg-violet-500/15 text-violet-400 border-violet-500/30',
+                  cancelled: 'bg-zinc-500/15 text-muted-foreground border-zinc-500/20',
+                  timeout: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+                }
+                const sStyle = statusStyles[item.explorerStatus || 'submitted'] || statusStyles.submitted
+                // Parse JSON values from the message
+                let userValues: Array<[string, unknown]> = []
+                try {
+                  const parsed = JSON.parse(item.text)
+                  if (typeof parsed === 'object' && parsed !== null) {
+                    userValues = Object.entries(parsed)
+                  }
+                } catch {
+                  /* not JSON, show as text */
+                }
+
+                return (
+                  <div key={i} className="rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-2.5 my-1">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-mono text-violet-400/60">explorer</span>
+                      <span
+                        className={cn(
+                          'px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider border rounded',
+                          sStyle,
+                        )}
+                      >
+                        {item.explorerStatus || 'submitted'}
+                      </span>
+                      {item.explorerAction && (
+                        <span className="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded text-[9px] font-bold">
+                          {item.explorerAction}
+                        </span>
+                      )}
+                    </div>
+                    {userValues.length > 0 ? (
+                      <div className="text-[11px] font-mono space-y-1">
+                        {userValues.map(([key, val]) => (
+                          <div key={key} className="flex items-start gap-2">
+                            <span className="text-violet-400 font-bold shrink-0">{key}</span>
+                            <span className="text-foreground/80 break-all">
+                              {typeof val === 'boolean' ? (
+                                <span
+                                  className={cn(
+                                    'px-1.5 py-0.5 rounded text-[9px] font-bold border',
+                                    val
+                                      ? 'bg-green-500/15 text-green-400 border-green-500/30'
+                                      : 'bg-zinc-500/15 text-muted-foreground/50 border-zinc-500/20',
+                                  )}
+                                >
+                                  {String(val)}
+                                </span>
+                              ) : Array.isArray(val) ? (
+                                <span className="flex flex-wrap gap-1">
+                                  {val.map((v, j) => (
+                                    <span
+                                      key={j}
+                                      className="px-1.5 py-0.5 bg-violet-500/15 text-violet-300 border border-violet-500/25 rounded text-[9px]"
+                                    >
+                                      {String(v)}
+                                    </span>
+                                  ))}
+                                </span>
+                              ) : typeof val === 'string' && val.length > 0 ? (
+                                <span className="text-foreground/90">{val}</span>
+                              ) : (
+                                <span className="text-muted-foreground/50">{String(val)}</span>
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm">
+                        <Markdown>{item.text}</Markdown>
+                      </div>
+                    )}
                   </div>
                 )
               }

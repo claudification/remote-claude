@@ -678,86 +678,12 @@ export function ToolLine({
           <span className="text-muted-foreground/50 text-[10px]">{componentDesc}</span>
         </span>
       )
-      if (result) {
-        try {
-          let parsed = JSON.parse(result)
-          // Unwrap MCP wrapper: [{type:'text', text:'...'}]
-          if (Array.isArray(parsed) && parsed[0]?.type === 'text' && typeof parsed[0].text === 'string') {
-            parsed = JSON.parse(parsed[0].text)
-          }
-          const res = parsed as Record<string, unknown>
-          const action = res._action as string
-          const timeout = res._timeout === true
-          const cancelled = res._cancelled === true
-
-          if (timeout) {
-            details = (
-              <div className="text-[10px] font-mono bg-amber-500/10 border border-amber-500/20 rounded px-3 py-2 text-amber-400">
-                Timed out - no response
-              </div>
-            )
-          } else if (cancelled) {
-            details = (
-              <div className="text-[10px] font-mono bg-zinc-500/10 border border-zinc-500/20 rounded px-3 py-2 text-muted-foreground">
-                Cancelled
-              </div>
-            )
-          } else {
-            // Build a nice result display
-            const userValues = Object.entries(res).filter(([k]) => !k.startsWith('_'))
-            details = (
-              <div className="text-[10px] font-mono bg-violet-500/5 border border-violet-500/20 rounded p-2.5 space-y-1">
-                {action && action !== 'submit' && (
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className="text-muted-foreground/50">action</span>
-                    <span className="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded text-[9px] font-bold">
-                      {action}
-                    </span>
-                  </div>
-                )}
-                {userValues.map(([key, val]) => (
-                  <div key={key} className="flex items-start gap-2">
-                    <span className="text-violet-400 font-bold shrink-0">{key}</span>
-                    <span className="text-foreground/80 break-all">
-                      {typeof val === 'boolean' ? (
-                        <span
-                          className={cn(
-                            'px-1.5 py-0.5 rounded text-[9px] font-bold border',
-                            val
-                              ? 'bg-green-500/15 text-green-400 border-green-500/30'
-                              : 'bg-zinc-500/15 text-muted-foreground/50 border-zinc-500/20',
-                          )}
-                        >
-                          {String(val)}
-                        </span>
-                      ) : Array.isArray(val) ? (
-                        <span className="flex flex-wrap gap-1">
-                          {val.map((v, i) => (
-                            <span
-                              key={i}
-                              className="px-1.5 py-0.5 bg-violet-500/15 text-violet-300 border border-violet-500/25 rounded text-[9px]"
-                            >
-                              {String(v)}
-                            </span>
-                          ))}
-                        </span>
-                      ) : typeof val === 'string' && val.length > 0 ? (
-                        <span className="text-foreground/90">{val}</span>
-                      ) : (
-                        <span className="text-muted-foreground/50">{String(val)}</span>
-                      )}
-                    </span>
-                  </div>
-                ))}
-                {userValues.length === 0 && <span className="text-muted-foreground/50">submitted (no inputs)</span>}
-              </div>
-            )
-          }
-        } catch {
-          // Fallback: show raw result
-          details = <TruncatedPre text={result} tool="MCP" />
-        }
-      }
+      // Non-blocking: tool returns a status message, result comes via channel
+      details = (
+        <div className="text-[10px] font-mono bg-violet-500/5 border border-violet-500/20 rounded px-3 py-2 text-violet-400/70">
+          Waiting for user response...
+        </div>
+      )
       break
     }
     // mcp__rclaude__terminate_session + quit_session handled above (line ~473)
