@@ -1729,13 +1729,24 @@ async function main() {
   // Handle unexpected exits
   process.on('exit', cleanup)
   process.on('uncaughtException', error => {
-    debug(`[FATAL] Uncaught exception (swallowed): ${error instanceof Error ? error.stack || error.message : error}`)
+    const msg = `[FATAL] Uncaught exception: ${error instanceof Error ? error.stack || error.message : error}`
+    debug(msg)
+    // Always write crash to file for post-mortem (debug() may be silent)
+    try {
+      require('node:fs').appendFileSync('/tmp/rclaude-crash.log', `${new Date().toISOString()} ${msg}\n`)
+    } catch {
+      /* ignore */
+    }
     // DO NOT process.exit() - keep running. The wrapper must never crash.
   })
   process.on('unhandledRejection', reason => {
-    debug(
-      `[FATAL] Unhandled rejection (swallowed): ${reason instanceof Error ? reason.stack || reason.message : reason}`,
-    )
+    const msg = `[FATAL] Unhandled rejection: ${reason instanceof Error ? reason.stack || reason.message : reason}`
+    debug(msg)
+    try {
+      require('node:fs').appendFileSync('/tmp/rclaude-crash.log', `${new Date().toISOString()} ${msg}\n`)
+    } catch {
+      /* ignore */
+    }
     // DO NOT process.exit() - keep running.
   })
 }

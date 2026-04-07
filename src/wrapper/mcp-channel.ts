@@ -537,62 +537,87 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           return { content: [{ type: 'text', text: formatUpdateResult(result, claudeCodeVersion) }] }
         }
         case 'explore': {
-          const layout = args as unknown as ExplorerLayout
-          const validationErrors = validateExplorerLayout(layout)
-          if (validationErrors.length > 0) {
-            return {
-              content: [{ type: 'text', text: `Invalid explorer layout:\n${validationErrors.join('\n')}` }],
-              isError: true,
+          try {
+            debug('[channel] explore: ENTER')
+            const layout = args as unknown as ExplorerLayout
+            debug(`[channel] explore: validating layout title="${layout?.title}"`)
+            const validationErrors = validateExplorerLayout(layout)
+            if (validationErrors.length > 0) {
+              debug(`[channel] explore: validation failed: ${validationErrors.join('; ')}`)
+              return {
+                content: [{ type: 'text', text: `Invalid explorer layout:\n${validationErrors.join('\n')}` }],
+                isError: true,
+              }
             }
-          }
 
-          // Resolve local file paths in Image/ImagePicker components
-          const allComponents: Array<Record<string, unknown>> = []
-          if (layout.body) allComponents.push(...(layout.body as unknown as Array<Record<string, unknown>>))
-          if (layout.pages) {
-            for (const page of layout.pages as unknown as Array<{ body: Array<Record<string, unknown>> }>) {
-              allComponents.push(...page.body)
+            // Resolve local file paths in Image/ImagePicker components
+            debug('[channel] explore: resolving file paths...')
+            const allComponents: Array<Record<string, unknown>> = []
+            if (layout.body) allComponents.push(...(layout.body as unknown as Array<Record<string, unknown>>))
+            if (layout.pages) {
+              for (const page of layout.pages as unknown as Array<{ body: Array<Record<string, unknown>> }>) {
+                allComponents.push(...page.body)
+              }
             }
-          }
-          const uploader = callbacks.onUploadFile || callbacks.onShareFile
-          if (uploader) {
-            const uploadErr = await resolveExplorerFiles(allComponents, uploader, explorerCwd)
-            if (uploadErr) {
-              return { content: [{ type: 'text', text: `Explorer file error: ${uploadErr}` }], isError: true }
+            debug(`[channel] explore: ${allComponents.length} top-level components`)
+            const uploader = callbacks.onUploadFile || callbacks.onShareFile
+            if (uploader) {
+              debug(
+                `[channel] explore: uploading files (using ${callbacks.onUploadFile ? 'onUploadFile' : 'onShareFile'})`,
+              )
+              const uploadErr = await resolveExplorerFiles(allComponents, uploader, explorerCwd)
+              if (uploadErr) {
+                debug(`[channel] explore: upload error: ${uploadErr}`)
+                return { content: [{ type: 'text', text: `Explorer file error: ${uploadErr}` }], isError: true }
+              }
+              debug('[channel] explore: file upload complete')
             }
+
+            // Apply defaults
+            const timeout = (layout.timeout ?? 300) * 1000
+            const explorerId = randomUUID()
+
+            debug(`[channel] explore: "${layout.title}" (${explorerId.slice(0, 8)}, timeout=${timeout / 1000}s)`)
+
+            // Forward to concentrator via callback
+            callbacks.onExplore?.(explorerId, layout)
+            debug(`[channel] explore: forwarded to concentrator, waiting for result...`)
+
+            // Block until user responds or timeout
+            const result = await new Promise<ExplorerResult>(resolve => {
+              const timer = setTimeout(() => {
+                pendingExplorers.delete(explorerId)
+                resolve({ _action: 'submit', _timeout: true, _cancelled: false })
+              }, timeout)
+
+              pendingExplorers.set(explorerId, { resolve, timer })
+            })
+
+            if (result._timeout) {
+              debug(`[channel] explore timeout: ${explorerId.slice(0, 8)}`)
+              return { content: [{ type: 'text', text: 'Explorer dialog timed out - user did not respond.' }] }
+            }
+
+            if (result._cancelled) {
+              debug(`[channel] explore cancelled: ${explorerId.slice(0, 8)}`)
+              return { content: [{ type: 'text', text: 'User cancelled the explorer dialog.' }] }
+            }
+
+            debug(`[channel] explore result: ${explorerId.slice(0, 8)} action=${result._action}`)
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
+          } catch (exploreErr) {
+            const msg = exploreErr instanceof Error ? exploreErr.stack || exploreErr.message : String(exploreErr)
+            debug(`[channel] explore CRASH: ${msg}`)
+            // Write crash to file for post-mortem
+            try {
+              const crashFile = `/tmp/rclaude-explorer-crash-${Date.now()}.log`
+              await Bun.write(crashFile, `${new Date().toISOString()}\n${msg}\n`)
+              debug(`[channel] explore crash log: ${crashFile}`)
+            } catch {
+              /* ignore write failure */
+            }
+            return { content: [{ type: 'text', text: `Explorer internal error: ${msg}` }], isError: true }
           }
-
-          // Apply defaults
-          const timeout = (layout.timeout ?? 300) * 1000
-          const explorerId = randomUUID()
-
-          debug(`[channel] explore: "${layout.title}" (${explorerId.slice(0, 8)}, timeout=${timeout / 1000}s)`)
-
-          // Forward to concentrator via callback
-          callbacks.onExplore?.(explorerId, layout)
-
-          // Block until user responds or timeout
-          const result = await new Promise<ExplorerResult>(resolve => {
-            const timer = setTimeout(() => {
-              pendingExplorers.delete(explorerId)
-              resolve({ _action: 'submit', _timeout: true, _cancelled: false })
-            }, timeout)
-
-            pendingExplorers.set(explorerId, { resolve, timer })
-          })
-
-          if (result._timeout) {
-            debug(`[channel] explore timeout: ${explorerId.slice(0, 8)}`)
-            return { content: [{ type: 'text', text: 'Explorer dialog timed out - user did not respond.' }] }
-          }
-
-          if (result._cancelled) {
-            debug(`[channel] explore cancelled: ${explorerId.slice(0, 8)}`)
-            return { content: [{ type: 'text', text: 'User cancelled the explorer dialog.' }] }
-          }
-
-          debug(`[channel] explore result: ${explorerId.slice(0, 8)} action=${result._action}`)
-          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
         }
         default:
           return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }
