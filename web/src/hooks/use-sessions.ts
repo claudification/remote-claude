@@ -523,7 +523,25 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   setEvents: (sessionId, events) =>
     set(state => ({ events: { ...state.events, [sessionId]: events }, newDataSeq: state.newDataSeq + 1 })),
   setTranscript: (sessionId, entries) =>
-    set(state => ({ transcripts: { ...state.transcripts, [sessionId]: entries }, newDataSeq: state.newDataSeq + 1 })),
+    set(state => {
+      const existing = state.transcripts[sessionId]
+      // Don't replace a larger local cache with a smaller server response
+      // unless the server sent an initial/full load (entries have different first entry)
+      if (existing && existing.length > entries.length) {
+        const firstEntry = (e: TranscriptEntry) =>
+          JSON.stringify('message' in e ? (e.message as Record<string, unknown>)?.content : e.type)?.slice(0, 100)
+        const existingFirst = firstEntry(existing[0])
+        const newFirst = firstEntry(entries[0])
+        if (existingFirst === newFirst) {
+          // Same conversation, server just has fewer entries -- keep local
+          console.log(
+            `[transcript] SKIP replace ${sessionId.slice(0, 8)}: local=${existing.length} > server=${entries.length}`,
+          )
+          return state
+        }
+      }
+      return { transcripts: { ...state.transcripts, [sessionId]: entries }, newDataSeq: state.newDataSeq + 1 }
+    }),
   setTasks: (sessionId, tasks) => set(state => ({ tasks: { ...state.tasks, [sessionId]: tasks } })),
   setProjectSettings: settings => set({ projectSettings: settings }),
   setSessionOrder: order => set({ sessionOrder: order }),
