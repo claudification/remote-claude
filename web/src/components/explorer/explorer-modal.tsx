@@ -291,7 +291,10 @@ export const ExplorerModal = memo(function ExplorerModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-5 sm:pb-3 border-t border-border/30 shrink-0">
+        <div
+          className="flex items-center justify-between gap-2 px-4 pt-3 sm:pb-3 border-t border-border/30 shrink-0"
+          style={{ paddingBottom: 'max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem))' }}
+        >
           <Button variant="ghost" onClick={handleCancel}>
             {layout.cancelLabel || 'Cancel'}
           </Button>
