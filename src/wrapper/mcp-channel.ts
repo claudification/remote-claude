@@ -13,6 +13,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { appendFileSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
@@ -21,6 +22,18 @@ import type { ExplorerLayout, ExplorerResult } from '../shared/explorer-schema'
 import { explorerToolInputSchema, validateExplorerLayout } from '../shared/explorer-schema'
 import { checkForUpdate, formatUpdateResult } from '../shared/update-check'
 import { debug } from './debug'
+
+const EXPLORER_LOG = '/tmp/rclaude-explorer.log'
+
+/** Always-on explorer logging (not gated by RCLAUDE_DEBUG) */
+function elog(msg: string): void {
+  try {
+    appendFileSync(EXPLORER_LOG, `[${new Date().toISOString()}] ${msg}\n`)
+  } catch {
+    /* ignore */
+  }
+  debug(`[explorer] ${msg}`)
+}
 
 export interface SessionInfo {
   id: string // wrapper ID for live sessions, session ID for inactive
@@ -160,7 +173,7 @@ async function resolveExplorerFiles(
         if (err) return err
       }
     } catch (err) {
-      debug(`[channel] resolveExplorerFiles error: ${err instanceof Error ? err.message : err}`)
+      elog(`resolveExplorerFiles error: ${err instanceof Error ? err.message : err}`)
       return `File resolution error: ${err instanceof Error ? err.message : 'unknown'}`
     }
   }
@@ -538,12 +551,12 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         }
         case 'explore': {
           try {
-            debug('[channel] explore: ENTER')
+            elog(' ENTER')
             const layout = args as unknown as ExplorerLayout
-            debug(`[channel] explore: validating layout title="${layout?.title}"`)
+            elog(` validating layout title="${layout?.title}"`)
             const validationErrors = validateExplorerLayout(layout)
             if (validationErrors.length > 0) {
-              debug(`[channel] explore: validation failed: ${validationErrors.join('; ')}`)
+              elog(` validation failed: ${validationErrors.join('; ')}`)
               return {
                 content: [{ type: 'text', text: `Invalid explorer layout:\n${validationErrors.join('\n')}` }],
                 isError: true,
@@ -551,7 +564,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             }
 
             // Resolve local file paths in Image/ImagePicker components
-            debug('[channel] explore: resolving file paths...')
+            elog(' resolving file paths...')
             const allComponents: Array<Record<string, unknown>> = []
             if (layout.body) allComponents.push(...(layout.body as unknown as Array<Record<string, unknown>>))
             if (layout.pages) {
@@ -559,7 +572,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
                 allComponents.push(...page.body)
               }
             }
-            debug(`[channel] explore: ${allComponents.length} top-level components`)
+            elog(` ${allComponents.length} top-level components`)
             const uploader = callbacks.onUploadFile || callbacks.onShareFile
             if (uploader) {
               debug(
@@ -567,21 +580,21 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
               )
               const uploadErr = await resolveExplorerFiles(allComponents, uploader, explorerCwd)
               if (uploadErr) {
-                debug(`[channel] explore: upload error: ${uploadErr}`)
+                elog(` upload error: ${uploadErr}`)
                 return { content: [{ type: 'text', text: `Explorer file error: ${uploadErr}` }], isError: true }
               }
-              debug('[channel] explore: file upload complete')
+              elog(' file upload complete')
             }
 
             // Apply defaults
             const timeout = (layout.timeout ?? 300) * 1000
             const explorerId = randomUUID()
 
-            debug(`[channel] explore: "${layout.title}" (${explorerId.slice(0, 8)}, timeout=${timeout / 1000}s)`)
+            elog(` "${layout.title}" (${explorerId.slice(0, 8)}, timeout=${timeout / 1000}s)`)
 
             // Forward to concentrator via callback
             callbacks.onExplore?.(explorerId, layout)
-            debug(`[channel] explore: forwarded to concentrator, waiting for result...`)
+            elog(` forwarded to concentrator, waiting for result...`)
 
             // Block until user responds or timeout
             const result = await new Promise<ExplorerResult>(resolve => {
@@ -594,25 +607,25 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             })
 
             if (result._timeout) {
-              debug(`[channel] explore timeout: ${explorerId.slice(0, 8)}`)
+              elog(` timeout: ${explorerId.slice(0, 8)}`)
               return { content: [{ type: 'text', text: 'Explorer dialog timed out - user did not respond.' }] }
             }
 
             if (result._cancelled) {
-              debug(`[channel] explore cancelled: ${explorerId.slice(0, 8)}`)
+              elog(` cancelled: ${explorerId.slice(0, 8)}`)
               return { content: [{ type: 'text', text: 'User cancelled the explorer dialog.' }] }
             }
 
-            debug(`[channel] explore result: ${explorerId.slice(0, 8)} action=${result._action}`)
+            elog(` result: ${explorerId.slice(0, 8)} action=${result._action}`)
             return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
           } catch (exploreErr) {
             const msg = exploreErr instanceof Error ? exploreErr.stack || exploreErr.message : String(exploreErr)
-            debug(`[channel] explore CRASH: ${msg}`)
+            elog(` CRASH: ${msg}`)
             // Write crash to file for post-mortem
             try {
               const crashFile = `/tmp/rclaude-explorer-crash-${Date.now()}.log`
               await Bun.write(crashFile, `${new Date().toISOString()}\n${msg}\n`)
-              debug(`[channel] explore crash log: ${crashFile}`)
+              elog(` crash log: ${crashFile}`)
             } catch {
               /* ignore write failure */
             }

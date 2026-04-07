@@ -1130,6 +1130,7 @@ async function main() {
     },
     async onUploadFile(filePath) {
       // Upload file to concentrator blob store -- NO CWD restriction (for explorer images)
+      // Uses readFile + ArrayBuffer to avoid Bun crash when streaming BunFile as fetch body
       const httpUrl = noConcentrator ? null : wsToHttpUrl(concentratorUrl)
       if (!httpUrl) return null
       try {
@@ -1138,14 +1139,17 @@ async function main() {
           debug(`[channel] upload_file: file not found: ${filePath}`)
           return null
         }
+        const bytes = await file.arrayBuffer()
+        const contentType = file.type || 'application/octet-stream'
+        debug(`[channel] upload_file: uploading ${filePath} (${bytes.byteLength} bytes, ${contentType})`)
         const res = await fetch(`${httpUrl}/api/files`, {
           method: 'POST',
           headers: {
-            'Content-Type': file.type || 'application/octet-stream',
+            'Content-Type': contentType,
             'X-Session-Id': claudeSessionId || internalId,
             ...(concentratorSecret ? { Authorization: `Bearer ${concentratorSecret}` } : {}),
           },
-          body: file,
+          body: bytes,
         })
         if (!res.ok) {
           debug(`[channel] upload_file: upload failed: ${res.status}`)
