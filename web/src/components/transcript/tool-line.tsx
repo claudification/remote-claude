@@ -717,19 +717,34 @@ export function ToolLine({
                 )}
                 {userValues.map(([key, val]) => (
                   <div key={key} className="flex items-start gap-2">
-                    <span className="text-violet-400/70 shrink-0">{key}</span>
+                    <span className="text-violet-400 font-bold shrink-0">{key}</span>
                     <span className="text-foreground/80 break-all">
                       {typeof val === 'boolean' ? (
-                        <span className={val ? 'text-green-400' : 'text-muted-foreground/50'}>{String(val)}</span>
+                        <span
+                          className={cn(
+                            'px-1.5 py-0.5 rounded text-[9px] font-bold border',
+                            val
+                              ? 'bg-green-500/15 text-green-400 border-green-500/30'
+                              : 'bg-zinc-500/15 text-muted-foreground/50 border-zinc-500/20',
+                          )}
+                        >
+                          {String(val)}
+                        </span>
                       ) : Array.isArray(val) ? (
-                        val.map((v, i) => (
-                          <span key={i}>
-                            {i > 0 && <span className="text-muted-foreground/30">, </span>}
-                            <span className="text-foreground/70">{String(v)}</span>
-                          </span>
-                        ))
+                        <span className="flex flex-wrap gap-1">
+                          {val.map((v, i) => (
+                            <span
+                              key={i}
+                              className="px-1.5 py-0.5 bg-violet-500/15 text-violet-300 border border-violet-500/25 rounded text-[9px]"
+                            >
+                              {String(v)}
+                            </span>
+                          ))}
+                        </span>
+                      ) : typeof val === 'string' && val.length > 0 ? (
+                        <span className="text-foreground/90">{val}</span>
                       ) : (
-                        String(val)
+                        <span className="text-muted-foreground/50">{String(val)}</span>
                       )}
                     </span>
                   </div>
