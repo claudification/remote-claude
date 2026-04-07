@@ -101,7 +101,15 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
           )}
         </div>
 
-        <FooterHints mode={palette.mode} agentConnected={palette.agentConnected} />
+        <FooterHints
+          mode={palette.mode}
+          agentConnected={palette.agentConnected}
+          onPrefixTap={prefix => {
+            palette.setFilter(prefix)
+            palette.setActiveIndex(0)
+            palette.inputRef.current?.focus()
+          }}
+        />
       </div>
     </div>
   )
