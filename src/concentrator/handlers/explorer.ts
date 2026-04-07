@@ -19,7 +19,7 @@ const explorerShow: MessageHandler = (ctx, data) => {
   const layout = data.layout as Record<string, unknown>
   if (!explorerId || !layout) return
 
-  // Store pending explorer on the session for reconnect recovery
+  // Store pending explorer on the session for reconnect recovery + attention indicator
   const session = ctx.sessions.getSession(sessionId)
   if (session) {
     session.pendingExplorer = {
@@ -27,6 +27,12 @@ const explorerShow: MessageHandler = (ctx, data) => {
       layout: layout as unknown as import('../../shared/explorer-schema').ExplorerLayout,
       timestamp: Date.now(),
     }
+    session.pendingAttention = {
+      type: 'explorer',
+      question: (layout.title as string) || 'Explorer dialog',
+      timestamp: Date.now(),
+    }
+    ctx.sessions.broadcastSessionUpdate(sessionId)
   }
 
   // Broadcast to dashboard subscribers
@@ -58,9 +64,13 @@ const explorerResult: MessageHandler = (ctx, data) => {
   const sess = sessionId ? ctx.sessions.getSession(sessionId) : undefined
   if (sess) ctx.requirePermission('chat', sess.cwd)
 
-  // Clear pending explorer from session
+  // Clear pending explorer + attention from session
   if (sess) {
     delete sess.pendingExplorer
+    if (sess.pendingAttention?.type === 'explorer') {
+      delete sess.pendingAttention
+    }
+    ctx.sessions.broadcastSessionUpdate(sessionId)
   }
 
   // Forward to the wrapper that owns this session
@@ -96,10 +106,14 @@ const explorerDismiss: MessageHandler = (ctx, data) => {
   const explorerId = data.explorerId as string
   if (!sessionId || !explorerId) return
 
-  // Clear pending explorer from session
+  // Clear pending explorer + attention from session
   const session = ctx.sessions.getSession(sessionId)
   if (session) {
     delete session.pendingExplorer
+    if (session.pendingAttention?.type === 'explorer') {
+      delete session.pendingAttention
+    }
+    ctx.sessions.broadcastSessionUpdate(sessionId)
   }
 
   ctx.broadcast({

@@ -67,7 +67,7 @@ export interface Session {
   effortLevel?: string
   lastError?: { stopReason?: string; errorType?: string; errorMessage?: string; timestamp: number }
   pendingAttention?: {
-    type: 'permission' | 'elicitation' | 'ask'
+    type: 'permission' | 'elicitation' | 'ask' | 'explorer'
     toolName?: string
     filePath?: string
     question?: string

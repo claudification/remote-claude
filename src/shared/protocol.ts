@@ -768,7 +768,7 @@ export interface Session {
   effortLevel?: string // 'speed' field from API usage: e.g. 'standard', maps to low/medium/high
   lastError?: { stopReason?: string; errorType?: string; errorMessage?: string; timestamp: number }
   pendingAttention?: {
-    type: 'permission' | 'elicitation' | 'ask'
+    type: 'permission' | 'elicitation' | 'ask' | 'explorer'
     toolName?: string
     filePath?: string
     question?: string
