@@ -620,14 +620,39 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             callbacks.onExplore?.(explorerId, layout)
             elog(` forwarded to concentrator, waiting for result...`)
 
-            // Block until user responds or timeout
+            // Block until user responds or timeout.
+            // Send periodic keepalive notifications to prevent CC from timing out the tool call.
             const result = await new Promise<ExplorerResult>(resolve => {
               const timer = setTimeout(() => {
                 pendingExplorers.delete(explorerId)
                 resolve({ _action: 'submit', _timeout: true, _cancelled: false })
               }, timeout)
 
-              pendingExplorers.set(explorerId, { resolve, timer, timeoutMs: timeout, deadline: Date.now() + timeout })
+              // Keepalive: send progress notification every 30s to keep the MCP SSE stream alive
+              const keepalive = setInterval(() => {
+                try {
+                  state?.server.notification({
+                    method: 'notifications/message',
+                    params: { level: 'debug', data: `explorer:${explorerId.slice(0, 8)}:waiting`, logger: 'rclaude' },
+                  })
+                } catch {
+                  // Transport dead -- stop keepalive
+                  clearInterval(keepalive)
+                }
+              }, 30_000)
+
+              const originalResolve = resolve
+              const wrappedResolve = (r: ExplorerResult) => {
+                clearInterval(keepalive)
+                originalResolve(r)
+              }
+
+              pendingExplorers.set(explorerId, {
+                resolve: wrappedResolve,
+                timer,
+                timeoutMs: timeout,
+                deadline: Date.now() + timeout,
+              })
             })
 
             if (result._timeout) {
