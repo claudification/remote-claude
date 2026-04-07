@@ -839,6 +839,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       session.teammates = []
       session.team = undefined
       session.compacting = false
+      session.lastError = undefined
       // Mark stale bg tasks as killed
       for (const bgTask of session.bgTasks) {
         if (bgTask.status === 'running') {
@@ -1069,6 +1070,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         if (data.model && typeof data.model === 'string' && !session.model) {
           session.model = data.model
         }
+        // Clear stale error from previous run (belt and suspenders with resumeSession)
+        session.lastError = undefined
       }
 
       // Track current working directory (NOT the session's project root).
