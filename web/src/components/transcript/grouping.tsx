@@ -316,11 +316,13 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
     pendingSkillName?: string
   }>({ len: 0, resultMap: new Map(), groups: [], lastGroup: null })
 
+  const entriesRef = useRef(entries)
   return useMemo(() => {
     const cache = cacheRef.current
 
-    // Full reset if entries shrunk (initial load replaced everything, or session switch)
-    const isReset = entries.length < cache.len
+    // Full reset if entries shrunk OR array was replaced entirely (HTTP refetch)
+    const isReset = entries.length < cache.len || (entries !== entriesRef.current && entries.length <= cache.len)
+    entriesRef.current = entries
     if (isReset) {
       cache.len = 0
       cache.resultMap = new Map()
