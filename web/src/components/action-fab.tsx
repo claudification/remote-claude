@@ -60,10 +60,16 @@ export function ActionFab() {
     },
   ]
 
+  const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const handleMainTap = useCallback(() => {
     const now = Date.now()
     if (now - lastTapRef.current < 300) {
-      // Double-tap: open switcher directly
+      // Double-tap: cancel pending single-tap, open switcher
+      if (singleTapTimer.current) {
+        clearTimeout(singleTapTimer.current)
+        singleTapTimer.current = null
+      }
       haptic('double')
       setExpanded(false)
       useSessionsStore.getState().toggleSwitcher()
@@ -72,7 +78,11 @@ export function ActionFab() {
     }
     lastTapRef.current = now
     haptic('tap')
-    setExpanded(prev => !prev)
+    // Delay toggle to allow double-tap detection
+    singleTapTimer.current = setTimeout(() => {
+      singleTapTimer.current = null
+      setExpanded(prev => !prev)
+    }, 300)
   }, [])
 
   // Close fan on outside tap
@@ -88,46 +98,39 @@ export function ActionFab() {
     return () => document.removeEventListener('click', handleClick, { capture: true })
   }, [expanded])
 
-  // Fan positions: half-circle upward from bottom-right
-  // Angles from -135deg to -45deg (upper-left arc), evenly spaced
-  const fanRadius = 72
-  const angles = [-135, -105, -75, -45]
+  // Vertical stack to the LEFT of the FAB, first button level with FAB, rest go down
+  const buttonSpacing = 48 // 40px button + 8px gap
+  const leftOffset = 52 // FAB width (44) + 8px gap
 
   return (
-    <div data-action-fab className="fixed z-[54] right-3" style={{ width: 44, height: 44, top: 'calc(50% + 32px)' }}>
-      {/* Fan action buttons */}
-      {actions.map((action, i) => {
-        const angle = (angles[i] * Math.PI) / 180
-        const x = expanded ? Math.cos(angle) * fanRadius : 0
-        const y = expanded ? Math.sin(angle) * fanRadius : 0
-
-        return (
-          <button
-            key={action.id}
-            type="button"
-            className={cn(
-              'absolute w-10 h-10 rounded-full flex items-center justify-center',
-              'shadow-md border border-white/10 text-white',
-              'transition-all duration-200 ease-out',
-              action.color,
-              expanded ? 'scale-100 opacity-100' : 'scale-0 opacity-0 pointer-events-none',
-            )}
-            style={{
-              bottom: -y,
-              right: -x,
-              transitionDelay: expanded ? `${i * 30}ms` : '0ms',
-            }}
-            onClick={e => {
-              e.stopPropagation()
-              haptic('tap')
-              action.action()
-              setExpanded(false)
-            }}
-          >
-            {action.icon}
-          </button>
-        )
-      })}
+    <div data-action-fab className="fixed z-[56] right-3" style={{ width: 44, height: 44, top: 'calc(50% + 32px)' }}>
+      {/* Action buttons - vertical stack to the left */}
+      {actions.map((action, i) => (
+        <button
+          key={action.id}
+          type="button"
+          className={cn(
+            'absolute w-10 h-10 rounded-full flex items-center justify-center',
+            'shadow-md border border-white/10 text-white',
+            'transition-all duration-200 ease-out',
+            action.color,
+            expanded ? 'scale-100 opacity-100' : 'scale-0 opacity-0 pointer-events-none',
+          )}
+          style={{
+            right: expanded ? leftOffset : 0,
+            top: expanded ? i * buttonSpacing : 0,
+            transitionDelay: expanded ? `${i * 30}ms` : '0ms',
+          }}
+          onClick={e => {
+            e.stopPropagation()
+            haptic('tap')
+            action.action()
+            setExpanded(false)
+          }}
+        >
+          {action.icon}
+        </button>
+      ))}
 
       {/* Main FAB button */}
       <button

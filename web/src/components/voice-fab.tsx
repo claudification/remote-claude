@@ -181,8 +181,8 @@ export function VoiceFab() {
           <div className={cn('mx-auto max-w-[600px] px-4 pt-safe', 'animate-in slide-in-from-top duration-200')}>
             <div
               className={cn(
-                'mt-2 px-4 py-3 rounded-xl backdrop-blur-xl border shadow-lg',
-                isCancelling ? 'bg-red-950/80 border-red-500/30' : 'bg-background/90 border-border/50',
+                'mt-2 px-4 py-3 rounded-xl border shadow-xl',
+                isCancelling ? 'bg-red-950 border-red-500/50' : 'bg-[#1a1b26] border-red-500/40',
               )}
             >
               {/* Status line */}
