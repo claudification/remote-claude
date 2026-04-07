@@ -133,7 +133,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
       {
         name: 'list_sessions',
         description:
-          'List other Claude Code sessions. Returns a stable addressable ID per session (persisted, survives restarts). Use the returned ID for send_message, terminate_session, configure_session. Messages to offline sessions are queued for delivery on reconnect. Use show_metadata for icon/color/keyterms (benevolent only).',
+          'List other Claude Code sessions. Returns a stable addressable ID per session (persisted, survives restarts). Use the returned ID for send_message, terminate_session, configure_session. Messages to offline sessions are queued for delivery on reconnect. Use show_metadata for icon/color/keyterms (benevolent only). HINT: When the user says "tell X to Y", "ask X to Y", or "use X to Y", consider that X may be a session name -- call list_sessions to check. Use caution with ambiguous names: if multiple sessions match or the name could refer to a person/service rather than a session, ask the user to clarify.',
         inputSchema: {
           type: 'object' as const,
           properties: {
