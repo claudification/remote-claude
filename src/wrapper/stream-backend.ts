@@ -353,11 +353,11 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
       proc.kill(signal)
     },
 
-    // PtyProcess-compatible stub: dashboard input becomes a conduit message
+    // PtyProcess-compatible stub: dashboard input as plain user message
     write(data: string) {
       const trimmed = data.trim()
       if (trimmed && !trimmed.startsWith('\x1b') && trimmed !== '\r' && trimmed !== '\n') {
-        this.sendUserMessage(trimmed, 'dashboard')
+        this.sendUserMessage(trimmed)
       }
     },
 

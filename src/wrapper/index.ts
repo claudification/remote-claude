@@ -746,7 +746,19 @@ async function main() {
         pendingConfigureResult?.(result)
       },
       onChannelDeliver(delivery) {
-        if (channelEnabled && isMcpChannelReady()) {
+        if (headless && ptyProcess && 'sendUserMessage' in ptyProcess) {
+          // Headless mode: deliver inter-session messages via stdin as <conduit> messages
+          const attrs = [
+            `sender="session"`,
+            `from_session="${delivery.fromSession}"`,
+            `from_project="${delivery.fromProject}"`,
+            `intent="${delivery.intent}"`,
+            ...(delivery.conversationId ? [`conversation_id="${delivery.conversationId}"`] : []),
+          ].join(' ')
+          const wrapped = `<conduit ${attrs}>\n${delivery.message}\n</conduit>`
+          ptyProcess.sendUserMessage(wrapped, 'session')
+          diag('headless', `Conduit from ${delivery.fromProject}: ${delivery.message.slice(0, 60)}`)
+        } else if (channelEnabled && isMcpChannelReady()) {
           const meta: Record<string, string> = {
             sender: 'session',
             from_session: delivery.fromSession,
@@ -1753,19 +1765,18 @@ async function main() {
       ...(headless
         ? [
             '',
-            '# Conduit Messages (headless mode)',
+            '# Headless Mode',
             '',
             'This session is running in **headless mode** (no terminal, structured I/O).',
-            'Messages from the dashboard arrive wrapped in `<conduit>` tags:',
+            'User messages arrive as plain text. Inter-session messages arrive wrapped in `<conduit>` tags:',
             '',
             '```',
-            '<conduit source="dashboard" ts="2026-01-01T00:00:00.000Z">',
-            'User message here',
+            '<conduit sender="session" from_project="other-project" intent="request" conversation_id="conv_xyz">',
+            'Message from another session',
             '</conduit>',
             '```',
             '',
-            'Treat `<conduit source="dashboard">` messages as regular user input from the dashboard.',
-            'The user may be on their phone or another device, not at the terminal.',
+            'Treat `<conduit>` messages like `<channel sender="session">` messages in channel mode.',
           ]
         : []),
     ].join('\n'),
