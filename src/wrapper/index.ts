@@ -1831,6 +1831,12 @@ async function main() {
       onResult(result) {
         diag('headless', `Result: ${result.subtype} cost=$${result.total_cost_usd} turns=${result.num_turns}`)
       },
+      onStreamEvent(event) {
+        // Forward raw API SSE deltas to concentrator for real-time streaming
+        if (wsClient?.isConnected()) {
+          wsClient.sendStreamDelta(event)
+        }
+      },
       onPermissionRequest(request) {
         // Forward permission request to concentrator for dashboard handling
         if (wsClient?.isConnected()) {

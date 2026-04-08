@@ -90,6 +90,16 @@ const subagentTranscriptRequest: MessageHandler = (ctx, data) => {
   }
 }
 
+// Headless stream deltas - forward raw API SSE events to dashboard subscribers
+const streamDelta: MessageHandler = (ctx, data) => {
+  const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
+  if (!sessionId) return
+  const session = ctx.sessions.getSession(sessionId)
+  if (session?.cwd) {
+    ctx.broadcastScoped({ type: 'stream_delta', sessionId, event: data.event }, session.cwd)
+  }
+}
+
 export function registerTranscriptHandlers(): void {
   registerHandlers({
     tasks_update: tasksUpdate,
@@ -99,5 +109,6 @@ export function registerTranscriptHandlers(): void {
     bg_task_output: bgTaskOutput,
     transcript_request: transcriptRequest,
     subagent_transcript_request: subagentTranscriptRequest,
+    stream_delta: streamDelta,
   })
 }

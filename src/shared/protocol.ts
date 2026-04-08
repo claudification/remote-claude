@@ -299,6 +299,14 @@ export type WrapperMessage =
   | ClipboardCapture
   | ExplorerShowMessage
   | ExplorerDismissMessage
+  | StreamDelta
+
+// Headless streaming deltas (token-by-token from --include-partial-messages)
+export interface StreamDelta {
+  type: 'stream_delta'
+  sessionId: string
+  event: Record<string, unknown> // raw Anthropic API SSE event
+}
 
 // Clipboard capture from PTY OSC 52 sequences
 export interface ClipboardCapture {

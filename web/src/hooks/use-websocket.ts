@@ -337,6 +337,32 @@ function processMessage(msg: DashboardMessage) {
       }
       break
     }
+    case 'stream_delta': {
+      // Headless token streaming - accumulate text deltas
+      const sid = msg.sessionId as string
+      const event = msg.event as Record<string, unknown> | undefined
+      if (sid && event) {
+        const eventType = event.type as string
+        if (eventType === 'content_block_delta') {
+          const delta = event.delta as Record<string, unknown> | undefined
+          if (delta?.type === 'text_delta' && typeof delta.text === 'string') {
+            useSessionsStore.setState(state => ({
+              streamingText: {
+                ...state.streamingText,
+                [sid]: (state.streamingText[sid] || '') + delta.text,
+              },
+            }))
+          }
+        } else if (eventType === 'message_stop') {
+          // Clear streaming buffer when the full assistant message arrives via transcript_entries
+          useSessionsStore.setState(state => {
+            const { [sid]: _, ...rest } = state.streamingText
+            return { streamingText: rest }
+          })
+        }
+      }
+      break
+    }
     case 'subagent_transcript': {
       if (msg.sessionId && msg.entries?.length) {
         const subMsg = msg as DashboardMessage & { agentId?: string }

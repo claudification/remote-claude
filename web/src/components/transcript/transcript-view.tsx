@@ -7,8 +7,11 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import type { TranscriptEntry } from '@/lib/types'
+import { Markdown } from '../markdown'
 import { CompactedDivider, CompactingBanner, MemoizedGroupView, SkillDivider } from './group-view'
 import { type DisplayGroup, useIncrementalGroups } from './grouping'
+
+const EMPTY_STREAMING = ''
 
 interface TranscriptViewProps {
   entries: TranscriptEntry[]
@@ -97,6 +100,12 @@ export function TranscriptView({
     return useSessionsStore.getState().sessions.find(s => s.id === useSessionsStore.getState().selectedSessionId)
       ?.subagents
   }, [subagentsSummary])
+
+  // Headless streaming text - accumulates token-by-token
+  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
+  const streamingText = useSessionsStore(
+    state => (selectedSessionId ? state.streamingText[selectedSessionId] : null) || EMPTY_STREAMING,
+  )
 
   const virtualizer = useVirtualizer({
     count: mainGroups.length,
@@ -270,6 +279,16 @@ export function TranscriptView({
           </div>
         ))}
       </div>
+      {/* Headless streaming text - shows token-by-token as they arrive */}
+      {streamingText && (
+        <div className="mt-2 px-1">
+          <div className="text-[10px] font-mono text-emerald-500/60 mb-1">STREAMING</div>
+          <div className="text-sm text-foreground">
+            <Markdown>{streamingText}</Markdown>
+            <span className="inline-block w-1.5 h-4 bg-emerald-500 animate-pulse ml-0.5 align-text-bottom" />
+          </div>
+        </div>
+      )}
       {/* Queued messages: rendered inline at the bottom of the transcript */}
       {queuedGroups.length > 0 && (
         <div className="mt-2 border-t border-dashed border-amber-500/30 pt-2">

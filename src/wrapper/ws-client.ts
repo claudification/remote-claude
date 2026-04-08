@@ -91,6 +91,7 @@ export interface WsClient {
   sendSubagentTranscript: (agentId: string, entries: TranscriptEntry[], isInitial: boolean) => void
   sendFileResponse: (requestId: string, data?: string, mediaType?: string, error?: string) => void
   sendBgTaskOutput: (taskId: string, data: string, done: boolean) => void
+  sendStreamDelta: (event: Record<string, unknown>) => void
   close: () => void
   isConnected: () => boolean
 }
@@ -520,6 +521,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
     sendSubagentTranscript,
     sendFileResponse,
     sendBgTaskOutput,
+    sendStreamDelta(event: Record<string, unknown>) {
+      send({ type: 'stream_delta', sessionId, event } as WrapperMessage)
+    },
     close,
     isConnected,
   }

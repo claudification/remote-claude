@@ -71,6 +71,7 @@ interface SessionsState {
   sessionMru: string[]
   events: Record<string, HookEvent[]>
   transcripts: Record<string, TranscriptEntry[]>
+  streamingText: Record<string, string> // sessionId -> accumulating text from headless stream deltas
   subagentTranscripts: Record<string, TranscriptEntry[]> // key: `${sessionId}:${agentId}`
   tasks: Record<string, TaskInfo[]>
   projectSettings: ProjectSettingsMap
@@ -310,6 +311,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   sessionMru: [],
   events: {},
   transcripts: {},
+  streamingText: {},
   subagentTranscripts: {},
   tasks: {},
   projectSettings: {},
