@@ -15,11 +15,12 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import { ArrowLeft, ArrowRight, MoreHorizontal, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Eye, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
 import { memo, useCallback, useState } from 'react'
 import type { TaskNote } from '@/hooks/use-task-notes'
 import { type TaskNoteMeta, type TaskStatus, useTaskNotes } from '@/hooks/use-task-notes'
 import { cn, haptic } from '@/lib/utils'
+import { Markdown } from './markdown'
 import { MarkdownInput } from './markdown-input'
 
 function noteAge(created: string): string {
@@ -92,6 +93,7 @@ function NoteEditor({
   const [tags, setTags] = useState<string[]>(note.tags || [])
   const [tagInput, setTagInput] = useState('')
   const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState(!body.trim())
 
   function addTag() {
     const t = tagInput.trim().toLowerCase()
@@ -184,14 +186,56 @@ function NoteEditor({
           />
         </div>
 
-        {/* Body */}
+        {/* Body - toggle between markdown view and edit */}
+        <div className="flex items-center justify-between px-4 py-1 border-b border-[#33467c]/20 shrink-0">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className={cn(
+                'flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono transition-colors',
+                !editing ? 'text-accent' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Eye className="w-3 h-3" /> View
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className={cn(
+                'flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono transition-colors',
+                editing ? 'text-accent' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Pencil className="w-3 h-3" /> Edit
+            </button>
+          </div>
+        </div>
         <div className="flex-1 min-h-0 overflow-y-auto p-4">
-          <textarea
-            value={body}
-            onChange={e => setBody(e.target.value)}
-            className="w-full h-full min-h-[200px] bg-transparent text-sm font-mono text-foreground outline-none resize-none placeholder:text-muted-foreground/30 leading-relaxed"
-            placeholder="Note body (markdown)..."
-          />
+          {editing ? (
+            <textarea
+              value={body}
+              onChange={e => setBody(e.target.value)}
+              className="w-full h-full min-h-[200px] bg-transparent text-sm font-mono text-foreground outline-none resize-none placeholder:text-muted-foreground/30 leading-relaxed"
+              placeholder="Note body (markdown)..."
+            />
+          ) : body.trim() ? (
+            // biome-ignore lint/a11y/noStaticElementInteractions: click to edit
+            <div
+              className="text-sm text-foreground prose prose-invert prose-sm max-w-none cursor-text"
+              onClick={() => setEditing(true)}
+            >
+              <Markdown>{body}</Markdown>
+            </div>
+          ) : (
+            // biome-ignore lint/a11y/noStaticElementInteractions: click to edit
+            <div
+              className="text-sm text-muted-foreground/30 font-mono cursor-text min-h-[200px]"
+              onClick={() => setEditing(true)}
+            >
+              Click to add content...
+            </div>
+          )}
         </div>
 
         {/* Footer */}
