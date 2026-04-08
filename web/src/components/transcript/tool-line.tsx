@@ -3,6 +3,7 @@
  * Handles all tool types (Bash, Read, Edit, Write, Agent, MCP, etc.)
  */
 
+import { structuredPatch } from 'diff'
 import { memo, type ReactNode } from 'react'
 import { Markdown } from '@/components/markdown'
 import { useSessionsStore } from '@/hooks/use-sessions'
@@ -198,11 +199,13 @@ export function ToolLine({
       if (patches?.length) {
         details = <DiffView patches={patches} filePath={path} />
       } else if (input.old_string && input.new_string) {
-        // Compute diff from tool input when structuredPatch isn't available
-        const oldLines = (input.old_string as string).split('\n')
-        const newLines = (input.new_string as string).split('\n')
-        const lines = [...oldLines.map((l: string) => `-${l}`), ...newLines.map((l: string) => `+${l}`)]
-        details = <DiffView patches={[{ oldStart: 1, lines }]} filePath={path} />
+        // Compute proper diff from tool input when structuredPatch isn't on toolUseResult
+        const patch = structuredPatch('file', 'file', input.old_string as string, input.new_string as string, '', '', {
+          context: 3,
+        })
+        if (patch.hunks.length > 0) {
+          details = <DiffView patches={patch.hunks} filePath={path} />
+        }
       }
       break
     }

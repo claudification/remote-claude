@@ -35,6 +35,7 @@
         "clsx": "^2.1.1",
         "codemirror": "^6.0.2",
         "date-fns": "latest",
+        "diff": "^8.0.4",
         "fzf": "^0.5.2",
         "highlight.js": "^11.11.1",
         "html-to-image": "^1.11.13",
@@ -653,6 +654,8 @@
     "detect-node-es": ["detect-node-es@1.1.0", "", {}, ""],
 
     "devlop": ["devlop@1.1.0", "", { "dependencies": { "dequal": "^2.0.0" } }, "sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA=="],
+
+    "diff": ["diff@8.0.4", "", {}, "sha512-DPi0FmjiSU5EvQV0++GFDOJ9ASQUVFh5kD+OzOnYdi7n3Wpm9hWWGfB/O2blfHcMVTL5WkQXSnRiK9makhrcnw=="],
 
     "dom-accessibility-api": ["dom-accessibility-api@0.6.3", "", {}, ""],
 
