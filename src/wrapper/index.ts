@@ -1198,6 +1198,7 @@ async function main() {
   }
 
   function startSubagentWatcher(agentId: string, transcriptPath: string, live: boolean) {
+    if (headless) return // subagent output comes inline in stdout stream
     if (subagentWatchers.has(agentId)) return
 
     // Evict oldest live watchers if at capacity (prevents unbounded growth if SubagentStop never fires)
@@ -1598,6 +1599,7 @@ async function main() {
             // Brand new projects can take 60-90s before Claude creates the JSONL file.
             // Use exponential backoff: 500ms, 1s, 2s, 4s... capped at 10s, ~2.5 min total
             async function tryStartTranscriptWatcher(path: string) {
+              if (headless) return // no transcript file watching in headless mode
               let delay = 500
               const maxDelay = 10_000
               const maxTotal = 900_000 // 15 minutes total (slow-starting sessions can take 6+ min)
