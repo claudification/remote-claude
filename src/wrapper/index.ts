@@ -269,7 +269,7 @@ async function main() {
   let concentratorSecret = process.env.RCLAUDE_SECRET
   let noConcentrator = false
   let noTerminal = false
-  let headless = process.env.RCLAUDE_HEADLESS !== '0' // headless by default
+  let headless = process.env.RCLAUDE_HEADLESS === '1' // opt-in until input routing is solid
   let channelEnabled = process.env.RCLAUDE_CHANNELS !== '0'
   const claudeArgs: string[] = []
 
