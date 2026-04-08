@@ -347,7 +347,10 @@ export function MarkdownInput({
     if (start >= 0 && (trigger === '/' || trigger === '@')) {
       const before = value.slice(0, start)
       const after = value.slice(pos)
-      const replacement = `${trigger}${item} `
+      // No-arg commands don't need trailing space
+      const noArgCommands = ['exit', 'clear', 'compact', 'context', 'quit']
+      const needsSpace = !noArgCommands.includes(item)
+      const replacement = `${trigger}${item}${needsSpace ? ' ' : ''}`
       onChange(before + replacement + after)
       setAcIndex(0)
       haptic('tap')
@@ -375,9 +378,25 @@ export function MarkdownInput({
         setAcIndex(i => (i - 1 + acItems.length) % acItems.length)
         return
       }
-      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+      if (e.key === 'Tab') {
         e.preventDefault()
         selectAutocomplete(acItems[acIndex].item)
+        return
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        const selected = acItems[acIndex]
+        // If the input already matches the selected item exactly, submit it
+        const currentCmd = value.startsWith('/')
+          ? value.slice(1).trim()
+          : value.startsWith('@')
+            ? value.slice(1).trim()
+            : ''
+        if (currentCmd === selected.item) {
+          handleSubmit()
+        } else {
+          selectAutocomplete(selected.item)
+        }
         return
       }
       if (e.key === 'Escape') {
