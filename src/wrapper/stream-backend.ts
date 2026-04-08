@@ -11,8 +11,8 @@ import type { TranscriptEntry } from '../shared/protocol'
 import { debug as _debug } from './debug'
 
 // Console transcript output (RCLAUDE_SHOW_TRANSCRIPT=1)
-const SHOW_TRANSCRIPT = !!process.env.RCLAUDE_SHOW_TRANSCRIPT
 const SHOW_PRETTY = !!process.env.RCLAUDE_SHOW_TRANSCRIPT_PRETTY
+const SHOW_TRANSCRIPT = SHOW_PRETTY || !!process.env.RCLAUDE_SHOW_TRANSCRIPT
 
 // ANSI color helpers
 const C = {
