@@ -875,7 +875,17 @@ function InactiveProjectItem({ sessions }: { sessions: Session[] }) {
 // ─── Main SessionList ──────────────────────────────────────────────
 
 export function SessionList() {
-  const sessions = useSessionsStore(s => s.sessions)
+  const allSessions = useSessionsStore(s => s.sessions)
+  const { canAdmin } = useSessionsStore(s => s.permissions)
+  const sessionPermissions = useSessionsStore(s => s.sessionPermissions)
+  // Non-admin users only see sessions they have read access to
+  const sessions = useMemo(() => {
+    if (canAdmin) return allSessions
+    return allSessions.filter(s => {
+      const perms = sessionPermissions[s.id]
+      return perms ? perms.canReadChat : false
+    })
+  }, [allSessions, canAdmin, sessionPermissions])
   const selectedSessionId = useSessionsStore(s => s.selectedSessionId)
   const rawSessionOrder = useSessionsStore(s => s.sessionOrder)
   const sessionOrder = rawSessionOrder?.tree ? rawSessionOrder : { version: 2 as const, tree: [] }
