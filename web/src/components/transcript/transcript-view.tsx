@@ -28,7 +28,27 @@ export function TranscriptView({
   const parentRef = useRef<HTMLDivElement>(null)
   const followKilledRef = useRef(false)
 
-  const { resultMap, groups } = useIncrementalGroups(entries)
+  const { getResult, groups } = useIncrementalGroups(entries)
+
+  // Lift settings selectors here (once) instead of per-GroupView (N times)
+  const expandAll = useSessionsStore(state => state.expandAll)
+  const globalSettings = useSessionsStore(state => state.globalSettings)
+  const chatBubbles = useSessionsStore(state => state.dashboardPrefs.chatBubbles)
+  const bubbleColor = useSessionsStore(state => state.dashboardPrefs.chatBubbleColor) || 'blue'
+  const transcriptSettings = useMemo(
+    () => ({
+      expandAll,
+      userLabel: (globalSettings.userLabel as string)?.trim() || 'USER',
+      agentLabel: (globalSettings.agentLabel as string)?.trim() || 'CLAUDE',
+      userColor: (globalSettings.userColor as string)?.trim() || '',
+      agentColor: (globalSettings.agentColor as string)?.trim() || '',
+      userSize: (globalSettings.userSize as string) || '',
+      agentSize: (globalSettings.agentSize as string) || '',
+      chatBubbles,
+      bubbleColor,
+    }),
+    [expandAll, globalSettings, chatBubbles, bubbleColor],
+  )
 
   // Split: queued groups float at the bottom, non-queued in the virtualizer
   const { mainGroups, queuedGroups } = useMemo(() => {
@@ -239,7 +259,8 @@ export function TranscriptView({
               return (
                 <MemoizedGroupView
                   group={group}
-                  resultMap={resultMap}
+                  getResult={getResult}
+                  settings={transcriptSettings}
                   showThinking={showThinking}
                   subagents={subagents}
                   planContext={planContext}
@@ -257,7 +278,8 @@ export function TranscriptView({
             <MemoizedGroupView
               key={`queued-${group.timestamp}-${i}`}
               group={group}
-              resultMap={resultMap}
+              getResult={getResult}
+              settings={transcriptSettings}
               showThinking={showThinking}
               subagents={subagents}
             />

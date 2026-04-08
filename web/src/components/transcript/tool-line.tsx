@@ -130,6 +130,7 @@ export function ToolLine({
   result,
   toolUseResult,
   isError,
+  expandAll: expandAllProp,
   subagents,
   renderAgentInline,
   planContent,
@@ -139,6 +140,7 @@ export function ToolLine({
   result?: string
   toolUseResult?: Record<string, unknown>
   isError?: boolean
+  expandAll?: boolean
   planContent?: string
   planPath?: string
   subagents?: Array<{
@@ -156,7 +158,8 @@ export function ToolLine({
   const name = tool.name || 'Tool'
   const input = tool.input || {}
   const style = getToolStyle(name)
-  const expandAll = useSessionsStore(state => state.expandAll)
+  const expandAllStore = useSessionsStore(state => state.expandAll)
+  const expandAll = expandAllProp ?? expandAllStore
   const displayKey = name.startsWith('mcp__') ? 'MCP' : name
   const toolDefaultOpen = useSessionsStore(
     state => resolveToolDisplay(state.dashboardPrefs, displayKey as ToolDisplayKey).defaultOpen,

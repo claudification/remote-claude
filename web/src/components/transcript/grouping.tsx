@@ -3,7 +3,7 @@
  * Handles result mapping, task notifications, incremental grouping, and entry filtering.
  */
 
-import { useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import type { TranscriptAssistantEntry, TranscriptEntry, TranscriptQueueEntry, TranscriptUserEntry } from '@/lib/types'
 
 function isUser(e: TranscriptEntry): e is TranscriptUserEntry {
@@ -317,7 +317,7 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
   }>({ len: 0, resultMap: new Map(), groups: [], lastGroup: null })
 
   const entriesRef = useRef(entries)
-  return useMemo(() => {
+  const groups = useMemo(() => {
     const cache = cacheRef.current
 
     // Full reset if entries shrunk OR array was replaced entirely (HTTP refetch)
@@ -333,7 +333,7 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
 
     // Nothing new - return stable references
     if (entries.length === cache.len) {
-      return { resultMap: cache.resultMap, groups: cache.groups }
+      return cache.groups
     }
 
     // Process only the new entries
@@ -543,6 +543,11 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
 
     cache.groups = newGroups
     cache.lastGroup = lastGroup
-    return { resultMap: newResultMap, groups: newGroups }
+    return newGroups
   }, [entries])
+
+  // Stable lookup function -- never changes identity, reads from the ref's live Map
+  const getResult = useCallback((id: string) => cacheRef.current.resultMap.get(id), [])
+
+  return { getResult, groups }
 }

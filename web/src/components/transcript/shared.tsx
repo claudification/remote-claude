@@ -150,12 +150,14 @@ export function Collapsible({
   id,
   label,
   defaultOpen = false,
+  expandAll: expandAllProp,
   onExpand,
   children,
 }: {
   id?: string
   label: string
   defaultOpen?: boolean
+  expandAll?: boolean
   onExpand?: () => void
   children: React.ReactNode
 }) {
@@ -164,7 +166,8 @@ export function Collapsible({
     expandedState.add(id)
   }
 
-  const expandAll = useSessionsStore(state => state.expandAll)
+  const expandAllStore = useSessionsStore(state => state.expandAll)
+  const expandAll = expandAllProp ?? expandAllStore
   const [open, setOpen] = useState(() => (id ? expandedState.has(id) : defaultOpen))
 
   const isOpen = expandAll || open

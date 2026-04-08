@@ -102,26 +102,36 @@ type SubagentRef = Array<{
   tokenUsage?: { totalInput: number; totalOutput: number; cacheCreation: number; cacheRead: number }
 }>
 
+export interface TranscriptSettings {
+  expandAll: boolean
+  userLabel: string
+  agentLabel: string
+  userColor: string
+  agentColor: string
+  userSize: string
+  agentSize: string
+  chatBubbles: boolean
+  bubbleColor: string
+}
+
+type ResultLookup = (id: string) => { result: string; extra?: Record<string, unknown>; isError?: boolean } | undefined
+
 export function GroupView({
   group,
-  resultMap,
+  getResult,
+  settings,
   showThinking = false,
   subagents,
   planContext,
 }: {
   group: DisplayGroup
-  resultMap: Map<string, { result: string; extra?: Record<string, unknown>; isError?: boolean }>
+  getResult: ResultLookup
+  settings: TranscriptSettings
   showThinking?: boolean
   subagents?: SubagentRef
   planContext?: { content: string; path?: string }
 }) {
-  const expandAll = useSessionsStore(state => state.expandAll)
-  const userLabel = useSessionsStore(state => (state.globalSettings.userLabel as string)?.trim() || 'USER')
-  const agentLabel = useSessionsStore(state => (state.globalSettings.agentLabel as string)?.trim() || 'CLAUDE')
-  const userColor = useSessionsStore(state => (state.globalSettings.userColor as string)?.trim() || '')
-  const agentColor = useSessionsStore(state => (state.globalSettings.agentColor as string)?.trim() || '')
-  const userSize = useSessionsStore(state => (state.globalSettings.userSize as string) || '')
-  const agentSize = useSessionsStore(state => (state.globalSettings.agentSize as string) || '')
+  const { expandAll, userLabel, agentLabel, userColor, agentColor, userSize, agentSize } = settings
   const time = group.timestamp ? new Date(group.timestamp).toLocaleTimeString('en-US', { hour12: false }) : ''
 
   if (group.type === 'system' && group.notifications?.length) {
@@ -241,7 +251,7 @@ export function GroupView({
           if (text.trim()) items.push({ kind: 'thinking', text })
         } else if (block.type === 'tool_use') {
           const id = block.id
-          const res = id ? resultMap.get(id) : undefined
+          const res = id ? getResult(id) : undefined
           items.push({ kind: 'tool', tool: block, result: res?.result, extra: res?.extra, isError: res?.isError })
         }
       }
@@ -268,8 +278,7 @@ export function GroupView({
   const sizeClass =
     { xs: 'text-[8px]', sm: 'text-[9px]', '': 'text-[10px]', lg: 'text-[13px]', xl: 'text-[16px]' }[sizeKey] ||
     'text-[10px]'
-  const chatBubbles = useSessionsStore(s => s.dashboardPrefs.chatBubbles)
-  const bubbleColor = useSessionsStore(s => s.dashboardPrefs.chatBubbleColor) || 'blue'
+  const { chatBubbles, bubbleColor } = settings
 
   // Chat bubble layout for user messages (opt-in)
   // Skip bubbles for inter-session messages - they use the teal card renderer instead
@@ -553,6 +562,7 @@ export function GroupView({
                   result={item.result}
                   toolUseResult={item.extra}
                   isError={item.isError}
+                  expandAll={expandAll}
                   subagents={subagents}
                   renderAgentInline={(agentId, toolId) => <AgentTranscriptInline agentId={agentId} toolId={toolId} />}
                   {...(item.tool.name === 'ExitPlanMode' && planContext
