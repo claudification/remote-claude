@@ -342,7 +342,8 @@ async function main() {
   // Will be set when we receive SessionStart from Claude
   let claudeSessionId: string | null = null
   let wsClient: WsClient | null = null
-  let ptyProcess: PtyProcess | StreamProcess | null = null
+  let ptyProcess: PtyProcess | null = null
+  const streamProc: StreamProcess | null = null
   let terminalAttached = false
   let fileEditor: FileEditor | null = null
   let savedTerminalSize: { cols: number; rows: number } | null = null
@@ -562,13 +563,23 @@ async function main() {
         debug(`Concentrator error: ${error.message}`)
       },
       onInput(input, crDelay) {
-        if (!ptyProcess) return
-
-        // Headless mode: send entire input as-is as one user message
+        // Headless mode: typed methods, no PTY handler
         if (headless) {
-          if (input) ptyProcess.write(input)
+          if (!streamProc || !input) return
+          const trimmed = input.trimEnd()
+          // Intercept headless-specific commands
+          if (trimmed === '/exit' || trimmed === '/quit' || trimmed === ':q' || trimmed === ':q!') {
+            streamProc.kill()
+          } else if (trimmed.startsWith('/model ')) {
+            const model = trimmed.slice(7).trim()
+            if (model) streamProc.sendSetModel(model)
+          } else {
+            streamProc.sendUserMessage(input)
+          }
           return
         }
+
+        if (!ptyProcess) return
 
         // Slash commands (/compact, /clear, /model, etc.) must go via PTY -
         // they're processed by Claude Code's CLI input layer, not the model.
@@ -759,7 +770,7 @@ async function main() {
         pendingConfigureResult?.(result)
       },
       onChannelDeliver(delivery) {
-        if (headless && ptyProcess && 'sendUserMessage' in ptyProcess) {
+        if (headless && streamProc) {
           // Headless mode: deliver inter-session messages via stdin as <conduit> messages
           const attrs = [
             `sender="session"`,
@@ -769,7 +780,7 @@ async function main() {
             ...(delivery.conversationId ? [`conversation_id="${delivery.conversationId}"`] : []),
           ].join(' ')
           const wrapped = `<conduit ${attrs}>\n${delivery.message}\n</conduit>`
-          ptyProcess.sendUserMessage(wrapped, 'session')
+          streamProc.sendUserMessage(wrapped, 'session')
           diag('headless', `Conduit from ${delivery.fromProject}: ${delivery.message.slice(0, 60)}`)
         } else if (channelEnabled && isMcpChannelReady()) {
           const meta: Record<string, string> = {
@@ -864,9 +875,8 @@ async function main() {
       },
       onQuitSession() {
         diag('session', 'Quit requested from dashboard - sending SIGTERM')
-        if (ptyProcess) {
-          ptyProcess.kill('SIGTERM')
-        }
+        if (headless && streamProc) streamProc.kill()
+        else if (ptyProcess) ptyProcess.kill('SIGTERM')
       },
     })
   }
@@ -1377,8 +1387,12 @@ async function main() {
       diag('channel', 'Channel disconnected')
     },
     onTogglePlanMode() {
-      diag('channel', 'toggle_plan_mode: injecting /plan via PTY')
-      if (ptyProcess) ptyProcess.write('/plan\r')
+      if (headless) {
+        diag('channel', 'toggle_plan_mode: not supported in headless mode')
+      } else {
+        diag('channel', 'toggle_plan_mode: injecting /plan via PTY')
+        if (ptyProcess) ptyProcess.write('/plan\r')
+      }
     },
     async onReviveSession(sessionId) {
       if (!wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
@@ -1895,8 +1909,6 @@ async function main() {
         process.exit(code ?? 0)
       },
     })
-    ptyProcess = streamProc
-
     // Forward parent stdin to claude (for piped NDJSON input)
     streamProc.forwardStdin()
   } else {

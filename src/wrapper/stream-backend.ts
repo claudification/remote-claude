@@ -65,10 +65,6 @@ export interface StreamProcess {
   sendInterrupt: () => void
   forwardStdin: () => void
   kill: (signal?: NodeJS.Signals) => void
-  // PtyProcess-compatible stubs
-  write: (data: string) => void
-  resize: (cols: number, rows: number) => void
-  redraw: () => void
 }
 
 /**
@@ -370,36 +366,6 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
 
     kill(signal: NodeJS.Signals = 'SIGTERM') {
       proc.kill(signal)
-    },
-
-    // PtyProcess-compatible stub: dashboard input as plain user message
-    write(data: string) {
-      const trimmed = data.trim()
-      if (!trimmed || trimmed.startsWith('\x1b') || trimmed === '\r' || trimmed === '\n') return
-
-      // Intercept commands that don't work in --print mode
-      if (trimmed === '/exit' || trimmed === '/quit' || trimmed === ':q' || trimmed === ':q!') {
-        debug('Exit command received - terminating headless process')
-        proc.kill('SIGTERM')
-        return
-      }
-
-      // /model command - switch model via control message
-      if (trimmed.startsWith('/model ')) {
-        const model = trimmed.slice(7).trim()
-        if (model) this.sendSetModel(model)
-        return
-      }
-
-      this.sendUserMessage(trimmed)
-    },
-
-    resize() {
-      // No-op in headless mode
-    },
-
-    redraw() {
-      // No-op in headless mode
     },
   }
 }
