@@ -92,6 +92,7 @@ function toSession(summary: SessionSummary): Session {
     team: summary.team,
     effortLevel: summary.effortLevel,
     lastError: summary.lastError,
+    rateLimit: summary.rateLimit,
     pendingAttention: summary.pendingAttention,
     hasNotification: summary.hasNotification,
     summary: summary.summary,
@@ -371,12 +372,16 @@ function processMessage(msg: DashboardMessage) {
         if (eventType === 'content_block_delta') {
           const delta = event.delta as Record<string, unknown> | undefined
           if (delta?.type === 'text_delta' && typeof delta.text === 'string') {
-            useSessionsStore.setState(state => ({
-              streamingText: {
-                ...state.streamingText,
-                [sid]: (state.streamingText[sid] || '') + delta.text,
-              },
-            }))
+            useSessionsStore.setState(state => {
+              const updated = (state.streamingText[sid] || '') + delta.text
+              // Bump newDataSeq every ~500 chars to trigger auto-scroll without thrashing
+              const prevLen = (state.streamingText[sid] || '').length
+              const bumpScroll = Math.floor(updated.length / 500) > Math.floor(prevLen / 500)
+              return {
+                streamingText: { ...state.streamingText, [sid]: updated },
+                ...(bumpScroll ? { newDataSeq: state.newDataSeq + 1 } : {}),
+              }
+            })
           }
         } else if (eventType === 'message_stop') {
           // Clear streaming buffer when the full assistant message arrives via transcript_entries
