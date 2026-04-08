@@ -11,6 +11,23 @@ const EMPTY_INFO: { slashCommands: string[]; skills: string[]; agents: string[] 
   agents: [],
 }
 
+// Built-in headless commands (always available, shown first with distinct color)
+const BUILTIN_COMMANDS = ['model', 'clear', 'exit', 'compact']
+
+function fuzzyScore(query: string, candidate: string): number {
+  if (!query) return 1
+  const c = candidate.toLowerCase()
+  let qi = 0
+  let score = 0
+  for (let ci = 0; ci < c.length && qi < query.length; ci++) {
+    if (c[ci] === query[qi]) {
+      score += ci === qi ? 3 : 1
+      qi++
+    }
+  }
+  return qi === query.length ? score : 0
+}
+
 interface MarkdownInputProps {
   value: string
   onChange: (value: string) => void
@@ -128,7 +145,7 @@ export function MarkdownInput({
     return (sid ? state.sessionInfo[sid] : null) || EMPTY_INFO
   })
 
-  const acItems = useMemo(() => {
+  const acItems = useMemo((): Array<{ item: string; builtin: boolean }> => {
     if (!maybeAutocomplete) return []
     // Detect trigger at cursor position
     const pos = textareaRef.current?.selectionStart ?? value.length
@@ -145,33 +162,32 @@ export function MarkdownInput({
     const query = value.slice(start + 1, pos)
     if (query.includes(' ') || query.includes('\n')) return []
 
-    // Get source list
-    let source: string[]
-    if (ch === '/') source = sessionInfoData.slashCommands || []
-    else source = [...(sessionInfoData.skills || []), ...(sessionInfoData.agents || [])]
-    if (!source.length) return []
-
-    // Fuzzy match
+    // Get source list + builtins for /
     const q = query.toLowerCase()
-    const scored: Array<{ item: string; score: number }> = []
-    for (const item of source) {
-      if (!q) {
-        scored.push({ item, score: 1 })
-        continue
+    const scored: Array<{ item: string; score: number; builtin: boolean }> = []
+
+    if (ch === '/') {
+      // Built-in commands first
+      for (const item of BUILTIN_COMMANDS) {
+        const score = !q ? 100 : item.includes(q) ? 100 + (item.startsWith(q) ? 10 : 0) : 0
+        if (score > 0) scored.push({ item, score, builtin: true })
       }
-      const c = item.toLowerCase()
-      let qi = 0
-      let score = 0
-      for (let ci = 0; ci < c.length && qi < q.length; ci++) {
-        if (c[ci] === q[qi]) {
-          score += ci === qi ? 3 : 1
-          qi++
-        }
+      // CC slash commands
+      for (const item of sessionInfoData.slashCommands || []) {
+        if (BUILTIN_COMMANDS.includes(item)) continue // skip dupes
+        const score = fuzzyScore(q, item)
+        if (score > 0) scored.push({ item, score, builtin: false })
       }
-      if (qi === q.length) scored.push({ item, score })
+    } else {
+      // @ = skills + agents
+      for (const item of [...(sessionInfoData.skills || []), ...(sessionInfoData.agents || [])]) {
+        const score = fuzzyScore(q, item)
+        if (score > 0) scored.push({ item, score, builtin: false })
+      }
     }
+
     scored.sort((a, b) => b.score - a.score)
-    return scored.slice(0, 12).map(x => x.item)
+    return scored.slice(0, 12).map(x => ({ item: x.item, builtin: x.builtin }))
   }, [maybeAutocomplete, value, sessionInfoData])
 
   // Resolve trigger char for the dropdown display
@@ -361,7 +377,7 @@ export function MarkdownInput({
       }
       if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
         e.preventDefault()
-        selectAutocomplete(acItems[acIndex])
+        selectAutocomplete(acItems[acIndex].item)
         return
       }
       if (e.key === 'Escape') {
@@ -827,21 +843,26 @@ export function MarkdownInput({
       {/* Autocomplete dropdown: / commands, @ skills/agents */}
       {acItems.length > 0 && (
         <div className="absolute bottom-full left-0 right-0 z-30 mb-1 bg-background border border-border rounded shadow-lg max-h-[240px] overflow-y-auto">
-          {acItems.map((item, i) => {
+          {acItems.map((entry, i) => {
             const trigger = acTrigger || '/'
             return (
               // biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled in textarea
               <div
-                key={`${trigger}${item}`}
+                key={`${trigger}${entry.item}`}
                 className={cn(
                   'px-3 py-1.5 text-xs font-mono cursor-pointer',
-                  i === acIndex ? 'bg-accent/20 text-accent' : 'text-foreground hover:bg-muted/50',
+                  i === acIndex
+                    ? 'bg-accent/20 text-accent'
+                    : entry.builtin
+                      ? 'text-amber-400 hover:bg-muted/50'
+                      : 'text-foreground hover:bg-muted/50',
                 )}
-                onClick={() => selectAutocomplete(item)}
+                onClick={() => selectAutocomplete(entry.item)}
                 onMouseEnter={() => setAcIndex(i)}
               >
-                <span className="text-muted-foreground">{trigger}</span>
-                {item}
+                <span className={entry.builtin ? 'text-amber-500/60' : 'text-muted-foreground'}>{trigger}</span>
+                {entry.item}
+                {entry.builtin && <span className="text-amber-500/40 ml-2 text-[10px]">built-in</span>}
               </div>
             )
           })}
