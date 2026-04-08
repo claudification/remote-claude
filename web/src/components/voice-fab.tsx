@@ -89,6 +89,23 @@ export function VoiceFab() {
     }
   }
 
+  // Re-check mic permission when app regains focus (OS can revoke mid-session)
+  useEffect(() => {
+    function recheckPermission() {
+      navigator.permissions
+        ?.query({ name: 'microphone' as PermissionName })
+        .then(status => setMicPermission(status.state as MicPermission))
+        .catch(() => {})
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') recheckPermission()
+    })
+    window.addEventListener('focus', recheckPermission)
+    return () => {
+      window.removeEventListener('focus', recheckPermission)
+    }
+  }, [])
+
   async function handlePointerDown(e: React.PointerEvent) {
     if (voice.state !== 'idle') return
 
