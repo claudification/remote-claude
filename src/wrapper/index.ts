@@ -10,6 +10,7 @@ import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { type FSWatcher as ChokidarWatcher, watch as chokidarWatch } from 'chokidar'
+import { structuredPatch as computeStructuredPatch } from 'diff'
 import { isPathWithinCwd } from '../shared/path-guard'
 import type { HookEvent, TaskInfo, TasksUpdate, TranscriptEntry, WrapperMessage } from '../shared/protocol'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
@@ -1045,19 +1046,37 @@ async function main() {
 
   const TRANSCRIPT_CHUNK_SIZE = 50 // entries per chunk (was 200 — smaller to avoid oversized WS frames)
 
+  // Augment Edit tool results with structuredPatch for diff rendering in dashboard
+  function augmentEditPatch(entry: TranscriptEntry): TranscriptEntry {
+    const e = entry as Record<string, unknown>
+    const tur = e.toolUseResult as Record<string, unknown> | undefined
+    if (!tur || tur.structuredPatch || !tur.oldString || !tur.newString) return entry
+    try {
+      const patch = computeStructuredPatch('file', 'file', tur.oldString as string, tur.newString as string, '', '', {
+        context: 3,
+      })
+      if (patch.hunks.length > 0) {
+        tur.structuredPatch = patch.hunks
+      }
+    } catch {}
+    return entry
+  }
+
   function sendTranscriptEntriesChunked(entries: TranscriptEntry[], isInitial: boolean, agentId?: string) {
     if (!claudeSessionId || !wsClient?.isConnected()) {
       debug(`Cannot send ${entries.length} entries: sessionId=${!!claudeSessionId} ws=${wsClient?.isConnected()}`)
       return
     }
+    // Augment Edit tool results with structuredPatch for diff rendering
+    const augmented = entries.map(augmentEditPatch)
     const send = (chunk: TranscriptEntry[], initial: boolean) =>
       agentId
         ? wsClient?.sendSubagentTranscript(agentId, chunk, initial)
         : wsClient?.sendTranscriptEntries(chunk, initial)
 
     // Split into fixed-size chunks to avoid oversized WS frames
-    for (let i = 0; i < entries.length; i += TRANSCRIPT_CHUNK_SIZE) {
-      const chunk = entries.slice(i, i + TRANSCRIPT_CHUNK_SIZE)
+    for (let i = 0; i < augmented.length; i += TRANSCRIPT_CHUNK_SIZE) {
+      const chunk = augmented.slice(i, i + TRANSCRIPT_CHUNK_SIZE)
       send(chunk, isInitial && i === 0)
     }
   }

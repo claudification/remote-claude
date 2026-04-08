@@ -281,11 +281,13 @@ export function TranscriptView({
       </div>
       {/* Headless streaming text - shows token-by-token as they arrive */}
       {streamingText && (
-        <div className="mt-2 px-1">
-          <div className="text-[10px] font-mono text-emerald-500/60 mb-1">STREAMING</div>
-          <div className="text-sm text-foreground">
-            <Markdown>{streamingText}</Markdown>
-            <span className="inline-block w-1.5 h-4 bg-emerald-500 animate-pulse ml-0.5 align-text-bottom" />
+        <div className="mt-2 pl-4">
+          <div className="border-l-2 border-emerald-400/40 pl-3 py-1">
+            <div className="text-[10px] text-emerald-400/70 uppercase font-bold tracking-wider mb-1">streaming</div>
+            <div className="text-sm opacity-75">
+              <Markdown>{streamingText}</Markdown>
+              <span className="inline-block w-1.5 h-4 bg-emerald-500 animate-pulse ml-0.5 align-text-bottom" />
+            </div>
           </div>
         </div>
       )}

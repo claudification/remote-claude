@@ -197,6 +197,12 @@ export function ToolLine({
         ?.structuredPatch
       if (patches?.length) {
         details = <DiffView patches={patches} filePath={path} />
+      } else if (input.old_string && input.new_string) {
+        // Compute diff from tool input when structuredPatch isn't available
+        const oldLines = (input.old_string as string).split('\n')
+        const newLines = (input.new_string as string).split('\n')
+        const lines = [...oldLines.map((l: string) => `-${l}`), ...newLines.map((l: string) => `+${l}`)]
+        details = <DiffView patches={[{ oldStart: 1, lines }]} filePath={path} />
       }
       break
     }
@@ -469,8 +475,10 @@ export function ToolLine({
       const intent = (input.intent as string) || ''
       const msg = (input.message as string) || ''
       // Find target session: try direct ID match first, then slug match
-      const targetSession = useSessionsStore.getState().sessions.find(s => s.id === to) || findSessionBySlug(to)
-      const targetName = targetSession?.title || targetSession?.cwd?.split('/').pop() || to
+      const { sessions: allSessions, projectSettings: allProjSettings } = useSessionsStore.getState()
+      const targetSession = allSessions.find(s => s.id === to) || findSessionBySlug(to)
+      const targetProjLabel = targetSession?.cwd ? allProjSettings[targetSession.cwd]?.label : undefined
+      const targetName = targetSession?.title || targetProjLabel || targetSession?.cwd?.split('/').pop() || to
       const intentStyles: Record<string, string> = {
         request: 'bg-yellow-400/15 text-yellow-400 border-yellow-400/30',
         response: 'bg-green-400/15 text-green-400 border-green-400/30',
