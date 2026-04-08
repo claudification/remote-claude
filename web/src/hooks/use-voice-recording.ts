@@ -158,7 +158,9 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
     attachWsListener()
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      })
 
       if (cancelledRef.current) {
         for (const t of stream.getTracks()) t.stop()
@@ -181,7 +183,7 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
         }
       }
 
-      recorder.start(250)
+      recorder.start(100) // 100ms chunks for lower STT latency
       mediaRecorderRef.current = recorder
       setState('recording')
 
