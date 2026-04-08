@@ -2,7 +2,7 @@
  * useTaskNotes - Hook for task notes CRUD via WS relay to wrapper
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSessionsStore } from './use-sessions'
 
 export type TaskStatus = 'open' | 'in-progress' | 'done' | 'archived'
@@ -30,61 +30,62 @@ interface PendingRequest {
 
 const REQUEST_TIMEOUT_MS = 10_000
 
+// Shared across all useTaskNotes instances so any hook can receive any response.
+// Previously each instance had its own ref + tried to set a singleton handler,
+// causing the last-mounted hook to steal responses from all others.
+const sharedPendingRequests = new Map<string, PendingRequest>()
+const changeListeners = new Set<(notes: TaskNoteMeta[]) => void>()
+let handlerInstalled = false
+
+function installSharedHandler() {
+  if (handlerInstalled) return
+  handlerInstalled = true
+  useSessionsStore.setState({
+    taskNotesHandler: (msg: Record<string, unknown>) => {
+      if (msg.type === 'task_notes_changed' && msg.notes) {
+        for (const listener of changeListeners) listener(msg.notes as TaskNoteMeta[])
+        return
+      }
+      const requestId = msg.requestId as string | undefined
+      if (requestId) {
+        const pending = sharedPendingRequests.get(requestId)
+        if (pending) {
+          clearTimeout(pending.timeout)
+          sharedPendingRequests.delete(requestId)
+          if (msg.error) {
+            pending.reject(new Error(msg.error as string))
+          } else {
+            pending.resolve(msg)
+          }
+        }
+      }
+    },
+  })
+}
+
 export function useTaskNotes(sessionId: string | null) {
   const [notes, setNotes] = useState<TaskNoteMeta[]>([])
   const [loading, setLoading] = useState(false)
-  const pendingRequests = useRef<Map<string, PendingRequest>>(new Map())
   const sendWsMessage = useSessionsStore(state => state.sendWsMessage)
 
   function sendRequest(msg: Record<string, unknown>): Promise<Record<string, unknown>> {
     const requestId = crypto.randomUUID()
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        pendingRequests.current.delete(requestId)
+        sharedPendingRequests.delete(requestId)
         reject(new Error('Request timed out'))
       }, REQUEST_TIMEOUT_MS)
-      pendingRequests.current.set(requestId, { resolve, reject, timeout })
+      sharedPendingRequests.set(requestId, { resolve, reject, timeout })
       sendWsMessage({ ...msg, requestId, sessionId })
     })
   }
 
-  const handleMessage = useCallback((msg: Record<string, unknown>) => {
-    // Filesystem change notification -- update notes from the pushed data
-    if (msg.type === 'task_notes_changed' && msg.notes) {
-      setNotes(msg.notes as TaskNoteMeta[])
-      return
-    }
-    const requestId = msg.requestId as string | undefined
-    if (requestId) {
-      const pending = pendingRequests.current.get(requestId)
-      if (pending) {
-        clearTimeout(pending.timeout)
-        pendingRequests.current.delete(requestId)
-        if (msg.error) {
-          pending.reject(new Error(msg.error as string))
-        } else {
-          pending.resolve(msg)
-        }
-      }
-    }
-  }, [])
-
-  // Register handler
+  // Register for change notifications + ensure shared handler is installed
   useEffect(() => {
-    useSessionsStore.setState({ taskNotesHandler: handleMessage })
+    installSharedHandler()
+    changeListeners.add(setNotes)
     return () => {
-      useSessionsStore.setState({ taskNotesHandler: null })
-    }
-  }, [handleMessage])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      for (const [, req] of pendingRequests.current) {
-        clearTimeout(req.timeout)
-        req.reject(new Error('Unmounted'))
-      }
-      pendingRequests.current.clear()
+      changeListeners.delete(setNotes)
     }
   }, [])
 
