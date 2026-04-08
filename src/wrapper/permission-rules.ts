@@ -64,6 +64,18 @@ export function createRulesEngine(cwd: string): RulesEngine {
 
   const sessionRules = new Set<string>()
 
+  // Built-in rules: always auto-approve rclaude's own managed paths
+  const BUILTIN_PATTERNS = ['.claude/.rclaude/tasks/**', '.claude/.rclaude/docs/**']
+
+  function checkBuiltinRules(toolName: string, inputPreview: string): boolean {
+    if (toolName !== 'Write' && toolName !== 'Edit' && toolName !== 'Read') return false
+    const filePath = extractFilePath(inputPreview)
+    if (!filePath) return false
+    const rel = isAbsolute(filePath) ? relative(cwd, filePath) : filePath
+    if (rel.startsWith('..')) return false
+    return BUILTIN_PATTERNS.some(pattern => matchGlob(pattern, rel))
+  }
+
   function checkProjectRules(toolName: string, inputPreview: string): boolean {
     if (toolName !== 'Write' && toolName !== 'Edit' && toolName !== 'Read') return false
 
@@ -88,6 +100,7 @@ export function createRulesEngine(cwd: string): RulesEngine {
 
   return {
     shouldAutoApprove(toolName: string, inputPreview: string): boolean {
+      if (checkBuiltinRules(toolName, inputPreview)) return true
       if (checkProjectRules(toolName, inputPreview)) return true
       if (sessionRules.has(toolName)) return true
       return false
