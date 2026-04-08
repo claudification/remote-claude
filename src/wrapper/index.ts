@@ -785,9 +785,9 @@ async function main() {
             `intent="${delivery.intent}"`,
             ...(delivery.conversationId ? [`conversation_id="${delivery.conversationId}"`] : []),
           ].join(' ')
-          const wrapped = `<conduit ${attrs}>\n${delivery.message}\n</conduit>`
+          const wrapped = `<channel ${attrs}>\n${delivery.message}\n</channel>`
           streamProc.sendUserMessage(wrapped, 'session')
-          diag('headless', `Conduit from ${delivery.fromProject}: ${delivery.message.slice(0, 60)}`)
+          diag('headless', `Channel from ${delivery.fromProject}: ${delivery.message.slice(0, 60)}`)
         } else if (channelEnabled && isMcpChannelReady()) {
           const meta: Record<string, string> = {
             sender: 'session',
@@ -1802,15 +1802,16 @@ async function main() {
             '# Headless Mode',
             '',
             'This session is running in **headless mode** (no terminal, structured I/O).',
-            'User messages arrive as plain text. Inter-session messages arrive wrapped in `<conduit>` tags:',
+            'User messages arrive as plain text.',
+            'Inter-session messages from other Claude Code sessions arrive wrapped in `<channel>` tags:',
             '',
             '```',
-            '<conduit sender="session" from_project="other-project" intent="request" conversation_id="conv_xyz">',
+            '<channel sender="session" from_project="other-project" intent="request" conversation_id="conv_xyz">',
             'Message from another session',
-            '</conduit>',
+            '</channel>',
             '```',
             '',
-            'Treat `<conduit>` messages like `<channel sender="session">` messages in channel mode.',
+            'Treat these as requests from other AI sessions. Include conversation_id when replying.',
           ]
         : []),
     ].join('\n'),
