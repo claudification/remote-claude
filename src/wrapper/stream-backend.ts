@@ -76,6 +76,7 @@ export interface StreamBackendOptions {
   onStreamEvent?: (event: Record<string, unknown>) => void
   onRateLimit?: (retryAfterMs: number, message: string) => void
   onTaskStarted?: (task: { taskId: string; toolUseId: string; taskType: string; description: string }) => void
+  onSubagentEntry?: (toolUseId: string, entry: TranscriptEntry) => void
   onExit?: (code: number | null) => void
 }
 
@@ -142,6 +143,7 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
     onStreamEvent,
     onRateLimit,
     onTaskStarted,
+    onSubagentEntry,
     onExit,
   } = options
 
@@ -250,16 +252,22 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
       }
 
       case 'assistant': {
+        const parentToolUseId = msg.parent_tool_use_id as string | null
         const entry: TranscriptEntry = {
           type: 'assistant',
           timestamp: new Date().toISOString(),
           message: msg.message as TranscriptEntry extends { message?: infer M } ? M : never,
         } as TranscriptEntry
-        onTranscriptEntries?.([entry], false)
+        if (parentToolUseId && onSubagentEntry) {
+          onSubagentEntry(parentToolUseId, entry)
+        } else {
+          onTranscriptEntries?.([entry], false)
+        }
         break
       }
 
       case 'user': {
+        const parentToolUseId = msg.parent_tool_use_id as string | null
         // Tool results echoed back, or replayed user messages
         const entry: TranscriptEntry = {
           type: 'user',
@@ -270,7 +278,11 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
         if (msg.tool_use_result) {
           ;(entry as Record<string, unknown>).toolUseResult = msg.tool_use_result
         }
-        onTranscriptEntries?.([entry], false)
+        if (parentToolUseId && onSubagentEntry) {
+          onSubagentEntry(parentToolUseId, entry)
+        } else {
+          onTranscriptEntries?.([entry], false)
+        }
         break
       }
 

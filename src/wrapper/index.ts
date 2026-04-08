@@ -1053,6 +1053,8 @@ async function main() {
 
   // Cache Edit tool inputs by tool_use_id for diff computation when the result arrives
   const pendingEditInputs = new Map<string, { oldString: string; newString: string }>()
+  // Map Agent tool_use_id -> agent task_id for routing subagent stdout entries
+  const agentToolUseMap = new Map<string, string>()
 
   // Augment entries with structuredPatch for Edit diffs.
   // Two paths: (1) JSONL entries already have toolUseResult.oldString/newString -> compute directly
@@ -2004,12 +2006,22 @@ async function main() {
         }
       },
       onTaskStarted(task) {
-        if (task.taskType === 'local_agent' && task.taskId && parentTranscriptPath) {
-          // Derive subagent transcript path and start watching
-          const sessionDir = parentTranscriptPath.replace(/\.jsonl$/, '')
-          const agentTranscriptPath = join(sessionDir, 'subagents', `agent-${task.taskId}.jsonl`)
-          debug(`[headless] Agent started: ${task.taskId.slice(0, 8)} -> ${agentTranscriptPath}`)
-          startSubagentWatcher(task.taskId, agentTranscriptPath, true)
+        if (task.taskType === 'local_agent' && task.taskId) {
+          // Map toolUseId -> taskId for routing subagent entries from stdout
+          agentToolUseMap.set(task.toolUseId, task.taskId)
+          if (parentTranscriptPath) {
+            // Also start file watcher for subagent JSONL (backup path)
+            const sessionDir = parentTranscriptPath.replace(/\.jsonl$/, '')
+            const agentTranscriptPath = join(sessionDir, 'subagents', `agent-${task.taskId}.jsonl`)
+            debug(`[headless] Agent started: ${task.taskId.slice(0, 8)} -> ${agentTranscriptPath}`)
+            startSubagentWatcher(task.taskId, agentTranscriptPath, true)
+          }
+        }
+      },
+      onSubagentEntry(toolUseId, entry) {
+        const agentId = agentToolUseMap.get(toolUseId)
+        if (agentId) {
+          sendTranscriptEntriesChunked([entry], false, agentId)
         }
       },
       onPermissionRequest(request) {
