@@ -1,28 +1,39 @@
 /**
- * Shiki syntax highlighting - using shiki/core with explicit lang/theme imports
- * Only bundles what we actually use instead of the full web bundle (~120 fewer chunks)
+ * Shiki syntax highlighting - static imports for core + eager langs,
+ * lazy imports only for rare languages.
  */
 
-import type { HighlighterCore } from 'shiki/core'
+import { createHighlighterCore, type HighlighterCore } from 'shiki/core'
+import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
+import tokyoNight from 'shiki/themes/tokyo-night'
+import langJavascript from 'shiki/langs/javascript'
+import langTypescript from 'shiki/langs/typescript'
+import langTsx from 'shiki/langs/tsx'
+import langJsx from 'shiki/langs/jsx'
+import langShellscript from 'shiki/langs/shellscript'
+import langHtml from 'shiki/langs/html'
+import langAstro from 'shiki/langs/astro'
+import langCss from 'shiki/langs/css'
+import langJson from 'shiki/langs/json'
+import langYaml from 'shiki/langs/yaml'
+import langMarkdown from 'shiki/langs/markdown'
+
+const EAGER_LANGS = [
+  langJavascript,
+  langTypescript,
+  langTsx,
+  langJsx,
+  langShellscript,
+  langHtml,
+  langAstro,
+  langCss,
+  langJson,
+  langYaml,
+  langMarkdown,
+].flat()
 
 // Lazy singleton highlighter
 let highlighterPromise: Promise<HighlighterCore> | null = null
-
-// Languages loaded eagerly on init (most common in transcripts)
-const EAGER_LANG_IMPORTS = () =>
-  Promise.all([
-    import('shiki/langs/javascript'),
-    import('shiki/langs/typescript'),
-    import('shiki/langs/tsx'),
-    import('shiki/langs/jsx'),
-    import('shiki/langs/shellscript'),
-    import('shiki/langs/html'),
-    import('shiki/langs/astro'),
-    import('shiki/langs/css'),
-    import('shiki/langs/json'),
-    import('shiki/langs/yaml'),
-    import('shiki/langs/markdown'),
-  ])
 
 // Languages available for lazy loading (less common)
 const LAZY_LANG_LOADERS: Record<string, () => Promise<unknown>> = {
@@ -75,19 +86,11 @@ const ALL_LANGS = new Set([
 
 export function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
-    highlighterPromise = (async () => {
-      const [{ createHighlighterCore }, { createJavaScriptRegexEngine }, tokyoNight, eagerLangs] = await Promise.all([
-        import('shiki/core'),
-        import('shiki/engine/javascript'),
-        import('shiki/themes/tokyo-night'),
-        EAGER_LANG_IMPORTS(),
-      ])
-      return createHighlighterCore({
-        themes: [tokyoNight],
-        langs: eagerLangs.flatMap(m => m.default),
-        engine: createJavaScriptRegexEngine(),
-      })
-    })()
+    highlighterPromise = createHighlighterCore({
+      themes: [tokyoNight],
+      langs: EAGER_LANGS,
+      engine: createJavaScriptRegexEngine(),
+    })
   }
   return highlighterPromise
 }

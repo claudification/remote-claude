@@ -110,8 +110,8 @@ export function TranscriptView({
   const virtualizer = useVirtualizer({
     count: mainGroups.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 150,
-    overscan: 10,
+    estimateSize: () => 120,
+    overscan: 3,
     getItemKey: index => {
       const g = mainGroups[index]
       return `${g.type}-${g.timestamp}-${index}`
