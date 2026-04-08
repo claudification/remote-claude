@@ -58,6 +58,7 @@ export interface StreamProcess {
   proc: Subprocess
   sendUserMessage: (text: string) => void
   sendPermissionResponse: (requestId: string, allow: boolean, updatedInput?: Record<string, unknown>) => void
+  forwardStdin: () => void
   kill: (signal?: NodeJS.Signals) => void
   // PtyProcess-compatible stubs
   write: (data: string) => void
@@ -295,6 +296,23 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
             : { behavior: 'deny', message: 'Denied by user' },
         },
       })
+    },
+
+    forwardStdin() {
+      // Forward parent process stdin to claude's stdin (for piped NDJSON input)
+      if (!process.stdin.isTTY) {
+        debug('Forwarding parent stdin to claude stdin')
+        process.stdin.on('data', (chunk: Buffer) => {
+          if (proc.stdin) {
+            proc.stdin.write(chunk.toString())
+            proc.stdin.flush()
+          }
+        })
+        process.stdin.on('end', () => {
+          debug('Parent stdin closed')
+          // Don't close claude's stdin - dashboard may still send messages
+        })
+      }
     },
 
     kill(signal: NodeJS.Signals = 'SIGTERM') {

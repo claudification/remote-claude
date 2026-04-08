@@ -299,6 +299,7 @@ async function main() {
     } else if (arg === '--headless') {
       headless = true
       noTerminal = true // headless implies no terminal
+      channelEnabled = false // headless uses stdin/stdout, not MCP channel
     } else if (arg === '--channels') {
       channelEnabled = true
     } else if (arg === '--no-channels') {
@@ -1120,6 +1121,10 @@ async function main() {
   }
 
   function startTranscriptWatcher(transcriptPath: string) {
+    if (headless) {
+      debug('Skipping transcript watcher in headless mode (data comes from stdout stream)')
+      return
+    }
     if (transcriptWatcher) {
       debug(`Transcript watcher already running, skipping`)
       return
@@ -1819,6 +1824,9 @@ async function main() {
       },
     })
     ptyProcess = streamProc
+
+    // Forward parent stdin to claude (for piped NDJSON input)
+    streamProc.forwardStdin()
   } else {
     // --- PTY MODE: existing behavior ---
     ptyProcess = spawnClaude({
