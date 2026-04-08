@@ -33,7 +33,15 @@ const sendInput: MessageHandler = (ctx, data) => {
   if (session.status === 'ended') throw new GuardError('Session has ended')
   ctx.requirePermission('chat', session.cwd)
 
-  const ws = ctx.sessions.getSessionSocket(sessionId)
+  // Try by session ID first, then by wrapper IDs (handles ID changes from SessionStart)
+  let ws = ctx.sessions.getSessionSocket(sessionId)
+  if (!ws) {
+    const wrapperIds = ctx.sessions.getWrapperIds(sessionId)
+    for (const wid of wrapperIds) {
+      ws = ctx.sessions.getSessionSocketByWrapper(wid)
+      if (ws) break
+    }
+  }
   if (!ws) throw new GuardError('Session not connected')
 
   const crDelay = typeof data.crDelay === 'number' && data.crDelay > 0 ? data.crDelay : undefined
