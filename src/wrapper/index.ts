@@ -344,7 +344,7 @@ async function main() {
   let claudeSessionId: string | null = null
   let wsClient: WsClient | null = null
   let ptyProcess: PtyProcess | null = null
-  const streamProc: StreamProcess | null = null
+  let streamProc: StreamProcess | null = null
   let terminalAttached = false
   let fileEditor: FileEditor | null = null
   let savedTerminalSize: { cols: number; rows: number } | null = null
@@ -1848,7 +1848,7 @@ async function main() {
     debug('Starting in HEADLESS mode (stream-json)')
     diag('headless', 'Stream-JSON backend active')
 
-    const streamProc = spawnStreamClaude({
+    streamProc = spawnStreamClaude({
       args: finalClaudeArgs,
       settingsPath,
       sessionId: internalId,
