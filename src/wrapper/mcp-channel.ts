@@ -13,8 +13,8 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { appendFileSync } from 'node:fs'
-import { resolve as resolvePath } from 'node:path'
+import { appendFileSync, readdirSync, readFileSync } from 'node:fs'
+import { join, resolve as resolvePath } from 'node:path'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
@@ -450,6 +450,21 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         inputSchema: { type: 'object' as const, properties: {} },
       },
       {
+        name: 'tasks',
+        description:
+          'List task notes from the project kanban board (.claude/.rclaude/tasks/). Returns tasks grouped by status (open, in-progress, done) with their frontmatter (title, priority, tags, refs) and relative file paths. Use this to discover what tasks exist before working on them. To edit tasks, read/write the markdown files directly. To change status, mv the file between status folders.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            status: {
+              type: 'string',
+              enum: ['open', 'in-progress', 'done', 'all'],
+              description: 'Filter by status folder. Default: all',
+            },
+          },
+        },
+      },
+      {
         name: 'dialog',
         description:
           'PREFERRED way to interact with users. Use this PROACTIVELY whenever you need user input, decisions, confirmations, or want to present structured information. Do NOT ask questions in plain text -- use dialog instead for a rich UI experience. Shows an interactive dialog modal in the dashboard and waits for the user to respond. Supports: choices (single/multi select), text inputs, toggles, sliders, image display and selection, markdown content, code blocks, mermaid diagrams, alerts, collapsible groups, grids, and multi-page wizards. The user interacts on their device (phone/desktop) and the result comes back as structured JSON. BLOCKING call -- waits for submit/cancel/timeout (default 5 min, auto-extends on user interaction). Use "body" for single-page or "pages" for multi-step flows.',
@@ -471,6 +486,39 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           callbacks.onNotify?.(message, title)
           debug(`[channel] notify: ${message.slice(0, 80)}`)
           return { content: [{ type: 'text', text: 'Notification sent' }] }
+        }
+        case 'tasks': {
+          const statusFilter = params.status || 'all'
+          const statuses = statusFilter === 'all' ? ['open', 'in-progress', 'done'] : [statusFilter]
+          const tasksDir = join(explorerCwd, '.claude', '.rclaude', 'tasks')
+          const results: string[] = []
+          for (const status of statuses) {
+            const dir = join(tasksDir, status)
+            try {
+              const files = readdirSync(dir)
+                .filter(f => f.endsWith('.md'))
+                .sort()
+              for (const file of files) {
+                try {
+                  const content = readFileSync(join(dir, file), 'utf-8')
+                  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+                  const fm = fmMatch ? fmMatch[1] : ''
+                  const relPath = `.claude/.rclaude/tasks/${status}/${file}`
+                  results.push(`## ${relPath}\n${fm}`)
+                } catch {
+                  /* skip unreadable */
+                }
+              }
+            } catch {
+              /* dir doesn't exist yet */
+            }
+          }
+          const output =
+            results.length > 0
+              ? results.join('\n\n')
+              : 'No tasks found. Create one with: Write .claude/.rclaude/tasks/open/my-task.md'
+          debug(`[channel] tasks: ${results.length} tasks (filter=${statusFilter})`)
+          return { content: [{ type: 'text', text: output }] }
         }
         case 'share_file': {
           const filePath = params.file_path
