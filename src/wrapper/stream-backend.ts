@@ -59,7 +59,7 @@ export interface StreamPermissionRequest {
 
 export interface StreamProcess {
   proc: Subprocess
-  sendUserMessage: (text: string) => void
+  sendUserMessage: (text: string, source?: string) => void
   sendPermissionResponse: (requestId: string, allow: boolean, updatedInput?: Record<string, unknown>) => void
   forwardStdin: () => void
   kill: (signal?: NodeJS.Signals) => void
@@ -305,12 +305,15 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
   return {
     proc,
 
-    sendUserMessage(text: string) {
-      debug(`Sending user message: ${text.slice(0, 80)}...`)
+    sendUserMessage(text: string, source?: string) {
+      const content = source
+        ? `<conduit source="${source}" ts="${new Date().toISOString()}">\n${text}\n</conduit>`
+        : text
+      debug(`Sending user message${source ? ` (${source})` : ''}: ${text.slice(0, 80)}...`)
       writeStdin({
         type: 'user',
         session_id: '',
-        message: { role: 'user', content: text },
+        message: { role: 'user', content },
         parent_tool_use_id: null,
       })
     },
@@ -350,13 +353,11 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
       proc.kill(signal)
     },
 
-    // PtyProcess-compatible stubs for code that checks ptyProcess
+    // PtyProcess-compatible stub: dashboard input becomes a conduit message
     write(data: string) {
-      // In headless mode, text input becomes a user message
-      // But only if it's not a control sequence
       const trimmed = data.trim()
       if (trimmed && !trimmed.startsWith('\x1b') && trimmed !== '\r' && trimmed !== '\n') {
-        this.sendUserMessage(trimmed)
+        this.sendUserMessage(trimmed, 'dashboard')
       }
     },
 

@@ -1749,6 +1749,25 @@ async function main() {
             'inter-session replies, regardless of how the original message arrived.',
           ]
         : []),
+      // Headless conduit messaging
+      ...(headless
+        ? [
+            '',
+            '# Conduit Messages (headless mode)',
+            '',
+            'This session is running in **headless mode** (no terminal, structured I/O).',
+            'Messages from the dashboard arrive wrapped in `<conduit>` tags:',
+            '',
+            '```',
+            '<conduit source="dashboard" ts="2026-01-01T00:00:00.000Z">',
+            'User message here',
+            '</conduit>',
+            '```',
+            '',
+            'Treat `<conduit source="dashboard">` messages as regular user input from the dashboard.',
+            'The user may be on their phone or another device, not at the terminal.',
+          ]
+        : []),
     ].join('\n'),
   )
   claudeArgs.push('--append-system-prompt', readFileSync(promptFile, 'utf-8'))
