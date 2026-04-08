@@ -722,7 +722,7 @@ export function SessionDetail() {
   }, [requestedTab, requestedTabSeq])
 
   const session = useSessionsStore(state => state.sessions.find(s => s.id === state.selectedSessionId))
-  const { canAdmin, canChat, canReadTerminal, canReadFiles } = useSessionsStore(
+  const { canAdmin, canChat, canReadTerminal, canReadFiles, canSpawn } = useSessionsStore(
     s => (s.selectedSessionId && s.sessionPermissions[s.selectedSessionId]) || s.permissions,
   )
 
@@ -831,7 +831,7 @@ export function SessionDetail() {
 
   const canSendInput = session != null && session.status !== 'ended' && canChat
   const hasTerminal = session ? canTerminal(session) : false
-  const canRevive = session?.status === 'ended' && agentConnected
+  const canRevive = session?.status === 'ended' && agentConnected && canSpawn
 
   function handleRevive() {
     if (!selectedSessionId || reviveState !== 'idle') return
@@ -1582,8 +1582,8 @@ export function SessionDetail() {
         </Suspense>
       )}
 
-      {/* Revive button for ended sessions */}
-      {session?.status === 'ended' && (
+      {/* Revive button for ended sessions (hidden without spawn permission) */}
+      {session?.status === 'ended' && canSpawn && (
         <div className="shrink-0 p-3 border-t border-border">
           {canRevive ? (
             <div>
