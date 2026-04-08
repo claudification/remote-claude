@@ -38,15 +38,17 @@ fi
 AGENT_ARGS=()
 VERBOSE=false
 SPAWN_ROOT_SET=false
+KILL_IF_RUNNING=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --concentrator) AGENT_ARGS+=(--concentrator "$2"); shift 2 ;;
     --spawn-root)   AGENT_ARGS+=(--spawn-root "$2"); SPAWN_ROOT_SET=true; shift 2 ;;
     --no-spawn)     AGENT_ARGS+=(--no-spawn); shift ;;
+    --kill-if-running) KILL_IF_RUNNING=true; shift ;;
     -v|--verbose)   AGENT_ARGS+=(-v); VERBOSE=true; shift ;;
     --help|-h)
-      echo "Usage: start-agent.sh [--concentrator <url>] [--spawn-root <path>] [--no-spawn] [-v|--verbose]"
+      echo "Usage: start-agent.sh [--concentrator <url>] [--spawn-root <path>] [--no-spawn] [--kill-if-running] [-v|--verbose]"
       echo ""
       echo "Validates config and starts rclaude-agent in the background."
       echo "Reads RCLAUDE_SECRET and RCLAUDE_SPAWN_ROOT from .env or environment."
@@ -86,9 +88,25 @@ command -v tmux &>/dev/null || die "tmux not found. Install with: brew install t
 if [[ -f "$PID_FILE" ]]; then
   OLD_PID=$(cat "$PID_FILE")
   if kill -0 "$OLD_PID" 2>/dev/null; then
-    warn "Agent already running (PID $OLD_PID)"
-    echo -e "  Stop it first: ${YELLOW}kill $OLD_PID${NC}"
-    exit 1
+    if [[ "$KILL_IF_RUNNING" == true ]]; then
+      warn "Killing existing agent (PID $OLD_PID)"
+      kill "$OLD_PID" 2>/dev/null || true
+      # Wait up to 3s for clean exit
+      for i in {1..6}; do
+        kill -0 "$OLD_PID" 2>/dev/null || break
+        sleep 0.5
+      done
+      # Force kill if still alive
+      if kill -0 "$OLD_PID" 2>/dev/null; then
+        warn "Agent didn't exit cleanly, sending SIGKILL"
+        kill -9 "$OLD_PID" 2>/dev/null || true
+      fi
+      rm -f "$PID_FILE"
+    else
+      warn "Agent already running (PID $OLD_PID)"
+      echo -e "  Stop it first: ${YELLOW}kill $OLD_PID${NC}  or use --kill-if-running"
+      exit 1
+    fi
   else
     warn "Stale PID file (process $OLD_PID dead). Removing."
     rm -f "$PID_FILE"
