@@ -118,63 +118,70 @@ export function MarkdownInput({
   const [dragOver, setDragOver] = useState(false)
   const [acIndex, setAcIndex] = useState(0) // autocomplete selection index
 
-  // Autocomplete from session info: / = commands, @ = skills/agents
-  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
-  const sessionInfoData = useSessionsStore(
-    state => (selectedSessionId ? state.sessionInfo[selectedSessionId] : null) || EMPTY_INFO,
-  )
+  // Autocomplete: only activate when value contains / or @ (cheap check before anything else)
+  const maybeAutocomplete = value.includes('/') || value.includes('@')
 
-  // Fuzzy match: all query chars must appear in order in the candidate
-  function fuzzyMatch(query: string, candidate: string): number {
-    const q = query.toLowerCase()
-    const c = candidate.toLowerCase()
-    if (!q) return 1 // empty query matches everything
-    let qi = 0
-    let score = 0
-    for (let ci = 0; ci < c.length && qi < q.length; ci++) {
-      if (c[ci] === q[qi]) {
-        score += ci === qi ? 3 : 1 // bonus for positional match
-        qi++
-      }
-    }
-    return qi === q.length ? score : 0
-  }
-
-  // Detect trigger char at cursor and extract query
-  const acTrigger = useMemo((): { trigger: string; query: string } | null => {
-    const ta = textareaRef.current
-    const pos = ta?.selectionStart ?? value.length
-    let start = pos - 1
-    while (start >= 0 && /[a-zA-Z0-9_:-]/.test(value[start])) start--
-    if (start < 0) return null
-    const ch = value[start]
-    if (ch !== '/' && ch !== '@') return null
-    // Must be at word boundary
-    if (start > 0 && !/[\s\n]/.test(value[start - 1])) return null
-    // Not inside backticks
-    const before = value.slice(0, start)
-    const backticks = (before.match(/`/g) || []).length
-    if (backticks % 2 !== 0) return null
-    if (before.includes('```') && (before.match(/```/g) || []).length % 2 !== 0) return null
-    const token = value.slice(start + 1, pos)
-    if (token.includes(' ') || token.includes('\n')) return null
-    return { trigger: ch, query: token }
-  }, [value])
+  // Session info for autocomplete data - only subscribe when we might need it
+  const sessionInfoData = useSessionsStore(state => {
+    if (!maybeAutocomplete) return EMPTY_INFO
+    const sid = state.selectedSessionId
+    return (sid ? state.sessionInfo[sid] : null) || EMPTY_INFO
+  })
 
   const acItems = useMemo(() => {
-    if (!acTrigger && value !== '/' && value !== '@') return []
-    const trigger = acTrigger?.trigger || value
-    const query = acTrigger?.query || ''
-    let source: string[] = []
-    if (trigger === '/') source = sessionInfoData.slashCommands || []
-    else if (trigger === '@') source = [...(sessionInfoData.skills || []), ...(sessionInfoData.agents || [])]
+    if (!maybeAutocomplete) return []
+    // Detect trigger at cursor position
+    const pos = textareaRef.current?.selectionStart ?? value.length
+    let start = pos - 1
+    while (start >= 0 && /[a-zA-Z0-9_:-]/.test(value[start])) start--
+    if (start < 0) return []
+    const ch = value[start]
+    if (ch !== '/' && ch !== '@') return []
+    if (start > 0 && !/[\s\n]/.test(value[start - 1])) return []
+    // Not inside backticks
+    const before = value.slice(0, start)
+    if ((before.match(/`/g) || []).length % 2 !== 0) return []
+    if (before.includes('```') && (before.match(/```/g) || []).length % 2 !== 0) return []
+    const query = value.slice(start + 1, pos)
+    if (query.includes(' ') || query.includes('\n')) return []
+
+    // Get source list
+    let source: string[]
+    if (ch === '/') source = sessionInfoData.slashCommands || []
+    else source = [...(sessionInfoData.skills || []), ...(sessionInfoData.agents || [])]
     if (!source.length) return []
-    const scored = source
-      .map(item => ({ item, score: fuzzyMatch(query, item) }))
-      .filter(x => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-    return scored.map(x => x.item).slice(0, 12)
-  }, [acTrigger, value, sessionInfoData])
+
+    // Fuzzy match
+    const q = query.toLowerCase()
+    const scored: Array<{ item: string; score: number }> = []
+    for (const item of source) {
+      if (!q) {
+        scored.push({ item, score: 1 })
+        continue
+      }
+      const c = item.toLowerCase()
+      let qi = 0
+      let score = 0
+      for (let ci = 0; ci < c.length && qi < q.length; ci++) {
+        if (c[ci] === q[qi]) {
+          score += ci === qi ? 3 : 1
+          qi++
+        }
+      }
+      if (qi === q.length) scored.push({ item, score })
+    }
+    scored.sort((a, b) => b.score - a.score)
+    return scored.slice(0, 12).map(x => x.item)
+  }, [maybeAutocomplete, value, sessionInfoData])
+
+  // Resolve trigger char for the dropdown display
+  const acTrigger = useMemo(() => {
+    if (!acItems.length) return null
+    const pos = textareaRef.current?.selectionStart ?? value.length
+    let start = pos - 1
+    while (start >= 0 && /[a-zA-Z0-9_:-]/.test(value[start])) start--
+    return start >= 0 ? value[start] : '/'
+  }, [acItems.length, value])
   const [pasteChoice, setPasteChoice] = useState<{ file: File } | null>(null)
   const [showVoiceOverlay, setShowVoiceOverlay] = useState(false)
   const [holdToRecord, setHoldToRecord] = useState(false) // true = voice overlay in hold-to-record mode
@@ -821,7 +828,7 @@ export function MarkdownInput({
       {acItems.length > 0 && (
         <div className="absolute bottom-full left-0 right-0 z-30 mb-1 bg-background border border-border rounded shadow-lg max-h-[240px] overflow-y-auto">
           {acItems.map((item, i) => {
-            const trigger = acTrigger?.trigger || value[0] || '/'
+            const trigger = acTrigger || '/'
             return (
               // biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled in textarea
               <div
