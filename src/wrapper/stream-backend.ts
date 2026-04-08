@@ -23,6 +23,7 @@ export interface StreamBackendOptions {
   onInit?: (init: StreamInitMessage) => void
   onResult?: (result: StreamResultMessage) => void
   onPermissionRequest?: (request: StreamPermissionRequest) => void
+  onStreamEvent?: (event: Record<string, unknown>) => void
   onExit?: (code: number | null) => void
 }
 
@@ -83,6 +84,7 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
     onInit,
     onResult,
     onPermissionRequest,
+    onStreamEvent,
     onExit,
   } = options
 
@@ -102,6 +104,7 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
     'stream-json',
     '--input-format',
     'stream-json',
+    '--include-partial-messages',
     '--settings',
     settingsPath,
     ...filteredArgs,
@@ -202,7 +205,8 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
       }
 
       case 'stream_event': {
-        // Raw API SSE deltas - could forward for real-time streaming later
+        // Raw API SSE deltas - token-by-token streaming
+        onStreamEvent?.(msg)
         break
       }
 
