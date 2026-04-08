@@ -1799,7 +1799,7 @@ async function main() {
       'Use `mcp__rclaude__tasks` to list project tasks from the kanban board.',
       'Tasks are markdown files in `.claude/.rclaude/tasks/{status}/` with YAML frontmatter.',
       'Status folders: `open/`, `in-progress/`, `done/`, `archived/`.',
-      'To change status: `mv .claude/.rclaude/tasks/open/task.md .claude/.rclaude/tasks/in-progress/task.md`',
+      'To change status: `mcp__rclaude__set_task_status` with id (filename without .md) and target status.',
       'To edit: read and write the .md file directly (update frontmatter + body).',
       'Frontmatter: title, priority (high/medium/low), tags [...], refs [...], created (ISO).',
       'Changes are auto-pushed to the dashboard kanban board via file watcher.',

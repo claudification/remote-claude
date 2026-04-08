@@ -23,6 +23,7 @@ import { explorerToolInputSchema, validateExplorerLayout } from '../shared/explo
 import { isPathWithinCwd } from '../shared/path-guard'
 import { checkForUpdate, formatUpdateResult } from '../shared/update-check'
 import { debug } from './debug'
+import { moveTaskNote, type TaskStatus } from './task-notes'
 
 const EXPLORER_LOG = '/tmp/rclaude-explorer.log'
 
@@ -480,6 +481,26 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         },
       },
       {
+        name: 'set_task_status',
+        description:
+          'Move a task note to a different status column on the kanban board. Use the filename (without .md) as the task ID. Avoids needing Bash mv which triggers permission prompts.',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            id: {
+              type: 'string',
+              description: 'Task filename without .md extension (e.g. "my-task" or "bug-conduit-session")',
+            },
+            status: {
+              type: 'string',
+              enum: ['open', 'in-progress', 'done', 'archived'],
+              description: 'Target status folder',
+            },
+          },
+          required: ['id', 'status'],
+        },
+      },
+      {
         name: 'dialog',
         description:
           'PREFERRED way to interact with users. Use this PROACTIVELY whenever you need user input, decisions, confirmations, or want to present structured information. Do NOT ask questions in plain text -- use dialog instead for a rich UI experience. Shows an interactive dialog modal in the dashboard and waits for the user to respond. Supports: choices (single/multi select), text inputs, toggles, sliders, image display and selection, markdown content, code blocks, mermaid diagrams, alerts, collapsible groups, grids, and multi-page wizards. The user interacts on their device (phone/desktop) and the result comes back as structured JSON. BLOCKING call -- waits for submit/cancel/timeout (default 5 min, auto-extends on user interaction). Use "body" for single-page or "pages" for multi-step flows.',
@@ -541,6 +562,34 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
               : 'No tasks found. Create one with: Write .claude/.rclaude/tasks/open/my-task.md'
           debug(`[channel] tasks: ${results.length} tasks (filter=${statusFilter})`)
           return { content: [{ type: 'text', text: output }] }
+        }
+        case 'set_task_status': {
+          const taskId = params.id
+          const targetStatus = params.status as TaskStatus
+          if (!taskId) return { content: [{ type: 'text', text: 'Error: id is required' }], isError: true }
+          if (!['open', 'in-progress', 'done', 'archived'].includes(targetStatus))
+            return { content: [{ type: 'text', text: `Error: invalid status "${targetStatus}"` }], isError: true }
+
+          // Find the task in any status folder
+          const allStatuses: TaskStatus[] = ['open', 'in-progress', 'done', 'archived']
+          let fromStatus: TaskStatus | null = null
+          for (const s of allStatuses) {
+            const dir = join(explorerCwd, '.claude', '.rclaude', 'tasks', s)
+            try {
+              if (readdirSync(dir).includes(`${taskId}.md`)) {
+                fromStatus = s
+                break
+              }
+            } catch {}
+          }
+          if (!fromStatus) return { content: [{ type: 'text', text: `Task "${taskId}" not found` }], isError: true }
+          if (fromStatus === targetStatus)
+            return { content: [{ type: 'text', text: `Task already in ${targetStatus}` }] }
+
+          const moved = moveTaskNote(explorerCwd, taskId, fromStatus, targetStatus)
+          if (!moved) return { content: [{ type: 'text', text: `Failed to move task` }], isError: true }
+          debug(`[channel] set_task_status: ${taskId} ${fromStatus} -> ${targetStatus}`)
+          return { content: [{ type: 'text', text: `Moved "${taskId}" from ${fromStatus} to ${targetStatus}` }] }
         }
         case 'share_file': {
           const filePath = params.file_path
