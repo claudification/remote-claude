@@ -14,7 +14,7 @@ import { isPathWithinCwd } from '../shared/path-guard'
 import type { HookEvent, TaskInfo, TasksUpdate, TranscriptEntry, WrapperMessage } from '../shared/protocol'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
 import { checkForUpdate, formatUpdateResult, formatVersion } from '../shared/update-check'
-import { DEBUG, debug } from './debug'
+import { DEBUG, debug, setDebugStderr } from './debug'
 import { FileEditor } from './file-editor'
 import { resolveAskRequest, setLocalServerDebug, startLocalServer, stopLocalServer } from './local-server'
 import {
@@ -314,6 +314,7 @@ async function main() {
   if (headless) {
     noTerminal = true
     channelEnabled = false
+    setDebugStderr(true) // no PTY to corrupt, stderr is safe
   }
 
   // Check if concentrator is reachable (unless --no-concentrator)
