@@ -33,8 +33,8 @@ const C = {
 // Colorize JSON keys and values for terminal output
 function colorizeJson(json: string): string {
   return json
-    .replace(/"([^"]+)":/g, `${C.cyan}"$1"${C.reset}:`) // keys in cyan
-    .replace(/: "([^"]*?)"/g, `: ${C.green}"$1"${C.reset}`) // string values in green
+    .replace(/"([^"]+)":/g, `${C.cyan}$1${C.reset}:`) // keys in cyan, no quotes
+    .replace(/: "([^"]*?)"/g, `: ${C.green}$1${C.reset}`) // string values in green, no quotes
     .replace(/: (\d+\.?\d*)/g, `: ${C.yellow}$1${C.reset}`) // numbers in yellow
     .replace(/: (true|false|null)/g, `: ${C.magenta}$1${C.reset}`) // literals in magenta
 }
