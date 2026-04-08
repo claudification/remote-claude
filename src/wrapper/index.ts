@@ -33,6 +33,7 @@ import { Osc52Parser } from './osc52-parser'
 import { createRulesEngine } from './permission-rules'
 import { getTerminalSize, type PtyProcess, setupTerminalPassthrough, spawnClaude } from './pty-spawn'
 import { cleanupSettings, writeMergedSettings } from './settings-merge'
+import { type StreamProcess, spawnStreamClaude } from './stream-backend'
 import {
   createTaskNote,
   deleteTaskNote,
@@ -174,6 +175,7 @@ OPTIONS:
   --concentrator <url>   Concentrator WebSocket URL (default: ${DEFAULT_CONCENTRATOR_URL})
   --rclaude-secret <s>   Shared secret for concentrator auth (or RCLAUDE_SECRET env)
   --no-concentrator      Run without forwarding to concentrator
+  --headless             Use stream-json backend instead of PTY (no terminal, structured I/O)
   --no-terminal          Disable remote terminal capability
   --no-channels          Disable MCP channel (channels are ON by default)
   --channels             Enable MCP channel (already default, for explicitness)
@@ -266,6 +268,7 @@ async function main() {
   let concentratorSecret = process.env.RCLAUDE_SECRET
   let noConcentrator = false
   let noTerminal = false
+  let headless = false
   let channelEnabled = process.env.RCLAUDE_CHANNELS !== '0'
   const claudeArgs: string[] = []
 
@@ -293,6 +296,9 @@ async function main() {
       noConcentrator = true
     } else if (arg === '--no-terminal') {
       noTerminal = true
+    } else if (arg === '--headless') {
+      headless = true
+      noTerminal = true // headless implies no terminal
     } else if (arg === '--channels') {
       channelEnabled = true
     } else if (arg === '--no-channels') {
@@ -328,7 +334,7 @@ async function main() {
   // Will be set when we receive SessionStart from Claude
   let claudeSessionId: string | null = null
   let wsClient: WsClient | null = null
-  let ptyProcess: PtyProcess | null = null
+  let ptyProcess: PtyProcess | StreamProcess | null = null
   let terminalAttached = false
   let fileEditor: FileEditor | null = null
   let savedTerminalSize: { cols: number; rows: number } | null = null
@@ -1761,70 +1767,118 @@ async function main() {
     ...claudeArgs,
   ]
 
-  ptyProcess = spawnClaude({
-    args: finalClaudeArgs,
-    settingsPath,
-    sessionId: internalId,
-    localServerPort,
-    concentratorUrl: concentratorHttpUrl,
-    concentratorSecret,
-    onData(data) {
-      // Auto-confirm dev channel warning prompt (fires once on startup)
-      // CC uses Ink/React TUI -- the warning text is painted via cursor positioning,
-      // not as sequential text. But "Entertoconfirm" appears in the raw stream
-      // (ANSI-stripped, no spaces due to Ink rendering). Detect that + confirm.
-      if (channelEnabled && !devChannelConfirmed) {
-        const plain = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b[=>?][0-9]*[a-zA-Z]/g, '')
-        if (plain.includes('Entertoconfirm')) {
-          devChannelConfirmed = true
-          setTimeout(() => {
-            debug('[channel] Sending Enter to confirm dev channel warning')
-            ptyProcess?.write('\r')
-          }, 300)
-          diag('channel', 'Auto-confirmed dev channel warning')
-        }
-      }
+  let cleanupTerminal = () => {}
 
-      // Scan for OSC 52 clipboard sequences and forward captures to concentrator
-      const cleaned = osc52Parser.write(data, capture => {
+  if (headless) {
+    // --- HEADLESS MODE: stream-json backend ---
+    debug('Starting in HEADLESS mode (stream-json)')
+    diag('headless', 'Stream-JSON backend active')
+
+    const streamProc = spawnStreamClaude({
+      args: finalClaudeArgs,
+      settingsPath,
+      sessionId: internalId,
+      localServerPort,
+      concentratorUrl: concentratorHttpUrl,
+      concentratorSecret,
+      onTranscriptEntries(entries, isInitial) {
+        sendTranscriptEntriesChunked(entries, isInitial)
+      },
+      onInit(init) {
+        debug(`[headless] init: session=${init.session_id?.slice(0, 8)} model=${init.model}`)
+        // Update claude session ID from init message if available
+        if (init.session_id && !claudeSessionId) {
+          claudeSessionId = init.session_id
+          diag('headless', `CC session ID from init: ${init.session_id.slice(0, 8)}`)
+        }
+      },
+      onResult(result) {
+        diag('headless', `Result: ${result.subtype} cost=$${result.total_cost_usd} turns=${result.num_turns}`)
+      },
+      onPermissionRequest(request) {
+        // Forward permission request to concentrator for dashboard handling
         if (wsClient?.isConnected()) {
-          const sessionId = claudeSessionId || internalId
+          const inputStr = JSON.stringify(request.toolInput)
           wsClient.send({
-            type: 'clipboard_capture',
-            sessionId,
-            contentType: capture.contentType,
-            text: capture.text,
-            base64: capture.contentType === 'image' ? capture.base64 : undefined,
-            mimeType: capture.mimeType,
-            timestamp: Date.now(),
+            type: 'permission_request',
+            sessionId: claudeSessionId || internalId,
+            toolName: request.toolName,
+            description: `${request.toolName}: ${inputStr.slice(0, 100)}`,
+            inputPreview: inputStr.slice(0, 200),
+            requestId: request.requestId,
           })
-          diag(
-            'clipboard',
-            `${capture.contentType}${capture.mimeType ? ` (${capture.mimeType})` : ''} ${capture.text ? `${capture.text.length} chars` : `${capture.base64.length} b64 bytes`}`,
-          )
+          diag('headless', `Permission request: ${request.toolName} (${request.requestId.slice(0, 8)})`)
         }
-      })
+      },
+      onExit(code) {
+        if (claudeSessionId) {
+          wsClient?.sendSessionEnd(code === 0 ? 'normal' : `exit_code_${code}`)
+        }
+        cleanup()
+        process.exit(code ?? 0)
+      },
+    })
+    ptyProcess = streamProc
+  } else {
+    // --- PTY MODE: existing behavior ---
+    ptyProcess = spawnClaude({
+      args: finalClaudeArgs,
+      settingsPath,
+      sessionId: internalId,
+      localServerPort,
+      concentratorUrl: concentratorHttpUrl,
+      concentratorSecret,
+      onData(data) {
+        // Auto-confirm dev channel warning prompt (fires once on startup)
+        if (channelEnabled && !devChannelConfirmed) {
+          const plain = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b[=>?][0-9]*[a-zA-Z]/g, '')
+          if (plain.includes('Entertoconfirm')) {
+            devChannelConfirmed = true
+            setTimeout(() => {
+              debug('[channel] Sending Enter to confirm dev channel warning')
+              ptyProcess?.write('\r')
+            }, 300)
+            diag('channel', 'Auto-confirmed dev channel warning')
+          }
+        }
 
-      // Forward PTY output to remote terminal viewer when attached (OSC 52 stripped)
-      if (terminalAttached && claudeSessionId && wsClient?.isConnected()) {
-        wsClient.sendTerminalData(cleaned)
-      }
-    },
-    onExit(code) {
-      // Send session end to concentrator
-      if (claudeSessionId) {
-        wsClient?.sendSessionEnd(code === 0 ? 'normal' : `exit_code_${code}`)
-      }
+        // Scan for OSC 52 clipboard sequences and forward captures to concentrator
+        const cleaned = osc52Parser.write(data, capture => {
+          if (wsClient?.isConnected()) {
+            const sessionId = claudeSessionId || internalId
+            wsClient.send({
+              type: 'clipboard_capture',
+              sessionId,
+              contentType: capture.contentType,
+              text: capture.text,
+              base64: capture.contentType === 'image' ? capture.base64 : undefined,
+              mimeType: capture.mimeType,
+              timestamp: Date.now(),
+            })
+            diag(
+              'clipboard',
+              `${capture.contentType}${capture.mimeType ? ` (${capture.mimeType})` : ''} ${capture.text ? `${capture.text.length} chars` : `${capture.base64.length} b64 bytes`}`,
+            )
+          }
+        })
 
-      // Cleanup
-      cleanup()
+        // Forward PTY output to remote terminal viewer when attached (OSC 52 stripped)
+        if (terminalAttached && claudeSessionId && wsClient?.isConnected()) {
+          wsClient.sendTerminalData(cleaned)
+        }
+      },
+      onExit(code) {
+        if (claudeSessionId) {
+          wsClient?.sendSessionEnd(code === 0 ? 'normal' : `exit_code_${code}`)
+        }
+        cleanup()
+        process.exit(code ?? 0)
+      },
+    })
 
-      process.exit(code ?? 0)
-    },
-  })
-
-  // Setup terminal passthrough
-  const cleanupTerminal = setupTerminalPassthrough(ptyProcess)
+    // Setup terminal passthrough (PTY mode only)
+    cleanupTerminal = setupTerminalPassthrough(ptyProcess as PtyProcess)
+  }
 
   // Cleanup function
   function cleanup() {
