@@ -1051,20 +1051,73 @@ async function main() {
 
   const TRANSCRIPT_CHUNK_SIZE = 50 // entries per chunk (was 200 — smaller to avoid oversized WS frames)
 
-  // Augment Edit tool results with structuredPatch for diff rendering in dashboard
-  function augmentEditPatch(entry: TranscriptEntry): TranscriptEntry {
-    const e = entry as Record<string, unknown>
-    const tur = e.toolUseResult as Record<string, unknown> | undefined
-    if (!tur || tur.structuredPatch || !tur.oldString || !tur.newString) return entry
-    try {
-      const patch = computeStructuredPatch('file', 'file', tur.oldString as string, tur.newString as string, '', '', {
-        context: 3,
-      })
-      if (patch.hunks.length > 0) {
-        tur.structuredPatch = patch.hunks
+  // Cache Edit tool inputs by tool_use_id for diff computation when the result arrives
+  const pendingEditInputs = new Map<string, { oldString: string; newString: string }>()
+
+  // Augment entries with structuredPatch for Edit diffs.
+  // Two paths: (1) JSONL entries already have toolUseResult.oldString/newString -> compute directly
+  // (2) Stream entries: assistant has tool_use.input, user has tool_result -> cache input, apply on result
+  function augmentEditPatches(entries: TranscriptEntry[]): TranscriptEntry[] {
+    for (const entry of entries) {
+      const e = entry as Record<string, unknown>
+
+      // Path 1: JSONL entries with toolUseResult.oldString
+      const tur = e.toolUseResult as Record<string, unknown> | undefined
+      if (tur?.oldString && tur?.newString && !tur.structuredPatch) {
+        try {
+          const patch = computeStructuredPatch(
+            'file',
+            'file',
+            tur.oldString as string,
+            tur.newString as string,
+            '',
+            '',
+            { context: 3 },
+          )
+          if (patch.hunks.length > 0) tur.structuredPatch = patch.hunks
+        } catch {}
+        continue
       }
-    } catch {}
-    return entry
+
+      // Path 2a: assistant entry with Edit tool_use -> cache old_string/new_string
+      const msg = (e as { message?: { content?: unknown[] } }).message
+      if (entry.type === 'assistant' && Array.isArray(msg?.content)) {
+        for (const block of msg.content as Record<string, unknown>[]) {
+          if (block.type === 'tool_use' && block.name === 'Edit' && block.id) {
+            const input = block.input as Record<string, unknown> | undefined
+            if (input?.old_string && input?.new_string) {
+              pendingEditInputs.set(block.id as string, {
+                oldString: input.old_string as string,
+                newString: input.new_string as string,
+              })
+            }
+          }
+        }
+      }
+
+      // Path 2b: user entry with tool_result -> look up cached input, compute patch
+      if (entry.type === 'user' && Array.isArray(msg?.content)) {
+        for (const block of msg.content as Record<string, unknown>[]) {
+          if (block.type === 'tool_result' && block.tool_use_id && !block.is_error) {
+            const cached = pendingEditInputs.get(block.tool_use_id as string)
+            if (cached) {
+              pendingEditInputs.delete(block.tool_use_id as string)
+              try {
+                const patch = computeStructuredPatch('file', 'file', cached.oldString, cached.newString, '', '', {
+                  context: 3,
+                })
+                if (patch.hunks.length > 0) {
+                  // Attach to toolUseResult (create if missing)
+                  if (!e.toolUseResult) e.toolUseResult = {}
+                  ;(e.toolUseResult as Record<string, unknown>).structuredPatch = patch.hunks
+                }
+              } catch {}
+            }
+          }
+        }
+      }
+    }
+    return entries
   }
 
   function sendTranscriptEntriesChunked(entries: TranscriptEntry[], isInitial: boolean, agentId?: string) {
@@ -1073,7 +1126,7 @@ async function main() {
       return
     }
     // Augment Edit tool results with structuredPatch for diff rendering
-    const augmented = entries.map(augmentEditPatch)
+    const augmented = augmentEditPatches(entries)
     const send = (chunk: TranscriptEntry[], initial: boolean) =>
       agentId
         ? wsClient?.sendSubagentTranscript(agentId, chunk, initial)
