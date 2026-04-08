@@ -778,7 +778,7 @@ async function main() {
       },
       onChannelDeliver(delivery) {
         if (headless && streamProc) {
-          // Headless mode: deliver inter-session messages via stdin as <conduit> messages
+          // Headless mode: deliver inter-session messages via stdin as <channel> tags (no conduit wrapper)
           const attrs = [
             `sender="session"`,
             `from_session="${delivery.fromSession}"`,
@@ -787,7 +787,7 @@ async function main() {
             ...(delivery.conversationId ? [`conversation_id="${delivery.conversationId}"`] : []),
           ].join(' ')
           const wrapped = `<channel ${attrs}>\n${delivery.message}\n</channel>`
-          streamProc.sendUserMessage(wrapped, 'session')
+          streamProc.sendUserMessage(wrapped)
           diag('headless', `Channel from ${delivery.fromProject}: ${delivery.message.slice(0, 60)}`)
         } else if (channelEnabled && isMcpChannelReady()) {
           const meta: Record<string, string> = {
