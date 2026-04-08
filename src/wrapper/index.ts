@@ -1316,7 +1316,7 @@ async function main() {
       diag('explorer', `Show: "${layout.title}" (${explorerId.slice(0, 8)})`)
       if (wsClient?.isConnected()) {
         wsClient.send({
-          type: 'explorer_show',
+          type: 'dialog_show',
           sessionId: claudeSessionId || internalId,
           explorerId,
           layout,
@@ -1327,7 +1327,7 @@ async function main() {
       diag('explorer', `Dismiss: ${explorerId.slice(0, 8)}`)
       if (wsClient?.isConnected()) {
         wsClient.send({
-          type: 'explorer_dismiss',
+          type: 'dialog_dismiss',
           sessionId: claudeSessionId || internalId,
           explorerId,
         } as unknown as WrapperMessage)

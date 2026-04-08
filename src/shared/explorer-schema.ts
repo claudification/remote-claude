@@ -194,25 +194,25 @@ export interface ExplorerResult {
 
 // ─── WS Message Types ──────────────────────────────────────────────
 
-/** Wrapper -> Concentrator: show explorer dialog to dashboard */
+/** Wrapper -> Concentrator: show dialog to dashboard */
 export interface ExplorerShow {
-  type: 'explorer_show'
+  type: 'dialog_show'
   sessionId: string
-  explorerId: string // unique per explorer invocation
+  explorerId: string // unique per dialog invocation
   layout: ExplorerLayout
 }
 
 /** Dashboard -> Concentrator -> Wrapper: user submitted/cancelled/timed out */
 export interface ExplorerResponse {
-  type: 'explorer_result'
+  type: 'dialog_result'
   sessionId: string
   explorerId: string
   result: ExplorerResult
 }
 
-/** Wrapper -> Concentrator -> Dashboard: dismiss active explorer */
+/** Wrapper -> Concentrator -> Dashboard: dismiss active dialog */
 export interface ExplorerDismiss {
-  type: 'explorer_dismiss'
+  type: 'dialog_dismiss'
   sessionId: string
   explorerId: string
 }

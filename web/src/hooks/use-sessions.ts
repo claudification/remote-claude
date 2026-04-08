@@ -366,7 +366,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     const { ws } = get()
     if (ws?.readyState === WebSocket.OPEN) {
       const msg = JSON.stringify({
-        type: 'explorer_result',
+        type: 'dialog_result',
         sessionId,
         explorerId,
         result,
@@ -384,7 +384,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     const { ws } = get()
     if (ws?.readyState === WebSocket.OPEN) {
       const msg = JSON.stringify({
-        type: 'explorer_result',
+        type: 'dialog_result',
         sessionId,
         explorerId,
         result: { _action: 'submit', _timeout: false, _cancelled: true },
@@ -401,7 +401,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   keepaliveExplorer: (sessionId, explorerId) => {
     const { ws } = get()
     if (ws?.readyState === WebSocket.OPEN) {
-      const msg = JSON.stringify({ type: 'explorer_keepalive', sessionId, explorerId })
+      const msg = JSON.stringify({ type: 'dialog_keepalive', sessionId, explorerId })
       ws.send(msg)
       recordOut(msg.length)
     }

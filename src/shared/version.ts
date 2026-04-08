@@ -11,11 +11,11 @@ export interface BuildVersion {
 }
 
 export const BUILD_VERSION: BuildVersion = {
-  gitHash: 'dd75fc5607fc917a4f94629e116f35106cac1192',
-  gitHashShort: 'dd75fc5-dirty',
-  buildTime: '2026-04-07T06:16:54.201Z',
+  gitHash: '0924154fc0096872dbfaed92b923322c3173ecd2',
+  gitHashShort: '0924154-dirty',
+  buildTime: '2026-04-08T04:44:51.035Z',
   dirty: true,
   branch: 'main',
   githubRepo: 'claudification/remote-claude',
-  recentCommits: [{"hash":"dd75fc5","message":"(HEAD -> main, origin/main, origin/HEAD) fix: Explorer uses ArrayBuffer for upload + always-on logging"},{"hash":"fa88124","message":"fix: Add crash logging for explorer + global crash file"},{"hash":"1da6016","message":"fix: Explorer file upload - add onUploadFile (no CWD jail) + error handling"}],
+  recentCommits: [{"hash":"0924154","message":"(HEAD -> main, origin/main, origin/HEAD) perf: Voice recording 100ms chunks + optimized audio constraints"},{"hash":"50e4d60","message":"fix: Re-check mic permission on app focus/visibility change"},{"hash":"95d97fe","message":"security: Comprehensive permission enforcement audit"}],
 }

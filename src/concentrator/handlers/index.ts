@@ -6,7 +6,7 @@
 import { registerAgentHandlers } from './agent'
 import { registerChannelHandlers } from './channel'
 import { registerDashboardActionHandlers } from './dashboard-actions'
-import { registerExplorerHandlers } from './explorer'
+import { registerDialogHandlers } from './dialog'
 import { registerFileHandlers } from './files'
 import { registerInterSessionHandlers } from './inter-session'
 import { registerPermissionHandlers } from './permissions'
@@ -19,7 +19,7 @@ export function registerAllHandlers(): void {
   registerAgentHandlers()
   registerChannelHandlers()
   registerDashboardActionHandlers()
-  registerExplorerHandlers()
+  registerDialogHandlers()
   registerFileHandlers()
   registerInterSessionHandlers()
   registerPermissionHandlers()

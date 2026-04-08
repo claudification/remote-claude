@@ -450,18 +450,18 @@ export interface AskQuestionResponse {
   skip?: boolean // true = fall through to terminal UI
 }
 
-// Explorer MCP tool (channel-based rich UI for user interaction)
+// Dialog MCP tool (channel-based rich UI for user interaction)
 export type { ExplorerComponent, ExplorerLayout, ExplorerResult } from './explorer-schema'
 
 export interface ExplorerShowMessage {
-  type: 'explorer_show'
+  type: 'dialog_show'
   sessionId: string
   explorerId: string
   layout: import('./explorer-schema').ExplorerLayout
 }
 
 export interface ExplorerResultMessage {
-  type: 'explorer_result'
+  type: 'dialog_result'
   sessionId: string
   explorerId: string
   result: import('./explorer-schema').ExplorerResult
@@ -469,7 +469,7 @@ export interface ExplorerResultMessage {
 }
 
 export interface ExplorerDismissMessage {
-  type: 'explorer_dismiss'
+  type: 'dialog_dismiss'
   sessionId: string
   explorerId: string
 }
@@ -768,7 +768,7 @@ export interface Session {
   effortLevel?: string // 'speed' field from API usage: e.g. 'standard', maps to low/medium/high
   lastError?: { stopReason?: string; errorType?: string; errorMessage?: string; timestamp: number }
   pendingAttention?: {
-    type: 'permission' | 'elicitation' | 'ask' | 'explorer'
+    type: 'permission' | 'elicitation' | 'ask' | 'dialog'
     toolName?: string
     filePath?: string
     question?: string

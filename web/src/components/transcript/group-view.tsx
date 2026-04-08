@@ -196,14 +196,14 @@ export function GroupView({
               intent: intent || undefined,
               isInterSession: true,
             })
-          } else if (sender === 'explorer') {
-            // Explorer result -- structured display
+          } else if (sender === 'dialog') {
+            // Dialog result -- structured display
             const status = getAttr('status') || 'submitted'
             const action = getAttr('action')
             items.push({
               kind: 'channel',
               text: msg,
-              source: 'explorer',
+              source: 'dialog',
               isExplorer: true,
               explorerStatus: status,
               explorerAction: action || undefined,
@@ -471,7 +471,7 @@ export function GroupView({
                 return (
                   <div key={i} className="rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-2.5 my-1">
                     <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-[10px] font-mono text-violet-400/60">explorer</span>
+                      <span className="text-[10px] font-mono text-violet-400/60">dialog</span>
                       <span
                         className={cn(
                           'px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider border rounded',

@@ -35,11 +35,11 @@ const subscribe: MessageHandler = (ctx, data) => {
   // Push initial shares state to admin subscribers
   ctx.sessions.broadcastSharesUpdate()
 
-  // Push any pending explorer dialogs (reconnect recovery)
+  // Push any pending dialogs (reconnect recovery)
   for (const s of ctx.sessions.getActiveSessions()) {
     if (s.pendingExplorer) {
       ctx.reply({
-        type: 'explorer_show',
+        type: 'dialog_show',
         sessionId: s.id,
         explorerId: s.pendingExplorer.explorerId,
         layout: s.pendingExplorer.layout,

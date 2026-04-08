@@ -292,7 +292,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
             case 'ask_answer':
               onAskAnswer?.(message.toolUseId, message.answers, message.annotations, message.skip)
               break
-            case 'explorer_result':
+            case 'dialog_result':
               onExplorerResult?.(message.explorerId, message.result)
               break
             case 'terminate_session':
@@ -305,7 +305,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
                 onQuitSession?.()
                 break
               }
-              if (msgType === 'explorer_keepalive') {
+              if (msgType === 'dialog_keepalive') {
                 const m = message as Record<string, unknown>
                 onExplorerKeepalive?.(m.explorerId as string)
                 break

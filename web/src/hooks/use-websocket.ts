@@ -504,7 +504,7 @@ function processMessage(msg: DashboardMessage) {
       }
       break
     }
-    case 'explorer_show': {
+    case 'dialog_show': {
       const exSid = msg.sessionId as string
       const exId = msg.explorerId as string
       const exLayout = msg.layout as import('@shared/explorer-schema').ExplorerLayout
@@ -518,7 +518,7 @@ function processMessage(msg: DashboardMessage) {
       }
       break
     }
-    case 'explorer_dismiss': {
+    case 'dialog_dismiss': {
       const exSid = msg.sessionId as string
       if (exSid) {
         useSessionsStore.setState(state => {

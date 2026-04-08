@@ -217,17 +217,17 @@ export function resolveExplorer(explorerId: string, result: ExplorerResult): boo
   pendingExplorers.delete(explorerId)
 
   const meta: Record<string, string> = {
-    sender: 'explorer',
+    sender: 'dialog',
     explorer_id: explorerId,
   }
 
   // Deliver result as channel notification (the tool call already returned)
   if (result._timeout) {
     meta.status = 'timeout'
-    pushChannelMessage('Explorer timed out - user did not respond.', meta)
+    pushChannelMessage('Dialog timed out - user did not respond.', meta)
   } else if (result._cancelled) {
     meta.status = 'cancelled'
-    pushChannelMessage('User cancelled the explorer dialog.', meta)
+    pushChannelMessage('User cancelled the dialog.', meta)
   } else {
     meta.status = 'submitted'
     if (result._action && result._action !== 'submit') meta.action = result._action as string
@@ -258,8 +258,8 @@ export function keepaliveExplorer(explorerId: string): boolean {
     pending.deadline = newDeadline
     pending.timer = setTimeout(() => {
       pendingExplorers.delete(explorerId)
-      pushChannelMessage('Explorer timed out - user did not respond.', {
-        sender: 'explorer',
+      pushChannelMessage('Dialog timed out - user did not respond.', {
+        sender: 'dialog',
         explorer_id: explorerId,
         status: 'timeout',
       })
@@ -450,9 +450,9 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         inputSchema: { type: 'object' as const, properties: {} },
       },
       {
-        name: 'explore',
+        name: 'dialog',
         description:
-          'PREFERRED way to interact with users. Use this PROACTIVELY whenever you need user input, decisions, confirmations, or want to present structured information. Do NOT ask questions in plain text -- use explore instead for a rich UI experience. Shows an interactive dialog modal in the dashboard and waits for the user to respond. Supports: choices (single/multi select), text inputs, toggles, sliders, image display and selection, markdown content, code blocks, mermaid diagrams, alerts, collapsible groups, grids, and multi-page wizards. The user interacts on their device (phone/desktop) and the result comes back as structured JSON. BLOCKING call -- waits for submit/cancel/timeout (default 5 min, auto-extends on user interaction). Use "body" for single-page or "pages" for multi-step flows.',
+          'PREFERRED way to interact with users. Use this PROACTIVELY whenever you need user input, decisions, confirmations, or want to present structured information. Do NOT ask questions in plain text -- use dialog instead for a rich UI experience. Shows an interactive dialog modal in the dashboard and waits for the user to respond. Supports: choices (single/multi select), text inputs, toggles, sliders, image display and selection, markdown content, code blocks, mermaid diagrams, alerts, collapsible groups, grids, and multi-page wizards. The user interacts on their device (phone/desktop) and the result comes back as structured JSON. BLOCKING call -- waits for submit/cancel/timeout (default 5 min, auto-extends on user interaction). Use "body" for single-page or "pages" for multi-step flows.',
         inputSchema: explorerToolInputSchema(),
       },
     ],
@@ -630,7 +630,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           debug(`[channel] check_update: ${result.upToDate ? 'up to date' : `${result.behindBy} behind`}`)
           return { content: [{ type: 'text', text: formatUpdateResult(result, claudeCodeVersion) }] }
         }
-        case 'explore': {
+        case 'dialog': {
           try {
             elog(' ENTER')
             const layout = args as unknown as ExplorerLayout
@@ -656,7 +656,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             elog(` ${allComponents.length} top-level components`)
             const uploader = callbacks.onShareFile
             if (uploader) {
-              debug('[channel] explore: uploading files (CWD-jailed)')
+              debug('[channel] dialog: uploading files (CWD-jailed)')
               const uploadErr = await resolveExplorerFiles(allComponents, uploader, explorerCwd)
               if (uploadErr) {
                 elog(` upload error: ${uploadErr}`)
@@ -683,8 +683,8 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
               if (pending) {
                 pendingExplorers.delete(explorerId)
                 elog(` timeout: ${explorerId.slice(0, 8)}`)
-                pushChannelMessage('Explorer timed out - user did not respond.', {
-                  sender: 'explorer',
+                pushChannelMessage('Dialog timed out - user did not respond.', {
+                  sender: 'dialog',
                   explorer_id: explorerId,
                   status: 'timeout',
                 })
@@ -704,7 +704,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
               content: [
                 {
                   type: 'text',
-                  text: `Explorer dialog "${layout.title}" shown to user. The response will arrive as a channel message when the user submits. Explorer ID: ${explorerId}`,
+                  text: `Dialog "${layout.title}" shown to user. The response will arrive as a channel message when the user submits. Dialog ID: ${explorerId}`,
                 },
               ],
             }

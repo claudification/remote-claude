@@ -667,8 +667,8 @@ export function ToolLine({
       }
       break
     }
-    case 'mcp__rclaude__explore': {
-      const title = (input.title as string) || 'Explorer'
+    case 'mcp__rclaude__dialog': {
+      const title = (input.title as string) || 'Dialog'
       const pageCount = Array.isArray(input.pages) ? (input.pages as unknown[]).length : 0
       const bodyCount = Array.isArray(input.body) ? (input.body as unknown[]).length : 0
       const componentDesc = pageCount > 0 ? `${pageCount} pages` : `${bodyCount} components`
