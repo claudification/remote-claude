@@ -13,6 +13,7 @@ const EMPTY_INFO: { slashCommands: string[]; skills: string[]; agents: string[] 
 
 // Built-in headless commands (always available, shown first with distinct color)
 const BUILTIN_COMMANDS = ['model', 'clear', 'exit', 'compact']
+const KNOWN_MODELS = ['opus', 'sonnet', 'haiku', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']
 
 function fuzzyScore(query: string, candidate: string): number {
   if (!query) return 1
@@ -147,6 +148,14 @@ export function MarkdownInput({
 
   const acItems = useMemo((): Array<{ item: string; builtin: boolean }> => {
     if (!maybeAutocomplete) return []
+
+    // Special case: /model {query} -> model autocomplete
+    const modelMatch = value.match(/^\/model\s+(\S*)$/)
+    if (modelMatch) {
+      const q = modelMatch[1].toLowerCase()
+      return KNOWN_MODELS.filter(m => !q || m.toLowerCase().includes(q)).map(m => ({ item: m, builtin: true }))
+    }
+
     // Detect trigger at cursor position
     const pos = textareaRef.current?.selectionStart ?? value.length
     let start = pos - 1
@@ -339,26 +348,32 @@ export function MarkdownInput({
 
   function selectAutocomplete(item: string) {
     const ta = textareaRef.current
+    haptic('tap')
+    setAcIndex(0)
+
+    // Special case: /model {model} - replace just the model arg
+    if (value.match(/^\/model\s+/)) {
+      const replacement = `/model ${item}`
+      onChange(replacement)
+      requestAnimationFrame(() => {
+        if (ta) ta.selectionStart = ta.selectionEnd = replacement.length
+      })
+      return
+    }
+
     const pos = ta?.selectionStart ?? value.length
-    // Find the trigger char (/ or @) that started this token
     let start = pos - 1
     while (start >= 0 && /[a-zA-Z0-9_:-]/.test(value[start])) start--
     const trigger = start >= 0 ? value[start] : null
     if (start >= 0 && (trigger === '/' || trigger === '@')) {
       const before = value.slice(0, start)
       const after = value.slice(pos)
-      // No-arg commands don't need trailing space
       const noArgCommands = ['exit', 'clear', 'compact', 'context', 'quit']
       const needsSpace = !noArgCommands.includes(item)
       const replacement = `${trigger}${item}${needsSpace ? ' ' : ''}`
       onChange(before + replacement + after)
-      setAcIndex(0)
-      haptic('tap')
       requestAnimationFrame(() => {
-        if (ta) {
-          const newPos = before.length + replacement.length
-          ta.selectionStart = ta.selectionEnd = newPos
-        }
+        if (ta) ta.selectionStart = ta.selectionEnd = before.length + replacement.length
       })
     }
   }
@@ -386,6 +401,17 @@ export function MarkdownInput({
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         const selected = acItems[acIndex]
+        // /model X: selecting a model fills it in, then Enter submits
+        if (value.match(/^\/model\s+/)) {
+          // If already matches, submit. Otherwise fill in the model.
+          const modelArg = value.replace(/^\/model\s+/, '').trim()
+          if (modelArg === selected.item) {
+            handleSubmit()
+          } else {
+            selectAutocomplete(selected.item)
+          }
+          return
+        }
         // If the input already matches the selected item exactly, submit it
         const currentCmd = value.startsWith('/')
           ? value.slice(1).trim()
