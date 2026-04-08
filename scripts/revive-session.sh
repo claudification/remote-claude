@@ -75,13 +75,17 @@ TMUX_ENV=()
 if [[ -n "${RCLAUDE_SECRET:-}" ]]; then
   TMUX_ENV+=(-e "RCLAUDE_SECRET=$RCLAUDE_SECRET")
 fi
-# Prefix the command with RCLAUDE_WRAPPER_ID=... so it's scoped to THIS process only
-WRAPPER_PREFIX=""
+# Prefix the command with env vars scoped to THIS process only
+# (not tmux -e, which leaks to other windows launched later)
+CMD_PREFIX=""
 if [[ -n "${RCLAUDE_WRAPPER_ID:-}" ]]; then
-  WRAPPER_PREFIX="RCLAUDE_WRAPPER_ID=$RCLAUDE_WRAPPER_ID "
+  CMD_PREFIX+="RCLAUDE_WRAPPER_ID=$RCLAUDE_WRAPPER_ID "
+fi
+if [[ "${RCLAUDE_HEADLESS:-}" == "1" ]]; then
+  CMD_PREFIX+="RCLAUDE_HEADLESS=1 "
 fi
 
-SPAWN_CMD="${WRAPPER_PREFIX}$BASE_CMD"
+SPAWN_CMD="${CMD_PREFIX}$BASE_CMD"
 
 # Launch a command in tmux via a login shell so .zshrc/.zprofile are sourced.
 # Without this, the tmux pane runs the command directly (no shell init),
