@@ -1,9 +1,15 @@
 import { Mic, Paperclip } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { VoiceOverlay } from '@/components/voice-overlay'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { cn, haptic, isMobileViewport } from '@/lib/utils'
+
+const EMPTY_INFO: { slashCommands: string[]; skills: string[]; agents: string[] } = {
+  slashCommands: [],
+  skills: [],
+  agents: [],
+}
 
 interface MarkdownInputProps {
   value: string
@@ -110,6 +116,65 @@ export function MarkdownInput({
 
   const [expanded, setExpanded] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [acIndex, setAcIndex] = useState(0) // autocomplete selection index
+
+  // Autocomplete from session info: / = commands, @ = skills/agents
+  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
+  const sessionInfoData = useSessionsStore(
+    state => (selectedSessionId ? state.sessionInfo[selectedSessionId] : null) || EMPTY_INFO,
+  )
+
+  // Fuzzy match: all query chars must appear in order in the candidate
+  function fuzzyMatch(query: string, candidate: string): number {
+    const q = query.toLowerCase()
+    const c = candidate.toLowerCase()
+    if (!q) return 1 // empty query matches everything
+    let qi = 0
+    let score = 0
+    for (let ci = 0; ci < c.length && qi < q.length; ci++) {
+      if (c[ci] === q[qi]) {
+        score += ci === qi ? 3 : 1 // bonus for positional match
+        qi++
+      }
+    }
+    return qi === q.length ? score : 0
+  }
+
+  // Detect trigger char at cursor and extract query
+  const acTrigger = useMemo((): { trigger: string; query: string } | null => {
+    const ta = textareaRef.current
+    const pos = ta?.selectionStart ?? value.length
+    let start = pos - 1
+    while (start >= 0 && /[a-zA-Z0-9_:-]/.test(value[start])) start--
+    if (start < 0) return null
+    const ch = value[start]
+    if (ch !== '/' && ch !== '@') return null
+    // Must be at word boundary
+    if (start > 0 && !/[\s\n]/.test(value[start - 1])) return null
+    // Not inside backticks
+    const before = value.slice(0, start)
+    const backticks = (before.match(/`/g) || []).length
+    if (backticks % 2 !== 0) return null
+    if (before.includes('```') && (before.match(/```/g) || []).length % 2 !== 0) return null
+    const token = value.slice(start + 1, pos)
+    if (token.includes(' ') || token.includes('\n')) return null
+    return { trigger: ch, query: token }
+  }, [value])
+
+  const acItems = useMemo(() => {
+    if (!acTrigger && value !== '/' && value !== '@') return []
+    const trigger = acTrigger?.trigger || value
+    const query = acTrigger?.query || ''
+    let source: string[] = []
+    if (trigger === '/') source = sessionInfoData.slashCommands || []
+    else if (trigger === '@') source = [...(sessionInfoData.skills || []), ...(sessionInfoData.agents || [])]
+    if (!source.length) return []
+    const scored = source
+      .map(item => ({ item, score: fuzzyMatch(query, item) }))
+      .filter(x => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+    return scored.map(x => x.item).slice(0, 12)
+  }, [acTrigger, value, sessionInfoData])
   const [pasteChoice, setPasteChoice] = useState<{ file: File } | null>(null)
   const [showVoiceOverlay, setShowVoiceOverlay] = useState(false)
   const [holdToRecord, setHoldToRecord] = useState(false) // true = voice overlay in hold-to-record mode
@@ -249,8 +314,56 @@ export function MarkdownInput({
     }
   }, [])
 
+  function selectAutocomplete(item: string) {
+    const ta = textareaRef.current
+    const pos = ta?.selectionStart ?? value.length
+    // Find the trigger char (/ or @) that started this token
+    let start = pos - 1
+    while (start >= 0 && /[a-zA-Z0-9_:-]/.test(value[start])) start--
+    const trigger = start >= 0 ? value[start] : null
+    if (start >= 0 && (trigger === '/' || trigger === '@')) {
+      const before = value.slice(0, start)
+      const after = value.slice(pos)
+      const replacement = `${trigger}${item} `
+      onChange(before + replacement + after)
+      setAcIndex(0)
+      haptic('tap')
+      requestAnimationFrame(() => {
+        if (ta) {
+          const newPos = before.length + replacement.length
+          ta.selectionStart = ta.selectionEnd = newPos
+        }
+      })
+    }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     const ta = textareaRef.current
+
+    // Autocomplete navigation
+    if (acItems.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setAcIndex(i => (i + 1) % acItems.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setAcIndex(i => (i - 1 + acItems.length) % acItems.length)
+        return
+      }
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+        e.preventDefault()
+        selectAutocomplete(acItems[acIndex])
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onChange('')
+        return
+      }
+    }
+
     // In expanded (mobile) mode: Enter = newline, no keyboard submit
     // In inline (desktop) mode: Enter = submit, Shift+Enter or Alt+Enter = newline
     if (!expanded && e.key === 'Enter' && !e.shiftKey && !e.altKey) {
@@ -704,6 +817,29 @@ export function MarkdownInput({
   // Normal inline mode
   return (
     <div ref={containerRef} className={cn('relative grid', className)}>
+      {/* Autocomplete dropdown: / commands, @ skills/agents */}
+      {acItems.length > 0 && (
+        <div className="absolute bottom-full left-0 right-0 z-30 mb-1 bg-background border border-border rounded shadow-lg max-h-[240px] overflow-y-auto">
+          {acItems.map((item, i) => {
+            const trigger = acTrigger?.trigger || value[0] || '/'
+            return (
+              // biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled in textarea
+              <div
+                key={`${trigger}${item}`}
+                className={cn(
+                  'px-3 py-1.5 text-xs font-mono cursor-pointer',
+                  i === acIndex ? 'bg-accent/20 text-accent' : 'text-foreground hover:bg-muted/50',
+                )}
+                onClick={() => selectAutocomplete(item)}
+                onMouseEnter={() => setAcIndex(i)}
+              >
+                <span className="text-muted-foreground">{trigger}</span>
+                {item}
+              </div>
+            )
+          })}
+        </div>
+      )}
       {/* Paste format picker - shown when clipboard has both image and text */}
       {pasteChoice && (
         <div className="absolute -top-9 left-0 right-0 z-20 flex items-center gap-2 px-2 py-1.5 bg-background border border-border rounded-t shadow-lg">
