@@ -728,6 +728,9 @@ async function main() {
       onChannelReviveResult(result) {
         pendingReviveResult?.(result)
       },
+      onChannelRestartResult(result) {
+        pendingRestartResult?.(result)
+      },
       onChannelSpawnResult(result) {
         pendingSpawnResult?.(result)
       },
@@ -785,8 +788,8 @@ async function main() {
         const sessionId = message.sessionId as string | undefined
         const cwd = message.cwd as string | undefined
         const error = message.error as string | undefined
-        const isReady = msgType === 'spawn_ready' || msgType === 'revive_ready'
-        const action = msgType.startsWith('spawn') ? 'spawn' : 'revive'
+        const isReady = msgType === 'spawn_ready' || msgType === 'revive_ready' || msgType === 'restart_ready'
+        const action = msgType.startsWith('spawn') ? 'spawn' : msgType.startsWith('restart') ? 'restart' : 'revive'
 
         if (isReady) {
           diag('rendezvous', `${action} ready: session=${sessionId?.slice(0, 8)} cwd=${cwd}`)
@@ -1409,6 +1412,24 @@ async function main() {
 
       return { ok: true, wrapperId: spawnResult.wrapperId }
     },
+    async onRestartSession(sessionId) {
+      if (!wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+      return new Promise(resolve => {
+        const timeout = setTimeout(
+          () => resolve({ ok: false, error: 'Timeout waiting for restart confirmation' }),
+          10000,
+        )
+        pendingRestartResult = result => {
+          clearTimeout(timeout)
+          pendingRestartResult = null
+          resolve(result)
+        }
+        wsClient?.send({
+          type: 'channel_restart',
+          sessionId,
+        } as unknown as WrapperMessage)
+      })
+    },
     async onQuitSession(sessionId) {
       if (!wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
       return new Promise(resolve => {
@@ -1450,6 +1471,9 @@ async function main() {
   let pendingListSessions: ((sessions: SessionInfo[]) => void) | null = null
   let pendingSendResult: ((result: { ok: boolean; error?: string; conversationId?: string }) => void) | null = null
   let pendingReviveResult: ((result: { ok: boolean; error?: string; name?: string }) => void) | null = null
+  let pendingRestartResult:
+    | ((result: { ok: boolean; error?: string; name?: string; selfRestart?: boolean; alreadyEnded?: boolean }) => void)
+    | null = null
   let pendingSpawnResult: ((result: { ok: boolean; error?: string; wrapperId?: string }) => void) | null = null
   let pendingConfigureResult: ((result: { ok: boolean; error?: string }) => void) | null = null
   const pendingRendezvous = new Map<

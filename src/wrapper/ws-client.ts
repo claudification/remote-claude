@@ -61,6 +61,13 @@ export interface WsClientOptions {
   onPermissionRule?: (toolName: string, behavior: 'allow' | 'deny') => void
   onRendezvousResult?: (message: Record<string, unknown>) => void
   onChannelReviveResult?: (result: { ok: boolean; error?: string; name?: string }) => void
+  onChannelRestartResult?: (result: {
+    ok: boolean
+    error?: string
+    name?: string
+    selfRestart?: boolean
+    alreadyEnded?: boolean
+  }) => void
   onChannelSpawnResult?: (result: { ok: boolean; error?: string; wrapperId?: string }) => void
   onChannelConfigureResult?: (result: { ok: boolean; error?: string }) => void
   onAskAnswer?: (
@@ -125,6 +132,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onPermissionRule,
     onRendezvousResult,
     onChannelReviveResult,
+    onChannelRestartResult,
     onChannelSpawnResult,
     onChannelConfigureResult,
     onAskAnswer,
@@ -324,6 +332,18 @@ export function createWsClient(options: WsClientOptions): WsClient {
                 onChannelReviveResult?.(message as unknown as { ok: boolean; error?: string; name?: string })
                 break
               }
+              if (msgType === 'channel_restart_result') {
+                onChannelRestartResult?.(
+                  message as unknown as {
+                    ok: boolean
+                    error?: string
+                    name?: string
+                    selfRestart?: boolean
+                    alreadyEnded?: boolean
+                  },
+                )
+                break
+              }
               if (msgType === 'channel_spawn_result') {
                 onChannelSpawnResult?.(message as unknown as { ok: boolean; error?: string; wrapperId?: string })
                 break
@@ -336,7 +356,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
                 msgType === 'spawn_ready' ||
                 msgType === 'spawn_timeout' ||
                 msgType === 'revive_ready' ||
-                msgType === 'revive_timeout'
+                msgType === 'revive_timeout' ||
+                msgType === 'restart_ready' ||
+                msgType === 'restart_timeout'
               ) {
                 onRendezvousResult?.(message as Record<string, unknown>)
                 break

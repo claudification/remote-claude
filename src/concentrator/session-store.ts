@@ -183,8 +183,16 @@ export interface SessionStore {
     wrapperId: string,
     callerSessionId: string,
     cwd: string,
-    action: 'spawn' | 'revive',
+    action: 'spawn' | 'revive' | 'restart',
   ) => Promise<SessionSummary>
+  // Pending restart (terminate + auto-revive on disconnect)
+  addPendingRestart: (
+    wrapperId: string,
+    info: { callerSessionId: string; targetSessionId: string; cwd: string; isSelfRestart: boolean },
+  ) => void
+  consumePendingRestart: (
+    wrapperId: string,
+  ) => { callerSessionId: string; targetSessionId: string; cwd: string; isSelfRestart: boolean } | undefined
   resolveRendezvous: (wrapperId: string, sessionId: string) => boolean
   getRendezvousInfo: (wrapperId: string) => { callerSessionId: string; action: string } | undefined
   // Inter-session messaging
@@ -2354,7 +2362,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     callerSessionId: string
     wrapperId: string
     cwd: string
-    action: 'spawn' | 'revive'
+    action: 'spawn' | 'revive' | 'restart'
     resolve: (session: SessionSummary) => void
     reject: (error: string) => void
     timer: ReturnType<typeof setTimeout>
@@ -2363,11 +2371,36 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   const RENDEZVOUS_TIMEOUT_MS = 120_000 // 2 minutes
   const sessionRendezvous = new Map<string, SessionRendezvous>() // keyed by wrapperId
 
+  // Pending restarts: terminate target, revive on disconnect
+  interface PendingRestart {
+    callerSessionId: string
+    targetSessionId: string
+    cwd: string
+    isSelfRestart: boolean
+  }
+  const pendingRestarts = new Map<string, PendingRestart>() // keyed by target wrapperId
+
+  function addPendingRestart(wrapperId: string, info: PendingRestart): void {
+    pendingRestarts.set(wrapperId, info)
+    console.log(
+      `[restart] PENDING: target=${wrapperId.slice(0, 8)} cwd=${info.cwd.split('/').pop()} self=${info.isSelfRestart}`,
+    )
+  }
+
+  function consumePendingRestart(wrapperId: string): PendingRestart | undefined {
+    const info = pendingRestarts.get(wrapperId)
+    if (info) {
+      pendingRestarts.delete(wrapperId)
+      console.log(`[restart] CONSUMED: target=${wrapperId.slice(0, 8)} cwd=${info.cwd.split('/').pop()}`)
+    }
+    return info
+  }
+
   function addRendezvous(
     wrapperId: string,
     callerSessionId: string,
     cwd: string,
-    action: 'spawn' | 'revive',
+    action: 'spawn' | 'revive' | 'restart',
   ): Promise<SessionSummary> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -2598,6 +2631,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     blockSession,
     queueInterSessionMessage,
     drainQueuedMessages,
+    addPendingRestart,
+    consumePendingRestart,
     addRendezvous,
     resolveRendezvous,
     getRendezvousInfo,

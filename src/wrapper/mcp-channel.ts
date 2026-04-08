@@ -71,6 +71,13 @@ export interface McpChannelCallbacks {
   onTogglePlanMode?: () => void
   onReviveSession?: (sessionId: string) => Promise<{ ok: boolean; error?: string; name?: string }>
   onQuitSession?: (sessionId: string) => Promise<{ ok: boolean; error?: string; name?: string }>
+  onRestartSession?: (sessionId: string) => Promise<{
+    ok: boolean
+    error?: string
+    name?: string
+    selfRestart?: boolean
+    alreadyEnded?: boolean
+  }>
   onSpawnSession?: (params: {
     cwd: string
     mode?: 'fresh' | 'continue' | 'resume'
@@ -367,21 +374,6 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         inputSchema: { type: 'object' as const, properties: {} },
       },
       {
-        name: 'revive_session',
-        description:
-          'Revive an ended/inactive session. Requires benevolent trust level on your project. This is ASYNC - the session takes 10-30 seconds to boot. Use list_sessions to poll for status change after waiting.',
-        inputSchema: {
-          type: 'object' as const,
-          properties: {
-            session_id: {
-              type: 'string',
-              description: 'Target ID from list_sessions (for inactive sessions this is the session ID)',
-            },
-          },
-          required: ['session_id'],
-        },
-      },
-      {
         name: 'terminate_session',
         description:
           'Terminate an active session. Requires benevolent trust level on your project. The session will end within a few seconds. Use list_sessions to confirm after 5-10 seconds.',
@@ -396,19 +388,29 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
       {
         name: 'spawn_session',
         description:
-          'Spawn a new Claude Code session at a given directory. Requires benevolent trust level. Supports three modes: fresh start, continue latest session in that directory, or resume a specific Claude session by ID. The session boots in tmux on the host - takes 10-30 seconds. Use list_sessions to poll for the new session.',
+          'Unified session lifecycle tool. Spawn new sessions, revive ended ones, or restart active sessions (terminate + auto-revive). Requires benevolent trust level. Sessions boot in tmux on the host - takes 10-30 seconds. Use list_sessions to poll for status.\n\nActions:\n- spawn (default): Start a new session at a directory\n- revive: Bring back an ended/inactive session\n- restart: Terminate an active session and automatically revive it. For self-restart, the MCP response may not arrive (your process dies and reboots).',
         inputSchema: {
           type: 'object' as const,
           properties: {
+            action: {
+              type: 'string',
+              enum: ['spawn', 'revive', 'restart'],
+              description:
+                'Action to perform. "spawn" = new session at cwd, "revive" = bring back an ended session, "restart" = terminate + auto-revive. Default: spawn.',
+            },
+            session_id: {
+              type: 'string',
+              description: 'Target session ID from list_sessions. Required for revive and restart actions.',
+            },
             cwd: {
               type: 'string',
-              description: 'Working directory for the new session (absolute path, ~ supported)',
+              description: 'Working directory for new session (absolute path, ~ supported). Required for spawn action.',
             },
             mode: {
               type: 'string',
               enum: ['fresh', 'continue', 'resume'],
               description:
-                'Spawn mode: "fresh" = new session, "continue" = resume latest in that dir, "resume" = resume specific session. Default: tries continue first, falls back to fresh.',
+                'Spawn mode (only for action=spawn): "fresh" = new session, "continue" = resume latest in that dir, "resume" = resume specific session. Default: tries continue first, falls back to fresh.',
             },
             resume_id: {
               type: 'string',
@@ -416,10 +418,9 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             },
             mkdir: {
               type: 'boolean',
-              description: 'Create the directory if it does not exist (default: false)',
+              description: 'Create the directory if it does not exist (default: false, only for action=spawn)',
             },
           },
-          required: ['cwd'],
         },
       },
       {
@@ -557,19 +558,18 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           return { content: [{ type: 'text', text: 'Plan mode toggle sent via PTY.' }] }
         }
         case 'revive_session': {
+          // Legacy alias -- call revive directly
           const sessionId = params.session_id
           if (!sessionId) return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
           const result = await callbacks.onReviveSession?.(sessionId)
           if (!result?.ok) {
-            debug(`[channel] revive_session failed: ${result?.error}`)
             return { content: [{ type: 'text', text: result?.error || 'Failed to revive session' }], isError: true }
           }
-          debug(`[channel] revive_session: ${sessionId.slice(0, 8)} (${result.name})`)
           return {
             content: [
               {
                 type: 'text',
-                text: `Reviving session ${result.name || sessionId.slice(0, 8)}. This is async - the session takes 10-30 seconds to start. Use list_sessions to check when status changes to "live".`,
+                text: `Reviving session ${result.name || sessionId.slice(0, 8)}. Use list_sessions to check when ready.`,
               },
             ],
           }
@@ -621,8 +621,75 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           }
         }
         case 'spawn_session': {
+          const action = (params.action as 'spawn' | 'revive' | 'restart') || 'spawn'
+
+          // --- REVIVE ---
+          if (action === 'revive') {
+            const sessionId = params.session_id
+            if (!sessionId)
+              return { content: [{ type: 'text', text: 'Error: session_id is required for revive' }], isError: true }
+            const result = await callbacks.onReviveSession?.(sessionId)
+            if (!result?.ok) {
+              debug(`[channel] spawn_session(revive) failed: ${result?.error}`)
+              return { content: [{ type: 'text', text: result?.error || 'Failed to revive session' }], isError: true }
+            }
+            debug(`[channel] spawn_session(revive): ${sessionId.slice(0, 8)} (${result.name})`)
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `Reviving session ${result.name || sessionId.slice(0, 8)}. This is async - the session takes 10-30 seconds to start. Use list_sessions to check when status changes to "live".`,
+                },
+              ],
+            }
+          }
+
+          // --- RESTART ---
+          if (action === 'restart') {
+            const sessionId = params.session_id
+            if (!sessionId)
+              return { content: [{ type: 'text', text: 'Error: session_id is required for restart' }], isError: true }
+            const result = await callbacks.onRestartSession?.(sessionId)
+            if (!result?.ok) {
+              debug(`[channel] spawn_session(restart) failed: ${result?.error}`)
+              return { content: [{ type: 'text', text: result?.error || 'Failed to restart session' }], isError: true }
+            }
+            debug(
+              `[channel] spawn_session(restart): ${sessionId.slice(0, 8)} (${result.name}) self=${result.selfRestart}`,
+            )
+            if (result.selfRestart) {
+              return {
+                content: [
+                  {
+                    type: 'text',
+                    text: `Self-restart initiated for ${result.name || sessionId.slice(0, 8)}. This session will terminate and automatically revive. You may not receive this response.`,
+                  },
+                ],
+              }
+            }
+            if (result.alreadyEnded) {
+              return {
+                content: [
+                  {
+                    type: 'text',
+                    text: `Session ${result.name || sessionId.slice(0, 8)} was already ended - reviving instead. Use list_sessions to check when ready.`,
+                  },
+                ],
+              }
+            }
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `Restarting session ${result.name || sessionId.slice(0, 8)}. The session will terminate and automatically revive. Use list_sessions to check when ready (10-30 seconds).`,
+                },
+              ],
+            }
+          }
+
+          // --- SPAWN (default) ---
           const cwd = params.cwd
-          if (!cwd) return { content: [{ type: 'text', text: 'Error: cwd is required' }], isError: true }
+          if (!cwd) return { content: [{ type: 'text', text: 'Error: cwd is required for spawn' }], isError: true }
           const mode = params.mode as 'fresh' | 'continue' | 'resume' | undefined
           const resumeId = params.resume_id
           if (mode === 'resume' && !resumeId) {

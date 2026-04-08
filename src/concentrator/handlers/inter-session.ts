@@ -199,6 +199,93 @@ const handleChannelSpawn: MessageHandler = (ctx, data) => {
     })
 }
 
+const handleChannelRestart: MessageHandler = (ctx, data) => {
+  const targetId = data.sessionId as string
+  const callerSession = ctx.ws.data.sessionId
+  if (!targetId || !callerSession) return
+
+  ctx.requireBenevolent()
+
+  // Resolve target session and socket
+  const target = ctx.sessions.getSessionByWrapper(targetId) || ctx.sessions.getSession(targetId)
+  const targetWs = ctx.sessions.getSessionSocketByWrapper(targetId) || ctx.sessions.getSessionSocket(targetId)
+
+  if (!target) {
+    ctx.reply({ type: 'channel_restart_result', ok: false, error: 'Session not found' })
+    return
+  }
+
+  // If target is already ended, just revive it directly (no need to terminate)
+  if (!targetWs || target.status === 'ended') {
+    const agent = ctx.requireAgent()
+    const wrapperId = randomUUID()
+    const projSettings = ctx.getProjectSettings(target.cwd)
+    const name = target.title || projSettings?.label || target.cwd.split('/').pop() || targetId.slice(0, 8)
+
+    agent.send(
+      JSON.stringify({
+        type: 'revive',
+        sessionId: target.id,
+        cwd: target.cwd,
+        wrapperId,
+        mode: 'continue',
+      }),
+    )
+
+    ctx.sessions
+      .addRendezvous(wrapperId, callerSession, target.cwd, 'restart')
+      .then(revived => {
+        const callerWs = ctx.sessions.getSessionSocket(callerSession)
+        callerWs?.send(
+          JSON.stringify({
+            type: 'restart_ready',
+            sessionId: revived.id,
+            cwd: revived.cwd,
+            wrapperId,
+            session: revived,
+          }),
+        )
+      })
+      .catch(err => {
+        const callerWs = ctx.sessions.getSessionSocket(callerSession)
+        callerWs?.send(
+          JSON.stringify({
+            type: 'restart_timeout',
+            wrapperId,
+            cwd: target.cwd,
+            error: typeof err === 'string' ? err : 'Restart rendezvous timed out',
+          }),
+        )
+      })
+
+    ctx.reply({ type: 'channel_restart_result', ok: true, name, alreadyEnded: true })
+    ctx.log.debug(`Benevolent restart (already ended, reviving): -> ${target.id.slice(0, 8)}`)
+    return
+  }
+
+  // Target is active -- determine if self-restart
+  const callerWrapper = ctx.ws.data.wrapperId as string
+  const targetWrapperIds = ctx.sessions.getWrapperIds(target.id)
+  const targetWrapper = targetWrapperIds[0] || ''
+  const isSelfRestart = targetWrapperIds.includes(callerWrapper) || target.id === callerSession
+
+  // Store pending restart for the close handler to pick up
+  ctx.sessions.addPendingRestart(targetWrapper, {
+    callerSessionId: callerSession,
+    targetSessionId: target.id,
+    cwd: target.cwd,
+    isSelfRestart,
+  })
+
+  // Terminate the target
+  targetWs.send(JSON.stringify({ type: 'terminate_session', sessionId: target.id }))
+
+  const projSettings = ctx.getProjectSettings(target.cwd)
+  const name = target.title || projSettings?.label || target.cwd.split('/').pop() || targetId.slice(0, 8)
+  ctx.reply({ type: 'channel_restart_result', ok: true, name, selfRestart: isSelfRestart })
+  ctx.log.debug(`Benevolent restart: -> ${target.id.slice(0, 8)} (${isSelfRestart ? 'self' : 'remote'})`)
+}
+
 const handleChannelConfigure: MessageHandler = (ctx, data) => {
   const targetId = data.sessionId as string
   if (!targetId) {
@@ -243,6 +330,7 @@ export function registerInterSessionHandlers(): void {
     quit_remote_session: handleQuitRemoteSession,
     channel_revive: handleChannelRevive,
     channel_spawn: handleChannelSpawn,
+    channel_restart: handleChannelRestart,
     channel_configure: handleChannelConfigure,
   })
 }

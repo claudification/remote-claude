@@ -610,6 +610,58 @@ async function main() {
               if (verbose) {
                 console.log(`[-] Session ended: ${sessionId.slice(0, 8)}... (connection_closed, last wrapper)`)
               }
+
+              // Check for pending restart (terminate + auto-revive)
+              const pendingRestart = sessionStore.consumePendingRestart(closeWrapperId)
+              if (pendingRestart) {
+                const agent = sessionStore.getAgent()
+                if (agent) {
+                  const wrapperId = crypto.randomUUID()
+                  console.log(
+                    `[restart] Reviving after disconnect: ${pendingRestart.cwd.split('/').pop()} wrapperId=${wrapperId.slice(0, 8)}`,
+                  )
+                  agent.send(
+                    JSON.stringify({
+                      type: 'revive',
+                      sessionId: session.id,
+                      cwd: pendingRestart.cwd,
+                      wrapperId,
+                      mode: 'continue',
+                    }),
+                  )
+
+                  // Register rendezvous for caller (if not self-restart)
+                  if (!pendingRestart.isSelfRestart) {
+                    sessionStore
+                      .addRendezvous(wrapperId, pendingRestart.callerSessionId, pendingRestart.cwd, 'restart')
+                      .then(revived => {
+                        const callerWs = sessionStore.getSessionSocket(pendingRestart.callerSessionId)
+                        callerWs?.send(
+                          JSON.stringify({
+                            type: 'restart_ready',
+                            sessionId: revived.id,
+                            cwd: revived.cwd,
+                            wrapperId,
+                            session: revived,
+                          }),
+                        )
+                      })
+                      .catch(err => {
+                        const callerWs = sessionStore.getSessionSocket(pendingRestart.callerSessionId)
+                        callerWs?.send(
+                          JSON.stringify({
+                            type: 'restart_timeout',
+                            wrapperId,
+                            cwd: pendingRestart.cwd,
+                            error: typeof err === 'string' ? err : 'Restart rendezvous timed out',
+                          }),
+                        )
+                      })
+                  }
+                } else {
+                  console.log('[restart] No agent connected - cannot revive after restart')
+                }
+              }
             } else if (verbose && remaining > 0) {
               console.log(
                 `[~] Wrapper ${closeWrapperId.slice(0, 8)} disconnected from session ${sessionId.slice(0, 8)}... (${remaining} wrapper(s) remaining)`,
