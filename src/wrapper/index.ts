@@ -522,6 +522,7 @@ async function main() {
     const capabilities = [
       ...(!noTerminal ? ['terminal' as const] : []),
       ...(channelEnabled ? ['channel' as const] : []),
+      ...(headless ? ['headless' as const] : []),
     ]
 
     wsClient = createWsClient({

@@ -13,7 +13,7 @@ export interface HookEvent {
 }
 
 // Capabilities that rclaude declares on connect
-export type WrapperCapability = 'terminal' | 'channel'
+export type WrapperCapability = 'terminal' | 'channel' | 'headless'
 
 export interface SessionMeta {
   type: 'meta'
