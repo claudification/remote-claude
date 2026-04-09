@@ -214,6 +214,32 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
     }
   }
 
+  // Replay buffer: accumulate replayed entries from --continue, flush as isInitial=true
+  const MAX_INITIAL_ENTRIES = 500
+  const METADATA_TYPES = new Set(['summary', 'custom-title', 'agent-name', 'pr-link'])
+  let replayBuffer: TranscriptEntry[] = []
+  let replayDone = false
+
+  function flushReplayBuffer() {
+    if (replayDone) return
+    replayDone = true
+    if (replayBuffer.length === 0) return
+
+    debug(`Flushing replay buffer: ${replayBuffer.length} entries (isInitial=true)`)
+    let entries = replayBuffer
+    if (entries.length > MAX_INITIAL_ENTRIES) {
+      // Same tail cap as transcript-watcher: keep last 500 + metadata from earlier
+      const tail = entries.slice(-MAX_INITIAL_ENTRIES)
+      const tailSet = new Set(tail)
+      const metadata = entries.filter(
+        e => METADATA_TYPES.has((e as Record<string, unknown>).type as string) && !tailSet.has(e),
+      )
+      entries = [...metadata, ...tail]
+    }
+    onTranscriptEntries?.(entries, true)
+    replayBuffer = []
+  }
+
   // Line buffer for NDJSON parsing
   let lineBuf = ''
 
@@ -260,7 +286,10 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
         } as TranscriptEntry
         if (parentToolUseId && onSubagentEntry) {
           onSubagentEntry(parentToolUseId, entry)
+        } else if (!replayDone && msg.isReplay) {
+          replayBuffer.push(entry)
         } else {
+          if (!replayDone) flushReplayBuffer()
           onTranscriptEntries?.([entry], false)
         }
         break
@@ -280,7 +309,10 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
         }
         if (parentToolUseId && onSubagentEntry) {
           onSubagentEntry(parentToolUseId, entry)
+        } else if (!replayDone && msg.isReplay) {
+          replayBuffer.push(entry)
         } else {
+          if (!replayDone) flushReplayBuffer()
           onTranscriptEntries?.([entry], false)
         }
         break
@@ -307,12 +339,15 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
       }
 
       case 'result': {
+        if (!replayDone) flushReplayBuffer()
         debug(`Result: ${msg.subtype} cost=$${msg.total_cost_usd} turns=${msg.num_turns}`)
         onResult?.(msg as unknown as StreamResultMessage)
         break
       }
 
       case 'stream_event': {
+        // First stream_event = live API activity, replay is definitely over
+        if (!replayDone) flushReplayBuffer()
         // Raw API SSE deltas - token-by-token streaming
         // Send the inner event (content_block_delta, message_stop, etc.), not the CC wrapper
         onStreamEvent?.((msg.event as Record<string, unknown>) || msg)
@@ -352,6 +387,8 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
       }
       // Process any remaining data
       if (lineBuf.trim()) processLine(lineBuf)
+      // Flush replay buffer if stream ends during replay phase (revived but no new prompt)
+      if (!replayDone) flushReplayBuffer()
     } catch (err) {
       debug(`Stream read error: ${err}`)
     }
