@@ -1,9 +1,54 @@
+import { createHash } from 'node:crypto'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react-swc'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
+
+// Generate asset-manifest.json listing every file the dashboard needs.
+// The SW uses this to precache on install and detect new builds.
+function assetManifestPlugin(): Plugin {
+  return {
+    name: 'asset-manifest',
+    writeBundle(options, bundle) {
+      const outDir = options.dir || 'dist'
+      const files: Array<{ url: string; size: number; hash: string }> = []
+      const h = createHash('md5')
+
+      for (const [name, chunk] of Object.entries(bundle).sort(([a], [b]) => a.localeCompare(b))) {
+        const source = chunk.type === 'chunk' ? chunk.code : (chunk.source as string | Buffer)
+        const size = typeof source === 'string' ? Buffer.byteLength(source) : (source?.length ?? 0)
+        const fileHash = createHash('md5')
+          .update(source ?? '')
+          .digest('hex')
+          .slice(0, 8)
+        h.update(name)
+        files.push({ url: `/${name}`, size, hash: fileHash })
+      }
+
+      // Also include static public files that Vite copies but aren't in the bundle
+      const publicFiles = ['sw.js', 'icon-192.png', 'icon-512.png', 'favicon.ico']
+      for (const f of publicFiles) {
+        try {
+          const content = require('fs').readFileSync(join(outDir, f))
+          const fileHash = createHash('md5').update(content).digest('hex').slice(0, 8)
+          files.push({ url: `/${f}`, size: content.length, hash: fileHash })
+          h.update(f + fileHash)
+        } catch {}
+      }
+
+      const buildHash = h.digest('hex').slice(0, 12)
+      const manifest = { buildHash, buildTime: new Date().toISOString(), files }
+      writeFileSync(join(outDir, 'asset-manifest.json'), JSON.stringify(manifest, null, 2))
+
+      const totalKB = Math.round(files.reduce((s, f) => s + f.size, 0) / 1024)
+      console.log(`[asset-manifest] ${buildHash} -- ${files.length} files, ${totalKB} KB`)
+    },
+  }
+}
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), assetManifestPlugin()],
   resolve: {
     tsconfigPaths: true,
   },
