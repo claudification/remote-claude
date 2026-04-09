@@ -335,8 +335,10 @@ async function main() {
     })
     .catch(() => {}) // silently ignore network errors on startup
 
-  // Unique wrapper identity - use pre-assigned ID from revive flow if available
-  const internalId = process.env.RCLAUDE_WRAPPER_ID || randomUUID()
+  // Session ID: reuse from revive flow so concentrator resumes the existing session
+  // Wrapper ID: always unique per process (for socket routing, terminal attachment)
+  const sessionId = process.env.RCLAUDE_SESSION_ID || process.env.RCLAUDE_WRAPPER_ID || randomUUID()
+  const internalId = process.env.RCLAUDE_WRAPPER_ID || sessionId
   const cwd = process.cwd()
   const rclaudeDir = ensureRclaudeDir(cwd)
   const permissionRules = createRulesEngine(cwd)

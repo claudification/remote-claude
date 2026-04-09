@@ -186,6 +186,7 @@ async function reviveSession(
       ...process.env,
       RCLAUDE_SECRET: secret,
       RCLAUDE_WRAPPER_ID: wrapperId,
+      RCLAUDE_SESSION_ID: sessionId,
       ...(headless ? { RCLAUDE_HEADLESS: '1' } : {}),
     },
   })
