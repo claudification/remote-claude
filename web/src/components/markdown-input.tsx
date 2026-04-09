@@ -38,6 +38,7 @@ interface MarkdownInputProps {
   className?: string
   autoFocus?: boolean
   inline?: boolean // Force inline mode: no mobile expand, autoFocus works on mobile
+  enableAutocomplete?: boolean // Enable slash command / @ autocomplete (default: false)
 }
 
 function useIsMobile() {
@@ -115,6 +116,7 @@ export function MarkdownInput({
   className,
   autoFocus,
   inline,
+  enableAutocomplete = false,
 }: MarkdownInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const highlightRef = useRef<HTMLDivElement>(null)
@@ -136,8 +138,8 @@ export function MarkdownInput({
   const [dragOver, setDragOver] = useState(false)
   const [acIndex, setAcIndex] = useState(0) // autocomplete selection index
 
-  // Autocomplete: only activate when value contains / or @ (cheap check before anything else)
-  const maybeAutocomplete = value.includes('/') || value.includes('@')
+  // Autocomplete: only activate when prop is enabled and value contains / or @ (cheap check before anything else)
+  const maybeAutocomplete = enableAutocomplete && (value.includes('/') || value.includes('@'))
 
   // Session info for autocomplete data - only subscribe when we might need it
   const sessionInfoData = useSessionsStore(state => {

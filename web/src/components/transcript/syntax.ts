@@ -5,18 +5,18 @@
 
 import { createHighlighterCore, type HighlighterCore } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
-import tokyoNight from 'shiki/themes/tokyo-night'
-import langJavascript from 'shiki/langs/javascript'
-import langTypescript from 'shiki/langs/typescript'
-import langTsx from 'shiki/langs/tsx'
-import langJsx from 'shiki/langs/jsx'
-import langShellscript from 'shiki/langs/shellscript'
-import langHtml from 'shiki/langs/html'
 import langAstro from 'shiki/langs/astro'
 import langCss from 'shiki/langs/css'
+import langHtml from 'shiki/langs/html'
+import langJavascript from 'shiki/langs/javascript'
 import langJson from 'shiki/langs/json'
-import langYaml from 'shiki/langs/yaml'
+import langJsx from 'shiki/langs/jsx'
 import langMarkdown from 'shiki/langs/markdown'
+import langShellscript from 'shiki/langs/shellscript'
+import langTsx from 'shiki/langs/tsx'
+import langTypescript from 'shiki/langs/typescript'
+import langYaml from 'shiki/langs/yaml'
+import tokyoNight from 'shiki/themes/tokyo-night'
 
 const EAGER_LANGS = [
   langJavascript,

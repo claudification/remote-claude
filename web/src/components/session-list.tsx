@@ -588,6 +588,21 @@ function SessionContextMenu({ session, children }: { session: Session; children:
           <ContextMenu.Item className={menuItemClass} onSelect={createGroupAndMove}>
             New group...
           </ContextMenu.Item>
+          <ContextMenu.Item
+            className={cn(menuItemClass, 'text-cyan-400')}
+            onSelect={async () => {
+              haptic('tap')
+              try {
+                await fetch('/api/spawn', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ cwd: session.cwd, mode: 'fresh' }),
+                })
+              } catch {}
+            }}
+          >
+            Launch new
+          </ContextMenu.Item>
           <ContextMenu.Separator className="h-px bg-border my-1" />
           {session.status !== 'ended' && (
             <ContextMenu.Item

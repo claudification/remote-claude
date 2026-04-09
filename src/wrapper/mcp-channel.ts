@@ -341,6 +341,11 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
               enum: ['live', 'inactive', 'all'],
               description: 'Filter by status (default: live)',
             },
+            filter: {
+              type: 'string',
+              description:
+                'Optional glob pattern to filter sessions by name/label (case-insensitive). Supports * (any chars) and ? (single char). Example: "agent-*" or "*drop*".',
+            },
             show_metadata: {
               type: 'boolean',
               description:
@@ -601,8 +606,24 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         }
         case 'list_sessions': {
           const showMeta = String(params.show_metadata) === 'true'
-          const sessions = (await callbacks.onListSessions?.(params.status, showMeta)) || []
-          debug(`[channel] list_sessions: ${sessions.length} results (metadata=${showMeta})`)
+          let sessions = (await callbacks.onListSessions?.(params.status, showMeta)) || []
+          if (params.filter) {
+            const pattern = String(params.filter)
+            const regex = new RegExp(
+              '^' +
+                pattern
+                  .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+                  .replace(/\*\*/g, '.*')
+                  .replace(/\*/g, '.*')
+                  .replace(/\?/g, '.') +
+                '$',
+              'i',
+            )
+            sessions = sessions.filter(s => regex.test(s.name) || (s.title && regex.test(s.title)))
+          }
+          debug(
+            `[channel] list_sessions: ${sessions.length} results (metadata=${showMeta}, filter=${params.filter ?? 'none'})`,
+          )
           return { content: [{ type: 'text', text: JSON.stringify(sessions, null, 2) }] }
         }
         case 'send_message': {

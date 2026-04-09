@@ -650,6 +650,7 @@ const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
           placeholder={isMobileViewport() ? 'Message...' : 'Enter to send, Shift+Enter for new line'}
           className="flex-1"
           autoFocus
+          enableAutocomplete
         />
         <button
           type="button"
