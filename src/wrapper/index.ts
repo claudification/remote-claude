@@ -821,6 +821,25 @@ async function main() {
         }
       },
       onAskAnswer(toolUseId, answers, annotations, skip) {
+        // Headless: resolve via control_response to CC's can_use_tool request
+        const pending = pendingAskRequests.get(toolUseId)
+        if (pending && headless && streamProc) {
+          pendingAskRequests.delete(toolUseId)
+          if (skip || !answers) {
+            streamProc.sendPermissionResponse(pending.requestId, false, undefined, toolUseId)
+            diag('headless', `AskUserQuestion skipped: ${toolUseId.slice(0, 12)}`)
+          } else {
+            streamProc.sendPermissionResponse(
+              pending.requestId,
+              true,
+              { questions: pending.questions, answers, ...(annotations && { annotations }) },
+              toolUseId,
+            )
+            diag('headless', `AskUserQuestion answered: ${toolUseId.slice(0, 12)}`)
+          }
+          return
+        }
+        // PTY+channel: resolve via MCP channel local server
         const resolved = resolveAskRequest(toolUseId, answers, annotations, skip)
         diag(
           'ask',
@@ -1055,6 +1074,8 @@ async function main() {
   const pendingEditInputs = new Map<string, { oldString: string; newString: string }>()
   // Map Agent tool_use_id -> agent task_id for routing subagent stdout entries
   const agentToolUseMap = new Map<string, string>()
+  // Pending AskUserQuestion requests from can_use_tool -- keyed by toolUseId
+  const pendingAskRequests = new Map<string, { requestId: string; questions: unknown[] }>()
 
   // Augment entries with structuredPatch for Edit diffs.
   // Two paths: (1) JSONL entries already have toolUseResult.oldString/newString -> compute directly
@@ -2031,6 +2052,22 @@ async function main() {
       onPermissionRequest(request) {
         const inputStr = JSON.stringify(request.toolInput)
         const toolUseId = request.tool_use_id as string | undefined
+
+        // AskUserQuestion: route to dashboard ask_question UI, respond with answers
+        if (request.toolName === 'AskUserQuestion' && toolUseId) {
+          const questions = (request.toolInput?.questions as unknown[]) || []
+          pendingAskRequests.set(toolUseId, { requestId: request.requestId, questions })
+          if (wsClient?.isConnected()) {
+            wsClient.send({
+              type: 'ask_question',
+              sessionId: claudeSessionId || internalId,
+              toolUseId,
+              questions,
+            } as unknown as WrapperMessage)
+          }
+          diag('headless', `AskUserQuestion: ${toolUseId.slice(0, 12)} ${questions.length}q`)
+          return
+        }
 
         // Check auto-approve rules (rclaude.json + session rules) before forwarding to dashboard
         if (permissionRules.shouldAutoApprove(request.toolName, inputStr.slice(0, 200))) {
