@@ -233,6 +233,11 @@ function processMessage(msg: DashboardMessage) {
           const newState: Partial<typeof state> = {
             sessions: state.sessions.map(s => (s.id === matchId ? { ...s, ...updated } : s)),
           }
+          // Clear stale streaming text when session goes idle or ends
+          if ((updated.status === 'idle' || updated.status === 'ended') && state.streamingText[sessionId]) {
+            const { [sessionId]: _, ...rest } = state.streamingText
+            newState.streamingText = rest
+          }
           if (prevId && state.selectedSessionId === prevId) {
             newState.selectedSessionId = sessionId
             const oldEvents = state.events[prevId]
@@ -390,9 +395,16 @@ function processMessage(msg: DashboardMessage) {
               }
             })
           }
-        } else if (eventType === 'message_stop') {
-          // Clear streaming buffer when the full assistant message arrives via transcript_entries
+        } else if (eventType === 'message_start' || eventType === 'content_block_start') {
+          // New turn or new content block -- reset streaming buffer
           useSessionsStore.setState(state => {
+            if (!state.streamingText[sid]) return state
+            return { streamingText: { ...state.streamingText, [sid]: '' } }
+          })
+        } else if (eventType === 'message_stop') {
+          // Turn complete -- clear streaming buffer entirely
+          useSessionsStore.setState(state => {
+            if (!state.streamingText[sid]) return state
             const { [sid]: _, ...rest } = state.streamingText
             return { streamingText: rest }
           })
