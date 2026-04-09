@@ -96,6 +96,8 @@ export interface McpChannelCallbacks {
   }) => Promise<{ ok: boolean; error?: string }>
   onExplore?: (explorerId: string, layout: ExplorerLayout) => void
   onExploreDismiss?: (explorerId: string) => void
+  /** Deliver a message to Claude (channel notification in PTY, stdin user message in headless) */
+  onDeliverMessage?: (content: string, meta: Record<string, string>) => void
 }
 
 interface McpChannelState {
@@ -218,7 +220,7 @@ async function resolveExplorerFiles(
 }
 
 /** Resolve a pending explorer with the user's result (called from WS handler).
- * Delivers result as a channel notification since the tool call returned immediately. */
+ * Delivers result via onDeliverMessage callback -- transport-agnostic. */
 export function resolveExplorer(explorerId: string, result: ExplorerResult): boolean {
   const pending = pendingExplorers.get(explorerId)
   if (!pending) return false
@@ -230,24 +232,21 @@ export function resolveExplorer(explorerId: string, result: ExplorerResult): boo
     explorer_id: explorerId,
   }
 
-  // Deliver result as channel notification (the tool call already returned)
   if (result._timeout) {
     meta.status = 'timeout'
-    pushChannelMessage('Dialog timed out - user did not respond.', meta)
+    callbacks.onDeliverMessage?.('Dialog timed out - user did not respond.', meta)
   } else if (result._cancelled) {
     meta.status = 'cancelled'
-    pushChannelMessage('User cancelled the dialog.', meta)
+    callbacks.onDeliverMessage?.('User cancelled the dialog.', meta)
   } else {
     meta.status = 'submitted'
     if (result._action && result._action !== 'submit') meta.action = result._action as string
-    // Format: user-facing values only (strip _ prefixed internal fields)
     const userValues: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(result)) {
       if (!k.startsWith('_')) userValues[k] = v
     }
-    pushChannelMessage(JSON.stringify(userValues, null, 2), meta)
+    callbacks.onDeliverMessage?.(JSON.stringify(userValues, null, 2), meta)
   }
-  // Dismiss on all dashboard subscribers (cleanup for other tabs/devices)
   callbacks.onExploreDismiss?.(explorerId)
   return true
 }
@@ -267,7 +266,7 @@ export function keepaliveExplorer(explorerId: string): boolean {
     pending.deadline = newDeadline
     pending.timer = setTimeout(() => {
       pendingExplorers.delete(explorerId)
-      pushChannelMessage('Dialog timed out - user did not respond.', {
+      callbacks.onDeliverMessage?.('Dialog timed out - user did not respond.', {
         sender: 'dialog',
         explorer_id: explorerId,
         status: 'timeout',
@@ -890,7 +889,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
               if (pending) {
                 pendingExplorers.delete(explorerId)
                 elog(` timeout: ${explorerId.slice(0, 8)}`)
-                pushChannelMessage('Dialog timed out - user did not respond.', {
+                callbacks.onDeliverMessage?.('Dialog timed out - user did not respond.', {
                   sender: 'dialog',
                   explorer_id: explorerId,
                   status: 'timeout',

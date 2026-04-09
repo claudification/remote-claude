@@ -1510,6 +1510,21 @@ async function main() {
         } as unknown as WrapperMessage)
       }
     },
+    onDeliverMessage(content, meta) {
+      if (headless && streamProc) {
+        // Headless: deliver as <channel> tag on stdin
+        const attrs = Object.entries(meta)
+          .map(([k, v]) => `${k}="${v}"`)
+          .join(' ')
+        const wrapped = `<channel ${attrs}>\n${content}\n</channel>`
+        streamProc.sendUserMessage(wrapped)
+        diag('headless', `Delivered message: ${meta.sender} ${content.slice(0, 60)}`)
+      } else {
+        // PTY+channel: deliver as MCP channel notification
+        pushChannelMessage(content, meta)
+        diag('channel', `Delivered message: ${meta.sender} ${content.slice(0, 60)}`)
+      }
+    },
     onDisconnect() {
       diag('channel', 'Channel disconnected')
     },
