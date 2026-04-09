@@ -674,6 +674,27 @@ const SETTINGS: SettingItem[] = [
     ),
   },
   {
+    group: 'Performance',
+    label: 'Clear cache & reload',
+    description: 'Wipe service worker cache and reload the dashboard',
+    keywords: 'cache clear reload service worker sw',
+    render: () => (
+      <button
+        type="button"
+        onClick={async () => {
+          const keys = await caches.keys()
+          await Promise.all(keys.map(k => caches.delete(k)))
+          const reg = await navigator.serviceWorker?.getRegistration('/sw.js')
+          if (reg) await reg.unregister()
+          window.location.reload()
+        }}
+        className="px-3 py-1 text-[11px] font-bold bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30 transition-colors"
+      >
+        Clear & Reload
+      </button>
+    ),
+  },
+  {
     group: 'Debug',
     label: 'Show Diag tab',
     description: 'Show the Diag tab in session detail (debug info)',

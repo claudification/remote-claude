@@ -72,6 +72,16 @@ function Dashboard() {
   const [sheetOpen, setSheetOpen] = useState(() => isMobileViewport() && !useSessionsStore.getState().selectedSessionId)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === 'true')
   const [showUserAdmin, setShowUserAdmin] = useState(false)
+  const [swUpdateAvailable, setSwUpdateAvailable] = useState(false)
+
+  // Listen for service worker update notifications
+  useEffect(() => {
+    function handleSwMessage(event: MessageEvent) {
+      if (event.data?.type === 'sw-updated') setSwUpdateAvailable(true)
+    }
+    navigator.serviceWorker?.addEventListener('message', handleSwMessage)
+    return () => navigator.serviceWorker?.removeEventListener('message', handleSwMessage)
+  }, [])
   const selectedSessionId = useSessionsStore(s => s.selectedSessionId)
   const setEvents = useSessionsStore(s => s.setEvents)
   const setTranscript = useSessionsStore(s => s.setTranscript)
@@ -420,6 +430,27 @@ function Dashboard() {
 
   return (
     <div className="h-full flex flex-col p-2 sm:p-4 max-w-[1400px] mx-auto overflow-hidden" {...swipeHandlers}>
+      {/* SW update banner */}
+      {swUpdateAvailable && (
+        <div className="mb-2 px-3 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded font-mono text-xs text-cyan-400 flex items-center gap-2 shrink-0">
+          <span className="font-bold">UPDATE</span>
+          <span className="flex-1">New version available</span>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="px-2 py-0.5 text-[10px] font-bold bg-cyan-500/20 border border-cyan-500/40 hover:bg-cyan-500/30 transition-colors"
+          >
+            RELOAD
+          </button>
+          <button
+            type="button"
+            onClick={() => setSwUpdateAvailable(false)}
+            className="px-2 py-0.5 text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors"
+          >
+            LATER
+          </button>
+        </div>
+      )}
       {/* Header with mobile menu */}
       <div className="flex items-center gap-2 mb-4 shrink-0">
         {/* Mobile menu button - only if session list is visible */}
