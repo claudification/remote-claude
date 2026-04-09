@@ -1,4 +1,4 @@
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { canTerminal } from '@/lib/types'
 import type { PaletteCommand } from './types'
 
@@ -91,6 +91,16 @@ export function getPaletteCommands(onClose: () => void): PaletteCommand[] {
             },
           },
         ]
+      : []),
+    ...(store.selectedSessionId && session?.status === 'active'
+      ? (['low', 'medium', 'high', 'max'] as const).map(level => ({
+          id: `effort-${level}`,
+          label: `Set effort: ${level}`,
+          action: () => {
+            if (store.selectedSessionId) sendInput(store.selectedSessionId, `/effort ${level}`)
+            onClose()
+          },
+        }))
       : []),
   ]
 }

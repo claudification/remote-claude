@@ -621,7 +621,12 @@ export function createRouter(options: RouteOptions): Hono {
     const wrapperId = randomUUID()
     const name =
       session.title || getProjectSettings(session.cwd)?.label || session.cwd.split('/').pop() || sessionId.slice(0, 8)
-    agent.send(JSON.stringify({ type: 'revive', sessionId, cwd: session.cwd, wrapperId, mode: 'continue' }))
+    // Resolve effort: project default > global default > undefined
+    const projSettings = getProjectSettings(session.cwd)
+    const effortRaw = projSettings?.defaultEffort || getGlobalSettings().defaultEffort
+    const effort = effortRaw && effortRaw !== 'default' ? effortRaw : undefined
+
+    agent.send(JSON.stringify({ type: 'revive', sessionId, cwd: session.cwd, wrapperId, mode: 'continue', effort }))
 
     // Register rendezvous for MCP callers
     if (callerSessionId) {
@@ -740,8 +745,12 @@ export function createRouter(options: RouteOptions): Hono {
 
       // Resolve headless: explicit override > project default > global setting
       const projSettings = getProjectSettings(body.cwd)
-      const globalMode = getGlobalSettings().defaultLaunchMode
-      const headless = body.headless ?? (projSettings?.defaultLaunchMode || globalMode) !== 'pty'
+      const globalSettings = getGlobalSettings()
+      const headless = body.headless ?? (projSettings?.defaultLaunchMode || globalSettings.defaultLaunchMode) !== 'pty'
+
+      // Resolve effort: project default > global default > undefined (don't pass flag)
+      const effortRaw = projSettings?.defaultEffort || globalSettings.defaultEffort
+      const effort = effortRaw && effortRaw !== 'default' ? effortRaw : undefined
 
       agent.send(
         JSON.stringify({
@@ -753,6 +762,7 @@ export function createRouter(options: RouteOptions): Hono {
           mode: body.mode,
           resumeId: body.resumeId,
           headless,
+          effort,
         }),
       )
     })

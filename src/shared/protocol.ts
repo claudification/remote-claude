@@ -756,6 +756,7 @@ export interface ProjectSettings {
   keyterms?: string[]
   trustLevel?: 'default' | 'open' | 'benevolent' // open = accepts from anyone, benevolent = can message anyone
   defaultLaunchMode?: 'headless' | 'pty'
+  defaultEffort?: 'default' | 'low' | 'medium' | 'high' | 'max' // 'default' = don't pass --effort flag
 }
 
 // File metadata for the file editor

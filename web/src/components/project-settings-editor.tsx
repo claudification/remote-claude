@@ -581,6 +581,7 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
   const [keyterms, setKeyterms] = useState<string[]>(current.keyterms || [])
   const [trustLevel, setTrustLevel] = useState<string>(current.trustLevel || 'default')
   const [launchMode, setLaunchMode] = useState<string>(current.defaultLaunchMode || 'headless')
+  const [effort, setEffort] = useState<string>(current.defaultEffort || 'default')
   const [keytermInput, setKeytermInput] = useState('')
   const [iconSearch, setIconSearch] = useState('')
   const [saving, setSaving] = useState(false)
@@ -596,6 +597,7 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
     setKeyterms(c.keyterms || [])
     setTrustLevel(c.trustLevel || 'default')
     setLaunchMode(c.defaultLaunchMode || 'headless')
+    setEffort(c.defaultEffort || 'default')
   }, [projectSettings, cwd])
 
   const filteredIcons = useMemo(() => {
@@ -615,6 +617,7 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
       keyterms: keyterms.length ? keyterms : [],
       trustLevel: trustLevel === 'default' ? undefined : (trustLevel as 'open' | 'benevolent'),
       defaultLaunchMode: launchMode === 'headless' ? undefined : (launchMode as 'pty'),
+      defaultEffort: effort === 'default' ? undefined : (effort as 'low' | 'medium' | 'high' | 'max'),
     }
 
     updateProjectSettings(cwd, settings)
@@ -665,7 +668,8 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
     description.trim() !== (current.description || '') ||
     JSON.stringify(keyterms) !== JSON.stringify(current.keyterms || []) ||
     trustLevel !== (current.trustLevel || 'default') ||
-    launchMode !== (current.defaultLaunchMode || 'headless')
+    launchMode !== (current.defaultLaunchMode || 'headless') ||
+    effort !== (current.defaultEffort || 'default')
 
   const hasAnySettings =
     current.label ||
@@ -930,6 +934,46 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
             </div>
             <div className="text-[9px] text-muted-foreground mt-0.5">
               Used when spawning/reviving sessions for this project
+            </div>
+          </div>
+
+          {/* Default effort level */}
+          <div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Default Effort</div>
+            <div className="flex gap-1.5">
+              {[
+                { value: 'default', label: 'Default', desc: "Don't pass --effort flag" },
+                { value: 'low', label: 'Low', desc: 'Minimal thinking' },
+                { value: 'medium', label: 'Medium', desc: 'Standard thinking' },
+                { value: 'high', label: 'High', desc: 'Extended thinking' },
+                { value: 'max', label: 'Max', desc: 'Maximum thinking budget' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setEffort(opt.value)}
+                  className={cn(
+                    'px-2 py-1 text-[10px] font-mono border rounded transition-colors',
+                    effort === opt.value
+                      ? opt.value === 'default'
+                        ? 'border-border bg-muted text-foreground'
+                        : opt.value === 'low'
+                          ? 'border-blue-500 bg-blue-500/20 text-blue-400'
+                          : opt.value === 'medium'
+                            ? 'border-green-500 bg-green-500/20 text-green-400'
+                            : opt.value === 'high'
+                              ? 'border-orange-500 bg-orange-500/20 text-orange-400'
+                              : 'border-red-500 bg-red-500/20 text-red-400'
+                      : 'border-border/50 text-muted-foreground hover:text-foreground',
+                  )}
+                  title={opt.desc}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div className="text-[9px] text-muted-foreground mt-0.5">
+              Passed as --effort flag when launching sessions
             </div>
           </div>
 

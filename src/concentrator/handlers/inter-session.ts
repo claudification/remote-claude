@@ -4,8 +4,19 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { getGlobalSettings } from '../global-settings'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
+
+/** Resolve effective effort level from project + global settings */
+function resolveEffort(
+  cwd: string,
+  getProjectSettings: (cwd: string) => { defaultEffort?: string } | null,
+): string | undefined {
+  const proj = getProjectSettings(cwd)
+  const raw = proj?.defaultEffort || getGlobalSettings().defaultEffort
+  return raw && raw !== 'default' ? raw : undefined
+}
 
 const handleQuitRemoteSession: MessageHandler = (ctx, data) => {
   const targetId = data.targetSession as string
@@ -68,6 +79,7 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
       cwd: target.cwd,
       wrapperId,
       mode: 'continue',
+      effort: resolveEffort(target.cwd, ctx.getProjectSettings),
     }),
   )
 
@@ -146,6 +158,7 @@ const handleChannelSpawn: MessageHandler = (ctx, data) => {
         mode: data.mode,
         resumeId: data.resumeId,
         headless: data.headless !== false, // default true
+        effort: resolveEffort(cwd, ctx.getProjectSettings),
       }),
     )
   })
@@ -230,6 +243,7 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
         cwd: target.cwd,
         wrapperId,
         mode: 'continue',
+        effort: resolveEffort(target.cwd, ctx.getProjectSettings),
       }),
     )
 

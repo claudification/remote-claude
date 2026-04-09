@@ -19,6 +19,7 @@ export const GlobalSettingsSchema = z.object({
   voiceRefinementPrompt: z.string().max(2000).default(''),
   carriageReturnDelay: z.number().min(0).max(2000).default(0),
   defaultLaunchMode: z.enum(['headless', 'pty']).default('headless'),
+  defaultEffort: z.enum(['default', 'low', 'medium', 'high', 'max']).default('default'),
 })
 
 export type GlobalSettings = z.infer<typeof GlobalSettingsSchema>

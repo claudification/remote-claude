@@ -719,6 +719,25 @@ const SETTINGS: SettingItem[] = [
     ),
   },
   {
+    group: 'Sessions',
+    label: 'Default effort',
+    description: 'Default --effort level for new sessions (per-project overrides this)',
+    keywords: 'effort thinking budget low medium high max',
+    render: ctx => (
+      <select
+        value={(ctx.server.defaultEffort as string) || 'default'}
+        onChange={e => ctx.setServer('defaultEffort', e.target.value)}
+        className="bg-muted border border-border px-2 py-1 text-xs font-mono text-foreground"
+      >
+        <option value="default">Default (no flag)</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+        <option value="max">Max</option>
+      </select>
+    ),
+  },
+  {
     group: 'Display',
     label: 'Show streaming',
     description: 'Show token-by-token streaming block for headless sessions',
