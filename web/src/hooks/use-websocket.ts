@@ -15,7 +15,6 @@ const batch: (fn: () => void) => void = batchUpdates ?? (fn => fn())
 import type { SessionSummary } from '@shared/protocol'
 import { buildWsUrl } from '@/lib/share-mode'
 import type { HookEvent, Session, SessionOrderV2, TaskInfo, TranscriptEntry } from '@/lib/types'
-import { BUILD_VERSION } from '../../../src/shared/version'
 import {
   applyHashRoute,
   fetchTranscript,
@@ -206,12 +205,8 @@ function processMessage(msg: DashboardMessage) {
       }
       // Check for version mismatch between server and this frontend bundle
       // Compare just the 7-char git hash, ignoring -dirty suffix
-      const sessionsMsg = msg as DashboardMessage & { serverVersion?: string }
-      if (sessionsMsg.serverVersion) {
-        const serverHash = sessionsMsg.serverVersion.replace(/-dirty$/, '')
-        const clientHash = BUILD_VERSION.gitHashShort.replace(/-dirty$/, '')
-        if (serverHash !== clientHash) useSessionsStore.setState({ versionMismatch: true })
-      }
+      // Version mismatch detection removed -- SW lifecycle handles update detection.
+      // When sw.js changes, browser installs new SW and sends 'sw-updated' postMessage.
       break
     }
     case 'session_created': {

@@ -167,6 +167,7 @@ interface SessionsState {
   pendingFilePath: string | null
   newDataSeq: number
   expandAll: boolean
+  /** @deprecated Use SW update detection instead */
   versionMismatch: boolean
   toggleExpandAll: () => void
 
