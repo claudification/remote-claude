@@ -14,6 +14,40 @@ import { JsonInspector } from '../json-inspector'
 import { Collapsible, getToolStyle, shortPath, TruncatedPre } from './shared'
 import { BashOutput, DiffView, ShellCommand, WritePreview } from './tool-renderers'
 
+/**
+ * Try to extract readable text from an MCP tool result.
+ * MCP results are often JSON-encoded arrays of content blocks: [{"type":"text","text":"..."}]
+ * or a JSON string wrapping such an array in a `result` field.
+ * Returns the concatenated text if detected, or null if the result isn't MCP-shaped.
+ */
+function extractMcpResultText(result: string): string | null {
+  if (!result || typeof result !== 'string') return null
+  const trimmed = result.trim()
+  // Must look like JSON
+  if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) return null
+  try {
+    let parsed = JSON.parse(trimmed)
+    // Handle { result: "[{\"type\":\"text\",...}]" } wrapper
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && typeof parsed.result === 'string') {
+      try {
+        parsed = JSON.parse(parsed.result)
+      } catch {
+        return null
+      }
+    }
+    // Must be an array of content blocks
+    if (!Array.isArray(parsed) || parsed.length === 0) return null
+    // Every element must have type === 'text' and a text field
+    if (!parsed.every((b: { type?: string; text?: string }) => b.type === 'text' && typeof b.text === 'string'))
+      return null
+    const text = parsed.map((b: { text: string }) => b.text).join('\n\n')
+    // Only worth rendering as markdown if there's actual content
+    return text.trim() || null
+  } catch {
+    return null
+  }
+}
+
 /** Slugify a name the same way the concentrator address-book does. */
 function slugify(name: string): string {
   return (
@@ -722,9 +756,18 @@ export function ToolLine({
           })
           .join(', ')
         summary = inputSummary || `${server}/${toolName}`
-        // Show result as expandable output
+        // Show result as expandable output - render as markdown if it's MCP content blocks
         if (result && typeof result === 'string' && result.trim()) {
-          details = <TruncatedPre text={result} tool="MCP" />
+          const mcpText = extractMcpResultText(result)
+          if (mcpText) {
+            details = (
+              <div className="text-xs prose-sm max-h-96 overflow-y-auto">
+                <Markdown>{mcpText}</Markdown>
+              </div>
+            )
+          } else {
+            details = <TruncatedPre text={result} tool="MCP" />
+          }
         }
       } else {
         summary = JSON.stringify(input).slice(0, 60)
