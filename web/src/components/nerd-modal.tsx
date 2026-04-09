@@ -338,6 +338,22 @@ function SwTab() {
       {cacheInfo.length === 0 && !loading && (
         <div className="text-[11px] text-[#565f89]">No caches found. SW may not be registered yet.</div>
       )}
+
+      <div className="mt-4 pt-3 border-t border-[#33467c]/30">
+        <button
+          type="button"
+          onClick={async () => {
+            const keys = await caches.keys()
+            await Promise.all(keys.map(k => caches.delete(k)))
+            const reg = await navigator.serviceWorker?.getRegistration('/sw.js')
+            if (reg) await reg.unregister()
+            window.location.reload()
+          }}
+          className="px-3 py-1 text-[11px] font-bold bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30 transition-colors"
+        >
+          Clear Cache & Reload
+        </button>
+      </div>
     </div>
   )
 }
