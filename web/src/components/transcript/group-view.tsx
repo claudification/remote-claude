@@ -421,6 +421,14 @@ export function GroupView({
                   progress: 'bg-zinc-400/15 text-zinc-400 border-zinc-400/30',
                 }
                 const iStyle = intentStyles[item.intent || ''] || intentStyles.notify
+                // Resolve sender slug to display name via project settings
+                const senderSession = item.sessionId
+                  ? useSessionsStore.getState().sessions.find(s => s.id === item.sessionId)
+                  : undefined
+                const senderLabel = senderSession?.cwd
+                  ? useSessionsStore.getState().projectSettings[senderSession.cwd]?.label
+                  : undefined
+                const senderDisplayName = senderSession?.title || senderLabel || item.source
                 return (
                   <div key={i} className="rounded-lg border border-teal-500/30 bg-teal-500/5 px-3 py-2.5 my-1">
                     <div className="flex items-center gap-2 mb-1.5">
@@ -440,7 +448,7 @@ export function GroupView({
                           }
                         }}
                       >
-                        {item.source}
+                        {senderDisplayName}
                       </button>
                       {item.intent && (
                         <span

@@ -136,6 +136,20 @@ const streamDelta: MessageHandler = (ctx, data) => {
   }
 }
 
+// Rate limit event from headless backend - store on session and broadcast update
+const rateLimitHandler: MessageHandler = (ctx, data) => {
+  const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
+  if (!sessionId) return
+  const session = ctx.sessions.getSession(sessionId)
+  if (!session) return
+  session.rateLimit = {
+    retryAfterMs: (data.retryAfterMs as number) || 5000,
+    message: (data.message as string) || 'Rate limited',
+    timestamp: Date.now(),
+  }
+  ctx.sessions.broadcastSessionUpdate(sessionId)
+}
+
 export function registerTranscriptHandlers(): void {
   registerHandlers({
     tasks_update: tasksUpdate,
@@ -146,6 +160,7 @@ export function registerTranscriptHandlers(): void {
     transcript_request: transcriptRequest,
     subagent_transcript_request: subagentTranscriptRequest,
     stream_delta: streamDelta,
+    rate_limit: rateLimitHandler,
     session_info: sessionInfo,
   })
 }

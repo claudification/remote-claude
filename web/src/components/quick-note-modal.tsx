@@ -13,7 +13,6 @@ import { MarkdownInput } from './markdown-input'
 export function QuickNoteModal() {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
-  const [sending, setSending] = useState(false)
   const [flash, setFlash] = useState(false)
 
   const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
@@ -53,26 +52,21 @@ export function QuickNoteModal() {
     }
   }, [open, selectedSessionId, isActive])
 
-  const handleSubmit = useCallback(async () => {
-    if (!text.trim() || sending) return
+  const handleSubmit = useCallback(() => {
+    if (!text.trim()) return
     haptic('tap')
-    setSending(true)
-    try {
-      const lines = text.trim().split('\n')
-      const title = lines[0]
-      const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : text.trim()
-      await createNote({ title, body })
-      haptic('success')
-      setText('')
-      setOpen(false)
-      setFlash(true)
-      setTimeout(() => setFlash(false), 1000)
-    } catch {
-      haptic('error')
-    } finally {
-      setSending(false)
-    }
-  }, [text, sending, createNote])
+    const lines = text.trim().split('\n')
+    const title = lines[0]
+    const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : text.trim()
+    // Fire and forget -- close immediately, don't wait for response.
+    // The note is a simple file write; the kanban board auto-refreshes via fs watcher.
+    createNote({ title, body }).catch(() => {})
+    haptic('success')
+    setText('')
+    setOpen(false)
+    setFlash(true)
+    setTimeout(() => setFlash(false), 1000)
+  }, [text, createNote])
 
   if (!open) {
     if (flash) {
@@ -126,7 +120,6 @@ export function QuickNoteModal() {
             value={text}
             onChange={setText}
             onSubmit={handleSubmit}
-            disabled={sending}
             placeholder="First line = title, rest = body... Shift+Enter for new line"
             autoFocus
             inline
@@ -139,10 +132,10 @@ export function QuickNoteModal() {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!text.trim() || sending}
+            disabled={!text.trim()}
             className="px-3 py-1 text-xs font-bold bg-accent/20 text-accent hover:bg-accent/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {sending ? '...' : 'Add'}
+            Add
           </button>
         </div>
       </div>

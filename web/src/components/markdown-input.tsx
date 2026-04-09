@@ -383,6 +383,15 @@ export function MarkdownInput({
 
     // Autocomplete navigation
     if (acItems.length > 0) {
+      // Fast path: if the typed value is a complete no-arg command, submit on Enter immediately
+      if (e.key === 'Enter' && !e.shiftKey) {
+        const trimmed = value.trim()
+        if (/^\/(?:clear|exit|compact|context|quit)$/.test(trimmed)) {
+          e.preventDefault()
+          handleSubmit()
+          return
+        }
+      }
       if (e.key === 'ArrowDown') {
         e.preventDefault()
         setAcIndex(i => (i + 1) % acItems.length)
@@ -421,7 +430,15 @@ export function MarkdownInput({
         if (currentCmd === selected.item) {
           handleSubmit()
         } else {
-          selectAutocomplete(selected.item)
+          // For no-arg commands, selecting fills the exact same value.
+          // Submit directly to avoid an infinite fill-then-match loop.
+          const noArgCommands = ['exit', 'clear', 'compact', 'context', 'quit']
+          if (noArgCommands.includes(selected.item)) {
+            onChange(`/${selected.item}`)
+            requestAnimationFrame(() => handleSubmit())
+          } else {
+            selectAutocomplete(selected.item)
+          }
         }
         return
       }

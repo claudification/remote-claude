@@ -494,6 +494,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       team: session.team,
       effortLevel: session.effortLevel,
       lastError: session.lastError,
+      rateLimit: session.rateLimit,
       pendingAttention: session.pendingAttention,
       hasNotification: session.hasNotification,
       summary: session.summary,
@@ -849,6 +850,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       session.team = undefined
       session.compacting = false
       session.lastError = undefined
+      session.rateLimit = undefined
       // Mark stale bg tasks as killed
       for (const bgTask of session.bgTasks) {
         if (bgTask.status === 'running') {
@@ -1056,8 +1058,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         }
       } else if (!PASSIVE_HOOKS.has(event.hookEvent) && session.status !== 'ended') {
         session.status = 'active'
-        // Clear error when session resumes working
+        // Clear error/rate-limit when session resumes working
         if (session.lastError) session.lastError = undefined
+        if (session.rateLimit) session.rateLimit = undefined
       }
 
       // Correlate hook events to subagents: if the hook's session_id differs

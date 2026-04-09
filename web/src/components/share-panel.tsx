@@ -67,8 +67,14 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
         setTimeout(() => setCopyFeedback(null), 3000)
         haptic('success')
         setNewLabel('')
+      } else {
+        console.error('Share create failed:', res.status, await res.text().catch(() => ''))
+        haptic('error')
       }
-    } catch {}
+    } catch (err) {
+      console.error('Share create error:', err)
+      haptic('error')
+    }
     setCreating(false)
   }
 
@@ -89,7 +95,24 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
 
   const totalViewers = shares.reduce((sum, s) => sum + s.viewerCount, 0)
 
-  if (shares.length === 0 && !expanded) return null
+  // No shares and not expanded: show a subtle "Share" button as entry point
+  if (shares.length === 0 && !expanded) {
+    return (
+      <div className="border-b border-border/50">
+        <button
+          type="button"
+          onClick={() => {
+            haptic('tap')
+            setExpanded(true)
+          }}
+          className="w-full px-3 py-1.5 flex items-center gap-2 text-[10px] font-mono text-muted-foreground hover:text-teal-400 hover:bg-teal-500/5 transition-colors"
+        >
+          <Link2 className="w-3 h-3" />
+          <span className="uppercase tracking-wider">Share this session</span>
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="border-b border-teal-500/30 bg-teal-500/5">

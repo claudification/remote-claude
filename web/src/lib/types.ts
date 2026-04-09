@@ -66,6 +66,7 @@ export interface Session {
   team?: { teamName: string; role: 'lead' | 'teammate' }
   effortLevel?: string
   lastError?: { stopReason?: string; errorType?: string; errorMessage?: string; timestamp: number }
+  rateLimit?: { retryAfterMs: number; message: string; timestamp: number }
   pendingAttention?: {
     type: 'permission' | 'elicitation' | 'ask' | 'dialog'
     toolName?: string
