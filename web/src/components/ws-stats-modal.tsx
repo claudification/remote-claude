@@ -3,7 +3,7 @@
  * Polls /api/stats every 3s while open, shows both client and server traffic
  */
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { getRates, subscribe as subscribeStats } from '@/hooks/ws-stats'
 
 interface ServerStats {
@@ -178,10 +178,87 @@ export function WsStatsModal({ open, onClose }: WsStatsModalProps) {
 
         {!serverStats && !fetchError && <div className="text-[11px] text-[#565f89] mb-3">Loading server stats...</div>}
 
+        {/* SW Cache */}
+        <SwCacheSection />
+
         <div className="text-center text-[10px] text-[#565f89]">
           Press <kbd className="px-1 py-0.5 bg-[#33467c]/30 text-[#7aa2f7]">Esc</kbd> or click outside to close
         </div>
       </div>
+    </div>
+  )
+}
+
+function SwCacheSection() {
+  const [swStatus, setSwStatus] = useState('...')
+  const [cacheInfo, setCacheInfo] = useState<Array<{ name: string; count: number; sizeKB: number }>>([])
+  const [totalKB, setTotalKB] = useState(0)
+
+  useEffect(() => {
+    async function load() {
+      if (!('serviceWorker' in navigator)) {
+        setSwStatus('unsupported')
+        return
+      }
+      try {
+        const reg = await navigator.serviceWorker.getRegistration('/sw.js')
+        setSwStatus(reg?.active ? 'active' : reg?.waiting ? 'waiting' : reg ? 'installing' : 'not registered')
+      } catch {
+        setSwStatus('error')
+      }
+      try {
+        const keys = await caches.keys()
+        let total = 0
+        const infos: typeof cacheInfo = []
+        for (const name of keys) {
+          const cache = await caches.open(name)
+          const entries = await cache.keys()
+          let sizeKB = 0
+          for (const req of entries) {
+            try {
+              const res = await cache.match(req)
+              if (res) {
+                const blob = await res.clone().blob()
+                sizeKB += blob.size / 1024
+              }
+            } catch {}
+          }
+          sizeKB = Math.round(sizeKB)
+          total += sizeKB
+          infos.push({ name, count: entries.length, sizeKB })
+        }
+        setCacheInfo(infos)
+        setTotalKB(Math.round(total))
+      } catch {}
+    }
+    load()
+  }, [])
+
+  return (
+    <div className="mb-4">
+      <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">Service Worker Cache</div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+        <StatRow
+          label="status"
+          value={swStatus}
+          accent={swStatus === 'active'}
+          dim={swStatus === 'not registered' || swStatus === 'unsupported'}
+        />
+        <StatRow label="total size" value={totalKB > 1024 ? `${(totalKB / 1024).toFixed(1)} MB` : `${totalKB} KB`} />
+      </div>
+      {cacheInfo.length > 0 && (
+        <div className="mt-2 max-h-24 overflow-y-auto">
+          {cacheInfo.map(c => (
+            <div key={c.name} className="flex justify-between py-0.5 border-b border-[#33467c]/20 text-[10px]">
+              <span className="text-[#a9b1d6] truncate mr-2">{c.name}</span>
+              <span className="text-[#565f89] mr-2">{c.count} entries</span>
+              <span className="text-[#7aa2f7] tabular-nums">
+                {c.sizeKB > 1024 ? `${(c.sizeKB / 1024).toFixed(1)} MB` : `${c.sizeKB} KB`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
