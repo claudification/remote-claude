@@ -1,6 +1,6 @@
 /**
  * Task Board - Kanban-style view for structured task notes
- * Three columns: Open | In Progress | Done
+ * Three columns: Open | In Progress | Done, plus collapsible Archive
  */
 
 import {
@@ -15,8 +15,20 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import { ArrowLeft, ArrowRight, Eye, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
-import { memo, useCallback, useState } from 'react'
+import {
+  Archive,
+  ArrowLeft,
+  ArrowRight,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  MoreHorizontal,
+  Pencil,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import type { TaskNote } from '@/hooks/use-task-notes'
 import { type TaskNoteMeta, type TaskStatus, useTaskNotes } from '@/hooks/use-task-notes'
 import { cn, haptic } from '@/lib/utils'
@@ -72,6 +84,26 @@ const PRIORITY_COLORS: Record<string, string> = {
   high: 'bg-red-500/20 text-red-400 border-red-500/30',
   medium: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
   low: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+}
+
+function fuzzyScore(query: string, note: TaskNoteMeta): number {
+  if (!query) return 1
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (terms.length === 0) return 1
+  const title = note.title.toLowerCase()
+  const body = (note.bodyPreview || '').toLowerCase()
+  const tagStr = note.tags.join(' ').toLowerCase()
+  let score = 0
+  for (const term of terms) {
+    const inTitle = title.includes(term)
+    const inBody = body.includes(term)
+    const inTags = tagStr.includes(term)
+    if (!inTitle && !inBody && !inTags) return 0
+    if (inTitle) score += 2
+    if (inBody) score += 1
+    if (inTags) score += 1
+  }
+  return score
 }
 
 function NoteEditor({
@@ -268,11 +300,13 @@ function TaskCard({
   note,
   onMove,
   onDelete,
+  onArchive,
   onEdit,
 }: {
   note: TaskNoteMeta
   onMove: (slug: string, from: TaskStatus, to: TaskStatus) => void
   onDelete: (slug: string, status: TaskStatus) => void
+  onArchive: (slug: string, from: TaskStatus) => void
   onEdit: (note: TaskNoteMeta) => void
 }) {
   const [showActions, setShowActions] = useState(false)
@@ -365,6 +399,19 @@ function TaskCard({
               }}
             >
               Next <ArrowRight className="w-3 h-3" />
+            </button>
+          )}
+          {note.status !== 'archived' && (
+            <button
+              type="button"
+              className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors font-mono"
+              onClick={() => {
+                haptic('tap')
+                onArchive(note.slug, note.status)
+                setShowActions(false)
+              }}
+            >
+              <Archive className="w-3 h-3" /> Archive
             </button>
           )}
           <button
@@ -469,6 +516,15 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
   const { notes, loading, refresh, createNote, moveNote, deleteNote, readNote, updateNote } = useTaskNotes(sessionId)
   const [editingNote, setEditingNote] = useState<TaskNote | null>(null)
   const [activeDragNote, setActiveDragNote] = useState<TaskNoteMeta | null>(null)
+  const [archiveExpanded, setArchiveExpanded] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  const filteredNotes = useMemo(() => {
+    if (!searchQuery.trim()) return notes
+    return notes.filter(n => fuzzyScore(searchQuery, n) > 0)
+  }, [notes, searchQuery])
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -518,6 +574,16 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
     [deleteNote],
   )
 
+  const handleArchive = useCallback(
+    async (slug: string, from: TaskStatus) => {
+      await moveNote(slug, from, 'archived')
+    },
+    [moveNote],
+  )
+
+  const archivedNotes = filteredNotes.filter(n => n.status === 'archived')
+  const activeNotes = filteredNotes.filter(n => n.status !== 'archived')
+
   if (loading && notes.length === 0) {
     return (
       <div className="flex items-center justify-center h-32 text-muted-foreground/40 text-xs font-mono">Loading...</div>
@@ -527,15 +593,65 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-        <span className="text-xs font-bold text-foreground font-mono">Task Notes</span>
-        <button
-          type="button"
-          className="text-[10px] text-muted-foreground hover:text-foreground font-mono"
-          onClick={() => refresh()}
-        >
-          Refresh
-        </button>
+      <div className="flex flex-col border-b border-border shrink-0">
+        <div className="flex items-center justify-between px-3 py-2">
+          <span className="text-xs font-bold text-foreground font-mono">Task Notes</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={cn(
+                'p-0.5 transition-colors',
+                searchOpen ? 'text-accent' : 'text-muted-foreground/40 hover:text-muted-foreground',
+              )}
+              onClick={() => {
+                haptic('tap')
+                setSearchOpen(prev => {
+                  if (!prev) {
+                    requestAnimationFrame(() => searchRef.current?.focus())
+                  } else {
+                    setSearchQuery('')
+                  }
+                  return !prev
+                })
+              }}
+            >
+              <Search className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              className="text-[10px] text-muted-foreground hover:text-foreground font-mono"
+              onClick={() => refresh()}
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+        {searchOpen && (
+          <div className="flex items-center gap-2 px-3 pb-2">
+            <input
+              ref={searchRef}
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onFocus={() => haptic('tap')}
+              placeholder="Filter tasks..."
+              className="flex-1 bg-[#1a1b26] border border-[#33467c]/40 px-2 py-1 text-xs font-mono text-foreground outline-none placeholder:text-muted-foreground/30 focus:border-accent/50"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                className="text-muted-foreground/40 hover:text-muted-foreground"
+                onClick={() => {
+                  haptic('tap')
+                  setSearchQuery('')
+                  searchRef.current?.focus()
+                }}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Kanban columns */}
@@ -543,7 +659,7 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
         <div className="flex-1 min-h-0 overflow-auto">
           <div className="flex gap-0 min-h-full">
             {COLUMNS.map(col => {
-              const colNotes = notes.filter(n => n.status === col.status)
+              const colNotes = activeNotes.filter(n => n.status === col.status)
               return (
                 <DroppableColumn key={col.status} status={col.status}>
                   {/* Column header */}
@@ -562,6 +678,7 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
                         note={note}
                         onMove={handleMove}
                         onDelete={handleDelete}
+                        onArchive={handleArchive}
                         onEdit={async meta => {
                           const full = await readNote(meta.slug, meta.status)
                           if (full) setEditingNote(full)
