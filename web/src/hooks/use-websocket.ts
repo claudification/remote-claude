@@ -324,11 +324,22 @@ function processMessage(msg: DashboardMessage) {
               `[ws] transcript ${sid.slice(0, 8)}: +${newEntries.length} ${initial ? 'INITIAL' : 'incremental'} (total=${result.length})`,
             )
           }
+          // Clear streaming text when an assistant entry arrives (defensive cleanup
+          // in case message_stop was lost or arrived after the transcript entry)
+          const hasAssistant = newEntries.some(e => e.type === 'assistant')
+          const streamingText =
+            hasAssistant && state.streamingText[sid]
+              ? (() => {
+                  const { [sid]: _, ...rest } = state.streamingText
+                  return rest
+                })()
+              : state.streamingText
           return {
             transcripts: {
               ...state.transcripts,
               [sid]: result,
             },
+            streamingText,
           }
         })
       }
