@@ -573,10 +573,10 @@ async function main() {
           if (trimmed === '/exit' || trimmed === '/quit' || trimmed === ':q' || trimmed === ':q!') {
             streamProc.kill()
           } else if (trimmed === '/clear') {
-            // Clear = kill and restart (new session, clean context)
-            diag('headless', 'Clear requested - restarting process')
-            streamProc.kill()
-            // Process exit handler will trigger session end, dashboard can revive
+            // In --print mode, /clear isn't a CLI command. Send as user message --
+            // CC may handle it internally or the model sees it as text (harmless).
+            // The PTY path handles /clear via CC's interactive CLI layer.
+            streamProc.sendUserMessage(input)
           } else if (trimmed.startsWith('/model ')) {
             const model = trimmed.slice(7).trim()
             if (model) streamProc.sendSetModel(model)
