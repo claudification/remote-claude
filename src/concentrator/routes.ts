@@ -737,9 +737,10 @@ export function createRouter(options: RouteOptions): Hono {
         resolve(msg as SpawnResult)
       })
 
-      // Resolve headless: explicit override > project default > true
+      // Resolve headless: explicit override > project default > global setting
       const projSettings = getProjectSettings(body.cwd)
-      const headless = body.headless ?? projSettings?.defaultLaunchMode !== 'pty'
+      const globalMode = getGlobalSettings().defaultLaunchMode
+      const headless = body.headless ?? (projSettings?.defaultLaunchMode || globalMode) !== 'pty'
 
       agent.send(
         JSON.stringify({

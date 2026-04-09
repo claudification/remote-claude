@@ -103,6 +103,7 @@ export function TranscriptView({
 
   // Headless streaming text - accumulates token-by-token
   const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
+  const showStreaming = useSessionsStore(state => state.dashboardPrefs.showStreaming !== false)
   const streamingText = useSessionsStore(
     state => (selectedSessionId ? state.streamingText[selectedSessionId] : null) || EMPTY_STREAMING,
   )
@@ -280,7 +281,7 @@ export function TranscriptView({
         ))}
       </div>
       {/* Headless streaming text - shows token-by-token as they arrive */}
-      {streamingText && (
+      {showStreaming && streamingText && (
         <div className="mt-2 pl-4">
           <div className="border-l-2 border-emerald-400/40 pl-3 py-1">
             <div className="text-[10px] text-emerald-400/70 uppercase font-bold tracking-wider mb-1">streaming</div>

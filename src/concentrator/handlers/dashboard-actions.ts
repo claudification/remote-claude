@@ -7,7 +7,7 @@
  */
 
 import type { SendInput } from '../../shared/protocol'
-import { updateGlobalSettings } from '../global-settings'
+import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
 import { GuardError, type MessageHandler, type WsData } from '../handler-context'
 import { registerHandlers } from '../message-router'
 import { resolvePermissions } from '../permissions'
@@ -225,9 +225,10 @@ const reviveSession: MessageHandler = (ctx, data) => {
   const projSettings = getProjectSettings(session.cwd)
   const name = session.title || projSettings?.label || session.cwd.split('/').pop() || sessionId.slice(0, 8)
 
-  // Resolve headless: explicit override > project default > true
+  // Resolve headless: explicit override > project default > global setting
   const headlessParam = data.headless as boolean | undefined
-  const headless = headlessParam ?? projSettings?.defaultLaunchMode !== 'pty'
+  const globalMode = getGlobalSettings().defaultLaunchMode
+  const headless = headlessParam ?? (projSettings?.defaultLaunchMode || globalMode) !== 'pty'
 
   agent.send(JSON.stringify({ type: 'revive', sessionId, cwd: session.cwd, wrapperId, mode: 'continue', headless }))
 

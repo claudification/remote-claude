@@ -687,6 +687,36 @@ const SETTINGS: SettingItem[] = [
       />
     ),
   },
+  {
+    group: 'Sessions',
+    label: 'Default launch mode',
+    description: 'Default mode when spawning/reviving sessions (per-project overrides this)',
+    keywords: 'headless pty terminal launch mode spawn',
+    render: ctx => (
+      <select
+        value={(ctx.server.defaultLaunchMode as string) || 'headless'}
+        onChange={e => ctx.setServer('defaultLaunchMode', e.target.value)}
+        className="bg-muted border border-border px-2 py-1 text-xs font-mono text-foreground"
+      >
+        <option value="headless">Headless</option>
+        <option value="pty">PTY (terminal)</option>
+      </select>
+    ),
+  },
+  {
+    group: 'Display',
+    label: 'Show streaming',
+    description: 'Show token-by-token streaming block for headless sessions',
+    keywords: 'streaming tokens live headless',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.showStreaming !== false}
+        onChange={e => ctx.updatePrefs({ showStreaming: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
 ]
 
 export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
