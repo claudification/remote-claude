@@ -297,8 +297,8 @@ export type WrapperMessage =
   | PermissionRequest
   | AskQuestionRequest
   | ClipboardCapture
-  | ExplorerShowMessage
-  | ExplorerDismissMessage
+  | DialogShowMessage
+  | DialogDismissMessage
   | StreamDelta
   | WrapperRateLimit
   | SessionInfoUpdate
@@ -485,27 +485,27 @@ export interface AskQuestionResponse {
 }
 
 // Dialog MCP tool (channel-based rich UI for user interaction)
-export type { ExplorerComponent, ExplorerLayout, ExplorerResult } from './explorer-schema'
+export type { DialogComponent, DialogLayout, DialogResult } from './dialog-schema'
 
-export interface ExplorerShowMessage {
+export interface DialogShowMessage {
   type: 'dialog_show'
   sessionId: string
-  explorerId: string
-  layout: import('./explorer-schema').ExplorerLayout
+  dialogId: string
+  layout: import('./dialog-schema').DialogLayout
 }
 
-export interface ExplorerResultMessage {
+export interface DialogResultMessage {
   type: 'dialog_result'
   sessionId: string
-  explorerId: string
-  result: import('./explorer-schema').ExplorerResult
+  dialogId: string
+  result: import('./dialog-schema').DialogResult
   [key: string]: unknown
 }
 
-export interface ExplorerDismissMessage {
+export interface DialogDismissMessage {
   type: 'dialog_dismiss'
   sessionId: string
-  explorerId: string
+  dialogId: string
 }
 
 // Permission relay (CC -> channel -> dashboard -> channel -> CC)
@@ -546,7 +546,7 @@ export type ConcentratorMessage =
   | PermissionResponse
   | AskQuestionResponse
   | QuitSession
-  | ExplorerResultMessage
+  | DialogResultMessage
 
 export interface SendInterrupt {
   type: 'interrupt'
@@ -819,7 +819,7 @@ export interface Session {
     timestamp: number
   }
   hasNotification?: boolean // unread notification (cleared when session is viewed)
-  pendingExplorer?: { explorerId: string; layout: import('./explorer-schema').ExplorerLayout; timestamp: number }
+  pendingDialog?: { dialogId: string; layout: import('./dialog-schema').DialogLayout; timestamp: number }
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
   // Transcript-derived metadata (from special JSONL entry types)
   summary?: string // AI-generated session summary

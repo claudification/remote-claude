@@ -1,5 +1,5 @@
 /**
- * Re-export explorer types for dashboard use.
+ * Re-export dialog types for dashboard use.
  * Keeps the import path clean for components.
  */
 export type {
@@ -9,12 +9,12 @@ export type {
   ButtonIntent,
   ButtonVariant,
   DiagramComponent,
+  DialogColor,
+  DialogComponent,
+  DialogLayout,
+  DialogPage,
+  DialogResult,
   DividerComponent,
-  ExplorerColor,
-  ExplorerComponent,
-  ExplorerLayout,
-  ExplorerPage,
-  ExplorerResult,
   GridComponent,
   GroupComponent,
   ImageComponent,
@@ -26,4 +26,4 @@ export type {
   StackComponent,
   TextInputComponent,
   ToggleComponent,
-} from '@shared/explorer-schema'
+} from '@shared/dialog-schema'

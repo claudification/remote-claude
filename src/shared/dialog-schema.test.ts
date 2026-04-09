@@ -1,46 +1,41 @@
 import { describe, expect, it } from 'vitest'
-import {
-  type ExplorerComponent,
-  type ExplorerLayout,
-  explorerToolInputSchema,
-  validateExplorerLayout,
-} from './explorer-schema'
+import { type DialogComponent, type DialogLayout, dialogToolInputSchema, validateDialogLayout } from './dialog-schema'
 
-describe('validateExplorerLayout', () => {
+describe('validateDialogLayout', () => {
   it('accepts a minimal valid layout with body', () => {
-    const layout: ExplorerLayout = {
+    const layout: DialogLayout = {
       title: 'Test',
       body: [{ type: 'Markdown', content: 'Hello' }],
     }
-    expect(validateExplorerLayout(layout)).toEqual([])
+    expect(validateDialogLayout(layout)).toEqual([])
   })
 
   it('accepts a minimal valid layout with pages', () => {
-    const layout: ExplorerLayout = {
+    const layout: DialogLayout = {
       title: 'Test',
       pages: [{ label: 'Page 1', body: [{ type: 'Markdown', content: 'Hello' }] }],
     }
-    expect(validateExplorerLayout(layout)).toEqual([])
+    expect(validateDialogLayout(layout)).toEqual([])
   })
 
   it('rejects non-object input', () => {
-    expect(validateExplorerLayout(null)).toEqual(['Layout must be an object'])
-    expect(validateExplorerLayout('string')).toEqual(['Layout must be an object'])
-    expect(validateExplorerLayout(42)).toEqual(['Layout must be an object'])
+    expect(validateDialogLayout(null)).toEqual(['Layout must be an object'])
+    expect(validateDialogLayout('string')).toEqual(['Layout must be an object'])
+    expect(validateDialogLayout(42)).toEqual(['Layout must be an object'])
   })
 
   it('rejects missing title', () => {
-    const errors = validateExplorerLayout({ body: [{ type: 'Markdown', content: 'x' }] })
+    const errors = validateDialogLayout({ body: [{ type: 'Markdown', content: 'x' }] })
     expect(errors).toContain('title is required and must be a non-empty string')
   })
 
   it('rejects missing body and pages', () => {
-    const errors = validateExplorerLayout({ title: 'Test' })
+    const errors = validateDialogLayout({ title: 'Test' })
     expect(errors).toContain('Either "body" or "pages" is required')
   })
 
   it('rejects both body and pages', () => {
-    const errors = validateExplorerLayout({
+    const errors = validateDialogLayout({
       title: 'Test',
       body: [{ type: 'Markdown', content: 'x' }],
       pages: [{ label: 'P1', body: [{ type: 'Markdown', content: 'x' }] }],
@@ -49,12 +44,12 @@ describe('validateExplorerLayout', () => {
   })
 
   it('rejects empty body array', () => {
-    const errors = validateExplorerLayout({ title: 'Test', body: [] })
+    const errors = validateDialogLayout({ title: 'Test', body: [] })
     expect(errors).toContain('body must have at least one component')
   })
 
   it('rejects invalid timeout', () => {
-    const errors = validateExplorerLayout({
+    const errors = validateDialogLayout({
       title: 'Test',
       timeout: 5, // below min 10
       body: [{ type: 'Markdown', content: 'x' }],
@@ -68,11 +63,11 @@ describe('validateExplorerLayout', () => {
       timeout: 60,
       body: [{ type: 'Markdown', content: 'x' }],
     }
-    expect(validateExplorerLayout(layout)).toEqual([])
+    expect(validateDialogLayout(layout)).toEqual([])
   })
 
   it('rejects unknown component types', () => {
-    const errors = validateExplorerLayout({
+    const errors = validateDialogLayout({
       title: 'Test',
       body: [{ type: 'FancyWidget', content: 'x' }],
     })
@@ -81,42 +76,42 @@ describe('validateExplorerLayout', () => {
 
   it('validates required fields per component type', () => {
     // Markdown without content
-    let errors = validateExplorerLayout({
+    let errors = validateDialogLayout({
       title: 'Test',
       body: [{ type: 'Markdown' }],
     })
     expect(errors).toContain('Markdown.content is required')
 
     // Options without id
-    errors = validateExplorerLayout({
+    errors = validateDialogLayout({
       title: 'Test',
       body: [{ type: 'Options', options: [{ value: 'a', label: 'A' }] }],
     })
     expect(errors).toContain('Options.id is required')
 
     // Options without options array
-    errors = validateExplorerLayout({
+    errors = validateDialogLayout({
       title: 'Test',
       body: [{ type: 'Options', id: 'test' }],
     })
     expect(errors).toContain('Options.options must be a non-empty array')
 
     // Toggle without label
-    errors = validateExplorerLayout({
+    errors = validateDialogLayout({
       title: 'Test',
       body: [{ type: 'Toggle', id: 'test' }],
     })
     expect(errors).toContain('Toggle.label is required')
 
     // Button without label
-    errors = validateExplorerLayout({
+    errors = validateDialogLayout({
       title: 'Test',
       body: [{ type: 'Button', id: 'test' }],
     })
     expect(errors).toContain('Button.label is required')
 
     // Image without url
-    errors = validateExplorerLayout({
+    errors = validateDialogLayout({
       title: 'Test',
       body: [{ type: 'Image' }],
     })
@@ -124,7 +119,7 @@ describe('validateExplorerLayout', () => {
   })
 
   it('detects duplicate component IDs', () => {
-    const errors = validateExplorerLayout({
+    const errors = validateDialogLayout({
       title: 'Test',
       body: [
         { type: 'TextInput', id: 'name' },
@@ -148,11 +143,11 @@ describe('validateExplorerLayout', () => {
         },
       ],
     }
-    expect(validateExplorerLayout(layout)).toEqual([])
+    expect(validateDialogLayout(layout)).toEqual([])
   })
 
   it('rejects Stack without children', () => {
-    const errors = validateExplorerLayout({
+    const errors = validateDialogLayout({
       title: 'Test',
       body: [{ type: 'Stack', direction: 'vertical' }],
     })
@@ -160,7 +155,7 @@ describe('validateExplorerLayout', () => {
   })
 
   it('rejects Group without label', () => {
-    const errors = validateExplorerLayout({
+    const errors = validateDialogLayout({
       title: 'Test',
       body: [{ type: 'Group', children: [{ type: 'Markdown', content: 'x' }] }],
     })
@@ -173,7 +168,7 @@ describe('validateExplorerLayout', () => {
     for (let i = 0; i < 5; i++) {
       inner = { type: 'Stack', direction: 'vertical', children: [inner] }
     }
-    const errors = validateExplorerLayout({
+    const errors = validateDialogLayout({
       title: 'Test',
       body: [inner],
     })
@@ -181,7 +176,7 @@ describe('validateExplorerLayout', () => {
   })
 
   it('validates a complex multi-page layout', () => {
-    const layout: ExplorerLayout = {
+    const layout: DialogLayout = {
       title: 'Project Setup',
       description: 'Configure your project',
       submitLabel: 'Create',
@@ -212,11 +207,11 @@ describe('validateExplorerLayout', () => {
         },
       ],
     }
-    expect(validateExplorerLayout(layout)).toEqual([])
+    expect(validateDialogLayout(layout)).toEqual([])
   })
 
   it('detects duplicate IDs across pages', () => {
-    const errors = validateExplorerLayout({
+    const errors = validateDialogLayout({
       title: 'Test',
       pages: [
         { label: 'P1', body: [{ type: 'TextInput', id: 'name' }] },
@@ -227,7 +222,7 @@ describe('validateExplorerLayout', () => {
   })
 
   it('validates page structure', () => {
-    const errors = validateExplorerLayout({
+    const errors = validateDialogLayout({
       title: 'Test',
       pages: [
         { body: [{ type: 'Markdown', content: 'x' }] }, // missing label
@@ -237,9 +232,9 @@ describe('validateExplorerLayout', () => {
   })
 })
 
-describe('explorerToolInputSchema', () => {
+describe('dialogToolInputSchema', () => {
   it('returns a valid JSON Schema object', () => {
-    const schema = explorerToolInputSchema()
+    const schema = dialogToolInputSchema()
     expect(schema.type).toBe('object')
     expect(schema.required).toEqual(['title'])
     expect(schema.properties).toBeDefined()
@@ -253,9 +248,9 @@ describe('explorerToolInputSchema', () => {
   })
 })
 
-describe('ExplorerComponent type coverage', () => {
+describe('DialogComponent type coverage', () => {
   it('all 14 component types are recognized as valid', () => {
-    const components: ExplorerComponent[] = [
+    const components: DialogComponent[] = [
       { type: 'Markdown', content: 'test' },
       { type: 'Diagram', content: 'graph TD; A-->B' },
       { type: 'Image', url: 'https://example.com/img.png' },
@@ -272,10 +267,10 @@ describe('ExplorerComponent type coverage', () => {
       { type: 'Group', label: 'Section', children: [{ type: 'Markdown', content: 'inside' }] },
     ]
 
-    const layout: ExplorerLayout = {
+    const layout: DialogLayout = {
       title: 'All Components',
       body: components,
     }
-    expect(validateExplorerLayout(layout)).toEqual([])
+    expect(validateDialogLayout(layout)).toEqual([])
   })
 })

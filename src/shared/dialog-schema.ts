@@ -1,5 +1,5 @@
 /**
- * Explorer MCP Tool - JSON Schema & Types
+ * Dialog MCP Tool - JSON Schema & Types
  *
  * Declarative UI system for rich user interactions via MCP channel.
  * Replaces AskUserQuestion (disabled when channels are active).
@@ -10,15 +10,7 @@
 
 // ─── Design Tokens ─────────────────────────────────────────────────
 
-export type ExplorerColor =
-  | 'primary'
-  | 'secondary'
-  | 'muted'
-  | 'accent'
-  | 'destructive'
-  | 'success'
-  | 'warning'
-  | 'info'
+export type DialogColor = 'primary' | 'secondary' | 'muted' | 'accent' | 'destructive' | 'success' | 'warning' | 'info'
 export type ButtonVariant = 'default' | 'primary' | 'outline' | 'ghost'
 export type ButtonIntent = 'neutral' | 'destructive' | 'success'
 export type AlertIntent = 'info' | 'warning' | 'error' | 'success'
@@ -31,7 +23,7 @@ export interface MarkdownComponent {
   type: 'Markdown'
   content?: string // inline markdown text
   file?: string // path to a markdown/text file (resolved by wrapper, mutually exclusive with content)
-  color?: ExplorerColor
+  color?: DialogColor
 }
 
 export interface DiagramComponent {
@@ -131,25 +123,25 @@ export interface ButtonComponent {
 export interface StackComponent {
   type: 'Stack'
   direction?: 'vertical' | 'horizontal'
-  children: ExplorerComponent[]
+  children: DialogComponent[]
 }
 
 export interface GridComponent {
   type: 'Grid'
   columns?: number
-  children: ExplorerComponent[]
+  children: DialogComponent[]
 }
 
 export interface GroupComponent {
   type: 'Group'
   label: string
   collapsed?: boolean
-  children: ExplorerComponent[]
+  children: DialogComponent[]
 }
 
 // ─── Component Union ───────────────────────────────────────────────
 
-export type ExplorerComponent =
+export type DialogComponent =
   | MarkdownComponent
   | DiagramComponent
   | ImageComponent
@@ -167,25 +159,25 @@ export type ExplorerComponent =
 
 // ─── Page & Layout ─────────────────────────────────────────────────
 
-export interface ExplorerPage {
+export interface DialogPage {
   label: string
-  body: ExplorerComponent[]
+  body: DialogComponent[]
 }
 
-export interface ExplorerLayout {
+export interface DialogLayout {
   title: string
   description?: string
   timeout?: number // seconds, default 300, min 10, max 3600
   submitLabel?: string // default 'Submit'
   cancelLabel?: string // default 'Cancel'
   // Mutually exclusive: single-page (body) or multi-page (pages)
-  body?: ExplorerComponent[]
-  pages?: ExplorerPage[]
+  body?: DialogComponent[]
+  pages?: DialogPage[]
 }
 
 // ─── Result Schema ─────────────────────────────────────────────────
 
-export interface ExplorerResult {
+export interface DialogResult {
   [key: string]: unknown
   _action: string // 'submit' or custom button id
   _timeout: boolean
@@ -195,26 +187,26 @@ export interface ExplorerResult {
 // ─── WS Message Types ──────────────────────────────────────────────
 
 /** Wrapper -> Concentrator: show dialog to dashboard */
-export interface ExplorerShow {
+export interface DialogShow {
   type: 'dialog_show'
   sessionId: string
-  explorerId: string // unique per dialog invocation
-  layout: ExplorerLayout
+  dialogId: string // unique per dialog invocation
+  layout: DialogLayout
 }
 
 /** Dashboard -> Concentrator -> Wrapper: user submitted/cancelled/timed out */
-export interface ExplorerResponse {
+export interface DialogResponse {
   type: 'dialog_result'
   sessionId: string
-  explorerId: string
-  result: ExplorerResult
+  dialogId: string
+  result: DialogResult
 }
 
 /** Wrapper -> Concentrator -> Dashboard: dismiss active dialog */
-export interface ExplorerDismiss {
+export interface DialogDismiss {
   type: 'dialog_dismiss'
   sessionId: string
-  explorerId: string
+  dialogId: string
 }
 
 // ─── Validation ────────────────────────────────────────────────────
@@ -238,8 +230,8 @@ const VALID_COMPONENT_TYPES = new Set([
 
 const INPUT_COMPONENT_TYPES = new Set(['Options', 'TextInput', 'ImagePicker', 'Toggle', 'Slider', 'Button'])
 
-/** Validate an ExplorerLayout, returns array of error messages (empty = valid) */
-export function validateExplorerLayout(layout: unknown): string[] {
+/** Validate an DialogLayout, returns array of error messages (empty = valid) */
+export function validateDialogLayout(layout: unknown): string[] {
   const errors: string[] = []
   if (!layout || typeof layout !== 'object') {
     return ['Layout must be an object']
@@ -388,7 +380,7 @@ function validateComponent(comp: unknown, errors: string[], ids: Set<string>, de
  * Generate the JSON Schema representation for the MCP tool input.
  * This is what Claude sees in the tool definition.
  */
-export function explorerToolInputSchema(): Record<string, unknown> {
+export function dialogToolInputSchema(): Record<string, unknown> {
   return {
     type: 'object' as const,
     properties: {

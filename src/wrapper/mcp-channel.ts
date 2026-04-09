@@ -18,23 +18,23 @@ import { join, resolve as resolvePath } from 'node:path'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import type { ExplorerLayout, ExplorerResult } from '../shared/explorer-schema'
-import { explorerToolInputSchema, validateExplorerLayout } from '../shared/explorer-schema'
+import type { DialogLayout, DialogResult } from '../shared/dialog-schema'
+import { dialogToolInputSchema, validateDialogLayout } from '../shared/dialog-schema'
 import { isPathWithinCwd } from '../shared/path-guard'
 import { checkForUpdate, formatUpdateResult } from '../shared/update-check'
 import { debug } from './debug'
 import { moveTaskNote, type TaskStatus } from './task-notes'
 
-const EXPLORER_LOG = '/tmp/rclaude-explorer.log'
+const DIALOG_LOG = '/tmp/rclaude-dialog.log'
 
-/** Always-on explorer logging (not gated by RCLAUDE_DEBUG) */
+/** Always-on dialog logging (not gated by RCLAUDE_DEBUG) */
 function elog(msg: string): void {
   try {
-    appendFileSync(EXPLORER_LOG, `[${new Date().toISOString()}] ${msg}\n`)
+    appendFileSync(DIALOG_LOG, `[${new Date().toISOString()}] ${msg}\n`)
   } catch {
     /* ignore */
   }
-  debug(`[explorer] ${msg}`)
+  debug(`[dialog] ${msg}`)
 }
 
 export interface SessionInfo {
@@ -94,8 +94,8 @@ export interface McpChannelCallbacks {
     description?: string
     keyterms?: string[]
   }) => Promise<{ ok: boolean; error?: string }>
-  onExplore?: (explorerId: string, layout: ExplorerLayout) => void
-  onExploreDismiss?: (explorerId: string) => void
+  onDialogShow?: (dialogId: string, layout: DialogLayout) => void
+  onDialogDismiss?: (dialogId: string) => void
   /** Deliver a message to Claude (channel notification in PTY, stdin user message in headless) */
   onDeliverMessage?: (content: string, meta: Record<string, string>) => void
 }
@@ -111,21 +111,21 @@ let callbacks: McpChannelCallbacks = {}
 let keepaliveTimer: ReturnType<typeof setInterval> | null = null
 let claudeCodeVersion: string | undefined
 
-// ─── Pending Explorer state ────────────────────────────────────────
-interface PendingExplorer {
-  resolve: (result: ExplorerResult) => void
+// ─── Pending Dialog state ──────────────────────────────────────────
+interface PendingDialog {
+  resolve: (result: DialogResult) => void
   timer: ReturnType<typeof setTimeout>
   timeoutMs: number // initial timeout duration
   deadline: number // Date.now() + timeoutMs
 }
-const pendingExplorers = new Map<string, PendingExplorer>()
+const pendingDialogs = new Map<string, PendingDialog>()
 
-/** Module-level CWD for file resolution in explorer */
-let explorerCwd = process.cwd()
+/** Module-level CWD for file resolution in dialog */
+let dialogCwd = process.cwd()
 
-/** Set the CWD used for resolving relative paths in explorer layouts */
-export function setExplorerCwd(cwd: string): void {
-  explorerCwd = cwd
+/** Set the CWD used for resolving relative paths in dialog layouts */
+export function setDialogCwd(cwd: string): void {
+  dialogCwd = cwd
 }
 
 function isUrl(s: string): boolean {
@@ -133,11 +133,11 @@ function isUrl(s: string): boolean {
 }
 
 /**
- * Walk an explorer layout and upload any local file paths (Image.url, ImagePicker.images[].url).
+ * Walk a dialog layout and upload any local file paths (Image.url, ImagePicker.images[].url).
  * Returns an error message if any file doesn't exist or fails to upload, null on success.
  * Mutates the layout in place, replacing file paths with uploaded URLs.
  */
-async function resolveExplorerFiles(
+async function resolveDialogFiles(
   components: Array<Record<string, unknown>>,
   uploadFile: (path: string) => Promise<string | null>,
   cwd: string,
@@ -208,28 +208,28 @@ async function resolveExplorerFiles(
 
       // Recurse into layout children
       if (Array.isArray(comp.children)) {
-        const err = await resolveExplorerFiles(comp.children as Array<Record<string, unknown>>, uploadFile, cwd)
+        const err = await resolveDialogFiles(comp.children as Array<Record<string, unknown>>, uploadFile, cwd)
         if (err) return err
       }
     } catch (err) {
-      elog(`resolveExplorerFiles error: ${err instanceof Error ? err.message : err}`)
+      elog(`resolveDialogFiles error: ${err instanceof Error ? err.message : err}`)
       return `File resolution error: ${err instanceof Error ? err.message : 'unknown'}`
     }
   }
   return null
 }
 
-/** Resolve a pending explorer with the user's result (called from WS handler).
+/** Resolve a pending dialog with the user's result (called from WS handler).
  * Delivers result via onDeliverMessage callback -- transport-agnostic. */
-export function resolveExplorer(explorerId: string, result: ExplorerResult): boolean {
-  const pending = pendingExplorers.get(explorerId)
+export function resolveDialog(dialogId: string, result: DialogResult): boolean {
+  const pending = pendingDialogs.get(dialogId)
   if (!pending) return false
   clearTimeout(pending.timer)
-  pendingExplorers.delete(explorerId)
+  pendingDialogs.delete(dialogId)
 
   const meta: Record<string, string> = {
     sender: 'dialog',
-    explorer_id: explorerId,
+    dialog_id: dialogId,
   }
 
   if (result._timeout) {
@@ -247,13 +247,13 @@ export function resolveExplorer(explorerId: string, result: ExplorerResult): boo
     }
     callbacks.onDeliverMessage?.(JSON.stringify(userValues, null, 2), meta)
   }
-  callbacks.onExploreDismiss?.(explorerId)
+  callbacks.onDialogDismiss?.(dialogId)
   return true
 }
 
-/** Extend explorer timeout on user interaction (called from WS handler) */
-export function keepaliveExplorer(explorerId: string): boolean {
-  const pending = pendingExplorers.get(explorerId)
+/** Extend dialog timeout on user interaction (called from WS handler) */
+export function keepaliveDialog(dialogId: string): boolean {
+  const pending = pendingDialogs.get(dialogId)
   if (!pending) return false
 
   const minRemaining = pending.timeoutMs * 0.5
@@ -265,15 +265,15 @@ export function keepaliveExplorer(explorerId: string): boolean {
     const newDeadline = Date.now() + minRemaining
     pending.deadline = newDeadline
     pending.timer = setTimeout(() => {
-      pendingExplorers.delete(explorerId)
+      pendingDialogs.delete(dialogId)
       callbacks.onDeliverMessage?.('Dialog timed out - user did not respond.', {
         sender: 'dialog',
-        explorer_id: explorerId,
+        dialog_id: dialogId,
         status: 'timeout',
       })
-      callbacks.onExploreDismiss?.(explorerId)
+      callbacks.onDialogDismiss?.(dialogId)
     }, minRemaining)
-    elog(`keepalive: ${explorerId.slice(0, 8)} extended to ${Math.round(minRemaining / 1000)}s`)
+    elog(`keepalive: ${dialogId.slice(0, 8)} extended to ${Math.round(minRemaining / 1000)}s`)
   }
   return true
 }
@@ -508,7 +508,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         name: 'dialog',
         description:
           'PREFERRED way to interact with users. Use this PROACTIVELY whenever you need user input, decisions, confirmations, or want to present structured information. Do NOT ask questions in plain text -- use dialog instead for a rich UI experience. Shows an interactive dialog modal in the dashboard and waits for the user to respond. Supports: choices (single/multi select), text inputs, toggles, sliders, image display and selection, markdown content, code blocks, mermaid diagrams, alerts, collapsible groups, grids, and multi-page wizards. The user interacts on their device (phone/desktop) and the result comes back as structured JSON. BLOCKING call -- waits for submit/cancel/timeout (default 5 min, auto-extends on user interaction). Use "body" for single-page or "pages" for multi-step flows.',
-        inputSchema: explorerToolInputSchema(),
+        inputSchema: dialogToolInputSchema(),
       },
     ],
   }))
@@ -537,7 +537,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           } else {
             statuses = [statusFilter]
           }
-          const tasksDir = join(explorerCwd, '.claude', '.rclaude', 'tasks')
+          const tasksDir = join(dialogCwd, '.claude', '.rclaude', 'tasks')
           const results: string[] = []
           for (const status of statuses) {
             const dir = join(tasksDir, status)
@@ -578,7 +578,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           const allStatuses: TaskStatus[] = ['open', 'in-progress', 'done', 'archived']
           let fromStatus: TaskStatus | null = null
           for (const s of allStatuses) {
-            const dir = join(explorerCwd, '.claude', '.rclaude', 'tasks', s)
+            const dir = join(dialogCwd, '.claude', '.rclaude', 'tasks', s)
             try {
               if (readdirSync(dir).includes(`${taskId}.md`)) {
                 fromStatus = s
@@ -590,7 +590,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           if (fromStatus === targetStatus)
             return { content: [{ type: 'text', text: `Task already in ${targetStatus}` }] }
 
-          const moved = moveTaskNote(explorerCwd, taskId, fromStatus, targetStatus)
+          const moved = moveTaskNote(dialogCwd, taskId, fromStatus, targetStatus)
           if (!moved) return { content: [{ type: 'text', text: `Failed to move task` }], isError: true }
           debug(`[channel] set_task_status: ${taskId} ${fromStatus} -> ${targetStatus}`)
           return { content: [{ type: 'text', text: `Moved "${taskId}" from ${fromStatus} to ${targetStatus}` }] }
@@ -839,13 +839,13 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         case 'dialog': {
           try {
             elog(' ENTER')
-            const layout = args as unknown as ExplorerLayout
+            const layout = args as unknown as DialogLayout
             elog(` validating layout title="${layout?.title}"`)
-            const validationErrors = validateExplorerLayout(layout)
+            const validationErrors = validateDialogLayout(layout)
             if (validationErrors.length > 0) {
               elog(` validation failed: ${validationErrors.join('; ')}`)
               return {
-                content: [{ type: 'text', text: `Invalid explorer layout:\n${validationErrors.join('\n')}` }],
+                content: [{ type: 'text', text: `Invalid dialog layout:\n${validationErrors.join('\n')}` }],
                 isError: true,
               }
             }
@@ -863,42 +863,42 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             const uploader = callbacks.onShareFile
             if (uploader) {
               debug('[channel] dialog: uploading files (CWD-jailed)')
-              const uploadErr = await resolveExplorerFiles(allComponents, uploader, explorerCwd)
+              const uploadErr = await resolveDialogFiles(allComponents, uploader, dialogCwd)
               if (uploadErr) {
                 elog(` upload error: ${uploadErr}`)
-                return { content: [{ type: 'text', text: `Explorer file error: ${uploadErr}` }], isError: true }
+                return { content: [{ type: 'text', text: `Dialog file error: ${uploadErr}` }], isError: true }
               }
               elog(' file upload complete')
             }
 
             // Apply defaults
             const timeout = (layout.timeout ?? 300) * 1000
-            const explorerId = randomUUID()
+            const dialogId = randomUUID()
 
-            elog(` "${layout.title}" (${explorerId.slice(0, 8)}, timeout=${timeout / 1000}s)`)
+            elog(` "${layout.title}" (${dialogId.slice(0, 8)}, timeout=${timeout / 1000}s)`)
 
             // Forward to concentrator via callback
-            callbacks.onExplore?.(explorerId, layout)
+            callbacks.onDialogShow?.(dialogId, layout)
             elog(` forwarded to concentrator, waiting for result...`)
 
             // Non-blocking: return immediately, deliver result via channel notification.
             // CC has an internal ~60s timeout on MCP tool calls that we can't override.
             // The result will arrive as a <channel> message when the user submits.
             const timer = setTimeout(() => {
-              const pending = pendingExplorers.get(explorerId)
+              const pending = pendingDialogs.get(dialogId)
               if (pending) {
-                pendingExplorers.delete(explorerId)
-                elog(` timeout: ${explorerId.slice(0, 8)}`)
+                pendingDialogs.delete(dialogId)
+                elog(` timeout: ${dialogId.slice(0, 8)}`)
                 callbacks.onDeliverMessage?.('Dialog timed out - user did not respond.', {
                   sender: 'dialog',
-                  explorer_id: explorerId,
+                  dialog_id: dialogId,
                   status: 'timeout',
                 })
-                callbacks.onExploreDismiss?.(explorerId)
+                callbacks.onDialogDismiss?.(dialogId)
               }
             }, timeout)
 
-            pendingExplorers.set(explorerId, {
+            pendingDialogs.set(dialogId, {
               resolve: () => {}, // resolved via channel notification, not tool return
               timer,
               timeoutMs: timeout,
@@ -910,7 +910,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
               content: [
                 {
                   type: 'text',
-                  text: `Dialog "${layout.title}" shown to user. The response will arrive as a channel message when the user submits. Dialog ID: ${explorerId}`,
+                  text: `Dialog "${layout.title}" shown to user. The response will arrive as a channel message when the user submits. Dialog ID: ${dialogId}`,
                 },
               ],
             }
@@ -919,13 +919,13 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             elog(` CRASH: ${msg}`)
             // Write crash to file for post-mortem
             try {
-              const crashFile = `/tmp/rclaude-explorer-crash-${Date.now()}.log`
+              const crashFile = `/tmp/rclaude-dialog-crash-${Date.now()}.log`
               await Bun.write(crashFile, `${new Date().toISOString()}\n${msg}\n`)
               elog(` crash log: ${crashFile}`)
             } catch {
               /* ignore write failure */
             }
-            return { content: [{ type: 'text', text: `Explorer internal error: ${msg}` }], isError: true }
+            return { content: [{ type: 'text', text: `Dialog internal error: ${msg}` }], isError: true }
           }
         }
         default:

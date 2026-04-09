@@ -565,13 +565,13 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'dialog_show': {
       const exSid = msg.sessionId as string
-      const exId = msg.explorerId as string
-      const exLayout = msg.layout as import('@shared/explorer-schema').ExplorerLayout
+      const exId = msg.dialogId as string
+      const exLayout = msg.layout as import('@shared/dialog-schema').DialogLayout
       if (exSid && exId && exLayout) {
         useSessionsStore.setState(state => ({
-          pendingExplorers: {
-            ...state.pendingExplorers,
-            [exSid]: { explorerId: exId, layout: exLayout, timestamp: Date.now() },
+          pendingDialogs: {
+            ...state.pendingDialogs,
+            [exSid]: { dialogId: exId, layout: exLayout, timestamp: Date.now() },
           },
         }))
       }
@@ -581,9 +581,9 @@ function processMessage(msg: DashboardMessage) {
       const exSid = msg.sessionId as string
       if (exSid) {
         useSessionsStore.setState(state => {
-          const updated = { ...state.pendingExplorers }
+          const updated = { ...state.pendingDialogs }
           delete updated[exSid]
-          return { pendingExplorers: updated }
+          return { pendingDialogs: updated }
         })
       }
       break

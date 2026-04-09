@@ -1,5 +1,5 @@
 /**
- * Explorer Component Renderer
+ * Dialog Component Renderer
  *
  * Maps JSON component types to React components.
  * All text supports markdown. Colors use semantic tokens.
@@ -11,7 +11,7 @@ import { Markdown } from '@/components/markdown'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn, haptic } from '@/lib/utils'
-import type { AlertIntent, ButtonIntent, ButtonVariant, ExplorerColor, ExplorerComponent } from './types'
+import type { AlertIntent, ButtonIntent, ButtonVariant, DialogColor, DialogComponent } from './types'
 
 // ─── Color mapping ─────────────────────────────────────────────────
 
@@ -28,7 +28,7 @@ const COLOR_CLASSES: Record<string, string> = {
 
 // ─── Form state type ───────────────────────────────────────────────
 
-export interface ExplorerFormState {
+export interface DialogFormState {
   values: Record<string, unknown>
   setValue: (id: string, value: unknown) => void
   activeAction?: string | null
@@ -36,7 +36,7 @@ export interface ExplorerFormState {
 
 // ─── Component renderers ───────────────────────────────────────────
 
-function MarkdownBlock({ content, color }: { content: string; color?: ExplorerColor }) {
+function MarkdownBlock({ content, color }: { content: string; color?: DialogColor }) {
   return (
     <div className={cn('prose prose-sm dark:prose-invert max-w-none', color && COLOR_CLASSES[color])}>
       <Markdown>{content}</Markdown>
@@ -97,7 +97,7 @@ function OptionsInput({
   label?: string
   options: Array<{ value: string; label: string; description?: string }>
   multi?: boolean
-  form: ExplorerFormState
+  form: DialogFormState
 }) {
   const current = form.values[id]
 
@@ -124,8 +124,8 @@ function OptionsInput({
           const selected = multi ? (Array.isArray(current) ? current : []).includes(opt.value) : current === opt.value
 
           return (
-            // biome-ignore lint/a11y/useKeyWithClickEvents: explorer option
-            // biome-ignore lint/a11y/noStaticElementInteractions: explorer option
+            // biome-ignore lint/a11y/useKeyWithClickEvents: dialog option
+            // biome-ignore lint/a11y/noStaticElementInteractions: dialog option
             <div
               key={opt.value}
               onClick={() => handleSelect(opt.value)}
@@ -190,7 +190,7 @@ function TextInputField({
   label?: string
   placeholder?: string
   multiline?: boolean
-  form: ExplorerFormState
+  form: DialogFormState
 }) {
   const value = (form.values[id] as string) || ''
   const InputTag = multiline ? 'textarea' : 'input'
@@ -198,12 +198,12 @@ function TextInputField({
   return (
     <div className="space-y-1.5">
       {label && (
-        <label htmlFor={`explorer-${id}`} className="text-sm font-medium text-foreground/80">
+        <label htmlFor={`dialog-${id}`} className="text-sm font-medium text-foreground/80">
           <Markdown inline>{label}</Markdown>
         </label>
       )}
       <InputTag
-        id={`explorer-${id}`}
+        id={`dialog-${id}`}
         value={value}
         onChange={e => form.setValue(id, e.target.value)}
         placeholder={placeholder}
@@ -229,7 +229,7 @@ function ImagePickerInput({
   label?: string
   images: Array<{ value: string; url: string; label?: string }>
   multi?: boolean
-  form: ExplorerFormState
+  form: DialogFormState
 }) {
   const current = form.values[id]
 
@@ -255,8 +255,8 @@ function ImagePickerInput({
         {images.map(img => {
           const selected = multi ? (Array.isArray(current) ? current : []).includes(img.value) : current === img.value
           return (
-            // biome-ignore lint/a11y/useKeyWithClickEvents: explorer image picker
-            // biome-ignore lint/a11y/noStaticElementInteractions: explorer image picker
+            // biome-ignore lint/a11y/useKeyWithClickEvents: dialog image picker
+            // biome-ignore lint/a11y/noStaticElementInteractions: dialog image picker
             <div
               key={img.value}
               onClick={() => handleSelect(img.value)}
@@ -280,12 +280,12 @@ function ImagePickerInput({
   )
 }
 
-function ToggleInput({ id, label, form }: { id: string; label: string; form: ExplorerFormState }) {
+function ToggleInput({ id, label, form }: { id: string; label: string; form: DialogFormState }) {
   const checked = form.values[id] === true
 
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: explorer toggle
-    // biome-ignore lint/a11y/noStaticElementInteractions: explorer toggle
+    // biome-ignore lint/a11y/useKeyWithClickEvents: dialog toggle
+    // biome-ignore lint/a11y/noStaticElementInteractions: dialog toggle
     <div
       className="flex items-center gap-3 cursor-pointer py-1"
       onClick={() => {
@@ -326,7 +326,7 @@ function SliderInput({
   min?: number
   max?: number
   step?: number
-  form: ExplorerFormState
+  form: DialogFormState
 }) {
   const value = typeof form.values[id] === 'number' ? (form.values[id] as number) : min
 
@@ -407,8 +407,8 @@ function StackLayout({
   onAction,
 }: {
   direction?: 'vertical' | 'horizontal'
-  children: ExplorerComponent[]
-  form: ExplorerFormState
+  children: DialogComponent[]
+  form: DialogFormState
   onAction: (actionId: string) => void
 }) {
   return (
@@ -427,8 +427,8 @@ function GridLayout({
   onAction,
 }: {
   columns?: number
-  children: ExplorerComponent[]
-  form: ExplorerFormState
+  children: DialogComponent[]
+  form: DialogFormState
   onAction: (actionId: string) => void
 }) {
   return (
@@ -449,16 +449,16 @@ function GroupLayout({
 }: {
   label: string
   collapsed?: boolean
-  children: ExplorerComponent[]
-  form: ExplorerFormState
+  children: DialogComponent[]
+  form: DialogFormState
   onAction: (actionId: string) => void
 }) {
   const [isCollapsed, setIsCollapsed] = useState(initialCollapsed)
 
   return (
     <div className="rounded border border-border/30 overflow-hidden">
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: explorer group header */}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: explorer group header */}
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: dialog group header */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: dialog group header */}
       <div
         className="flex items-center gap-2 px-3 py-2 bg-muted/30 cursor-pointer select-none"
         onClick={() => {
@@ -487,8 +487,8 @@ export const ComponentRenderer = memo(function ComponentRenderer({
   form,
   onAction,
 }: {
-  component: ExplorerComponent
-  form: ExplorerFormState
+  component: DialogComponent
+  form: DialogFormState
   onAction: (actionId: string) => void
 }) {
   switch (component.type) {

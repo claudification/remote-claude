@@ -15,16 +15,16 @@ const dialogShow: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return
 
-  const explorerId = data.explorerId as string
+  const dialogId = data.dialogId as string
   const layout = data.layout as Record<string, unknown>
-  if (!explorerId || !layout) return
+  if (!dialogId || !layout) return
 
   // Store pending dialog on the session for reconnect recovery + attention indicator
   const session = ctx.sessions.getSession(sessionId)
   if (session) {
-    session.pendingExplorer = {
-      explorerId,
-      layout: layout as unknown as import('../../shared/explorer-schema').ExplorerLayout,
+    session.pendingDialog = {
+      dialogId,
+      layout: layout as unknown as import('../../shared/dialog-schema').DialogLayout,
       timestamp: Date.now(),
     }
     session.pendingAttention = {
@@ -39,24 +39,22 @@ const dialogShow: MessageHandler = (ctx, data) => {
   const dialogMsg = {
     type: 'dialog_show',
     sessionId,
-    explorerId,
+    dialogId,
     layout,
   }
   if (session?.cwd) ctx.broadcastScoped(dialogMsg, session.cwd)
   else ctx.broadcast(dialogMsg)
 
-  ctx.log.info(
-    `[dialog] Show: "${layout.title}" (${explorerId.toString().slice(0, 8)}) session=${sessionId.slice(0, 8)}`,
-  )
+  ctx.log.info(`[dialog] Show: "${layout.title}" (${dialogId.toString().slice(0, 8)}) session=${sessionId.slice(0, 8)}`)
 }
 
 // Dialog result: dashboard -> concentrator -> wrapper (forward)
 const dialogResult: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
-  const explorerId = data.explorerId as string
+  const dialogId = data.dialogId as string
   const result = data.result as Record<string, unknown>
 
-  if (!sessionId || !explorerId || !result) return
+  if (!sessionId || !dialogId || !result) return
 
   // Permission check: user must have chat permission for this session
   const sess = sessionId ? ctx.sessions.getSession(sessionId) : undefined
@@ -64,7 +62,7 @@ const dialogResult: MessageHandler = (ctx, data) => {
 
   // Clear pending dialog + attention from session
   if (sess) {
-    delete sess.pendingExplorer
+    delete sess.pendingDialog
     if (sess.pendingAttention?.type === 'dialog') {
       delete sess.pendingAttention
     }
@@ -78,17 +76,17 @@ const dialogResult: MessageHandler = (ctx, data) => {
       JSON.stringify({
         type: 'dialog_result',
         sessionId,
-        explorerId,
+        dialogId,
         result,
       }),
     )
-    ctx.log.info(`[dialog] Result: ${explorerId.slice(0, 8)} action=${result._action} session=${sessionId.slice(0, 8)}`)
+    ctx.log.info(`[dialog] Result: ${dialogId.slice(0, 8)} action=${result._action} session=${sessionId.slice(0, 8)}`)
   } else {
     ctx.log.error(`[dialog] No socket for session ${sessionId.slice(0, 8)}`)
   }
 
   // Broadcast dismiss to other dashboard subscribers (clean up UI)
-  const dismissMsg = { type: 'dialog_dismiss', sessionId, explorerId }
+  const dismissMsg = { type: 'dialog_dismiss', sessionId, dialogId }
   if (sess?.cwd) ctx.broadcastScoped(dismissMsg, sess.cwd)
   else ctx.broadcast(dismissMsg)
 }
@@ -97,35 +95,35 @@ const dialogResult: MessageHandler = (ctx, data) => {
 // (e.g. timeout on wrapper side, session ended)
 const dialogDismiss: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
-  const explorerId = data.explorerId as string
-  if (!sessionId || !explorerId) return
+  const dialogId = data.dialogId as string
+  if (!sessionId || !dialogId) return
 
   // Clear pending dialog + attention from session
   const session = ctx.sessions.getSession(sessionId)
   if (session) {
-    delete session.pendingExplorer
+    delete session.pendingDialog
     if (session.pendingAttention?.type === 'dialog') {
       delete session.pendingAttention
     }
     ctx.sessions.broadcastSessionUpdate(sessionId)
   }
 
-  const dismissMsg2 = { type: 'dialog_dismiss', sessionId, explorerId }
+  const dismissMsg2 = { type: 'dialog_dismiss', sessionId, dialogId }
   if (session?.cwd) ctx.broadcastScoped(dismissMsg2, session.cwd)
   else ctx.broadcast(dismissMsg2)
 
-  ctx.log.debug(`[dialog] Dismiss: ${explorerId.slice(0, 8)} session=${sessionId.slice(0, 8)}`)
+  ctx.log.debug(`[dialog] Dismiss: ${dialogId.slice(0, 8)} session=${sessionId.slice(0, 8)}`)
 }
 
 // Dialog keepalive: dashboard -> concentrator -> wrapper (extend timeout)
 const dialogKeepalive: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
-  const explorerId = data.explorerId as string
-  if (!sessionId || !explorerId) return
+  const dialogId = data.dialogId as string
+  if (!sessionId || !dialogId) return
 
   const targetWs = ctx.sessions.getSessionSocket(sessionId)
   if (targetWs) {
-    targetWs.send(JSON.stringify({ type: 'dialog_keepalive', explorerId }))
+    targetWs.send(JSON.stringify({ type: 'dialog_keepalive', dialogId }))
   }
 }
 

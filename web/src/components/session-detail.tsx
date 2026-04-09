@@ -9,8 +9,8 @@ import { cn, contextWindowSize, formatAge, formatEffort, formatModel, haptic, is
 import { BgTasksView } from './bg-tasks-view'
 import { ConversationView } from './conversation-view'
 import { DiagView } from './diag-view'
+import { DialogModal } from './dialog'
 import { EventsView } from './events-view'
-import { ExplorerModal } from './explorer'
 import { FileEditor } from './file-editor'
 import { InlineTerminal } from './inline-terminal'
 import { MarkdownInput } from './markdown-input'
@@ -679,20 +679,20 @@ const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
 
 const EMPTY_EXPLORER = undefined
 
-function ExplorerOverlay({ sessionId }: { sessionId: string }) {
-  const pending = useSessionsStore(s => s.pendingExplorers[sessionId] || EMPTY_EXPLORER)
-  const submitExplorer = useSessionsStore(s => s.submitExplorer)
-  const dismissExplorer = useSessionsStore(s => s.dismissExplorer)
-  const keepaliveExplorer = useSessionsStore(s => s.keepaliveExplorer)
+function DialogOverlay({ sessionId }: { sessionId: string }) {
+  const pending = useSessionsStore(s => s.pendingDialogs[sessionId] || EMPTY_EXPLORER)
+  const submitDialog = useSessionsStore(s => s.submitDialog)
+  const dismissDialog = useSessionsStore(s => s.dismissDialog)
+  const keepaliveDialog = useSessionsStore(s => s.keepaliveDialog)
 
   if (!pending) return null
 
   return (
-    <ExplorerModal
+    <DialogModal
       layout={pending.layout}
-      onSubmit={result => submitExplorer(sessionId, pending.explorerId, result)}
-      onCancel={() => dismissExplorer(sessionId, pending.explorerId)}
-      onKeepalive={() => keepaliveExplorer(sessionId, pending.explorerId)}
+      onSubmit={result => submitDialog(sessionId, pending.dialogId, result)}
+      onCancel={() => dismissDialog(sessionId, pending.dialogId)}
+      onKeepalive={() => keepaliveDialog(sessionId, pending.dialogId)}
     />
   )
 }
@@ -881,8 +881,8 @@ export function SessionDetail() {
       <ClipboardBanners />
       {/* Share banner - always visible when shares active (admin only) */}
       {canAdmin && session && <ShareBanner sessionCwd={session.cwd} />}
-      {/* Explorer Modal */}
-      {selectedSessionId && <ExplorerOverlay sessionId={selectedSessionId} />}
+      {/* Dialog Modal */}
+      {selectedSessionId && <DialogOverlay sessionId={selectedSessionId} />}
       {/* Session Info - Collapsible */}
       <div className="shrink-0 border-b border-border max-h-[30vh] overflow-y-auto">
         <button

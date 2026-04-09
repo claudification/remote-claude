@@ -164,9 +164,9 @@ export function GroupView({
         sessionId?: string
         intent?: string
         isInterSession?: boolean
-        isExplorer?: boolean
-        explorerStatus?: string
-        explorerAction?: string
+        isDialog?: boolean
+        dialogStatus?: string
+        dialogAction?: string
       }
     | { kind: 'images'; images: Array<{ hash: string; ext: string; url: string; originalPath: string }> }
 
@@ -214,9 +214,9 @@ export function GroupView({
               kind: 'channel',
               text: msg,
               source: 'dialog',
-              isExplorer: true,
-              explorerStatus: status,
-              explorerAction: action || undefined,
+              isDialog: true,
+              dialogStatus: status,
+              dialogAction: action || undefined,
             })
           } else if (source === 'rclaude') {
             // Our own dashboard input -- strip wrapper, show as text
@@ -282,7 +282,7 @@ export function GroupView({
 
   // Chat bubble layout for user messages (opt-in)
   // Skip bubbles for inter-session messages - they use the teal card renderer instead
-  const hasInterSessionContent = items.some(it => it.kind === 'channel' && (it.isInterSession || it.isExplorer))
+  const hasInterSessionContent = items.some(it => it.kind === 'channel' && (it.isInterSession || it.isDialog))
   if (chatBubbles && isUser && !hasInterSessionContent) {
     const bubbleBg = BUBBLE_COLORS[bubbleColor] || BUBBLE_COLORS.blue
     return (
@@ -467,13 +467,13 @@ export function GroupView({
                   </div>
                 )
               }
-              if (item.isExplorer) {
+              if (item.isDialog) {
                 const statusStyles: Record<string, string> = {
                   submitted: 'bg-violet-500/15 text-violet-400 border-violet-500/30',
                   cancelled: 'bg-zinc-500/15 text-muted-foreground border-zinc-500/20',
                   timeout: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
                 }
-                const sStyle = statusStyles[item.explorerStatus || 'submitted'] || statusStyles.submitted
+                const sStyle = statusStyles[item.dialogStatus || 'submitted'] || statusStyles.submitted
                 // Parse JSON values from the message
                 let userValues: Array<[string, unknown]> = []
                 try {
@@ -495,11 +495,11 @@ export function GroupView({
                           sStyle,
                         )}
                       >
-                        {item.explorerStatus || 'submitted'}
+                        {item.dialogStatus || 'submitted'}
                       </span>
-                      {item.explorerAction && (
+                      {item.dialogAction && (
                         <span className="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded text-[9px] font-bold">
-                          {item.explorerAction}
+                          {item.dialogAction}
                         </span>
                       )}
                     </div>

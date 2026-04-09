@@ -76,8 +76,8 @@ export interface WsClientOptions {
     annotations?: Record<string, { preview?: string; notes?: string }>,
     skip?: boolean,
   ) => void
-  onExplorerResult?: (explorerId: string, result: import('../shared/explorer-schema').ExplorerResult) => void
-  onExplorerKeepalive?: (explorerId: string) => void
+  onDialogResult?: (dialogId: string, result: import('../shared/dialog-schema').DialogResult) => void
+  onDialogKeepalive?: (dialogId: string) => void
   onQuitSession?: () => void
   onInterrupt?: () => void
 }
@@ -139,8 +139,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onChannelSpawnResult,
     onChannelConfigureResult,
     onAskAnswer,
-    onExplorerResult,
-    onExplorerKeepalive,
+    onDialogResult,
+    onDialogKeepalive,
     onQuitSession,
     onInterrupt,
   } = options
@@ -310,7 +310,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
               onAskAnswer?.(message.toolUseId, message.answers, message.annotations, message.skip)
               break
             case 'dialog_result':
-              onExplorerResult?.(message.explorerId, message.result)
+              onDialogResult?.(message.dialogId, message.result)
               break
             case 'interrupt':
               onInterrupt?.()
@@ -327,7 +327,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
               }
               if (msgType === 'dialog_keepalive') {
                 const m = message as Record<string, unknown>
-                onExplorerKeepalive?.(m.explorerId as string)
+                onDialogKeepalive?.(m.dialogId as string)
                 break
               }
               // Inter-session send result (not in formal ConcentratorMessage type)

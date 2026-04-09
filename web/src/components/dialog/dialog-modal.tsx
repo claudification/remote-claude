@@ -1,8 +1,8 @@
 /**
- * Explorer Modal
+ * Dialog Modal
  *
  * Full-screen overlay (mobile) / centered modal (desktop) that renders
- * the explorer layout and collects user input.
+ * the dialog layout and collects user input.
  *
  * Features:
  * - Countdown timer (subtle, top of dialog)
@@ -15,11 +15,11 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Markdown } from '@/components/markdown'
 import { Button } from '@/components/ui/button'
 import { cn, haptic } from '@/lib/utils'
-import { ComponentRenderer, type ExplorerFormState } from './explorer-renderer'
-import type { ExplorerComponent, ExplorerLayout, ExplorerResult } from './types'
+import { ComponentRenderer, type DialogFormState } from './dialog-renderer'
+import type { DialogComponent, DialogLayout, DialogResult } from './types'
 
 // Initialize form state from component defaults (recursively)
-function collectDefaults(components: ExplorerComponent[], values: Record<string, unknown>): void {
+function collectDefaults(components: DialogComponent[], values: Record<string, unknown>): void {
   for (const comp of components) {
     switch (comp.type) {
       case 'Options':
@@ -45,7 +45,7 @@ function collectDefaults(components: ExplorerComponent[], values: Record<string,
   }
 }
 
-function getInitialValues(layout: ExplorerLayout): Record<string, unknown> {
+function getInitialValues(layout: DialogLayout): Record<string, unknown> {
   const values: Record<string, unknown> = {}
   if (layout.body) {
     collectDefaults(layout.body, values)
@@ -57,7 +57,7 @@ function getInitialValues(layout: ExplorerLayout): Record<string, unknown> {
   return values
 }
 
-function collectRequired(components: ExplorerComponent[]): string[] {
+function collectRequired(components: DialogComponent[]): string[] {
   const ids: string[] = []
   for (const comp of components) {
     if ('required' in comp && comp.required && 'id' in comp) {
@@ -82,19 +82,14 @@ function formatCountdown(seconds: number): string {
   return m > 0 ? `${m}:${s.toString().padStart(2, '0')}` : `${s}s`
 }
 
-interface ExplorerModalProps {
-  layout: ExplorerLayout
-  onSubmit: (result: ExplorerResult) => void
+interface DialogModalProps {
+  layout: DialogLayout
+  onSubmit: (result: DialogResult) => void
   onCancel: () => void
   onKeepalive?: () => void
 }
 
-export const ExplorerModal = memo(function ExplorerModal({
-  layout,
-  onSubmit,
-  onCancel,
-  onKeepalive,
-}: ExplorerModalProps) {
+export const DialogModal = memo(function DialogModal({ layout, onSubmit, onCancel, onKeepalive }: DialogModalProps) {
   const [values, setValues] = useState(() => getInitialValues(layout))
   const [activePage, setActivePage] = useState(0)
   const [lastAction, setLastAction] = useState<string | null>(null)
@@ -141,7 +136,7 @@ export const ExplorerModal = memo(function ExplorerModal({
   const isLastPage = activePage >= pages.length - 1
   const currentPage = pages[activePage]
 
-  const form: ExplorerFormState = useMemo(
+  const form: DialogFormState = useMemo(
     () => ({
       values,
       setValue: (id: string, value: unknown) => {

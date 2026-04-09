@@ -37,12 +37,12 @@ const subscribe: MessageHandler = (ctx, data) => {
 
   // Push any pending dialogs (reconnect recovery)
   for (const s of ctx.sessions.getActiveSessions()) {
-    if (s.pendingExplorer) {
+    if (s.pendingDialog) {
       ctx.reply({
         type: 'dialog_show',
         sessionId: s.id,
-        explorerId: s.pendingExplorer.explorerId,
-        layout: s.pendingExplorer.layout,
+        dialogId: s.pendingDialog.dialogId,
+        layout: s.pendingDialog.layout,
       })
     }
   }

@@ -139,22 +139,18 @@ interface SessionsState {
     annotations?: Record<string, { preview?: string; notes?: string }>,
     skip?: boolean,
   ) => void
-  // Explorer dialog state (pending per session)
-  pendingExplorers: Record<
+  // Dialog state (pending per session)
+  pendingDialogs: Record<
     string,
     {
-      explorerId: string
-      layout: import('@shared/explorer-schema').ExplorerLayout
+      dialogId: string
+      layout: import('@shared/dialog-schema').DialogLayout
       timestamp: number
     }
   >
-  submitExplorer: (
-    sessionId: string,
-    explorerId: string,
-    result: import('@shared/explorer-schema').ExplorerResult,
-  ) => void
-  dismissExplorer: (sessionId: string, explorerId: string) => void
-  keepaliveExplorer: (sessionId: string, explorerId: string) => void
+  submitDialog: (sessionId: string, dialogId: string, result: import('@shared/dialog-schema').DialogResult) => void
+  dismissDialog: (sessionId: string, dialogId: string) => void
+  keepaliveDialog: (sessionId: string, dialogId: string) => void
 
   clipboardCaptures: Array<{
     id: string
@@ -377,47 +373,47 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       pendingAskQuestions: state.pendingAskQuestions.filter(q => q.toolUseId !== toolUseId),
     }))
   },
-  pendingExplorers: {},
-  submitExplorer: (sessionId, explorerId, result) => {
+  pendingDialogs: {},
+  submitDialog: (sessionId, dialogId, result) => {
     const { ws } = get()
     if (ws?.readyState === WebSocket.OPEN) {
       const msg = JSON.stringify({
         type: 'dialog_result',
         sessionId,
-        explorerId,
+        dialogId,
         result,
       })
       ws.send(msg)
       recordOut(msg.length)
     }
     set(state => {
-      const updated = { ...state.pendingExplorers }
+      const updated = { ...state.pendingDialogs }
       delete updated[sessionId]
-      return { pendingExplorers: updated }
+      return { pendingDialogs: updated }
     })
   },
-  dismissExplorer: (sessionId, explorerId) => {
+  dismissDialog: (sessionId, dialogId) => {
     const { ws } = get()
     if (ws?.readyState === WebSocket.OPEN) {
       const msg = JSON.stringify({
         type: 'dialog_result',
         sessionId,
-        explorerId,
+        dialogId,
         result: { _action: 'submit', _timeout: false, _cancelled: true },
       })
       ws.send(msg)
       recordOut(msg.length)
     }
     set(state => {
-      const updated = { ...state.pendingExplorers }
+      const updated = { ...state.pendingDialogs }
       delete updated[sessionId]
-      return { pendingExplorers: updated }
+      return { pendingDialogs: updated }
     })
   },
-  keepaliveExplorer: (sessionId, explorerId) => {
+  keepaliveDialog: (sessionId, dialogId) => {
     const { ws } = get()
     if (ws?.readyState === WebSocket.OPEN) {
-      const msg = JSON.stringify({ type: 'dialog_keepalive', sessionId, explorerId })
+      const msg = JSON.stringify({ type: 'dialog_keepalive', sessionId, dialogId })
       ws.send(msg)
       recordOut(msg.length)
     }

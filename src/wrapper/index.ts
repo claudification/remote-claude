@@ -22,13 +22,13 @@ import {
   closeMcpChannel,
   initMcpChannel,
   isMcpChannelReady,
-  keepaliveExplorer,
+  keepaliveDialog,
   pushChannelMessage,
-  resolveExplorer,
+  resolveDialog,
   type SessionInfo,
   sendPermissionResponse,
   setClaudeCodeVersion,
-  setExplorerCwd,
+  setDialogCwd,
 } from './mcp-channel'
 import { Osc52Parser } from './osc52-parser'
 import { createRulesEngine } from './permission-rules'
@@ -362,7 +362,7 @@ async function main() {
   // Detect Claude Code version and auth info early - needed for settings merge and concentrator
   const claudeVersion = detectClaudeVersion()
   setClaudeCodeVersion(claudeVersion)
-  setExplorerCwd(cwd)
+  setDialogCwd(cwd)
   const claudeAuth = detectClaudeAuth()
 
   // Queue events until we have the real session ID (capped to prevent unbounded growth)
@@ -848,17 +848,17 @@ async function main() {
           resolved ? `Answer resolved: ${toolUseId.slice(0, 12)}` : `No pending request: ${toolUseId.slice(0, 12)}`,
         )
       },
-      onExplorerResult(explorerId, result) {
-        const resolved = resolveExplorer(explorerId, result)
+      onDialogResult(dialogId, result) {
+        const resolved = resolveDialog(dialogId, result)
         diag(
-          'explorer',
+          'dialog',
           resolved
-            ? `Result resolved: ${explorerId.slice(0, 8)} action=${result._action}`
-            : `No pending explorer: ${explorerId.slice(0, 8)}`,
+            ? `Result resolved: ${dialogId.slice(0, 8)} action=${result._action}`
+            : `No pending dialog: ${dialogId.slice(0, 8)}`,
         )
       },
-      onExplorerKeepalive(explorerId) {
-        keepaliveExplorer(explorerId)
+      onDialogKeepalive(dialogId) {
+        keepaliveDialog(dialogId)
       },
       onRendezvousResult(message: Record<string, unknown>) {
         const msgType = message.type as string
@@ -1489,24 +1489,24 @@ async function main() {
         })
       }
     },
-    onExplore(explorerId, layout) {
-      diag('explorer', `Show: "${layout.title}" (${explorerId.slice(0, 8)})`)
+    onDialogShow(dialogId, layout) {
+      diag('dialog', `Show: "${layout.title}" (${dialogId.slice(0, 8)})`)
       if (wsClient?.isConnected()) {
         wsClient.send({
           type: 'dialog_show',
           sessionId: claudeSessionId || internalId,
-          explorerId,
+          dialogId,
           layout,
         } as unknown as WrapperMessage)
       }
     },
-    onExploreDismiss(explorerId) {
-      diag('explorer', `Dismiss: ${explorerId.slice(0, 8)}`)
+    onDialogDismiss(dialogId) {
+      diag('dialog', `Dismiss: ${dialogId.slice(0, 8)}`)
       if (wsClient?.isConnected()) {
         wsClient.send({
           type: 'dialog_dismiss',
           sessionId: claudeSessionId || internalId,
-          explorerId,
+          dialogId,
         } as unknown as WrapperMessage)
       }
     },
