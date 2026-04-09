@@ -44,6 +44,7 @@ import {
   type TaskStatus,
   updateTaskNote,
 } from './task-notes'
+import { interceptTodoWrite } from './todo-write-sync'
 import { createTranscriptWatcher, type TranscriptWatcher } from './transcript-watcher'
 import { createWsClient, type WsClient } from './ws-client'
 
@@ -1153,6 +1154,10 @@ async function main() {
     if (!claudeSessionId || !wsClient?.isConnected()) {
       debug(`Cannot send ${entries.length} entries: sessionId=${!!claudeSessionId} ws=${wsClient?.isConnected()}`)
       return
+    }
+    // Intercept TodoWrite tool calls and sync to kanban task files
+    if (!agentId) {
+      interceptTodoWrite(entries, cwd, DEBUG ? debug : undefined)
     }
     // Augment Edit tool results with structuredPatch for diff rendering
     const augmented = augmentEditPatches(entries)
