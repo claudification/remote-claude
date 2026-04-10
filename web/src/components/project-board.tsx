@@ -28,7 +28,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectTask } from '@/hooks/use-project'
 import { type ProjectTaskMeta, type TaskStatus, useProject } from '@/hooks/use-project'
 import { sendInput } from '@/hooks/use-sessions'
@@ -543,6 +543,19 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  // Listen for open-task-editor events from command palette T: mode
+  useEffect(() => {
+    function handleOpenTask(e: Event) {
+      const detail = (e as CustomEvent).detail as { slug: string; status: string }
+      if (!detail?.slug) return
+      readTask(detail.slug, detail.status as TaskStatus).then(full => {
+        if (full) setEditingTask(full)
+      })
+    }
+    window.addEventListener('open-task-editor', handleOpenTask)
+    return () => window.removeEventListener('open-task-editor', handleOpenTask)
+  }, [readTask])
 
   const filteredTasks = useMemo(() => {
     if (!searchQuery.trim()) return tasks

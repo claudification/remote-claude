@@ -46,7 +46,9 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
                   ? 'Path to spawn (e.g. projects/my-app or /absolute/path)...'
                   : palette.mode === 'file'
                     ? 'Search files...'
-                    : 'Switch session... (>cmd  F:files  S:spawn)'
+                    : palette.mode === 'task'
+                      ? 'Search project tasks...'
+                      : 'Switch session... (>cmd  F:files  S:spawn  T:tasks)'
             }
             className="w-full bg-transparent text-[19px] sm:text-sm text-[#a9b1d6] placeholder:text-[#565f89] outline-none"
             autoComplete="off"
@@ -76,6 +78,43 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
               onDirSelect={palette.handleDirSelect}
               onSpawn={palette.handleSpawn}
             />
+          ) : palette.mode === 'task' ? (
+            <div>
+              {palette.tasksLoading ? (
+                <div className="px-4 py-3 text-[#565f89] text-xs">Loading tasks...</div>
+              ) : palette.filteredTasks.length === 0 ? (
+                <div className="px-4 py-3 text-[#565f89] text-xs">No matching tasks</div>
+              ) : (
+                palette.filteredTasks.map((task, i) => (
+                  <button
+                    key={task.slug}
+                    type="button"
+                    className={`w-full flex items-center gap-2 px-4 py-2 text-left text-xs transition-colors ${
+                      i === palette.activeIndex ? 'bg-[#283457] text-[#c0caf5]' : 'text-[#a9b1d6] hover:bg-[#1a1b26]'
+                    }`}
+                    onClick={() => {
+                      onClose()
+                      window.dispatchEvent(new CustomEvent('open-task-editor', { detail: task }))
+                    }}
+                    onMouseEnter={() => palette.setActiveIndex(i)}
+                  >
+                    <span
+                      className={`px-1 py-0.5 text-[9px] font-bold uppercase ${
+                        task.status === 'open'
+                          ? 'bg-[#7aa2f7]/20 text-[#7aa2f7]'
+                          : task.status === 'in-progress'
+                            ? 'bg-[#e0af68]/20 text-[#e0af68]'
+                            : 'bg-[#9ece6a]/20 text-[#9ece6a]'
+                      }`}
+                    >
+                      {task.status}
+                    </span>
+                    <span className="flex-1 truncate font-mono">{task.title}</span>
+                    {task.priority && <span className="text-[9px] text-[#565f89]">{task.priority}</span>}
+                  </button>
+                ))
+              )}
+            </div>
           ) : palette.mode === 'file' ? (
             <FileResults
               files={palette.filteredFiles}

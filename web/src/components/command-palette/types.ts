@@ -8,7 +8,15 @@ export interface PaletteCommand {
   action: () => void
 }
 
-export type PaletteMode = 'session' | 'command' | 'file' | 'spawn'
+export type PaletteMode = 'session' | 'command' | 'file' | 'spawn' | 'task'
+
+export interface TaskItem {
+  slug: string
+  title: string
+  status: string
+  priority?: string
+  bodyPreview?: string
+}
 
 export interface CommandPaletteProps {
   onSelect: (sessionId: string) => void

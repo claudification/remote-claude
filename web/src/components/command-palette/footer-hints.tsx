@@ -87,6 +87,13 @@ export function FooterHints({ mode, agentConnected, onPrefixTap }: FooterHintsPr
               <Kbd>F:</Kbd> files
             </span>
           )}
+          {onPrefixTap ? (
+            <PrefixChip prefix="T:" label="tasks" onTap={onPrefixTap} />
+          ) : (
+            <span>
+              <Kbd>T:</Kbd> tasks
+            </span>
+          )}
           {agentConnected &&
             (onPrefixTap ? (
               <PrefixChip prefix="S:" label="spawn" onTap={onPrefixTap} />

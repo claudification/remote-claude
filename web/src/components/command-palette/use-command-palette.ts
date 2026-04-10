@@ -5,7 +5,7 @@ import { useSessionsStore } from '@/hooks/use-sessions'
 import { getFrequencyMap, recordSwitch } from '@/lib/session-frequency'
 import type { Session } from '@/lib/types'
 import { getPaletteCommands } from './commands'
-import type { PaletteMode } from './types'
+import type { PaletteMode, TaskItem } from './types'
 
 export function useCommandPalette(onClose: () => void) {
   const sessions = useSessionsStore(state => state.sessions)
@@ -32,8 +32,17 @@ export function useCommandPalette(onClose: () => void) {
   const isCommandMode = filter.startsWith('>')
   const isFileMode = !isCommandMode && filter.toLowerCase().startsWith('f:') && !filter.toLowerCase().startsWith('f:/')
   const isSpawnMode = !isCommandMode && filter.toLowerCase().startsWith('s:')
+  const isTaskMode = !isCommandMode && filter.toLowerCase().startsWith('t:')
 
-  const mode: PaletteMode = isCommandMode ? 'command' : isSpawnMode ? 'spawn' : isFileMode ? 'file' : 'session'
+  const mode: PaletteMode = isCommandMode
+    ? 'command'
+    : isSpawnMode
+      ? 'spawn'
+      : isFileMode
+        ? 'file'
+        : isTaskMode
+          ? 'task'
+          : 'session'
 
   // --- Command mode ---
   const commandFilter = isCommandMode ? filter.slice(1).trim().toLowerCase() : ''
@@ -214,6 +223,45 @@ export function useCommandPalette(onClose: () => void) {
     }
   }
 
+  // --- Task mode ---
+  const taskFilter = isTaskMode ? filter.slice(2).trim().toLowerCase() : ''
+  const [tasks, setTasks] = useState<TaskItem[]>([])
+  const [tasksLoading, setTasksLoading] = useState(false)
+  const tasksFetched = useRef(false)
+
+  useEffect(() => {
+    if (isTaskMode && !tasksFetched.current && selectedSessionId) {
+      tasksFetched.current = true
+      setTasksLoading(true)
+      const requestId = crypto.randomUUID()
+      const handler = (msg: Record<string, unknown>) => {
+        if (msg.requestId === requestId && msg.type === 'project_list_response') {
+          const notes = (msg.notes as TaskItem[]) || []
+          setTasks(notes)
+          setTasksLoading(false)
+          useSessionsStore.setState({ projectHandler: prev })
+        }
+      }
+      const prev = useSessionsStore.getState().projectHandler
+      useSessionsStore.setState({ projectHandler: handler })
+      sendWsMessage({ type: 'project_list', requestId, sessionId: selectedSessionId })
+    }
+    if (!isTaskMode) {
+      tasksFetched.current = false
+      setTasks([])
+    }
+  }, [isTaskMode, selectedSessionId, sendWsMessage])
+
+  const taskFzf = useMemo(
+    () =>
+      new Fzf(tasks, {
+        selector: (t: TaskItem) => `${t.title} ${t.slug} ${t.status} ${t.priority || ''}`,
+        casing: 'case-insensitive',
+      }),
+    [tasks],
+  )
+  const filteredTasks = taskFilter ? taskFzf.find(taskFilter).map(r => r.item) : tasks
+
   // --- Item count & index clamping ---
   const itemCount = isCommandMode
     ? filteredCommands.length
@@ -221,7 +269,9 @@ export function useCommandPalette(onClose: () => void) {
       ? filteredSpawnDirs.length
       : isFileMode
         ? filteredFiles.length
-        : filteredSessions.length
+        : isTaskMode
+          ? filteredTasks.length
+          : filteredSessions.length
 
   useEffect(() => {
     if (activeIndex >= itemCount) {
@@ -251,7 +301,7 @@ export function useCommandPalette(onClose: () => void) {
     switch (e.key) {
       case 'Escape':
         e.preventDefault()
-        if (isFileMode || isSpawnMode || isCommandMode) {
+        if (isFileMode || isSpawnMode || isCommandMode || isTaskMode) {
           setFilter('')
           setActiveIndex(0)
         } else {
@@ -297,6 +347,14 @@ export function useCommandPalette(onClose: () => void) {
           if (file && selectedSessionId) {
             callbacks.onFileSelect(selectedSessionId, file.path)
           }
+        } else if (isTaskMode) {
+          const task = filteredTasks[activeIndex]
+          if (task) {
+            onClose()
+            // Switch to project tab first, then open editor after mount
+            if (selectedSessionId) useSessionsStore.getState().openTab(selectedSessionId, 'project' as never)
+            setTimeout(() => window.dispatchEvent(new CustomEvent('open-task-editor', { detail: task })), 100)
+          }
         } else if (filteredSessions[activeIndex]) {
           selectSessionWithTracking(filteredSessions[activeIndex], callbacks.onSelectSession)
         }
@@ -341,6 +399,10 @@ export function useCommandPalette(onClose: () => void) {
     spawnError,
     spawning,
     canCreateDir,
+
+    // Task mode
+    filteredTasks,
+    tasksLoading,
 
     // Actions
     handleKeyDown,
