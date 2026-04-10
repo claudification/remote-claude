@@ -1,6 +1,6 @@
 import type { HookEvent } from '@shared/protocol'
 import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Copy, Terminal } from 'lucide-react'
-import { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { type TaskStatus, useProject } from '@/hooks/use-project'
@@ -855,6 +855,24 @@ export function SessionDetail() {
 
   const canSendInput = session != null && session.status !== 'ended' && canChat
   const hasTerminal = session ? canTerminal(session) : false
+
+  // Plan mode: prefer concentrator state, fall back to transcript scan
+  const inPlanMode = useMemo(() => {
+    if (session?.planMode) return true
+    // Derive from transcript: last EnterPlanMode without matching ExitPlanMode
+    let pm = false
+    for (const e of transcript) {
+      const blocks = (e as Record<string, unknown>).message
+        ? ((e as Record<string, unknown>).message as Record<string, unknown>)?.content
+        : undefined
+      if (!Array.isArray(blocks)) continue
+      for (const b of blocks) {
+        if (b.type === 'tool_use' && b.name === 'EnterPlanMode') pm = true
+        if (b.type === 'tool_use' && b.name === 'ExitPlanMode') pm = false
+      }
+    }
+    return pm
+  }, [session?.planMode, transcript])
   const canRevive = session?.status === 'ended' && agentConnected && canSpawn
 
   function handleRevive() {
@@ -939,7 +957,7 @@ export function SessionDetail() {
                         ) : null
                       })()}
                   </span>
-                  {session.planMode && (
+                  {inPlanMode && (
                     <span className="text-[10px] text-blue-400 font-bold ml-1 px-1 py-0.5 bg-blue-500/10 rounded">
                       PLAN
                     </span>
@@ -1551,10 +1569,10 @@ export function SessionDetail() {
             <div
               className={cn(
                 'flex-1 min-h-0 overflow-hidden relative transition-colors duration-300',
-                session?.planMode && 'bg-blue-950/20',
+                inPlanMode && 'bg-blue-950/20',
               )}
             >
-              {session?.planMode && (
+              {inPlanMode && (
                 <div className="sticky top-0 z-10 px-3 py-1.5 bg-blue-600/20 border-b border-blue-500/30 text-blue-400 text-[11px] font-mono font-bold tracking-wider text-center backdrop-blur-sm">
                   PLANNING MODE
                 </div>

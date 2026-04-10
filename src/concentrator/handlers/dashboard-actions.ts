@@ -203,6 +203,9 @@ const sendInterrupt: MessageHandler = (ctx, data) => {
   if (!ws) throw new GuardError('Session not connected')
 
   ws.send(JSON.stringify({ type: 'interrupt', sessionId }))
+  // Immediately set idle -- CC won't fire a Stop hook after interrupt
+  session.status = 'idle'
+  ctx.sessions.broadcastSessionUpdate(sessionId)
   ctx.log.debug(`send_interrupt: ${sessionId.slice(0, 8)}`)
   ctx.reply({ type: 'send_interrupt_result', ok: true })
 }
