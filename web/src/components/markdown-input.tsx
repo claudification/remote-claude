@@ -12,7 +12,7 @@ const EMPTY_INFO: { slashCommands: string[]; skills: string[]; agents: string[] 
 }
 
 // Built-in headless commands (always available, shown first with distinct color)
-const BUILTIN_COMMANDS = ['model', 'clear', 'exit', 'compact']
+const BUILTIN_COMMANDS = ['model', 'clear', 'exit', 'compact', 'settings', 'config']
 const KNOWN_MODELS = ['opus', 'sonnet', 'haiku', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']
 
 function fuzzyScore(query: string, candidate: string): number {
@@ -178,6 +178,8 @@ export function MarkdownInput({
     const scored: Array<{ item: string; score: number; builtin: boolean }> = []
 
     if (ch === '/') {
+      // Built-in + CC slash commands only autocomplete at start of input (position 0)
+      if (start !== 0) return []
       // Built-in commands first
       for (const item of BUILTIN_COMMANDS) {
         const score = !q ? 100 : item.includes(q) ? 100 + (item.startsWith(q) ? 10 : 0) : 0

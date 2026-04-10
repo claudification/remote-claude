@@ -550,6 +550,14 @@ const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
   async function handleSend() {
     if (!inputValue.trim() || isSending) return
     const text = inputValue
+    // Dashboard-only commands (not sent to CC)
+    const trimmed = text.trim().toLowerCase()
+    if (trimmed === '/settings' || trimmed === '/config') {
+      haptic('tap')
+      setInputValue('')
+      window.dispatchEvent(new Event('open-settings'))
+      return
+    }
     haptic('tap')
     // Clear optimistically -- restore on failure
     setInputValue('')
