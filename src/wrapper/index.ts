@@ -367,6 +367,7 @@ async function main() {
 
   // Will be set when we receive SessionStart from Claude
   let claudeSessionId: string | null = null
+  let pendingClearFromId: string | null = null // set during /clear, consumed by onInit
   let wsClient: WsClient | null = null
   let ptyProcess: PtyProcess | null = null
   let streamProc: StreamProcess | null = null
@@ -2055,9 +2056,21 @@ async function main() {
       },
       onInit(init) {
         debug(`[headless] init: session=${init.session_id?.slice(0, 8)} model=${init.model}`)
-        if (init.session_id && !claudeSessionId) {
+        if (init.session_id) {
+          const prevId = claudeSessionId
           claudeSessionId = init.session_id
-          diag('headless', `CC session ID from init: ${init.session_id.slice(0, 8)}`)
+          // Handle deferred /clear rekey -- now we have the REAL session ID
+          if (pendingClearFromId && wsClient?.isConnected()) {
+            diag('headless', `Deferred rekey: ${pendingClearFromId.slice(0, 8)} -> ${init.session_id.slice(0, 8)}`)
+            wsClient.sendSessionClear(init.session_id, cwd)
+            pendingClearFromId = null
+          } else if (prevId && prevId !== init.session_id && wsClient?.isConnected()) {
+            // Session ID changed outside /clear (e.g., revive with different session)
+            diag('headless', `Session ID changed: ${prevId.slice(0, 8)} -> ${init.session_id.slice(0, 8)}`)
+            wsClient.sendSessionClear(init.session_id, cwd)
+          } else if (!prevId) {
+            diag('headless', `CC session ID from init: ${init.session_id.slice(0, 8)}`)
+          }
         }
         // Derive transcript path from init if not yet set by SessionStart hook
         if (init.session_id && !parentTranscriptPath) {
@@ -2197,15 +2210,18 @@ async function main() {
               !(i > 0 && arr[i - 1] === '--session-id'),
           )
           const oldSessionId = claudeSessionId
-          claudeSessionId = ''
+          claudeSessionId = null
           parentTranscriptPath = ''
           pendingEditInputs.clear()
           agentToolUseMap.clear()
           pendingAskRequests.clear()
-          diag('headless', `Respawning CC fresh after /clear (old: ${oldSessionId?.slice(0, 8) || 'none'})`)
-          if (oldSessionId && wsClient?.isConnected()) {
-            wsClient.sendSessionClear(randomUUID(), cwd)
-          }
+          // Don't rekey yet -- wait for the new CC's real session ID from onInit.
+          // Sending randomUUID() here caused double-rekey and transcript loss.
+          pendingClearFromId = oldSessionId
+          diag(
+            'headless',
+            `Respawning CC fresh after /clear (old: ${oldSessionId?.slice(0, 8) || 'none'}, rekey deferred)`,
+          )
           respawnHeadless(freshArgs)
           return
         }
