@@ -18,14 +18,15 @@ import {
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
-import { type FSWatcher as ChokidarWatcher, watch as chokidarWatch } from 'chokidar'
-import { structuredPatch as computeStructuredPatch } from 'diff'
+import { watch as chokidarWatch } from 'chokidar'
 import { isPathWithinCwd } from '../shared/path-guard'
 import type { HookEvent, TaskInfo, TasksUpdate, TranscriptEntry, WrapperMessage } from '../shared/protocol'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
 import { checkForUpdate, formatUpdateResult, formatVersion } from '../shared/update-check'
-import { DEBUG, debug, setDebugStderr } from './debug'
-import { FileEditor } from './file-editor'
+import { debug, setDebugStderr } from './debug'
+import { handleFileEditorMessage } from './file-editor-handler'
+import { buildHeadlessSpawnOptions } from './headless-lifecycle'
+import { processHookEvent } from './hook-processor'
 import { resolveAskRequest, setLocalServerDebug, startLocalServer, stopLocalServer } from './local-server'
 import {
   closeMcpChannel,
@@ -41,20 +42,19 @@ import {
 } from './mcp-channel'
 import { Osc52Parser } from './osc52-parser'
 import { createRulesEngine } from './permission-rules'
-import {
-  createProjectTask,
-  deleteProjectTask,
-  getProjectTask,
-  listProjectTasks,
-  moveProjectTask,
-  type TaskStatus,
-  updateProjectTask,
-} from './project-tasks'
+import { listProjectTasks } from './project-tasks'
+import { buildSystemPrompt } from './prompt-builder'
 import { getTerminalSize, type PtyProcess, setupTerminalPassthrough, spawnClaude } from './pty-spawn'
 import { cleanupSettings, writeMergedSettings } from './settings-merge'
-import { type StreamProcess, spawnStreamClaude } from './stream-backend'
-import { createTranscriptWatcher, type TranscriptWatcher } from './transcript-watcher'
-import { createWsClient, type WsClient } from './ws-client'
+import { spawnStreamClaude } from './stream-backend'
+import {
+  sendTranscriptEntriesChunked,
+  startSubagentWatcher,
+  startTranscriptWatcher,
+  stopSubagentWatcher,
+} from './transcript-manager'
+import type { WrapperContext } from './wrapper-context'
+import { createWsClient } from './ws-client'
 
 /**
  * Detect Claude Code version by resolving the `claude` symlink.
@@ -365,78 +365,114 @@ async function main() {
   const rclaudeDir = ensureRclaudeDir(cwd)
   const permissionRules = createRulesEngine(cwd)
 
-  // Will be set when we receive SessionStart from Claude
-  let claudeSessionId: string | null = null
-  let pendingClearFromId: string | null = null // set during /clear, consumed by onInit
-  let wsClient: WsClient | null = null
-  let ptyProcess: PtyProcess | null = null
-  let streamProc: StreamProcess | null = null
-  let clearRequested = false
-  let terminalAttached = false
-  let fileEditor: FileEditor | null = null
-  let savedTerminalSize: { cols: number; rows: number } | null = null
-  let taskWatcher: ChokidarWatcher | null = null
-  let lastTasksJson = ''
-  let transcriptWatcher: TranscriptWatcher | null = null
-  let parentTranscriptPath: string | null = null // stored to derive subagent transcript paths
-  const subagentWatchers = new Map<string, TranscriptWatcher>()
-  const MAX_SUBAGENT_WATCHERS = 50
-  const bgTaskOutputWatchers = new Map<string, { stop: () => void }>()
-  const MAX_BG_TASK_WATCHERS = 50
-
   // Detect Claude Code version and auth info early - needed for settings merge and concentrator
   const claudeVersion = detectClaudeVersion()
   setClaudeCodeVersion(claudeVersion)
   setDialogCwd(cwd)
   const claudeAuth = detectClaudeAuth()
 
-  // Queue events until we have the real session ID (capped to prevent unbounded growth)
-  const MAX_EVENT_QUEUE = 200
-  const eventQueue: HookEvent[] = []
+  // Shared context object for extracted modules
+  const ctx: WrapperContext = {
+    internalId,
+    cwd,
+    headless,
+    channelEnabled,
+    noConcentrator,
 
-  // Diagnostic log - sends structured debug entries to concentrator (capped)
+    // Mutable session state
+    claudeSessionId: null,
+    pendingClearFromId: null,
+    clearRequested: false,
+    terminalAttached: false,
+    parentTranscriptPath: null,
+    lastTasksJson: '',
+
+    // Process references
+    wsClient: null,
+    ptyProcess: null,
+    streamProc: null,
+    fileEditor: null,
+
+    // Watchers
+    taskWatcher: null,
+    taskCandidateDirs: [],
+    transcriptWatcher: null,
+    projectWatcher: null,
+    subagentWatchers: new Map(),
+    bgTaskOutputWatchers: new Map(),
+
+    // Caches
+    pendingEditInputs: new Map(),
+    agentToolUseMap: new Map(),
+    pendingAskRequests: new Map(),
+
+    // Event queue
+    eventQueue: [],
+
+    // Diagnostics
+    diagBuffer: [],
+    diagFlushTimer: null,
+
+    // Functions -- wired up below
+    diag: null!,
+    flushDiag: null!,
+    debug,
+    connectToConcentrator: null!,
+    startTaskWatching: null!,
+    startProjectWatching: null!,
+    startTranscriptWatcher: (path: string) => startTranscriptWatcher(ctx, path),
+    startSubagentWatcher: (agentId: string, path: string, live: boolean) =>
+      startSubagentWatcher(ctx, agentId, path, live),
+    stopSubagentWatcher: (agentId: string) => stopSubagentWatcher(ctx, agentId),
+    sendTranscriptEntriesChunked: (entries: TranscriptEntry[], isInitial: boolean, agentId?: string) =>
+      sendTranscriptEntriesChunked(ctx, entries, isInitial, agentId),
+  }
+
+  // Local aliases for code remaining in index.ts (read/write the ctx object)
+  let savedTerminalSize: { cols: number; rows: number } | null = null
+
   const MAX_DIAG_BUFFER = 500
-  const diagBuffer: Array<{ t: number; type: string; msg: string; args?: unknown }> = []
-  let diagFlushTimer: ReturnType<typeof setTimeout> | null = null
 
   function flushDiag() {
-    diagFlushTimer = null
-    if (diagBuffer.length === 0) return
-    if (!wsClient?.isConnected() || !claudeSessionId) return
-    const entries = diagBuffer.splice(0)
-    wsClient.send({ type: 'diag', sessionId: claudeSessionId, entries } as unknown as WrapperMessage)
+    ctx.diagFlushTimer = null
+    if (ctx.diagBuffer.length === 0) return
+    if (!ctx.wsClient?.isConnected() || !ctx.claudeSessionId) return
+    const entries = ctx.diagBuffer.splice(0)
+    ctx.wsClient.send({ type: 'diag', sessionId: ctx.claudeSessionId, entries } as unknown as WrapperMessage)
   }
 
   function diag(type: string, msg: string, args?: unknown) {
     debug(`[diag] ${type}: ${msg}${args ? ` ${JSON.stringify(args)}` : ''}`)
-    if (diagBuffer.length >= MAX_DIAG_BUFFER) {
+    if (ctx.diagBuffer.length >= MAX_DIAG_BUFFER) {
       // Drop oldest entries when buffer is full (concentrator unreachable)
-      diagBuffer.splice(0, Math.floor(MAX_DIAG_BUFFER / 4))
+      ctx.diagBuffer.splice(0, Math.floor(MAX_DIAG_BUFFER / 4))
       debug(`[diag] Buffer full, dropped ${Math.floor(MAX_DIAG_BUFFER / 4)} oldest entries`)
     }
-    diagBuffer.push({ t: Date.now(), type, msg, args })
-    if (!diagFlushTimer) {
-      diagFlushTimer = setTimeout(flushDiag, 500)
+    ctx.diagBuffer.push({ t: Date.now(), type, msg, args })
+    if (!ctx.diagFlushTimer) {
+      ctx.diagFlushTimer = setTimeout(flushDiag, 500)
     }
   }
+
+  // Wire up context functions now that they're defined
+  ctx.diag = diag
+  ctx.flushDiag = flushDiag
 
   /**
    * Read and send current task state.
    * Called by chokidar watcher on changes and on reconnect.
    */
-  let taskCandidateDirs: string[] = []
-
   function readAndSendTasks() {
-    if (!wsClient?.isConnected() || !claudeSessionId) {
+    if (!ctx.wsClient?.isConnected() || !ctx.claudeSessionId) {
       debug(
-        `readAndSendTasks: skipped (connected=${wsClient?.isConnected()}, sessionId=${claudeSessionId?.slice(0, 8)})`,
+        `readAndSendTasks: skipped (connected=${ctx.wsClient?.isConnected()}, sessionId=${ctx.claudeSessionId?.slice(0, 8)})`,
       )
       return
     }
     try {
       // Read tasks from ALL candidate dirs - pick the one with actual .json files
       let tasksDir: string | null = null
-      for (const dir of taskCandidateDirs) {
+      for (const dir of ctx.taskCandidateDirs) {
         if (!existsSync(dir)) continue
         const jsonFiles = readdirSync(dir).filter(f => f.endsWith('.json'))
         if (jsonFiles.length > 0) {
@@ -472,16 +508,16 @@ async function main() {
       }
 
       const json = JSON.stringify(tasks)
-      if (json !== lastTasksJson) {
-        lastTasksJson = json
-        const msg: TasksUpdate = { type: 'tasks_update', sessionId: claudeSessionId, tasks }
-        wsClient?.send(msg)
+      if (json !== ctx.lastTasksJson) {
+        ctx.lastTasksJson = json
+        const msg: TasksUpdate = { type: 'tasks_update', sessionId: ctx.claudeSessionId, tasks }
+        ctx.wsClient?.send(msg)
         debug(`Tasks updated: ${tasks.length} tasks (dir: ${tasksDir?.split('/').pop()?.slice(0, 8)})`)
         diag('tasks', `Sent ${tasks.length} tasks`, { dir: tasksDir?.split('/').pop() })
       }
     } catch (err) {
       debug(`readAndSendTasks error: ${err}`)
-      diag('tasks', `Read error: ${err}`, { dirs: taskCandidateDirs.map(d => d.split('/').pop()) })
+      diag('tasks', `Read error: ${err}`, { dirs: ctx.taskCandidateDirs.map(d => d.split('/').pop()) })
     }
   }
 
@@ -489,41 +525,43 @@ async function main() {
    * Watch ~/.claude/tasks/ for task state changes using chokidar
    */
   function startTaskWatching() {
-    if (taskWatcher) return
+    if (ctx.taskWatcher) return
     const tasksBase = join(homedir(), '.claude', 'tasks')
     // Watch both Claude's session ID dir and our internal ID dir (they may differ)
     const candidates = new Set<string>()
-    if (claudeSessionId) candidates.add(join(tasksBase, claudeSessionId))
+    if (ctx.claudeSessionId) candidates.add(join(tasksBase, ctx.claudeSessionId))
     candidates.add(join(tasksBase, internalId))
-    taskCandidateDirs = Array.from(candidates)
+    ctx.taskCandidateDirs = Array.from(candidates)
 
-    const watchPaths = taskCandidateDirs.map(d => join(d, '*.json'))
-    debug(`Task watcher dirs: ${taskCandidateDirs.map(d => d.split('/').pop()).join(', ')}`)
-    taskWatcher = chokidarWatch(watchPaths, {
+    const watchPaths = ctx.taskCandidateDirs.map(d => join(d, '*.json'))
+    debug(`Task watcher dirs: ${ctx.taskCandidateDirs.map(d => d.split('/').pop()).join(', ')}`)
+    ctx.taskWatcher = chokidarWatch(watchPaths, {
       ignoreInitial: false,
       awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
     })
-    taskWatcher.on('add', readAndSendTasks)
-    taskWatcher.on('change', readAndSendTasks)
-    taskWatcher.on('unlink', readAndSendTasks)
+    ctx.taskWatcher.on('add', readAndSendTasks)
+    ctx.taskWatcher.on('change', readAndSendTasks)
+    ctx.taskWatcher.on('unlink', readAndSendTasks)
     // Also poll periodically in case chokidar misses events (e.g. dir created after watcher)
     const pollInterval = setInterval(() => readAndSendTasks(), 5000)
-    taskWatcher.on('close', () => clearInterval(pollInterval))
-    diag('watch', 'Task watcher started', { dirs: taskCandidateDirs.map(d => d.split('/').pop()), watchPaths })
+    ctx.taskWatcher.on('close', () => clearInterval(pollInterval))
+    diag('watch', 'Task watcher started', { dirs: ctx.taskCandidateDirs.map(d => d.split('/').pop()), watchPaths })
   }
+
+  // Wire up task/project watching on context
+  ctx.startTaskWatching = startTaskWatching
 
   /**
    * Watch .rclaude/project/ for task changes (created by dashboard, Claude, or manually).
    * Debounces and sends project_changed to concentrator so dashboard can refresh.
    */
-  let projectWatcher: ChokidarWatcher | null = null
   let projectDebounce: ReturnType<typeof setTimeout> | null = null
   const PROJECT_TASK_PATTERN = /\.rclaude\/project\/(open|in-progress|done|archived)\/.+\.md$/
 
   function startProjectWatching() {
-    if (projectWatcher) return
+    if (ctx.projectWatcher) return
     const projectDir = join(cwd, '.rclaude', 'project')
-    projectWatcher = chokidarWatch(join(projectDir, '**', '*.md'), {
+    ctx.projectWatcher = chokidarWatch(join(projectDir, '**', '*.md'), {
       ignoreInitial: true,
       awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
       depth: 2,
@@ -534,25 +572,28 @@ async function main() {
       if (projectDebounce) clearTimeout(projectDebounce)
       projectDebounce = setTimeout(() => {
         projectDebounce = null
-        if (!wsClient?.isConnected() || !claudeSessionId) return
+        if (!ctx.wsClient?.isConnected() || !ctx.claudeSessionId) return
         const tasks = listProjectTasks(cwd)
-        wsClient.send({
+        ctx.wsClient.send({
           type: 'project_changed',
-          sessionId: claudeSessionId,
+          sessionId: ctx.claudeSessionId,
           notes: tasks,
         } as unknown as WrapperMessage)
         debug(`Project tasks changed: ${tasks.length} tasks`)
       }, 300)
     }
 
-    projectWatcher.on('add', onProjectTaskChange)
-    projectWatcher.on('change', onProjectTaskChange)
-    projectWatcher.on('unlink', onProjectTaskChange)
+    ctx.projectWatcher.on('add', onProjectTaskChange)
+    ctx.projectWatcher.on('change', onProjectTaskChange)
+    ctx.projectWatcher.on('unlink', onProjectTaskChange)
     debug('Project watcher started')
   }
 
+  // Wire up project watching
+  ctx.startProjectWatching = startProjectWatching
+
   function connectToConcentrator(sessionId: string) {
-    if (noConcentrator || wsClient) return
+    if (noConcentrator || ctx.wsClient) return
 
     // Build capabilities list
     const capabilities = [
@@ -561,7 +602,7 @@ async function main() {
       ...(headless ? ['headless' as const] : []),
     ]
 
-    wsClient = createWsClient({
+    ctx.wsClient = createWsClient({
       concentratorUrl,
       concentratorSecret,
       sessionId,
@@ -576,10 +617,10 @@ async function main() {
         // Flush buffered diag entries
         flushDiag()
         // Flush queued events
-        for (const event of eventQueue) {
-          wsClient?.sendHookEvent({ ...event, sessionId })
+        for (const event of ctx.eventQueue) {
+          ctx.wsClient?.sendHookEvent({ ...event, sessionId })
         }
-        eventQueue.length = 0
+        ctx.eventQueue.length = 0
         // Start polling task files + watching task notes
         startTaskWatching()
         startProjectWatching()
@@ -593,27 +634,27 @@ async function main() {
       onInput(input, crDelay) {
         // Headless mode: typed methods, no PTY handler
         if (headless) {
-          if (!streamProc || !input) return
+          if (!ctx.streamProc || !input) return
           const trimmed = input.trimEnd()
           // Intercept headless-specific commands
           if (trimmed === '/exit' || trimmed === '/quit' || trimmed === ':q' || trimmed === ':q!') {
-            streamProc.kill()
+            ctx.streamProc.kill()
           } else if (trimmed === '/clear') {
             // Kill CC process and respawn fresh (no --continue/--resume)
             diag('headless', 'Clear requested - killing CC and respawning fresh')
-            streamProc.kill()
+            ctx.streamProc.kill()
             // Don't exit -- respawn handled in onExit when clearRequested is set
-            clearRequested = true
+            ctx.clearRequested = true
           } else if (trimmed.startsWith('/model ')) {
             const model = trimmed.slice(7).trim()
-            if (model) streamProc.sendSetModel(model)
+            if (model) ctx.streamProc.sendSetModel(model)
           } else {
-            streamProc.sendUserMessage(input)
+            ctx.streamProc.sendUserMessage(input)
           }
           return
         }
 
-        if (!ptyProcess) return
+        if (!ctx.ptyProcess) return
 
         // Slash commands (/compact, /clear, /model, etc.) must go via PTY -
         // they're processed by Claude Code's CLI input layer, not the model.
@@ -628,10 +669,10 @@ async function main() {
                 diag('channel', `Input via MCP (${input.length} chars)`)
               } else {
                 diag('channel', 'MCP push failed, falling back to PTY')
-                if (ptyProcess) {
+                if (ctx.ptyProcess) {
                   const trimmed = input.replace(/[\r\n]+$/, '')
-                  ptyProcess.write(trimmed)
-                  setTimeout(() => ptyProcess?.write('\r'), 150)
+                  ctx.ptyProcess.write(trimmed)
+                  setTimeout(() => ctx.ptyProcess?.write('\r'), 150)
                 }
               }
             })
@@ -651,28 +692,28 @@ async function main() {
 
         if (lines.length === 1) {
           // Single line: write + Enter
-          ptyProcess.write(trimmed)
+          ctx.ptyProcess.write(trimmed)
           setTimeout(() => {
-            ptyProcess?.write('\r')
-            setTimeout(() => ptyProcess?.write('\r'), singleCrDelay)
+            ctx.ptyProcess?.write('\r')
+            setTimeout(() => ctx.ptyProcess?.write('\r'), singleCrDelay)
           }, singlePreDelay)
         } else {
           // Multiline: chunk line-by-line inside bracketed paste, then submit
           // Delays scale with input size so large pastes don't outrun the PTY
           const perLineDelay = Math.min(50, Math.max(20, lines.length > 50 ? 50 : 20))
-          ptyProcess.write('\x1b[200~')
+          ctx.ptyProcess.write('\x1b[200~')
           lines.forEach((line, i) => {
             setTimeout(() => {
-              if (!ptyProcess) return
-              ptyProcess.write(i > 0 ? `\n${line}` : line)
+              if (!ctx.ptyProcess) return
+              ctx.ptyProcess.write(i > 0 ? `\n${line}` : line)
               if (i === lines.length - 1) {
                 // End bracketed paste, then wait for PTY to process before sending Enter
                 const settleDelay = crDelay != null ? crDelay : Math.min(500, Math.max(100, lines.length * 2))
                 setTimeout(() => {
-                  ptyProcess?.write('\x1b[201~')
+                  ctx.ptyProcess?.write('\x1b[201~')
                   setTimeout(() => {
-                    ptyProcess?.write('\r')
-                    setTimeout(() => ptyProcess?.write('\r'), multiSettleBase)
+                    ctx.ptyProcess?.write('\r')
+                    setTimeout(() => ctx.ptyProcess?.write('\r'), multiSettleBase)
                   }, settleDelay)
                 }, 50)
               }
@@ -685,35 +726,35 @@ async function main() {
       },
       onTerminalInput(data) {
         // Raw keystrokes from browser terminal - write directly to PTY
-        if (ptyProcess) {
-          ptyProcess.write(data)
+        if (ctx.ptyProcess) {
+          ctx.ptyProcess.write(data)
         }
       },
       onTerminalAttach(cols, rows) {
-        terminalAttached = true
+        ctx.terminalAttached = true
         // Save local terminal size before remote viewer takes over
         savedTerminalSize = getTerminalSize()
         debug(
           `Terminal attached (${cols}x${rows}), saved local size (${savedTerminalSize.cols}x${savedTerminalSize.rows})`,
         )
-        if (ptyProcess) {
+        if (ctx.ptyProcess) {
           // Resize triggers SIGWINCH internally, which repaints most apps.
           // Double-tap: resize to 1 col smaller first, then to actual size.
           // This guarantees a size change even if browser matches current PTY size,
           // forcing a full repaint from Claude Code / Ink / vim / etc.
-          ptyProcess.resize(Math.max(1, cols - 1), rows)
+          ctx.ptyProcess.resize(Math.max(1, cols - 1), rows)
           setTimeout(() => {
-            ptyProcess?.resize(cols, rows)
+            ctx.ptyProcess?.resize(cols, rows)
             // Extra SIGWINCH as fallback for apps that ignore resize
-            setTimeout(() => ptyProcess?.redraw(), 100)
+            setTimeout(() => ctx.ptyProcess?.redraw(), 100)
           }, 50)
         }
       },
       onTerminalDetach() {
-        terminalAttached = false
+        ctx.terminalAttached = false
         // Restore local terminal size
-        if (savedTerminalSize && ptyProcess) {
-          ptyProcess.resize(savedTerminalSize.cols, savedTerminalSize.rows)
+        if (savedTerminalSize && ctx.ptyProcess) {
+          ctx.ptyProcess.resize(savedTerminalSize.cols, savedTerminalSize.rows)
           debug(`Terminal detached, restored to ${savedTerminalSize.cols}x${savedTerminalSize.rows}`)
           savedTerminalSize = null
         } else {
@@ -721,8 +762,8 @@ async function main() {
         }
       },
       onTerminalResize(cols, rows) {
-        if (ptyProcess) {
-          ptyProcess.resize(cols, rows)
+        if (ctx.ptyProcess) {
+          ctx.ptyProcess.resize(cols, rows)
         }
         debug(`Terminal resized to ${cols}x${rows}`)
       },
@@ -732,32 +773,32 @@ async function main() {
           .then(buf => {
             const ext = path.split('.').pop()?.toLowerCase() || ''
             const mediaType = extToMediaType(ext)
-            wsClient?.sendFileResponse(requestId, buf.toString('base64'), mediaType)
+            ctx.wsClient?.sendFileResponse(requestId, buf.toString('base64'), mediaType)
             debug(`File response: ${path} (${buf.length} bytes)`)
           })
           .catch(err => {
-            wsClient?.sendFileResponse(requestId, undefined, undefined, String(err))
+            ctx.wsClient?.sendFileResponse(requestId, undefined, undefined, String(err))
             debug(`File request failed: ${path} - ${err}`)
           })
       },
       onFileEditorMessage(msg) {
-        handleFileEditorMessage(msg)
+        handleFileEditorMessage(ctx, msg)
       },
       onAck() {
         // Concentrator has processed our meta message and registered the socket.
         // This is the correct signal to resend state (not an arbitrary timeout).
-        if (transcriptWatcher) {
+        if (ctx.transcriptWatcher) {
           debug('Ack received, re-sending transcript')
-          transcriptWatcher.resend().catch(err => debug(`Resend failed: ${err}`))
+          ctx.transcriptWatcher.resend().catch(err => debug(`Resend failed: ${err}`))
         }
-        lastTasksJson = ''
+        ctx.lastTasksJson = ''
         readAndSendTasks()
       },
       onTranscriptKick() {
         // Concentrator detected we have events but no transcript - retry the watcher
-        if (!transcriptWatcher && parentTranscriptPath) {
-          debug(`Transcript kick received - retrying watcher for: ${parentTranscriptPath}`)
-          diag('info', 'Transcript kick - retrying watcher', { path: parentTranscriptPath })
+        if (!ctx.transcriptWatcher && ctx.parentTranscriptPath) {
+          debug(`Transcript kick received - retrying watcher for: ${ctx.parentTranscriptPath}`)
+          diag('info', 'Transcript kick - retrying watcher', { path: ctx.parentTranscriptPath })
           // Re-run the same retry logic with a fresh 15min timeout
           async function retryTranscriptWatcher(path: string) {
             let delay = 500
@@ -767,7 +808,7 @@ async function main() {
             while (elapsed < maxTotal) {
               if (existsSync(path)) {
                 debug(`Transcript file found after kick: ${path}`)
-                startTranscriptWatcher(path)
+                startTranscriptWatcher(ctx, path)
                 return
               }
               await new Promise(r => setTimeout(r, delay))
@@ -776,10 +817,10 @@ async function main() {
             }
             diag('error', 'Transcript file still not found after kick', { path })
           }
-          retryTranscriptWatcher(parentTranscriptPath).catch(err => {
+          retryTranscriptWatcher(ctx.parentTranscriptPath).catch(err => {
             debug(`retryTranscriptWatcher error: ${err instanceof Error ? err.message : err}`)
           })
-        } else if (transcriptWatcher) {
+        } else if (ctx.transcriptWatcher) {
           debug('Transcript kick received but watcher already running')
         } else {
           debug('Transcript kick received but no transcript path known')
@@ -804,7 +845,7 @@ async function main() {
         pendingConfigureResult?.(result)
       },
       onChannelDeliver(delivery) {
-        if (headless && streamProc) {
+        if (headless && ctx.streamProc) {
           // Headless mode: deliver inter-session messages via stdin as <channel> tags (no conduit wrapper)
           const attrs = [
             `sender="session"`,
@@ -814,7 +855,7 @@ async function main() {
             ...(delivery.conversationId ? [`conversation_id="${delivery.conversationId}"`] : []),
           ].join(' ')
           const wrapped = `<channel ${attrs}>\n${delivery.message}\n</channel>`
-          streamProc.sendUserMessage(wrapped)
+          ctx.streamProc.sendUserMessage(wrapped)
           diag('headless', `Channel from ${delivery.fromProject}: ${delivery.message.slice(0, 60)}`)
         } else if (channelEnabled && isMcpChannelReady()) {
           const meta: Record<string, string> = {
@@ -835,9 +876,9 @@ async function main() {
         // Link requests are handled by the dashboard UI, not by Claude
       },
       onPermissionResponse(requestId: string, behavior: 'allow' | 'deny', toolUseId?: string) {
-        if (headless && streamProc) {
+        if (headless && ctx.streamProc) {
           // Headless: respond via control_response on stdin
-          streamProc.sendPermissionResponse(requestId, behavior === 'allow', undefined, toolUseId)
+          ctx.streamProc.sendPermissionResponse(requestId, behavior === 'allow', undefined, toolUseId)
           diag('headless', `Permission response: ${requestId} -> ${behavior}`)
         } else if (channelEnabled && isMcpChannelReady()) {
           // PTY + channel: respond via MCP channel
@@ -849,14 +890,14 @@ async function main() {
       },
       onAskAnswer(toolUseId, answers, annotations, skip) {
         // Headless: resolve via control_response to CC's can_use_tool request
-        const pending = pendingAskRequests.get(toolUseId)
-        if (pending && headless && streamProc) {
-          pendingAskRequests.delete(toolUseId)
+        const pending = ctx.pendingAskRequests.get(toolUseId)
+        if (pending && headless && ctx.streamProc) {
+          ctx.pendingAskRequests.delete(toolUseId)
           if (skip || !answers) {
-            streamProc.sendPermissionResponse(pending.requestId, false, undefined, toolUseId)
+            ctx.streamProc.sendPermissionResponse(pending.requestId, false, undefined, toolUseId)
             diag('headless', `AskUserQuestion skipped: ${toolUseId.slice(0, 12)}`)
           } else {
-            streamProc.sendPermissionResponse(
+            ctx.streamProc.sendPermissionResponse(
               pending.requestId,
               true,
               { questions: pending.questions, answers, ...(annotations && { annotations }) },
@@ -933,502 +974,23 @@ async function main() {
       },
       onQuitSession() {
         diag('session', 'Quit requested from dashboard - sending SIGTERM')
-        if (headless && streamProc) streamProc.kill()
-        else if (ptyProcess) ptyProcess.kill('SIGTERM')
+        if (headless && ctx.streamProc) ctx.streamProc.kill()
+        else if (ctx.ptyProcess) ctx.ptyProcess.kill('SIGTERM')
       },
       onInterrupt() {
-        if (headless && streamProc) {
+        if (headless && ctx.streamProc) {
           diag('session', 'Interrupt requested from dashboard')
-          streamProc.sendInterrupt()
-        } else if (ptyProcess) {
+          ctx.streamProc.sendInterrupt()
+        } else if (ctx.ptyProcess) {
           diag('session', 'Interrupt requested from dashboard - sending Ctrl+C to PTY')
-          ptyProcess.write('\x03')
+          ctx.ptyProcess.write('\x03')
         }
       },
     })
   }
 
-  function ensureFileEditor(): FileEditor {
-    if (!fileEditor) {
-      fileEditor = new FileEditor(cwd, claudeSessionId || internalId)
-    }
-    return fileEditor
-  }
-
-  function handleFileEditorMessage(msg: Record<string, unknown>) {
-    const type = msg.type as string
-    const requestId = msg.requestId as string | undefined
-    const sessionId = msg.sessionId as string | undefined
-    const editor = ensureFileEditor()
-
-    function respond(responseType: string, data: Record<string, unknown>) {
-      wsClient?.send({ type: responseType, requestId, sessionId, ...data } as unknown as WrapperMessage)
-    }
-
-    function respondError(responseType: string, err: unknown) {
-      respond(responseType, { error: String(err) })
-    }
-
-    // Path traversal guard: reject paths outside the session CWD
-    if (msg.path && !isPathWithinCwd(msg.path as string, cwd)) {
-      const errorType = type.replace('_request', '_response').replace('_save', '_save_response')
-      respond(errorType, { error: `Path outside session directory: ${msg.path}` })
-      return
-    }
-
-    switch (type) {
-      case 'file_list_request':
-        editor
-          .listFiles()
-          .then(files => respond('file_list_response', { files }))
-          .catch(err => respondError('file_list_response', err))
-        break
-      case 'file_content_request':
-        editor
-          .readFile(msg.path as string)
-          .then(result => respond('file_content_response', { content: result.content, version: result.version }))
-          .catch(err => respondError('file_content_response', err))
-        break
-      case 'file_save':
-        editor
-          .saveFile({
-            path: msg.path as string,
-            content: msg.content as string,
-            diff: (msg.diff as string) || '',
-            baseVersion: (msg.baseVersion as number) || 0,
-          })
-          .then(result => respond('file_save_response', { ...result }))
-          .catch(err => respondError('file_save_response', err))
-        break
-      case 'file_watch':
-        editor.watchFile(msg.path as string, event => {
-          wsClient?.send({ type: 'file_changed', sessionId, ...event } as unknown as WrapperMessage)
-        })
-        break
-      case 'file_unwatch':
-        editor.unwatchFile(msg.path as string)
-        break
-      case 'file_history_request':
-        try {
-          const versions = editor.getHistory(msg.path as string)
-          respond('file_history_response', { versions })
-        } catch (err) {
-          respondError('file_history_response', err)
-        }
-        break
-      case 'file_restore':
-        editor
-          .restoreVersion(msg.path as string, msg.version as number)
-          .then(async result => {
-            const read = await editor.readFile(msg.path as string)
-            respond('file_restore_response', { version: result.version, content: read.content })
-          })
-          .catch(err => respondError('file_restore_response', err))
-        break
-      case 'project_quick_add':
-        editor
-          .appendNote(msg.text as string)
-          .then(result => respond('project_quick_add_response', { version: result.version }))
-          .catch(err => respondError('project_quick_add_response', err))
-        break
-      case 'project_list':
-        try {
-          const notes = listProjectTasks(cwd, msg.status as TaskStatus | undefined)
-          respond('project_list_response', { notes })
-        } catch (err) {
-          respondError('project_list_response', err)
-        }
-        break
-      case 'project_create':
-        try {
-          const note = createProjectTask(cwd, {
-            title: msg.title as string | undefined,
-            body: msg.body as string,
-            priority: msg.priority as 'low' | 'medium' | 'high' | undefined,
-            tags: msg.tags as string[] | undefined,
-            refs: msg.refs as string[] | undefined,
-          })
-          respond('project_create_response', { note })
-        } catch (err) {
-          respondError('project_create_response', err)
-        }
-        break
-      case 'project_move':
-        try {
-          const ok = moveProjectTask(cwd, msg.slug as string, msg.from as TaskStatus, msg.to as TaskStatus)
-          respond('project_move_response', { ok })
-        } catch (err) {
-          respondError('project_move_response', err)
-        }
-        break
-      case 'project_delete':
-        try {
-          const ok = deleteProjectTask(cwd, msg.status as TaskStatus, msg.slug as string)
-          respond('project_delete_response', { ok })
-        } catch (err) {
-          respondError('project_delete_response', err)
-        }
-        break
-      case 'project_read':
-        try {
-          const note = getProjectTask(cwd, msg.status as TaskStatus, msg.slug as string)
-          respond('project_read_response', { note })
-        } catch (err) {
-          respondError('project_read_response', err)
-        }
-        break
-      case 'project_update':
-        try {
-          const note = updateProjectTask(cwd, msg.status as TaskStatus, msg.slug as string, {
-            title: msg.title as string | undefined,
-            body: msg.body as string | undefined,
-            priority: msg.priority as 'low' | 'medium' | 'high' | undefined,
-            tags: msg.tags as string[] | undefined,
-            refs: msg.refs as string[] | undefined,
-          })
-          respond('project_update_response', { note })
-        } catch (err) {
-          respondError('project_update_response', err)
-        }
-        break
-    }
-    debug(`File editor: ${type}${msg.path ? ` path=${msg.path}` : ''}`)
-  }
-
-  const TRANSCRIPT_CHUNK_SIZE = 50 // entries per chunk (was 200 — smaller to avoid oversized WS frames)
-
-  // Cache Edit tool inputs by tool_use_id for diff computation when the result arrives
-  const pendingEditInputs = new Map<string, { oldString: string; newString: string }>()
-  // Map Agent tool_use_id -> agent task_id for routing subagent stdout entries
-  const agentToolUseMap = new Map<string, string>()
-  // Pending AskUserQuestion requests from can_use_tool -- keyed by toolUseId
-  const pendingAskRequests = new Map<string, { requestId: string; questions: unknown[] }>()
-
-  // Augment entries with structuredPatch for Edit diffs.
-  // Two paths: (1) JSONL entries already have toolUseResult.oldString/newString -> compute directly
-  // (2) Stream entries: assistant has tool_use.input, user has tool_result -> cache input, apply on result
-  function augmentEditPatches(entries: TranscriptEntry[]): TranscriptEntry[] {
-    for (const entry of entries) {
-      const e = entry as Record<string, unknown>
-
-      // Path 1: toolUseResult with oldString/newString -- recompute structuredPatch with
-      // proper file line numbers using originalFile when available
-      const tur = e.toolUseResult as Record<string, unknown> | undefined
-      if (tur?.oldString && tur?.newString) {
-        try {
-          const oldStr = tur.oldString as string
-          const newStr = tur.newString as string
-          const originalFile = tur.originalFile as string | undefined
-          if (originalFile) {
-            // Diff the full file: original vs original-with-edit-applied
-            const modifiedFile = originalFile.replace(oldStr, newStr)
-            const patch = computeStructuredPatch('file', 'file', originalFile, modifiedFile, '', '', { context: 3 })
-            if (patch.hunks.length > 0) tur.structuredPatch = patch.hunks
-          } else if (!tur.structuredPatch) {
-            // No original file -- fall back to snippet diff (oldStart: 1)
-            const patch = computeStructuredPatch('file', 'file', oldStr, newStr, '', '', { context: 3 })
-            if (patch.hunks.length > 0) tur.structuredPatch = patch.hunks
-          }
-        } catch {}
-        continue
-      }
-
-      // Path 2a: assistant entry with Edit tool_use -> cache old_string/new_string
-      const msg = (e as { message?: { content?: unknown[] } }).message
-      if (entry.type === 'assistant' && Array.isArray(msg?.content)) {
-        for (const block of msg.content as Record<string, unknown>[]) {
-          if (block.type === 'tool_use' && block.name === 'Edit' && block.id) {
-            const input = block.input as Record<string, unknown> | undefined
-            if (input?.old_string && input?.new_string) {
-              pendingEditInputs.set(block.id as string, {
-                oldString: input.old_string as string,
-                newString: input.new_string as string,
-              })
-            }
-          }
-        }
-      }
-
-      // Path 2b: user entry with tool_result -> look up cached input, compute patch
-      if (entry.type === 'user' && Array.isArray(msg?.content)) {
-        for (const block of msg.content as Record<string, unknown>[]) {
-          if (block.type === 'tool_result' && block.tool_use_id && !block.is_error) {
-            const cached = pendingEditInputs.get(block.tool_use_id as string)
-            if (cached) {
-              pendingEditInputs.delete(block.tool_use_id as string)
-              try {
-                const patch = computeStructuredPatch('file', 'file', cached.oldString, cached.newString, '', '', {
-                  context: 3,
-                })
-                if (patch.hunks.length > 0) {
-                  // Attach to toolUseResult (create if missing)
-                  if (!e.toolUseResult) e.toolUseResult = {}
-                  ;(e.toolUseResult as Record<string, unknown>).structuredPatch = patch.hunks
-                }
-              } catch {}
-            }
-          }
-        }
-      }
-    }
-    return entries
-  }
-
-  /**
-   * Scan transcript entries for TodoWrite tool_use blocks and synthesize
-   * them into tasks_update WS messages (same format as CC's native tasks).
-   */
-  function interceptTodoWrite(entries: TranscriptEntry[]) {
-    if (!claudeSessionId || !wsClient?.isConnected()) return
-    for (const entry of entries) {
-      if (entry.type !== 'assistant') continue
-      const msg = (entry as Record<string, unknown>).message as Record<string, unknown> | undefined
-      const content = msg?.content
-      if (!Array.isArray(content)) continue
-      for (const block of content) {
-        if (block.type !== 'tool_use' || block.name !== 'TodoWrite') continue
-        const input = block.input as { todos?: Array<{ content: string; status: string; activeForm?: string }> }
-        if (!Array.isArray(input?.todos)) continue
-        const STATUS_MAP: Record<string, TaskInfo['status']> = {
-          pending: 'pending',
-          in_progress: 'in_progress',
-          completed: 'completed',
-        }
-        const tasks: TaskInfo[] = input.todos.map((todo, i) => ({
-          id: `todo-${i}`,
-          subject: todo.content,
-          description: todo.activeForm,
-          status: STATUS_MAP[todo.status] || 'pending',
-          updatedAt: Date.now(),
-        }))
-        const msg: TasksUpdate = { type: 'tasks_update', sessionId: claudeSessionId, tasks }
-        wsClient?.send(msg)
-        debug(`TodoWrite intercepted: ${tasks.length} items -> tasks_update`)
-      }
-    }
-  }
-
-  function sendTranscriptEntriesChunked(entries: TranscriptEntry[], isInitial: boolean, agentId?: string) {
-    if (!claudeSessionId || !wsClient?.isConnected()) {
-      debug(`Cannot send ${entries.length} entries: sessionId=${!!claudeSessionId} ws=${wsClient?.isConnected()}`)
-      return
-    }
-    // Intercept TodoWrite tool calls and synthesize as tasks
-    if (!agentId) interceptTodoWrite(entries)
-
-    // Augment Edit tool results with structuredPatch for diff rendering
-    const augmented = augmentEditPatches(entries)
-    const send = (chunk: TranscriptEntry[], initial: boolean) =>
-      agentId
-        ? wsClient?.sendSubagentTranscript(agentId, chunk, initial)
-        : wsClient?.sendTranscriptEntries(chunk, initial)
-
-    // Split into fixed-size chunks to avoid oversized WS frames
-    for (let i = 0; i < augmented.length; i += TRANSCRIPT_CHUNK_SIZE) {
-      const chunk = augmented.slice(i, i + TRANSCRIPT_CHUNK_SIZE)
-      send(chunk, isInitial && i === 0)
-    }
-  }
-
-  // Watch a background task .output file and stream chunks to concentrator
-  function startBgTaskOutputWatcher(taskId: string, outputPath: string) {
-    if (bgTaskOutputWatchers.has(taskId)) return
-
-    // Evict oldest bg task watcher if at capacity
-    if (bgTaskOutputWatchers.size >= MAX_BG_TASK_WATCHERS) {
-      const oldest = bgTaskOutputWatchers.keys().next().value
-      if (oldest) {
-        debug(`BG task watcher limit (${MAX_BG_TASK_WATCHERS}) reached, evicting: ${oldest}`)
-        bgTaskOutputWatchers.get(oldest)?.stop()
-      }
-    }
-
-    diag('bgout', `Watching output for bg task ${taskId}`, { taskId, outputPath })
-
-    let offset = 0
-    let totalBytes = 0
-    let stopped = false
-    let retries = 0
-    const MAX_RETRIES = 20 // 20 x 500ms = 10s max wait for file to appear
-
-    async function readChunk() {
-      if (stopped || !wsClient?.isConnected()) return
-      try {
-        const file = Bun.file(outputPath)
-        const size = file.size
-        if (size > offset) {
-          const slice = file.slice(offset, size)
-          const text = await slice.text()
-          offset = size
-          totalBytes += text.length
-          if (text) {
-            wsClient?.sendBgTaskOutput(taskId, text, false)
-          }
-        }
-      } catch {
-        // File might not exist yet
-        if (retries++ < MAX_RETRIES) return // will retry on next poll
-        diag('bgout', `Gave up waiting for output file`, { taskId, retries: MAX_RETRIES })
-        stopWatcher()
-      }
-    }
-
-    // Poll every 500ms - simple and reliable for output files
-    const interval = setInterval(readChunk, 500)
-
-    function stopWatcher() {
-      if (stopped) return
-      stopped = true
-      clearInterval(interval)
-      bgTaskOutputWatchers.delete(taskId)
-      // Do a final read to catch any remaining output
-      readChunk().then(() => {
-        if (wsClient?.isConnected()) {
-          wsClient.sendBgTaskOutput(taskId, '', true)
-        }
-        diag('bgout', `Watcher stopped`, { taskId, totalBytes })
-      })
-    }
-
-    bgTaskOutputWatchers.set(taskId, { stop: stopWatcher })
-  }
-
-  function extractEntryText(entry: TranscriptEntry): string {
-    const content = (entry as Record<string, unknown>).message
-      ? ((entry as Record<string, unknown>).message as Record<string, unknown>)?.content
-      : undefined
-    if (typeof content === 'string') return content
-    if (!Array.isArray(content)) return ''
-    return content
-      .filter((c: unknown) => typeof c === 'string' || (c as Record<string, unknown>)?.type === 'text')
-      .map((c: unknown) => (typeof c === 'string' ? c : (c as Record<string, string>).text))
-      .join('')
-  }
-
-  // Scan transcript entries for background task IDs and start output watchers
-  function scanForBgTasks(entries: TranscriptEntry[]) {
-    for (const entry of entries) {
-      const tur = (entry as Record<string, unknown>).toolUseResult as Record<string, unknown> | undefined
-      if (!tur?.backgroundTaskId) continue
-      const taskId = tur.backgroundTaskId as string
-      if (bgTaskOutputWatchers.has(taskId)) continue
-
-      const text = extractEntryText(entry)
-      const pathMatch = text.match(/Output is being written to: (\S+\.output)/)
-      if (pathMatch) {
-        startBgTaskOutputWatcher(taskId, pathMatch[1])
-      } else {
-        debug(`[bgout] Found backgroundTaskId ${taskId} but no output path in content`)
-      }
-    }
-
-    // Also check for task completions to stop watchers
-    for (const entry of entries) {
-      const text = extractEntryText(entry)
-      if (!text.includes('<task-notification>')) continue
-      const re = /<task-id>([^<]+)<\/task-id>/g
-      let match: RegExpExecArray | null = re.exec(text)
-      while (match !== null) {
-        const watcher = bgTaskOutputWatchers.get(match[1])
-        if (watcher) {
-          diag('bgout', `Task completed, stopping watcher`, { taskId: match[1] })
-          watcher.stop()
-        }
-        match = re.exec(text)
-      }
-    }
-  }
-
-  function startTranscriptWatcher(transcriptPath: string) {
-    if (headless) {
-      debug('Skipping transcript watcher in headless mode (data comes from stdout stream)')
-      return
-    }
-    if (transcriptWatcher) {
-      debug(`Transcript watcher already running, skipping`)
-      return
-    }
-
-    transcriptWatcher = createTranscriptWatcher({
-      debug: DEBUG ? (msg: string) => debug(`[tw] ${msg}`) : undefined,
-      onEntries(entries, isInitial) {
-        sendTranscriptEntriesChunked(entries, isInitial)
-        // Scan for background tasks to watch their output files
-        scanForBgTasks(entries)
-      },
-      onNewFile(filename) {
-        diag('watch', 'New transcript file detected', { filename })
-      },
-      onError(err) {
-        debug(`Transcript watcher error: ${err.message}`)
-      },
-    })
-
-    transcriptWatcher
-      .start(transcriptPath)
-      .then(() => {
-        diag('watch', 'Transcript watcher started', transcriptPath)
-      })
-      .catch(err => {
-        diag('error', 'Transcript watcher failed to start', { path: transcriptPath, error: String(err) })
-      })
-  }
-
-  function startSubagentWatcher(agentId: string, transcriptPath: string, live: boolean) {
-    // Subagent transcripts are separate files even in headless mode -
-    // agent output does NOT appear inline in the parent stdout stream
-    if (subagentWatchers.has(agentId)) return
-
-    // Evict oldest live watchers if at capacity (prevents unbounded growth if SubagentStop never fires)
-    if (subagentWatchers.size >= MAX_SUBAGENT_WATCHERS) {
-      const oldest = subagentWatchers.keys().next().value
-      if (oldest) {
-        debug(`Subagent watcher limit (${MAX_SUBAGENT_WATCHERS}) reached, evicting: ${oldest.slice(0, 7)}`)
-        const evicted = subagentWatchers.get(oldest)
-        evicted?.stop()
-        subagentWatchers.delete(oldest)
-      }
-    }
-
-    const watcher = createTranscriptWatcher({
-      debug: DEBUG ? (msg: string) => debug(`[tw:${agentId.slice(0, 7)}] ${msg}`) : undefined,
-      onEntries(entries, isInitial) {
-        if (claudeSessionId && wsClient?.isConnected()) {
-          sendTranscriptEntriesChunked(entries, isInitial, agentId)
-          debug(`Sent ${entries.length} subagent transcript entries for ${agentId.slice(0, 7)} (live=${live})`)
-        }
-      },
-      onError(err) {
-        debug(`Subagent watcher error (${agentId.slice(0, 7)}): ${err.message}`)
-      },
-    })
-
-    subagentWatchers.set(agentId, watcher)
-    watcher
-      .start(transcriptPath)
-      .then(() => {
-        if (!live) {
-          // Non-live (SubagentStop): file is complete, read once and close
-          watcher.stop()
-          subagentWatchers.delete(agentId)
-          debug(`Subagent transcript read complete, watcher closed: ${agentId.slice(0, 7)}`)
-        }
-        // Live mode: keep watching via chokidar for new entries
-      })
-      .catch(err => {
-        debug(`Failed to start subagent watcher: ${err}`)
-      })
-    debug(`${live ? 'Live watching' : 'Reading'} subagent transcript: ${agentId.slice(0, 7)}`)
-  }
-
-  function stopSubagentWatcher(agentId: string) {
-    const watcher = subagentWatchers.get(agentId)
-    if (watcher) {
-      watcher.stop()
-      subagentWatchers.delete(agentId)
-      debug(`Stopped live subagent watcher: ${agentId.slice(0, 7)}`)
-    }
-  }
+  // Wire up connectToConcentrator on context
+  ctx.connectToConcentrator = connectToConcentrator
 
   let devChannelConfirmed = false
   const osc52Parser = new Osc52Parser()
@@ -1436,8 +998,8 @@ async function main() {
   initMcpChannel({
     onNotify(message, title) {
       diag('channel', `Notify: ${title ? `[${title}] ` : ''}${message.slice(0, 80)}`)
-      if (wsClient?.isConnected()) {
-        wsClient.send({ type: 'notify', sessionId: claudeSessionId || internalId, message, title })
+      if (ctx.wsClient?.isConnected()) {
+        ctx.wsClient.send({ type: 'notify', sessionId: ctx.claudeSessionId || internalId, message, title })
       }
     },
     async onShareFile(filePath) {
@@ -1462,7 +1024,7 @@ async function main() {
           method: 'POST',
           headers: {
             'Content-Type': contentType,
-            'X-Session-Id': claudeSessionId || internalId,
+            'X-Session-Id': ctx.claudeSessionId || internalId,
             ...(concentratorSecret ? { Authorization: `Bearer ${concentratorSecret}` } : {}),
           },
           body: bytes,
@@ -1480,7 +1042,7 @@ async function main() {
       }
     },
     async onListSessions(status, showMetadata) {
-      if (!wsClient?.isConnected()) return []
+      if (!ctx.wsClient?.isConnected()) return []
       return new Promise(resolve => {
         const timeout = setTimeout(() => resolve([]), 5000)
         pendingListSessions = sessions => {
@@ -1488,7 +1050,7 @@ async function main() {
           pendingListSessions = null
           resolve(sessions)
         }
-        wsClient?.send({
+        ctx.wsClient?.send({
           type: 'channel_list_sessions',
           status,
           show_metadata: showMetadata,
@@ -1496,7 +1058,7 @@ async function main() {
       })
     },
     async onSendMessage(to, intent, message, context, conversationId) {
-      if (!wsClient?.isConnected()) return { ok: false, error: 'Not connected' }
+      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected' }
       return new Promise(resolve => {
         const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
         pendingSendResult = result => {
@@ -1504,9 +1066,9 @@ async function main() {
           pendingSendResult = null
           resolve(result)
         }
-        wsClient?.send({
+        ctx.wsClient?.send({
           type: 'channel_send',
-          fromSession: claudeSessionId || internalId,
+          fromSession: ctx.claudeSessionId || internalId,
           toSession: to,
           intent,
           message,
@@ -1518,8 +1080,8 @@ async function main() {
     onPermissionRequest(data) {
       // Check auto-approve rules before forwarding to dashboard
       if (permissionRules.shouldAutoApprove(data.toolName, data.inputPreview)) {
-        if (headless && streamProc) {
-          streamProc.sendPermissionResponse(data.requestId, true)
+        if (headless && ctx.streamProc) {
+          ctx.streamProc.sendPermissionResponse(data.requestId, true)
         } else {
           sendPermissionResponse(data.requestId, 'allow').catch(err => {
             debug(`sendPermissionResponse (auto) error: ${err instanceof Error ? err.message : err}`)
@@ -1527,10 +1089,10 @@ async function main() {
         }
         diag(headless ? 'headless' : 'channel', `Permission auto-approved: ${data.requestId} ${data.toolName}`)
         // Notify dashboard for visibility (not for approval)
-        if (wsClient?.isConnected()) {
-          wsClient.send({
+        if (ctx.wsClient?.isConnected()) {
+          ctx.wsClient.send({
             type: 'permission_auto_approved',
-            sessionId: claudeSessionId || internalId,
+            sessionId: ctx.claudeSessionId || internalId,
             requestId: data.requestId,
             toolName: data.toolName,
             description: data.description,
@@ -1540,10 +1102,10 @@ async function main() {
       }
 
       diag('channel', `Permission request: ${data.requestId} ${data.toolName}`)
-      if (wsClient?.isConnected()) {
-        wsClient.send({
+      if (ctx.wsClient?.isConnected()) {
+        ctx.wsClient.send({
           type: 'permission_request',
-          sessionId: claudeSessionId || internalId,
+          sessionId: ctx.claudeSessionId || internalId,
           requestId: data.requestId,
           toolName: data.toolName,
           description: data.description,
@@ -1553,10 +1115,10 @@ async function main() {
     },
     onDialogShow(dialogId, layout) {
       diag('dialog', `Show: "${layout.title}" (${dialogId.slice(0, 8)})`)
-      if (wsClient?.isConnected()) {
-        wsClient.send({
+      if (ctx.wsClient?.isConnected()) {
+        ctx.wsClient.send({
           type: 'dialog_show',
-          sessionId: claudeSessionId || internalId,
+          sessionId: ctx.claudeSessionId || internalId,
           dialogId,
           layout,
         } as unknown as WrapperMessage)
@@ -1564,22 +1126,22 @@ async function main() {
     },
     onDialogDismiss(dialogId) {
       diag('dialog', `Dismiss: ${dialogId.slice(0, 8)}`)
-      if (wsClient?.isConnected()) {
-        wsClient.send({
+      if (ctx.wsClient?.isConnected()) {
+        ctx.wsClient.send({
           type: 'dialog_dismiss',
-          sessionId: claudeSessionId || internalId,
+          sessionId: ctx.claudeSessionId || internalId,
           dialogId,
         } as unknown as WrapperMessage)
       }
     },
     onDeliverMessage(content, meta) {
-      if (headless && streamProc) {
+      if (headless && ctx.streamProc) {
         // Headless: deliver as <channel> tag on stdin
         const attrs = Object.entries(meta)
           .map(([k, v]) => `${k}="${v}"`)
           .join(' ')
         const wrapped = `<channel ${attrs}>\n${content}\n</channel>`
-        streamProc.sendUserMessage(wrapped)
+        ctx.streamProc.sendUserMessage(wrapped)
         diag('headless', `Delivered message: ${meta.sender} ${content.slice(0, 60)}`)
       } else {
         // PTY+channel: deliver as MCP channel notification
@@ -1595,11 +1157,11 @@ async function main() {
         diag('channel', 'toggle_plan_mode: not supported in headless mode')
       } else {
         diag('channel', 'toggle_plan_mode: injecting /plan via PTY')
-        if (ptyProcess) ptyProcess.write('/plan\r')
+        if (ctx.ptyProcess) ctx.ptyProcess.write('/plan\r')
       }
     },
     async onReviveSession(sessionId) {
-      if (!wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
       return new Promise(resolve => {
         const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
         pendingReviveResult = result => {
@@ -1607,14 +1169,14 @@ async function main() {
           pendingReviveResult = null
           resolve(result)
         }
-        wsClient?.send({
+        ctx.wsClient?.send({
           type: 'channel_revive',
           sessionId,
         } as unknown as WrapperMessage)
       })
     },
     async onSpawnSession({ cwd, mode, resumeId, mkdir, headless: spawnHeadless }) {
-      if (!wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
 
       // Step 1: Send spawn request via WS, get immediate ack with wrapperId
       const spawnResult = await new Promise<{ ok: boolean; error?: string; wrapperId?: string }>(resolve => {
@@ -1624,7 +1186,7 @@ async function main() {
           pendingSpawnResult = null
           resolve(result)
         }
-        wsClient?.send({
+        ctx.wsClient?.send({
           type: 'channel_spawn',
           cwd,
           mode,
@@ -1669,7 +1231,7 @@ async function main() {
       return { ok: true, wrapperId: spawnResult.wrapperId }
     },
     async onRestartSession(sessionId) {
-      if (!wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
       return new Promise(resolve => {
         const timeout = setTimeout(
           () => resolve({ ok: false, error: 'Timeout waiting for restart confirmation' }),
@@ -1680,21 +1242,21 @@ async function main() {
           pendingRestartResult = null
           resolve(result)
         }
-        wsClient?.send({
+        ctx.wsClient?.send({
           type: 'channel_restart',
           sessionId,
         } as unknown as WrapperMessage)
       })
     },
     async onQuitSession(sessionId) {
-      if (!wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
       return new Promise(resolve => {
         const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout waiting for quit confirmation' }), 10000)
         // Send quit request via WS - concentrator routes to target wrapper
-        wsClient?.send({
+        ctx.wsClient?.send({
           type: 'quit_remote_session',
           targetSession: sessionId,
-          fromSession: claudeSessionId || internalId,
+          fromSession: ctx.claudeSessionId || internalId,
         } as unknown as WrapperMessage)
         // For now, assume success since the concentrator doesn't ack quit
         clearTimeout(timeout)
@@ -1702,7 +1264,7 @@ async function main() {
       })
     },
     async onConfigureSession({ sessionId, label, icon, color, description, keyterms }) {
-      if (!wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
       return new Promise(resolve => {
         const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
         pendingConfigureResult = result => {
@@ -1710,7 +1272,7 @@ async function main() {
           pendingConfigureResult = null
           resolve(result)
         }
-        wsClient?.send({
+        ctx.wsClient?.send({
           type: 'channel_configure',
           sessionId,
           label,
@@ -1745,167 +1307,23 @@ async function main() {
     sessionId: internalId,
     mcpEnabled: true,
     onHookEvent(event: HookEvent) {
-      // Extract Claude's real session ID from SessionStart
-      if (event.hookEvent === 'SessionStart' && event.data) {
-        const data = event.data as Record<string, unknown>
-        debug(
-          `SessionStart data keys: ${Object.keys(data).join(', ')} | source=${data.source} | session_id=${String(data.session_id).slice(0, 8)}`,
-        )
-        if (data.session_id && typeof data.session_id === 'string') {
-          const newSessionId = data.session_id
-          const sessionChanged = claudeSessionId !== newSessionId
-          const prevSessionId = claudeSessionId
-          claudeSessionId = newSessionId
-          diag('session', sessionChanged ? 'Session ID changed' : 'Session ID confirmed', {
-            sessionId: claudeSessionId,
-            prev: sessionChanged ? prevSessionId : undefined,
-            internalId,
-          })
-
-          // Connect (or re-key) to concentrator with the correct session ID
-          if (!wsClient) {
-            connectToConcentrator(claudeSessionId)
-          } else if (sessionChanged) {
-            // Session ID changed (e.g. /clear, /resume) - re-key on same connection
-            debug(`Session ID changed, sending session_clear to concentrator`)
-            const newModel = typeof data.model === 'string' ? data.model : undefined
-            wsClient.sendSessionClear(claudeSessionId, cwd, newModel)
-
-            // Clean up all subagent watchers from old session
-            for (const [agentId, watcher] of subagentWatchers) {
-              debug(`Stopping orphaned subagent watcher: ${agentId.slice(0, 7)}`)
-              watcher.stop()
-            }
-            subagentWatchers.clear()
-
-            // Reset task watcher for new session directory
-            lastTasksJson = ''
-            if (taskWatcher) {
-              taskWatcher.close()
-              taskWatcher = null
-            }
-            startTaskWatching()
-            startProjectWatching()
-          }
-
-          // Start/restart transcript watcher if path is available and session changed
-          if (data.transcript_path && typeof data.transcript_path === 'string') {
-            const transcriptPath = data.transcript_path
-            parentTranscriptPath = transcriptPath
-            // Start watcher if transcript file exists, or retry until it does
-            // Brand new projects can take 60-90s before Claude creates the JSONL file.
-            // Use exponential backoff: 500ms, 1s, 2s, 4s... capped at 10s, ~2.5 min total
-            async function tryStartTranscriptWatcher(path: string) {
-              if (headless) return // no transcript file watching in headless mode
-              let delay = 500
-              const maxDelay = 10_000
-              const maxTotal = 900_000 // 15 minutes total (slow-starting sessions can take 6+ min)
-              let elapsed = 0
-              let attempt = 0
-              while (elapsed < maxTotal) {
-                if (existsSync(path)) {
-                  if (sessionChanged || !transcriptWatcher) {
-                    if (transcriptWatcher) {
-                      debug(`Stopping old transcript watcher (session changed)`)
-                      transcriptWatcher.stop()
-                      transcriptWatcher = null
-                    }
-                    debug(`Starting transcript watcher: ${path}`)
-                    startTranscriptWatcher(path)
-                  } else {
-                    debug(`Transcript watcher already running for correct session`)
-                  }
-                  return
-                }
-                attempt++
-                debug(
-                  `Transcript file not found (attempt ${attempt}, ${(elapsed / 1000).toFixed(1)}s elapsed), retrying in ${delay}ms: ${path}`,
-                )
-                await new Promise(r => setTimeout(r, delay))
-                elapsed += delay
-                delay = Math.min(delay * 2, maxDelay)
-              }
-              diag('error', 'Transcript file never appeared', {
-                path,
-                elapsed: `${(elapsed / 1000).toFixed(0)}s`,
-                attempts: attempt,
-              })
-            }
-            tryStartTranscriptWatcher(transcriptPath).catch(err => {
-              debug(`tryStartTranscriptWatcher error: ${err instanceof Error ? err.message : err}`)
-            })
-          } else {
-            debug(`WARNING: No transcript_path in SessionStart data!`)
-          }
-        }
-      }
-
-      // Start live watching subagent transcripts at SubagentStart
-      if (event.hookEvent === 'SubagentStart' && event.data) {
-        const data = event.data as Record<string, unknown>
-        const agentId = String(data.agent_id || '')
-        if (agentId && parentTranscriptPath) {
-          // Derive subagent transcript path: {sessionDir}/subagents/agent-{agentId}.jsonl
-          const sessionDir = parentTranscriptPath.replace(/\.jsonl$/, '')
-          const agentTranscriptPath = join(sessionDir, 'subagents', `agent-${agentId}.jsonl`)
-          if (existsSync(agentTranscriptPath)) {
-            startSubagentWatcher(agentId, agentTranscriptPath, true)
-          } else {
-            debug(`SubagentStart: transcript file not yet created: ${agentTranscriptPath}`)
-            // Retry after a short delay (file may be created slightly after hook fires)
-            setTimeout(() => {
-              if (existsSync(agentTranscriptPath) && !subagentWatchers.has(agentId)) {
-                startSubagentWatcher(agentId, agentTranscriptPath, true)
-              }
-            }, 500)
-          }
-        }
-      }
-
-      // Stop live watcher and do final read at SubagentStop
-      if (event.hookEvent === 'SubagentStop' && event.data) {
-        const data = event.data as Record<string, unknown>
-        const agentId = String(data.agent_id || '')
-        const transcriptPath = typeof data.agent_transcript_path === 'string' ? data.agent_transcript_path : undefined
-        debug(`SubagentStop: agent=${agentId.slice(0, 7)} transcript=${transcriptPath || 'NONE'}`)
-        // Stop live watcher first
-        stopSubagentWatcher(agentId)
-        // Then do a final read of the complete transcript
-        if (agentId && transcriptPath) {
-          startSubagentWatcher(agentId, transcriptPath, false)
-        }
-      }
-
-      // Forward to concentrator, or queue until session ID + WS are ready
-      if (claudeSessionId && wsClient?.isConnected()) {
-        wsClient.sendHookEvent({ ...event, sessionId: claudeSessionId })
-        debug(`Hook: ${event.hookEvent} -> forwarded (sid=${claudeSessionId.slice(0, 8)})`)
-      } else {
-        if (eventQueue.length >= MAX_EVENT_QUEUE) {
-          const dropped = eventQueue.shift()
-          debug(`Event queue full (${MAX_EVENT_QUEUE}), dropping oldest: ${dropped?.hookEvent}`)
-        }
-        eventQueue.push(event)
-        debug(
-          `Hook: ${event.hookEvent} -> QUEUED (claudeSessionId=${claudeSessionId?.slice(0, 8) || 'null'} ws=${wsClient?.isConnected() || false} queue=${eventQueue.length})`,
-        )
-      }
+      processHookEvent(ctx, event)
     },
     onNotify(message: string, title?: string) {
-      const sessionId = claudeSessionId || internalId
+      const sid = ctx.claudeSessionId || internalId
       debug(`Notify: ${title ? `[${title}] ` : ''}${message}`)
-      if (wsClient?.isConnected()) {
-        wsClient.send({ type: 'notify', sessionId, message, title })
+      if (ctx.wsClient?.isConnected()) {
+        ctx.wsClient.send({ type: 'notify', sessionId: sid, message, title })
       }
     },
     onAskQuestion(request) {
       debug(`AskUserQuestion: ${request.questions.length} questions, toolUseId=${request.toolUseId.slice(0, 12)}`)
-      if (wsClient?.isConnected()) {
-        wsClient.send({ ...request, sessionId: claudeSessionId || internalId })
+      if (ctx.wsClient?.isConnected()) {
+        ctx.wsClient.send({ ...request, sessionId: ctx.claudeSessionId || internalId })
       }
     },
     hasDashboardSubscribers() {
-      return wsClient?.isConnected() ?? false
+      return ctx.wsClient?.isConnected() ?? false
     },
   })
 
@@ -1917,104 +1335,7 @@ async function main() {
 
   // Write system prompt additions for rclaude-specific behavior
   const promptFile = join(rclaudeDir, 'settings', `prompt-${internalId}.txt`)
-  writeFileSync(
-    promptFile,
-    [
-      '# Attached Files (rclaude)',
-      '',
-      'When the user sends a message containing markdown image or file links like `![filename](https://...)` or `[filename](https://...)`,',
-      'these are files attached via the remote dashboard. Handle them based on file type:',
-      '',
-      '- **Images** (.png, .jpg, .jpeg, .gif, .webp, .svg): Download with `curl -sL "<url>" -o /tmp/<filename>`, then use the Read tool to view the downloaded file.',
-      '- **Text/code files** (.txt, .md, .json, .csv, .xml, .yaml, .yml, .toml, .ts, .js, .py, etc.): Use `curl -sL "<url>"` to fetch and read the content directly.',
-      '- **PDFs** (.pdf): Download with `curl -sL "<url>" -o /tmp/<filename>`, then use the Read tool with the pages parameter.',
-      '',
-      'Always download and process these files - do not just acknowledge the links. The user expects you to see and work with the file contents.',
-      '',
-      '# Notifications (rclaude)',
-      '',
-      "You can send push notifications to the user's devices (phone, browser) via the rclaude notification endpoint.",
-      'Use this when the user asks to be notified, or when a long-running task completes and the user might not be watching.',
-      '',
-      '```bash',
-      `curl -s -X POST http://127.0.0.1:${localServerPort}/notify -H "Content-Type: application/json" -d '{"message": "Your task is done!", "title": "Optional title"}'`,
-      '```',
-      '',
-      '- `message` (required): The notification body text',
-      '- `title` (optional): Notification title (defaults to project name)',
-      '',
-      "This sends a real push notification to the user's phone/browser AND shows a toast in the dashboard.",
-      '',
-      '# MCP Tools (rclaude)',
-      '',
-      '**Available MCP tools (rclaude server):**',
-      "- `mcp__rclaude__notify` - Send a push notification to the user's devices (phone, browser)",
-      '- `mcp__rclaude__share_file` - Upload a local file and get a public URL for the dashboard user',
-      '',
-      'Prefer the MCP `notify` tool over the curl endpoint when the channel is active.',
-      'Use `share_file` to share screenshots, images, build artifacts, or any file the user needs to see.',
-      '# Project Board (rclaude)',
-      '',
-      'Use `mcp__rclaude__project_list` to list project tasks from the board.',
-      'Tasks are markdown files in `.rclaude/project/{status}/` with YAML frontmatter.',
-      'Status folders: `open/`, `in-progress/`, `done/`, `archived/`.',
-      'To change status: `mcp__rclaude__project_set_status` with id (filename without .md) and target status.',
-      'To edit: read and write the .md file directly (update frontmatter + body).',
-      'Frontmatter: title, priority (high/medium/low), tags [...], refs [...], created (ISO).',
-      'Changes are auto-pushed to the dashboard project board via file watcher.',
-      '',
-      ...(channelEnabled
-        ? [
-            '',
-            '# MCP Channel (rclaude)',
-            '',
-            'This session has an active MCP channel connection to the rclaude remote dashboard.',
-            'Messages from the dashboard arrive as `<channel source="rclaude">` -- treat them as regular user input.',
-            'The user may be on their phone or another device, not at the terminal.',
-            '',
-            '# Inter-Session Communication (rclaude)',
-            '',
-            'You can communicate with other active Claude Code sessions that have channels enabled:',
-            '- `mcp__rclaude__list_sessions` - discover live sessions (only shows channel-capable sessions)',
-            '- `mcp__rclaude__send_message` - send a message to another session (first contact requires user approval via dashboard)',
-            '',
-            'Messages from other sessions arrive as `<channel sender="session">`. They include:',
-            '- `from_session` / `from_project`: who sent it',
-            '- `intent`: request (they need something), response (answering you), notify (FYI), progress (status update)',
-            '- `conversation_id`: include this in replies to maintain thread context',
-            '',
-            'Session linking is managed by the user via the dashboard -- you cannot approve or block sessions.',
-            'Always include conversation_id when replying to maintain context threading.',
-            '',
-            '**IMPORTANT: When you receive a `<channel sender="session">` message and want to reply,',
-            'ALWAYS use `mcp__rclaude__send_message` -- NEVER the built-in `SendMessage` tool.**',
-            'The built-in `SendMessage` writes to a local file inbox that is invisible to the user',
-            'and the dashboard. `mcp__rclaude__send_message` routes through the concentrator where',
-            'the user can see, approve, and track all inter-session messages. This applies to ALL',
-            'inter-session replies, regardless of how the original message arrived.',
-          ]
-        : []),
-      // Headless conduit messaging
-      ...(headless
-        ? [
-            '',
-            '# Headless Mode',
-            '',
-            'This session is running in **headless mode** (no terminal, structured I/O).',
-            'User messages arrive as plain text.',
-            'Inter-session messages from other Claude Code sessions arrive wrapped in `<channel>` tags:',
-            '',
-            '```',
-            '<channel sender="session" from_project="other-project" intent="request" conversation_id="conv_xyz">',
-            'Message from another session',
-            '</channel>',
-            '```',
-            '',
-            'Treat these as requests from other AI sessions. Include conversation_id when replying.',
-          ]
-        : []),
-    ].join('\n'),
-  )
+  writeFileSync(promptFile, buildSystemPrompt({ localServerPort, channelEnabled, headless }))
   claudeArgs.push('--append-system-prompt', readFileSync(promptFile, 'utf-8'))
 
   // Spawn claude with PTY
@@ -2044,206 +1365,23 @@ async function main() {
     debug('Starting in HEADLESS mode (stream-json)')
     diag('headless', 'Stream-JSON backend active')
 
-    const headlessSpawnOptions: Parameters<typeof spawnStreamClaude>[0] = {
-      args: finalClaudeArgs,
+    const headlessSpawnOptions = buildHeadlessSpawnOptions({
+      ctx,
+      permissionRules,
+      finalClaudeArgs,
       settingsPath,
-      sessionId: internalId,
       localServerPort,
       concentratorUrl: concentratorHttpUrl,
       concentratorSecret,
-      onTranscriptEntries(entries, isInitial) {
-        sendTranscriptEntriesChunked(entries, isInitial)
-      },
-      onInit(init) {
-        debug(`[headless] init: session=${init.session_id?.slice(0, 8)} model=${init.model}`)
-        if (init.session_id) {
-          const prevId = claudeSessionId
-          claudeSessionId = init.session_id
-          // Handle deferred /clear rekey -- now we have the REAL session ID
-          if (pendingClearFromId && wsClient?.isConnected()) {
-            diag('headless', `Deferred rekey: ${pendingClearFromId.slice(0, 8)} -> ${init.session_id.slice(0, 8)}`)
-            wsClient.sendSessionClear(init.session_id, cwd)
-            pendingClearFromId = null
-          } else if (prevId && prevId !== init.session_id && wsClient?.isConnected()) {
-            // Session ID changed outside /clear (e.g., revive with different session)
-            diag('headless', `Session ID changed: ${prevId.slice(0, 8)} -> ${init.session_id.slice(0, 8)}`)
-            wsClient.sendSessionClear(init.session_id, cwd)
-          } else if (!prevId) {
-            diag('headless', `CC session ID from init: ${init.session_id.slice(0, 8)}`)
-          }
-        }
-        // Derive transcript path from init if not yet set by SessionStart hook
-        if (init.session_id && !parentTranscriptPath) {
-          const cwdSlug = cwd.replace(/\//g, '-').replace(/^-/, '')
-          parentTranscriptPath = join(
-            process.env.HOME || '',
-            '.claude',
-            'projects',
-            cwdSlug,
-            `${init.session_id}.jsonl`,
-          )
-          debug(`[headless] Derived transcript path: ${parentTranscriptPath}`)
-        }
-        // Forward full init metadata to concentrator for dashboard autocomplete
-        if (wsClient?.isConnected()) {
-          wsClient.send({
-            type: 'session_info',
-            sessionId: claudeSessionId || internalId,
-            tools:
-              (init.tools as Array<{ name: string } | string>)?.map(t => (typeof t === 'string' ? t : t.name)) || [],
-            slashCommands: (init.slash_commands as string[]) || [],
-            skills: (init.skills as string[]) || [],
-            agents: (init.agents as string[]) || [],
-            mcpServers: (init.mcp_servers as Array<{ name: string; status?: string }>) || [],
-            plugins: (init.plugins as Array<{ name: string; source?: string }>) || [],
-            model: (init.model as string) || '',
-            permissionMode: (init.permissionMode as string) || '',
-            claudeCodeVersion: (init.claude_code_version as string) || '',
-            fastModeState: (init.fast_mode_state as string) || '',
-          } as WrapperMessage)
-          diag(
-            'headless',
-            `Sent session_info: ${(init.tools as unknown[])?.length || 0} tools, ${(init.skills as unknown[])?.length || 0} skills, ${(init.agents as unknown[])?.length || 0} agents`,
-          )
-        }
-      },
-      onResult(result) {
-        diag('headless', `Result: ${result.subtype} cost=$${result.total_cost_usd} turns=${result.num_turns}`)
-        if (result.total_cost_usd != null && wsClient?.isConnected() && claudeSessionId) {
-          wsClient.send({
-            type: 'turn_cost',
-            sessionId: claudeSessionId,
-            costUsd: result.total_cost_usd,
-          } as unknown as WrapperMessage)
-        }
-      },
-      onStreamEvent(event) {
-        // Forward raw API SSE deltas to concentrator for real-time streaming
-        if (wsClient?.isConnected()) {
-          wsClient.sendStreamDelta(event)
-        }
-      },
-      onRateLimit(retryAfterMs, message) {
-        if (wsClient?.isConnected()) {
-          wsClient.sendRateLimit(retryAfterMs, message)
-        }
-      },
-      onTaskStarted(task) {
-        if (task.taskType === 'local_agent' && task.taskId) {
-          // Map toolUseId -> taskId for routing subagent entries from stdout
-          agentToolUseMap.set(task.toolUseId, task.taskId)
-          if (parentTranscriptPath) {
-            // Also start file watcher for subagent JSONL (backup path)
-            const sessionDir = parentTranscriptPath.replace(/\.jsonl$/, '')
-            const agentTranscriptPath = join(sessionDir, 'subagents', `agent-${task.taskId}.jsonl`)
-            debug(`[headless] Agent started: ${task.taskId.slice(0, 8)} -> ${agentTranscriptPath}`)
-            startSubagentWatcher(task.taskId, agentTranscriptPath, true)
-          }
-        }
-      },
-      onSubagentEntry(toolUseId, entry) {
-        const agentId = agentToolUseMap.get(toolUseId)
-        if (agentId) {
-          sendTranscriptEntriesChunked([entry], false, agentId)
-        }
-      },
-      onPermissionRequest(request) {
-        const inputStr = JSON.stringify(request.toolInput)
-        const toolUseId = request.tool_use_id as string | undefined
+      spawnStreamClaude,
+      cleanup,
+    })
 
-        // AskUserQuestion: route to dashboard ask_question UI, respond with answers
-        if (request.toolName === 'AskUserQuestion' && toolUseId) {
-          const questions = (request.toolInput?.questions as unknown[]) || []
-          pendingAskRequests.set(toolUseId, { requestId: request.requestId, questions })
-          if (wsClient?.isConnected()) {
-            wsClient.send({
-              type: 'ask_question',
-              sessionId: claudeSessionId || internalId,
-              toolUseId,
-              questions,
-            } as unknown as WrapperMessage)
-          }
-          diag('headless', `AskUserQuestion: ${toolUseId.slice(0, 12)} ${questions.length}q`)
-          return
-        }
-
-        // Check auto-approve rules (rclaude.json + session rules) before forwarding to dashboard
-        if (permissionRules.shouldAutoApprove(request.toolName, inputStr.slice(0, 200))) {
-          streamProc?.sendPermissionResponse(request.requestId, true, undefined, toolUseId)
-          diag('headless', `Permission auto-approved: ${request.requestId} ${request.toolName}`)
-          if (wsClient?.isConnected()) {
-            wsClient.send({
-              type: 'permission_auto_approved',
-              sessionId: claudeSessionId || internalId,
-              requestId: request.requestId,
-              toolName: request.toolName,
-              description: (request.decision_reason as string) || `${request.toolName}: ${inputStr.slice(0, 100)}`,
-            } as unknown as WrapperMessage)
-          }
-          return
-        }
-
-        // Forward to concentrator for dashboard handling
-        if (wsClient?.isConnected()) {
-          wsClient.send({
-            type: 'permission_request',
-            sessionId: claudeSessionId || internalId,
-            toolName: request.toolName,
-            description: (request.decision_reason as string) || `${request.toolName}: ${inputStr.slice(0, 100)}`,
-            inputPreview: inputStr.slice(0, 200),
-            requestId: request.requestId,
-            toolUseId,
-          })
-          diag('headless', `Permission request: ${request.toolName} (${request.requestId.slice(0, 8)})`)
-        }
-      },
-      onExit(code) {
-        if (clearRequested) {
-          // /clear: respawn CC fresh (strip --continue/--resume/--session-id)
-          clearRequested = false
-          const freshArgs = finalClaudeArgs.filter(
-            (a, i, arr) =>
-              a !== '--continue' &&
-              a !== '--resume' &&
-              !(i > 0 && arr[i - 1] === '--resume') &&
-              a !== '--session-id' &&
-              !(i > 0 && arr[i - 1] === '--session-id'),
-          )
-          const oldSessionId = claudeSessionId
-          claudeSessionId = null
-          parentTranscriptPath = ''
-          pendingEditInputs.clear()
-          agentToolUseMap.clear()
-          pendingAskRequests.clear()
-          // Don't rekey yet -- wait for the new CC's real session ID from onInit.
-          // Sending randomUUID() here caused double-rekey and transcript loss.
-          pendingClearFromId = oldSessionId
-          diag(
-            'headless',
-            `Respawning CC fresh after /clear (old: ${oldSessionId?.slice(0, 8) || 'none'}, rekey deferred)`,
-          )
-          respawnHeadless(freshArgs)
-          return
-        }
-        if (claudeSessionId) {
-          wsClient?.sendSessionEnd(code === 0 ? 'normal' : `exit_code_${code}`)
-        }
-        cleanup()
-        process.exit(code ?? 0)
-      },
-    }
-
-    // Respawn helper for /clear -- reuses all callbacks (they reference outer scope)
-    function respawnHeadless(args: string[]) {
-      streamProc = spawnStreamClaude({ ...headlessSpawnOptions, args })
-      streamProc.forwardStdin()
-    }
-
-    streamProc = spawnStreamClaude(headlessSpawnOptions)
-    streamProc.forwardStdin()
+    ctx.streamProc = spawnStreamClaude(headlessSpawnOptions)
+    ctx.streamProc.forwardStdin()
   } else {
     // --- PTY MODE: existing behavior ---
-    ptyProcess = spawnClaude({
+    ctx.ptyProcess = spawnClaude({
       args: finalClaudeArgs,
       settingsPath,
       sessionId: internalId,
@@ -2258,7 +1396,7 @@ async function main() {
             devChannelConfirmed = true
             setTimeout(() => {
               debug('[channel] Sending Enter to confirm dev channel warning')
-              ptyProcess?.write('\r')
+              ctx.ptyProcess?.write('\r')
             }, 300)
             diag('channel', 'Auto-confirmed dev channel warning')
           }
@@ -2266,11 +1404,11 @@ async function main() {
 
         // Scan for OSC 52 clipboard sequences and forward captures to concentrator
         const cleaned = osc52Parser.write(data, capture => {
-          if (wsClient?.isConnected()) {
-            const sessionId = claudeSessionId || internalId
-            wsClient.send({
+          if (ctx.wsClient?.isConnected()) {
+            const sid = ctx.claudeSessionId || internalId
+            ctx.wsClient.send({
               type: 'clipboard_capture',
-              sessionId,
+              sessionId: sid,
               contentType: capture.contentType,
               text: capture.text,
               base64: capture.contentType === 'image' ? capture.base64 : undefined,
@@ -2285,13 +1423,13 @@ async function main() {
         })
 
         // Forward PTY output to remote terminal viewer when attached (OSC 52 stripped)
-        if (terminalAttached && claudeSessionId && wsClient?.isConnected()) {
-          wsClient.sendTerminalData(cleaned)
+        if (ctx.terminalAttached && ctx.claudeSessionId && ctx.wsClient?.isConnected()) {
+          ctx.wsClient.sendTerminalData(cleaned)
         }
       },
       onExit(code) {
-        if (claudeSessionId) {
-          wsClient?.sendSessionEnd(code === 0 ? 'normal' : `exit_code_${code}`)
+        if (ctx.claudeSessionId) {
+          ctx.wsClient?.sendSessionEnd(code === 0 ? 'normal' : `exit_code_${code}`)
         }
         cleanup()
         process.exit(code ?? 0)
@@ -2299,28 +1437,28 @@ async function main() {
     })
 
     // Setup terminal passthrough (PTY mode only)
-    cleanupTerminal = setupTerminalPassthrough(ptyProcess as PtyProcess)
+    cleanupTerminal = setupTerminalPassthrough(ctx.ptyProcess as PtyProcess)
   }
 
   // Cleanup function
   function cleanup() {
-    if (taskWatcher) taskWatcher.close()
-    transcriptWatcher?.stop()
-    for (const watcher of subagentWatchers.values()) watcher.stop()
-    subagentWatchers.clear()
-    for (const watcher of bgTaskOutputWatchers.values()) watcher.stop()
-    bgTaskOutputWatchers.clear()
-    fileEditor?.destroy()
+    if (ctx.taskWatcher) ctx.taskWatcher.close()
+    ctx.transcriptWatcher?.stop()
+    for (const watcher of ctx.subagentWatchers.values()) watcher.stop()
+    ctx.subagentWatchers.clear()
+    for (const watcher of ctx.bgTaskOutputWatchers.values()) watcher.stop()
+    ctx.bgTaskOutputWatchers.clear()
+    ctx.fileEditor?.destroy()
     cleanupTerminal()
     stopLocalServer(localServer)
-    wsClient?.close()
+    ctx.wsClient?.close()
     // Clear diag buffer and timer
-    if (diagFlushTimer) {
-      clearTimeout(diagFlushTimer)
-      diagFlushTimer = null
+    if (ctx.diagFlushTimer) {
+      clearTimeout(ctx.diagFlushTimer)
+      ctx.diagFlushTimer = null
     }
-    diagBuffer.length = 0
-    eventQueue.length = 0
+    ctx.diagBuffer.length = 0
+    ctx.eventQueue.length = 0
     cleanupSettings(internalId, rclaudeDir).catch(() => {})
     closeMcpChannel().catch(() => {})
     if (mcpConfigPath)
