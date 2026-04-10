@@ -401,6 +401,8 @@ function Dashboard() {
         if (!isMobileViewport()) {
           const el = e.target as HTMLElement
           if (el?.closest('.xterm')) return
+          // Don't steal Esc from open modals/dialogs -- they handle their own dismissal
+          if (el?.closest('[role="dialog"], [role="presentation"]')) return
           const store = useSessionsStore.getState()
           if (store.showSwitcher || store.showDebugConsole || store.showTerminal) return
           if (!store.selectedSessionId) return

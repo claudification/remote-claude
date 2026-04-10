@@ -88,8 +88,26 @@ export function SharedView({ cwd }: { cwd: string }) {
     )
   }
 
+  function handleClearAll() {
+    if (!files.length) return
+    haptic('error')
+    Promise.all(files.map(f => fetch(`${API_BASE}/api/shared-files/${f.hash}`, { method: 'DELETE' })))
+      .then(() => setSeq(s => s + 1))
+      .catch(() => {})
+  }
+
   return (
     <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-2">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] text-muted-foreground/50 font-mono">{files.length} items</span>
+        <button
+          type="button"
+          onClick={handleClearAll}
+          className="text-[10px] font-mono text-muted-foreground/50 hover:text-destructive transition-colors"
+        >
+          Clear all
+        </button>
+      </div>
       {files.map(f => (
         <div
           key={f.hash}

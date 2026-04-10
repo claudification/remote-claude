@@ -655,8 +655,8 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
 
       {/* Kanban columns */}
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex-1 min-h-0 overflow-auto">
-          <div className="flex gap-0 min-h-full">
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="flex gap-0 h-full">
             {COLUMNS.map(col => {
               const colTasks = activeTasks.filter(n => n.status === col.status)
               return (
@@ -670,7 +670,7 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
                   </div>
 
                   {/* Cards */}
-                  <div className="flex-1 overflow-y-auto space-y-0">
+                  <div className="flex-1 overflow-y-auto space-y-0 pb-4">
                     {colTasks.map(task => (
                       <ProjectCard
                         key={task.slug}

@@ -1270,7 +1270,10 @@ export function SessionDetail() {
               <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border bg-pink-400/5">
                 <button
                   type="button"
-                  onClick={() => selectSubagent(null)}
+                  onClick={() => {
+                    selectSubagent(null)
+                    setFollow(true)
+                  }}
                   className="flex items-center gap-1 text-xs text-pink-400 hover:text-pink-300 transition-colors"
                 >
                   <ArrowLeft className="w-3 h-3" />
