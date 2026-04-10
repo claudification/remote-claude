@@ -653,6 +653,20 @@ function processMessage(msg: DashboardMessage) {
       }
       break
     }
+    case 'plan_approval_dismissed': {
+      const sid = msg.sessionId
+      if (sid) {
+        useSessionsStore.setState(state => {
+          const pending = state.pendingDialogs[sid]
+          if (pending?.source === 'plan_approval') {
+            const { [sid]: _, ...rest } = state.pendingDialogs
+            return { pendingDialogs: rest }
+          }
+          return state
+        })
+      }
+      break
+    }
     case 'clipboard_capture': {
       const clipMsg = msg as DashboardMessage & {
         contentType?: 'text' | 'image'

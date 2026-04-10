@@ -35,7 +35,7 @@ const subscribe: MessageHandler = (ctx, data) => {
   // Push initial shares state to admin subscribers
   ctx.sessions.broadcastSharesUpdate()
 
-  // Push any pending dialogs (reconnect recovery)
+  // Push any pending dialogs + plan approvals (reconnect recovery)
   for (const s of ctx.sessions.getActiveSessions()) {
     if (s.pendingDialog) {
       ctx.reply({
@@ -43,6 +43,17 @@ const subscribe: MessageHandler = (ctx, data) => {
         sessionId: s.id,
         dialogId: s.pendingDialog.dialogId,
         layout: s.pendingDialog.layout,
+      })
+    }
+    if (s.pendingPlanApproval) {
+      ctx.reply({
+        type: 'plan_approval',
+        sessionId: s.id,
+        requestId: s.pendingPlanApproval.requestId,
+        toolUseId: s.pendingPlanApproval.toolUseId,
+        plan: s.pendingPlanApproval.plan,
+        planFilePath: s.pendingPlanApproval.planFilePath,
+        allowedPrompts: s.pendingPlanApproval.allowedPrompts,
       })
     }
   }

@@ -8,13 +8,21 @@ import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
 // Plan approval request: wrapper -> concentrator -> dashboard
-// Fired when CC calls ExitPlanMode and the wrapper intercepts it
 const planApproval: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return
 
   const session = ctx.sessions.getSession(sessionId)
   if (session) {
+    // Store for reconnect recovery (same pattern as pendingDialog)
+    session.pendingPlanApproval = {
+      requestId: data.requestId as string,
+      toolUseId: data.toolUseId as string | undefined,
+      plan: data.plan as string,
+      planFilePath: data.planFilePath as string | undefined,
+      allowedPrompts: data.allowedPrompts as unknown[] | undefined,
+      timestamp: Date.now(),
+    }
     session.pendingAttention = {
       type: 'plan_approval',
       question: 'Plan approval required',
@@ -46,10 +54,17 @@ const planApprovalResponse: MessageHandler = (ctx, data) => {
   const sess = ctx.sessions.getSession(sessionId)
   if (sess) ctx.requirePermission('chat', sess.cwd)
 
-  // Clear pending attention
-  if (sess?.pendingAttention?.type === 'plan_approval') {
-    delete sess.pendingAttention
+  // Clear pending state + dismiss dialog on ALL subscribers
+  if (sess) {
+    delete sess.pendingPlanApproval
+    if (sess.pendingAttention?.type === 'plan_approval') {
+      delete sess.pendingAttention
+    }
     ctx.sessions.broadcastSessionUpdate(sessionId)
+    // Dismiss the dialog on all dashboard clients (not just the one that responded)
+    const dismissMsg = { type: 'plan_approval_dismissed', sessionId }
+    if (sess.cwd) ctx.broadcastScoped(dismissMsg, sess.cwd)
+    else ctx.broadcast(dismissMsg)
   }
 
   const targetWs = ctx.sessions.getSessionSocket(sessionId)
@@ -71,7 +86,6 @@ const planApprovalResponse: MessageHandler = (ctx, data) => {
 }
 
 // Plan mode state change: wrapper -> concentrator -> dashboard
-// Sent on EnterPlanMode approve and ExitPlanMode resolution
 const planModeChanged: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return
@@ -79,9 +93,13 @@ const planModeChanged: MessageHandler = (ctx, data) => {
   const session = ctx.sessions.getSession(sessionId)
   if (session) {
     session.planMode = data.planMode as boolean
-    // Clear plan_approval attention when exiting plan mode
-    if (!data.planMode && session.pendingAttention?.type === 'plan_approval') {
-      delete session.pendingAttention
+    // Exiting plan mode: clear pending approval + dismiss dialog on all clients
+    if (!data.planMode) {
+      if (session.pendingPlanApproval) delete session.pendingPlanApproval
+      if (session.pendingAttention?.type === 'plan_approval') delete session.pendingAttention
+      const dismissMsg = { type: 'plan_approval_dismissed', sessionId }
+      if (session.cwd) ctx.broadcastScoped(dismissMsg, session.cwd)
+      else ctx.broadcast(dismissMsg)
     }
     ctx.sessions.broadcastSessionUpdate(sessionId)
   }

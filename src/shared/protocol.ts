@@ -853,6 +853,14 @@ export interface Session {
   planMode?: boolean // true when session is in plan mode (EnterPlanMode approved, not yet exited)
   hasNotification?: boolean // unread notification (cleared when session is viewed)
   pendingDialog?: { dialogId: string; layout: import('./dialog-schema').DialogLayout; timestamp: number }
+  pendingPlanApproval?: {
+    requestId: string
+    toolUseId?: string
+    plan: string
+    planFilePath?: string
+    allowedPrompts?: unknown[]
+    timestamp: number
+  }
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
   // Transcript-derived metadata (from special JSONL entry types)
   summary?: string // AI-generated session summary
