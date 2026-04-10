@@ -264,6 +264,38 @@ export function scanForBgTasks(ctx: WrapperContext, entries: TranscriptEntry[]) 
 }
 
 /**
+ * Re-send the entire transcript from the JSONL file.
+ * Used on (re)connect to repopulate the concentrator's in-memory cache
+ * after a restart. Headless mode doesn't use the file watcher, so this
+ * is the only way to recover transcript after concentrator restarts.
+ */
+export function resendTranscriptFromFile(ctx: WrapperContext) {
+  const path = ctx.parentTranscriptPath
+  if (!path || !existsSync(path)) {
+    debug(`resendTranscript: no file (path=${path || 'none'})`)
+    return
+  }
+  try {
+    const raw = Bun.file(path).text()
+    raw.then(text => {
+      const entries: TranscriptEntry[] = []
+      for (const line of text.split('\n')) {
+        if (!line.trim()) continue
+        try {
+          entries.push(JSON.parse(line))
+        } catch {}
+      }
+      if (entries.length > 0) {
+        debug(`resendTranscript: sending ${entries.length} entries from ${path}`)
+        sendTranscriptEntriesChunked(ctx, entries, true)
+      }
+    })
+  } catch (err) {
+    debug(`resendTranscript error: ${err instanceof Error ? err.message : err}`)
+  }
+}
+
+/**
  * Start the main transcript watcher for a JSONL file.
  */
 export function startTranscriptWatcher(ctx: WrapperContext, transcriptPath: string) {

@@ -48,6 +48,7 @@ import { getTerminalSize, type PtyProcess, setupTerminalPassthrough, spawnClaude
 import { cleanupSettings, writeMergedSettings } from './settings-merge'
 import { spawnStreamClaude } from './stream-backend'
 import {
+  resendTranscriptFromFile,
   sendTranscriptEntriesChunked,
   startSubagentWatcher,
   startTranscriptWatcher,
@@ -621,6 +622,8 @@ async function main() {
           ctx.wsClient?.sendHookEvent({ ...event, sessionId })
         }
         ctx.eventQueue.length = 0
+        // Re-send transcript from JSONL file (repopulates concentrator cache after restart)
+        if (headless) resendTranscriptFromFile(ctx)
         // Start polling task files + watching task notes
         startTaskWatching()
         startProjectWatching()
