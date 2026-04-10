@@ -314,19 +314,21 @@ export const DialogModal = memo(function DialogModal({ layout, onSubmit, onCance
           {currentPage?.body.map((component, i) => (
             <ComponentRenderer key={`${activePage}-${i}`} component={component} form={form} onAction={handleAction} />
           ))}
-          {/* Auto-injected notes field per page */}
-          <div className="pt-1">
-            <textarea
-              placeholder="Anything to add..."
-              value={(values[`_page_notes_${activePage}`] as string) || ''}
-              onChange={e => {
-                setValues(prev => ({ ...prev, [`_page_notes_${activePage}`]: e.target.value }))
-                onInteraction()
-              }}
-              rows={2}
-              className="w-full text-sm bg-muted/20 border border-border/30 rounded px-3 py-2 placeholder:text-muted-foreground/30 focus:outline-none focus:ring-1 focus:ring-primary/30 resize-y min-h-10"
-            />
-          </div>
+          {/* Auto-injected notes field -- skip if the page already has a TextInput */}
+          {!currentPage?.body.some(c => c.type === 'TextInput') && (
+            <div className="pt-1">
+              <textarea
+                placeholder="Anything to add..."
+                value={(values[`_page_notes_${activePage}`] as string) || ''}
+                onChange={e => {
+                  setValues(prev => ({ ...prev, [`_page_notes_${activePage}`]: e.target.value }))
+                  onInteraction()
+                }}
+                rows={2}
+                className="w-full text-sm bg-muted/20 border border-border/30 rounded px-3 py-2 placeholder:text-muted-foreground/30 focus:outline-none focus:ring-1 focus:ring-primary/30 resize-y min-h-10"
+              />
+            </div>
+          )}
         </div>
 
         {/* Footer */}
