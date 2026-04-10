@@ -107,14 +107,18 @@ const ThinkingSpinner = memo(function ThinkingSpinner({ sessionId }: { sessionId
   if (!isActive) return null
 
   return (
-    <div className="mt-2 flex items-center gap-2 px-4 py-1.5 text-[11px] font-mono text-muted-foreground/60">
-      <span className="inline-block w-2 h-2 bg-accent rounded-full animate-pulse" />
-      <span className="text-accent/70">
-        {verb}
-        {'.'.repeat(dots)}
-      </span>
+    <div className="mt-2 flex flex-col items-start px-4 py-1.5 text-[11px] font-mono text-muted-foreground/60">
+      <div className="flex items-center gap-2">
+        <span className="inline-block w-2 h-2 bg-accent rounded-full animate-pulse" />
+        <span className="text-accent/70">
+          {verb}
+          {'.'.repeat(dots)}
+        </span>
+      </div>
       {turnTokens > 0 && (
-        <span className="text-muted-foreground/40 tabular-nums">{(turnTokens / 1000).toFixed(1)}K tokens</span>
+        <span className="text-muted-foreground/40 tabular-nums pl-4 text-[10px]">
+          {(turnTokens / 1000).toFixed(1)}K tokens
+        </span>
       )}
     </div>
   )
