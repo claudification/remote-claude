@@ -703,6 +703,20 @@ const SETTINGS: SettingItem[] = [
     ),
   },
   {
+    group: 'Developer',
+    label: 'Performance monitor',
+    description: 'Track render times, grouping cost, WS processing. View in nerd modal Perf tab',
+    keywords: 'performance profiler perf monitor render',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.showPerfMonitor}
+        onChange={e => ctx.updatePrefs({ showPerfMonitor: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
+  {
     group: 'Sessions',
     label: 'Default launch mode',
     description: 'Default mode when spawning/reviving sessions (per-project overrides this)',

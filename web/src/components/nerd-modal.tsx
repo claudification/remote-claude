@@ -7,6 +7,16 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { getRates, subscribe as subscribeStats } from '@/hooks/ws-stats'
 import { clearLog, copyLogText, getLogEntries, type LogEntry, subscribeLog } from '@/lib/debug-log'
+import {
+  categoryStats,
+  clearEntries as clearPerfEntries,
+  durationColor,
+  getEntries as getPerfEntries,
+  isPerfEnabled,
+  type PerfCategory,
+  type PerfEntry,
+  subscribe as subscribePerfMetrics,
+} from '@/lib/perf-metrics'
 import { clearCacheAndReload, cn } from '@/lib/utils'
 
 interface ServerStats {
@@ -54,7 +64,7 @@ function StatRow({ label, value, accent, dim }: { label: string; value: string; 
   )
 }
 
-type Tab = 'traffic' | 'cache' | 'sw' | 'log'
+type Tab = 'traffic' | 'cache' | 'sw' | 'log' | 'perf'
 
 function TrafficTab({ serverStats, fetchError }: { serverStats: ServerStats | null; fetchError: string | null }) {
   const clientRates = useSyncExternalStore(subscribeStats, getRates)
@@ -352,6 +362,114 @@ function SwTab() {
   )
 }
 
+const PERF_CATEGORIES: PerfCategory[] = ['render', 'grouping', 'ws', 'scroll', 'other']
+const CAT_COLORS: Record<PerfCategory, string> = {
+  render: 'text-[#7aa2f7]',
+  grouping: 'text-[#bb9af7]',
+  ws: 'text-[#2ac3de]',
+  scroll: 'text-[#9ece6a]',
+  other: 'text-muted-foreground',
+}
+
+function PerfTab() {
+  const entries = useSyncExternalStore(subscribePerfMetrics, getPerfEntries) as PerfEntry[]
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const enabled = isPerfEnabled()
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+  }, [entries.length])
+
+  if (!enabled) {
+    return (
+      <div className="text-center text-[#565f89] text-xs py-8">
+        Performance monitor is <span className="text-red-400">OFF</span>
+        <br />
+        <span className="text-[10px] mt-1 block">Enable in Settings &gt; Developer &gt; Performance monitor</span>
+      </div>
+    )
+  }
+
+  const stats = PERF_CATEGORIES.map(cat => ({ cat, ...categoryStats(cat) })).filter(s => s.count > 0)
+
+  return (
+    <div className="space-y-3">
+      {/* Summary stats */}
+      {stats.length > 0 && (
+        <div className="grid grid-cols-2 gap-2">
+          {stats.map(s => (
+            <div key={s.cat} className="bg-[#1a1b26] border border-[#33467c]/30 px-2 py-1.5">
+              <div className={cn('text-[10px] uppercase tracking-wider font-bold', CAT_COLORS[s.cat])}>{s.cat}</div>
+              <div className="text-[10px] text-[#a9b1d6] mt-0.5">
+                {s.count} samples -- avg <span className={durationColor(s.avg)}>{s.avg.toFixed(1)}ms</span> -- p95{' '}
+                <span className={durationColor(s.p95)}>{s.p95.toFixed(1)}ms</span> -- max{' '}
+                <span className={durationColor(s.max)}>{s.max.toFixed(1)}ms</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Controls */}
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-[#565f89]">{entries.length} entries</span>
+        <button
+          type="button"
+          onClick={clearPerfEntries}
+          className="text-[10px] text-[#565f89] hover:text-[#a9b1d6] transition-colors"
+        >
+          Clear
+        </button>
+      </div>
+
+      {/* Entry list */}
+      <div ref={scrollRef} className="max-h-[300px] overflow-y-auto space-y-0">
+        {entries.length === 0 ? (
+          <div className="text-center text-[#565f89] text-[10px] py-4">
+            No entries yet -- interact with the dashboard
+          </div>
+        ) : (
+          entries.slice(-100).map((e, i) => {
+            const time = new Date(e.t).toLocaleTimeString('en-GB', { hour12: false })
+            const barWidth = Math.min(100, (e.durationMs / 50) * 100)
+            return (
+              <div
+                key={`${e.t}-${i}`}
+                className="flex items-center gap-2 py-0.5 px-1 text-[10px] hover:bg-[#1a1b26]/50 border-b border-[#33467c]/10"
+              >
+                <span className="text-[#565f89] w-16 shrink-0">{time}</span>
+                <span className={cn('w-14 shrink-0 uppercase tracking-wider', CAT_COLORS[e.category])}>
+                  {e.category}
+                </span>
+                <span className="w-20 shrink-0 truncate text-[#a9b1d6]">{e.label}</span>
+                <span className={cn('w-14 shrink-0 text-right tabular-nums', durationColor(e.durationMs))}>
+                  {e.durationMs.toFixed(1)}ms
+                </span>
+                <div className="flex-1 min-w-0 h-2 bg-[#1a1b26] relative overflow-hidden">
+                  <div
+                    className={cn(
+                      'absolute inset-y-0 left-0',
+                      e.durationMs < 5
+                        ? 'bg-emerald-500/40'
+                        : e.durationMs < 16
+                          ? 'bg-[#7aa2f7]/40'
+                          : e.durationMs < 50
+                            ? 'bg-amber-500/40'
+                            : 'bg-red-500/40',
+                    )}
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
+                {e.detail && <span className="text-[#565f89] truncate max-w-24 text-[9px]">{e.detail}</span>}
+              </div>
+            )
+          })
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function NerdModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('cache')
   const [serverStats, setServerStats] = useState<ServerStats | null>(null)
@@ -395,6 +513,7 @@ export function NerdModal({ open, onClose }: { open: boolean; onClose: () => voi
   const tabs: { id: Tab; label: string }[] = [
     { id: 'cache', label: 'Cache' },
     { id: 'traffic', label: 'Traffic' },
+    { id: 'perf', label: 'Perf' },
     { id: 'sw', label: 'SW' },
     { id: 'log', label: 'Log' },
   ]
@@ -438,6 +557,7 @@ export function NerdModal({ open, onClose }: { open: boolean; onClose: () => voi
         <div className="flex-1 overflow-y-auto px-4 pb-4">
           {tab === 'traffic' && <TrafficTab serverStats={serverStats} fetchError={fetchError} />}
           {tab === 'cache' && <CacheTab />}
+          {tab === 'perf' && <PerfTab />}
           {tab === 'sw' && <SwTab />}
           {tab === 'log' && <LogTab />}
         </div>

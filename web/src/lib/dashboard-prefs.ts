@@ -48,6 +48,7 @@ export interface DashboardPrefs {
   defaultSessionCwd: string // auto-select this project on dashboard load (per-device)
   showDiag: boolean
   showStreaming: boolean
+  showPerfMonitor: boolean
   toolDisplay: Partial<Record<ToolDisplayKey, Partial<ToolDisplayPrefs>>>
 }
 
@@ -67,6 +68,7 @@ export const defaultPrefs: DashboardPrefs = {
   chatBubbleColor: 'blue',
   showDiag: false,
   showStreaming: true,
+  showPerfMonitor: false,
   defaultSessionCwd: '',
   toolDisplay: {},
 }

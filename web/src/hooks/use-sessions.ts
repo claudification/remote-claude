@@ -7,6 +7,7 @@ import {
   type ToolDisplayPrefs,
 } from '@/lib/dashboard-prefs'
 import { clearExpandedState } from '@/lib/expanded-state'
+import { setPerfEnabled } from '@/lib/perf-metrics'
 import { DEFAULT_PERMISSIONS, type ResolvedPermissions } from '@/lib/permissions'
 import { appendShareParam } from '@/lib/share-mode'
 import type {
@@ -441,12 +442,17 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       return { expandAll: next }
     }),
 
-  dashboardPrefs: loadPrefs(),
+  dashboardPrefs: (() => {
+    const prefs = loadPrefs()
+    setPerfEnabled(prefs.showPerfMonitor)
+    return prefs
+  })(),
   updateDashboardPrefs: patch =>
     set(state => {
       const next = { ...state.dashboardPrefs, ...patch }
       localStorage.setItem('dashboard-prefs', JSON.stringify(next))
       window.dispatchEvent(new Event('prefs-changed'))
+      if ('showPerfMonitor' in patch) setPerfEnabled(next.showPerfMonitor)
       return { dashboardPrefs: next }
     }),
   resolveToolDisplay: (tool: ToolDisplayKey) => resolveToolDisplay(get().dashboardPrefs, tool),

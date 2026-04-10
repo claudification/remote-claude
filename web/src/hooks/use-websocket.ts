@@ -13,6 +13,7 @@ import { haptic } from '@/lib/utils'
 const batch: (fn: () => void) => void = batchUpdates ?? (fn => fn())
 
 import type { SessionSummary } from '@shared/protocol'
+import { isPerfEnabled, record as perfRecord } from '@/lib/perf-metrics'
 import { buildWsUrl } from '@/lib/share-mode'
 import type { HookEvent, Session, SessionOrderV2, TaskInfo, TranscriptEntry } from '@/lib/types'
 import {
@@ -772,6 +773,7 @@ export function useWebSocket() {
       ws.onmessage = event => {
         const raw = event.data as string
         recordIn(raw.length)
+        const wsT0 = isPerfEnabled() ? performance.now() : 0
         try {
           const msg = JSON.parse(raw) as DashboardMessage
 
@@ -841,6 +843,8 @@ export function useWebSocket() {
           scheduleFlush()
         } catch {
           // Ignore parse errors
+        } finally {
+          if (wsT0) perfRecord('ws', 'onmessage', performance.now() - wsT0, (raw.length / 1024).toFixed(1) + 'KB')
         }
       }
     } catch {

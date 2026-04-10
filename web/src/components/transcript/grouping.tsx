@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useMemo, useRef } from 'react'
+import { record } from '@/lib/perf-metrics'
 import type { TranscriptAssistantEntry, TranscriptEntry, TranscriptQueueEntry, TranscriptUserEntry } from '@/lib/types'
 
 function isUser(e: TranscriptEntry): e is TranscriptUserEntry {
@@ -580,6 +581,7 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
     cache.groups = newGroups
     cache.lastGroup = lastGroup
     const elapsed = performance.now() - t0
+    record('grouping', 'incrementalGroup', elapsed, `${newEntries.length} entries -> ${newGroups.length} groups`)
     if (elapsed > 5 || newEntries.length > 10) {
       console.log(`[grouping] ${newEntries.length} new entries -> ${newGroups.length} groups (${elapsed.toFixed(1)}ms)`)
     }
