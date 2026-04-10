@@ -1043,33 +1043,39 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       }
       session.lastActivity = Date.now()
 
-      // Status transitions based on actual Claude hooks (not artificial timers)
-      if (event.hookEvent === 'Stop' || event.hookEvent === 'StopFailure') {
-        session.status = 'idle'
-        // Capture error details from StopFailure
-        if (event.hookEvent === 'StopFailure' && event.data) {
-          const d = event.data as Record<string, unknown>
-          session.lastError = {
-            stopReason: String(d.stop_reason || d.stopReason || ''),
-            errorType: String(d.error_type || d.errorType || ''),
-            errorMessage: String(d.error_message || d.errorMessage || d.error || ''),
-            timestamp: event.timestamp,
-          }
-        }
-      } else if (!PASSIVE_HOOKS.has(event.hookEvent) && session.status !== 'ended') {
-        session.status = 'active'
-        // Clear error/rate-limit when session resumes working
-        if (session.lastError) session.lastError = undefined
-        if (session.rateLimit) session.rateLimit = undefined
-      }
-
       // Correlate hook events to subagents: if the hook's session_id differs
-      // from the parent session ID, it came from a subagent context
+      // from the parent session ID, it came from a subagent context.
+      // MUST happen BEFORE status transitions so subagent activity doesn't
+      // flip the parent from idle -> active (spinner stays on after Stop).
       const hookSessionId = (event.data as Record<string, unknown>)?.session_id
-      if (typeof hookSessionId === 'string' && hookSessionId !== session.id) {
+      const isSubagentEvent = typeof hookSessionId === 'string' && hookSessionId !== session.id
+      if (isSubagentEvent) {
         const subagent = session.subagents.find(a => a.agentId === hookSessionId && a.status === 'running')
         if (subagent) {
           subagent.events.push(event)
+        }
+      }
+
+      // Status transitions based on actual Claude hooks (not artificial timers).
+      // Skip subagent events -- they shouldn't change the parent's status.
+      if (!isSubagentEvent) {
+        if (event.hookEvent === 'Stop' || event.hookEvent === 'StopFailure') {
+          session.status = 'idle'
+          // Capture error details from StopFailure
+          if (event.hookEvent === 'StopFailure' && event.data) {
+            const d = event.data as Record<string, unknown>
+            session.lastError = {
+              stopReason: String(d.stop_reason || d.stopReason || ''),
+              errorType: String(d.error_type || d.errorType || ''),
+              errorMessage: String(d.error_message || d.errorMessage || d.error || ''),
+              timestamp: event.timestamp,
+            }
+          }
+        } else if (!PASSIVE_HOOKS.has(event.hookEvent) && session.status !== 'ended') {
+          session.status = 'active'
+          // Clear error/rate-limit when session resumes working
+          if (session.lastError) session.lastError = undefined
+          if (session.rateLimit) session.rateLimit = undefined
         }
       }
 
