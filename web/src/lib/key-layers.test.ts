@@ -29,9 +29,9 @@ describe('key-layers', () => {
       expect(normalizeEvent(key('k', { ctrlKey: true }))).toBe('mod+k')
     })
 
-    it('normalizes Meta+K as meta+k on non-Mac', () => {
-      // On non-Mac (jsdom), metaKey is the Windows/Super key, not mod
-      expect(normalizeEvent(key('k', { metaKey: true }))).toBe('meta+k')
+    it('ignores Meta key on non-Mac (Windows/Super key not used for shortcuts)', () => {
+      // On non-Mac (jsdom), metaKey is the Windows key -- not mapped to anything
+      expect(normalizeEvent(key('k', { metaKey: true }))).toBe('k')
     })
 
     it('normalizes shift+letter to lowercase', () => {

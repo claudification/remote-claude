@@ -57,11 +57,10 @@ function isTerminal(el: Element | null): boolean {
 function normalizeEvent(e: KeyboardEvent): string {
   const parts: string[] = []
 
-  const ctrl = isMac ? e.metaKey : e.ctrlKey
-  const meta = isMac ? e.ctrlKey : e.metaKey
-
-  if (ctrl) parts.push('mod')
-  if (meta) parts.push(isMac ? 'ctrl' : 'meta')
+  // mod = primary shortcut modifier (Cmd on Mac, Ctrl elsewhere)
+  if (isMac ? e.metaKey : e.ctrlKey) parts.push('mod')
+  // ctrl = physical Control key (only distinct from mod on Mac)
+  if (isMac && e.ctrlKey) parts.push('ctrl')
   if (e.altKey) parts.push('alt')
   if (e.shiftKey) parts.push('shift')
 
@@ -78,13 +77,28 @@ function normalizeEvent(e: KeyboardEvent): string {
 }
 
 function hasModifier(binding: string): boolean {
-  const mods = new Set(['mod', 'ctrl', 'alt', 'meta', 'shift'])
+  // Only ctrl/cmd/alt count as "pass-through" modifiers that should work in text inputs.
+  // shift alone is just typing (shift+? is a character, not a shortcut).
+  const passThroughMods = new Set(['mod', 'ctrl', 'alt', 'meta'])
   const parts = binding.split('+')
-  return parts.some(p => mods.has(p))
+  return parts.some(p => passThroughMods.has(p))
 }
 
 function isDoubleTapBinding(binding: string): boolean {
   return binding.includes(' ')
+}
+
+// On non-Mac, physical Ctrl produces 'mod'. But bindings registered as 'ctrl+shift+x'
+// (meaning physical Ctrl on all platforms) should also match. Try both.
+function findBinding(bindings: KeyBindings, normalized: string): KeyHandler | undefined {
+  const handler = bindings[normalized]
+  if (handler) return handler
+  // Cross-match: ctrl and mod bindings should match each other's events.
+  // On Mac: Ctrl+K (ctrl+k) should also match 'mod+k' bindings (old code accepted both)
+  // On non-Mac: Ctrl+K (mod+k) should also match 'ctrl+k' bindings (physical Ctrl)
+  if (normalized.includes('mod')) return bindings[normalized.replace('mod', 'ctrl')]
+  if (normalized.includes('ctrl')) return bindings[normalized.replace('ctrl', 'mod')]
+  return undefined
 }
 
 // ── Dispatch ───────────────────────────────────────────────────────────────
@@ -109,7 +123,7 @@ function dispatch(e: KeyboardEvent) {
       if (layer.options.enabled === false) continue
       if (inTerminal && !layer.options.captureTerminal) continue
 
-      const handler = layer.bindings[doubleTapPattern]
+      const handler = findBinding(layer.bindings, doubleTapPattern)
       if (handler) {
         e.preventDefault()
         e.stopPropagation()
@@ -141,7 +155,7 @@ function dispatch(e: KeyboardEvent) {
     if (inTerminal && !layer.options.captureTerminal) continue
 
     // Skip double-tap bindings in single-key dispatch
-    const handler = !isDoubleTapBinding(normalized) ? layer.bindings[normalized] : undefined
+    const handler = !isDoubleTapBinding(normalized) ? findBinding(layer.bindings, normalized) : undefined
     if (handler) {
       e.preventDefault()
       e.stopPropagation()

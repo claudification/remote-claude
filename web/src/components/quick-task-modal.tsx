@@ -34,7 +34,7 @@ export function QuickTaskModal() {
         setOpen(true)
       }
     },
-    { label: 'Quick task', shortcut: 'mod+shift+n', group: 'Navigation' },
+    { label: 'Quick task', shortcut: 'ctrl+shift+n', group: 'Navigation' },
   )
 
   // ESC closes when open
