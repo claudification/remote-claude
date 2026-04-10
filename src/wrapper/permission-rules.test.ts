@@ -172,6 +172,50 @@ describe('malformed input', () => {
   })
 })
 
+describe('isPlanModeAllowed', () => {
+  test('allowed by default (no config)', () => {
+    const engine = createRulesEngine(testDir)
+    expect(engine.isPlanModeAllowed()).toBe(true)
+  })
+
+  test('allowed when allowPlanMode: true in rclaude.json', () => {
+    writeFileSync(join(rclaudeDir, 'rclaude.json'), JSON.stringify({ allowPlanMode: true }))
+    const engine = createRulesEngine(testDir)
+    expect(engine.isPlanModeAllowed()).toBe(true)
+  })
+
+  test('denied when allowPlanMode: false in rclaude.json', () => {
+    writeFileSync(join(rclaudeDir, 'rclaude.json'), JSON.stringify({ allowPlanMode: false }))
+    const engine = createRulesEngine(testDir)
+    expect(engine.isPlanModeAllowed()).toBe(false)
+  })
+
+  test('denied when RCLAUDE_NO_PLAN_MODE=1', () => {
+    const engine = createRulesEngine(testDir)
+    const orig = process.env.RCLAUDE_NO_PLAN_MODE
+    try {
+      process.env.RCLAUDE_NO_PLAN_MODE = '1'
+      expect(engine.isPlanModeAllowed()).toBe(false)
+    } finally {
+      if (orig === undefined) delete process.env.RCLAUDE_NO_PLAN_MODE
+      else process.env.RCLAUDE_NO_PLAN_MODE = orig
+    }
+  })
+
+  test('env var overrides config (config true, env denies)', () => {
+    writeFileSync(join(rclaudeDir, 'rclaude.json'), JSON.stringify({ allowPlanMode: true }))
+    const engine = createRulesEngine(testDir)
+    const orig = process.env.RCLAUDE_NO_PLAN_MODE
+    try {
+      process.env.RCLAUDE_NO_PLAN_MODE = '1'
+      expect(engine.isPlanModeAllowed()).toBe(false)
+    } finally {
+      if (orig === undefined) delete process.env.RCLAUDE_NO_PLAN_MODE
+      else process.env.RCLAUDE_NO_PLAN_MODE = orig
+    }
+  })
+})
+
 describe('getProjectRulesSummary', () => {
   test('returns loaded patterns', () => {
     writeFileSync(
