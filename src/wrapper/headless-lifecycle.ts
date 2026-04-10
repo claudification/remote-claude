@@ -4,8 +4,7 @@
  * onPermissionRequest, onTaskStarted, onSubagentEntry, respawn for /clear.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { WrapperMessage } from '../shared/protocol'
 import { debug as _debug } from './debug'
@@ -183,9 +182,8 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
         const planFilePath = request.toolInput?.planFilePath as string | undefined
         const allowedPrompts = request.toolInput?.allowedPrompts as string[] | undefined
 
-        // CC may not include plan content in the can_use_tool input.
-        // The plan is written to ~/.claude/plans/{slug}.md before ExitPlanMode fires.
-        // Try: 1) input.plan, 2) read planFilePath from input, 3) latest plan file
+        // CC injects plan + planFilePath into the can_use_tool input via normalizeToolInput.
+        // Fallback: read from planFilePath if plan content is somehow empty.
         if (!plan && planFilePath) {
           try {
             plan = readFileSync(planFilePath, 'utf-8')
@@ -195,8 +193,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
           }
         }
         if (!plan) {
-          plan = readLatestPlanFile() || '(Plan content not available)'
-          ctx.diag('headless', `ExitPlanMode: fallback to latest plan file (${plan.length} chars)`)
+          plan = '(Plan content not available)'
         }
 
         // Store pending request for response routing
@@ -302,29 +299,6 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
   }
 
   return opts
-}
-
-/**
- * Read the most recently modified plan file from ~/.claude/plans/.
- * CC writes plans there before calling ExitPlanMode.
- * Returns the file content, or null if no plan file found.
- */
-function readLatestPlanFile(): string | null {
-  const plansDir = join(homedir(), '.claude', 'plans')
-  if (!existsSync(plansDir)) return null
-  try {
-    const files = readdirSync(plansDir)
-      .filter(f => f.endsWith('.md'))
-      .map(f => {
-        const fullPath = join(plansDir, f)
-        return { path: fullPath, mtime: statSync(fullPath).mtimeMs }
-      })
-      .sort((a, b) => b.mtime - a.mtime)
-    if (files.length === 0) return null
-    return readFileSync(files[0].path, 'utf-8')
-  } catch {
-    return null
-  }
 }
 
 /**
