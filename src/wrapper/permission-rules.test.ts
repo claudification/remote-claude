@@ -5,14 +5,14 @@ import { join } from 'node:path'
 import { createRulesEngine } from './permission-rules'
 
 const testDir = join(tmpdir(), 'rclaude-permission-test-' + Date.now())
-const claudeDir = join(testDir, '.claude')
+const rclaudeDir = join(testDir, '.rclaude')
 
 function input(obj: Record<string, unknown>): string {
   return JSON.stringify(obj)
 }
 
 beforeEach(() => {
-  mkdirSync(claudeDir, { recursive: true })
+  mkdirSync(rclaudeDir, { recursive: true })
 })
 
 afterEach(() => {
@@ -21,7 +21,7 @@ afterEach(() => {
 
 describe('project rules - Write/Edit patterns', () => {
   function engineWithRules(permissions: Record<string, { allow: string[] }>) {
-    writeFileSync(join(claudeDir, 'rclaude.json'), JSON.stringify({ permissions }))
+    writeFileSync(join(rclaudeDir, 'rclaude.json'), JSON.stringify({ permissions }))
     return createRulesEngine(testDir)
   }
 
@@ -81,7 +81,7 @@ describe('project rules - Write/Edit patterns', () => {
 describe('absolute path patterns', () => {
   test('absolute pattern matches absolute file path', () => {
     writeFileSync(
-      join(claudeDir, 'rclaude.json'),
+      join(rclaudeDir, 'rclaude.json'),
       JSON.stringify({
         permissions: { Write: { allow: [join(testDir, 'special/**')] } },
       }),
@@ -92,7 +92,7 @@ describe('absolute path patterns', () => {
 
   test('absolute pattern rejects non-matching path', () => {
     writeFileSync(
-      join(claudeDir, 'rclaude.json'),
+      join(rclaudeDir, 'rclaude.json'),
       JSON.stringify({
         permissions: { Write: { allow: ['/opt/allowed/**'] } },
       }),
@@ -143,7 +143,7 @@ describe('no config file', () => {
 describe('malformed input', () => {
   test('handles truncated JSON in inputPreview', () => {
     writeFileSync(
-      join(claudeDir, 'rclaude.json'),
+      join(rclaudeDir, 'rclaude.json'),
       JSON.stringify({
         permissions: { Write: { allow: ['.claude/docs/**'] } },
       }),
@@ -156,7 +156,7 @@ describe('malformed input', () => {
 
   test('handles empty inputPreview', () => {
     writeFileSync(
-      join(claudeDir, 'rclaude.json'),
+      join(rclaudeDir, 'rclaude.json'),
       JSON.stringify({
         permissions: { Write: { allow: ['**'] } },
       }),
@@ -166,7 +166,7 @@ describe('malformed input', () => {
   })
 
   test('handles invalid JSON config gracefully', () => {
-    writeFileSync(join(claudeDir, 'rclaude.json'), 'not json {{{')
+    writeFileSync(join(rclaudeDir, 'rclaude.json'), 'not json {{{')
     const engine = createRulesEngine(testDir)
     expect(engine.shouldAutoApprove('Write', input({ file_path: join(testDir, 'file.ts') }))).toBe(false)
   })
@@ -175,7 +175,7 @@ describe('malformed input', () => {
 describe('getProjectRulesSummary', () => {
   test('returns loaded patterns', () => {
     writeFileSync(
-      join(claudeDir, 'rclaude.json'),
+      join(rclaudeDir, 'rclaude.json'),
       JSON.stringify({
         permissions: {
           Write: { allow: ['.claude/docs/**'] },

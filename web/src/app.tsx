@@ -6,7 +6,7 @@ import { CommandPalette } from '@/components/command-palette'
 import { DebugConsole } from '@/components/debug-console'
 import { Header } from '@/components/header'
 import { JsonInspectorDialog } from '@/components/json-inspector'
-import { QuickNoteModal } from '@/components/quick-note-modal'
+import { QuickTaskModal } from '@/components/quick-task-modal'
 import { SessionDetail } from '@/components/session-detail'
 import { SessionList } from '@/components/session-list'
 import { SharedSessionView } from '@/components/shared-session-view'
@@ -483,8 +483,8 @@ function Dashboard() {
             variant="outline"
             size="icon"
             className="shrink-0 sm:hidden"
-            onClick={() => window.dispatchEvent(new Event('open-quick-note'))}
-            title="Quick note"
+            onClick={() => window.dispatchEvent(new Event('open-quick-task'))}
+            title="Quick task"
           >
             <FileText className="h-4 w-4" />
           </Button>
@@ -562,7 +562,7 @@ function Dashboard() {
       {/* Global JSON inspector dialog (survives virtualizer remounts) */}
       <JsonInspectorDialog />
       {/* Ctrl+Shift+N quick note modal - admin only */}
-      {canAdmin && <QuickNoteModal />}
+      {canAdmin && <QuickTaskModal />}
       {/* Shift+? shortcut help - admin only */}
       {canAdmin && <ShortcutHelp />}
 

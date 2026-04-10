@@ -27,11 +27,11 @@ const fileEditorRequest: MessageHandler = (ctx, data) => {
   const isWrite =
     msgType === 'file_save' ||
     msgType === 'file_restore' ||
-    msgType === 'quick_note_append' ||
-    msgType === 'task_notes_create' ||
-    msgType === 'task_notes_move' ||
-    msgType === 'task_notes_delete' ||
-    msgType === 'task_notes_update'
+    msgType === 'project_quick_add' ||
+    msgType === 'project_create' ||
+    msgType === 'project_move' ||
+    msgType === 'project_delete' ||
+    msgType === 'project_update'
   const sess = ctx.sessions.getSession(data.sessionId as string)
   if (sess) ctx.requirePermission(isWrite ? 'files' : 'files:read', sess.cwd)
   const targetSocket = ctx.sessions.getSessionSocket(data.sessionId as string)
@@ -39,7 +39,7 @@ const fileEditorRequest: MessageHandler = (ctx, data) => {
     targetSocket.send(JSON.stringify(data))
   } else {
     const t = data.type as string
-    const replyType = t.startsWith('task_notes_')
+    const replyType = t.startsWith('project_')
       ? `${t}_response`
       : t.replace('_request', '_response').replace('_save', '_save_response')
     ctx.reply({ type: replyType, requestId: data.requestId, error: 'Session not connected' })
@@ -79,31 +79,31 @@ export function registerFileHandlers(): void {
     file_unwatch: fileEditorRequest,
     file_history_request: fileEditorRequest,
     file_restore: fileEditorRequest,
-    quick_note_append: fileEditorRequest,
-    // Task notes (dashboard -> wrapper)
-    task_notes_list: fileEditorRequest,
-    task_notes_create: fileEditorRequest,
-    task_notes_move: fileEditorRequest,
-    task_notes_delete: fileEditorRequest,
-    task_notes_read: fileEditorRequest,
-    task_notes_update: fileEditorRequest,
+    project_quick_add: fileEditorRequest,
+    // Project board (dashboard -> wrapper)
+    project_list: fileEditorRequest,
+    project_create: fileEditorRequest,
+    project_move: fileEditorRequest,
+    project_delete: fileEditorRequest,
+    project_read: fileEditorRequest,
+    project_update: fileEditorRequest,
     // Wrapper -> dashboard responses (all share the same handler)
     file_list_response: fileEditorResponse,
     file_content_response: fileEditorResponse,
     file_save_response: fileEditorResponse,
     file_history_response: fileEditorResponse,
     file_restore_response: fileEditorResponse,
-    quick_note_response: fileEditorResponse,
+    project_quick_add_response: fileEditorResponse,
     file_changed: fileEditorResponse,
-    // Task notes responses (wrapper -> dashboard)
-    task_notes_list_response: fileEditorResponse,
-    task_notes_create_response: fileEditorResponse,
-    task_notes_move_response: fileEditorResponse,
-    task_notes_delete_response: fileEditorResponse,
-    task_notes_read_response: fileEditorResponse,
-    task_notes_update_response: fileEditorResponse,
-    // Task notes filesystem change notification (wrapper -> dashboard)
-    task_notes_changed: fileEditorResponse,
+    // Project board responses (wrapper -> dashboard)
+    project_list_response: fileEditorResponse,
+    project_create_response: fileEditorResponse,
+    project_move_response: fileEditorResponse,
+    project_delete_response: fileEditorResponse,
+    project_read_response: fileEditorResponse,
+    project_update_response: fileEditorResponse,
+    // Project board filesystem change notification (wrapper -> dashboard)
+    project_changed: fileEditorResponse,
     // File proxy
     file_request: fileRequest,
   })

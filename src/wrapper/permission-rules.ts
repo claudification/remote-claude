@@ -53,7 +53,7 @@ function extractFilePath(inputPreview: string): string | undefined {
 
 export function createRulesEngine(cwd: string): RulesEngine {
   let projectRules: PermissionConfig = {}
-  const configPath = join(cwd, '.claude', 'rclaude.json')
+  const configPath = join(cwd, '.rclaude', 'rclaude.json')
   if (existsSync(configPath)) {
     try {
       projectRules = JSON.parse(readFileSync(configPath, 'utf-8'))
@@ -65,7 +65,7 @@ export function createRulesEngine(cwd: string): RulesEngine {
   const sessionRules = new Set<string>()
 
   // Built-in rules: always auto-approve rclaude's own managed paths
-  const BUILTIN_PATTERNS = ['.claude/.rclaude/tasks/**', '.claude/.rclaude/docs/**']
+  const BUILTIN_PATTERNS = ['.rclaude/project/**', '.rclaude/docs/**']
 
   function checkBuiltinRules(toolName: string, inputPreview: string): boolean {
     if (toolName !== 'Write' && toolName !== 'Edit' && toolName !== 'Read') return false

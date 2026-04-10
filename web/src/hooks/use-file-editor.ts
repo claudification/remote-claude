@@ -266,7 +266,7 @@ export function useFileEditor(sessionId: string | null) {
       if (!sessionId) return
       try {
         await sendRequest({
-          type: 'quick_note_append',
+          type: 'project_quick_add',
           sessionId,
           text,
         })

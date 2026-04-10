@@ -23,7 +23,7 @@ import { dialogToolInputSchema, validateDialogLayout } from '../shared/dialog-sc
 import { isPathWithinCwd } from '../shared/path-guard'
 import { checkForUpdate, formatUpdateResult } from '../shared/update-check'
 import { debug } from './debug'
-import { moveTaskNote, type TaskStatus } from './task-notes'
+import { moveProjectTask, type TaskStatus } from './project-tasks'
 
 const DIALOG_LOG = '/tmp/rclaude-dialog.log'
 
@@ -462,9 +462,9 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         inputSchema: { type: 'object' as const, properties: {} },
       },
       {
-        name: 'tasks',
+        name: 'project_list',
         description:
-          'List task notes from the project kanban board (.claude/.rclaude/tasks/). Returns tasks grouped by status with their frontmatter (title, priority, tags, refs) and relative file paths. By default shows open + in-progress only. To edit tasks, read/write the markdown files directly. To change status, mv the file between status folders.',
+          'List tasks from the project board (.rclaude/project/). Returns tasks grouped by status with their frontmatter (title, priority, tags, refs) and relative file paths. By default shows open + in-progress only. To edit tasks, read/write the markdown files directly. To change status, mv the file between status folders.',
         inputSchema: {
           type: 'object' as const,
           properties: {
@@ -485,9 +485,9 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         },
       },
       {
-        name: 'set_task_status',
+        name: 'project_set_status',
         description:
-          'Move a task note to a different status column on the kanban board. Use the filename (without .md) as the task ID. Avoids needing Bash mv which triggers permission prompts.',
+          'Move a project task to a different status column on the board. Use the filename (without .md) as the task ID. Avoids needing Bash mv which triggers permission prompts.',
         inputSchema: {
           type: 'object' as const,
           properties: {
@@ -527,7 +527,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           debug(`[channel] notify: ${message.slice(0, 80)}`)
           return { content: [{ type: 'text', text: 'Notification sent' }] }
         }
-        case 'tasks': {
+        case 'project_list': {
           const statusFilter = params.status || 'all'
           let statuses: string[]
           if (statusFilter === 'all') {
@@ -537,10 +537,10 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           } else {
             statuses = [statusFilter]
           }
-          const tasksDir = join(dialogCwd, '.claude', '.rclaude', 'tasks')
+          const projectDir = join(dialogCwd, '.rclaude', 'project')
           const results: string[] = []
           for (const status of statuses) {
-            const dir = join(tasksDir, status)
+            const dir = join(projectDir, status)
             try {
               const files = readdirSync(dir)
                 .filter(f => f.endsWith('.md'))
@@ -550,7 +550,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
                   const content = readFileSync(join(dir, file), 'utf-8')
                   const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
                   const fm = fmMatch ? fmMatch[1] : ''
-                  const relPath = `.claude/.rclaude/tasks/${status}/${file}`
+                  const relPath = `.rclaude/project/${status}/${file}`
                   results.push(`## ${relPath}\n${fm}`)
                 } catch {
                   /* skip unreadable */
@@ -563,11 +563,11 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           const output =
             results.length > 0
               ? results.join('\n\n')
-              : 'No tasks found. Create one with: Write .claude/.rclaude/tasks/open/my-task.md'
-          debug(`[channel] tasks: ${results.length} tasks (filter=${statusFilter})`)
+              : 'No tasks found. Create one with: Write .rclaude/project/open/my-task.md'
+          debug(`[channel] project_list: ${results.length} tasks (filter=${statusFilter})`)
           return { content: [{ type: 'text', text: output }] }
         }
-        case 'set_task_status': {
+        case 'project_set_status': {
           const taskId = params.id
           const targetStatus = params.status as TaskStatus
           if (!taskId) return { content: [{ type: 'text', text: 'Error: id is required' }], isError: true }
@@ -578,7 +578,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           const allStatuses: TaskStatus[] = ['open', 'in-progress', 'done', 'archived']
           let fromStatus: TaskStatus | null = null
           for (const s of allStatuses) {
-            const dir = join(dialogCwd, '.claude', '.rclaude', 'tasks', s)
+            const dir = join(dialogCwd, '.rclaude', 'project', s)
             try {
               if (readdirSync(dir).includes(`${taskId}.md`)) {
                 fromStatus = s
@@ -590,7 +590,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           if (fromStatus === targetStatus)
             return { content: [{ type: 'text', text: `Task already in ${targetStatus}` }] }
 
-          const moved = moveTaskNote(dialogCwd, taskId, fromStatus, targetStatus)
+          const moved = moveProjectTask(dialogCwd, taskId, fromStatus, targetStatus)
           if (!moved) return { content: [{ type: 'text', text: `Failed to move task` }], isError: true }
           debug(`[channel] set_task_status: ${taskId} ${fromStatus} -> ${targetStatus}`)
           return { content: [{ type: 'text', text: `Moved "${taskId}" from ${fromStatus} to ${targetStatus}` }] }

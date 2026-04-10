@@ -1,5 +1,5 @@
 /**
- * useTaskNotes - Hook for task notes CRUD via WS relay to wrapper
+ * useProject - Hook for project board task CRUD via WS relay to wrapper
  */
 
 import { useCallback, useEffect, useState } from 'react'
@@ -7,7 +7,7 @@ import { useSessionsStore } from './use-sessions'
 
 export type TaskStatus = 'open' | 'in-progress' | 'done' | 'archived'
 
-export interface TaskNoteMeta {
+export interface ProjectTaskMeta {
   slug: string
   status: TaskStatus
   title: string
@@ -18,7 +18,7 @@ export interface TaskNoteMeta {
   bodyPreview: string
 }
 
-export interface TaskNote extends TaskNoteMeta {
+export interface ProjectTask extends ProjectTaskMeta {
   body: string
 }
 
@@ -30,20 +30,18 @@ interface PendingRequest {
 
 const REQUEST_TIMEOUT_MS = 10_000
 
-// Shared across all useTaskNotes instances so any hook can receive any response.
-// Previously each instance had its own ref + tried to set a singleton handler,
-// causing the last-mounted hook to steal responses from all others.
+// Shared across all useProject instances so any hook can receive any response.
 const sharedPendingRequests = new Map<string, PendingRequest>()
-const changeListeners = new Set<(notes: TaskNoteMeta[]) => void>()
+const changeListeners = new Set<(tasks: ProjectTaskMeta[]) => void>()
 let handlerInstalled = false
 
 function installSharedHandler() {
   if (handlerInstalled) return
   handlerInstalled = true
   useSessionsStore.setState({
-    taskNotesHandler: (msg: Record<string, unknown>) => {
-      if (msg.type === 'task_notes_changed' && msg.notes) {
-        for (const listener of changeListeners) listener(msg.notes as TaskNoteMeta[])
+    projectHandler: (msg: Record<string, unknown>) => {
+      if (msg.type === 'project_changed' && msg.notes) {
+        for (const listener of changeListeners) listener(msg.notes as ProjectTaskMeta[])
         return
       }
       const requestId = msg.requestId as string | undefined
@@ -63,8 +61,8 @@ function installSharedHandler() {
   })
 }
 
-export function useTaskNotes(sessionId: string | null) {
-  const [notes, setNotes] = useState<TaskNoteMeta[]>([])
+export function useProject(sessionId: string | null) {
+  const [tasks, setTasks] = useState<ProjectTaskMeta[]>([])
   const [loading, setLoading] = useState(false)
   const sendWsMessage = useSessionsStore(state => state.sendWsMessage)
 
@@ -80,12 +78,11 @@ export function useTaskNotes(sessionId: string | null) {
     })
   }
 
-  // Register for change notifications + ensure shared handler is installed
   useEffect(() => {
     installSharedHandler()
-    changeListeners.add(setNotes)
+    changeListeners.add(setTasks)
     return () => {
-      changeListeners.delete(setNotes)
+      changeListeners.delete(setTasks)
     }
   }, [])
 
@@ -93,8 +90,8 @@ export function useTaskNotes(sessionId: string | null) {
     if (!sessionId) return
     setLoading(true)
     try {
-      const resp = await sendRequest({ type: 'task_notes_list' })
-      setNotes((resp.notes as TaskNoteMeta[]) || [])
+      const resp = await sendRequest({ type: 'project_list' })
+      setTasks((resp.notes as ProjectTaskMeta[]) || [])
     } catch {
       /* ignore */
     } finally {
@@ -102,80 +99,79 @@ export function useTaskNotes(sessionId: string | null) {
     }
   }, [sessionId])
 
-  // Auto-load on session change
   useEffect(() => {
     refresh()
   }, [refresh])
 
-  const createNote = useCallback(
+  const createTask = useCallback(
     async (input: { title?: string; body: string; priority?: string; tags?: string[] }) => {
       if (!sessionId) return null
-      const resp = await sendRequest({ type: 'task_notes_create', ...input })
-      const note = resp.note as TaskNoteMeta
-      setNotes(prev => [note, ...prev])
-      return note
+      const resp = await sendRequest({ type: 'project_create', ...input })
+      const task = resp.note as ProjectTaskMeta
+      setTasks(prev => [task, ...prev])
+      return task
     },
     [sessionId],
   )
 
-  const moveNote = useCallback(
+  const moveTask = useCallback(
     async (slug: string, from: TaskStatus, to: TaskStatus) => {
       if (!sessionId) return false
-      const resp = await sendRequest({ type: 'task_notes_move', slug, from, to })
+      const resp = await sendRequest({ type: 'project_move', slug, from, to })
       if (resp.ok) {
-        setNotes(prev => prev.map(n => (n.slug === slug ? { ...n, status: to } : n)))
+        setTasks(prev => prev.map(n => (n.slug === slug ? { ...n, status: to } : n)))
       }
       return !!resp.ok
     },
     [sessionId],
   )
 
-  const deleteNote = useCallback(
+  const deleteTask = useCallback(
     async (slug: string, status: TaskStatus) => {
       if (!sessionId) return false
-      const resp = await sendRequest({ type: 'task_notes_delete', slug, status })
+      const resp = await sendRequest({ type: 'project_delete', slug, status })
       if (resp.ok) {
-        setNotes(prev => prev.filter(n => n.slug !== slug))
+        setTasks(prev => prev.filter(n => n.slug !== slug))
       }
       return !!resp.ok
     },
     [sessionId],
   )
 
-  const readNote = useCallback(
-    async (slug: string, status: TaskStatus): Promise<TaskNote | null> => {
+  const readTask = useCallback(
+    async (slug: string, status: TaskStatus): Promise<ProjectTask | null> => {
       if (!sessionId) return null
-      const resp = await sendRequest({ type: 'task_notes_read', slug, status })
-      return (resp.note as TaskNote) || null
+      const resp = await sendRequest({ type: 'project_read', slug, status })
+      return (resp.note as ProjectTask) || null
     },
     [sessionId],
   )
 
-  const updateNote = useCallback(
+  const updateTask = useCallback(
     async (
       slug: string,
       status: TaskStatus,
       patch: { title?: string; body?: string; priority?: string; tags?: string[] },
     ) => {
       if (!sessionId) return null
-      const resp = await sendRequest({ type: 'task_notes_update', slug, status, ...patch })
-      const note = resp.note as TaskNote | null
-      if (note) {
-        setNotes(prev => prev.map(n => (n.slug === slug ? { ...n, ...note } : n)))
+      const resp = await sendRequest({ type: 'project_update', slug, status, ...patch })
+      const task = resp.note as ProjectTask | null
+      if (task) {
+        setTasks(prev => prev.map(n => (n.slug === slug ? { ...n, ...task } : n)))
       }
-      return note
+      return task
     },
     [sessionId],
   )
 
   return {
-    notes,
+    tasks,
     loading,
     refresh,
-    createNote,
-    moveNote,
-    deleteNote,
-    readNote,
-    updateNote,
+    createTask,
+    moveTask,
+    deleteTask,
+    readTask,
+    updateTask,
   }
 }

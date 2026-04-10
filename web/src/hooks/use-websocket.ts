@@ -784,7 +784,7 @@ export function useWebSocket() {
             msg.type === 'file_save_response' ||
             msg.type === 'file_history_response' ||
             msg.type === 'file_restore_response' ||
-            msg.type === 'quick_note_response' ||
+            msg.type === 'project_quick_add_response' ||
             msg.type === 'file_changed'
           ) {
             const handler = useSessionsStore.getState().fileHandler
@@ -792,13 +792,12 @@ export function useWebSocket() {
             return
           }
 
-          // Task notes messages -> direct handler callback
+          // Project board messages -> direct handler callback
           if (
             typeof msg.type === 'string' &&
-            ((msg.type.startsWith('task_notes_') && msg.type.endsWith('_response')) ||
-              msg.type === 'task_notes_changed')
+            ((msg.type.startsWith('project_') && msg.type.endsWith('_response')) || msg.type === 'project_changed')
           ) {
-            const handler = useSessionsStore.getState().taskNotesHandler
+            const handler = useSessionsStore.getState().projectHandler
             handler?.(msg as unknown as Record<string, unknown>)
             return
           }

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/claudification/remote-claude/main/schemas/rclaude.schema.json",
   "title": "rclaude project configuration",
-  "description": "Per-project configuration for rclaude sessions. Place at .claude/rclaude.json in your project root.",
+  "description": "Per-project configuration for rclaude sessions. Place at .rclaude/rclaude.json in your project root.",
   "type": "object",
   "properties": {
     "$schema": {

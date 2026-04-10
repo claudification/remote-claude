@@ -53,11 +53,11 @@ export function getPaletteCommands(onClose: () => void): PaletteCommand[] {
       },
     },
     {
-      id: 'quick-note',
-      label: 'Quick note (append to NOTES.md)',
+      id: 'quick-task',
+      label: 'Quick task',
       shortcut: 'Ctrl+Shift+N',
       action: () => {
-        window.dispatchEvent(new Event('open-quick-note'))
+        window.dispatchEvent(new Event('open-quick-task'))
         onClose()
       },
     },

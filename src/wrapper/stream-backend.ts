@@ -196,7 +196,7 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
   })
 
   // Diagnostic log - raw capture of everything from stdout/stderr for post-mortem analysis
-  const diagDir = join(cwd || process.cwd(), '.claude', '.rclaude')
+  const diagDir = join(cwd || process.cwd(), '.rclaude', 'settings')
   const diagPath = join(diagDir, `headless-${sessionId}.ndjsonl`)
   try {
     mkdirSync(diagDir, { recursive: true })

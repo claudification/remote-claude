@@ -1,16 +1,16 @@
 /**
- * Quick Note Modal - Ctrl+Shift+N shortcut
- * Creates a task note in .claude/.rclaude/tasks/open/
+ * Quick Task Modal - Ctrl+Shift+N shortcut
+ * Creates a project task in .rclaude/project/open/
  */
 
 import { FileText, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { useProject } from '@/hooks/use-project'
 import { useSessionsStore } from '@/hooks/use-sessions'
-import { useTaskNotes } from '@/hooks/use-task-notes'
 import { haptic } from '@/lib/utils'
 import { MarkdownInput } from './markdown-input'
 
-export function QuickNoteModal() {
+export function QuickTaskModal() {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [flash, setFlash] = useState(false)
@@ -21,9 +21,8 @@ export function QuickNoteModal() {
     return s != null && s.status !== 'ended'
   })
 
-  const { createNote } = useTaskNotes(selectedSessionId && isActive ? selectedSessionId : null)
+  const { createTask } = useProject(selectedSessionId && isActive ? selectedSessionId : null)
 
-  // Global keyboard shortcut + programmatic open via custom event
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey && e.shiftKey && !e.altKey && e.key === 'N') {
@@ -45,10 +44,10 @@ export function QuickNoteModal() {
       }
     }
     window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('open-quick-note', handleOpenEvent)
+    window.addEventListener('open-quick-task', handleOpenEvent)
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('open-quick-note', handleOpenEvent)
+      window.removeEventListener('open-quick-task', handleOpenEvent)
     }
   }, [open, selectedSessionId, isActive])
 
@@ -58,21 +57,19 @@ export function QuickNoteModal() {
     const lines = text.trim().split('\n')
     const title = lines[0]
     const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : text.trim()
-    // Fire and forget -- close immediately, don't wait for response.
-    // The note is a simple file write; the kanban board auto-refreshes via fs watcher.
-    createNote({ title, body }).catch(() => {})
+    createTask({ title, body }).catch(() => {})
     haptic('success')
     setText('')
     setOpen(false)
     setFlash(true)
     setTimeout(() => setFlash(false), 1000)
-  }, [text, createNote])
+  }, [text, createTask])
 
   if (!open) {
     if (flash) {
       return (
         <div className="fixed bottom-4 right-4 z-[100] px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 text-xs font-mono animate-pulse">
-          Task note created
+          Task created
         </div>
       )
     }
@@ -105,8 +102,8 @@ export function QuickNoteModal() {
       >
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
           <FileText className="w-4 h-4 text-accent" />
-          <span className="text-xs font-bold text-foreground">Quick Note</span>
-          <span className="text-[10px] text-muted-foreground ml-1">task note</span>
+          <span className="text-xs font-bold text-foreground">Quick Task</span>
+          <span className="text-[10px] text-muted-foreground ml-1">project task</span>
           <button
             type="button"
             onClick={() => setOpen(false)}

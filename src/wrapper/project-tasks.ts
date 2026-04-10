@@ -1,7 +1,7 @@
 /**
- * Task Notes - Host-side structured note storage
+ * Project Tasks - Host-side structured task storage for the project board
  *
- * Storage: {cwd}/.claude/.rclaude/tasks/{status}/{slug}.md
+ * Storage: {cwd}/.rclaude/project/{status}/{slug}.md
  * Markdown files with YAML frontmatter. Status = folder name.
  */
 
@@ -11,7 +11,7 @@ import { join } from 'node:path'
 export type TaskStatus = 'open' | 'in-progress' | 'done' | 'archived'
 const STATUSES: TaskStatus[] = ['open', 'in-progress', 'done', 'archived']
 
-export interface TaskNoteMeta {
+export interface ProjectTaskMeta {
   slug: string
   status: TaskStatus
   title: string
@@ -22,11 +22,11 @@ export interface TaskNoteMeta {
   bodyPreview: string
 }
 
-export interface TaskNote extends TaskNoteMeta {
+export interface ProjectTask extends ProjectTaskMeta {
   body: string
 }
 
-interface TaskNoteInput {
+interface ProjectTaskInput {
   title?: string
   body: string
   priority?: 'low' | 'medium' | 'high'
@@ -34,12 +34,12 @@ interface TaskNoteInput {
   refs?: string[]
 }
 
-function tasksRoot(cwd: string): string {
-  return join(cwd, '.claude', '.rclaude', 'tasks')
+function projectRoot(cwd: string): string {
+  return join(cwd, '.rclaude', 'project')
 }
 
 function statusDir(cwd: string, status: TaskStatus): string {
-  const d = join(tasksRoot(cwd), status)
+  const d = join(projectRoot(cwd), status)
   mkdirSync(d, { recursive: true })
   return d
 }
@@ -84,7 +84,7 @@ function parseFrontmatter(content: string): { meta: Record<string, unknown>; bod
   return { meta, body: match[2].trim() }
 }
 
-function toMarkdown(input: TaskNoteInput, created?: string): string {
+function toMarkdown(input: ProjectTaskInput, created?: string): string {
   const lines = ['---']
   if (input.title) lines.push(`title: ${input.title}`)
   if (input.priority) lines.push(`priority: ${input.priority}`)
@@ -97,7 +97,7 @@ function toMarkdown(input: TaskNoteInput, created?: string): string {
   return lines.join('\n')
 }
 
-function readNote(dir: string, filename: string, status: TaskStatus): TaskNote | null {
+function readTask(dir: string, filename: string, status: TaskStatus): ProjectTask | null {
   try {
     const content = readFileSync(join(dir, filename), 'utf8')
     const { meta, body } = parseFrontmatter(content)
@@ -120,19 +120,19 @@ function readNote(dir: string, filename: string, status: TaskStatus): TaskNote |
   }
 }
 
-export function listTaskNotes(cwd: string, filterStatus?: TaskStatus): TaskNoteMeta[] {
+export function listProjectTasks(cwd: string, filterStatus?: TaskStatus): ProjectTaskMeta[] {
   const statuses = filterStatus ? [filterStatus] : STATUSES
-  const notes: TaskNoteMeta[] = []
+  const tasks: ProjectTaskMeta[] = []
 
   for (const s of statuses) {
     const dir = statusDir(cwd, s)
     try {
       for (const file of readdirSync(dir)) {
         if (!file.endsWith('.md')) continue
-        const note = readNote(dir, file, s)
-        if (note) {
-          const { body: _, ...meta } = note
-          notes.push(meta)
+        const task = readTask(dir, file, s)
+        if (task) {
+          const { body: _, ...meta } = task
+          tasks.push(meta)
         }
       }
     } catch {
@@ -140,7 +140,7 @@ export function listTaskNotes(cwd: string, filterStatus?: TaskStatus): TaskNoteM
     }
   }
 
-  return notes.sort((a, b) => {
+  return tasks.sort((a, b) => {
     const priorityOrder = { high: 0, medium: 1, low: 2 }
     const ap = priorityOrder[a.priority || 'medium'] ?? 1
     const bp = priorityOrder[b.priority || 'medium'] ?? 1
@@ -149,12 +149,12 @@ export function listTaskNotes(cwd: string, filterStatus?: TaskStatus): TaskNoteM
   })
 }
 
-export function getTaskNote(cwd: string, status: TaskStatus, slug: string): TaskNote | null {
+export function getProjectTask(cwd: string, status: TaskStatus, slug: string): ProjectTask | null {
   const dir = statusDir(cwd, status)
-  return readNote(dir, `${slug}.md`, status)
+  return readTask(dir, `${slug}.md`, status)
 }
 
-export function createTaskNote(cwd: string, input: TaskNoteInput): TaskNoteMeta {
+export function createProjectTask(cwd: string, input: ProjectTaskInput): ProjectTaskMeta {
   const dir = statusDir(cwd, 'open')
   const baseSlug = input.title ? slugify(input.title) : `task-${Date.now()}`
   const slug = dedupSlug(dir, baseSlug)
@@ -173,29 +173,29 @@ export function createTaskNote(cwd: string, input: TaskNoteInput): TaskNoteMeta 
   }
 }
 
-export function updateTaskNote(
+export function updateProjectTask(
   cwd: string,
   status: TaskStatus,
   slug: string,
-  patch: Partial<TaskNoteInput>,
-): TaskNote | null {
-  const note = getTaskNote(cwd, status, slug)
-  if (!note) return null
+  patch: Partial<ProjectTaskInput>,
+): ProjectTask | null {
+  const task = getProjectTask(cwd, status, slug)
+  if (!task) return null
 
-  const updated: TaskNoteInput = {
-    title: patch.title ?? note.title,
-    body: patch.body ?? note.body,
-    priority: patch.priority ?? note.priority,
-    tags: patch.tags ?? note.tags,
-    refs: patch.refs ?? note.refs,
+  const updated: ProjectTaskInput = {
+    title: patch.title ?? task.title,
+    body: patch.body ?? task.body,
+    priority: patch.priority ?? task.priority,
+    tags: patch.tags ?? task.tags,
+    refs: patch.refs ?? task.refs,
   }
 
-  const content = toMarkdown(updated, note.created)
+  const content = toMarkdown(updated, task.created)
   writeFileSync(join(statusDir(cwd, status), `${slug}.md`), content, 'utf8')
-  return getTaskNote(cwd, status, slug)
+  return getProjectTask(cwd, status, slug)
 }
 
-export function moveTaskNote(cwd: string, slug: string, fromStatus: TaskStatus, toStatus: TaskStatus): boolean {
+export function moveProjectTask(cwd: string, slug: string, fromStatus: TaskStatus, toStatus: TaskStatus): boolean {
   const fromDir = statusDir(cwd, fromStatus)
   const toDir = statusDir(cwd, toStatus)
   const filename = `${slug}.md`
@@ -207,7 +207,7 @@ export function moveTaskNote(cwd: string, slug: string, fromStatus: TaskStatus, 
   return true
 }
 
-export function deleteTaskNote(cwd: string, status: TaskStatus, slug: string): boolean {
+export function deleteProjectTask(cwd: string, status: TaskStatus, slug: string): boolean {
   const filepath = join(statusDir(cwd, status), `${slug}.md`)
   if (!existsSync(filepath)) return false
   unlinkSync(filepath)

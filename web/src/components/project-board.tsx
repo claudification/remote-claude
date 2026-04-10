@@ -1,5 +1,5 @@
 /**
- * Task Board - Kanban-style view for structured task notes
+ * Project Board - Kanban-style view for project tasks
  * Three columns: Open | In Progress | Done, plus collapsible Archive
  */
 
@@ -29,13 +29,13 @@ import {
   X,
 } from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import type { TaskNote } from '@/hooks/use-task-notes'
-import { type TaskNoteMeta, type TaskStatus, useTaskNotes } from '@/hooks/use-task-notes'
+import type { ProjectTask } from '@/hooks/use-project'
+import { type ProjectTaskMeta, type TaskStatus, useProject } from '@/hooks/use-project'
 import { cn, haptic } from '@/lib/utils'
 import { Markdown } from './markdown'
 import { MarkdownInput } from './markdown-input'
 
-function noteAge(created: string): string {
+function taskAge(created: string): string {
   if (!created) return ''
   const ms = Date.now() - new Date(created).getTime()
   if (ms < 0) return ''
@@ -86,13 +86,13 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
 }
 
-function fuzzyScore(query: string, note: TaskNoteMeta): number {
+function fuzzyScore(query: string, task: ProjectTaskMeta): number {
   if (!query) return 1
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
   if (terms.length === 0) return 1
-  const title = note.title.toLowerCase()
-  const body = (note.bodyPreview || '').toLowerCase()
-  const tagStr = note.tags.join(' ').toLowerCase()
+  const title = task.title.toLowerCase()
+  const body = (task.bodyPreview || '').toLowerCase()
+  const tagStr = task.tags.join(' ').toLowerCase()
   let score = 0
   for (const term of terms) {
     const inTitle = title.includes(term)
@@ -106,12 +106,12 @@ function fuzzyScore(query: string, note: TaskNoteMeta): number {
   return score
 }
 
-function NoteEditor({
-  note,
+function TaskEditor({
+  task,
   onSave,
   onClose,
 }: {
-  note: TaskNote
+  task: ProjectTask
   onSave: (
     slug: string,
     status: TaskStatus,
@@ -119,10 +119,10 @@ function NoteEditor({
   ) => Promise<unknown>
   onClose: () => void
 }) {
-  const [title, setTitle] = useState(note.title)
-  const [body, setBody] = useState(note.body)
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>(note.priority || 'medium')
-  const [tags, setTags] = useState<string[]>(note.tags || [])
+  const [title, setTitle] = useState(task.title)
+  const [body, setBody] = useState(task.body)
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>(task.priority || 'medium')
+  const [tags, setTags] = useState<string[]>(task.tags || [])
   const [tagInput, setTagInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(!body.trim())
@@ -137,7 +137,7 @@ function NoteEditor({
 
   async function handleSave() {
     setSaving(true)
-    await onSave(note.slug, note.status, { title, body, priority, tags })
+    await onSave(task.slug, task.status, { title, body, priority, tags })
     setSaving(false)
     haptic('success')
     onClose()
@@ -181,7 +181,7 @@ function NoteEditor({
             <option value="medium">medium</option>
             <option value="high">high</option>
           </select>
-          <span className="text-[9px] text-muted-foreground/40 font-mono">{noteAge(note.created)}</span>
+          <span className="text-[9px] text-muted-foreground/40 font-mono">{taskAge(task.created)}</span>
           <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground ml-1">
             <X className="w-4 h-4" />
           </button>
@@ -249,7 +249,7 @@ function NoteEditor({
               value={body}
               onChange={e => setBody(e.target.value)}
               className="w-full h-full min-h-[200px] bg-transparent text-sm font-mono text-foreground outline-none resize-none placeholder:text-muted-foreground/30 leading-relaxed"
-              placeholder="Note body (markdown)..."
+              placeholder="Task body (markdown)..."
             />
           ) : body.trim() ? (
             // biome-ignore lint/a11y/noStaticElementInteractions: click to edit
@@ -272,7 +272,7 @@ function NoteEditor({
 
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-2 border-t border-[#33467c]/50 shrink-0">
-          <span className="text-[10px] text-muted-foreground/40 font-mono">{note.slug}.md</span>
+          <span className="text-[10px] text-muted-foreground/40 font-mono">{task.slug}.md</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -296,26 +296,26 @@ function NoteEditor({
   )
 }
 
-function TaskCard({
-  note,
+function ProjectCard({
+  task,
   onMove,
   onDelete,
   onArchive,
   onEdit,
 }: {
-  note: TaskNoteMeta
+  task: ProjectTaskMeta
   onMove: (slug: string, from: TaskStatus, to: TaskStatus) => void
   onDelete: (slug: string, status: TaskStatus) => void
   onArchive: (slug: string, from: TaskStatus) => void
-  onEdit: (note: TaskNoteMeta) => void
+  onEdit: (task: ProjectTaskMeta) => void
 }) {
   const [showActions, setShowActions] = useState(false)
-  const canMoveRight = note.status in NEXT_STATUS
-  const canMoveLeft = note.status in PREV_STATUS
+  const canMoveRight = task.status in NEXT_STATUS
+  const canMoveLeft = task.status in PREV_STATUS
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `${note.status}/${note.slug}`,
-    data: { slug: note.slug, status: note.status },
+    id: `${task.status}/${task.slug}`,
+    data: { slug: task.slug, status: task.status },
   })
 
   const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined
@@ -328,28 +328,28 @@ function TaskCard({
         'group px-3 py-2 bg-[#1a1b26] border border-[#33467c]/30 hover:border-[#33467c]/60 transition-colors cursor-pointer',
         isDragging && 'opacity-50 z-50',
       )}
-      onClick={() => !isDragging && onEdit(note)}
+      onClick={() => !isDragging && onEdit(task)}
       {...attributes}
       {...listeners}
     >
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <div className="text-xs font-mono text-foreground truncate flex items-center gap-1.5">
-            <span className="truncate">{note.title}</span>
-            {note.created && (
-              <span className="text-[9px] text-muted-foreground/40 shrink-0">{noteAge(note.created)}</span>
+            <span className="truncate">{task.title}</span>
+            {task.created && (
+              <span className="text-[9px] text-muted-foreground/40 shrink-0">{taskAge(task.created)}</span>
             )}
           </div>
-          {note.bodyPreview && (
-            <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{note.bodyPreview}</div>
+          {task.bodyPreview && (
+            <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{task.bodyPreview}</div>
           )}
           <div className="flex items-center gap-1 mt-1 flex-wrap">
-            {note.priority && (
-              <span className={cn('text-[9px] px-1 py-0.5 border font-mono', PRIORITY_COLORS[note.priority])}>
-                {note.priority}
+            {task.priority && (
+              <span className={cn('text-[9px] px-1 py-0.5 border font-mono', PRIORITY_COLORS[task.priority])}>
+                {task.priority}
               </span>
             )}
-            {note.tags.map(tag => (
+            {task.tags.map(tag => (
               <span key={tag} className={cn('text-[9px] px-1 py-0.5 border font-mono', tagColor(tag))}>
                 {tag}
               </span>
@@ -381,7 +381,7 @@ function TaskCard({
               className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors font-mono"
               onClick={() => {
                 haptic('tap')
-                onMove(note.slug, note.status, PREV_STATUS[note.status])
+                onMove(task.slug, task.status, PREV_STATUS[task.status])
                 setShowActions(false)
               }}
             >
@@ -394,20 +394,20 @@ function TaskCard({
               className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors font-mono"
               onClick={() => {
                 haptic('tap')
-                onMove(note.slug, note.status, NEXT_STATUS[note.status])
+                onMove(task.slug, task.status, NEXT_STATUS[task.status])
                 setShowActions(false)
               }}
             >
               Next <ArrowRight className="w-3 h-3" />
             </button>
           )}
-          {note.status !== 'archived' && (
+          {task.status !== 'archived' && (
             <button
               type="button"
               className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors font-mono"
               onClick={() => {
                 haptic('tap')
-                onArchive(note.slug, note.status)
+                onArchive(task.slug, task.status)
                 setShowActions(false)
               }}
             >
@@ -419,7 +419,7 @@ function TaskCard({
             className="ml-auto flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-red-400/60 hover:text-red-400 transition-colors font-mono"
             onClick={() => {
               haptic('error')
-              onDelete(note.slug, note.status)
+              onDelete(task.slug, task.status)
               setShowActions(false)
             }}
           >
@@ -445,7 +445,7 @@ function InlineAdd({ onAdd }: { onAdd: (text: string) => void }) {
           setAdding(true)
         }}
       >
-        + Add task...
+        + Add...
       </button>
     )
   }
@@ -463,7 +463,7 @@ function InlineAdd({ onAdd }: { onAdd: (text: string) => void }) {
             setAdding(false)
           }
         }}
-        placeholder="Task description..."
+        placeholder="Description..."
         autoFocus
         inline
       />
@@ -512,19 +512,19 @@ function DroppableColumn({ status, children }: { status: TaskStatus; children: R
   )
 }
 
-export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: string }) {
-  const { notes, loading, refresh, createNote, moveNote, deleteNote, readNote, updateNote } = useTaskNotes(sessionId)
-  const [editingNote, setEditingNote] = useState<TaskNote | null>(null)
-  const [activeDragNote, setActiveDragNote] = useState<TaskNoteMeta | null>(null)
+export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionId: string }) {
+  const { tasks, loading, refresh, createTask, moveTask, deleteTask, readTask, updateTask } = useProject(sessionId)
+  const [editingTask, setEditingTask] = useState<ProjectTask | null>(null)
+  const [activeDragTask, setActiveDragTask] = useState<ProjectTaskMeta | null>(null)
   const [archiveExpanded, setArchiveExpanded] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  const filteredNotes = useMemo(() => {
-    if (!searchQuery.trim()) return notes
-    return notes.filter(n => fuzzyScore(searchQuery, n) > 0)
-  }, [notes, searchQuery])
+  const filteredTasks = useMemo(() => {
+    if (!searchQuery.trim()) return tasks
+    return tasks.filter(n => fuzzyScore(searchQuery, n) > 0)
+  }, [tasks, searchQuery])
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -534,57 +534,56 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
   function handleDragStart(event: DragStartEvent) {
     const data = event.active.data.current as { slug: string; status: TaskStatus } | undefined
     if (!data) return
-    const note = notes.find(n => n.slug === data.slug && n.status === data.status)
-    if (note) setActiveDragNote(note)
+    const task = tasks.find(n => n.slug === data.slug && n.status === data.status)
+    if (task) setActiveDragTask(task)
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    setActiveDragNote(null)
+    setActiveDragTask(null)
     const { active, over } = event
     if (!over) return
     const targetStatus = over.id as TaskStatus
     const sourceData = active.data.current as { slug: string; status: TaskStatus } | undefined
     if (!sourceData || sourceData.status === targetStatus) return
     haptic('tap')
-    moveNote(sourceData.slug, sourceData.status, targetStatus)
+    moveTask(sourceData.slug, sourceData.status, targetStatus)
   }
 
   const handleCreate = useCallback(
     async (text: string) => {
-      // First line is title, rest is body
       const lines = text.split('\n')
       const title = lines[0]
       const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : text
-      await createNote({ title, body })
+      await createTask({ title, body })
     },
-    [createNote],
+    [createTask],
   )
 
   const handleMove = useCallback(
     async (slug: string, from: TaskStatus, to: TaskStatus) => {
-      await moveNote(slug, from, to)
+      await moveTask(slug, from, to)
     },
-    [moveNote],
+    [moveTask],
   )
 
   const handleDelete = useCallback(
     async (slug: string, status: TaskStatus) => {
-      await deleteNote(slug, status)
+      await deleteTask(slug, status)
     },
-    [deleteNote],
+    [deleteTask],
   )
 
   const handleArchive = useCallback(
     async (slug: string, from: TaskStatus) => {
-      await moveNote(slug, from, 'archived')
+      await moveTask(slug, from, 'archived')
     },
-    [moveNote],
+    [moveTask],
   )
 
-  const archivedNotes = filteredNotes.filter(n => n.status === 'archived')
-  const activeNotes = filteredNotes.filter(n => n.status !== 'archived')
+  const archivedTasks = filteredTasks.filter(n => n.status === 'archived')
+  const activeTasks = filteredTasks.filter(n => n.status !== 'archived')
 
-  if (loading && notes.length === 0) {
+  if (loading && tasks.length === 0) {
     return (
       <div className="flex items-center justify-center h-32 text-muted-foreground/40 text-xs font-mono">Loading...</div>
     )
@@ -595,7 +594,7 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
       {/* Header */}
       <div className="flex flex-col border-b border-border shrink-0">
         <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-xs font-bold text-foreground font-mono">Task Notes</span>
+          <span className="text-xs font-bold text-foreground font-mono">Project</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -634,7 +633,7 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               onFocus={() => haptic('tap')}
-              placeholder="Filter tasks..."
+              placeholder="Filter..."
               className="flex-1 bg-[#1a1b26] border border-[#33467c]/40 px-2 py-1 text-xs font-mono text-foreground outline-none placeholder:text-muted-foreground/30 focus:border-accent/50"
             />
             {searchQuery && (
@@ -659,7 +658,7 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
         <div className="flex-1 min-h-0 overflow-auto">
           <div className="flex gap-0 min-h-full">
             {COLUMNS.map(col => {
-              const colNotes = activeNotes.filter(n => n.status === col.status)
+              const colTasks = activeTasks.filter(n => n.status === col.status)
               return (
                 <DroppableColumn key={col.status} status={col.status}>
                   {/* Column header */}
@@ -667,21 +666,21 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
                     <span className={cn('text-[11px] font-bold font-mono uppercase tracking-wider', col.color)}>
                       {col.label}
                     </span>
-                    <span className="text-[10px] text-muted-foreground/40 font-mono">{colNotes.length}</span>
+                    <span className="text-[10px] text-muted-foreground/40 font-mono">{colTasks.length}</span>
                   </div>
 
                   {/* Cards */}
                   <div className="flex-1 overflow-y-auto space-y-0">
-                    {colNotes.map(note => (
-                      <TaskCard
-                        key={note.slug}
-                        note={note}
+                    {colTasks.map(task => (
+                      <ProjectCard
+                        key={task.slug}
+                        task={task}
                         onMove={handleMove}
                         onDelete={handleDelete}
                         onArchive={handleArchive}
                         onEdit={async meta => {
-                          const full = await readNote(meta.slug, meta.status)
-                          if (full) setEditingNote(full)
+                          const full = await readTask(meta.slug, meta.status)
+                          if (full) setEditingTask(full)
                         }}
                       />
                     ))}
@@ -694,12 +693,12 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
           </div>
         </div>
         <DragOverlay dropAnimation={null}>
-          {activeDragNote && (
+          {activeDragTask && (
             <div className="px-3 py-2 bg-[#1a1b26] border border-[#33467c]/60 shadow-xl opacity-90 max-w-[250px]">
-              <div className="text-xs font-mono text-foreground truncate">{activeDragNote.title}</div>
-              {activeDragNote.bodyPreview && (
+              <div className="text-xs font-mono text-foreground truncate">{activeDragTask.title}</div>
+              {activeDragTask.bodyPreview && (
                 <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">
-                  {activeDragNote.bodyPreview}
+                  {activeDragTask.bodyPreview}
                 </div>
               )}
             </div>
@@ -708,7 +707,7 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
       </DndContext>
 
       {/* Archived section - collapsible */}
-      {archivedNotes.length > 0 && (
+      {archivedTasks.length > 0 && (
         <div className="border-t border-border shrink-0">
           <button
             type="button"
@@ -721,20 +720,20 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
             {archiveExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
             <Archive className="w-3 h-3" />
             <span className="text-[11px] font-mono uppercase tracking-wider">Archived</span>
-            <span className="text-[10px] font-mono">{archivedNotes.length}</span>
+            <span className="text-[10px] font-mono">{archivedTasks.length}</span>
           </button>
           {archiveExpanded && (
             <div className="max-h-[200px] overflow-y-auto border-t border-border/30">
-              {archivedNotes.map(note => (
-                <TaskCard
-                  key={note.slug}
-                  note={note}
+              {archivedTasks.map(task => (
+                <ProjectCard
+                  key={task.slug}
+                  task={task}
                   onMove={handleMove}
                   onDelete={handleDelete}
                   onArchive={handleArchive}
                   onEdit={async meta => {
-                    const full = await readNote(meta.slug, meta.status)
-                    if (full) setEditingNote(full)
+                    const full = await readTask(meta.slug, meta.status)
+                    if (full) setEditingTask(full)
                   }}
                 />
               ))}
@@ -744,13 +743,13 @@ export const TaskBoard = memo(function TaskBoard({ sessionId }: { sessionId: str
       )}
 
       {/* Full-screen editor modal */}
-      {editingNote && (
-        <NoteEditor
-          note={editingNote}
+      {editingTask && (
+        <TaskEditor
+          task={editingTask}
           onSave={async (slug, status, patch) => {
-            await updateNote(slug, status, patch)
+            await updateTask(slug, status, patch)
           }}
-          onClose={() => setEditingNote(null)}
+          onClose={() => setEditingTask(null)}
         />
       )}
     </div>

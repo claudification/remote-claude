@@ -245,7 +245,7 @@ export async function writeMergedSettings(
   dir?: string,
 ): Promise<string> {
   const settings = await generateMergedSettings(sessionId, port, claudeVersion)
-  const settingsPath = dir ? `${dir}/settings-${sessionId}.json` : `/tmp/rclaude-settings-${sessionId}.json`
+  const settingsPath = dir ? `${dir}/settings/settings-${sessionId}.json` : `/tmp/rclaude-settings-${sessionId}.json`
 
   await Bun.write(settingsPath, JSON.stringify(settings, null, 2))
   console.error(
@@ -303,7 +303,7 @@ export async function cleanupMcpConfig(cwd: string): Promise<void> {
  * Clean up the temp settings file
  */
 export async function cleanupSettings(sessionId: string, dir?: string): Promise<void> {
-  const settingsPath = dir ? `${dir}/settings-${sessionId}.json` : `/tmp/rclaude-settings-${sessionId}.json`
+  const settingsPath = dir ? `${dir}/settings/settings-${sessionId}.json` : `/tmp/rclaude-settings-${sessionId}.json`
   try {
     ;(await Bun.file(settingsPath).exists()) && (await Bun.$`rm ${settingsPath}`.quiet())
   } catch {

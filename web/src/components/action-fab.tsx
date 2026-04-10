@@ -33,10 +33,10 @@ export function ActionFab() {
       color: 'bg-[#7aa2f7]',
     },
     {
-      id: 'note',
+      id: 'task',
       icon: <PenLine className="w-4 h-4" />,
-      label: 'Note',
-      action: () => window.dispatchEvent(new Event('open-quick-note')),
+      label: 'Task',
+      action: () => window.dispatchEvent(new Event('open-quick-task')),
       color: 'bg-[#9ece6a]',
     },
     {
