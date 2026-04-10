@@ -178,16 +178,25 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       // ExitPlanMode: intercept and forward plan to dashboard for approval
       if (request.toolName === 'ExitPlanMode') {
         const sessionId = ctx.claudeSessionId || ctx.internalId
+        ctx.diag('headless', `ExitPlanMode input keys: ${Object.keys(request.toolInput || {}).join(', ')}`)
         let plan = (request.toolInput?.plan as string) || ''
         const planFilePath = request.toolInput?.planFilePath as string | undefined
         const allowedPrompts = request.toolInput?.allowedPrompts as string[] | undefined
 
         // CC may not include plan content in the can_use_tool input.
         // The plan is written to ~/.claude/plans/{slug}.md before ExitPlanMode fires.
-        // Read it from disk if not provided.
+        // Try: 1) input.plan, 2) read planFilePath from input, 3) latest plan file
+        if (!plan && planFilePath) {
+          try {
+            plan = readFileSync(planFilePath, 'utf-8')
+            ctx.diag('headless', `ExitPlanMode: read plan from ${planFilePath} (${plan.length} chars)`)
+          } catch {
+            ctx.diag('headless', `ExitPlanMode: failed to read ${planFilePath}`)
+          }
+        }
         if (!plan) {
           plan = readLatestPlanFile() || '(Plan content not available)'
-          ctx.diag('headless', `ExitPlanMode: read plan from disk (${plan.length} chars)`)
+          ctx.diag('headless', `ExitPlanMode: fallback to latest plan file (${plan.length} chars)`)
         }
 
         // Store pending request for response routing
