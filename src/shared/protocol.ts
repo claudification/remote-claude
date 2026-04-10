@@ -835,6 +835,7 @@ export interface Session {
     turnCount: number
     toolCallCount: number
     compactionCount: number
+    totalCostUsd?: number
   }
   gitBranch?: string
 }

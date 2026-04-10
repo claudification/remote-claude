@@ -4,7 +4,7 @@
  */
 
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { memo, Profiler, type ProfilerOnRenderCallback, useCallback, useEffect, useMemo, useRef } from 'react'
+import { memo, Profiler, type ProfilerOnRenderCallback, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { isPerfEnabled, record } from '@/lib/perf-metrics'
 import type { TranscriptEntry } from '@/lib/types'
@@ -30,6 +30,84 @@ const StreamingBlock = memo(function StreamingBlock({ sessionId }: { sessionId: 
           <span className="inline-block w-1.5 h-4 bg-emerald-500 animate-pulse ml-0.5 align-text-bottom" />
         </div>
       </div>
+    </div>
+  )
+})
+
+const VERBS = [
+  'Thinking',
+  'Reasoning',
+  'Pondering',
+  'Computing',
+  'Processing',
+  'Analyzing',
+  'Cogitating',
+  'Ruminating',
+  'Deliberating',
+  'Contemplating',
+  'Synthesizing',
+  'Evaluating',
+  'Calculating',
+  'Deducing',
+  'Inferring',
+  'Considering',
+  'Brainstorming',
+  'Formulating',
+  'Assembling',
+  'Decoding',
+  'Untangling',
+  'Composing',
+  'Orchestrating',
+  'Channeling',
+  'Manifesting',
+  'Conjuring',
+  'Brewing',
+  'Crafting',
+  'Forging',
+  'Weaving',
+  'Sculpting',
+  'Crunching',
+  'Finugeling',
+  'Machinating',
+  'Scheming',
+  'Plotting',
+]
+
+/** Shows a fun random verb spinner while the session is active (between UserPromptSubmit and Stop) */
+const ThinkingSpinner = memo(function ThinkingSpinner({ sessionId }: { sessionId: string | null }) {
+  const session = useSessionsStore(state => state.sessions.find(s => s.id === sessionId))
+  const [verb, setVerb] = useState(() => VERBS[Math.floor(Math.random() * VERBS.length)])
+  const [dots, setDots] = useState(0)
+
+  const isActive = session?.status === 'active'
+  const tokens = session?.stats?.totalOutputTokens ?? 0
+
+  useEffect(() => {
+    if (!isActive) return
+    const verbInterval = setInterval(() => {
+      setVerb(VERBS[Math.floor(Math.random() * VERBS.length)])
+    }, 3000)
+    const dotInterval = setInterval(() => {
+      setDots(d => (d + 1) % 4)
+    }, 400)
+    return () => {
+      clearInterval(verbInterval)
+      clearInterval(dotInterval)
+    }
+  }, [isActive])
+
+  if (!isActive) return null
+
+  return (
+    <div className="mt-2 flex items-center gap-2 px-4 py-1.5 text-[11px] font-mono text-muted-foreground/60">
+      <span className="inline-block w-2 h-2 bg-accent rounded-full animate-pulse" />
+      <span className="text-accent/70">
+        {verb}
+        {'.'.repeat(dots)}
+      </span>
+      {tokens > 0 && (
+        <span className="text-muted-foreground/40 tabular-nums">{(tokens / 1000).toFixed(1)}K tokens</span>
+      )}
     </div>
   )
 })
@@ -320,6 +398,8 @@ export function TranscriptView({
       </div>
       {/* Headless streaming text - isolated component so token updates don't re-render the virtualizer */}
       <StreamingBlock sessionId={selectedSessionId} />
+      {/* Fun verb spinner while session is working */}
+      <ThinkingSpinner sessionId={selectedSessionId} />
       {/* Queued messages: rendered inline at the bottom of the transcript */}
       {queuedGroups.length > 0 && (
         <div className="mt-2 border-t border-dashed border-amber-500/30 pt-2">

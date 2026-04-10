@@ -2096,6 +2096,13 @@ async function main() {
       },
       onResult(result) {
         diag('headless', `Result: ${result.subtype} cost=$${result.total_cost_usd} turns=${result.num_turns}`)
+        if (result.total_cost_usd != null && wsClient?.isConnected() && claudeSessionId) {
+          wsClient.send({
+            type: 'turn_cost',
+            sessionId: claudeSessionId,
+            costUsd: result.total_cost_usd,
+          } as unknown as WrapperMessage)
+        }
       },
       onStreamEvent(event) {
         // Forward raw API SSE deltas to concentrator for real-time streaming
@@ -2306,6 +2313,19 @@ async function main() {
       } catch {}
     try {
       unlinkSync(promptFile)
+    } catch {}
+    // Reap stale settings files older than 25 days
+    try {
+      const settingsDir = join(rclaudeDir, 'settings')
+      const maxAge = 25 * 24 * 60 * 60 * 1000
+      const now = Date.now()
+      for (const file of readdirSync(settingsDir)) {
+        const filePath = join(settingsDir, file)
+        try {
+          const stat = Bun.file(filePath)
+          if (now - stat.lastModified > maxAge) unlinkSync(filePath)
+        } catch {}
+      }
     } catch {}
   }
 

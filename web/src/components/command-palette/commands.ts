@@ -35,6 +35,14 @@ export function getPaletteCommands(onClose: () => void): PaletteCommand[] {
         ]
       : []),
     {
+      id: 'settings',
+      label: 'Settings',
+      action: () => {
+        window.dispatchEvent(new Event('open-settings'))
+        onClose()
+      },
+    },
+    {
       id: 'debug-console',
       label: 'Toggle debug console',
       shortcut: 'Ctrl+Shift+D',

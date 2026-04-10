@@ -89,6 +89,7 @@ export interface Session {
     turnCount: number
     toolCallCount: number
     compactionCount: number
+    totalCostUsd?: number
   }
   claudeVersion?: string
   claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }

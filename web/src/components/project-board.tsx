@@ -31,6 +31,7 @@ import {
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import type { ProjectTask } from '@/hooks/use-project'
 import { type ProjectTaskMeta, type TaskStatus, useProject } from '@/hooks/use-project'
+import { sendInput } from '@/hooks/use-sessions'
 import { cn, haptic } from '@/lib/utils'
 import { Markdown } from './markdown'
 import { MarkdownInput } from './markdown-input'
@@ -108,10 +109,12 @@ function fuzzyScore(query: string, task: ProjectTaskMeta): number {
 
 function TaskEditor({
   task,
+  sessionId,
   onSave,
   onClose,
 }: {
   task: ProjectTask
+  sessionId: string
   onSave: (
     slug: string,
     status: TaskStatus,
@@ -272,7 +275,27 @@ function TaskEditor({
 
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-2 border-t border-[#33467c]/50 shrink-0">
-          <span className="text-[10px] text-muted-foreground/40 font-mono">{task.slug}.md</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground/40 font-mono">{task.slug}.md</span>
+            <button
+              type="button"
+              onClick={() => {
+                const prompt = [
+                  `Work on this task: **${title}**`,
+                  '',
+                  body || '(no description)',
+                  '',
+                  'Ask the user for anything that is not clear, using the dialog tool.',
+                ].join('\n')
+                sendInput(sessionId, prompt)
+                haptic('success')
+                onClose()
+              }}
+              className="px-2 py-0.5 text-[10px] font-bold font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
+            >
+              Work on this
+            </button>
+          </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -746,6 +769,7 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
       {editingTask && (
         <TaskEditor
           task={editingTask}
+          sessionId={sessionId}
           onSave={async (slug, status, patch) => {
             await updateTask(slug, status, patch)
           }}

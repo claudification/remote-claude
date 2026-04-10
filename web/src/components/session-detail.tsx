@@ -971,13 +971,16 @@ export function SessionDetail() {
             const outputCostPer1M = 75
             const cacheCostPer1M = 1.875 // cache read
             const cacheWriteCostPer1M = 18.75 // cache creation
-            const estimatedCost = s
-              ? ((s.totalInputTokens - s.totalCacheCreation - s.totalCacheRead) * inputCostPer1M +
-                  s.totalOutputTokens * outputCostPer1M +
-                  s.totalCacheRead * cacheCostPer1M +
-                  s.totalCacheCreation * cacheWriteCostPer1M) /
-                1_000_000
-              : 0
+            const hasExactCost = s?.totalCostUsd != null && s.totalCostUsd > 0
+            const estimatedCost = hasExactCost
+              ? s.totalCostUsd!
+              : s
+                ? ((s.totalInputTokens - s.totalCacheCreation - s.totalCacheRead) * inputCostPer1M +
+                    s.totalOutputTokens * outputCostPer1M +
+                    s.totalCacheRead * cacheCostPer1M +
+                    s.totalCacheCreation * cacheWriteCostPer1M) /
+                  1_000_000
+                : 0
 
             return (
               <div className="px-3 sm:px-4 pb-3 sm:pb-4 text-xs font-mono space-y-3">
@@ -1090,7 +1093,7 @@ export function SessionDetail() {
                       <span className="text-purple-400">{(s.totalCacheCreation / 1000).toFixed(0)}K</span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">cost </span>
+                      <span className="text-muted-foreground">{hasExactCost ? 'cost ' : 'cost ~'}</span>
                       <span className="text-emerald-400">${estimatedCost.toFixed(2)}</span>
                     </div>
                   </div>

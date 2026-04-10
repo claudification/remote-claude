@@ -150,8 +150,19 @@ const rateLimitHandler: MessageHandler = (ctx, data) => {
   ctx.sessions.broadcastSessionUpdate(sessionId)
 }
 
+const turnCost: MessageHandler = (ctx, data) => {
+  const sessionId = data.sessionId as string
+  const costUsd = data.costUsd as number
+  const session = ctx.sessions.getSession(sessionId)
+  if (session) {
+    session.stats.totalCostUsd = costUsd
+    ctx.sessions.broadcastSessionUpdate(sessionId)
+  }
+}
+
 export function registerTranscriptHandlers(): void {
   registerHandlers({
+    turn_cost: turnCost,
     tasks_update: tasksUpdate,
     diag: diagHandler,
     transcript_entries: transcriptEntries,

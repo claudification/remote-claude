@@ -32,6 +32,14 @@ function WsStats({ onClick }: { onClick: () => void }) {
 export function Header() {
   const [showSettings, setShowSettings] = useState(false)
   const [showStatsModal, setShowStatsModal] = useState(false)
+
+  useEffect(() => {
+    function handleOpen() {
+      setShowSettings(true)
+    }
+    window.addEventListener('open-settings', handleOpen)
+    return () => window.removeEventListener('open-settings', handleOpen)
+  }, [])
   const showStats = useSessionsStore(s => s.dashboardPrefs.showWsStats)
   const [pushState, setPushState] = useState<
     'loading' | 'unsupported' | 'prompt' | 'subscribing' | 'subscribed' | 'denied'
