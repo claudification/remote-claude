@@ -413,13 +413,39 @@ function PerfTab() {
       {/* Controls */}
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-[#565f89]">{entries.length} entries</span>
-        <button
-          type="button"
-          onClick={clearPerfEntries}
-          className="text-[10px] text-[#565f89] hover:text-[#a9b1d6] transition-colors"
-        >
-          Clear
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              const lines = ['# Perf Report', '', `${new Date().toISOString()}`, '']
+              if (stats.length > 0) {
+                lines.push('## Summary', '', '| Category | Count | Avg | P95 | Max |', '|---|---|---|---|---|')
+                for (const s of stats) {
+                  lines.push(
+                    `| ${s.cat} | ${s.count} | ${s.avg.toFixed(1)}ms | ${s.p95.toFixed(1)}ms | ${s.max.toFixed(1)}ms |`,
+                  )
+                }
+                lines.push('')
+              }
+              lines.push('## Entries', '', '| Time | Category | Label | Duration | Detail |', '|---|---|---|---|---|')
+              for (const e of entries.slice(-200)) {
+                const t = new Date(e.t).toLocaleTimeString('en-GB', { hour12: false })
+                lines.push(`| ${t} | ${e.category} | ${e.label} | ${e.durationMs.toFixed(1)}ms | ${e.detail || ''} |`)
+              }
+              navigator.clipboard.writeText(lines.join('\n'))
+            }}
+            className="text-[10px] text-[#565f89] hover:text-[#a9b1d6] transition-colors"
+          >
+            Copy
+          </button>
+          <button
+            type="button"
+            onClick={clearPerfEntries}
+            className="text-[10px] text-[#565f89] hover:text-[#a9b1d6] transition-colors"
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       {/* Entry list */}
