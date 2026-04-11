@@ -59,13 +59,8 @@ export function formatModel(model: string | undefined): string {
     .replace(/-\d{8}$/, '')
 }
 
-/** Context window size for a given model string. Opus 4.6 has 1M, everything else 200K. */
-export function contextWindowSize(model: string | undefined): number {
-  if (!model) return 200_000
-  const m = model.toLowerCase()
-  if (m.includes('opus-4-6') || m.includes('opus-4.6')) return 1_000_000
-  return 200_000
-}
+/** Context window size for a given model string. Uses LiteLLM DB with hardcoded fallback. */
+export { contextWindowFromDb as contextWindowSize } from './model-db'
 
 /** Format effort level from API 'speed' field to human-readable label + symbol */
 export function formatEffort(speed: string | undefined): { label: string; symbol: string } | null {

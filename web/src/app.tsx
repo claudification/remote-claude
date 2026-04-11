@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { VoiceFab } from '@/components/voice-fab'
 import { VoiceKey } from '@/components/voice-key'
+import { fetchModelDb } from '@/lib/model-db'
 import { detectShareMode } from '@/lib/share-mode'
 
 const WebTerminal = lazy(() => import('@/components/web-terminal').then(m => ({ default: m.WebTerminal })))
@@ -111,6 +112,7 @@ function Dashboard() {
       fetchServerCapabilities(),
       fetchGlobalSettings(),
       fetchSessionOrder(),
+      fetchModelDb(), // LiteLLM pricing + context windows (fire-and-forget)
     ])
     useSessionsStore.setState({
       projectSettings: settings,

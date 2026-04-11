@@ -17,6 +17,7 @@ import { registerAllHandlers } from './handlers'
 import { appendMessage, initInterSessionLog } from './inter-session-log'
 import { drain, enqueue, getQueueSize, initMessageQueue } from './message-queue'
 import { routeMessage } from './message-router'
+import { initModelPricing } from './model-pricing'
 import { addAllowedRoot, addPathMapping, getAllowedRoots } from './path-jail'
 import { allGrantsExpired } from './permissions'
 import { getAllProjectSettings, getProjectSettings, initProjectSettings, setProjectSettings } from './project-settings'
@@ -245,6 +246,9 @@ async function main() {
     rpId: rpId || 'localhost',
     expectedOrigins: origins.length > 0 ? origins : defaultOrigins,
   })
+
+  // Initialize model pricing (LiteLLM database)
+  initModelPricing(authCacheDir)
 
   // Initialize settings
   initProjectSettings(authCacheDir)

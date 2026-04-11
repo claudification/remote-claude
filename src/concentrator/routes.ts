@@ -24,6 +24,7 @@ import { getAuthenticatedUser, handleAuthRoute, requireAuth } from './auth-route
 import { startFileReaper } from './file-reaper'
 import { getGlobalSettings, updateGlobalSettings } from './global-settings'
 import { purgeMessages, queryMessages } from './inter-session-log'
+import { getModels, getModelsFetchedAt } from './model-pricing'
 import { resolveInJail } from './path-jail'
 import { type Permission, resolvePermissionFlags, resolvePermissions, type UserGrant } from './permissions'
 import {
@@ -452,6 +453,9 @@ export function createRouter(options: RouteOptions): Hono {
 
   // ─── Server capabilities ───────────────────────────────────────────
   app.get('/api/capabilities', c => c.json({ voice: !!process.env.DEEPGRAM_API_KEY }))
+
+  // ─── Model pricing (LiteLLM) ─────────────────────────────────────
+  app.get('/api/models', c => c.json({ models: getModels(), fetchedAt: getModelsFetchedAt() }))
 
   // ─── File serving by hash ──────────────────────────────────────────
   app.get('/file/:hash', async c => {

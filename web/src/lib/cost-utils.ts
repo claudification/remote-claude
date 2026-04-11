@@ -1,27 +1,41 @@
 /**
- * Cost visibility utilities -- pricing, color thresholds, cache analysis
+ * Cost visibility utilities -- pricing, color thresholds, cache analysis.
+ * Uses LiteLLM model database when loaded, hardcoded fallback otherwise.
  */
 
-// Per-million-token pricing by model family
+import { getModelInfo } from './model-db'
+
+// Hardcoded fallback pricing (per-million-token)
 interface ModelPricing {
   input: number
   output: number
   cacheRead: number
-  cacheWrite: number // 5-min ephemeral
+  cacheWrite: number
 }
 
-const PRICING: Record<string, ModelPricing> = {
+const FALLBACK_PRICING: Record<string, ModelPricing> = {
   opus: { input: 15, output: 75, cacheRead: 1.875, cacheWrite: 18.75 },
   sonnet: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
   haiku: { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1.0 },
 }
 
 function getPricing(model?: string): ModelPricing {
-  if (!model) return PRICING.opus
+  // Try LiteLLM DB first
+  const info = getModelInfo(model)
+  if (info) {
+    return {
+      input: info.inputCostPerToken * 1_000_000,
+      output: info.outputCostPerToken * 1_000_000,
+      cacheRead: (info.cacheReadCostPerToken ?? info.inputCostPerToken * 0.125) * 1_000_000,
+      cacheWrite: (info.cacheWriteCostPerToken ?? info.inputCostPerToken * 1.25) * 1_000_000,
+    }
+  }
+  // Hardcoded fallback
+  if (!model) return FALLBACK_PRICING.opus
   const m = model.toLowerCase()
-  if (m.includes('haiku')) return PRICING.haiku
-  if (m.includes('sonnet')) return PRICING.sonnet
-  return PRICING.opus // default to most expensive
+  if (m.includes('haiku')) return FALLBACK_PRICING.haiku
+  if (m.includes('sonnet')) return FALLBACK_PRICING.sonnet
+  return FALLBACK_PRICING.opus
 }
 
 /** Estimate cost from token counts when exact cost isn't available */

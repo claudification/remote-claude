@@ -301,9 +301,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
         </div>
       )}
       {!compact && sessionName && (
-        <div className="mt-0.5 text-[10px] text-muted-foreground font-mono truncate pl-1">
-          {sessionName}
-        </div>
+        <div className="mt-0.5 text-[10px] text-muted-foreground font-mono truncate pl-1">{sessionName}</div>
       )}
       {compact && (
         <div className="flex items-center gap-1.5">
