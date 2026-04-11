@@ -724,6 +724,11 @@ export function createRouter(options: RouteOptions): Hono {
       mode?: 'fresh' | 'continue' | 'resume'
       resumeId?: string
       headless?: boolean
+      bare?: boolean
+      name?: string
+      model?: string
+      effort?: string
+      permissionMode?: string
     }>()
     if (!body.cwd || typeof body.cwd !== 'string') return c.json({ error: 'Missing cwd field' }, 400)
     if (body.mode === 'resume' && !body.resumeId) return c.json({ error: 'resumeId required for resume mode' }, 400)
@@ -757,10 +762,10 @@ export function createRouter(options: RouteOptions): Hono {
       const globalSettings = getGlobalSettings()
       const headless = body.headless ?? (projSettings?.defaultLaunchMode || globalSettings.defaultLaunchMode) !== 'pty'
 
-      // Resolve effort + model: project default > global default > undefined
-      const effortRaw = projSettings?.defaultEffort || globalSettings.defaultEffort
+      // Resolve effort + model: explicit body override > project default > global default > undefined
+      const effortRaw = body.effort || projSettings?.defaultEffort || globalSettings.defaultEffort
       const effort = effortRaw && effortRaw !== 'default' ? effortRaw : undefined
-      const modelRaw = projSettings?.defaultModel || globalSettings.defaultModel
+      const modelRaw = body.model || projSettings?.defaultModel || globalSettings.defaultModel
       const model = modelRaw || undefined
 
       agent.send(
@@ -775,6 +780,9 @@ export function createRouter(options: RouteOptions): Hono {
           headless,
           effort,
           model,
+          bare: body.bare || false,
+          sessionName: body.name?.trim() || undefined,
+          permissionMode: body.permissionMode || undefined,
         }),
       )
     })

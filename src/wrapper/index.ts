@@ -352,6 +352,21 @@ async function main() {
     }
   }
 
+  // Bare mode: pass --bare to Claude CLI (skips hooks, LSP, plugins, CLAUDE.md)
+  if (process.env.RCLAUDE_BARE === '1' && !claudeArgs.includes('--bare')) {
+    claudeArgs.push('--bare')
+  }
+
+  // Session name: pass --name to Claude CLI (shown in /resume, terminal title)
+  if (process.env.RCLAUDE_SESSION_NAME && !claudeArgs.includes('--name') && !claudeArgs.includes('-n')) {
+    claudeArgs.push('--name', process.env.RCLAUDE_SESSION_NAME)
+  }
+
+  // Permission mode: pass --permission-mode to Claude CLI
+  if (process.env.RCLAUDE_PERMISSION_MODE && !claudeArgs.includes('--permission-mode')) {
+    claudeArgs.push('--permission-mode', process.env.RCLAUDE_PERMISSION_MODE)
+  }
+
   // Headless mode implications
   if (headless) {
     noTerminal = true
@@ -1406,6 +1421,20 @@ async function main() {
   const isResuming = claudeArgs.includes('--resume') || claudeArgs.includes('--continue') || claudeArgs.includes('-c')
   const sessionName = hasUserName || isResuming ? undefined : generateFunnyName()
 
+  // Resolve the actual name that will be sent to CC (user-provided via env, or auto-generated)
+  const resolvedSessionName = process.env.RCLAUDE_SESSION_NAME || sessionName
+  debug(`Session name: ${resolvedSessionName || '(none)'} (user=${!!process.env.RCLAUDE_SESSION_NAME})`)
+
+  // Send session name to concentrator immediately (don't rely on CC transcript for this)
+  if (resolvedSessionName && ctx.wsClient?.isConnected()) {
+    ctx.wsClient.send({
+      type: 'session_name',
+      sessionId: ctx.claudeSessionId || internalId,
+      name: resolvedSessionName,
+      userSet: !!process.env.RCLAUDE_SESSION_NAME,
+    } as WrapperMessage)
+  }
+
   const finalClaudeArgs = [
     '--mcp-config',
     mcpConfigPath,
@@ -1413,8 +1442,6 @@ async function main() {
     ...(sessionName ? ['--name', sessionName] : []),
     ...claudeArgs,
   ]
-
-  if (sessionName) debug(`Session name: ${sessionName}`)
 
   let cleanupTerminal = () => {}
 

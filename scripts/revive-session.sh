@@ -87,6 +87,17 @@ fi
 if [[ "${RCLAUDE_HEADLESS:-}" == "1" ]]; then
   CMD_PREFIX+="RCLAUDE_HEADLESS=1 "
 fi
+if [[ "${RCLAUDE_BARE:-}" == "1" ]]; then
+  CMD_PREFIX+="RCLAUDE_BARE=1 "
+fi
+# Session name passed as env var (not CLI flag) to avoid quoting hell in tmux -c "..."
+if [[ -n "${RCLAUDE_SESSION_NAME:-}" ]]; then
+  CMD_PREFIX+="RCLAUDE_SESSION_NAME='${RCLAUDE_SESSION_NAME}' "
+fi
+# Permission mode passed as env var for the same reason
+if [[ -n "${RCLAUDE_PERMISSION_MODE:-}" ]]; then
+  CMD_PREFIX+="RCLAUDE_PERMISSION_MODE=${RCLAUDE_PERMISSION_MODE} "
+fi
 
 # Append --effort flag if set (passed through to claude CLI)
 EFFORT_FLAG=""
@@ -101,6 +112,9 @@ if [[ -n "${RCLAUDE_MODEL:-}" ]]; then
 fi
 
 SPAWN_CMD="${CMD_PREFIX}${BASE_CMD}${EFFORT_FLAG}${MODEL_FLAG}"
+
+# Debug log for launch diagnostics
+echo "$(date '+%Y-%m-%d %H:%M:%S') CWD=$CWD CMD=$SPAWN_CMD" >> /tmp/concentrator-launch-log.log 2>/dev/null || true
 
 # Launch a command in tmux via a login shell so .zshrc/.zprofile are sourced.
 # Without this, the tmux pane runs the command directly (no shell init),

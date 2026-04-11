@@ -199,6 +199,9 @@ export interface SessionStore {
   ) => { callerSessionId: string; targetSessionId: string; cwd: string; isSelfRestart: boolean } | undefined
   resolveRendezvous: (wrapperId: string, sessionId: string) => boolean
   getRendezvousInfo: (wrapperId: string) => { callerSessionId: string; action: string } | undefined
+  // Pending session names (set at spawn, consumed on connect)
+  setPendingSessionName: (wrapperId: string, name: string) => void
+  consumePendingSessionName: (wrapperId: string) => string | undefined
   // Inter-session messaging
   checkSessionLink: (from: string, to: string) => 'linked' | 'blocked' | 'unknown'
   getLinkedSessions: (sessionId: string) => string[]
@@ -2137,7 +2140,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         // Reset stats + metadata on initial load to avoid double-counting when
         // transcript watcher re-reads the full file (restart, reconnect, truncation recovery)
         session.summary = undefined
-        session.title = undefined
+        if (!session.titleUserSet) session.title = undefined // preserve user-set titles (spawn dialog)
         session.agentName = undefined
         session.prLinks = undefined
         session.stats = {
@@ -2627,6 +2630,21 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     return { callerSessionId: rv.callerSessionId, action: rv.action }
   }
 
+  // ─── Pending session names (set at spawn time, applied on connect) ──
+  const pendingSessionNames = new Map<string, string>() // wrapperId -> name
+
+  function setPendingSessionName(wrapperId: string, name: string): void {
+    pendingSessionNames.set(wrapperId, name)
+    // Auto-expire after 2 minutes (if wrapper never connects)
+    setTimeout(() => pendingSessionNames.delete(wrapperId), 120_000)
+  }
+
+  function consumePendingSessionName(wrapperId: string): string | undefined {
+    const name = pendingSessionNames.get(wrapperId)
+    if (name) pendingSessionNames.delete(wrapperId)
+    return name
+  }
+
   const fileListeners = new Map<string, (result: unknown) => void>()
   function addFileListener(requestId: string, cb: (result: unknown) => void) {
     fileListeners.set(requestId, cb)
@@ -2813,6 +2831,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     addRendezvous,
     resolveRendezvous,
     getRendezvousInfo,
+    setPendingSessionName,
+    consumePendingSessionName,
     recordTraffic,
     getTrafficStats,
     saveState,

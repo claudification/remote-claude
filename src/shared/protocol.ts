@@ -875,6 +875,7 @@ export interface Session {
   // Transcript-derived metadata (from special JSONL entry types)
   summary?: string // AI-generated session summary
   title?: string // custom session title (from /rename or auto-generated)
+  titleUserSet?: boolean // true if title was explicitly set by user (spawn dialog) -- prevents auto-name overwrite
   agentName?: string // agent/skill name (for --agent sessions)
   prLinks?: Array<{ prNumber: number; prUrl: string; prRepository: string; timestamp: string }>
   stats: {

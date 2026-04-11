@@ -230,10 +230,26 @@ const reviveSession: MessageHandler = (ctx, data) => {
 
   // Resolve headless: explicit override > project default > global setting
   const headlessParam = data.headless as boolean | undefined
-  const globalMode = getGlobalSettings().defaultLaunchMode
-  const headless = headlessParam ?? (projSettings?.defaultLaunchMode || globalMode) !== 'pty'
+  const globalSettings = getGlobalSettings()
+  const headless = headlessParam ?? (projSettings?.defaultLaunchMode || globalSettings.defaultLaunchMode) !== 'pty'
 
-  agent.send(JSON.stringify({ type: 'revive', sessionId, cwd: session.cwd, wrapperId, mode: 'continue', headless }))
+  // Resolve effort + model from project/global defaults
+  const effortRaw = projSettings?.defaultEffort || globalSettings.defaultEffort
+  const effort = effortRaw && effortRaw !== 'default' ? effortRaw : undefined
+  const model = projSettings?.defaultModel || globalSettings.defaultModel || undefined
+
+  agent.send(
+    JSON.stringify({
+      type: 'revive',
+      sessionId,
+      cwd: session.cwd,
+      wrapperId,
+      mode: 'continue',
+      headless,
+      effort,
+      model,
+    }),
+  )
 
   ctx.log.info(
     `[revive] ${name} (${sessionId.slice(0, 8)}) via WS, wrapperId=${wrapperId.slice(0, 8)} headless=${headless}`,

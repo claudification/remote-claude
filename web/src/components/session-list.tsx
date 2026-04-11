@@ -19,6 +19,7 @@ import type { Session, SessionOrderGroup, SessionOrderNode, SessionOrderV2 } fro
 import { cn, contextWindowSize, formatAge, formatModel, haptic, lastPathSegments } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from './project-settings-editor'
 import { ShareIndicator } from './share-panel'
+import { openSpawnDialog } from './spawn-dialog'
 
 // ─── Shared visual components ──────────────────────────────────────
 
@@ -629,18 +630,12 @@ function SessionContextMenu({ session, children }: { session: Session; children:
           </ContextMenu.Item>
           <ContextMenu.Item
             className={cn(menuItemClass, 'text-cyan-400')}
-            onSelect={async () => {
+            onSelect={() => {
               haptic('tap')
-              try {
-                await fetch('/api/spawn', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ cwd: session.cwd, mode: 'fresh' }),
-                })
-              } catch {}
+              openSpawnDialog({ cwd: session.cwd })
             }}
           >
-            Launch new
+            Launch new...
           </ContextMenu.Item>
           <ContextMenu.Separator className="h-px bg-border my-1" />
           {session.status !== 'ended' && (

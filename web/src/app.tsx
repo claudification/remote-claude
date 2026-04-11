@@ -11,6 +11,7 @@ import { SessionDetail } from '@/components/session-detail'
 import { SessionList } from '@/components/session-list'
 import { SharedSessionView } from '@/components/shared-session-view'
 import { ShortcutHelp } from '@/components/shortcut-help'
+import { SpawnDialog } from '@/components/spawn-dialog'
 import { ToastContainer } from '@/components/toast'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -616,6 +617,9 @@ function Dashboard() {
 
       {/* Auth expired modal */}
       <AuthExpiredModal />
+
+      {/* Spawn dialog */}
+      <SpawnDialog />
 
       {/* Toast notifications */}
       <ToastContainer />

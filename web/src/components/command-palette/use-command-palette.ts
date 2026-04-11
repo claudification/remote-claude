@@ -1,5 +1,6 @@
 import { Fzf } from 'fzf'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { openSpawnDialog } from '@/components/spawn-dialog'
 import type { FileInfo } from '@/hooks/use-file-editor'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { formatShortcut, getCommandGeneration, getCommands } from '@/lib/commands'
@@ -188,7 +189,7 @@ export function useCommandPalette(onClose: () => void) {
   const [spawnDirs, setSpawnDirs] = useState<string[]>([])
   const [spawnLoading, setSpawnLoading] = useState(false)
   const [spawnError, setSpawnError] = useState<string | null>(null)
-  const [spawning, setSpawning] = useState(false)
+  const spawning = false // spawn now handled by SpawnDialog
   const spawnFetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const spawnParentDir = spawnPath.includes('/') ? spawnPath.slice(0, spawnPath.lastIndexOf('/') + 1) : '/'
@@ -233,27 +234,10 @@ export function useCommandPalette(onClose: () => void) {
   // Show "create & spawn" when the typed path doesn't match any existing directory
   const canCreateDir = isSpawnMode && spawnPartial.length > 0 && filteredSpawnDirs.length === 0 && !spawnLoading
 
-  async function handleSpawn(cwd: string, mkdir = false) {
+  function handleSpawn(cwd: string, mkdir = false) {
     if (spawning || !cwd) return
-    setSpawning(true)
-    setSpawnError(null)
-    try {
-      const res = await fetch('/api/spawn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cwd, mkdir }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        onClose()
-      } else {
-        setSpawnError(data.error || 'Spawn failed')
-      }
-    } catch (err: unknown) {
-      setSpawnError(err instanceof Error ? err.message : 'Network error')
-    } finally {
-      setSpawning(false)
-    }
+    onClose()
+    openSpawnDialog({ cwd, mkdir })
   }
 
   // --- Task mode ---

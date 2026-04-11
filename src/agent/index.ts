@@ -286,6 +286,9 @@ async function spawnSession(
   headless = true,
   effort?: string,
   model?: string,
+  bare = false,
+  sessionName?: string,
+  permissionMode?: string,
 ): Promise<{ success: boolean; error?: string; tmuxSession?: string }> {
   // Diagnostic dump
   const whichRclaude = Bun.spawnSync(['which', 'rclaude'])
@@ -330,6 +333,9 @@ async function spawnSession(
     ...(headless ? { RCLAUDE_HEADLESS: '1' } : {}),
     ...(effort ? { RCLAUDE_EFFORT: effort } : {}),
     ...(model ? { RCLAUDE_MODEL: model } : {}),
+    ...(bare ? { RCLAUDE_BARE: '1' } : {}),
+    ...(sessionName ? { RCLAUDE_SESSION_NAME: sessionName } : {}),
+    ...(permissionMode ? { RCLAUDE_PERMISSION_MODE: permissionMode } : {}),
   }
 
   diag('spawn', 'Running revive script', { args: scriptArgs })
@@ -660,6 +666,9 @@ function connect(
             headless?: boolean
             effort?: string
             model?: string
+            bare?: boolean
+            sessionName?: string
+            permissionMode?: string
           }
           if (noSpawn) {
             ws.send(
@@ -694,6 +703,9 @@ function connect(
             spawnMsg.headless !== false, // default true
             spawnMsg.effort,
             spawnMsg.model,
+            spawnMsg.bare || false,
+            spawnMsg.sessionName,
+            spawnMsg.permissionMode,
           )
           const response: SpawnResult = {
             type: 'spawn_result',

@@ -172,6 +172,15 @@ const sessionName: MessageHandler = (ctx, data) => {
   const name = data.name as string
   const session = ctx.sessions.getSession(sessionId)
   if (session && name) {
+    // If this message includes userSet flag, mark it so CC's auto-name can't overwrite later
+    if (data.userSet) {
+      session.titleUserSet = true
+    }
+    // Don't overwrite user-set titles with CC's auto-generated names
+    if (session.titleUserSet && !data.userSet) {
+      ctx.log.debug(`Ignoring auto session name "${name}" -- user-set title "${session.title}" preserved`)
+      return
+    }
     session.title = name
     ctx.sessions.broadcastSessionUpdate(sessionId)
     ctx.log.info(`Session name: "${name}" (${sessionId.slice(0, 8)})`)
