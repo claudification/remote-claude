@@ -687,12 +687,18 @@ function SessionContextMenu({ session, children }: { session: Session; children:
 
 function SessionCard({ session }: { session: Session }) {
   const [showSettings, setShowSettings] = useState(false)
+  const isSelected = useSessionsStore(s => s.selectedSessionId === session.id)
   return (
     <SessionContextMenu session={session}>
       <div>
-        <div className="relative">
+        <div className="relative group/card">
           <SessionItemContent session={session} />
-          <div className="absolute top-2 right-2">
+          <div
+            className={cn(
+              'absolute top-2 right-2 transition-opacity',
+              isSelected ? 'opacity-100' : 'opacity-0 [@media(hover:hover)]:group-hover/card:opacity-100',
+            )}
+          >
             <ProjectSettingsButton
               onClick={e => {
                 e.stopPropagation()
