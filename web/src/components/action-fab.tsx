@@ -65,14 +65,17 @@ export function ActionFab() {
   const handleMainTap = useCallback(() => {
     const now = Date.now()
     if (now - lastTapRef.current < 300) {
-      // Double-tap: cancel pending single-tap, open switcher
+      // Double-tap: cancel pending single-tap, alt-tab to previous session
       if (singleTapTimer.current) {
         clearTimeout(singleTapTimer.current)
         singleTapTimer.current = null
       }
       haptic('double')
       setExpanded(false)
-      useSessionsStore.getState().toggleSwitcher()
+      const { sessionMru, sessions, selectSession } = useSessionsStore.getState()
+      // Find the most recent OTHER session that still exists
+      const prev = sessionMru.slice(1).find(id => sessions.some(s => s.id === id))
+      if (prev) selectSession(prev)
       lastTapRef.current = 0
       return
     }
