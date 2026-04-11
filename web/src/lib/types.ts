@@ -92,6 +92,7 @@ export interface Session {
     compactionCount: number
     totalCostUsd?: number
   }
+  costTimeline?: Array<{ t: number; cost: number }>
   claudeVersion?: string
   claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
   gitBranch?: string

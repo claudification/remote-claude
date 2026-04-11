@@ -150,12 +150,19 @@ const rateLimitHandler: MessageHandler = (ctx, data) => {
   ctx.sessions.broadcastSessionUpdate(sessionId)
 }
 
+const MAX_COST_TIMELINE = 500
+
 const turnCost: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   const costUsd = data.costUsd as number
   const session = ctx.sessions.getSession(sessionId)
   if (session) {
     session.stats.totalCostUsd = costUsd
+    if (!session.costTimeline) session.costTimeline = []
+    session.costTimeline.push({ t: Date.now(), cost: costUsd })
+    if (session.costTimeline.length > MAX_COST_TIMELINE) {
+      session.costTimeline = session.costTimeline.slice(-MAX_COST_TIMELINE)
+    }
     ctx.sessions.broadcastSessionUpdate(sessionId)
   }
 }

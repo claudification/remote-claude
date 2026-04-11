@@ -520,6 +520,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         .filter(Boolean) as Array<{ id: string; name: string; cwd: string }>,
       tokenUsage: session.tokenUsage,
       stats: session.stats,
+      costTimeline: session.costTimeline,
       gitBranch: session.gitBranch,
     }
   }
@@ -770,6 +771,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           toolCallCount: 0,
           compactionCount: 0,
         },
+        costTimeline: s.costTimeline,
         gitBranch: s.gitBranch,
       }))
 
@@ -948,6 +950,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         toolCallCount: 0,
         compactionCount: 0,
       },
+      costTimeline: [],
     }
     sessions.set(id, session)
 
@@ -2284,6 +2287,21 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           session.stats.totalCacheCreation += usage.cache_creation_input_tokens || 0
           session.stats.totalCacheRead += usage.cache_read_input_tokens || 0
           sessionChanged = true
+
+          // Record estimated cost snapshot for PTY sessions (headless uses turn_cost)
+          if (!session.stats.totalCostUsd) {
+            if (!session.costTimeline) session.costTimeline = []
+            // Estimate cost from accumulated token totals (Opus pricing as conservative default)
+            const s = session.stats
+            const uncached = Math.max(0, s.totalInputTokens - s.totalCacheCreation - s.totalCacheRead)
+            const est =
+              (uncached * 15 + s.totalOutputTokens * 75 + s.totalCacheRead * 1.875 + s.totalCacheCreation * 18.75) /
+              1_000_000
+            session.costTimeline.push({ t: Date.now(), cost: est })
+            if (session.costTimeline.length > 500) {
+              session.costTimeline = session.costTimeline.slice(-500)
+            }
+          }
         }
       }
     }

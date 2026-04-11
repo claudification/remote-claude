@@ -879,6 +879,7 @@ export interface Session {
     compactionCount: number
     totalCostUsd?: number
   }
+  costTimeline?: Array<{ t: number; cost: number }>
   gitBranch?: string
   spinnerVerbs?: string[] // custom spinner verbs from ~/.claude/settings.json
 }
@@ -1021,6 +1022,7 @@ export interface SessionSummary {
   linkedSessions?: Array<{ id: string; name: string; cwd: string }>
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
   stats: Session['stats']
+  costTimeline?: Session['costTimeline']
   gitBranch?: string
   spinnerVerbs?: string[]
 }

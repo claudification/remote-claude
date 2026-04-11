@@ -18,6 +18,7 @@ import { canTerminal, type TranscriptEntry } from '@/lib/types'
 import { cn, contextWindowSize, formatAge, formatEffort, formatModel, haptic, isMobileViewport } from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
 import { ConversationView } from './conversation-view'
+import { CostSparkline } from './cost-sparkline'
 import { DiagView } from './diag-view'
 import { DialogModal } from './dialog'
 import { EventsView } from './events-view'
@@ -1126,7 +1127,8 @@ export const SessionDetail = memo(function SessionDetail() {
                               : 'text-red-400/70',
                         )}
                       >
-                        {Math.round(contextTotal / 1000)}K / {Math.round(ctxWindow / 1000)}K ({contextPct}%)
+                        {Math.round(contextTotal / 1000).toLocaleString()}K /{' '}
+                        {Math.round(ctxWindow / 1000).toLocaleString()}K ({contextPct}%)
                       </span>
                     </div>
                   </div>
@@ -1137,21 +1139,27 @@ export const SessionDetail = memo(function SessionDetail() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-[10px]">
                     <div>
                       <span className="text-muted-foreground">in </span>
-                      <span className="text-cyan-400">{(s.totalInputTokens / 1000).toFixed(0)}K</span>
+                      <span className="text-cyan-400">{Math.round(s.totalInputTokens / 1000).toLocaleString()}K</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">out </span>
-                      <span className="text-orange-400">{(s.totalOutputTokens / 1000).toFixed(0)}K</span>
+                      <span className="text-orange-400">
+                        {Math.round(s.totalOutputTokens / 1000).toLocaleString()}K
+                      </span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">cache r/w </span>
-                      <span className="text-blue-400">{(s.totalCacheRead / 1000).toFixed(0)}K</span>
+                      <span className="text-blue-400">{Math.round(s.totalCacheRead / 1000).toLocaleString()}K</span>
                       <span className="text-muted-foreground"> / </span>
-                      <span className="text-purple-400">{(s.totalCacheCreation / 1000).toFixed(0)}K</span>
+                      <span className="text-purple-400">
+                        {Math.round(s.totalCacheCreation / 1000).toLocaleString()}K
+                      </span>
                       {cacheEff && (
                         <>
                           <br />
-                          <span className={cacheEff.color}>{cacheEff.ratio.toFixed(1)}x {cacheEff.label}</span>
+                          <span className={cacheEff.color}>
+                            {cacheEff.ratio.toFixed(1)}x {cacheEff.label}
+                          </span>
                         </>
                       )}
                     </div>
@@ -1165,6 +1173,11 @@ export const SessionDetail = memo(function SessionDetail() {
                       )}
                     </div>
                   </div>
+                )}
+
+                {/* Cost sparkline */}
+                {session.costTimeline && session.costTimeline.length >= 2 && (
+                  <CostSparkline timeline={session.costTimeline} />
                 )}
 
                 {/* Row 4: Session stats */}
