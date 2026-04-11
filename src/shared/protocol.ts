@@ -305,6 +305,13 @@ export type WrapperMessage =
   | StreamDelta
   | WrapperRateLimit
   | SessionInfoUpdate
+  | SessionNameUpdate
+
+export interface SessionNameUpdate {
+  type: 'session_name'
+  sessionId: string
+  name: string
+}
 
 // Session info from stream-json init (skills, tools, agents, etc.)
 export interface SessionInfoUpdate {

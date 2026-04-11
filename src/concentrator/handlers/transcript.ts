@@ -167,8 +167,20 @@ const turnCost: MessageHandler = (ctx, data) => {
   }
 }
 
+const sessionName: MessageHandler = (ctx, data) => {
+  const sessionId = data.sessionId as string
+  const name = data.name as string
+  const session = ctx.sessions.getSession(sessionId)
+  if (session && name) {
+    session.title = name
+    ctx.sessions.broadcastSessionUpdate(sessionId)
+    ctx.log.info(`Session name: "${name}" (${sessionId.slice(0, 8)})`)
+  }
+}
+
 export function registerTranscriptHandlers(): void {
   registerHandlers({
+    session_name: sessionName,
     turn_cost: turnCost,
     tasks_update: tasksUpdate,
     diag: diagHandler,

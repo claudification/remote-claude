@@ -7,7 +7,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { structuredPatch as computeStructuredPatch } from 'diff'
-import type { TaskInfo, TasksUpdate, TranscriptEntry } from '../shared/protocol'
+import type { SessionNameUpdate, TaskInfo, TasksUpdate, TranscriptEntry } from '../shared/protocol'
 import { debug as _debug, DEBUG } from './debug'
 import { createTranscriptWatcher } from './transcript-watcher'
 import type { WrapperContext } from './wrapper-context'
@@ -150,6 +150,9 @@ export function sendTranscriptEntriesChunked(
   // Intercept TodoWrite tool calls and synthesize as tasks
   if (!agentId) interceptTodoWrite(ctx, entries)
 
+  // Detect /rename from local_command transcript entries
+  if (!agentId) detectRename(ctx, entries)
+
   // Augment Edit tool results with structuredPatch for diff rendering
   const augmented = augmentEditPatches(ctx, entries)
   const send = (chunk: TranscriptEntry[], initial: boolean) =>
@@ -161,6 +164,24 @@ export function sendTranscriptEntriesChunked(
   for (let i = 0; i < augmented.length; i += TRANSCRIPT_CHUNK_SIZE) {
     const chunk = augmented.slice(i, i + TRANSCRIPT_CHUNK_SIZE)
     send(chunk, isInitial && i === 0)
+  }
+}
+
+function detectRename(ctx: WrapperContext, entries: TranscriptEntry[]): void {
+  for (const entry of entries) {
+    const e = entry as Record<string, unknown>
+    if (e.type !== 'system' || e.subtype !== 'local_command' || typeof e.content !== 'string') continue
+    const match = e.content.match(/Session renamed to: (.+)/)
+    if (match) {
+      const name = match[1].trim()
+      debug(`Detected /rename: "${name}"`)
+      const msg: SessionNameUpdate = {
+        type: 'session_name',
+        sessionId: ctx.claudeSessionId || ctx.internalId,
+        name,
+      }
+      ctx.wsClient?.send(msg)
+    }
   }
 }
 
