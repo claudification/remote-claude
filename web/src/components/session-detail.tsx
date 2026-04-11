@@ -1084,8 +1084,14 @@ export const SessionDetail = memo(function SessionDetail() {
                       <span className="text-muted-foreground">branch:</span> {session.gitBranch}
                     </span>
                   )}
-                  <span className="text-muted-foreground text-[10px]" title={session.id}>
-                    {session.title || session.agentName || session.id.slice(0, 8)}
+                  {(session.title || session.agentName) && (
+                    <span className="text-foreground text-[10px]">{session.title || session.agentName}</span>
+                  )}
+                  <span className="text-muted-foreground text-[10px]" title={`session: ${session.id}\nwrappers: ${session.wrapperIds?.join(', ') || 'none'}`}>
+                    {session.id.slice(0, 8)}
+                    {session.wrapperIds?.[0] && session.wrapperIds[0] !== session.id && (
+                      <span className="text-muted-foreground/50"> w:{session.wrapperIds[0].slice(0, 6)}</span>
+                    )}
                   </span>
                   {session.capabilities &&
                     session.capabilities.length > 0 &&
