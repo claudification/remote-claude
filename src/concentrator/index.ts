@@ -284,11 +284,11 @@ async function main() {
   // Save state on shutdown
   process.on('SIGINT', async () => {
     console.log('\n[shutdown] Saving state...')
-    await sessionStore.saveState()
+    await Promise.all([sessionStore.saveState(), sessionStore.flushTranscripts()])
     process.exit(0)
   })
   process.on('SIGTERM', async () => {
-    await sessionStore.saveState()
+    await Promise.all([sessionStore.saveState(), sessionStore.flushTranscripts()])
     process.exit(0)
   })
   process.on('SIGHUP', () => {

@@ -3,7 +3,7 @@
  * In-memory session registry with event storage and optional persistence
  */
 
-import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerWebSocket } from 'bun'
@@ -212,6 +212,7 @@ export interface SessionStore {
   }
   saveState: () => Promise<void>
   clearState: () => Promise<void>
+  flushTranscripts: () => Promise<void>
 }
 
 interface PersistedState {
@@ -226,6 +227,7 @@ interface PersistedState {
 export function createSessionStore(options: SessionStoreOptions = {}): SessionStore {
   const { cacheDir = DEFAULT_CACHE_DIR, enablePersistence = true } = options
   const cachePath = join(cacheDir, CACHE_FILENAME)
+  const transcriptsDir = join(cacheDir, 'transcripts')
 
   const sessions = new Map<string, Session>()
   // sessionId -> (wrapperId -> socket): multiple rclaude instances can share a Claude session
@@ -377,6 +379,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   // Transcript cache: sessionId -> entries (ring buffer, max 500 per session)
   const MAX_TRANSCRIPT_ENTRIES = 500
   const transcriptCache = new Map<string, TranscriptEntry[]>()
+  // Dirty tracking for transcript persistence: sessions modified since last flush
+  const dirtyTranscripts = new Set<string>()
   // Deduplicate clipboard captures by tool_use_id (prevents re-processing on transcript re-reads)
   const processedClipboardIds = new Set<string>()
 
@@ -793,6 +797,125 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
   }
 
+  // --- Transcript persistence ---
+
+  function transcriptPath(sessionId: string): string {
+    return join(transcriptsDir, `${sessionId}.jsonl`)
+  }
+
+  async function flushTranscripts(): Promise<void> {
+    if (!enablePersistence || dirtyTranscripts.size === 0) return
+    if (!existsSync(transcriptsDir)) {
+      mkdirSync(transcriptsDir, { recursive: true })
+    }
+    const toFlush = [...dirtyTranscripts]
+    dirtyTranscripts.clear()
+    let flushed = 0
+    for (const sessionId of toFlush) {
+      const entries = transcriptCache.get(sessionId)
+      if (!entries || entries.length === 0) continue
+      try {
+        const lines = `${entries.map(e => JSON.stringify(e)).join('\n')}\n`
+        await Bun.write(transcriptPath(sessionId), lines)
+        flushed++
+      } catch (error) {
+        console.error(`[transcript-persist] Failed to flush ${sessionId.slice(0, 8)}: ${error}`)
+        // Re-mark dirty so next checkpoint retries
+        dirtyTranscripts.add(sessionId)
+      }
+    }
+    if (flushed > 0) {
+      console.log(`[transcript-persist] Flushed ${flushed} session transcript(s) to disk`)
+    }
+  }
+
+  function deleteTranscriptFile(sessionId: string): void {
+    try {
+      const path = transcriptPath(sessionId)
+      if (existsSync(path)) {
+        unlinkSync(path)
+      }
+    } catch {
+      // Best effort
+    }
+    dirtyTranscripts.delete(sessionId)
+  }
+
+  function loadTranscripts(): void {
+    if (!enablePersistence || !existsSync(transcriptsDir)) return
+    const STALE_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+    const now = Date.now()
+    let loaded = 0
+    let scavenged = 0
+    try {
+      const files = readdirSync(transcriptsDir)
+      for (const file of files) {
+        if (!file.endsWith('.jsonl')) continue
+        const sessionId = file.slice(0, -6) // strip .jsonl
+        const filePath = join(transcriptsDir, file)
+
+        // Scavenge: delete if session doesn't exist in store
+        const session = sessions.get(sessionId)
+        if (!session) {
+          try {
+            unlinkSync(filePath)
+            scavenged++
+          } catch {}
+          continue
+        }
+
+        // Scavenge: delete stale transcripts for ended sessions
+        if (session.status === 'ended' && now - session.lastActivity > STALE_MS) {
+          try {
+            unlinkSync(filePath)
+            scavenged++
+          } catch {}
+          continue
+        }
+
+        // Load transcript into cache (only if cache is empty -- wrapper reconnect will replace)
+        if (transcriptCache.has(sessionId)) continue
+        try {
+          const text = readFileSync(filePath, 'utf-8').trim()
+          if (!text) continue
+          const entries: TranscriptEntry[] = []
+          for (const line of text.split('\n')) {
+            if (!line.trim()) continue
+            try {
+              entries.push(JSON.parse(line))
+            } catch {
+              // Skip malformed lines
+            }
+          }
+          if (entries.length > 0) {
+            transcriptCache.set(sessionId, entries.slice(-MAX_TRANSCRIPT_ENTRIES))
+            loaded++
+          }
+        } catch {
+          // Skip unreadable files
+        }
+      }
+    } catch {
+      // transcripts dir unreadable -- not fatal
+    }
+    if (loaded > 0 || scavenged > 0) {
+      console.log(`[transcript-persist] Loaded ${loaded} transcript(s), scavenged ${scavenged} orphan(s)`)
+    }
+  }
+
+  // Load transcripts on startup (after sessions are loaded)
+  loadTranscripts()
+
+  // Checkpoint timer: flush dirty transcripts every 5 minutes
+  if (enablePersistence) {
+    setInterval(
+      () => {
+        flushTranscripts().catch(() => {})
+      },
+      5 * 60 * 1000,
+    )
+  }
+
   function createSession(
     id: string,
     cwd: string,
@@ -913,6 +1036,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 
     // Clear transcript caches for old session ID
     transcriptCache.delete(oldId)
+    deleteTranscriptFile(oldId)
     // Clear subagent transcript caches (keyed as "sessionId:agentId")
     for (const key of subagentTranscriptCache.keys()) {
       if (key.startsWith(`${oldId}:`)) {
@@ -1466,6 +1590,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 
       // Persist immediately so ended sessions survive restarts
       scheduleSave(1000)
+      // Flush transcript to disk so it survives concentrator restart
+      dirtyTranscripts.add(sessionId)
+      flushTranscripts().catch(() => {})
     }
   }
 
@@ -1481,6 +1608,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     transcriptCache.delete(sessionId)
     pendingAgentDescriptions.delete(sessionId)
     lastTranscriptKick.delete(sessionId)
+    deleteTranscriptFile(sessionId)
     for (const key of subagentTranscriptCache.keys()) {
       if (key.startsWith(`${sessionId}:`)) {
         subagentTranscriptCache.delete(key)
@@ -1979,6 +2107,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         transcriptCache.set(sessionId, existing)
       }
     }
+    dirtyTranscripts.add(sessionId)
 
     // Extract stats from transcript entries
     const session = sessions.get(sessionId)
@@ -2652,5 +2781,6 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     getTrafficStats,
     saveState,
     clearState,
+    flushTranscripts,
   }
 }
