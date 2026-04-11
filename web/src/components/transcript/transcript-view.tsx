@@ -79,10 +79,11 @@ const ThinkingSpinner = memo(function ThinkingSpinner({ sessionId }: { sessionId
   const totalOutput = useSessionsStore(
     state => state.sessions.find(s => s.id === sessionId)?.stats?.totalOutputTokens ?? 0,
   )
-  // Custom verbs from project settings, merged with defaults
+  // Custom verbs: project settings override > session verbs (from CC settings) > defaults
   const customVerbs = useSessionsStore(state => {
-    const cwd = state.sessions.find(s => s.id === sessionId)?.cwd
-    return cwd ? state.projectSettings[cwd]?.verbs : undefined
+    const session = state.sessions.find(s => s.id === sessionId)
+    const projectVerbs = session?.cwd ? state.projectSettings[session.cwd]?.verbs : undefined
+    return projectVerbs?.length ? projectVerbs : session?.spinnerVerbs
   })
   const verbList = customVerbs?.length ? customVerbs : VERBS
 

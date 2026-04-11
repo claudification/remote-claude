@@ -38,6 +38,7 @@ export interface WsClientOptions {
   args?: string[]
   claudeVersion?: string
   claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
+  spinnerVerbs?: string[]
   onConnected?: () => void
   onDisconnected?: () => void
   onError?: (error: Error) => void
@@ -118,6 +119,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     args,
     claudeVersion,
     claudeAuth,
+    spinnerVerbs,
     onConnected,
     onDisconnected,
     onError,
@@ -190,6 +192,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
             buildTime: BUILD_VERSION.buildTime,
             claudeVersion,
             claudeAuth,
+            spinnerVerbs,
           }
           ws?.send(JSON.stringify(meta))
 

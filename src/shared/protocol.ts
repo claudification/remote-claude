@@ -33,6 +33,7 @@ export interface SessionMeta {
     orgName?: string
     subscriptionType?: string
   }
+  spinnerVerbs?: string[]
 }
 
 export interface SessionEnd {
@@ -879,6 +880,7 @@ export interface Session {
     totalCostUsd?: number
   }
   gitBranch?: string
+  spinnerVerbs?: string[] // custom spinner verbs from ~/.claude/settings.json
 }
 
 // Agent -> Concentrator messages
@@ -1020,6 +1022,7 @@ export interface SessionSummary {
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
   stats: Session['stats']
   gitBranch?: string
+  spinnerVerbs?: string[]
 }
 
 // Subscription channels (dashboard <-> concentrator pub/sub)

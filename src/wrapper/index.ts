@@ -113,6 +113,19 @@ function detectClaudeAuth(): ClaudeAuthInfo | undefined {
   }
 }
 
+function readSpinnerVerbs(): string[] | undefined {
+  try {
+    const settingsPath = join(homedir(), '.claude', 'settings.json')
+    const text = readFileSync(settingsPath, 'utf-8')
+    const data = JSON.parse(text)
+    const sv = data.spinnerVerbs
+    if (sv?.verbs && Array.isArray(sv.verbs) && sv.verbs.length > 0) {
+      return sv.verbs
+    }
+  } catch {}
+  return undefined
+}
+
 function wsToHttpUrl(url: string): string {
   return url.replace('ws://', 'http://').replace('wss://', 'https://')
 }
@@ -372,6 +385,9 @@ async function main() {
   setDialogCwd(cwd)
   const claudeAuth = detectClaudeAuth()
 
+  // Read spinner verbs from CC settings (user's custom verbs)
+  const spinnerVerbs = readSpinnerVerbs()
+
   // Shared context object for extracted modules
   const ctx: WrapperContext = {
     internalId,
@@ -612,6 +628,7 @@ async function main() {
       args: claudeArgs,
       claudeVersion,
       claudeAuth,
+      spinnerVerbs,
       capabilities,
       onConnected() {
         diag('ws', 'Connected to concentrator', { sessionId })

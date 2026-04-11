@@ -109,6 +109,7 @@ function toSession(summary: SessionSummary): Session {
     buildTime: summary.buildTime,
     claudeVersion: summary.claudeVersion,
     claudeAuth: summary.claudeAuth,
+    spinnerVerbs: summary.spinnerVerbs,
   }
 }
 

@@ -22,6 +22,7 @@ const meta: MessageHandler = (ctx, data) => {
     if (data.buildTime) existingSession.buildTime = data.buildTime as string
     if (data.claudeVersion) existingSession.claudeVersion = data.claudeVersion as string
     if (data.claudeAuth) existingSession.claudeAuth = data.claudeAuth as Record<string, unknown>
+    if (data.spinnerVerbs) existingSession.spinnerVerbs = data.spinnerVerbs as string[]
     ctx.log.debug(
       `Session resumed: ${sessionId.slice(0, 8)}... wrapper=${wrapperId.slice(0, 8)} (${data.cwd}) [${ctx.sessions.getActiveWrapperCount(sessionId) + 1} wrapper(s)]${data.version ? ` [${data.version}]` : ''}`,
     )
@@ -36,6 +37,7 @@ const meta: MessageHandler = (ctx, data) => {
     if (data.version) newSession.version = data.version as string
     if (data.buildTime) newSession.buildTime = data.buildTime as string
     if (data.claudeVersion) newSession.claudeVersion = data.claudeVersion as string
+    if (data.spinnerVerbs) newSession.spinnerVerbs = data.spinnerVerbs as string[]
     ctx.log.debug(
       `Session started: ${sessionId.slice(0, 8)}... wrapper=${wrapperId.slice(0, 8)} (${data.cwd})${data.version ? ` [${data.version}]` : ''}`,
     )
