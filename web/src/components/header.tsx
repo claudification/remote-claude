@@ -1,8 +1,9 @@
-import { Bell, BellOff, Settings } from 'lucide-react'
+import { Bug, Settings } from 'lucide-react'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { NerdModal } from '@/components/nerd-modal'
 import { SettingsDialog } from '@/components/settings-page'
-import { getPushStatus, subscribeToPush, useSessionsStore } from '@/hooks/use-sessions'
+import { UsageBar } from '@/components/usage-bar'
+import { useSessionsStore } from '@/hooks/use-sessions'
 import { getRates, subscribe as subscribeStats } from '@/hooks/ws-stats'
 import { haptic } from '@/lib/utils'
 
@@ -20,7 +21,7 @@ function WsStats({ onClick }: { onClick: () => void }) {
         haptic('tap')
         onClick()
       }}
-      className="text-[10px] text-muted-foreground/70 font-mono tabular-nums whitespace-nowrap hover:text-muted-foreground transition-colors cursor-pointer"
+      className="text-[10px] text-muted-foreground/70 font-mono tabular-nums whitespace-nowrap hover:text-muted-foreground transition-colors cursor-pointer hidden sm:inline"
       title="WS traffic (3s avg) - click for details"
     >
       <span className="opacity-50">in</span> {rates.msgInPerSec.toFixed(0)}m/{formatBytes(rates.bytesInPerSec)}s{' '}
@@ -41,35 +42,15 @@ export function Header() {
     return () => window.removeEventListener('open-settings', handleOpen)
   }, [])
   const showStats = useSessionsStore(s => s.dashboardPrefs.showWsStats)
-  const [pushState, setPushState] = useState<
-    'loading' | 'unsupported' | 'prompt' | 'subscribing' | 'subscribed' | 'denied'
-  >('loading')
   const isConnected = useSessionsStore(s => s.isConnected)
   const agentConnected = useSessionsStore(s => s.agentConnected)
   const error = useSessionsStore(s => s.error)
 
-  useEffect(() => {
-    getPushStatus().then(status => {
-      if (!status.supported) setPushState('unsupported')
-      else if (status.subscribed) setPushState('subscribed')
-      else if (status.permission === 'denied') setPushState('denied')
-      else setPushState('prompt')
-    })
-  }, [])
-
-  async function handlePushToggle(e: React.MouseEvent) {
-    e.stopPropagation()
-    if (pushState === 'subscribing') return
-    setPushState('subscribing')
-    const result = await subscribeToPush()
-    setPushState(result.success ? 'subscribed' : 'denied')
-  }
-
   return (
     <header className="border border-border p-2 sm:p-3 font-mono select-none">
-      <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm">
+      <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm">
         <span
-          className={`text-xs sm:text-sm ${isConnected ? 'text-active' : 'text-destructive animate-pulse'}`}
+          className={`text-xs sm:text-sm shrink-0 ${isConnected ? 'text-active' : 'text-destructive animate-pulse'}`}
           title={error || (isConnected ? 'WebSocket connected' : 'WebSocket disconnected')}
         >
           {isConnected ? '● WS' : '○ WS'}
@@ -79,48 +60,41 @@ export function Header() {
             </span>
           )}
         </span>
-        <span className={`text-xs sm:text-sm ${agentConnected ? 'text-active' : 'text-muted-foreground'}`}>
+        <span
+          className={`hidden sm:inline text-xs sm:text-sm shrink-0 ${agentConnected ? 'text-active' : 'text-muted-foreground'}`}
+        >
           {agentConnected ? '● Agent' : '○ Agent'}
         </span>
 
-        {pushState !== 'unsupported' && pushState !== 'loading' && (
-          <button
-            type="button"
-            onClick={handlePushToggle}
-            className={`flex items-center gap-1 text-xs transition-colors ${
-              pushState === 'subscribed'
-                ? 'text-active'
-                : pushState === 'denied'
-                  ? 'text-destructive'
-                  : 'text-muted-foreground hover:text-foreground'
-            }`}
-            title={
-              pushState === 'subscribed'
-                ? 'Push notifications enabled'
-                : pushState === 'denied'
-                  ? 'Notifications denied'
-                  : 'Enable push notifications'
-            }
-          >
-            {pushState === 'subscribed' ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{pushState === 'subscribing' ? '...' : 'Push'}</span>
-          </button>
+        <UsageBar />
+
+        <span className="flex-1" />
+
+        {showStats && (
+          <>
+            <WsStats onClick={() => setShowStatsModal(true)} />
+            <button
+              type="button"
+              onClick={() => {
+                haptic('tap')
+                setShowStatsModal(true)
+              }}
+              className="sm:hidden text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              title="Debug stats"
+            >
+              <Bug className="w-3.5 h-3.5" />
+            </button>
+          </>
         )}
+
         <button
           type="button"
           onClick={() => setShowSettings(true)}
-          className="text-muted-foreground hover:text-foreground transition-colors"
+          className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
           title="Settings"
         >
           <Settings className="w-3.5 h-3.5" />
         </button>
-
-        {showStats && (
-          <>
-            <span className="flex-1" />
-            <WsStats onClick={() => setShowStatsModal(true)} />
-          </>
-        )}
       </div>
 
       <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />

@@ -686,13 +686,14 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
         if (!v) onClose()
       }}
     >
-      <DialogContent className="max-w-md">
-        <div className="p-4 space-y-3 text-xs">
-          {/* Header */}
+      <DialogContent className="max-w-md p-0 overflow-hidden">
+        <div className="px-4 pt-4 pb-2 shrink-0">
           <DialogTitle className="text-accent font-bold uppercase tracking-wider text-[10px]">
             Project Settings
           </DialogTitle>
+        </div>
 
+        <div className="px-4 space-y-3 text-xs overflow-y-auto flex-1 min-h-0">
           {/* Label */}
           <div>
             <label htmlFor="ps-label" className="text-muted-foreground text-[10px] uppercase tracking-wider block mb-1">
@@ -976,35 +977,35 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
               Passed as --effort flag when launching sessions
             </div>
           </div>
+        </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-2 pt-1">
+        {/* Actions - pinned at bottom */}
+        <div className="flex items-center gap-2 px-4 py-3 border-t border-border shrink-0">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !hasChanges}
+            className={cn(
+              'flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider border transition-colors',
+              hasChanges
+                ? 'border-accent bg-accent/20 text-accent hover:bg-accent/30'
+                : 'border-border text-muted-foreground cursor-not-allowed',
+            )}
+          >
+            <Check className="w-3 h-3" />
+            Save
+          </button>
+          {hasAnySettings && (
             <button
               type="button"
-              onClick={handleSave}
-              disabled={saving || !hasChanges}
-              className={cn(
-                'flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider border transition-colors',
-                hasChanges
-                  ? 'border-accent bg-accent/20 text-accent hover:bg-accent/30'
-                  : 'border-border text-muted-foreground cursor-not-allowed',
-              )}
+              onClick={handleClear}
+              disabled={saving}
+              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider border border-red-500/50 text-red-400 hover:bg-red-500/20 transition-colors"
             >
-              <Check className="w-3 h-3" />
-              Save
+              <Trash2 className="w-3 h-3" />
+              Reset All
             </button>
-            {hasAnySettings && (
-              <button
-                type="button"
-                onClick={handleClear}
-                disabled={saving}
-                className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider border border-red-500/50 text-red-400 hover:bg-red-500/20 transition-colors"
-              >
-                <Trash2 className="w-3 h-3" />
-                Reset All
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

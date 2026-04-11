@@ -2,12 +2,15 @@
 export type {
   ArchivedTaskGroup,
   BgTaskInfo as BgTaskSummary,
+  ExtraUsage,
   FileInfo,
   HookEventType,
   ProjectSettings,
   SubagentInfo,
   TaskInfo,
   TeamInfo,
+  UsageUpdate,
+  UsageWindow,
   WrapperCapability,
 } from '@shared/protocol'
 

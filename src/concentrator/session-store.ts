@@ -53,6 +53,7 @@ export interface DashboardMessage {
     | 'settings_updated'
     | 'project_settings_updated'
     | 'clipboard_capture'
+    | 'usage_update'
   sessionId?: string
   previousSessionId?: string
   session?: SessionSummary
@@ -168,6 +169,9 @@ export interface SessionStore {
   // Agent diagnostics (structured log entries from host agent)
   pushAgentDiag: (entry: { t: number; type: string; msg: string; args?: unknown }) => void
   getAgentDiag: () => Array<{ t: number; type: string; msg: string; args?: unknown }>
+  // Plan usage data (from agent OAuth usage API polling)
+  setUsage: (usage: import('../shared/protocol').UsageUpdate) => void
+  getUsage: () => import('../shared/protocol').UsageUpdate | undefined
   // Request-response listeners for agent relay (spawn, dir listing)
   addSpawnListener: (requestId: string, cb: (result: unknown) => void) => void
   removeSpawnListener: (requestId: string) => void
@@ -2097,6 +2101,18 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     return [...agentDiagLog]
   }
 
+  // Plan usage data (from agent polling OAuth usage API)
+  let currentUsage: import('../shared/protocol').UsageUpdate | undefined
+
+  function setUsage(usage: import('../shared/protocol').UsageUpdate) {
+    currentUsage = usage
+    broadcast({ type: 'usage_update', usage } as unknown as DashboardMessage)
+  }
+
+  function getUsage(): import('../shared/protocol').UsageUpdate | undefined {
+    return currentUsage
+  }
+
   // Transcript cache methods
   function addTranscriptEntries(sessionId: string, entries: TranscriptEntry[], isInitial: boolean): void {
     if (isInitial) {
@@ -2765,6 +2781,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     hasAgent,
     pushAgentDiag,
     getAgentDiag,
+    setUsage,
+    getUsage,
     addTranscriptEntries,
     getTranscriptEntries,
     hasTranscriptCache,

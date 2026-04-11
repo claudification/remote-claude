@@ -19,6 +19,7 @@ import type {
   SubagentInfo,
   TaskInfo,
   TranscriptEntry,
+  UsageUpdate,
 } from '@/lib/types'
 import { recordOut } from './ws-stats'
 
@@ -101,6 +102,7 @@ interface SessionsState {
   syncEpoch: string // server epoch (changes on server restart)
   syncSeq: number // last received sequence number
   agentConnected: boolean
+  planUsage: UsageUpdate | null
   error: string | null
   authExpired: boolean
   ws: WebSocket | null
@@ -196,6 +198,7 @@ interface SessionsState {
   setSessionOrder: (order: SessionOrderV2) => void
   setConnected: (connected: boolean) => void
   setAgentConnected: (connected: boolean) => void
+  setPlanUsage: (usage: UsageUpdate) => void
   setError: (error: string | null) => void
   setAuthExpired: (expired: boolean) => void
   setWs: (ws: WebSocket | null) => void
@@ -343,6 +346,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   syncEpoch: '',
   syncSeq: 0,
   agentConnected: false,
+  planUsage: null,
   error: null,
   authExpired: false,
   ws: null,
@@ -618,6 +622,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       ...(connected && { connectSeq: state.connectSeq + 1 }),
     })),
   setAgentConnected: connected => set({ agentConnected: connected }),
+  setPlanUsage: usage => set({ planUsage: usage }),
   setError: error => set({ error }),
   setAuthExpired: authExpired => set({ authExpired }),
   setWs: ws => set({ ws }),

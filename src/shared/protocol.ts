@@ -924,7 +924,30 @@ export interface ListDirsResult {
   error?: string
 }
 
-export type AgentMessage = AgentIdentify | ReviveResult | SpawnResult | ListDirsResult
+// Usage API data (agent polls api.anthropic.com/api/oauth/usage)
+export interface UsageWindow {
+  usedPercent: number // 0-100
+  resetAt: string // ISO timestamp
+}
+
+export interface ExtraUsage {
+  isEnabled: boolean
+  monthlyLimit: number
+  usedCredits: number
+  utilization: number | null
+}
+
+export interface UsageUpdate {
+  type: 'usage_update'
+  fiveHour: UsageWindow
+  sevenDay: UsageWindow
+  sevenDayOpus?: UsageWindow
+  sevenDaySonnet?: UsageWindow
+  extraUsage?: ExtraUsage
+  polledAt: number // timestamp of last poll
+}
+
+export type AgentMessage = AgentIdentify | ReviveResult | SpawnResult | ListDirsResult | UsageUpdate
 
 // Concentrator -> Agent messages
 export interface ReviveSession {

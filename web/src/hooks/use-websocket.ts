@@ -453,6 +453,12 @@ function processMessage(msg: DashboardMessage) {
       }
       break
     }
+    case 'usage_update': {
+      if (msg.usage) {
+        useSessionsStore.getState().setPlanUsage(msg.usage)
+      }
+      break
+    }
     case 'settings_updated': {
       if (msg.settings) {
         useSessionsStore.setState({ globalSettings: msg.settings as Record<string, unknown> })

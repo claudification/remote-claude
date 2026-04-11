@@ -46,6 +46,16 @@ const agentDiag: MessageHandler = (ctx, data) => {
   }
 }
 
+const usageUpdate: MessageHandler = (ctx, data) => {
+  const usage = data as unknown as import('../../shared/protocol').UsageUpdate
+  if (usage.fiveHour && usage.sevenDay) {
+    ctx.sessions.setUsage(usage)
+    ctx.log.debug(
+      `Usage: 5h=${usage.fiveHour.usedPercent}% 7d=${usage.sevenDay.usedPercent}%${usage.sevenDayOpus ? ` opus=${usage.sevenDayOpus.usedPercent}%` : ''}${usage.sevenDaySonnet ? ` sonnet=${usage.sevenDaySonnet.usedPercent}%` : ''}`,
+    )
+  }
+}
+
 export function registerAgentHandlers(): void {
   registerHandlers({
     agent_identify: agentIdentify,
@@ -53,5 +63,6 @@ export function registerAgentHandlers(): void {
     spawn_result: spawnResult,
     list_dirs_result: listDirsResult,
     agent_diag: agentDiag,
+    usage_update: usageUpdate,
   })
 }

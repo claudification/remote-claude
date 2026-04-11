@@ -13,7 +13,15 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { hostname as osHostname } from 'node:os'
 import { dirname, resolve } from 'node:path'
-import type { ConcentratorAgentMessage, ListDirsResult, ReviveResult, SpawnResult } from '../shared/protocol'
+import type {
+  ConcentratorAgentMessage,
+  ExtraUsage,
+  ListDirsResult,
+  ReviveResult,
+  SpawnResult,
+  UsageUpdate,
+  UsageWindow,
+} from '../shared/protocol'
 import { DEFAULT_CONCENTRATOR_URL, HEARTBEAT_INTERVAL_MS } from '../shared/protocol'
 
 function getRawMachineId(): string {
@@ -375,6 +383,174 @@ function listDirs(dirPath: string): { dirs: string[]; error?: string } {
   }
 }
 
+// ─── Credential Discovery ─────────────────────────────────────────
+// Priority: 1) macOS Keychain  2) ~/.claude/.credentials.json  3) ~/.claude.json
+
+function getOAuthToken(): string | null {
+  // 1. macOS Keychain
+  if (process.platform === 'darwin') {
+    try {
+      const result = Bun.spawnSync(['security', 'find-generic-password', '-s', 'Claude Code-credentials', '-w'], {
+        stdout: 'pipe',
+        stderr: 'pipe',
+      })
+      if (result.success) {
+        const raw = result.stdout.toString().trim()
+        const data = JSON.parse(raw)
+        const token = data?.claudeAiOauth?.accessToken
+        if (token) return token
+      }
+    } catch {}
+  }
+
+  // 2. ~/.claude/.credentials.json
+  const home = process.env.HOME || '/root'
+  const credPath = resolve(home, '.claude/.credentials.json')
+  try {
+    if (existsSync(credPath)) {
+      const data = JSON.parse(readFileSync(credPath, 'utf8'))
+      const token = data?.claudeAiOauth?.accessToken || data?.accessToken || data?.access_token
+      if (token) return token
+    }
+  } catch {}
+
+  // 3. ~/.claude.json
+  const legacyPath = resolve(home, '.claude.json')
+  try {
+    if (existsSync(legacyPath)) {
+      const data = JSON.parse(readFileSync(legacyPath, 'utf8'))
+      const token = data?.oauthAccount?.accessToken || data?.primaryApiKey
+      if (token) return token
+    }
+  } catch {}
+
+  return null
+}
+
+// ─── Usage API Polling ────────────────────────────────────────────
+
+const USAGE_POLL_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
+const USAGE_API_URL = 'https://api.anthropic.com/api/oauth/usage'
+
+interface RawUsageWindow {
+  utilization: number | null
+  resets_at: string
+}
+
+interface RawUsageResponse {
+  five_hour: RawUsageWindow
+  seven_day: RawUsageWindow
+  seven_day_opus: RawUsageWindow | null
+  seven_day_sonnet: RawUsageWindow | null
+  extra_usage: {
+    is_enabled: boolean
+    monthly_limit: number
+    used_credits: number
+    utilization: number | null
+  } | null
+}
+
+function parseWindow(raw: RawUsageWindow | null): UsageWindow | undefined {
+  if (!raw || raw.utilization == null) return undefined
+  return { usedPercent: raw.utilization, resetAt: raw.resets_at }
+}
+
+function parseUsageResponse(raw: RawUsageResponse): UsageUpdate | null {
+  const fiveHour = parseWindow(raw.five_hour)
+  const sevenDay = parseWindow(raw.seven_day)
+  if (!fiveHour || !sevenDay) return null
+
+  const update: UsageUpdate = {
+    type: 'usage_update',
+    fiveHour,
+    sevenDay,
+    polledAt: Date.now(),
+  }
+
+  const opus = parseWindow(raw.seven_day_opus)
+  if (opus) update.sevenDayOpus = opus
+
+  const sonnet = parseWindow(raw.seven_day_sonnet)
+  if (sonnet) update.sevenDaySonnet = sonnet
+
+  if (raw.extra_usage) {
+    update.extraUsage = {
+      isEnabled: raw.extra_usage.is_enabled,
+      monthlyLimit: raw.extra_usage.monthly_limit,
+      usedCredits: raw.extra_usage.used_credits,
+      utilization: raw.extra_usage.utilization,
+    } satisfies ExtraUsage
+  }
+
+  return update
+}
+
+async function pollUsage(token: string): Promise<UsageUpdate | null> {
+  try {
+    const res = await fetch(USAGE_API_URL, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'anthropic-beta': 'oauth-2025-04-20',
+      },
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      diag('usage', `API error: ${res.status} ${res.statusText}`, { body: body.slice(0, 200) })
+      return null
+    }
+    const data = (await res.json()) as RawUsageResponse
+    const usage = parseUsageResponse(data)
+    if (!usage) {
+      diag('usage', 'Failed to parse usage response', { data })
+    }
+    return usage
+  } catch (err) {
+    diag('usage', `Poll failed: ${err instanceof Error ? err.message : String(err)}`)
+    return null
+  }
+}
+
+let usagePollTimer: ReturnType<typeof setInterval> | null = null
+
+function startUsagePolling(ws: WebSocket, verbose: boolean) {
+  stopUsagePolling() // clean up any previous timer
+
+  const token = getOAuthToken()
+  if (!token) {
+    log('No OAuth token found - usage polling disabled')
+    diag('usage', 'No OAuth token discovered (checked keychain + credential files)')
+    return
+  }
+  log('OAuth token found - starting usage polling (10min interval)')
+  diag('usage', 'Token discovered, polling started')
+  const oauthToken = token // narrow for closure
+
+  async function doPoll() {
+    try {
+      const usage = await pollUsage(oauthToken)
+      if (usage && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(usage))
+        debug(`Usage sent: 5h=${usage.fiveHour.usedPercent}% 7d=${usage.sevenDay.usedPercent}%`, verbose)
+      }
+    } catch (err) {
+      // Never let a poll crash the agent
+      diag('usage', `Uncaught poll error: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  // Poll immediately on connect, then every 10 minutes
+  doPoll()
+  usagePollTimer = setInterval(doPoll, USAGE_POLL_INTERVAL_MS)
+}
+
+function stopUsagePolling() {
+  if (usagePollTimer) {
+    clearInterval(usagePollTimer)
+    usagePollTimer = null
+  }
+}
+
 function connect(
   url: string,
   secret: string,
@@ -396,6 +572,9 @@ function connect(
     activeWs = ws
     // Identify as agent with machine fingerprint
     ws.send(JSON.stringify({ type: 'agent_identify', machineId: getMachineId(), hostname: osHostname() }))
+
+    // Start usage polling
+    startUsagePolling(ws, verbose)
 
     // Start heartbeat
     heartbeatTimer = setInterval(() => {
@@ -543,6 +722,7 @@ function connect(
   ws.onclose = () => {
     activeWs = null
     if (heartbeatTimer) clearInterval(heartbeatTimer)
+    stopUsagePolling()
 
     if (shouldReconnect) {
       log(`Disconnected. Reconnecting in ${RECONNECT_DELAY_MS / 1000}s...`)
