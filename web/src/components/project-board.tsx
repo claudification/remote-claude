@@ -288,13 +288,8 @@ export function TaskEditor({
             <button
               type="button"
               onClick={() => {
-                const prompt = [
-                  `Work on this task: **${title}**`,
-                  '',
-                  body || '(no description)',
-                  '',
-                  'Ask the user for anything that is not clear, using the dialog tool.',
-                ].join('\n')
+                const taskPath = `.rclaude/project/${status}/${task.slug}.md`
+                const prompt = `Work on this task: ${taskPath}`
                 sendInput(sessionId, prompt)
                 haptic('success')
                 onClose()
