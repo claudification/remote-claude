@@ -42,7 +42,8 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker
     .register('/sw.js')
     .then(reg => {
-      // Check for SW updates every hour (browser default is 24h)
+      // Check for SW updates immediately on load + every hour
+      reg.update().catch(() => {})
       setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000)
     })
     .catch(() => {})
