@@ -1,14 +1,17 @@
 /**
- * Action FAB - Mobile floating action button with half-circle fan expansion
+ * Action FAB - Mobile floating action button with vertical fan expansion
  *
- * Position: fixed bottom-right. Tap to expand fan of 4 action buttons.
- * Double-tap the main button to open the command palette directly.
+ * Position: fixed bottom-right. Tap to expand fan of action buttons.
+ * Double-tap the main button to alt-tab to previous session.
+ * Actions are context-aware: shows terminate for active sessions,
+ * revive/dismiss for ended sessions.
  * Mobile only - hidden on desktop (hover-capable devices).
  */
 
-import { Command, MessageSquarePlus, PenLine, Share2 } from 'lucide-react'
+import { Command, MessageSquarePlus, PenLine, Power, RefreshCw, RotateCcw, Share2, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { reviveSession, useSessionsStore, wsSend } from '@/hooks/use-sessions'
+import type { Session } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 
 interface FanAction {
@@ -19,11 +22,7 @@ interface FanAction {
   color: string
 }
 
-export function ActionFab() {
-  const [expanded, setExpanded] = useState(false)
-  const lastTapRef = useRef(0)
-  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
-
+function buildActions(session: Session | undefined, selectedSessionId: string | null): FanAction[] {
   const actions: FanAction[] = [
     {
       id: 'switcher',
@@ -46,19 +45,70 @@ export function ActionFab() {
       action: () => useSessionsStore.getState().openSwitcherWithFilter('S:./'),
       color: 'bg-[#e0af68]',
     },
-    {
-      id: 'share',
-      icon: <Share2 className="w-4 h-4" />,
-      label: 'Share',
-      action: () => {
-        if (selectedSessionId) {
-          const store = useSessionsStore.getState()
-          store.openTab(selectedSessionId, 'shared')
-        }
-      },
-      color: 'bg-[#bb9af7]',
-    },
   ]
+
+  if (session && selectedSessionId) {
+    if (session.status !== 'ended') {
+      // Active session actions
+      actions.push({
+        id: 'share',
+        icon: <Share2 className="w-4 h-4" />,
+        label: 'Share',
+        action: () => useSessionsStore.getState().openTab(selectedSessionId, 'shared'),
+        color: 'bg-[#bb9af7]',
+      })
+      actions.push({
+        id: 'terminate',
+        icon: <Power className="w-4 h-4" />,
+        label: 'Terminate',
+        action: () => {
+          haptic('error')
+          wsSend('terminate_session', { sessionId: session.id })
+        },
+        color: 'bg-red-500',
+      })
+    } else {
+      // Ended session actions
+      actions.push({
+        id: 'revive-headless',
+        icon: <RefreshCw className="w-4 h-4" />,
+        label: 'Revive',
+        action: () => {
+          useSessionsStore.getState().selectSession(session.id)
+          reviveSession(session.id, true)
+        },
+        color: 'bg-emerald-500',
+      })
+      actions.push({
+        id: 'revive-pty',
+        icon: <RotateCcw className="w-4 h-4" />,
+        label: 'Revive PTY',
+        action: () => {
+          useSessionsStore.getState().selectSession(session.id)
+          reviveSession(session.id, false)
+        },
+        color: 'bg-purple-500',
+      })
+      actions.push({
+        id: 'dismiss',
+        icon: <Trash2 className="w-4 h-4" />,
+        label: 'Dismiss',
+        action: () => useSessionsStore.getState().dismissSession(session.id),
+        color: 'bg-red-500/80',
+      })
+    }
+  }
+
+  return actions
+}
+
+export function ActionFab() {
+  const [expanded, setExpanded] = useState(false)
+  const lastTapRef = useRef(0)
+  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
+  const session = useSessionsStore(state => state.sessions.find(s => s.id === state.selectedSessionId))
+
+  const actions = buildActions(session, selectedSessionId)
 
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -73,7 +123,6 @@ export function ActionFab() {
       haptic('double')
       setExpanded(false)
       const { sessionMru, sessions, selectSession } = useSessionsStore.getState()
-      // Find the most recent OTHER session that still exists
       const prev = sessionMru.slice(1).find(id => sessions.some(s => s.id === id))
       if (prev) selectSession(prev)
       lastTapRef.current = 0
@@ -101,38 +150,57 @@ export function ActionFab() {
     return () => document.removeEventListener('click', handleClick, { capture: true })
   }, [expanded])
 
-  // Vertical stack to the LEFT of the FAB, first button level with FAB, rest go down
-  const buttonSpacing = 48 // 40px button + 8px gap
-  const leftOffset = 52 // FAB width (44) + 8px gap
+  const buttonSpacing = 44
 
   return (
     <div data-action-fab className="fixed z-[56] right-3" style={{ width: 44, height: 44, top: 'calc(50% + 32px)' }}>
-      {/* Action buttons - vertical stack to the left */}
+      {/* Action buttons - vertical stack going UP from the FAB */}
       {actions.map((action, i) => (
-        <button
+        <div
           key={action.id}
-          type="button"
           className={cn(
-            'absolute w-10 h-10 rounded-full flex items-center justify-center',
-            'shadow-md border border-white/10 text-white',
-            'transition-all duration-200 ease-out',
-            action.color,
-            expanded ? 'scale-100 opacity-100' : 'scale-0 opacity-0 pointer-events-none',
+            'absolute flex items-center gap-2 transition-all duration-200 ease-out',
+            expanded ? 'opacity-100' : 'opacity-0 pointer-events-none',
           )}
           style={{
-            right: expanded ? leftOffset : 0,
-            top: expanded ? i * buttonSpacing : 0,
+            right: 0,
+            bottom: expanded ? (i + 1) * buttonSpacing + 4 : 0,
             transitionDelay: expanded ? `${i * 30}ms` : '0ms',
           }}
-          onClick={e => {
-            e.stopPropagation()
-            haptic('tap')
-            action.action()
-            setExpanded(false)
-          }}
         >
-          {action.icon}
-        </button>
+          {/* Label */}
+          <span
+            className={cn(
+              'px-2 py-0.5 rounded text-[10px] font-mono font-bold whitespace-nowrap',
+              'bg-black/70 text-white/90 border border-white/10',
+              'transition-all duration-200',
+              expanded ? 'translate-x-0 opacity-100' : 'translate-x-4 opacity-0',
+            )}
+            style={{ transitionDelay: expanded ? `${i * 30 + 50}ms` : '0ms' }}
+          >
+            {action.label}
+          </span>
+          {/* Button */}
+          <button
+            type="button"
+            className={cn(
+              'w-10 h-10 rounded-full flex items-center justify-center shrink-0',
+              'shadow-md border border-white/10 text-white',
+              'transition-transform duration-200 ease-out active:scale-90',
+              action.color,
+              expanded ? 'scale-100' : 'scale-0',
+            )}
+            style={{ transitionDelay: expanded ? `${i * 30}ms` : '0ms' }}
+            onClick={e => {
+              e.stopPropagation()
+              haptic('tap')
+              action.action()
+              setExpanded(false)
+            }}
+          >
+            {action.icon}
+          </button>
+        </div>
       ))}
 
       {/* Main FAB button */}
