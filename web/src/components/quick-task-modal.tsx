@@ -4,7 +4,7 @@
  */
 
 import { FileText, X } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useProject } from '@/hooks/use-project'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { useCommand } from '@/lib/commands'
@@ -36,6 +36,18 @@ export function QuickTaskModal() {
     },
     { label: 'Quick task', shortcut: 'ctrl+shift+n', group: 'Navigation' },
   )
+
+  // Also listen for window event (from action FAB + command palette)
+  useEffect(() => {
+    function handleOpen() {
+      if (selectedSessionId && isActive) {
+        haptic('tap')
+        setOpen(true)
+      }
+    }
+    window.addEventListener('open-quick-task', handleOpen)
+    return () => window.removeEventListener('open-quick-task', handleOpen)
+  }, [selectedSessionId, isActive])
 
   // ESC closes when open
   useKeyLayer(

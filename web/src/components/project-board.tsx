@@ -125,6 +125,7 @@ export function TaskEditor({
 }) {
   const [title, setTitle] = useState(task.title)
   const [body, setBody] = useState(task.body)
+  const [status, setStatus] = useState<TaskStatus>(task.status)
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>(task.priority || 'medium')
   const [tags, setTags] = useState<string[]>(task.tags || [])
   const [tagInput, setTagInput] = useState('')
@@ -142,7 +143,7 @@ export function TaskEditor({
 
   async function handleSave() {
     setSaving(true)
-    await onSave(task.slug, task.status, { title, body, priority, tags })
+    await onSave(task.slug, status, { title, body, priority, tags })
     setSaving(false)
     haptic('success')
     onClose()
@@ -166,6 +167,22 @@ export function TaskEditor({
             className="flex-1 bg-transparent text-sm font-mono text-foreground outline-none placeholder:text-muted-foreground/30"
             placeholder="Title..."
           />
+          <select
+            value={status}
+            onChange={e => setStatus(e.target.value as TaskStatus)}
+            className={cn(
+              'text-[10px] font-mono bg-transparent border px-1 py-0.5 outline-none',
+              status === 'open' && 'border-amber-500/50 text-amber-400',
+              status === 'in-progress' && 'border-blue-500/50 text-blue-400',
+              status === 'done' && 'border-emerald-500/50 text-emerald-400',
+              status === 'archived' && 'border-[#33467c]/50 text-muted-foreground',
+            )}
+          >
+            <option value="open">open</option>
+            <option value="in-progress">in-progress</option>
+            <option value="done">done</option>
+            <option value="archived">archived</option>
+          </select>
           <select
             value={priority}
             onChange={e => setPriority(e.target.value as 'low' | 'medium' | 'high')}
