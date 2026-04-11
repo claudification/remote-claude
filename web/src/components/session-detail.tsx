@@ -1157,12 +1157,17 @@ export const SessionDetail = memo(function SessionDetail() {
                       {burnRate != null && burnRate >= 0.1 && (
                         <span className="text-muted-foreground ml-1">({burnRate.toFixed(1)}/hr)</span>
                       )}
-                      {cacheEff && (
-                        <span className={cn('ml-2', cacheEff.color)}>
-                          cache {cacheEff.ratio.toFixed(1)}x {cacheEff.label}
-                        </span>
-                      )}
                     </div>
+                  </div>
+                )}
+
+                {/* Cache efficiency */}
+                {cacheEff && (
+                  <div className="text-[10px]">
+                    <span className="text-muted-foreground">cache efficiency </span>
+                    <span className={cacheEff.color}>
+                      {cacheEff.ratio.toFixed(1)}x read/write -- {cacheEff.label}
+                    </span>
                   </div>
                 )}
 
