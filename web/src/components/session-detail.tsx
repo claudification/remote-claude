@@ -1084,7 +1084,9 @@ export const SessionDetail = memo(function SessionDetail() {
                       <span className="text-muted-foreground">branch:</span> {session.gitBranch}
                     </span>
                   )}
-                  <span className="text-muted-foreground text-[10px]">{session.id.slice(0, 8)}</span>
+                  <span className="text-muted-foreground text-[10px]" title={session.id}>
+                    {session.title || session.agentName || session.id.slice(0, 8)}
+                  </span>
                   {session.capabilities &&
                     session.capabilities.length > 0 &&
                     session.capabilities.map(cap => (

@@ -306,7 +306,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
               isSelected ? 'text-accent' : 'text-muted-foreground',
             )}
           >
-            {session.id.slice(0, 8)}
+            {session.title || session.agentName || session.id.slice(0, 8)}
           </span>
           {session.compacting && <span className="text-[9px] text-amber-400 font-bold animate-pulse">COMPACT</span>}
           {session.lastError && <span className="text-[9px] text-destructive font-bold">ERROR</span>}
