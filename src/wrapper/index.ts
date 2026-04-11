@@ -19,6 +19,7 @@ import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { watch as chokidarWatch } from 'chokidar'
+import { generateFunnyName } from '../shared/funny-names'
 import { isPathWithinCwd } from '../shared/path-guard'
 import type { HookEvent, TaskInfo, TasksUpdate, TranscriptEntry, WrapperMessage } from '../shared/protocol'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
@@ -1396,12 +1397,20 @@ async function main() {
       mcpServers: { rclaude: { type: 'http', url: `http://localhost:${localServerPort}/mcp` } },
     }),
   )
+  // Auto-generate a funny session name unless user already specified --name/-n or resuming
+  const hasUserName = claudeArgs.includes('--name') || claudeArgs.includes('-n')
+  const isResuming = claudeArgs.includes('--resume') || claudeArgs.includes('--continue') || claudeArgs.includes('-c')
+  const sessionName = hasUserName || isResuming ? undefined : generateFunnyName()
+
   const finalClaudeArgs = [
     '--mcp-config',
     mcpConfigPath,
     ...(channelEnabled ? ['--dangerously-load-development-channels', 'server:rclaude'] : []),
+    ...(sessionName ? ['--name', sessionName] : []),
     ...claudeArgs,
   ]
+
+  if (sessionName) debug(`Session name: ${sessionName}`)
 
   let cleanupTerminal = () => {}
 
