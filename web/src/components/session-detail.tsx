@@ -6,6 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { type TaskStatus, useProject } from '@/hooks/use-project'
 import { fetchSubagentTranscript, reviveSession, sendInput, useSessionsStore, wsSend } from '@/hooks/use-sessions'
+import {
+  formatCost,
+  getBurnRate,
+  getCacheEfficiency,
+  getCacheWarning,
+  getCostColor,
+  getSessionCost,
+} from '@/lib/cost-utils'
 import { canTerminal, type TranscriptEntry } from '@/lib/types'
 import { cn, contextWindowSize, formatAge, formatEffort, formatModel, haptic, isMobileViewport } from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
@@ -1018,21 +1026,18 @@ export const SessionDetail = memo(function SessionDetail() {
             const ctxWindow = contextWindowSize(model || session.model)
             const contextPct = tu ? Math.min(100, Math.round((contextTotal / ctxWindow) * 100)) : 0
 
-            // Cost estimation (per 1M tokens, Opus pricing)
-            const inputCostPer1M = 15
-            const outputCostPer1M = 75
-            const cacheCostPer1M = 1.875 // cache read
-            const cacheWriteCostPer1M = 18.75 // cache creation
-            const hasExactCost = s?.totalCostUsd != null && s.totalCostUsd > 0
-            const estimatedCost = hasExactCost
-              ? s.totalCostUsd!
-              : s
-                ? ((s.totalInputTokens - s.totalCacheCreation - s.totalCacheRead) * inputCostPer1M +
-                    s.totalOutputTokens * outputCostPer1M +
-                    s.totalCacheRead * cacheCostPer1M +
-                    s.totalCacheCreation * cacheWriteCostPer1M) /
-                  1_000_000
-                : 0
+            // Cost calculation
+            const sessionCost = s ? getSessionCost(s, model || session.model) : { cost: 0, exact: false }
+            const burnRate = s ? getBurnRate(sessionCost.cost, session.startedAt, session.lastActivity) : null
+            const cacheEff = s ? getCacheEfficiency(s.totalCacheRead, s.totalCacheCreation) : null
+            const cacheWarn =
+              session.status === 'idle'
+                ? getCacheWarning(
+                    session.lastActivity,
+                    s || { totalCacheCreation: 0, totalCacheRead: 0, totalInputTokens: 0 },
+                    model || session.model,
+                  )
+                : null
 
             return (
               <div className="px-3 sm:px-4 pb-3 sm:pb-4 text-xs font-mono space-y-3">
@@ -1143,10 +1148,20 @@ export const SessionDetail = memo(function SessionDetail() {
                       <span className="text-blue-400">{(s.totalCacheRead / 1000).toFixed(0)}K</span>
                       <span className="text-muted-foreground"> / </span>
                       <span className="text-purple-400">{(s.totalCacheCreation / 1000).toFixed(0)}K</span>
+                      {cacheEff && (
+                        <span className={cn('ml-1', cacheEff.color)}>
+                          ({cacheEff.ratio.toFixed(1)}x {cacheEff.label})
+                        </span>
+                      )}
                     </div>
                     <div>
-                      <span className="text-muted-foreground">{hasExactCost ? 'cost ' : 'cost ~'}</span>
-                      <span className="text-emerald-400">${estimatedCost.toFixed(2)}</span>
+                      <span className="text-muted-foreground">cost </span>
+                      <span className={getCostColor(sessionCost.cost)}>
+                        {formatCost(sessionCost.cost, sessionCost.exact)}
+                      </span>
+                      {burnRate != null && burnRate >= 0.1 && (
+                        <span className="text-muted-foreground ml-1">({burnRate.toFixed(1)}/hr)</span>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1217,6 +1232,16 @@ export const SessionDetail = memo(function SessionDetail() {
                     <span className="text-amber-400/70">{session.rateLimit.message}</span>
                     <span className="text-muted-foreground ml-auto">
                       {new Date(session.rateLimit.timestamp).toLocaleTimeString('en-US', { hour12: false })}
+                    </span>
+                  </div>
+                )}
+
+                {/* Cache expiry warning */}
+                {cacheWarn && (
+                  <div className="px-2 py-1 bg-amber-400/10 border border-amber-400/20 text-[10px] font-mono flex items-center gap-2">
+                    <span className="text-amber-400/80">
+                      cache expired ({Math.round(cacheWarn.idleMs / 60000)}m idle) -- next prompt re-caches ~
+                      {Math.round(cacheWarn.contextTokens / 1000)}K tokens (~${cacheWarn.reCacheCost.toFixed(2)} extra)
                     </span>
                   </div>
                 )}

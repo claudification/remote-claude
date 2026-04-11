@@ -14,6 +14,7 @@ import type { HookEvent } from '@shared/protocol'
 import { ContextMenu } from 'radix-ui'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { reviveSession, saveSessionOrder, useSessionsStore } from '@/hooks/use-sessions'
+import { formatCost, getCostBgColor, getCostLevel, getSessionCost } from '@/lib/cost-utils'
 import type { Session, SessionOrderGroup, SessionOrderNode, SessionOrderV2 } from '@/lib/types'
 import { cn, contextWindowSize, formatAge, formatModel, haptic, lastPathSegments } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from './project-settings-editor'
@@ -276,6 +277,30 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
             </span>
           )}
           <ShareIndicator sessionCwd={session.cwd} />
+          {session.stats &&
+            (() => {
+              const { cost, exact } = getSessionCost(session.stats, model || session.model)
+              if (cost < 0.01) return null
+              const level = getCostLevel(cost)
+              if (level === 'low') {
+                return (
+                  <span
+                    className="text-[9px] text-emerald-400/50 font-mono"
+                    title={`Session cost: ${formatCost(cost, exact)}`}
+                  >
+                    {formatCost(cost, exact)}
+                  </span>
+                )
+              }
+              return (
+                <span
+                  className={cn('px-1 py-0.5 text-[9px] font-bold font-mono border', getCostBgColor(cost))}
+                  title={`Session cost: ${formatCost(cost, exact)}`}
+                >
+                  {formatCost(cost, exact)}
+                </span>
+              )
+            })()}
           {session.status === 'ended' && <DismissButton sessionId={session.id} />}
         </div>
       )}
@@ -296,6 +321,16 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
             <span className="text-[9px] text-amber-400 font-bold">THROTTLED</span>
           )}
           {session.planMode && <span className="text-[9px] text-blue-400 font-bold">PLAN</span>}
+          {session.stats &&
+            (() => {
+              const { cost, exact } = getSessionCost(session.stats, model || session.model)
+              if (cost < 0.5) return null
+              return (
+                <span className={cn('text-[9px] font-bold font-mono', getCostBgColor(cost).split(' ')[1])}>
+                  {formatCost(cost, exact)}
+                </span>
+              )
+            })()}
           {session.pendingAttention && (
             <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>
           )}
