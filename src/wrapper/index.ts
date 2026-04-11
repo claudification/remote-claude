@@ -4,6 +4,10 @@
  * Wraps claude CLI with hook injection and concentrator forwarding
  */
 
+import { checkBunVersion } from '../shared/bun-version'
+
+checkBunVersion()
+
 import { randomUUID } from 'node:crypto'
 import {
   existsSync,

@@ -4,6 +4,10 @@
  * Aggregates sessions from multiple rclaude instances
  */
 
+import { checkBunVersion } from '../shared/bun-version'
+
+checkBunVersion()
+
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DEFAULT_CONCENTRATOR_PORT } from '../shared/protocol'

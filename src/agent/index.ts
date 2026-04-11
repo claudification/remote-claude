@@ -9,6 +9,10 @@
  * connected, this process exits immediately.
  */
 
+import { checkBunVersion } from '../shared/bun-version'
+
+checkBunVersion()
+
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { hostname as osHostname } from 'node:os'

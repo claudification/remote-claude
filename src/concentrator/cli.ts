@@ -1,5 +1,9 @@
 #!/usr/bin/env bun
 
+import { checkBunVersion } from '../shared/bun-version'
+
+checkBunVersion()
+
 /**
  * Concentrator CLI - Passkey management
  *
