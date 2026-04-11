@@ -576,7 +576,18 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     updateHash(`terminal/${wrapperId}`)
   },
   setEvents: (sessionId, events) =>
-    set(state => ({ events: { ...state.events, [sessionId]: events }, newDataSeq: state.newDataSeq + 1 })),
+    set(state => {
+      const existing = state.events[sessionId]
+      // Don't replace a larger local cache with a smaller server response.
+      // WS pushes may have appended newer events since the HTTP fetch started.
+      if (existing && existing.length > events.length) {
+        console.log(
+          `[events] SKIP replace ${sessionId.slice(0, 8)}: local=${existing.length} > server=${events.length}`,
+        )
+        return state
+      }
+      return { events: { ...state.events, [sessionId]: events }, newDataSeq: state.newDataSeq + 1 }
+    }),
   setTranscript: (sessionId, entries) =>
     set(state => {
       const existing = state.transcripts[sessionId]
