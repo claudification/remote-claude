@@ -111,6 +111,7 @@ export function TaskEditor({
   task,
   sessionId,
   onSave,
+  onMove,
   onClose,
 }: {
   task: ProjectTask
@@ -120,6 +121,7 @@ export function TaskEditor({
     status: TaskStatus,
     patch: { title?: string; body?: string; priority?: string; tags?: string[] },
   ) => Promise<unknown>
+  onMove: (slug: string, from: TaskStatus, to: TaskStatus) => Promise<boolean>
   onClose: () => void
 }) {
   const [title, setTitle] = useState(task.title)
@@ -168,7 +170,15 @@ export function TaskEditor({
           />
           <select
             value={status}
-            onChange={e => setStatus(e.target.value as TaskStatus)}
+            onChange={e => {
+              const newStatus = e.target.value as TaskStatus
+              if (newStatus === status) return
+              const oldStatus = status
+              setStatus(newStatus)
+              haptic('tap')
+              // Immediately move the file on disk and update the board UI
+              onMove(task.slug, oldStatus, newStatus)
+            }}
             className={cn(
               'text-[10px] font-mono bg-transparent border px-1 py-0.5 outline-none',
               status === 'open' && 'border-amber-500/50 text-amber-400',
@@ -856,6 +866,14 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
           sessionId={sessionId}
           onSave={async (slug, status, patch) => {
             await updateTask(slug, status, patch)
+          }}
+          onMove={async (slug, from, to) => {
+            const ok = await moveTask(slug, from, to)
+            if (ok) {
+              // Update the editing task's status so subsequent saves use the correct path
+              setEditingTask(prev => (prev && prev.slug === slug ? { ...prev, status: to } : prev))
+            }
+            return ok
           }}
           onClose={() => setEditingTask(null)}
         />

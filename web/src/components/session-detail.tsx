@@ -810,7 +810,7 @@ export const SessionDetail = memo(function SessionDetail() {
 
   // T: command palette -> task editor overlay (no tab switch, transcript stays mounted)
   const pendingTaskEdit = useSessionsStore(s => s.pendingTaskEdit)
-  const { readTask, updateTask } = useProject(selectedSessionId ?? null)
+  const { readTask, updateTask, moveTask } = useProject(selectedSessionId ?? null)
   const [taskEditorTask, setTaskEditorTask] = useState<import('@/hooks/use-project').ProjectTask | null>(null)
   useEffect(() => {
     if (!pendingTaskEdit) return
@@ -935,6 +935,11 @@ export const SessionDetail = memo(function SessionDetail() {
           sessionId={selectedSessionId}
           onSave={async (slug, status, patch) => {
             await updateTask(slug, status, patch)
+          }}
+          onMove={async (slug, from, to) => {
+            const ok = await moveTask(slug, from, to)
+            if (ok) setTaskEditorTask(prev => (prev && prev.slug === slug ? { ...prev, status: to } : prev))
+            return ok
           }}
           onClose={() => setTaskEditorTask(null)}
         />
