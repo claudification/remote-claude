@@ -361,16 +361,6 @@ async function main() {
   }
   debug(`Concentrator: ${noConcentrator ? 'DISABLED' : 'ENABLED'} (url: ${concentratorUrl})`)
 
-  // Non-blocking update check at startup — fire and forget
-  checkForUpdate()
-    .then(result => {
-      if (!result.upToDate && !result.error) {
-        const behind = result.behindBy ? `${result.behindBy} commit(s)` : 'commits'
-        console.error(`\x1b[33m⚠ rclaude update available (${behind} behind) — git pull && bun run build:client\x1b[0m`)
-      }
-    })
-    .catch(() => {}) // silently ignore network errors on startup
-
   // Session ID: reuse from revive flow so concentrator resumes the existing session
   // Wrapper ID: always unique per process (for socket routing, terminal attachment)
   const sessionId = process.env.RCLAUDE_SESSION_ID || process.env.RCLAUDE_WRAPPER_ID || randomUUID()

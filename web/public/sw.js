@@ -12,6 +12,11 @@ const FILE_CACHE = 'rclaude-files-v1'
 const FILE_CACHE_MAX = 50
 const FILE_CACHE_MAX_SIZE = 2 * 1024 * 1024
 
+// Tracks the build hash from the install event so activate knows which precache
+// is the new one. Module-level state persists across the install→activate cycle
+// of a single SW instance.
+let installedBuildHash = null
+
 // ─── Install: precache from manifest ─────────────────────────────
 
 self.addEventListener('install', event => {
@@ -19,6 +24,7 @@ self.addEventListener('install', event => {
     fetch('/asset-manifest.json')
       .then(res => res.json())
       .then(async manifest => {
+        installedBuildHash = manifest.buildHash
         const cache = await caches.open(`${PRECACHE}-${manifest.buildHash}`)
         const urls = manifest.files.map(f => f.url).filter(u => !u.endsWith('.map'))
         // Also cache the root HTML
@@ -31,32 +37,34 @@ self.addEventListener('install', event => {
   self.skipWaiting()
 })
 
-// ─── Activate: clean old precaches, claim clients ────────────────
+// ─── Activate: clean old precaches, claim clients, signal real updates ──
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches
-      .keys()
-      .then(keys => {
-        // Find the current precache name
-        const current = keys.find(k => k.startsWith(PRECACHE))
-        return Promise.all(
-          keys
-            .filter(k => k.startsWith(PRECACHE) && k !== current)
-            .map(k => {
-              console.log(`[sw] deleting old cache: ${k}`)
-              return caches.delete(k)
-            }),
-        )
-      })
-      .then(() => clients.claim()),
+    (async () => {
+      const keys = await caches.keys()
+      const allPrecaches = keys.filter(k => k.startsWith(PRECACHE))
+      const currentName = installedBuildHash ? `${PRECACHE}-${installedBuildHash}` : null
+      // Old precaches = anything that isn't the freshly installed one.
+      // If install failed (currentName === null), keep everything to avoid wiping the working cache.
+      const oldPrecaches = currentName ? allPrecaches.filter(k => k !== currentName) : []
+      for (const k of oldPrecaches) {
+        console.log(`[sw] deleting old cache: ${k}`)
+        await caches.delete(k)
+      }
+      await clients.claim()
+      // Only notify clients of an "update" if there was a previous precache to replace.
+      // Fresh installs (e.g. after clearCacheAndReload) must not fire sw-updated, otherwise
+      // the banner reappears immediately and RELOAD looks broken.
+      if (oldPrecaches.length > 0) {
+        const fromHash = oldPrecaches[0].slice(PRECACHE.length + 1) || null
+        const cls = await clients.matchAll({ type: 'window' })
+        for (const client of cls) {
+          client.postMessage({ type: 'sw-updated', from: fromHash, to: installedBuildHash })
+        }
+      }
+    })(),
   )
-  // Notify all clients that a new SW is active
-  clients.matchAll({ type: 'window' }).then(cls => {
-    for (const client of cls) {
-      client.postMessage({ type: 'sw-updated' })
-    }
-  })
 })
 
 // ─── Fetch: precache-first, with runtime caching for /file/* ─────

@@ -1,5 +1,9 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { BUILD_VERSION } from '../../../src/shared/version'
+
+/** Key used to detect post-reload outcome and surface a feedback toast. */
+export const PRE_RELOAD_KEY = 'rclaude-pre-reload'
 
 /** Tailwind `sm` breakpoint - below this is mobile */
 export const MOBILE_BREAKPOINT = 640
@@ -120,8 +124,16 @@ export function haptic(pattern: 'tap' | 'double' | 'success' | 'error' | 'tick' 
   }
 }
 
-/** Clear all SW caches, unregister service worker, and reload */
+/** Clear all SW caches, unregister service worker, and reload.
+ * Stashes the current build hash so the next page load can show feedback
+ * (success: hash changed; no-op: hash identical). */
 export async function clearCacheAndReload(): Promise<void> {
+  try {
+    localStorage.setItem(
+      PRE_RELOAD_KEY,
+      JSON.stringify({ hash: BUILD_VERSION.gitHashShort, ts: Date.now() }),
+    )
+  } catch {}
   const keys = await caches.keys()
   await Promise.all(keys.map(k => caches.delete(k)))
   const reg = await navigator.serviceWorker?.getRegistration('/sw.js')
