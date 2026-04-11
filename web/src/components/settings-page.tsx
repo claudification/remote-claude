@@ -661,6 +661,20 @@ const SETTINGS: SettingItem[] = [
   },
   {
     group: 'Display',
+    label: 'Cost in sidebar',
+    description: 'Show session cost badges on session cards',
+    keywords: 'cost money dollars pricing',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.showCostInList}
+        onChange={e => ctx.updatePrefs({ showCostInList: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
+  {
+    group: 'Display',
     label: 'WS traffic stats',
     description: 'Show msg/s and KB/s in header bar',
     keywords: 'websocket bandwidth',

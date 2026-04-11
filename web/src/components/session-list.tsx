@@ -204,6 +204,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
   const cachedEvents = useSessionsStore(s => s.events[session.id] || EMPTY_EVENTS)
   const ps = useSessionsStore(s => s.projectSettings[session.cwd])
   const showContextBar = useSessionsStore(s => s.dashboardPrefs.showContextInList)
+  const showCost = useSessionsStore(s => s.dashboardPrefs.showCostInList)
   const isSelected = selectedSessionId === session.id
   const sessionStartEvent = cachedEvents.find(e => e.hookEvent === 'SessionStart')
   const model = (sessionStartEvent?.data as { model?: string } | undefined)?.model
@@ -279,7 +280,8 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           )}
           <ShareIndicator sessionCwd={session.cwd} />
           {session.status === 'ended' && <DismissButton sessionId={session.id} />}
-          {session.stats &&
+          {showCost &&
+            session.stats &&
             (() => {
               const { cost, exact } = getSessionCost(session.stats, model || session.model)
               if (cost < 0.01) return null
@@ -323,7 +325,8 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
             <span className="text-[9px] text-amber-400 font-bold">THROTTLED</span>
           )}
           {session.planMode && <span className="text-[9px] text-blue-400 font-bold">PLAN</span>}
-          {session.stats &&
+          {showCost &&
+            session.stats &&
             (() => {
               const { cost, exact } = getSessionCost(session.stats, model || session.model)
               if (cost < 0.5) return null
