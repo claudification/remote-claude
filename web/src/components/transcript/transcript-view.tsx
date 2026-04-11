@@ -84,7 +84,7 @@ const ThinkingSpinner = memo(function ThinkingSpinner({ sessionId }: { sessionId
     const cwd = state.sessions.find(s => s.id === sessionId)?.cwd
     return cwd ? state.projectSettings[cwd]?.verbs : undefined
   })
-  const verbList = customVerbs?.length ? [...VERBS, ...customVerbs] : VERBS
+  const verbList = customVerbs?.length ? customVerbs : VERBS
 
   const [verb, setVerb] = useState(() => VERBS[Math.floor(Math.random() * VERBS.length)])
   const [dots, setDots] = useState(0)
