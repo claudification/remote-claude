@@ -27,6 +27,11 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ error, errorInfo })
     console.error('ErrorBoundary caught:', error, errorInfo)
     this.reportCrash(error, errorInfo)
+    // Signal SW to bypass cache on next page load (browser refresh).
+    // main.tsx checks this flag and nukes SW + caches before React renders.
+    try {
+      localStorage.setItem('sw-crash-detected', '1')
+    } catch {}
   }
 
   reportCrash(error: Error, errorInfo: ErrorInfo) {

@@ -1,3 +1,19 @@
+// If the previous page load crashed (error boundary fired), nuke SW + caches
+// so the next load gets fresh code from the network instead of broken cache.
+// This MUST run before anything else -- a broken cached bundle could crash again.
+if (localStorage.getItem('sw-crash-detected')) {
+  localStorage.removeItem('sw-crash-detected')
+  ;(async function nukeSWCache() {
+    const regs = await navigator.serviceWorker?.getRegistrations()
+    if (regs) for (const r of regs) await r.unregister()
+    const names = await caches?.keys()
+    if (names?.length) {
+      for (const n of names) await caches.delete(n)
+      location.reload()
+    }
+  })().catch(() => {})
+}
+
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './app'
