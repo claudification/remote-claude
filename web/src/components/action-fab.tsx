@@ -10,7 +10,7 @@
 
 import { Command, MessageSquarePlus, PenLine, Power, RefreshCw, RotateCcw, Share2, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { reviveSession, useSessionsStore, wsSend } from '@/hooks/use-sessions'
+import { reviveSession, useSessionsStore } from '@/hooks/use-sessions'
 import type { Session } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 
@@ -63,7 +63,7 @@ function buildActions(session: Session | undefined, selectedSessionId: string | 
         label: 'Terminate',
         action: () => {
           haptic('error')
-          wsSend('terminate_session', { sessionId: session.id })
+          useSessionsStore.getState().terminateSession(session.id)
         },
         color: 'bg-red-500',
       })

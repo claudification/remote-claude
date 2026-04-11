@@ -205,6 +205,7 @@ interface SessionsState {
   projectHandler: ((msg: Record<string, unknown>) => void) | null
   sendWsMessage: (msg: Record<string, unknown>) => void
   dismissSession: (sessionId: string) => void
+  terminateSession: (sessionId: string) => void
   setPendingFilePath: (path: string | null) => void
   pendingTaskEdit: { slug: string; status: string } | null
   setPendingTaskEdit: (task: { slug: string; status: string } | null) => void
@@ -637,6 +638,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       sessions: state.sessions.filter(s => s.id !== sessionId),
       selectedSessionId: state.selectedSessionId === sessionId ? null : state.selectedSessionId,
     }))
+  },
+  terminateSession: sessionId => {
+    wsSend('terminate_session', { sessionId })
   },
 
   getSelectedSession: () => {
