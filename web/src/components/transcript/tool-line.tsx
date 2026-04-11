@@ -263,7 +263,11 @@ export function ToolLine({
       const query = input.query as string
       summary = query
       if (result) {
-        details = <TruncatedPre text={result} tool="WebSearch" />
+        details = (
+          <div className="max-h-96 overflow-y-auto rounded border border-border/30 bg-black/20 px-3 py-2 text-[11px]">
+            <Markdown>{result}</Markdown>
+          </div>
+        )
       }
       break
     }

@@ -157,7 +157,7 @@ export function SpawnDialog() {
 
   // Resolve what defaults mean for the hint text
   const projSettings = state.options ? projectSettings[state.options.cwd] : undefined
-  const defaultModel = projSettings?.defaultModel || (globalSettings.defaultModel as string) || 'sonnet'
+  const defaultModel = projSettings?.defaultModel || (globalSettings.defaultModel as string) || 'opus'
   const defaultEffort = projSettings?.defaultEffort || (globalSettings.defaultEffort as string) || 'default'
 
   return (
