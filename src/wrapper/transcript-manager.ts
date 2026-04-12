@@ -179,6 +179,7 @@ function detectRename(ctx: WrapperContext, entries: TranscriptEntry[]): void {
         type: 'session_name',
         sessionId: ctx.claudeSessionId || ctx.internalId,
         name,
+        userSet: true,
       }
       ctx.wsClient?.send(msg)
     }
