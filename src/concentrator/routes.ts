@@ -739,6 +739,7 @@ export function createRouter(options: RouteOptions): Hono {
       model?: string
       effort?: string
       permissionMode?: string
+      autocompactPct?: number
     }>()
     if (!body.cwd || typeof body.cwd !== 'string') return c.json({ error: 'Missing cwd field' }, 400)
     if (body.mode === 'resume' && !body.resumeId) return c.json({ error: 'resumeId required for resume mode' }, 400)
@@ -793,6 +794,7 @@ export function createRouter(options: RouteOptions): Hono {
           bare: body.bare || false,
           sessionName: body.name?.trim() || undefined,
           permissionMode: body.permissionMode || undefined,
+          autocompactPct: body.autocompactPct || undefined,
         }),
       )
     })

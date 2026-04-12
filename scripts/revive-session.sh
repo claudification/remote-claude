@@ -98,6 +98,10 @@ fi
 if [[ -n "${RCLAUDE_PERMISSION_MODE:-}" ]]; then
   CMD_PREFIX+="RCLAUDE_PERMISSION_MODE=${RCLAUDE_PERMISSION_MODE} "
 fi
+# Autocompact threshold override (CC env var)
+if [[ -n "${RCLAUDE_AUTOCOMPACT_PCT:-}" ]]; then
+  CMD_PREFIX+="CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=${RCLAUDE_AUTOCOMPACT_PCT} "
+fi
 
 # Append --effort flag if set (passed through to claude CLI)
 EFFORT_FLAG=""

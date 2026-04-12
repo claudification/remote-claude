@@ -459,6 +459,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       claudeVersion: session.claudeVersion,
       claudeAuth: session.claudeAuth,
       spinnerVerbs: session.spinnerVerbs,
+      autocompactPct: session.autocompactPct,
       wrapperIds: wrappers ? Array.from(wrappers.keys()) : [],
       startedAt: session.startedAt,
       lastActivity: session.lastActivity,

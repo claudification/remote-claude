@@ -34,6 +34,7 @@ export interface SessionMeta {
     subscriptionType?: string
   }
   spinnerVerbs?: string[]
+  autocompactPct?: number // CLAUDE_AUTOCOMPACT_PCT_OVERRIDE value if set
 }
 
 export interface SessionEnd {
@@ -896,6 +897,7 @@ export interface Session {
   costTimeline?: Array<{ t: number; cost: number }>
   gitBranch?: string
   spinnerVerbs?: string[] // custom spinner verbs from ~/.claude/settings.json
+  autocompactPct?: number // CLAUDE_AUTOCOMPACT_PCT_OVERRIDE value if set
 }
 
 // Agent -> Concentrator messages
@@ -1062,6 +1064,7 @@ export interface SessionSummary {
   costTimeline?: Session['costTimeline']
   gitBranch?: string
   spinnerVerbs?: string[]
+  autocompactPct?: number
 }
 
 // Subscription channels (dashboard <-> concentrator pub/sub)

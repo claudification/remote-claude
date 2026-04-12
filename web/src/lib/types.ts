@@ -105,6 +105,7 @@ export interface Session {
   claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
   gitBranch?: string
   spinnerVerbs?: string[]
+  autocompactPct?: number
   lastEvent?: {
     hookEvent: string
     timestamp: number

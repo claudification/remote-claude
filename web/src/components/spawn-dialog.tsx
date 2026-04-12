@@ -67,6 +67,7 @@ export function SpawnDialog() {
   const [bare, setBare] = useState(false)
   const [name, setName] = useState('')
   const [permissionMode, setPermissionMode] = useState('')
+  const [autocompactPct, setAutocompactPct] = useState<number | ''>('')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [spawning, setSpawning] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -86,6 +87,7 @@ export function SpawnDialog() {
       setBare(false)
       setName('')
       setPermissionMode('')
+      setAutocompactPct('')
       setShowAdvanced(false)
       setError(null)
       setSpawning(false)
@@ -126,6 +128,7 @@ export function SpawnDialog() {
           model: model || undefined,
           effort: effort || undefined,
           permissionMode: permissionMode || undefined,
+          autocompactPct: autocompactPct || undefined,
         }),
       })
       const data = await res.json()
@@ -140,7 +143,7 @@ export function SpawnDialog() {
     } finally {
       setSpawning(false)
     }
-  }, [state.options, spawning, headless, bare, name, model, effort, permissionMode, handleClose])
+  }, [state.options, spawning, headless, bare, name, model, effort, permissionMode, autocompactPct, handleClose])
 
   // Handle Enter key to submit
   const handleKeyDown = useCallback(
@@ -282,6 +285,47 @@ export function SpawnDialog() {
                     />
                   ))}
                 </div>
+              </div>
+
+              {/* Autocompact threshold */}
+              <div className="space-y-2 pl-3">
+                <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
+                  Autocompact threshold
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={50}
+                    max={99}
+                    value={autocompactPct || 83}
+                    onChange={e => {
+                      setAutocompactPct(Number(e.target.value))
+                      haptic('tick')
+                    }}
+                    className="flex-1 h-1.5 accent-[#7aa2f7] bg-muted rounded-full"
+                  />
+                  <span
+                    className={cn(
+                      'text-sm font-mono w-12 text-right tabular-nums',
+                      autocompactPct ? 'text-[#7aa2f7]' : 'text-[#565f89]',
+                    )}
+                  >
+                    {autocompactPct || 83}%
+                  </span>
+                  {autocompactPct && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAutocompactPct('')
+                        haptic('tap')
+                      }}
+                      className="text-[10px] text-[#565f89] hover:text-foreground font-mono"
+                    >
+                      reset
+                    </button>
+                  )}
+                </div>
+                <div className="text-[9px] text-[#565f89]">Context % that triggers compaction (default ~83%)</div>
               </div>
 
               {/* Bare toggle */}

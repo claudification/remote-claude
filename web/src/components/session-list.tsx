@@ -506,13 +506,15 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           if (total === 0) return null
           const maxTokens = contextWindowSize(model || session.model)
           const pct = Math.min(100, Math.round((total / maxTokens) * 100))
+          const threshold = session.autocompactPct || 83
+          const warnAt = threshold - 5
           return (
             <div className="mt-1.5 flex items-center gap-1.5">
               <div className="flex-1 h-1 bg-muted/50 rounded-full overflow-hidden">
                 <div
                   className={cn(
                     'h-full rounded-full transition-all',
-                    pct < 60 ? 'bg-emerald-400/60' : pct < 85 ? 'bg-amber-400/60' : 'bg-red-400/70',
+                    pct < warnAt ? 'bg-emerald-400/60' : pct < threshold ? 'bg-amber-400/60' : 'bg-red-400/70',
                   )}
                   style={{ width: `${pct}%` }}
                 />
@@ -520,7 +522,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
               <span
                 className={cn(
                   'text-[9px] font-mono tabular-nums shrink-0',
-                  pct < 60 ? 'text-emerald-400/50' : pct < 85 ? 'text-amber-400/50' : 'text-red-400/60',
+                  pct < warnAt ? 'text-emerald-400/50' : pct < threshold ? 'text-amber-400/50' : 'text-red-400/60',
                 )}
               >
                 {pct}%

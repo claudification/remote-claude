@@ -111,6 +111,7 @@ function toSession(summary: SessionSummary): Session {
     claudeVersion: summary.claudeVersion,
     claudeAuth: summary.claudeAuth,
     spinnerVerbs: summary.spinnerVerbs,
+    autocompactPct: summary.autocompactPct,
   }
 }
 

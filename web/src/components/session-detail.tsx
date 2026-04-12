@@ -1007,6 +1007,8 @@ export const SessionDetail = memo(function SessionDetail() {
                       const maxTokens = contextWindowSize(model || session.model)
                       const pct = Math.min(100, Math.round((total / maxTokens) * 100))
                       const totalK = Math.round(total / 1000)
+                      const threshold = session.autocompactPct || 83
+                      const warnAt = threshold - 5
                       return (
                         <span className="inline-flex items-center gap-1 ml-1">
                           <span className="text-muted-foreground">·</span>
@@ -1014,7 +1016,7 @@ export const SessionDetail = memo(function SessionDetail() {
                             <span
                               className={cn(
                                 'block h-full rounded-full',
-                                pct < 60 ? 'bg-emerald-400' : pct < 85 ? 'bg-amber-400' : 'bg-red-400',
+                                pct < warnAt ? 'bg-emerald-400' : pct < threshold ? 'bg-amber-400' : 'bg-red-400',
                               )}
                               style={{ width: `${pct}%` }}
                             />
@@ -1022,7 +1024,11 @@ export const SessionDetail = memo(function SessionDetail() {
                           <span
                             className={cn(
                               'text-[10px] font-mono',
-                              pct < 60 ? 'text-emerald-400/70' : pct < 85 ? 'text-amber-400/70' : 'text-red-400/70',
+                              pct < warnAt
+                                ? 'text-emerald-400/70'
+                                : pct < threshold
+                                  ? 'text-amber-400/70'
+                                  : 'text-red-400/70',
                             )}
                           >
                             {totalK.toLocaleString()}K ({pct}%)
@@ -1054,6 +1060,8 @@ export const SessionDetail = memo(function SessionDetail() {
             const contextTotal = tu ? tu.input + tu.cacheCreation + tu.cacheRead : 0
             const ctxWindow = contextWindowSize(model || session.model)
             const contextPct = tu ? Math.min(100, Math.round((contextTotal / ctxWindow) * 100)) : 0
+            const compactThreshold = session.autocompactPct || 83
+            const compactWarnAt = compactThreshold - 5
 
             // Cost calculation
             const sessionCost = s ? getSessionCost(s, model || session.model) : { cost: 0, exact: false }
@@ -1138,13 +1146,23 @@ export const SessionDetail = memo(function SessionDetail() {
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground text-[10px] w-16">context</span>
-                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="relative flex-1 h-2 bg-muted rounded-full overflow-hidden">
                         <div
                           className={cn(
                             'h-full rounded-full transition-all',
-                            contextPct < 60 ? 'bg-emerald-400' : contextPct < 85 ? 'bg-amber-400' : 'bg-red-400',
+                            contextPct < compactWarnAt
+                              ? 'bg-emerald-400'
+                              : contextPct < compactThreshold
+                                ? 'bg-amber-400'
+                                : 'bg-red-400',
                           )}
                           style={{ width: `${contextPct}%` }}
+                        />
+                        {/* Compaction threshold marker */}
+                        <div
+                          className="absolute top-0 h-full w-px bg-amber-400/50"
+                          style={{ left: `${compactThreshold}%` }}
+                          title={`Compaction at ${compactThreshold}%`}
                         />
                       </div>
                     </div>
@@ -1153,15 +1171,18 @@ export const SessionDetail = memo(function SessionDetail() {
                       <span
                         className={cn(
                           'text-[10px] font-mono',
-                          contextPct < 60
+                          contextPct < compactWarnAt
                             ? 'text-emerald-400/70'
-                            : contextPct < 85
+                            : contextPct < compactThreshold
                               ? 'text-amber-400/70'
                               : 'text-red-400/70',
                         )}
                       >
                         {Math.round(contextTotal / 1000).toLocaleString()}K /{' '}
                         {Math.round(ctxWindow / 1000).toLocaleString()}K ({contextPct}%)
+                        {contextPct >= compactWarnAt && contextPct < compactThreshold && (
+                          <span className="text-amber-400/50 ml-1">-- compaction at {compactThreshold}%</span>
+                        )}
                       </span>
                     </div>
                   </div>

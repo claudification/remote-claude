@@ -249,6 +249,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
       effort,
       model,
       sessionName: session.title || undefined,
+      autocompactPct: data.autocompactPct as number | undefined,
     }),
   )
 

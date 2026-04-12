@@ -651,6 +651,9 @@ async function main() {
       claudeVersion,
       claudeAuth,
       spinnerVerbs,
+      autocompactPct: process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
+        ? Number(process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE)
+        : undefined,
       capabilities,
       onConnected() {
         diag('ws', 'Connected to concentrator', { sessionId })

@@ -180,6 +180,7 @@ async function reviveSession(
   effort?: string,
   model?: string,
   sessionName?: string,
+  autocompactPct?: number,
 ): Promise<ReviveResult> {
   const result: ReviveResult = {
     type: 'revive_result',
@@ -206,6 +207,7 @@ async function reviveSession(
       ...(effort ? { RCLAUDE_EFFORT: effort } : {}),
       ...(model ? { RCLAUDE_MODEL: model } : {}),
       ...(sessionName ? { RCLAUDE_SESSION_NAME: sessionName } : {}),
+      ...(autocompactPct ? { RCLAUDE_AUTOCOMPACT_PCT: String(autocompactPct) } : {}),
     },
   })
 
@@ -291,6 +293,7 @@ async function spawnSession(
   bare = false,
   sessionName?: string,
   permissionMode?: string,
+  autocompactPct?: number,
 ): Promise<{ success: boolean; error?: string; tmuxSession?: string }> {
   // Diagnostic dump
   const whichRclaude = Bun.spawnSync(['which', 'rclaude'])
@@ -338,6 +341,7 @@ async function spawnSession(
     ...(bare ? { RCLAUDE_BARE: '1' } : {}),
     ...(sessionName ? { RCLAUDE_SESSION_NAME: sessionName } : {}),
     ...(permissionMode ? { RCLAUDE_PERMISSION_MODE: permissionMode } : {}),
+    ...(autocompactPct ? { RCLAUDE_AUTOCOMPACT_PCT: String(autocompactPct) } : {}),
   }
 
   diag('spawn', 'Running revive script', { args: scriptArgs })
@@ -633,6 +637,7 @@ function connect(
             effort?: string
             model?: string
             sessionName?: string
+            autocompactPct?: number
           }
           log(
             `Reviving session ${reviveMsg.sessionId.slice(0, 8)}... wrapper=${reviveMsg.wrapperId.slice(0, 8)} mode=${reviveMsg.mode || 'default'} headless=${reviveMsg.headless !== false}${reviveMsg.effort ? ` effort=${reviveMsg.effort}` : ''}${reviveMsg.model ? ` model=${reviveMsg.model}` : ''} (${reviveMsg.cwd})`,
@@ -649,6 +654,7 @@ function connect(
             reviveMsg.effort,
             reviveMsg.model,
             reviveMsg.sessionName,
+            reviveMsg.autocompactPct,
           )
           ws.send(JSON.stringify(result))
           if (result.success) {
@@ -673,6 +679,7 @@ function connect(
             bare?: boolean
             sessionName?: string
             permissionMode?: string
+            autocompactPct?: number
           }
           if (noSpawn) {
             ws.send(
@@ -710,6 +717,7 @@ function connect(
             spawnMsg.bare || false,
             spawnMsg.sessionName,
             spawnMsg.permissionMode,
+            spawnMsg.autocompactPct,
           )
           const response: SpawnResult = {
             type: 'spawn_result',
