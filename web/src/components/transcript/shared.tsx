@@ -30,6 +30,7 @@ import {
   Search,
   Sparkles,
   Terminal,
+  Timer,
   Users,
   Zap,
 } from 'lucide-react'
@@ -136,6 +137,7 @@ const TOOL_STYLES: Record<string, { color: string; Icon: LucideIcon }> = {
   CronCreate: { color: 'text-sky-400', Icon: Clock },
   CronList: { color: 'text-sky-400', Icon: Clock },
   CronDelete: { color: 'text-red-400', Icon: Clock },
+  ScheduleWakeup: { color: 'text-amber-400', Icon: Timer },
 }
 
 const DEFAULT_TOOL_STYLE = { color: 'text-event-tool', Icon: Play }

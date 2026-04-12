@@ -517,6 +517,26 @@ export function ToolLine({
       summary = jobId ? `delete ${jobId.slice(0, 8)}` : 'delete'
       break
     }
+    case 'ScheduleWakeup': {
+      const reason = input.reason as string
+      const delay = input.delaySeconds as number
+      const prompt = input.prompt as string
+      const mins = delay ? Math.round(delay / 60) : 0
+      summary = (
+        <span className="flex items-center gap-1.5">
+          <span className="text-amber-400">{mins}m</span>
+          <span className="truncate">{reason}</span>
+        </span>
+      )
+      if (prompt && prompt !== '<<autonomous-loop-dynamic>>') {
+        details = (
+          <pre className="text-[10px] text-muted-foreground overflow-x-auto whitespace-pre-wrap">
+            {truncate(prompt, 500)}
+          </pre>
+        )
+      }
+      break
+    }
     // rclaude inter-session tools - rich display
     case 'mcp__rclaude__send_message': {
       const to = (input.to as string) || ''
