@@ -31,6 +31,14 @@ export function formatAge(timestamp: number): string {
   return `${hours}h ${minutes % 60}m ago`
 }
 
+export function formatDurationMs(ms: number): string {
+  const totalMinutes = Math.round(ms / 60000)
+  if (totalMinutes < 60) return `${totalMinutes}m`
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+}
+
 export function truncatePath(path: string, maxLen = 40): string {
   if (path.length <= maxLen) return path
   return `...${path.slice(-maxLen + 3)}`

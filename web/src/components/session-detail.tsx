@@ -15,7 +15,16 @@ import {
   getSessionCost,
 } from '@/lib/cost-utils'
 import { canTerminal, type TranscriptEntry } from '@/lib/types'
-import { cn, contextWindowSize, formatAge, formatEffort, formatModel, haptic, isMobileViewport } from '@/lib/utils'
+import {
+  cn,
+  contextWindowSize,
+  formatAge,
+  formatDurationMs,
+  formatEffort,
+  formatModel,
+  haptic,
+  isMobileViewport,
+} from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
 import { ConversationView } from './conversation-view'
 import { CostSparkline } from './cost-sparkline'
@@ -1051,13 +1060,7 @@ export const SessionDetail = memo(function SessionDetail() {
             const burnRate = s ? getBurnRate(sessionCost.cost, session.startedAt, session.lastActivity) : null
             const cacheEff = s ? getCacheEfficiency(s.totalCacheRead, s.totalCacheCreation) : null
             const cacheWarn =
-              session.status === 'idle'
-                ? getCacheWarning(
-                    session.lastActivity,
-                    s || { totalCacheCreation: 0, totalCacheRead: 0, totalInputTokens: 0 },
-                    model || session.model,
-                  )
-                : null
+              session.status === 'idle' ? getCacheWarning(session.lastActivity, tu, model || session.model) : null
 
             return (
               <div className="px-3 sm:px-4 pb-3 sm:pb-4 text-xs font-mono space-y-3">
@@ -1301,7 +1304,7 @@ export const SessionDetail = memo(function SessionDetail() {
                 {cacheWarn && (
                   <div className="px-2 py-1 bg-amber-400/10 border border-amber-400/20 text-[10px] font-mono flex items-center gap-2">
                     <span className="text-amber-400/80">
-                      cache expired ({Math.round(cacheWarn.idleMs / 60000)}m idle) -- next prompt re-caches ~
+                      cache expired ({formatDurationMs(cacheWarn.idleMs)} idle) -- next prompt re-caches ~
                       {Math.round(cacheWarn.contextTokens / 1000)}K tokens (~${cacheWarn.reCacheCost.toFixed(2)} extra)
                     </span>
                   </div>

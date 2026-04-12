@@ -141,22 +141,16 @@ const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 /** Estimate re-cache cost if the session has been idle past cache TTL */
 export function getCacheWarning(
   lastActivity: number,
-  stats: { totalCacheCreation: number; totalCacheRead: number; totalInputTokens: number },
+  tokenUsage: { input: number; cacheCreation: number; cacheRead: number } | undefined,
   model?: string,
 ): { idleMs: number; reCacheCost: number; contextTokens: number } | null {
   const idleMs = Date.now() - lastActivity
   if (idleMs < CACHE_TTL_MS) return null
+  if (!tokenUsage) return null
 
-  // Estimate context size from the most recent usage pattern.
-  // The total tokens in context is approximately the sum of input tokens
-  // in the last turn. We don't have per-turn data here, so use a heuristic:
-  // context ~ max(cacheRead, cacheCreation) from the most recent turn.
-  // As a rough proxy, use the total cache tokens (read + creation) divided
-  // by turn count -- but we don't have turn count here. Use total input tokens
-  // as an upper bound for what would need re-caching.
-  // A safer estimate: the larger of cacheRead and cacheCreation from the
-  // session stats gives a rough sense of context size.
-  const contextTokens = Math.max(stats.totalCacheRead, stats.totalCacheCreation)
+  // Context size = sum of all input components from the LAST turn
+  // (input + cacheCreation + cacheRead = total tokens sent to the API)
+  const contextTokens = tokenUsage.input + tokenUsage.cacheCreation + tokenUsage.cacheRead
   if (contextTokens < 50_000) return null // not worth warning about
 
   const p = getPricing(model)
