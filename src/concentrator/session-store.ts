@@ -2257,7 +2257,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
             console.log(`[meta] summary: "${session.summary.slice(0, 60)}" (session ${sessionId.slice(0, 8)})`)
           }
         }
-        if (entry.type === 'custom-title' && !session.titleUserSet) {
+        if (entry.type === 'custom-title') {
           const t = (entry as Record<string, unknown>).customTitle
           if (typeof t === 'string' && t.trim()) {
             session.title = t.trim()

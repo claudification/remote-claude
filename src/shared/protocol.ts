@@ -311,7 +311,6 @@ export interface SessionNameUpdate {
   type: 'session_name'
   sessionId: string
   name: string
-  userSet?: boolean
 }
 
 // Session info from stream-json init (skills, tools, agents, etc.)
