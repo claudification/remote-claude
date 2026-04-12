@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react-swc'
@@ -43,6 +43,15 @@ function assetManifestPlugin(): Plugin {
 
       const totalKB = Math.round(files.reduce((s, f) => s + f.size, 0) / 1024)
       console.log(`[asset-manifest] ${buildHash} -- ${files.length} files, ${totalKB} KB`)
+
+      // Stamp build hash into sw.js so the browser detects it as "changed"
+      // and triggers reinstall + precache on each build
+      const swPath = join(outDir, 'sw.js')
+      try {
+        const sw = readFileSync(swPath, 'utf8')
+        writeFileSync(swPath, sw.replace('__BUILD_HASH__', buildHash))
+        console.log(`[asset-manifest] stamped sw.js with build hash ${buildHash}`)
+      } catch {}
     },
   }
 }

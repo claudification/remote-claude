@@ -5,8 +5,12 @@
  * On update: if manifest changed, new SW installs with new cache.
  * Runtime: cache-first for precached assets, network-first for API/dynamic.
  * /file/* blobs: LRU cache (max 50, skip >2MB).
+ *
+ * BUILD_HASH is stamped by the Vite build plugin so the browser detects
+ * sw.js as "changed" on each build, triggering reinstall + precache.
  */
 
+// @build __BUILD_HASH__
 const PRECACHE = 'rclaude-precache'
 const FILE_CACHE = 'rclaude-files-v1'
 const FILE_CACHE_MAX = 50
