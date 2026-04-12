@@ -179,6 +179,7 @@ async function reviveSession(
   headless = true,
   effort?: string,
   model?: string,
+  sessionName?: string,
 ): Promise<ReviveResult> {
   const result: ReviveResult = {
     type: 'revive_result',
@@ -204,6 +205,7 @@ async function reviveSession(
       ...(headless ? { RCLAUDE_HEADLESS: '1' } : {}),
       ...(effort ? { RCLAUDE_EFFORT: effort } : {}),
       ...(model ? { RCLAUDE_MODEL: model } : {}),
+      ...(sessionName ? { RCLAUDE_SESSION_NAME: sessionName } : {}),
     },
   })
 
@@ -630,6 +632,7 @@ function connect(
             headless?: boolean
             effort?: string
             model?: string
+            sessionName?: string
           }
           log(
             `Reviving session ${reviveMsg.sessionId.slice(0, 8)}... wrapper=${reviveMsg.wrapperId.slice(0, 8)} mode=${reviveMsg.mode || 'default'} headless=${reviveMsg.headless !== false}${reviveMsg.effort ? ` effort=${reviveMsg.effort}` : ''}${reviveMsg.model ? ` model=${reviveMsg.model}` : ''} (${reviveMsg.cwd})`,
@@ -645,6 +648,7 @@ function connect(
             reviveMsg.headless !== false,
             reviveMsg.effort,
             reviveMsg.model,
+            reviveMsg.sessionName,
           )
           ws.send(JSON.stringify(result))
           if (result.success) {

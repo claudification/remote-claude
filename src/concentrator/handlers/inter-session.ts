@@ -80,6 +80,7 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
       wrapperId,
       mode: 'continue',
       effort: resolveEffort(target.cwd, ctx.getProjectSettings),
+      sessionName: target.title || undefined,
     }),
   )
 

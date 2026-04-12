@@ -248,6 +248,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
       headless,
       effort,
       model,
+      sessionName: session.title || undefined,
     }),
   )
 

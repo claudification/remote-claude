@@ -635,7 +635,16 @@ export function createRouter(options: RouteOptions): Hono {
     const model = modelRaw || undefined
 
     agent.send(
-      JSON.stringify({ type: 'revive', sessionId, cwd: session.cwd, wrapperId, mode: 'continue', effort, model }),
+      JSON.stringify({
+        type: 'revive',
+        sessionId,
+        cwd: session.cwd,
+        wrapperId,
+        mode: 'continue',
+        effort,
+        model,
+        sessionName: session.title || undefined,
+      }),
     )
 
     // Register rendezvous for MCP callers
