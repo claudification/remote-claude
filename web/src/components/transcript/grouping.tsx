@@ -193,6 +193,8 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
       if (sub === 'file_snapshot' || sub === 'post_turn_summary') continue
       current = null
       const content = (entry as Record<string, unknown>).content as string | undefined
+      // Skip raw slash command input entries (the output entry has the useful info)
+      if (sub === 'local_command' && content?.includes('<command-name>')) continue
       groups.push({
         type: 'system',
         timestamp: entry.timestamp || '',
@@ -468,6 +470,7 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
         const sub = (entry as Record<string, unknown>).subtype as string
         if (sub === 'file_snapshot' || sub === 'post_turn_summary') continue
         const lcContent = (entry as Record<string, unknown>).content as string | undefined
+        if (sub === 'local_command' && lcContent?.includes('<command-name>')) continue
         lastGroup = null
         newGroups.push({
           type: 'system',

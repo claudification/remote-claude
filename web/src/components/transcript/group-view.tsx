@@ -57,11 +57,18 @@ function SystemLine({ group, time }: { group: DisplayGroup; time: string }) {
   let color = 'text-muted-foreground'
 
   switch (sub) {
-    case 'local_command':
-      text = content
-      if (content.startsWith('Unknown skill') || content.startsWith('Error') || content.startsWith('Failed'))
+    case 'local_command': {
+      // Strip CC's internal XML markup from command output
+      const stripped = content
+        .replace(/<\/?(?:local-command-stdout|command-name|command-message|command-args|local-command-caveat)>/g, '')
+        .trim()
+      text = stripped
+      if (stripped.startsWith('Unknown skill') || stripped.startsWith('Error') || stripped.startsWith('Failed'))
         color = 'text-red-400'
+      // Rename output gets a subtle style
+      if (stripped.startsWith('Session renamed to:')) color = 'text-cyan-400/70'
       break
+    }
     case 'api_retry':
       text = `API retry ${entry.attempt}/${entry.max_retries} (${entry.error_status || 'timeout'}) - retrying in ${Math.ceil((entry.retry_delay_ms as number) / 1000)}s`
       color = 'text-amber-400'
