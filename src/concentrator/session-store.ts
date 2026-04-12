@@ -2255,9 +2255,34 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           }
         }
 
-        // Count compactions
+        // Count compactions (synthetic marker from hooks OR native JSONL compact_boundary)
         if (entry.type === 'compacted') {
           session.stats.compactionCount++
+        }
+        if (entry.type === 'system' && (entry as Record<string, unknown>).subtype === 'compact_boundary') {
+          if (isInitial) {
+            // On initial transcript load, just count for stats
+            session.stats.compactionCount++
+            session.compactedAt = new Date(entry.timestamp || 0).getTime()
+          } else {
+            // Live: cross-check against hook-based detection.
+            // If hooks already handled this compaction (compactedAt set recently), skip.
+            const recentlyCompacted = session.compactedAt && Date.now() - session.compactedAt < 30_000
+            if (!recentlyCompacted && !session.compacting) {
+              session.compactedAt = Date.now()
+              session.stats.compactionCount++
+              const marker = { type: 'compacted' as const, timestamp: entry.timestamp || new Date().toISOString() }
+              addTranscriptEntries(sessionId, [marker], false)
+              broadcastToChannel('session:transcript', sessionId, {
+                type: 'transcript_entries',
+                sessionId,
+                entries: [marker],
+                isInitial: false,
+              })
+              sessionChanged = true
+              console.log(`[compact] detected via JSONL compact_boundary (session ${sessionId.slice(0, 8)})`)
+            }
+          }
         }
 
         // Extract transcript-derived metadata from special entry types
