@@ -1358,6 +1358,26 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         }
       }
 
+      // PermissionDenied - Claude was denied permission (tool blocked by user rules)
+      if (event.hookEvent === 'PermissionDenied' && event.data) {
+        const data = event.data as Record<string, unknown>
+        // Clear any pending permission attention since it's now resolved (denied)
+        if (session.pendingAttention?.type === 'permission') {
+          session.pendingAttention = undefined
+        }
+        const toolName = data.tool_name as string | undefined
+        const projectName = getProjectSettings(session.cwd)?.label || session.cwd.split('/').pop() || session.cwd
+        broadcastSessionScoped(
+          {
+            type: 'toast',
+            sessionId,
+            title: projectName,
+            message: `Permission denied: ${toolName || 'unknown tool'}`,
+          },
+          session.cwd,
+        )
+      }
+
       // Elicitation - Claude is asking a structured question
       if (event.hookEvent === 'Elicitation' && event.data) {
         const data = event.data as Record<string, unknown>

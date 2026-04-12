@@ -156,6 +156,11 @@ export function processHookEvent(ctx: WrapperContext, event: HookEvent) {
     }
   }
 
+  // TaskCreated: trigger immediate task file read (faster than waiting for chokidar/5s poll)
+  if (event.hookEvent === 'TaskCreated') {
+    ctx.readTasks()
+  }
+
   // Forward to concentrator, or queue until session ID + WS are ready
   if (ctx.claudeSessionId && ctx.wsClient?.isConnected()) {
     ctx.wsClient.sendHookEvent({ ...event, sessionId: ctx.claudeSessionId })

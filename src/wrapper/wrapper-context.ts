@@ -62,6 +62,7 @@ export interface WrapperContext {
   debug: (msg: string) => void
   connectToConcentrator: (sessionId: string) => void
   startTaskWatching: () => void
+  readTasks: () => void
   startProjectWatching: () => void
   startTranscriptWatcher: (transcriptPath: string) => void
   startSubagentWatcher: (agentId: string, transcriptPath: string, live: boolean) => void

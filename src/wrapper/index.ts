@@ -456,6 +456,7 @@ async function main() {
     debug,
     connectToConcentrator: null!,
     startTaskWatching: null!,
+    readTasks: null!,
     startProjectWatching: null!,
     startTranscriptWatcher: (path: string) => startTranscriptWatcher(ctx, path),
     startSubagentWatcher: (agentId: string, path: string, live: boolean) =>
@@ -587,6 +588,7 @@ async function main() {
 
   // Wire up task/project watching on context
   ctx.startTaskWatching = startTaskWatching
+  ctx.readTasks = readAndSendTasks
 
   /**
    * Watch .rclaude/project/ for task changes (created by dashboard, Claude, or manually).
