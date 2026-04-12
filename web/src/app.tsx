@@ -78,13 +78,37 @@ function Dashboard() {
   const [showUserAdmin, setShowUserAdmin] = useState(false)
   const [swUpdateAvailable, setSwUpdateAvailable] = useState(false)
 
-  // Listen for service worker update notifications
+  // Listen for service worker update notifications (belt-and-suspenders)
   useEffect(() => {
     function handleSwMessage(event: MessageEvent) {
       if (event.data?.type === 'sw-updated') setSwUpdateAvailable(true)
     }
     navigator.serviceWorker?.addEventListener('message', handleSwMessage)
     return () => navigator.serviceWorker?.removeEventListener('message', handleSwMessage)
+  }, [])
+
+  // Poll asset-manifest.json to detect new builds (primary update detection)
+  useEffect(() => {
+    let knownHash: string | null = null
+
+    async function checkManifest() {
+      try {
+        const res = await fetch(`/asset-manifest.json?_=${Date.now()}`)
+        if (!res.ok) return
+        const manifest = await res.json()
+        const hash = manifest.buildHash as string
+        if (!hash) return
+        if (knownHash === null) {
+          knownHash = hash // first load, just remember it
+        } else if (hash !== knownHash) {
+          setSwUpdateAvailable(true)
+        }
+      } catch {}
+    }
+
+    checkManifest()
+    const timer = setInterval(checkManifest, 5 * 60 * 1000) // every 5 minutes
+    return () => clearInterval(timer)
   }, [])
   const selectedSessionId = useSessionsStore(s => s.selectedSessionId)
   const setEvents = useSessionsStore(s => s.setEvents)
