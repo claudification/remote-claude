@@ -14,9 +14,9 @@ import type { HookEvent } from '@shared/protocol'
 import { ContextMenu } from 'radix-ui'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { reviveSession, saveSessionOrder, useSessionsStore } from '@/hooks/use-sessions'
-import { formatCost, getCostBgColor, getCostLevel, getSessionCost } from '@/lib/cost-utils'
+import { formatCost, getCacheWarning, getCostBgColor, getCostLevel, getSessionCost } from '@/lib/cost-utils'
 import type { Session, SessionOrderGroup, SessionOrderNode, SessionOrderV2 } from '@/lib/types'
-import { cn, contextWindowSize, formatAge, formatModel, haptic, lastPathSegments } from '@/lib/utils'
+import { cn, contextWindowSize, formatAge, formatDurationMs, formatModel, haptic, lastPathSegments } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from './project-settings-editor'
 import { ShareIndicator } from './share-panel'
 import { openSpawnDialog } from './spawn-dialog'
@@ -333,6 +333,10 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
             <span className="text-[9px] text-amber-400 font-bold">THROTTLED</span>
           )}
           {session.planMode && <span className="text-[9px] text-blue-400 font-bold">PLAN</span>}
+          {session.status === 'idle' &&
+            getCacheWarning(session.lastActivity, session.tokenUsage, model || session.model) && (
+              <span className="text-[9px] text-amber-400/70 font-bold">CACHE</span>
+            )}
           {showCost &&
             session.stats &&
             (() => {
@@ -527,6 +531,17 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
               >
                 {pct}%
               </span>
+            </div>
+          )
+        })()}
+      {!compact &&
+        session.status === 'idle' &&
+        (() => {
+          const cw = getCacheWarning(session.lastActivity, session.tokenUsage, model || session.model)
+          if (!cw) return null
+          return (
+            <div className="mt-1 text-[9px] font-mono text-amber-400/60 truncate">
+              cache expired ({formatDurationMs(cw.idleMs)} idle) -- ~${cw.reCacheCost.toFixed(2)} re-cache
             </div>
           )
         })()}
