@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-04-12
+
+### Features
+- `fb5514d` Right-click rename sessions + fix rename regex capturing XML tags
+- `ebada97` Add handlers for PermissionDenied, TaskCreated, FileChanged hook events
+
+### Fixes
+- `6a2e6b0` Clean up /rename rendering in transcript
+- `99077c7` Revive sessions with their original name instead of auto-generating
+- `91d82d0` Cache warning uses last-turn token usage instead of cumulative stats
+
+### Reverts
+- `4fd70b0` Revert "fix: user-set session names (/rename) overwritten by auto-generated names"
+
+---
+
 ## 2026-04-06
 
 ### Features

@@ -11,18 +11,15 @@ export interface BuildVersion {
 }
 
 export const BUILD_VERSION: BuildVersion = {
-  gitHash: '49d1bb19d57576c2257ce03cb8a6320a9fac9645',
-  gitHashShort: '49d1bb1-dirty',
-  buildTime: '2026-04-11T07:57:19.216Z',
+  gitHash: 'fe7300929909a00f6098e0efa916277b6e7a20b7',
+  gitHashShort: 'fe73009-dirty',
+  buildTime: '2026-04-13T02:46:17.976Z',
   dirty: true,
   branch: 'main',
   githubRepo: 'claudification/remote-claude',
   recentCommits: [
-    {
-      hash: '49d1bb1',
-      message: '(HEAD -> main) feat: show cost in collapsed session header, fix project name override',
-    },
-    { hash: 'dd254bf', message: 'feat: add "Cost in sidebar" toggle to dashboard settings' },
-    { hash: 'a094ca0', message: 'fix: project name is primary in sidebar, session name shown underneath' },
+    { hash: 'fe73009', message: '(HEAD -> main) feat: render ScheduleWakeup tool calls in transcript' },
+    { hash: 'a955f10', message: 'fix: integrate PR #38 -- update flow UX fixes from @ziadsawalha' },
+    { hash: 'afbbca2', message: 'feat: expose autocompact threshold in spawn dialog and context bars' },
   ],
 }
