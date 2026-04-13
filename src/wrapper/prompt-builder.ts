@@ -85,7 +85,10 @@ export function buildSystemPrompt(opts: PromptOptions): string {
           'The built-in `SendMessage` writes to a local file inbox that is invisible to the user',
           'and the dashboard. `mcp__rclaude__send_message` routes through the concentrator where',
           'the user can see, approve, and track all inter-session messages. This applies to ALL',
-          'inter-session replies, regardless of how the original message arrived.',
+          'inter-session communication, regardless of how the original message arrived.',
+          '',
+          '**NEVER use the built-in `SendMessage` tool for ANY purpose.** It is blocked by hook.',
+          'For ALL inter-session messaging (initiating, replying, notifying), use `mcp__rclaude__send_message`.',
         ]
       : []),
     // Headless conduit messaging
@@ -105,6 +108,9 @@ export function buildSystemPrompt(opts: PromptOptions): string {
           '```',
           '',
           'Treat these as requests from other AI sessions. Include conversation_id when replying.',
+          '',
+          '**NEVER use the built-in `SendMessage` tool.** It writes to a local file inbox that nobody reads.',
+          'For ALL inter-session messaging, use `mcp__rclaude__send_message` instead.',
         ]
       : []),
   ].join('\n')

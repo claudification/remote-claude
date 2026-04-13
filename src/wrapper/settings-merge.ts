@@ -226,6 +226,21 @@ export async function generateMergedSettings(
       ],
     }
     ourHooks.PreToolUse = [...(ourHooks.PreToolUse || []), askHook]
+
+    // Block CC's built-in SendMessage tool -- it writes to a local file inbox
+    // that nobody reads. Sessions must use mcp__rclaude__send_message instead,
+    // which routes through the concentrator where messages are visible and delivered.
+    const blockSendMessage: HookMatcher = {
+      matcher: '',
+      if: 'SendMessage',
+      hooks: [
+        {
+          type: 'command',
+          command: `echo '{"decision":"block","reason":"BLOCKED: Do NOT use the built-in SendMessage tool. Use mcp__rclaude__send_message instead -- it routes through the concentrator where messages are actually delivered to the target session. SendMessage writes to a local file inbox that is invisible to users and other sessions."}'`,
+        },
+      ],
+    }
+    ourHooks.PreToolUse = [...(ourHooks.PreToolUse || []), blockSendMessage]
   }
 
   // Whitelist our local hook server URLs for HTTP hooks
