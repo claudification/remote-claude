@@ -1030,6 +1030,18 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     const session = sessions.get(oldId)
     if (!session) return undefined
 
+    // Same-ID rekey: just update metadata, skip the destructive migration
+    if (oldId === newId) {
+      session.cwd = newCwd
+      if (newModel) session.model = newModel
+      session.lastActivity = Date.now()
+      broadcastSessionScoped(
+        { type: 'session_update', sessionId: newId, session: toSessionSummary(session) },
+        session.cwd,
+      )
+      return session
+    }
+
     // Re-key in sessions map
     sessions.delete(oldId)
     session.id = newId

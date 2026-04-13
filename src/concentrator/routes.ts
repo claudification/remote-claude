@@ -786,7 +786,7 @@ export function createRouter(options: RouteOptions): Hono {
           cwd: body.cwd,
           wrapperId,
           mkdir: body.mkdir || false,
-          mode: body.mode,
+          mode: body.mode || 'fresh',
           resumeId: body.resumeId,
           headless,
           effort,

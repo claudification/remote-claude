@@ -452,6 +452,11 @@ export function createWsClient(options: WsClientOptions): WsClient {
   }
 
   function sendSessionClear(newSessionId: string, newCwd: string, newModel?: string) {
+    // Skip same-ID rekey -- causes channel subscriber destruction on concentrator
+    if (sessionId === newSessionId) {
+      debug?.(`Skipping same-ID session_clear (${sessionId.slice(0, 8)})`)
+      return
+    }
     const msg: SessionClear = {
       type: 'session_clear',
       oldSessionId: sessionId,

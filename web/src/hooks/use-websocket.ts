@@ -281,9 +281,9 @@ function processMessage(msg: DashboardMessage) {
           const cached = state.transcripts[sessionId]?.length ?? 0
           const isSelected = state.selectedSessionId === sessionId
           console.log(`[sync] session_update: RESUME ${sessionId.slice(0, 8)} selected=${isSelected} cached=${cached}`)
-          if (isSelected && cached === 0) {
-            // Delay: rclaude just reconnected, transcript watcher needs time to read
-            // the JSONL file and stream entries to concentrator before our fetch returns data.
+          if (isSelected) {
+            // Always refetch on resume -- transcript may have been corrupted by a
+            // same-ID rekey or the session may have new data from a restart.
             setTimeout(() => {
               fetchTranscript(sessionId).then(transcript => {
                 console.log(`[sync] resume refetch ${sessionId.slice(0, 8)}: ${transcript?.length ?? 'null'} entries`)

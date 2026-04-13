@@ -1411,10 +1411,14 @@ async function main() {
       mcpServers: { rclaude: { type: 'http', url: `http://localhost:${localServerPort}/mcp` } },
     }),
   )
-  // Auto-generate a funny session name unless user already specified --name/-n or resuming
+  // Auto-generate a funny session name unless user already specified --name/-n
   const hasUserName = claudeArgs.includes('--name') || claudeArgs.includes('-n')
   const isResuming = claudeArgs.includes('--resume') || claudeArgs.includes('--continue') || claudeArgs.includes('-c')
-  const sessionName = hasUserName || isResuming ? undefined : generateFunnyName()
+  // Managed sessions (spawned/revived via agent) get a funny name even when resuming,
+  // unless a name was already provided via RCLAUDE_SESSION_NAME (-> hasUserName).
+  // User-initiated --continue/--resume skips name generation (existing session has one).
+  const isManagedSession = !!process.env.RCLAUDE_WRAPPER_ID
+  const sessionName = hasUserName || (isResuming && !isManagedSession) ? undefined : generateFunnyName()
 
   // Resolve the actual name that will be sent to CC (user-provided via env, or auto-generated)
   const resolvedSessionName = process.env.RCLAUDE_SESSION_NAME || sessionName
