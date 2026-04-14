@@ -11,15 +11,27 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { HookEvent } from '@shared/protocol'
-import { ContextMenu } from 'radix-ui'
+import { ContextMenu, Popover } from 'radix-ui'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { reviveSession, saveSessionOrder, useSessionsStore } from '@/hooks/use-sessions'
-import { formatCost, getCacheTimerInfo, getCostBgColor, getCostLevel, getSessionCost } from '@/lib/cost-utils'
+import { formatCost, getCacheTimerInfo, getCostBgColor, getCostColor, getCostLevel, getSessionCost } from '@/lib/cost-utils'
 import type { Session, SessionOrderGroup, SessionOrderNode, SessionOrderV2 } from '@/lib/types'
-import { cn, contextWindowSize, formatAge, formatModel, haptic, lastPathSegments } from '@/lib/utils'
+import {
+  cn,
+  contextWindowSize,
+  formatAge,
+  formatDurationMs,
+  formatEffort,
+  formatModel,
+  haptic,
+  lastPathSegments,
+  truncate,
+} from '@/lib/utils'
+import { Markdown } from './markdown'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from './project-settings-editor'
 import { ShareIndicator } from './share-panel'
 import { openSpawnDialog } from './spawn-dialog'
+import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 
 // ─── Shared visual components ──────────────────────────────────────
 
@@ -65,6 +77,235 @@ function StatusIndicator({ status, adHoc }: { status: Session['status']; adHoc?:
     )
   }
   return <span className="w-2 h-2 rounded-full shrink-0 bg-idle" title={status} />
+}
+
+// ─── Token formatting ─────────────────────────────────────────────
+
+function formatTokenCount(n: number): string {
+  if (n < 1_000) return String(n)
+  if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`
+  return `${(n / 1_000_000).toFixed(2)}M`
+}
+
+// ─── Session hover tooltip (Popover on hover) ─────────────────────
+
+function SessionHoverTooltip({
+  session,
+  model,
+  children,
+}: { session: Session; model: string | undefined; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleMouseEnter() {
+    hoverTimeout.current = setTimeout(() => setOpen(true), 400)
+  }
+  function handleMouseLeave() {
+    if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
+    hoverTimeout.current = setTimeout(() => setOpen(false), 150)
+  }
+
+  const resolvedModel = model || session.model
+  const effort = formatEffort(session.effortLevel)
+  const cost = session.stats ? getSessionCost(session.stats, resolvedModel) : null
+  const duration = session.lastActivity - session.startedAt
+  const isAdHoc = session.capabilities?.includes('ad-hoc')
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <div onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+          {children}
+        </div>
+      </Popover.Trigger>
+
+      <Popover.Portal>
+        <Popover.Content
+          className="z-50 w-72 border border-border bg-background/95 backdrop-blur-sm shadow-lg p-3 font-mono text-[11px]"
+          sideOffset={8}
+          side="right"
+          align="start"
+          onMouseEnter={() => {
+            if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
+          }}
+          onMouseLeave={handleMouseLeave}
+          onOpenAutoFocus={e => e.preventDefault()}
+        >
+          <div className="space-y-2">
+            {/* Model + effort */}
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Model</span>
+              <span className="ml-auto text-primary">{formatModel(resolvedModel)}</span>
+              {effort && (
+                <span className="text-muted-foreground" title={`effort: ${effort.label}`}>
+                  {effort.symbol} {effort.label}
+                </span>
+              )}
+            </div>
+
+            <div className="border-t border-border/50" />
+
+            {/* Cost */}
+            {cost && cost.cost > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Cost</span>
+                <span className={cn('ml-auto font-bold', getCostColor(cost.cost))}>
+                  {formatCost(cost.cost, cost.exact)}
+                </span>
+              </div>
+            )}
+
+            {/* Duration */}
+            {duration > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Duration</span>
+                <span className="ml-auto text-muted-foreground">{formatDurationMs(duration)}</span>
+              </div>
+            )}
+
+            {/* Turn count */}
+            {session.stats && session.stats.turnCount > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Turns</span>
+                <span className="ml-auto text-muted-foreground">{session.stats.turnCount}</span>
+              </div>
+            )}
+
+            {/* Token usage */}
+            {session.stats && (session.stats.totalInputTokens > 0 || session.stats.totalOutputTokens > 0) && (
+              <>
+                <div className="border-t border-border/50" />
+                <div className="space-y-1">
+                  <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Tokens</span>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                    <span className="text-muted-foreground/70">input</span>
+                    <span className="text-right tabular-nums">{formatTokenCount(session.stats.totalInputTokens)}</span>
+                    <span className="text-muted-foreground/70">output</span>
+                    <span className="text-right tabular-nums">{formatTokenCount(session.stats.totalOutputTokens)}</span>
+                    {session.stats.totalCacheRead > 0 && (
+                      <>
+                        <span className="text-muted-foreground/70">cache read</span>
+                        <span className="text-right tabular-nums text-emerald-400/70">
+                          {formatTokenCount(session.stats.totalCacheRead)}
+                        </span>
+                      </>
+                    )}
+                    {session.stats.totalCacheCreation > 0 && (
+                      <>
+                        <span className="text-muted-foreground/70">cache write</span>
+                        <span className="text-right tabular-nums text-amber-400/70">
+                          {formatTokenCount(session.stats.totalCacheCreation)}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Git branch */}
+            {session.gitBranch && (
+              <>
+                <div className="border-t border-border/50" />
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Branch</span>
+                  <span className="ml-auto text-sky-400/80 truncate max-w-[160px]">{session.gitBranch}</span>
+                </div>
+              </>
+            )}
+
+            {/* Identity */}
+            {session.claudeAuth?.email && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Auth</span>
+                <span className="ml-auto text-muted-foreground truncate max-w-[160px]">
+                  {session.claudeAuth.email}
+                  {session.claudeAuth.orgName && (
+                    <span className="text-muted-foreground/50"> ({session.claudeAuth.orgName})</span>
+                  )}
+                </span>
+              </div>
+            )}
+
+            {/* Ad-hoc result preview */}
+            {isAdHoc && session.resultText && (
+              <>
+                <div className="border-t border-border/50" />
+                <div className="space-y-1">
+                  <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Result</span>
+                  <div className="text-[10px] text-muted-foreground/80 line-clamp-4 break-words">
+                    {truncate(session.resultText, 200)}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Session ID */}
+            <div className="border-t border-border/50" />
+            <div className="text-[9px] text-muted-foreground/30 truncate">{session.id}</div>
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+}
+
+// ─── Ad-hoc result text modal ─────────────────────────────────────
+
+function ResultTextModal({ session }: { session: Session }) {
+  const [open, setOpen] = useState(false)
+
+  if (!session.resultText) return null
+
+  return (
+    <>
+      <span
+        role="button"
+        tabIndex={0}
+        className="text-[10px] text-teal-400/60 hover:text-teal-400 cursor-pointer transition-colors shrink-0"
+        title="View result"
+        onClick={e => {
+          e.stopPropagation()
+          haptic('tap')
+          setOpen(true)
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.stopPropagation()
+            haptic('tap')
+            setOpen(true)
+          }
+        }}
+      >
+        {'\u2398'}
+      </span>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="font-mono">
+          <DialogTitle className="pr-8 pb-2 border-b border-border">
+            <div className="flex items-center gap-2">
+              <span className="text-teal-400">{'\u26A1'}</span>
+              <span>Ad-hoc Result</span>
+              <span className="text-[10px] text-muted-foreground/50 font-normal">{session.id.slice(0, 12)}</span>
+              <button
+                type="button"
+                className="ml-auto mr-6 text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer px-2 py-1 border border-border hover:border-primary"
+                onClick={() => {
+                  navigator.clipboard.writeText(session.resultText || '')
+                  haptic('success')
+                }}
+              >
+                copy
+              </button>
+            </div>
+          </DialogTitle>
+          <div className="overflow-y-auto max-h-[70vh] p-4">
+            <Markdown>{session.resultText}</Markdown>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
 }
 
 const EMPTY_EVENTS: HookEvent[] = []
@@ -238,7 +479,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
   const sessionName = session.title || session.agentName
   const displayColor = ps?.color
 
-  return (
+  const card = (
     <div
       data-session-id={session.id}
       role="button"
@@ -261,7 +502,6 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           ? { borderLeftColor: displayColor, borderLeftWidth: '3px', backgroundColor: `${displayColor}15` }
           : undefined
       }
-      title={`${session.id}\n${formatModel(model || session.model)}`}
     >
       {!compact && (
         <div className="flex items-center gap-1.5">
@@ -299,6 +539,9 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
             </span>
           )}
           <ShareIndicator sessionCwd={session.cwd} />
+          {session.resultText && session.capabilities?.includes('ad-hoc') && (
+            <ResultTextModal session={session} />
+          )}
           {session.status === 'ended' && <DismissButton sessionId={session.id} />}
           {showCost &&
             session.stats &&
@@ -338,7 +581,6 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
                 'font-mono text-[11px] flex-1 truncate',
                 isSelected ? 'text-accent' : 'text-muted-foreground',
               )}
-              title={session.id}
             >
               {session.title || session.agentName
                 ? `${((session.title || session.agentName) ?? '').slice(0, 20)} [${session.id.slice(0, 6)}]`
@@ -586,6 +828,12 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           return null
         })()}
     </div>
+  )
+
+  return (
+    <SessionHoverTooltip session={session} model={model}>
+      {card}
+    </SessionHoverTooltip>
   )
 }
 
