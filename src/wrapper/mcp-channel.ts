@@ -1131,6 +1131,13 @@ export async function pushChannelMessage(message: string, meta?: Record<string, 
 }
 
 /**
+ * Check if there are pending dialogs waiting for user response.
+ */
+export function hasPendingDialogs(): boolean {
+  return pendingDialogs.size > 0
+}
+
+/**
  * Check if the MCP channel is initialized and connected.
  */
 export function isMcpChannelReady(): boolean {

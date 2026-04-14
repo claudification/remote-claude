@@ -292,6 +292,13 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
 }
 
 /**
+ * Check if there are pending ask requests waiting for dashboard answers.
+ */
+export function hasPendingAskRequests(): boolean {
+  return pendingAskRequests.size > 0
+}
+
+/**
  * Stop the local server and clean up all pending ask requests
  */
 export function stopLocalServer(server: HttpServer): void {

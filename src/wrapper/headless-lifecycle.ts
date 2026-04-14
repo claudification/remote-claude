@@ -8,6 +8,8 @@ import { readFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import type { WrapperMessage } from '../shared/protocol'
 import { debug as _debug } from './debug'
+import { hasPendingAskRequests } from './local-server'
+import { hasPendingDialogs } from './mcp-channel'
 import type { StreamBackendOptions, StreamProcess } from './stream-backend'
 import { sendTranscriptEntriesChunked, startSubagentWatcher } from './transcript-manager'
 import type { WrapperContext } from './wrapper-context'
@@ -132,95 +134,50 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       // For fire-and-forget tasks, we exit after the task completes.
       const isAdHoc = process.env.RCLAUDE_ADHOC === '1'
       if (isAdHoc) {
-        // Worktree merge-back and cleanup.
-        // CC won't get a chance to fire WorktreeRemove (we kill it on exit),
-        // so rclaude handles merge + cleanup directly.
-        const adHocWorktree = process.env.RCLAUDE_WORKTREE
-        if (adHocWorktree) {
-          // ctx.cwd is the PROJECT ROOT (set at rclaude startup), not the worktree.
-          // CC's --worktree flag creates the worktree at .claude/worktrees/<name>.
-          const projectRoot = ctx.cwd
-          const wtPath = join(projectRoot, '.claude', 'worktrees', adHocWorktree)
-          const branch = `worktree-${adHocWorktree}`
+        // Check for pending user interactions (dialogs, AskUserQuestion, plan approvals).
+        // If any are pending, CC is waiting for user input and will continue processing
+        // after they resolve -- shutting down now would kill the session prematurely.
+        const pendingCount =
+          (hasPendingDialogs() ? 1 : 0) + ctx.pendingAskRequests.size + (hasPendingAskRequests() ? 1 : 0)
 
-          try {
-            debug(`[ad-hoc] Worktree cleanup: path=${wtPath} branch=${branch}`)
-
-            // Check if worktree actually exists (CC may have cleaned it up itself)
-            const wtExists = Bun.spawnSync(['test', '-d', wtPath]).exitCode === 0
-            if (!wtExists) {
-              debug(`[ad-hoc] Worktree already gone: ${wtPath}`)
-              ctx.diag('ad-hoc', `Worktree already cleaned up by CC`)
-            } else {
-              const mainBranch =
-                Bun.spawnSync(['git', 'rev-parse', '--verify', 'main'], { cwd: wtPath }).exitCode === 0
-                  ? 'main'
-                  : 'master'
-              const aheadResult = Bun.spawnSync(['git', 'rev-list', '--count', `${mainBranch}..HEAD`], { cwd: wtPath })
-              const ahead = Number.parseInt(aheadResult.stdout.toString().trim(), 10) || 0
-
-              let merged = ahead === 0
-              if (ahead > 0) {
-                const ff = Bun.spawnSync(['git', 'fetch', '.', `HEAD:${mainBranch}`], { cwd: wtPath })
-                if (ff.exitCode === 0) {
-                  debug(`[ad-hoc] Merged ${ahead} commits from ${branch} to ${mainBranch}`)
-                  ctx.diag('ad-hoc', `Merged ${ahead} commits from ${branch} to ${mainBranch}`)
-                  merged = true
-                } else {
-                  debug(`[ad-hoc] Cannot fast-forward ${mainBranch} (${ahead} unmerged commits on ${branch})`)
-                  ctx.diag('ad-hoc', `WARNING: ${ahead} unmerged commits on ${branch} - worktree preserved`)
-                }
-              } else {
-                debug(`[ad-hoc] Branch ${branch} already merged (0 commits ahead)`)
-              }
-
-              if (merged) {
-                // Remove worktree from project root (must be outside the worktree)
-                const removeResult = Bun.spawnSync(['git', 'worktree', 'remove', wtPath], { cwd: projectRoot })
-                if (removeResult.exitCode === 0) {
-                  debug(`[ad-hoc] Removed worktree: ${wtPath}`)
-                  ctx.diag('ad-hoc', `Worktree removed: ${adHocWorktree}`)
-                  const branchDel = Bun.spawnSync(['git', 'branch', '-d', branch], { cwd: projectRoot })
-                  if (branchDel.exitCode === 0) {
-                    debug(`[ad-hoc] Deleted branch: ${branch}`)
-                    ctx.diag('ad-hoc', `Branch deleted: ${branch}`)
-                  } else {
-                    debug(`[ad-hoc] Branch delete failed: ${branchDel.stderr.toString().trim()}`)
-                  }
-                } else {
-                  const err = removeResult.stderr.toString().trim()
-                  debug(`[ad-hoc] Worktree remove failed: ${err}`)
-                  ctx.diag('ad-hoc', `Worktree remove failed: ${err} - leaving in place`)
-                }
-              } else {
-                ctx.diag('ad-hoc', `Worktree NOT removed (unmerged work on ${branch}). NO CODE LOST.`)
-              }
+        if (pendingCount > 0) {
+          debug(`[ad-hoc] Result received but ${pendingCount} pending interaction(s) -- deferring shutdown`)
+          ctx.diag(
+            'ad-hoc',
+            `Deferring shutdown: ${pendingCount} pending interaction(s) (dialogs=${hasPendingDialogs()}, asks=${ctx.pendingAskRequests.size}, hookAsks=${hasPendingAskRequests()})`,
+          )
+          // Poll until all pending interactions are resolved, then let the next
+          // result message (after CC continues) trigger normal ad-hoc shutdown.
+          // Safety cap: 5 min max wait to prevent zombie sessions.
+          const MAX_WAIT_MS = 5 * 60_000
+          const POLL_MS = 2_000
+          const startedAt = Date.now()
+          const checkPending = () => {
+            const still =
+              (hasPendingDialogs() ? 1 : 0) + ctx.pendingAskRequests.size + (hasPendingAskRequests() ? 1 : 0)
+            if (still > 0 && Date.now() - startedAt < MAX_WAIT_MS) {
+              setTimeout(checkPending, POLL_MS)
+              return
             }
-          } catch (e) {
-            debug(`[ad-hoc] Worktree cleanup failed: ${e}`)
-            ctx.diag('ad-hoc', `Worktree cleanup error: ${e} - worktree preserved`)
+            if (still > 0) {
+              debug(`[ad-hoc] Safety cap reached with ${still} pending interaction(s) -- shutting down anyway`)
+              ctx.diag('ad-hoc', `Safety cap: forced shutdown with ${still} pending interaction(s)`)
+            } else {
+              debug('[ad-hoc] All pending interactions resolved -- waiting for next result from CC')
+              ctx.diag('ad-hoc', 'All pending interactions resolved, CC will continue')
+            }
+            // Don't shut down here -- CC will continue processing after the interaction
+            // resolves and emit another result message, which will re-enter this handler.
+            // Only force-shutdown if the safety cap was hit.
+            if (still > 0) {
+              adHocShutdown(ctx, result, cleanup)
+            }
           }
+          setTimeout(checkPending, POLL_MS)
+          return
         }
 
-        debug(`[ad-hoc] Result received, closing CC stdin for graceful shutdown`)
-        ctx.diag('ad-hoc', `Task complete (${result.subtype}), closing stdin`)
-        // Close CC's stdin pipe so it sees EOF and runs shutdown hooks
-        // (including WorktreeRemove). CC will exit naturally, firing onExit.
-        setTimeout(() => {
-          try {
-            const stdin = ctx.streamProc?.proc?.stdin
-            if (stdin && typeof stdin !== 'number') stdin.end()
-            debug('[ad-hoc] CC stdin closed (EOF sent)')
-          } catch (e) {
-            debug(`[ad-hoc] Failed to close stdin: ${e}`)
-          }
-          // Safety net: if CC doesn't exit within 10s after EOF, force kill
-          setTimeout(() => {
-            debug('[ad-hoc] CC still alive after 10s, force exiting')
-            cleanup()
-            process.exit(0)
-          }, 10_000)
-        }, 2000)
+        adHocShutdown(ctx, result, cleanup)
       }
     },
 
@@ -424,6 +381,104 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
   }
 
   return opts
+}
+
+/**
+ * Perform ad-hoc session shutdown: worktree merge-back, close CC stdin, force-kill safety net.
+ * Extracted so it can be called immediately or deferred after pending interactions resolve.
+ */
+function adHocShutdown(
+  ctx: WrapperContext,
+  result: { subtype: string; [key: string]: unknown },
+  cleanup: () => void,
+): void {
+  // Worktree merge-back and cleanup.
+  // CC won't get a chance to fire WorktreeRemove (we kill it on exit),
+  // so rclaude handles merge + cleanup directly.
+  const adHocWorktree = process.env.RCLAUDE_WORKTREE
+  if (adHocWorktree) {
+    // ctx.cwd is the PROJECT ROOT (set at rclaude startup), not the worktree.
+    // CC's --worktree flag creates the worktree at .claude/worktrees/<name>.
+    const projectRoot = ctx.cwd
+    const wtPath = join(projectRoot, '.claude', 'worktrees', adHocWorktree)
+    const branch = `worktree-${adHocWorktree}`
+
+    try {
+      debug(`[ad-hoc] Worktree cleanup: path=${wtPath} branch=${branch}`)
+
+      // Check if worktree actually exists (CC may have cleaned it up itself)
+      const wtExists = Bun.spawnSync(['test', '-d', wtPath]).exitCode === 0
+      if (!wtExists) {
+        debug(`[ad-hoc] Worktree already gone: ${wtPath}`)
+        ctx.diag('ad-hoc', 'Worktree already cleaned up by CC')
+      } else {
+        const mainBranch =
+          Bun.spawnSync(['git', 'rev-parse', '--verify', 'main'], { cwd: wtPath }).exitCode === 0 ? 'main' : 'master'
+        const aheadResult = Bun.spawnSync(['git', 'rev-list', '--count', `${mainBranch}..HEAD`], { cwd: wtPath })
+        const ahead = Number.parseInt(aheadResult.stdout.toString().trim(), 10) || 0
+
+        let merged = ahead === 0
+        if (ahead > 0) {
+          const ff = Bun.spawnSync(['git', 'fetch', '.', `HEAD:${mainBranch}`], { cwd: wtPath })
+          if (ff.exitCode === 0) {
+            debug(`[ad-hoc] Merged ${ahead} commits from ${branch} to ${mainBranch}`)
+            ctx.diag('ad-hoc', `Merged ${ahead} commits from ${branch} to ${mainBranch}`)
+            merged = true
+          } else {
+            debug(`[ad-hoc] Cannot fast-forward ${mainBranch} (${ahead} unmerged commits on ${branch})`)
+            ctx.diag('ad-hoc', `WARNING: ${ahead} unmerged commits on ${branch} - worktree preserved`)
+          }
+        } else {
+          debug(`[ad-hoc] Branch ${branch} already merged (0 commits ahead)`)
+        }
+
+        if (merged) {
+          // Remove worktree from project root (must be outside the worktree)
+          const removeResult = Bun.spawnSync(['git', 'worktree', 'remove', wtPath], { cwd: projectRoot })
+          if (removeResult.exitCode === 0) {
+            debug(`[ad-hoc] Removed worktree: ${wtPath}`)
+            ctx.diag('ad-hoc', `Worktree removed: ${adHocWorktree}`)
+            const branchDel = Bun.spawnSync(['git', 'branch', '-d', branch], { cwd: projectRoot })
+            if (branchDel.exitCode === 0) {
+              debug(`[ad-hoc] Deleted branch: ${branch}`)
+              ctx.diag('ad-hoc', `Branch deleted: ${branch}`)
+            } else {
+              debug(`[ad-hoc] Branch delete failed: ${branchDel.stderr.toString().trim()}`)
+            }
+          } else {
+            const err = removeResult.stderr.toString().trim()
+            debug(`[ad-hoc] Worktree remove failed: ${err}`)
+            ctx.diag('ad-hoc', `Worktree remove failed: ${err} - leaving in place`)
+          }
+        } else {
+          ctx.diag('ad-hoc', `Worktree NOT removed (unmerged work on ${branch}). NO CODE LOST.`)
+        }
+      }
+    } catch (e) {
+      debug(`[ad-hoc] Worktree cleanup failed: ${e}`)
+      ctx.diag('ad-hoc', `Worktree cleanup error: ${e} - worktree preserved`)
+    }
+  }
+
+  debug('[ad-hoc] Result received, closing CC stdin for graceful shutdown')
+  ctx.diag('ad-hoc', `Task complete (${result.subtype}), closing stdin`)
+  // Close CC's stdin pipe so it sees EOF and runs shutdown hooks
+  // (including WorktreeRemove). CC will exit naturally, firing onExit.
+  setTimeout(() => {
+    try {
+      const stdin = ctx.streamProc?.proc?.stdin
+      if (stdin && typeof stdin !== 'number') stdin.end()
+      debug('[ad-hoc] CC stdin closed (EOF sent)')
+    } catch (e) {
+      debug(`[ad-hoc] Failed to close stdin: ${e}`)
+    }
+    // Safety net: if CC doesn't exit within 10s after EOF, force kill
+    setTimeout(() => {
+      debug('[ad-hoc] CC still alive after 10s, force exiting')
+      cleanup()
+      process.exit(0)
+    }, 10_000)
+  }, 2000)
 }
 
 /**
