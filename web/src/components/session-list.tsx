@@ -112,7 +112,7 @@ function SessionHoverTooltip({
   )
 
   function handleMouseEnter() {
-    hoverTimeout.current = setTimeout(() => setOpen(true), 5000)
+    hoverTimeout.current = setTimeout(() => setOpen(true), 400)
   }
   function handleMouseLeave() {
     if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
@@ -130,11 +130,11 @@ function SessionHoverTooltip({
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
+      <Popover.Anchor asChild>
         <div onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
           {children}
         </div>
-      </Popover.Trigger>
+      </Popover.Anchor>
 
       <Popover.Portal>
         <Popover.Content
