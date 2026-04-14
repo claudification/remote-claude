@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { type ClipboardCapture, detectImageMime, Osc52Parser } from './osc52-parser'
 
 function parse(input: string | string[]): { output: string; captures: ClipboardCapture[] } {

@@ -130,29 +130,22 @@ describe('TranscriptWatcher', () => {
     watcher.stop()
   })
 
-  it('waits for file to appear if it does not exist yet', async () => {
+  it('calls onError when file does not exist', async () => {
     const latePath = join(tempDir, 'late.jsonl')
 
-    const received: TranscriptEntry[] = []
+    const errors: Error[] = []
     const watcher = createTranscriptWatcher({
-      onEntries(entries) {
-        received.push(...entries)
+      onEntries() {},
+      onError(err) {
+        errors.push(err)
       },
     })
 
-    // Start watching before file exists
-    const startPromise = watcher.start(latePath)
+    // Start watching a non-existent file -- should error, not hang
+    await watcher.start(latePath)
 
-    // Create file after a delay
-    await delay(600)
-    const entry = { type: 'user', message: { content: 'late arrival' } }
-    await writeFile(latePath, `${JSON.stringify(entry)}\n`)
-
-    await startPromise
-    await delay(100)
-
-    expect(received.length).toBe(1)
-    expect(received[0]).toEqual(entry)
+    expect(errors.length).toBe(1)
+    expect(errors[0].message).toContain('ENOENT')
 
     watcher.stop()
   })

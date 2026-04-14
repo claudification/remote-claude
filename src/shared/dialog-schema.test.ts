@@ -80,7 +80,7 @@ describe('validateDialogLayout', () => {
       title: 'Test',
       body: [{ type: 'Markdown' }],
     })
-    expect(errors).toContain('Markdown.content is required')
+    expect(errors).toContain('Markdown requires either "content" or "file"')
 
     // Options without id
     errors = validateDialogLayout({
