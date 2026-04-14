@@ -1,0 +1,3 @@
+# Files to copy into worktrees (only gitignored files are copied)
+.env
+.env.local

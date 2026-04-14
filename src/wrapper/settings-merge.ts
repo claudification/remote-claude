@@ -5,6 +5,7 @@
 
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { resolveScript } from '../shared/resolve-script'
 
 interface CommandHook {
   type: 'command'
@@ -80,8 +81,9 @@ const CORE_HOOK_EVENTS = [
   'TaskCompleted',
   'InstructionsLoaded',
   'ConfigChange',
-  'WorktreeCreate',
-  'WorktreeRemove',
+  // NOTE: WorktreeCreate and WorktreeRemove are registered separately below
+  // (not as notification forwarders). CC delegates the actual worktree
+  // creation/removal to these hooks. See registerWorktreeHooks().
   'Setup',
 ] as const
 
@@ -208,6 +210,32 @@ export async function generateMergedSettings(
   const ourHooks: ClaudeSettings['hooks'] = {}
   for (const event of supportedEvents) {
     ourHooks[event as keyof ClaudeSettings['hooks']] = [createHookMatcher(event, port, sessionId)]
+  }
+
+  // WorktreeCreate: custom hook that branches from local HEAD instead of origin/HEAD.
+  // CC delegates the entire worktree creation to this hook when registered.
+  // The script reads JSON from stdin, creates the worktree, and prints the path to stdout.
+  // Resolved via layered lookup: $RCLAUDE_SCRIPTS -> XDG data dir -> embedded fallback.
+  const createScript = resolveScript('worktree-create.sh')
+  if (createScript) {
+    ourHooks.WorktreeCreate = [
+      {
+        matcher: '',
+        hooks: [{ type: 'command', command: `bash "${createScript}"` }],
+      },
+    ]
+  }
+
+  // WorktreeRemove: safety-net hook that checks for unmerged work before cleanup.
+  // CC ignores exit codes for this hook, so failures are logged but don't block.
+  const removeScript = resolveScript('worktree-remove.sh')
+  if (removeScript) {
+    ourHooks.WorktreeRemove = [
+      {
+        matcher: '',
+        hooks: [{ type: 'command', command: `bash "${removeScript}"` }],
+      },
+    ]
   }
 
   // CC 2.1.85+: Add a long-timeout PreToolUse hook specifically for AskUserQuestion.

@@ -191,6 +191,8 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
       const sub = (entry as Record<string, unknown>).subtype as string
       // Skip internal/noise subtypes
       if (sub === 'file_snapshot' || sub === 'post_turn_summary') continue
+      // Skip subagent task progress/notification -- these belong in the agent transcript, not parent
+      if (sub === 'task_progress' || sub === 'task_notification') continue
       current = null
       const content = (entry as Record<string, unknown>).content as string | undefined
       // Skip raw slash command input entries (the output entry has the useful info)

@@ -24,6 +24,7 @@ const meta: MessageHandler = (ctx, data) => {
     if (data.claudeAuth) existingSession.claudeAuth = data.claudeAuth as Record<string, unknown>
     if (data.spinnerVerbs) existingSession.spinnerVerbs = data.spinnerVerbs as string[]
     if (data.autocompactPct) existingSession.autocompactPct = data.autocompactPct as number
+    if (data.maxBudgetUsd) existingSession.maxBudgetUsd = data.maxBudgetUsd as number
     if (data.adHocTaskId) existingSession.adHocTaskId = data.adHocTaskId as string
     if (data.adHocWorktree) existingSession.adHocWorktree = data.adHocWorktree as string
     ctx.log.debug(
@@ -42,6 +43,7 @@ const meta: MessageHandler = (ctx, data) => {
     if (data.claudeVersion) newSession.claudeVersion = data.claudeVersion as string
     if (data.spinnerVerbs) newSession.spinnerVerbs = data.spinnerVerbs as string[]
     if (data.autocompactPct) newSession.autocompactPct = data.autocompactPct as number
+    if (data.maxBudgetUsd) newSession.maxBudgetUsd = data.maxBudgetUsd as number
     if (data.adHocTaskId) newSession.adHocTaskId = data.adHocTaskId as string
     if (data.adHocWorktree) newSession.adHocWorktree = data.adHocWorktree as string
     const isAdHoc = (data.capabilities as string[] | undefined)?.includes('ad-hoc')

@@ -40,6 +40,7 @@ export interface WsClientOptions {
   claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
   spinnerVerbs?: string[]
   autocompactPct?: number
+  maxBudgetUsd?: number
   adHocTaskId?: string
   adHocWorktree?: string
   onConnected?: () => void
@@ -124,6 +125,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     claudeAuth,
     spinnerVerbs,
     autocompactPct,
+    maxBudgetUsd,
     adHocTaskId,
     adHocWorktree,
     onConnected,
@@ -200,6 +202,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
             claudeAuth,
             spinnerVerbs,
             autocompactPct,
+            maxBudgetUsd,
             adHocTaskId,
             adHocWorktree,
           }

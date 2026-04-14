@@ -5,7 +5,17 @@
  * Markdown files with YAML frontmatter. Status = folder name.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { TASK_STATUSES, type TaskStatus } from '../shared/task-statuses'
 
@@ -21,6 +31,8 @@ export interface ProjectTaskMeta {
   tags: string[]
   refs: string[]
   created: string
+  /** File mtime in ms since epoch - used for sorting (most recently changed first) */
+  mtime: number
   bodyPreview: string
 }
 
@@ -101,9 +113,11 @@ function toMarkdown(input: ProjectTaskInput, created?: string): string {
 
 function readTask(dir: string, filename: string, status: TaskStatus): ProjectTask | null {
   try {
-    const content = readFileSync(join(dir, filename), 'utf8')
+    const filepath = join(dir, filename)
+    const content = readFileSync(filepath, 'utf8')
     const { meta, body } = parseFrontmatter(content)
     const slug = filename.replace(/\.md$/, '')
+    const mtime = statSync(filepath).mtimeMs
     return {
       slug,
       status,
@@ -114,6 +128,7 @@ function readTask(dir: string, filename: string, status: TaskStatus): ProjectTas
       tags: Array.isArray(meta.tags) ? meta.tags.map(String) : [],
       refs: Array.isArray(meta.refs) ? meta.refs.map(String) : [],
       created: String(meta.created || ''),
+      mtime,
       body,
       bodyPreview: body.split('\n').slice(0, 2).join(' ').slice(0, 120),
     }
@@ -142,13 +157,7 @@ export function listProjectTasks(cwd: string, filterStatus?: TaskStatus): Projec
     }
   }
 
-  return tasks.sort((a, b) => {
-    const priorityOrder = { high: 0, medium: 1, low: 2 }
-    const ap = priorityOrder[a.priority || 'medium'] ?? 1
-    const bp = priorityOrder[b.priority || 'medium'] ?? 1
-    if (ap !== bp) return ap - bp
-    return (b.created || '').localeCompare(a.created || '')
-  })
+  return tasks.sort((a, b) => b.mtime - a.mtime)
 }
 
 export function getProjectTask(cwd: string, status: TaskStatus, slug: string): ProjectTask | null {
@@ -161,7 +170,8 @@ export function createProjectTask(cwd: string, input: ProjectTaskInput): Project
   const baseSlug = input.title ? slugify(input.title) : `task-${Date.now()}`
   const slug = dedupSlug(dir, baseSlug)
   const content = toMarkdown(input)
-  writeFileSync(join(dir, `${slug}.md`), content, 'utf8')
+  const filepath = join(dir, `${slug}.md`)
+  writeFileSync(filepath, content, 'utf8')
 
   return {
     slug,
@@ -171,6 +181,7 @@ export function createProjectTask(cwd: string, input: ProjectTaskInput): Project
     tags: input.tags || [],
     refs: input.refs || [],
     created: new Date().toISOString(),
+    mtime: Date.now(),
     bodyPreview: input.body.split('\n').slice(0, 2).join(' ').slice(0, 120),
   }
 }
@@ -210,7 +221,11 @@ export function moveProjectTask(
 
   if (!existsSync(fromPath)) return null
   const newSlug = dedupSlug(toDir, slug)
-  renameSync(fromPath, join(toDir, `${newSlug}.md`))
+  const destPath = join(toDir, `${newSlug}.md`)
+  renameSync(fromPath, destPath)
+  // Touch mtime so the moved task sorts to top of its new column
+  const now = new Date()
+  utimesSync(destPath, now, now)
   return newSlug
 }
 

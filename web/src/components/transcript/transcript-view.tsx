@@ -12,6 +12,62 @@ import { Markdown } from '../markdown'
 import { CompactedDivider, CompactingBanner, MemoizedGroupView, SkillDivider } from './group-view'
 import { type DisplayGroup, useIncrementalGroups } from './grouping'
 
+/** Content-aware size estimation to minimize layout shift on first render.
+ *  Falls back to measuredSizes cache for groups that have been rendered before. */
+function estimateGroupSize(group: DisplayGroup, measuredSizes: Map<string, number>, key: string): number {
+  const cached = measuredSizes.get(key)
+  if (cached !== undefined) return cached
+
+  switch (group.type) {
+    case 'compacted':
+      return 40
+    case 'compacting':
+      return 56
+    case 'skill':
+      return 44
+    case 'system':
+      return group.notifications ? 56 : 48
+    case 'user': {
+      const entries = group.entries
+      let textLen = 0
+      for (const entry of entries) {
+        const content = (entry as Record<string, unknown>).message as
+          | { content?: string | Array<{ type: string; text?: string }> }
+          | undefined
+        if (typeof content?.content === 'string') textLen += content.content.length
+        else if (Array.isArray(content?.content)) {
+          for (const b of content.content) {
+            if (b.type === 'text' && b.text) textLen += b.text.length
+          }
+        }
+      }
+      // Header ~40px + ~20px per 80-char line, clamped
+      return Math.max(56, Math.min(40 + Math.ceil(textLen / 80) * 20, 400))
+    }
+    case 'assistant': {
+      let toolCount = 0
+      let textLen = 0
+      for (const entry of group.entries) {
+        const content = (entry as Record<string, unknown>).message as
+          | { content?: string | Array<{ type: string; text?: string }> }
+          | undefined
+        if (!Array.isArray(content?.content)) continue
+        for (const b of content.content) {
+          if (b.type === 'tool_use') toolCount++
+          if (b.type === 'text' && b.text) textLen += b.text.length
+        }
+      }
+      // Base + collapsed tool lines (~52px each) + text lines
+      const base = 48
+      const toolHeight = toolCount * 52
+      const textHeight = Math.ceil(textLen / 80) * 20
+      return Math.max(80, Math.min(base + toolHeight + textHeight, 1500))
+    }
+    default:
+      return 120
+  }
+}
+
 const EMPTY_STREAMING = ''
 
 /** Isolated streaming text component - subscribes to its own store slice so token updates don't re-render the virtualizer */
@@ -243,30 +299,32 @@ export function TranscriptView({
 
   const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
 
-  const virtualizer = useVirtualizer({
-    count: mainGroups.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 120,
-    overscan: 3,
-    getItemKey: index => {
+  // Cache measured sizes so estimateSize can use real heights for groups
+  // that have been rendered before (survives virtualizer cache invalidation)
+  const measuredSizesRef = useRef(new Map<string, number>())
+
+  const getItemKey = useCallback(
+    (index: number) => {
       const g = mainGroups[index]
       return `${g.type}-${g.timestamp}-${index}`
     },
-    observeElementRect: (instance, cb) => {
-      const el = instance.scrollElement
-      if (!el) return
-      const observer = new ResizeObserver(entries => {
-        const entry = entries[0]
-        if (entry) {
-          requestAnimationFrame(() => {
-            cb({ width: entry.contentRect.width, height: entry.contentRect.height })
-          })
-        }
-      })
-      observer.observe(el)
-      return () => observer.disconnect()
-    },
+    [mainGroups],
+  )
+
+  const virtualizer = useVirtualizer({
+    count: mainGroups.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: index => estimateGroupSize(mainGroups[index], measuredSizesRef.current, getItemKey(index)),
+    overscan: 5,
+    getItemKey,
   })
+
+  // Track measured sizes: visible items have real DOM measurements from ResizeObserver.
+  // Cache these so estimateSize returns accurate heights when items re-enter the viewport.
+  const virtualItems = virtualizer.getVirtualItems()
+  for (const item of virtualItems) {
+    measuredSizesRef.current.set(String(item.key), item.size)
+  }
 
   useEffect(() => {
     if (follow) followKilledRef.current = false
@@ -294,26 +352,24 @@ export function TranscriptView({
     return () => el.removeEventListener('scroll', handleScroll)
   }, [follow, onReachedBottom])
 
-  // Scroll to bottom using virtualizer.scrollToIndex for reliable measurement-aware scrolling.
-  // Falls back to raw scrollTop for the settle loop (handles dynamic item heights expanding).
+  // Scroll to bottom: use virtualizer.scrollToIndex first (measurement-aware),
+  // then a short settle pass for dynamic heights that expand after render.
   const scrollToBottom = useCallback(() => {
     if (followKilledRef.current) return
     const count = mainGroups.length
     if (count > 0) {
       virtualizer.scrollToIndex(count - 1, { align: 'end' })
     }
-    // Settle loop: virtualizer.scrollToIndex positions based on estimated sizes.
-    // After items render and measure, scrollHeight may grow. Retry raw scrollTop
-    // to catch the final measured height.
     const el = parentRef.current
     if (!el) return
+    // Two-frame settle: items may measure larger than estimated after first paint
     let lastHeight = -1
     let retries = 0
     function settle() {
       if (!el || followKilledRef.current) return
-      el.scrollTop = el.scrollHeight
-      if (el.scrollHeight !== lastHeight && retries < 8) {
+      if (el.scrollHeight !== lastHeight && retries < 3) {
         lastHeight = el.scrollHeight
+        el.scrollTop = el.scrollHeight
         retries++
         requestAnimationFrame(settle)
       }
@@ -375,7 +431,6 @@ export function TranscriptView({
       >
         <Profiler id="TranscriptGroups" onRender={onRenderProfile}>
           {(() => {
-            const virtualItems = virtualizer.getVirtualItems()
             lastVirtualItemCount = virtualItems.length
             lastTotalGroupCount = mainGroups.length
             return virtualItems

@@ -19,6 +19,7 @@ export interface WsData {
   // Share (guest) access
   isShare?: boolean
   shareToken?: string
+  hideUserInput?: boolean
 }
 
 /** Thrown by guard methods (requireBenevolent, requireAgent, etc.) */

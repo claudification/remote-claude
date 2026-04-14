@@ -846,8 +846,12 @@ function InlineRename({ session }: { session: Session }) {
   const [value, setValue] = useState(session.title || '')
 
   useEffect(() => {
-    inputRef.current?.focus()
-    inputRef.current?.select()
+    // Delay to let Radix context menu fully close and release focus
+    const t = setTimeout(() => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }, 50)
+    return () => clearTimeout(t)
   }, [])
 
   function submit() {
@@ -858,6 +862,7 @@ function InlineRename({ session }: { session: Session }) {
   return (
     <input
       ref={inputRef}
+      autoFocus
       value={value}
       onChange={e => setValue(e.target.value)}
       onKeyDown={e => {

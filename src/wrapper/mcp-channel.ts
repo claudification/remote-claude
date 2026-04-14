@@ -13,7 +13,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, readdirSync, readFileSync } from 'node:fs'
+import { appendFileSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve as resolvePath } from 'node:path'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
@@ -27,6 +27,13 @@ import { debug } from './debug'
 import { moveProjectTask } from './project-tasks'
 
 const DIALOG_LOG = '/tmp/rclaude-dialog.log'
+
+function formatStatus(s: string): string {
+  return s
+    .split('-')
+    .map(w => w[0].toUpperCase() + w.slice(1))
+    .join('-')
+}
 
 /** Always-on dialog logging (not gated by RCLAUDE_DEBUG) */
 function elog(msg: string): void {
@@ -545,8 +552,9 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             try {
               const files = readdirSync(dir)
                 .filter(f => f.endsWith('.md'))
-                .sort()
-              for (const file of files) {
+                .map(f => ({ name: f, mtime: statSync(join(dir, f)).mtimeMs }))
+                .sort((a, b) => b.mtime - a.mtime)
+              for (const { name: file } of files) {
                 try {
                   const content = readFileSync(join(dir, file), 'utf-8')
                   const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
@@ -589,14 +597,28 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           }
           if (!fromStatus) return { content: [{ type: 'text', text: `Task "${taskId}" not found` }], isError: true }
           if (fromStatus === targetStatus)
-            return { content: [{ type: 'text', text: `Task already in ${targetStatus}` }] }
+            return { content: [{ type: 'text', text: `"${taskId}" is already ${formatStatus(targetStatus)}` }] }
+
+          // Read title from frontmatter before moving
+          let taskTitle = taskId
+          try {
+            const raw = readFileSync(join(dialogCwd, '.rclaude', 'project', fromStatus, `${taskId}.md`), 'utf-8')
+            const titleMatch = raw.match(/^title:\s*(.+)$/m)
+            if (titleMatch?.[1]) taskTitle = titleMatch[1].trim()
+          } catch {}
 
           const newSlug = moveProjectTask(dialogCwd, taskId, fromStatus, targetStatus)
           if (!newSlug) return { content: [{ type: 'text', text: 'Failed to move task' }], isError: true }
           debug(`[channel] set_task_status: ${taskId} ${fromStatus} -> ${targetStatus} (slug: ${newSlug})`)
-          const renamed = newSlug !== taskId ? ` (renamed to "${newSlug}" to avoid overwrite)` : ''
+          const newPath = `.rclaude/project/${targetStatus}/${newSlug}.md`
+          const renamed = newSlug !== taskId ? ` (renamed to "${newSlug}")` : ''
           return {
-            content: [{ type: 'text', text: `Moved "${taskId}" from ${fromStatus} to ${targetStatus}${renamed}` }],
+            content: [
+              {
+                type: 'text',
+                text: `Moved "${taskTitle}" from ${formatStatus(fromStatus)} to ${formatStatus(targetStatus)}${renamed}\nThe task file is now located at ${newPath}`,
+              },
+            ],
           }
         }
         case 'share_file': {

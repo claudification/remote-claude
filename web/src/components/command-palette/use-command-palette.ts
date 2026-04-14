@@ -2,11 +2,12 @@ import { Fzf } from 'fzf'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { openSpawnDialog } from '@/components/spawn-dialog'
 import type { FileInfo } from '@/hooks/use-file-editor'
+import { type ProjectTaskMeta, useProject } from '@/hooks/use-project'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { formatShortcut, getCommandGeneration, getCommands } from '@/lib/commands'
 import { getFrequencyMap, recordSwitch } from '@/lib/session-frequency'
 import type { Session } from '@/lib/types'
-import type { PaletteMode, TaskItem } from './types'
+import type { PaletteMode } from './types'
 
 export function useCommandPalette(onClose: () => void) {
   const sessions = useSessionsStore(state => state.sessions)
@@ -244,40 +245,15 @@ export function useCommandPalette(onClose: () => void) {
 
   // --- Task mode ---
   const taskFilter = isTaskMode ? filter.slice(2).trim().toLowerCase() : ''
-  const [tasks, setTasks] = useState<TaskItem[]>([])
-  const [tasksLoading, setTasksLoading] = useState(false)
-  const tasksFetched = useRef(false)
-
-  useEffect(() => {
-    if (isTaskMode && !tasksFetched.current && selectedSessionId) {
-      tasksFetched.current = true
-      setTasksLoading(true)
-      const requestId = crypto.randomUUID()
-      const handler = (msg: Record<string, unknown>) => {
-        if (msg.requestId === requestId && msg.type === 'project_list_response') {
-          const notes = (msg.notes as TaskItem[]) || []
-          setTasks(notes)
-          setTasksLoading(false)
-          useSessionsStore.setState({ projectHandler: prev })
-        }
-      }
-      const prev = useSessionsStore.getState().projectHandler
-      useSessionsStore.setState({ projectHandler: handler })
-      sendWsMessage({ type: 'project_list', requestId, sessionId: selectedSessionId })
-    }
-    if (!isTaskMode) {
-      tasksFetched.current = false
-      setTasks([])
-    }
-  }, [isTaskMode, selectedSessionId, sendWsMessage])
+  const { tasks: projectTasks, loading: tasksLoading } = useProject(isTaskMode ? selectedSessionId : null)
 
   const taskFzf = useMemo(
     () =>
-      new Fzf(tasks, {
-        selector: (t: TaskItem) => `${t.title} ${t.slug} ${t.status} ${t.priority || ''}`,
+      new Fzf(projectTasks, {
+        selector: (t: ProjectTaskMeta) => `${t.title} ${t.slug} ${t.status} ${t.priority || ''}`,
         casing: 'case-insensitive',
       }),
-    [tasks],
+    [projectTasks],
   )
   const statusBoost = (status: string) => (status === 'in-progress' ? 1.5 : status === 'open' ? 1.3 : 1)
   const filteredTasks = taskFilter
@@ -286,7 +262,7 @@ export function useCommandPalette(onClose: () => void) {
         .sort((a, b) => b.score * statusBoost(b.item.status) - a.score * statusBoost(a.item.status))
         .map(r => r.item)
     : // Default order: in-progress first, then open, then rest
-      [...tasks].sort((a, b) => statusBoost(b.status) - statusBoost(a.status))
+      [...projectTasks].sort((a, b) => statusBoost(b.status) - statusBoost(a.status))
 
   // --- Item count & index clamping ---
   const itemCount = isCommandMode

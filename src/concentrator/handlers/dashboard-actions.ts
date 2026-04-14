@@ -7,6 +7,7 @@
  */
 
 import type { SendInput } from '../../shared/protocol'
+import { generateSessionName } from '../../shared/session-names'
 import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
 import { GuardError, type MessageHandler, type WsData } from '../handler-context'
 import { registerHandlers } from '../message-router'
@@ -227,7 +228,16 @@ const reviveSession: MessageHandler = (ctx, data) => {
   const wrapperId = crypto.randomUUID()
   const jobId = data.jobId as string | undefined
   const projSettings = getProjectSettings(session.cwd)
-  const name = session.title || projSettings?.label || session.cwd.split('/').pop() || sessionId.slice(0, 8)
+
+  // Generate a funny session name for revived sessions that don't have one
+  const usedNames = new Set(
+    ctx.sessions
+      .getAllSessions()
+      .map(s => s.title)
+      .filter(Boolean) as string[],
+  )
+  const sessionName = session.title || generateSessionName(usedNames)
+  const name = sessionName || projSettings?.label || session.cwd.split('/').pop() || sessionId.slice(0, 8)
 
   // Resolve headless: explicit override > project default > global setting
   const headlessParam = data.headless as boolean | undefined
@@ -257,15 +267,40 @@ const reviveSession: MessageHandler = (ctx, data) => {
       headless,
       effort,
       model,
-      sessionName: session.title || undefined,
+      sessionName,
       autocompactPct: data.autocompactPct as number | undefined,
+      maxBudgetUsd: data.maxBudgetUsd as number | undefined,
     }),
   )
 
   ctx.log.info(
-    `[revive] ${name} (${sessionId.slice(0, 8)}) via WS, wrapperId=${wrapperId.slice(0, 8)} headless=${headless}`,
+    `[revive] ${name} (${sessionId.slice(0, 8)}) via WS, wrapperId=${wrapperId.slice(0, 8)} headless=${headless}${jobId ? ` job=${jobId.slice(0, 8)}` : ''}${data.maxBudgetUsd ? ` maxBudget=$${data.maxBudgetUsd}` : ''}`,
   )
-  ctx.reply({ type: 'revive_session_result', ok: true, name, wrapperId, message: 'Revive command sent to agent' })
+  ctx.reply({
+    type: 'revive_session_result',
+    ok: true,
+    name,
+    wrapperId,
+    jobId,
+    message: 'Revive command sent to agent',
+  })
+}
+
+// ─── Launch Job Subscriptions ─────────────────────────────────────
+// No auth needed - the jobId is the capability token.
+
+const subscribeJob: MessageHandler = (ctx, data) => {
+  const jobId = data.jobId as string
+  if (!jobId) throw new GuardError('Missing jobId')
+  ctx.sessions.subscribeJob(jobId, ctx.ws)
+  ctx.log.debug(`[job] Subscribed: ${jobId.slice(0, 8)}`)
+}
+
+const unsubscribeJob: MessageHandler = (ctx, data) => {
+  const jobId = data.jobId as string
+  if (!jobId) return
+  ctx.sessions.unsubscribeJob(jobId, ctx.ws)
+  ctx.log.debug(`[job] Unsubscribed: ${jobId.slice(0, 8)}`)
 }
 
 // ─── Rename Session ──────────────────────────────────────────────
@@ -289,22 +324,6 @@ const renameSession: MessageHandler = (ctx, data) => {
   }
   ctx.sessions.broadcastSessionUpdate(sessionId)
   ctx.reply({ type: 'rename_session_result', ok: true })
-}
-
-// ─── Launch Job Subscriptions ─────────────────────────────────────
-
-const subscribeJob: MessageHandler = (ctx, data) => {
-  const jobId = data.jobId as string
-  if (!jobId) throw new GuardError('Missing jobId')
-  ctx.sessions.subscribeJob(jobId, ctx.ws)
-  ctx.log.debug(`[job] Subscribed: ${jobId.slice(0, 8)}`)
-}
-
-const unsubscribeJob: MessageHandler = (ctx, data) => {
-  const jobId = data.jobId as string
-  if (!jobId) return
-  ctx.sessions.unsubscribeJob(jobId, ctx.ws)
-  ctx.log.debug(`[job] Unsubscribed: ${jobId.slice(0, 8)}`)
 }
 
 // ─── Register all dashboard action handlers ───────────────────────

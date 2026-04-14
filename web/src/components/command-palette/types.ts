@@ -10,14 +10,6 @@ export interface PaletteCommand {
 
 export type PaletteMode = 'session' | 'command' | 'file' | 'spawn' | 'task'
 
-export interface TaskItem {
-  slug: string
-  title: string
-  status: string
-  priority?: string
-  bodyPreview?: string
-}
-
 export interface CommandPaletteProps {
   onSelect: (sessionId: string) => void
   onFileSelect: (sessionId: string, path: string) => void

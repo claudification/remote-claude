@@ -2781,6 +2781,109 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
   }
 
+  // ─── Launch Jobs (request-scoped event channels) ────────────────────
+  // Dashboard subscribes to a jobId before spawning/reviving.
+  // Agent sends launch_log events tagged with jobId.
+  // Concentrator forwards to subscribers. Completes when session connects.
+  interface LaunchJob {
+    jobId: string
+    wrapperId: string
+    subscribers: Set<ServerWebSocket<unknown>>
+    createdAt: number
+  }
+  const launchJobs = new Map<string, LaunchJob>() // jobId -> job
+  const wrapperToJob = new Map<string, string>() // wrapperId -> jobId
+  const JOB_EXPIRY_MS = 5 * 60 * 1000 // 5 minutes
+
+  function createJob(jobId: string, wrapperId: string): void {
+    const existing = launchJobs.get(jobId)
+    if (existing) {
+      // Dashboard pre-subscribed before spawn HTTP returned - update wrapperId
+      existing.wrapperId = wrapperId
+    } else {
+      launchJobs.set(jobId, { jobId, wrapperId, subscribers: new Set(), createdAt: Date.now() })
+    }
+    wrapperToJob.set(wrapperId, jobId)
+  }
+
+  function subscribeJob(jobId: string, ws: ServerWebSocket<unknown>): boolean {
+    const job = launchJobs.get(jobId)
+    if (!job) {
+      // Job not created yet - create a placeholder (dashboard subscribes before HTTP spawn returns)
+      launchJobs.set(jobId, { jobId, wrapperId: '', subscribers: new Set([ws]), createdAt: Date.now() })
+      return true
+    }
+    job.subscribers.add(ws)
+    return true
+  }
+
+  function unsubscribeJob(jobId: string, ws: ServerWebSocket<unknown>): void {
+    const job = launchJobs.get(jobId)
+    if (job) {
+      job.subscribers.delete(ws)
+      // Don't delete the job - other subscribers may still be watching, and agent events may still arrive
+    }
+  }
+
+  function forwardJobEvent(jobId: string, msg: Record<string, unknown>): void {
+    const job = launchJobs.get(jobId)
+    if (!job) return
+    const payload = JSON.stringify(msg)
+    for (const ws of job.subscribers) {
+      try {
+        ws.send(payload)
+      } catch {}
+    }
+  }
+
+  function completeJob(wrapperId: string, sessionId: string): void {
+    const jobId = wrapperToJob.get(wrapperId)
+    if (!jobId) return
+    const job = launchJobs.get(jobId)
+    if (!job) return
+
+    forwardJobEvent(jobId, { type: 'job_complete', jobId, sessionId, wrapperId })
+
+    // Cleanup after a short delay (let dashboard process the completion)
+    setTimeout(() => {
+      launchJobs.delete(jobId)
+      wrapperToJob.delete(wrapperId)
+    }, 30_000)
+  }
+
+  function failJob(jobId: string, error: string): void {
+    forwardJobEvent(jobId, { type: 'job_failed', jobId, error })
+    // Cleanup after delay
+    const job = launchJobs.get(jobId)
+    if (job) {
+      setTimeout(() => {
+        launchJobs.delete(jobId)
+        if (job.wrapperId) wrapperToJob.delete(job.wrapperId)
+      }, 30_000)
+    }
+  }
+
+  function getJobByWrapper(wrapperId: string): string | undefined {
+    return wrapperToJob.get(wrapperId)
+  }
+
+  function cleanupJobSubscriber(ws: ServerWebSocket<unknown>): void {
+    for (const job of launchJobs.values()) {
+      job.subscribers.delete(ws)
+    }
+  }
+
+  // Periodic cleanup of expired jobs
+  setInterval(() => {
+    const now = Date.now()
+    for (const [jobId, job] of launchJobs) {
+      if (now - job.createdAt > JOB_EXPIRY_MS) {
+        launchJobs.delete(jobId)
+        if (job.wrapperId) wrapperToJob.delete(job.wrapperId)
+      }
+    }
+  }, 60_000)
+
   // Session rendezvous: callers waiting for a session to connect at a specific wrapperId
   // Used by spawn/revive to notify the caller when the spawned session is ready
   interface SessionRendezvous {
@@ -2912,103 +3015,6 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   function broadcastSessionUpdate(sessionId: string): void {
     scheduleSessionUpdate(sessionId)
   }
-
-  // ─── Launch Jobs (request-scoped event channels) ────────────────────
-  // Dashboard subscribes to a jobId before spawning/reviving.
-  // Agent sends launch_log events tagged with jobId.
-  // Concentrator forwards to subscribers. Completes when session connects.
-  interface LaunchJob {
-    jobId: string
-    wrapperId: string
-    subscribers: Set<ServerWebSocket<unknown>>
-    createdAt: number
-  }
-  const launchJobs = new Map<string, LaunchJob>()
-  const wrapperToJob = new Map<string, string>()
-  const JOB_EXPIRY_MS = 5 * 60 * 1000
-
-  function createJob(jobId: string, wrapperId: string): void {
-    const existing = launchJobs.get(jobId)
-    if (existing) {
-      // Dashboard pre-subscribed before spawn HTTP returned - update wrapperId
-      existing.wrapperId = wrapperId
-    } else {
-      launchJobs.set(jobId, { jobId, wrapperId, subscribers: new Set(), createdAt: Date.now() })
-    }
-    wrapperToJob.set(wrapperId, jobId)
-  }
-
-  function subscribeJob(jobId: string, ws: ServerWebSocket<unknown>): boolean {
-    const job = launchJobs.get(jobId)
-    if (!job) {
-      // Job not created yet - dashboard subscribes before HTTP spawn returns
-      launchJobs.set(jobId, { jobId, wrapperId: '', subscribers: new Set([ws]), createdAt: Date.now() })
-      return true
-    }
-    job.subscribers.add(ws)
-    return true
-  }
-
-  function unsubscribeJob(jobId: string, ws: ServerWebSocket<unknown>): void {
-    const job = launchJobs.get(jobId)
-    if (job) job.subscribers.delete(ws)
-  }
-
-  function forwardJobEvent(jobId: string, msg: Record<string, unknown>): void {
-    const job = launchJobs.get(jobId)
-    if (!job) return
-    const payload = JSON.stringify(msg)
-    for (const ws of job.subscribers) {
-      try { ws.send(payload) } catch {}
-    }
-  }
-
-  function completeJob(wrapperId: string, sessionId: string): void {
-    const jobId = wrapperToJob.get(wrapperId)
-    if (!jobId) return
-    const job = launchJobs.get(jobId)
-    if (!job) return
-
-    forwardJobEvent(jobId, { type: 'job_complete', jobId, sessionId, wrapperId })
-
-    // Cleanup after a short delay (let dashboard process the completion)
-    setTimeout(() => {
-      launchJobs.delete(jobId)
-      wrapperToJob.delete(wrapperId)
-    }, 30_000)
-  }
-
-  function failJob(jobId: string, error: string): void {
-    forwardJobEvent(jobId, { type: 'job_failed', jobId, error })
-    const job = launchJobs.get(jobId)
-    if (job) {
-      setTimeout(() => {
-        launchJobs.delete(jobId)
-        if (job.wrapperId) wrapperToJob.delete(job.wrapperId)
-      }, 30_000)
-    }
-  }
-
-  function getJobByWrapper(wrapperId: string): string | undefined {
-    return wrapperToJob.get(wrapperId)
-  }
-
-  function cleanupJobSubscriber(ws: ServerWebSocket<unknown>): void {
-    for (const job of launchJobs.values()) {
-      job.subscribers.delete(ws)
-    }
-  }
-
-  // Periodic cleanup of expired jobs
-  setInterval(() => {
-    const now = Date.now()
-    for (const [jobId, job] of launchJobs) {
-      if (now - job.createdAt > JOB_EXPIRY_MS) {
-        launchJobs.delete(jobId)
-        if (job.wrapperId) wrapperToJob.delete(job.wrapperId)
-      }
-    }
-  }, 60_000)
 
   // ─── Inter-session link registry ──────────────────────────────────────
   // Links are bidirectional. If A->B is approved, B->A is also approved.
@@ -3154,6 +3160,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     addBgTaskOutput,
     getBgTaskOutput,
     broadcastSessionUpdate,
+    createJob,
+    subscribeJob,
+    unsubscribeJob,
+    forwardJobEvent,
+    completeJob,
+    failJob,
+    getJobByWrapper,
+    cleanupJobSubscriber,
     addSpawnListener,
     removeSpawnListener,
     resolveSpawn,
@@ -3163,14 +3177,6 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     addFileListener,
     removeFileListener,
     resolveFile,
-    createJob,
-    subscribeJob,
-    unsubscribeJob,
-    forwardJobEvent,
-    completeJob,
-    failJob,
-    getJobByWrapper,
-    cleanupJobSubscriber,
     checkSessionLink,
     getLinkedSessions,
     linkSessions,

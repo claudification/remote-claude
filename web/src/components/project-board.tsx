@@ -30,6 +30,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLaunchChannel } from '@/hooks/use-launch-channel'
 import type { ProjectTask } from '@/hooks/use-project'
 import { type ProjectTaskMeta, type TaskStatus, useProject } from '@/hooks/use-project'
 import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
@@ -140,7 +141,51 @@ export function TaskEditor({
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(!body.trim())
   const [showRunDialog, setShowRunDialog] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
   useKeyLayer({ Escape: () => onClose() }, { id: 'task-editor' })
+
+  async function uploadFile(file: File) {
+    const ta = bodyRef.current
+    const pos = ta?.selectionStart ?? body.length
+    const placeholder = `![uploading ${file.name || 'file'}...]`
+    const before = body.slice(0, pos)
+    const after = body.slice(pos)
+    setBody(before + placeholder + after)
+    try {
+      const formData = new FormData()
+      formData.append('file', file, file.name || 'paste.png')
+      const res = await fetch('/api/files', { method: 'POST', body: formData })
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
+      const { url, filename } = await res.json()
+      const current = bodyRef.current?.value ?? ''
+      setBody(current.replace(placeholder, `![${filename}](${url})`))
+    } catch {
+      const current = bodyRef.current?.value ?? ''
+      setBody(current.replace(placeholder, '![upload failed]'))
+    }
+  }
+
+  function handleBodyPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) uploadFile(file)
+        return
+      }
+    }
+  }
+
+  function handleBodyDrop(e: React.DragEvent<HTMLTextAreaElement>) {
+    e.preventDefault()
+    setDragOver(false)
+    const files = e.dataTransfer?.files
+    if (!files?.length) return
+    for (const file of files) uploadFile(file)
+  }
 
   function addTag() {
     const t = tagInput.trim().toLowerCase()
@@ -278,12 +323,27 @@ export function TaskEditor({
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto p-4">
           {editing ? (
-            <textarea
-              value={body}
-              onChange={e => setBody(e.target.value)}
-              className="w-full h-full min-h-[200px] bg-transparent text-sm font-mono text-foreground outline-none resize-none placeholder:text-muted-foreground/30 leading-relaxed"
-              placeholder="Task body (markdown)..."
-            />
+            <div className="relative w-full h-full min-h-[200px]">
+              <textarea
+                ref={bodyRef}
+                value={body}
+                onChange={e => setBody(e.target.value)}
+                onPaste={handleBodyPaste}
+                onDrop={handleBodyDrop}
+                onDragOver={e => {
+                  e.preventDefault()
+                  setDragOver(true)
+                }}
+                onDragLeave={() => setDragOver(false)}
+                className="w-full h-full min-h-[200px] bg-transparent text-sm font-mono text-foreground outline-none resize-none placeholder:text-muted-foreground/30 leading-relaxed"
+                placeholder="Task body (markdown)... Paste images or drop files"
+              />
+              {dragOver && (
+                <div className="absolute inset-0 border-2 border-dashed border-accent/60 bg-accent/5 pointer-events-none flex items-center justify-center">
+                  <span className="text-xs font-mono text-accent/80">Drop file here</span>
+                </div>
+              )}
+            </div>
           ) : body.trim() ? (
             <div
               role="button"
@@ -315,39 +375,97 @@ export function TaskEditor({
         <div className="border-t border-[#33467c]/50 shrink-0">
           <div className="flex items-center justify-between px-4 py-2">
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  const tagAttrs = [
-                    `id="${task.slug}"`,
-                    `title="${title.replace(/"/g, '&quot;')}"`,
-                    priority !== 'medium' ? `priority="${priority}"` : '',
-                    `status="${status}"`,
-                    tags.length ? `tags="${tags.join(',')}"` : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')
-                  const instructions = `Set status to in-progress when you start, done when complete. Use mcp__rclaude__project_set_status with id="${task.slug}".`
-                  const prompt = `<project-task ${tagAttrs}>\n${body.trim() || title}\n\n${instructions}\n</project-task>`
-                  sendInput(sessionId, prompt)
-                  haptic('success')
-                  onClose()
-                }}
-                className="whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
-              >
-                Work on this
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  haptic('tap')
-                  setShowRunDialog(true)
-                }}
-                className="flex items-center gap-1 whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
-              >
-                <Zap className="w-3 h-3" />
-                Run
-              </button>
+              {/* Context-aware actions based on task status */}
+              {(status === 'inbox' || status === 'open' || status === 'in-progress' || status === 'in-review') && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tagAttrs = [
+                        `id="${task.slug}"`,
+                        `title="${title.replace(/"/g, '&quot;')}"`,
+                        priority !== 'medium' ? `priority="${priority}"` : '',
+                        `status="${status}"`,
+                        tags.length ? `tags="${tags.join(',')}"` : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')
+                      const instructions = `Set status to in-progress when you start, in-review when complete. Use mcp__rclaude__project_set_status with id="${task.slug}".`
+                      const prompt = `<project-task ${tagAttrs}>\n${body.trim() || title}\n\n${instructions}\n</project-task>`
+                      sendInput(sessionId, prompt)
+                      haptic('success')
+                      onClose()
+                    }}
+                    className="whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
+                  >
+                    Work on this
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      haptic('tap')
+                      setShowRunDialog(true)
+                    }}
+                    className="flex items-center gap-1 whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
+                  >
+                    <Zap className="w-3 h-3" />
+                    Run
+                  </button>
+                </>
+              )}
+              {status === 'in-review' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatus('done')
+                    onMove(task.slug, status, 'done')
+                    haptic('success')
+                  }}
+                  className="whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
+                >
+                  Approve
+                </button>
+              )}
+              {status === 'done' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatus('in-review')
+                      onMove(task.slug, status, 'in-review')
+                      haptic('tap')
+                    }}
+                    className="whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-[#2ac3de]/15 text-[#2ac3de] border border-[#2ac3de]/30 hover:bg-[#2ac3de]/25 transition-colors"
+                  >
+                    Reopen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatus('archived')
+                      onMove(task.slug, status, 'archived')
+                      haptic('tap')
+                    }}
+                    className="flex items-center gap-1 whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-[#33467c]/30 text-muted-foreground border border-[#33467c]/50 hover:bg-[#33467c]/50 transition-colors"
+                  >
+                    <Archive className="w-3 h-3" />
+                    Archive
+                  </button>
+                </>
+              )}
+              {status === 'archived' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatus('open')
+                    onMove(task.slug, status, 'open')
+                    haptic('tap')
+                  }}
+                  className="whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-[#7aa2f7]/15 text-[#7aa2f7] border border-[#7aa2f7]/30 hover:bg-[#7aa2f7]/25 transition-colors"
+                >
+                  Reopen
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -396,17 +514,22 @@ function RunTaskDialog({ task, sessionId, onClose }: { task: ProjectTask; sessio
   const [model, setModel] = useState(projectSettings?.defaultModel || '')
   const [effort, setEffort] = useState<string>(projectSettings?.defaultEffort || 'default')
   const [useWorktree, setUseWorktree] = useState(true)
-  const [branchName, setBranchName] = useState(`adhoc/${task.slug}`)
+  const [branchName, setBranchName] = useState(task.slug)
   const [autoCommit, setAutoCommit] = useState(false)
+  const [maxBudgetUsd, setMaxBudgetUsd] = useState('')
   const [timeout, setTimeout_] = useState('10')
   const [error, setError] = useState<string | null>(null)
 
   // Launch monitor state
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [wrapperId, setWrapperId] = useState<string | null>(null)
+  const [jobId, setJobId] = useState<string | null>(null)
   const [steps, setSteps] = useState<LaunchStep[]>([])
   const [launchSessionId, setLaunchSessionId] = useState<string | null>(null)
   const startTimeRef = useRef(0)
+
+  // Launch channel - request-scoped events from agent
+  const launch = useLaunchChannel(jobId)
 
   useKeyLayer({ Escape: onClose })
 
@@ -414,12 +537,58 @@ function RunTaskDialog({ task, sessionId, onClose }: { task: ProjectTask; sessio
   const spawnedSession = useSessionsStore(
     useCallback(
       state => {
-        if (!wrapperId) return null
-        return state.sessions.find(s => s.wrapperIds?.includes(wrapperId)) || null
+        const wid = launch.wrapperId || wrapperId
+        if (!wid) return null
+        return state.sessions.find(s => s.wrapperIds?.includes(wid)) || null
       },
-      [wrapperId],
+      [launch.wrapperId, wrapperId],
     ),
   )
+
+  // Insert agent events as steps in the launch monitor
+  useEffect(() => {
+    if (launch.events.length === 0 || phase !== 'launching') return
+    setSteps(prev => {
+      const updated = [...prev]
+      const existingLabels = new Set(updated.map(s => s.label))
+      // Insert agent events before "Waiting for session..."
+      const waitIdx = updated.findIndex(s => s.label === 'Waiting for session...')
+      const insertAt = waitIdx >= 0 ? waitIdx : updated.length
+      let inserted = 0
+      for (const evt of launch.events) {
+        if (!existingLabels.has(evt.step)) {
+          updated.splice(insertAt + inserted, 0, {
+            label: evt.step,
+            status: evt.status === 'ok' ? 'done' : evt.status === 'error' ? 'error' : 'active',
+            detail: evt.detail,
+            ts: evt.t,
+          })
+          existingLabels.add(evt.step)
+          inserted++
+        }
+      }
+      return updated
+    })
+  }, [launch.events, phase])
+
+  // Handle job completion from launch channel
+  useEffect(() => {
+    if (launch.completed && !launchSessionId) {
+      setLaunchSessionId(launch.sessionId)
+    }
+  }, [launch.completed, launch.sessionId, launchSessionId])
+
+  // Handle job failure from launch channel
+  useEffect(() => {
+    if (launch.failed) {
+      setError(launch.error || 'Launch failed')
+      setSteps(prev =>
+        prev.map(s =>
+          s.status === 'active' ? { ...s, status: 'error' as const, detail: launch.error || 'failed' } : s,
+        ),
+      )
+    }
+  }, [launch.failed, launch.error])
 
   // Track session lifecycle in the launch monitor
   useEffect(() => {
@@ -495,6 +664,10 @@ function RunTaskDialog({ task, sessionId, onClose }: { task: ProjectTask; sessio
     startTimeRef.current = Date.now()
     haptic('tap')
 
+    // Generate jobId and subscribe BEFORE making the HTTP request
+    const newJobId = crypto.randomUUID()
+    setJobId(newJobId)
+
     setSteps([{ label: 'Sending spawn request...', status: 'active', ts: Date.now() }])
 
     // Build the prompt from the task
@@ -507,12 +680,12 @@ function RunTaskDialog({ task, sessionId, onClose }: { task: ProjectTask; sessio
     ]
       .filter(Boolean)
       .join(' ')
-    const instructions = `Set status to in-progress when you start, done when complete. Use mcp__rclaude__project_set_status with id="${task.slug}".`
-    let prompt = `<project-task ${tagAttrs}>\n${task.body.trim() || task.title}\n\n${instructions}\n</project-task>`
-
-    if (autoCommit) {
-      prompt += '\n\nWhen you are done, commit all changes with a descriptive commit message.'
-    }
+    const instructions = `Set status to in-progress when you start, in-review when complete. Use mcp__rclaude__project_set_status with id="${task.slug}".`
+    const commitLine = autoCommit ? '\n\nWhen you are done, commit all changes with a descriptive commit message.' : ''
+    const worktreeMerge = useWorktree
+      ? '\n\nIMPORTANT - WORKTREE MERGE-BACK:\nYou are working in a git worktree (isolated branch). Before finishing:\n1. Commit all changes\n2. Merge back to main: run `git rebase main && git fetch . HEAD:main`\n3. If rebase conflicts occur, resolve them and run `git rebase --continue`, then `git fetch . HEAD:main`\n4. Verify: `git log --oneline main -5`\nThis merges your work back to main so it is not stranded on a dead branch.'
+      : ''
+    const prompt = `<project-task ${tagAttrs}>\n${task.body.trim() || task.title}\n\n${instructions}${commitLine}${worktreeMerge}\n</project-task>`
 
     try {
       const res = await fetch('/api/spawn', {
@@ -528,6 +701,8 @@ function RunTaskDialog({ task, sessionId, onClose }: { task: ProjectTask; sessio
           effort: effort !== 'default' ? effort : undefined,
           worktree: useWorktree ? branchName : undefined,
           name: task.title.replace(/['"]/g, '').slice(0, 60),
+          maxBudgetUsd: maxBudgetUsd ? Number(maxBudgetUsd) : undefined,
+          jobId: newJobId,
         }),
       })
       const data = await res.json()
@@ -681,6 +856,24 @@ function RunTaskDialog({ task, sessionId, onClose }: { task: ProjectTask; sessio
                 />
                 <span className="text-[10px] font-mono text-muted-foreground">Auto-commit changes on completion</span>
               </label>
+              <div className="flex items-center justify-between">
+                <label htmlFor="run-task-budget" className="text-[10px] font-mono text-muted-foreground">
+                  Max budget
+                </label>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-[#565f89]">$</span>
+                  <input
+                    id="run-task-budget"
+                    type="number"
+                    min={0.01}
+                    step={0.01}
+                    placeholder="none"
+                    value={maxBudgetUsd}
+                    onChange={e => setMaxBudgetUsd(e.target.value)}
+                    className="w-16 text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+              </div>
               <div className="flex items-center justify-between">
                 <label htmlFor="run-task-timeout" className="text-[10px] font-mono text-muted-foreground">
                   Timeout

@@ -660,6 +660,7 @@ async function main() {
       autocompactPct: process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE
         ? Number(process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE)
         : undefined,
+      maxBudgetUsd: process.env.RCLAUDE_MAX_BUDGET_USD ? Number(process.env.RCLAUDE_MAX_BUDGET_USD) : undefined,
       adHocTaskId,
       adHocWorktree,
       capabilities,

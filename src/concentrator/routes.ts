@@ -8,6 +8,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlin
 import { join } from 'node:path'
 import { Hono } from 'hono'
 import type { ListDirsResult, SendInput, Session, SpawnResult, TeamInfo } from '../shared/protocol'
+import { generateSessionName } from '../shared/session-names'
 import {
   createInvite,
   getAllUsers,
@@ -523,7 +524,17 @@ export function createRouter(options: RouteOptions): Hono {
     if (!sessionStore.hasTranscriptCache(sessionId)) {
       return c.json({ error: 'No transcript in cache (rclaude not streaming yet?)' }, 404)
     }
-    const entries = sessionStore.getTranscriptEntries(sessionId, limit)
+    let entries = sessionStore.getTranscriptEntries(sessionId, limit)
+
+    // Filter user entries for share viewers with hideUserInput
+    const shareToken = new URL(c.req.raw.url).searchParams.get('share')
+    if (shareToken) {
+      const share = validateShare(shareToken)
+      if (share?.hideUserInput) {
+        entries = entries.filter(e => (e as { type?: string }).type !== 'user')
+      }
+    }
+
     return c.json(entries.map(e => processImagesInEntry(e as Record<string, unknown>)))
   })
 
@@ -740,6 +751,7 @@ export function createRouter(options: RouteOptions): Hono {
       effort?: string
       permissionMode?: string
       autocompactPct?: number
+      maxBudgetUsd?: number
       // Ad-hoc task runner fields
       prompt?: string
       adHoc?: boolean
@@ -815,9 +827,19 @@ export function createRouter(options: RouteOptions): Hono {
           effort,
           model,
           bare: body.bare || false,
-          sessionName: body.name?.trim() || undefined,
+          sessionName:
+            body.name?.trim() ||
+            generateSessionName(
+              new Set(
+                sessionStore
+                  .getAllSessions()
+                  .map((s: Session) => s.title)
+                  .filter(Boolean) as string[],
+              ),
+            ),
           permissionMode: body.adHoc ? 'bypassPermissions' : body.permissionMode || undefined,
           autocompactPct: body.autocompactPct || undefined,
+          maxBudgetUsd: body.maxBudgetUsd || undefined,
           // Ad-hoc fields
           prompt: body.prompt || undefined,
           adHoc: body.adHoc || undefined,
@@ -1549,6 +1571,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
       expiresAt?: number // absolute timestamp
       label?: string
       permissions?: string[]
+      hideUserInput?: boolean
     }>()
     if (!body.sessionCwd) return c.json({ error: 'sessionCwd is required' }, 400)
     const expiresAt = body.expiresAt || (body.expiresIn ? Date.now() + body.expiresIn : Date.now() + 4 * 60 * 60 * 1000) // default 4h
@@ -1559,6 +1582,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
         createdBy: getAuthenticatedUser(c.req.raw) || 'admin',
         label: body.label,
         permissions: body.permissions,
+        hideUserInput: body.hideUserInput,
       })
       const origin = c.req.header('origin') || ''
       sessionStore.broadcastSharesUpdate()

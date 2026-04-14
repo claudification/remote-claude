@@ -117,6 +117,11 @@ fi
 if [[ -n "${RCLAUDE_INITIAL_PROMPT_FILE:-}" ]]; then
   CMD_PREFIX+="RCLAUDE_INITIAL_PROMPT_FILE=${RCLAUDE_INITIAL_PROMPT_FILE} "
 fi
+# Worktree name forwarded so the wrapper can include it in SessionMeta
+if [[ -n "${RCLAUDE_WORKTREE:-}" ]]; then
+  SAFE_WORKTREE="${RCLAUDE_WORKTREE//[\"\'\`\\]/}"
+  CMD_PREFIX+="RCLAUDE_WORKTREE='${SAFE_WORKTREE}' "
+fi
 
 # Append --effort flag if set (passed through to claude CLI)
 EFFORT_FLAG=""
@@ -136,7 +141,13 @@ if [[ -n "${RCLAUDE_WORKTREE:-}" ]]; then
   WORKTREE_FLAG=" --worktree $RCLAUDE_WORKTREE"
 fi
 
-SPAWN_CMD="${CMD_PREFIX}${BASE_CMD}${EFFORT_FLAG}${MODEL_FLAG}${WORKTREE_FLAG}"
+# Append --max-budget-usd flag if set (headless only, passed through to claude CLI)
+MAX_BUDGET_FLAG=""
+if [[ -n "${RCLAUDE_MAX_BUDGET_USD:-}" ]]; then
+  MAX_BUDGET_FLAG=" --max-budget-usd $RCLAUDE_MAX_BUDGET_USD"
+fi
+
+SPAWN_CMD="${CMD_PREFIX}${BASE_CMD}${EFFORT_FLAG}${MODEL_FLAG}${WORKTREE_FLAG}${MAX_BUDGET_FLAG}"
 
 # Debug log for launch diagnostics
 if [[ "${RCLAUDE_ADHOC:-}" == "1" ]]; then

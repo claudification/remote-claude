@@ -508,6 +508,7 @@ async function main() {
               data: {
                 isShare: true,
                 shareToken,
+                hideUserInput: share.hideUserInput || false,
                 grants: shareToGrantList(share),
               } as WsData,
             })
@@ -584,6 +585,8 @@ async function main() {
             cleanupVoiceForWs(ws)
             // If this dashboard was viewing a terminal, remove from viewers
             sessionStore.removeTerminalViewerBySocket(ws)
+            // Clean up launch job subscriptions
+            sessionStore.cleanupJobSubscriber(ws)
             sessionStore.removeSubscriber(ws)
             if (verbose) {
               console.log(`[dashboard] Subscriber disconnected (total: ${sessionStore.getSubscriberCount()})`)

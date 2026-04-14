@@ -11,15 +11,11 @@ export interface BuildVersion {
 }
 
 export const BUILD_VERSION: BuildVersion = {
-  gitHash: 'fe7300929909a00f6098e0efa916277b6e7a20b7',
-  gitHashShort: 'fe73009-dirty',
-  buildTime: '2026-04-13T02:46:17.976Z',
+  gitHash: '2f8c9b4ab10a5c04a1f20f458f39ccad3d8e82e5',
+  gitHashShort: '2f8c9b4-dirty',
+  buildTime: '2026-04-14T10:11:33.074Z',
   dirty: true,
   branch: 'main',
   githubRepo: 'claudification/remote-claude',
-  recentCommits: [
-    { hash: 'fe73009', message: '(HEAD -> main) feat: render ScheduleWakeup tool calls in transcript' },
-    { hash: 'a955f10', message: 'fix: integrate PR #38 -- update flow UX fixes from @ziadsawalha' },
-    { hash: 'afbbca2', message: 'feat: expose autocompact threshold in spawn dialog and context bars' },
-  ],
+  recentCommits: [{"hash":"2f8c9b4","message":"(HEAD -> main) fix: worktree cleanup uses correct paths (project root + .claude/worktrees/<name>)"},{"hash":"73a0ead","message":"(worktree-don-t-show-files-or-project-on-sessions-that-are-not-active-) fix: hide Files and Project tabs on ended sessions"},{"hash":"a53562a","message":"(origin/main, origin/HEAD) fix: graceful ad-hoc shutdown via stdin EOF instead of force-kill"}],
 }

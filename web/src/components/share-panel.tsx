@@ -39,6 +39,7 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
     'files:read': false,
     'terminal:read': true,
   })
+  const [hideUserInput, setHideUserInput] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
 
   async function handleCreate() {
@@ -57,6 +58,7 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
               .filter(([, v]) => v)
               .map(([k]) => k),
           ],
+          hideUserInput,
         }),
       })
       if (res.ok) {
@@ -154,6 +156,11 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
                   <div className="flex items-center gap-2">
                     <span className="text-teal-400 font-bold truncate">{share.label || share.token.slice(0, 8)}</span>
                     <span className="text-muted-foreground">expires {timeStr}</span>
+                    {share.hideUserInput && (
+                      <span className="text-amber-400/70 font-bold" title="User input hidden">
+                        no user
+                      </span>
+                    )}
                     {share.viewerCount > 0 && (
                       <span className="flex items-center gap-0.5 text-teal-400/70">
                         <Eye className="w-2.5 h-2.5" /> {share.viewerCount}
@@ -236,6 +243,19 @@ export function ShareBanner({ sessionCwd }: SharePanelProps) {
               {!newPerms.chat && !newPerms['files:read'] && !newPerms['terminal:read'] && (
                 <span className="text-[9px] text-muted-foreground/50 italic">read-only (transcript only)</span>
               )}
+              <span className="w-px h-3 bg-border/50 mx-0.5" />
+              <button
+                type="button"
+                onClick={() => setHideUserInput(v => !v)}
+                title="Hide all user messages from shared view"
+                className={`px-1.5 py-0.5 rounded text-[9px] transition-colors ${
+                  hideUserInput
+                    ? 'bg-amber-500/25 text-amber-400 border border-amber-500/40'
+                    : 'bg-secondary text-muted-foreground/50 border border-transparent hover:border-border'
+                }`}
+              >
+                Hide user input
+              </button>
             </div>
             <div className="flex justify-end">
               <Button

@@ -20,6 +20,8 @@ export interface SessionShare {
   label?: string
   revoked: boolean
   permissions: string[]
+  /** Hide user input messages from shared transcript */
+  hideUserInput?: boolean
 }
 
 // Default permissions for shared sessions
@@ -75,6 +77,7 @@ export function createShare(opts: {
   createdBy: string
   label?: string
   permissions?: string[]
+  hideUserInput?: boolean
 }): SessionShare {
   // Validate expiry is in the future
   if (opts.expiresAt <= Date.now()) {
@@ -96,6 +99,7 @@ export function createShare(opts: {
     label: opts.label,
     revoked: false,
     permissions: opts.permissions || DEFAULT_SHARE_PERMISSIONS,
+    hideUserInput: opts.hideUserInput || false,
   }
 
   shares.push(share)

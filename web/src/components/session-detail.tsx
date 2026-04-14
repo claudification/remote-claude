@@ -1101,6 +1101,11 @@ export const SessionDetail = memo(function SessionDetail() {
                       <span className="text-muted-foreground">branch:</span> {session.gitBranch}
                     </span>
                   )}
+                  {session.adHocWorktree && (
+                    <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-orange-400/20 text-orange-400">
+                      worktree
+                    </span>
+                  )}
                   {(session.title || session.agentName) && (
                     <span className="text-foreground text-[10px]">{session.title || session.agentName}</span>
                   )}
@@ -1734,7 +1739,9 @@ export const SessionDetail = memo(function SessionDetail() {
             </div>
           )}
           {!conversationTarget && activeTab === 'project' && selectedSessionId && (
-            <ProjectBoard sessionId={selectedSessionId} />
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <ProjectBoard sessionId={selectedSessionId} />
+            </div>
           )}
           {!conversationTarget && activeTab === 'shared' && session && <SharedView cwd={session.cwd} />}
           {!conversationTarget && activeTab === 'diag' && selectedSessionId && (

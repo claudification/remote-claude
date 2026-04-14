@@ -64,7 +64,11 @@ const transcriptRequest: MessageHandler = (ctx, data) => {
   const sess = ctx.sessions.getSession(data.sessionId as string)
   if (sess) ctx.requirePermission('chat:read', sess.cwd)
   if (ctx.sessions.hasTranscriptCache(data.sessionId)) {
-    const entries = ctx.sessions.getTranscriptEntries(data.sessionId, data.limit)
+    let entries = ctx.sessions.getTranscriptEntries(data.sessionId, data.limit)
+    // Filter user entries for share viewers with hideUserInput
+    if (ctx.ws.data.hideUserInput) {
+      entries = entries.filter(e => (e as { type?: string }).type !== 'user')
+    }
     ctx.reply({ type: 'transcript_entries', sessionId: data.sessionId, entries, isInitial: true })
   } else {
     const sessionSocket = ctx.sessions.getSessionSocket(data.sessionId)

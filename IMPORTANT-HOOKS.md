@@ -24,8 +24,8 @@ transcript management, and the quirks that'll bite you at 3am.
 | `TaskCompleted` | Team task done | `session_id`, `task_id`, `task_subject`, `owner`, `team_name` |
 | `InstructionsLoaded` | CLAUDE.md loaded | `session_id` |
 | `ConfigChange` | Settings changed | `session_id` |
-| `WorktreeCreate` | Git worktree created | `session_id` |
-| `WorktreeRemove` | Git worktree removed | `session_id` |
+| `WorktreeCreate` | Git worktree created | `session_id`, `cwd`, `name` | **CUSTOM HOOK** -- `scripts/worktree-create.sh` branches from local HEAD instead of origin/HEAD. Registered conditionally (only if script exists). |
+| `WorktreeRemove` | Git worktree removed | `session_id`, `cwd`, `name`, `path` | **CUSTOM HOOK** -- `scripts/worktree-remove.sh` safety net: checks for unmerged commits, attempts fast-forward. CC ignores exit codes. |
 | `Elicitation` | MCP server requests user input (CC 2.1.76+) | `session_id` |
 | `ElicitationResult` | User responds to MCP elicitation (CC 2.1.76+) | `session_id` |
 
@@ -323,3 +323,43 @@ as current context window size.
 Claude's internal session ID differs from rclaude's `internalId`. Task files
 could be under either `~/.claude/tasks/{claudeSessionId}/` or
 `~/.claude/tasks/{internalId}/`. rclaude watches both.
+
+## Worktree Lifecycle
+
+### The Problem
+CC creates worktrees from `origin/HEAD` -- the last PUSHED commit, not local
+HEAD. For local-heavy workflows with unpushed commits, worktrees start from
+stale history and produce unmergeable branches.
+
+### The Solution: Three-Layer Defense
+
+```
+WorktreeCreate hook          worktree-finish.sh          WorktreeRemove hook
+(scripts/worktree-create.sh)  (merge-back instruction)    (scripts/worktree-remove.sh)
+        |                           |                           |
+  Branch from local HEAD      Rebase + fast-forward       Last-ditch fast-forward
+  Copy .worktreeinclude       main before exit            if CC forgot to merge
+  Run worktree-init.sh
+```
+
+**Layer 1 - WorktreeCreate hook:** Branches from local HEAD, not origin/HEAD.
+Copies `.worktreeinclude` files. Runs `worktree-init.sh` (bun install, etc.).
+Registered conditionally -- only when `scripts/worktree-create.sh` exists.
+
+**Layer 2 - Merge-back instruction:** Ad-hoc task prompts include instructions
+to run `scripts/worktree-finish.sh` before exiting. This rebases onto main and
+fast-forwards. Interactive sessions get guidance via CLAUDE.md.
+
+**Layer 3 - Safety nets:**
+- Wrapper (`headless-lifecycle.ts`): On ad-hoc result, checks for unmerged
+  commits and attempts fast-forward before exit.
+- WorktreeRemove hook: Last chance to fast-forward before CC deletes the worktree.
+  CC ignores exit codes, so this can't block removal.
+
+### Hook Data Format
+Both hooks receive JSON on stdin (no positional args):
+- `WorktreeCreate`: `{ session_id, transcript_path, cwd, hook_event_name, name }`
+- `WorktreeRemove`: `{ session_id, cwd, hook_event_name, name, path }`
+
+WorktreeCreate MUST print the worktree path to stdout and exit 0.
+Non-zero exit aborts worktree creation.

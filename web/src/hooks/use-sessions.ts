@@ -226,6 +226,7 @@ interface SessionsState {
     createdBy: string
     label?: string
     permissions: string[]
+    hideUserInput?: boolean
     viewerCount: number
   }>
   setShares: (
@@ -237,6 +238,7 @@ interface SessionsState {
       createdBy: string
       label?: string
       permissions: string[]
+      hideUserInput?: boolean
       viewerCount: number
     }>,
   ) => void
@@ -723,8 +725,12 @@ export async function fetchSubagentTranscript(sessionId: string, agentId: string
   return res.json()
 }
 
-export function reviveSession(sessionId: string, headless?: boolean): boolean {
-  return wsSend('revive_session', { sessionId, ...(headless !== undefined && { headless }) })
+export function reviveSession(sessionId: string, headless?: boolean, jobId?: string): boolean {
+  return wsSend('revive_session', {
+    sessionId,
+    ...(headless !== undefined && { headless }),
+    ...(jobId && { jobId }),
+  })
 }
 
 export function sendInput(sessionId: string, input: string): boolean {
