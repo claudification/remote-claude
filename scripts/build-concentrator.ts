@@ -34,6 +34,19 @@ async function build() {
   const stat = await Bun.file(OUT_FILE).stat()
   const sizeMB = (stat?.size || 0) / 1024 / 1024
   console.log(`[build] Size: ${sizeMB.toFixed(2)} MB`)
+
+  // Ad-hoc codesign on macOS (required by AppleSystemPolicy on Sequoia 15.4+)
+  // Bun 1.3.12 embeds a corrupt LC_CODE_SIGNATURE; strip then re-sign.
+  if (process.platform === 'darwin') {
+    const { spawnSync } = await import('node:child_process')
+    spawnSync('codesign', ['--remove-signature', OUT_FILE], { stdio: 'inherit' })
+    const sign = spawnSync('codesign', ['--force', '--sign', '-', OUT_FILE], {
+      stdio: 'inherit',
+    })
+    if (sign.status !== 0) {
+      console.error('[build] Warning: codesign failed')
+    }
+  }
 }
 
 build()
