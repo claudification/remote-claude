@@ -126,6 +126,20 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
           text: result.result_text,
         } as unknown as WrapperMessage)
       }
+
+      // Ad-hoc sessions: auto-terminate after the first result.
+      // CC in stream-json mode stays alive waiting for more stdin input.
+      // For fire-and-forget tasks, we exit after the task completes.
+      const isAdHoc = process.env.RCLAUDE_ADHOC === '1'
+      if (isAdHoc) {
+        debug(`[ad-hoc] Result received, scheduling graceful exit in 2s`)
+        ctx.diag('ad-hoc', `Task complete (${result.subtype}), exiting`)
+        setTimeout(() => {
+          debug('[ad-hoc] Exiting')
+          cleanup()
+          process.exit(0)
+        }, 2000)
+      }
     },
 
     onStreamEvent(event) {
