@@ -395,14 +395,23 @@ export const TranscriptView = memo(function TranscriptView({
     requestAnimationFrame(settle)
   }, [mainGroups.length, virtualizer])
 
-  // Subscribe to newDataSeq without triggering re-renders - only used for scroll-to-bottom
+  // Subscribe to selected session's transcript changes for scroll-to-bottom.
+  // IMPORTANT: track the transcript array REFERENCE for the selected session, not the global
+  // newDataSeq counter. newDataSeq increments for ANY session's data (events, transcripts),
+  // which caused scrollToBottom -> virtualizer.scrollToIndex -> TranscriptView re-render on
+  // every store update from any session. By comparing the specific transcript reference,
+  // we only scroll when the viewed session's data actually changes.
   const followRef = useRef(follow)
   followRef.current = follow
   useEffect(() => {
-    let lastSeq = useSessionsStore.getState().newDataSeq
+    const getTranscriptRef = (state: { selectedSessionId: string | null; transcripts: Record<string, unknown> }) =>
+      state.selectedSessionId ? state.transcripts[state.selectedSessionId] : undefined
+    let lastRef = getTranscriptRef(useSessionsStore.getState())
+
     return useSessionsStore.subscribe(state => {
-      if (state.newDataSeq !== lastSeq) {
-        lastSeq = state.newDataSeq
+      const current = getTranscriptRef(state)
+      if (current !== lastRef) {
+        lastRef = current
         if (followRef.current && !followKilledRef.current) scrollToBottom()
       }
     })
