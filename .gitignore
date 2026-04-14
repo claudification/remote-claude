@@ -8,5 +8,6 @@ package-lock.json
 *.tsbuildinfo
 .env
 .agent.pid
+src/shared/version.ts
 NOTES.md
 .rclaude/
