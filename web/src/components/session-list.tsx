@@ -112,7 +112,7 @@ function SessionHoverTooltip({
   )
 
   function handleMouseEnter() {
-    hoverTimeout.current = setTimeout(() => setOpen(true), 400)
+    hoverTimeout.current = setTimeout(() => setOpen(true), 5000)
   }
   function handleMouseLeave() {
     if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
