@@ -231,8 +231,9 @@ function buildHeadlessArgs(opts: {
   const args = ['--dangerously-skip-permissions']
   if (opts.mode === 'continue') args.push('--continue')
   else if (opts.mode === 'resume') {
-    // Prefer session name over ID for --resume (more readable, survives fork)
-    const resumeKey = opts.resumeName || opts.resumeId
+    // Use CC session ID for --resume, not rclaude session name.
+    // rclaude names (e.g. "raging-walrus") are unknown to CC and cause interactive picker hang.
+    const resumeKey = opts.resumeId || opts.resumeName
     if (resumeKey) args.push('--resume', resumeKey)
   }
   if (opts.effort) args.push('--effort', opts.effort)

@@ -47,8 +47,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Build the launch command based on spawn mode
 case "$SPAWN_MODE" in
   resume)
-    # Resume a specific Claude session - prefer name over ID, fallback to ID
-    RESUME_KEY="${RESUME_NAME:-$RESUME_ID}"
+    # Resume a specific Claude session by CC session ID (not rclaude session name).
+    # rclaude names like "raging-walrus" are unknown to CC and cause interactive picker hang.
+    RESUME_KEY="${RESUME_ID:-$RESUME_NAME}"
     BASE_CMD="rclaude --dangerously-skip-permissions --resume $RESUME_KEY"
     ;;
   continue)

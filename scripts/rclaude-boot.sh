@@ -19,10 +19,11 @@ START_TIME=$(date +%s)
 # If RCLAUDE_SESSION_ID is set, pass --resume with explicit ID/name.
 # --continue picks "last session in CWD" (may be wrong after /clear).
 # --resume resumes a specific session (CC 2.1+).
-# Prefer session name over ID when available (more readable, survives fork).
+# ALWAYS use the session ID (CC's internal ID), never the rclaude session name.
+# Session names like "raging-walrus" are rclaude concepts - CC doesn't know them
+# and falls into an interactive fuzzy picker that hangs forever in tmux.
 if [[ -n "${RCLAUDE_SESSION_ID:-}" ]]; then
-  RESUME_KEY="${RCLAUDE_SESSION_NAME:-$RCLAUDE_SESSION_ID}"
-  rclaude "${ARGS[@]}" --resume "$RESUME_KEY"
+  rclaude "${ARGS[@]}" --resume "$RCLAUDE_SESSION_ID"
 else
   rclaude "${ARGS[@]}" --continue
 fi
