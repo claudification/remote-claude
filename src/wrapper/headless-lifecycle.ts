@@ -200,12 +200,24 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
           }
         }
 
-        debug(`[ad-hoc] Result received, scheduling graceful exit in 2s`)
-        ctx.diag('ad-hoc', `Task complete (${result.subtype}), exiting`)
+        debug(`[ad-hoc] Result received, closing CC stdin for graceful shutdown`)
+        ctx.diag('ad-hoc', `Task complete (${result.subtype}), closing stdin`)
+        // Close CC's stdin pipe so it sees EOF and runs shutdown hooks
+        // (including WorktreeRemove). CC will exit naturally, firing onExit.
         setTimeout(() => {
-          debug('[ad-hoc] Exiting')
-          cleanup()
-          process.exit(0)
+          try {
+            const stdin = ctx.streamProc?.proc?.stdin
+            if (stdin && typeof stdin !== 'number') stdin.end()
+            debug('[ad-hoc] CC stdin closed (EOF sent)')
+          } catch (e) {
+            debug(`[ad-hoc] Failed to close stdin: ${e}`)
+          }
+          // Safety net: if CC doesn't exit within 10s after EOF, force kill
+          setTimeout(() => {
+            debug('[ad-hoc] CC still alive after 10s, force exiting')
+            cleanup()
+            process.exit(0)
+          }, 10_000)
         }, 2000)
       }
     },
