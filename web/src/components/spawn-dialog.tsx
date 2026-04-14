@@ -512,14 +512,15 @@ export function SpawnDialog() {
 
               {/* Agent events from launch channel */}
               {launch.events.map((evt, i) => {
-                // info events: past ones render as done, the last one renders as active (current state)
-                const isLastInfo = evt.status === 'info' && !launch.events.slice(i + 1).some(e => e.status === 'info')
+                // info = "in progress" step. Active only if it's the last event overall
+                // (any subsequent event -- info or ok -- means this step is past)
+                const isCurrentStep = evt.status === 'info' && i === launch.events.length - 1
                 const stepStatus =
                   evt.status === 'ok'
                     ? 'done'
                     : evt.status === 'error'
                       ? 'error'
-                      : isLastInfo && !isSessionConnected
+                      : isCurrentStep && !isSessionConnected
                         ? 'active'
                         : 'done'
                 return <StepLine key={i} status={stepStatus} label={evt.step} detail={evt.detail} />
