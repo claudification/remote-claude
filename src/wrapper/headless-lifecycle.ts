@@ -137,20 +137,31 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
         // so rclaude handles merge + cleanup directly.
         const adHocWorktree = process.env.RCLAUDE_WORKTREE
         if (adHocWorktree) {
+          // ctx.cwd is the PROJECT ROOT (set at rclaude startup), not the worktree.
+          // CC's --worktree flag creates the worktree at .claude/worktrees/<name>.
+          const projectRoot = ctx.cwd
+          const wtPath = join(projectRoot, '.claude', 'worktrees', adHocWorktree)
+          const branch = `worktree-${adHocWorktree}`
+
           try {
-            const branchResult = Bun.spawnSync(['git', 'branch', '--show-current'], { cwd: ctx.cwd })
-            const branch = branchResult.stdout.toString().trim()
-            if (branch.startsWith('worktree-')) {
+            debug(`[ad-hoc] Worktree cleanup: path=${wtPath} branch=${branch}`)
+
+            // Check if worktree actually exists (CC may have cleaned it up itself)
+            const wtExists = Bun.spawnSync(['test', '-d', wtPath]).exitCode === 0
+            if (!wtExists) {
+              debug(`[ad-hoc] Worktree already gone: ${wtPath}`)
+              ctx.diag('ad-hoc', `Worktree already cleaned up by CC`)
+            } else {
               const mainBranch =
-                Bun.spawnSync(['git', 'rev-parse', '--verify', 'main'], { cwd: ctx.cwd }).exitCode === 0
+                Bun.spawnSync(['git', 'rev-parse', '--verify', 'main'], { cwd: wtPath }).exitCode === 0
                   ? 'main'
                   : 'master'
-              const aheadResult = Bun.spawnSync(['git', 'rev-list', '--count', `${mainBranch}..HEAD`], { cwd: ctx.cwd })
-              const ahead = parseInt(aheadResult.stdout.toString().trim(), 10)
+              const aheadResult = Bun.spawnSync(['git', 'rev-list', '--count', `${mainBranch}..HEAD`], { cwd: wtPath })
+              const ahead = Number.parseInt(aheadResult.stdout.toString().trim(), 10) || 0
 
-              let merged = ahead === 0 // already merged if nothing ahead
+              let merged = ahead === 0
               if (ahead > 0) {
-                const ff = Bun.spawnSync(['git', 'fetch', '.', `HEAD:${mainBranch}`], { cwd: ctx.cwd })
+                const ff = Bun.spawnSync(['git', 'fetch', '.', `HEAD:${mainBranch}`], { cwd: wtPath })
                 if (ff.exitCode === 0) {
                   debug(`[ad-hoc] Merged ${ahead} commits from ${branch} to ${mainBranch}`)
                   ctx.diag('ad-hoc', `Merged ${ahead} commits from ${branch} to ${mainBranch}`)
@@ -159,31 +170,22 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
                   debug(`[ad-hoc] Cannot fast-forward ${mainBranch} (${ahead} unmerged commits on ${branch})`)
                   ctx.diag('ad-hoc', `WARNING: ${ahead} unmerged commits on ${branch} - worktree preserved`)
                 }
+              } else {
+                debug(`[ad-hoc] Branch ${branch} already merged (0 commits ahead)`)
               }
 
-              // Clean up worktree + branch ONLY if fully merged
               if (merged) {
-                // Find the worktree path (cwd IS the worktree for ad-hoc sessions)
-                const wtPath = ctx.cwd
-                // Step out of worktree to remove it (git needs us outside)
-                const parentCwd = join(ctx.cwd, '..', '..', '..') // .claude/worktrees/<name> -> project root
-                const resolvedParent =
-                  Bun.spawnSync(['git', 'rev-parse', '--show-toplevel'], {
-                    cwd: parentCwd,
-                  })
-                    .stdout.toString()
-                    .trim() || parentCwd
-
-                const removeResult = Bun.spawnSync(['git', 'worktree', 'remove', wtPath], { cwd: resolvedParent })
+                // Remove worktree from project root (must be outside the worktree)
+                const removeResult = Bun.spawnSync(['git', 'worktree', 'remove', wtPath], { cwd: projectRoot })
                 if (removeResult.exitCode === 0) {
                   debug(`[ad-hoc] Removed worktree: ${wtPath}`)
                   ctx.diag('ad-hoc', `Worktree removed: ${adHocWorktree}`)
-                  // Delete the branch
-                  const branchDel = Bun.spawnSync(['git', 'branch', '-d', branch], { cwd: resolvedParent })
+                  const branchDel = Bun.spawnSync(['git', 'branch', '-d', branch], { cwd: projectRoot })
                   if (branchDel.exitCode === 0) {
                     debug(`[ad-hoc] Deleted branch: ${branch}`)
+                    ctx.diag('ad-hoc', `Branch deleted: ${branch}`)
                   } else {
-                    debug(`[ad-hoc] Branch delete failed (may already be gone): ${branchDel.stderr.toString().trim()}`)
+                    debug(`[ad-hoc] Branch delete failed: ${branchDel.stderr.toString().trim()}`)
                   }
                 } else {
                   const err = removeResult.stderr.toString().trim()
