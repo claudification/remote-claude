@@ -2,6 +2,7 @@ import { Mic, Paperclip } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { VoiceOverlay } from '@/components/voice-overlay'
+import type { ProjectTaskMeta } from '@/hooks/use-project'
 import { useProject } from '@/hooks/use-project'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { scoreAndSortTasks } from '@/lib/task-scoring'
@@ -14,9 +15,80 @@ const EMPTY_INFO: { slashCommands: string[]; skills: string[]; agents: string[] 
   agents: [],
 }
 
-// Built-in headless commands (always available, shown first with distinct color)
-const BUILTIN_COMMANDS = ['model', 'clear', 'exit', 'compact', 'settings', 'config', 'workon']
+// --- Sub-command registry: declarative argument completers for builtin commands ---
+
+interface SubCommandItem {
+  value: string
+  label?: string
+  builtin?: boolean
+}
+
+interface SubCommandContext {
+  tasks: ProjectTaskMeta[]
+}
+
+interface SubCommandDef {
+  name: string
+  noArg?: boolean
+  completer?: (query: string, ctx: SubCommandContext) => SubCommandItem[]
+  onSelect?: (value: string, ctx: SubCommandContext) => string | null
+  enterBehavior?: 'select' | 'select-or-submit'
+}
+
 const KNOWN_MODELS = ['opus', 'sonnet', 'haiku', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']
+
+const SUB_COMMANDS: SubCommandDef[] = [
+  {
+    name: 'model',
+    enterBehavior: 'select-or-submit',
+    completer: q =>
+      KNOWN_MODELS.filter(m => !q || m.toLowerCase().includes(q.toLowerCase())).map(m => ({
+        value: m,
+        builtin: true,
+      })),
+  },
+  {
+    name: 'workon',
+    enterBehavior: 'select',
+    completer: (q, ctx) =>
+      scoreAndSortTasks(ctx.tasks, q)
+        .slice(0, 12)
+        .map(t => ({
+          value: t.slug,
+          label: `[${t.status}] ${t.title}${t.priority ? ` (${t.priority})` : ''}`,
+        })),
+    onSelect: (slug, ctx) => {
+      const task = ctx.tasks.find(t => t.slug === slug)
+      if (!task) return null
+      const parts = [`/workon: ${task.title}`]
+      const meta = [task.status, task.priority].filter(Boolean).join(', ')
+      if (meta) parts[0] += ` (${meta})`
+      if (task.bodyPreview) parts.push('', task.bodyPreview)
+      return parts.join('\n')
+    },
+  },
+  { name: 'clear', noArg: true },
+  { name: 'exit', noArg: true },
+  { name: 'compact', noArg: true },
+  { name: 'settings' },
+  { name: 'config' },
+]
+
+const BUILTIN_NAMES = SUB_COMMANDS.map(c => c.name)
+const NO_ARG_COMMANDS = new Set([
+  ...SUB_COMMANDS.filter(c => c.noArg).map(c => c.name),
+  'context', // CC-reported commands that take no args
+  'quit',
+])
+const SUB_COMMAND_MAP = new Map(SUB_COMMANDS.filter(c => c.completer).map(c => [c.name, c]))
+
+/** Match `/command args...` at start of input. Returns [def, argsRest] or null. */
+function matchSubCommand(input: string): [SubCommandDef, string] | null {
+  const m = input.match(/^\/(\S+)\s+([\s\S]*)/)
+  if (!m) return null
+  const cmd = SUB_COMMAND_MAP.get(m[1].toLowerCase())
+  return cmd ? [cmd, m[2]] : null
+}
 
 function fuzzyScore(query: string, candidate: string): number {
   if (!query) return 1
@@ -155,34 +227,27 @@ export function MarkdownInput({
     return (sid ? state.sessionInfo[sid] : null) || EMPTY_INFO
   })
 
-  // Task data for /workon autocomplete - only load when user types /workon
-  const isWorkonInput = enableAutocomplete && /^\/workon\s/i.test(value)
-  const workonSessionId = useSessionsStore(state => state.selectedSessionId)
-  const { tasks: workonTasks } = useProject(isWorkonInput ? workonSessionId : null)
+  // Task data for sub-command completers (e.g. /workon) - only load when needed
+  const hasSubCommandWithTasks = enableAutocomplete && /^\/workon\s/i.test(value)
+  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
+  const { tasks: projectTasks } = useProject(hasSubCommandWithTasks ? selectedSessionId : null)
+  const subCmdCtx = useMemo((): SubCommandContext => ({ tasks: projectTasks }), [projectTasks])
 
   const acItems = useMemo((): Array<{ item: string; label?: string; builtin: boolean }> => {
     if (!maybeAutocomplete) return []
 
-    // Special case: /model {query} -> model autocomplete
-    const modelMatch = value.match(/^\/model\s+(\S*)$/)
-    if (modelMatch) {
-      const q = modelMatch[1].toLowerCase()
-      return KNOWN_MODELS.filter(m => !q || m.toLowerCase().includes(q)).map(m => ({ item: m, builtin: true }))
-    }
-
-    // Special case: /workon {query} -> project task autocomplete
-    const workonMatch = value.match(/^\/workon\s+(.*)/i)
-    if (workonMatch) {
-      const q = workonMatch[1].trim()
-      const matched = scoreAndSortTasks(workonTasks, q)
-      return matched.slice(0, 12).map(t => ({
-        item: t.slug,
-        label: `[${t.status}] ${t.title}${t.priority ? ` (${t.priority})` : ''}`,
-        builtin: false,
+    // Sub-command completion: /command {query} -> delegate to registered completer
+    const sub = matchSubCommand(value)
+    if (sub) {
+      const [cmd, rest] = sub
+      return (cmd.completer?.(rest.trim(), subCmdCtx) ?? []).map(x => ({
+        item: x.value,
+        label: x.label,
+        builtin: x.builtin ?? false,
       }))
     }
 
-    // Detect trigger at cursor position
+    // Standard trigger detection: scan backwards from cursor for / or @
     const pos = textareaRef.current?.selectionStart ?? value.length
     let start = pos - 1
     while (start >= 0 && /[a-zA-Z0-9_:-]/.test(value[start])) start--
@@ -203,16 +268,16 @@ export function MarkdownInput({
 
     if (ch === '/') {
       const atStart = start === 0
-      // Built-in commands (model, clear, exit, etc.) only at start of input
+      // Registered builtin commands (model, clear, exit, etc.) only at start of input
       if (atStart) {
-        for (const item of BUILTIN_COMMANDS) {
+        for (const item of BUILTIN_NAMES) {
           const score = !q ? 100 : item.includes(q) ? 100 + (item.startsWith(q) ? 10 : 0) : 0
           if (score > 0) scored.push({ item, score, builtin: true })
         }
       }
       // CC slash commands (skills, etc.) complete anywhere in text
       for (const item of sessionInfoData.slashCommands || []) {
-        if (BUILTIN_COMMANDS.includes(item)) continue // skip dupes
+        if (BUILTIN_NAMES.includes(item)) continue // skip dupes
         const score = fuzzyScore(q, item)
         if (score > 0) scored.push({ item, score, builtin: false })
       }
@@ -226,7 +291,7 @@ export function MarkdownInput({
 
     scored.sort((a, b) => b.score - a.score)
     return scored.slice(0, 12).map(x => ({ item: x.item, builtin: x.builtin }))
-  }, [maybeAutocomplete, value, sessionInfoData, workonTasks])
+  }, [maybeAutocomplete, value, sessionInfoData, subCmdCtx])
 
   // Resolve trigger char for the dropdown display
   const acTrigger = useMemo(() => {
@@ -381,25 +446,12 @@ export function MarkdownInput({
     haptic('tap')
     setAcIndex(0)
 
-    // Special case: /model {model} - replace just the model arg
-    if (value.match(/^\/model\s+/)) {
-      const replacement = `/model ${item}`
-      onChange(replacement)
-      requestAnimationFrame(() => {
-        if (ta) ta.selectionStart = ta.selectionEnd = replacement.length
-      })
-      return
-    }
-
-    // Special case: /workon {task} - replace with task prompt
-    if (value.match(/^\/workon\s+/i)) {
-      const task = workonTasks.find(t => t.slug === item)
-      if (task) {
-        const parts = [`/workon: ${task.title}`]
-        const meta = [task.status, task.priority].filter(Boolean).join(', ')
-        if (meta) parts[0] += ` (${meta})`
-        if (task.bodyPreview) parts.push('', task.bodyPreview)
-        const replacement = parts.join('\n')
+    // Sub-command mode: delegate to registered onSelect or use default /cmd {item}
+    const sub = matchSubCommand(value)
+    if (sub) {
+      const [cmd] = sub
+      const replacement = cmd.onSelect ? cmd.onSelect(item, subCmdCtx) : `/${cmd.name} ${item}`
+      if (replacement != null) {
         onChange(replacement)
         requestAnimationFrame(() => {
           if (ta) ta.selectionStart = ta.selectionEnd = replacement.length
@@ -408,6 +460,7 @@ export function MarkdownInput({
       return
     }
 
+    // Standard trigger-based selection
     const pos = ta?.selectionStart ?? value.length
     let start = pos - 1
     while (start >= 0 && /[a-zA-Z0-9_:-]/.test(value[start])) start--
@@ -415,8 +468,7 @@ export function MarkdownInput({
     if (start >= 0 && (trigger === '/' || trigger === '@')) {
       const before = value.slice(0, start)
       const after = value.slice(pos)
-      const noArgCommands = ['exit', 'clear', 'compact', 'context', 'quit']
-      const needsSpace = !noArgCommands.includes(item)
+      const needsSpace = !NO_ARG_COMMANDS.has(item)
       const replacement = `${trigger}${item}${needsSpace ? ' ' : ''}`
       onChange(before + replacement + after)
       requestAnimationFrame(() => {
@@ -433,7 +485,8 @@ export function MarkdownInput({
       // Fast path: if the typed value is a complete no-arg command, submit on Enter immediately
       if (e.key === 'Enter' && !e.shiftKey) {
         const trimmed = value.trim()
-        if (/^\/(?:clear|exit|compact|context|quit)$/.test(trimmed)) {
+        const noArgName = trimmed.startsWith('/') ? trimmed.slice(1) : ''
+        if (noArgName && NO_ARG_COMMANDS.has(noArgName)) {
           e.preventDefault()
           handleSubmit()
           return
@@ -457,23 +510,20 @@ export function MarkdownInput({
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         const selected = acItems[acIndex]
-        // /model X: selecting a model fills it in, then Enter submits
-        if (value.match(/^\/model\s+/)) {
-          // If already matches, submit. Otherwise fill in the model.
-          const modelArg = value.replace(/^\/model\s+/, '').trim()
-          if (modelArg === selected.item) {
+
+        // Sub-command mode: use enterBehavior from registry
+        const sub = matchSubCommand(value)
+        if (sub) {
+          const [cmd, rest] = sub
+          if (cmd.enterBehavior === 'select-or-submit' && rest.trim() === selected.item) {
             handleSubmit()
           } else {
             selectAutocomplete(selected.item)
           }
           return
         }
-        // /workon X: always select (fills task prompt), never direct-submit from autocomplete
-        if (value.match(/^\/workon\s+/i)) {
-          selectAutocomplete(selected.item)
-          return
-        }
-        // If the input already matches the selected item exactly, submit it
+
+        // Standard mode: if input matches selected exactly, submit
         const currentCmd = value.startsWith('/')
           ? value.slice(1).trim()
           : value.startsWith('@')
@@ -481,16 +531,12 @@ export function MarkdownInput({
             : ''
         if (currentCmd === selected.item) {
           handleSubmit()
+        } else if (NO_ARG_COMMANDS.has(selected.item)) {
+          // No-arg commands: submit directly to avoid infinite fill-then-match loop
+          onChange(`/${selected.item}`)
+          requestAnimationFrame(() => handleSubmit())
         } else {
-          // For no-arg commands, selecting fills the exact same value.
-          // Submit directly to avoid an infinite fill-then-match loop.
-          const noArgCommands = ['exit', 'clear', 'compact', 'context', 'quit']
-          if (noArgCommands.includes(selected.item)) {
-            onChange(`/${selected.item}`)
-            requestAnimationFrame(() => handleSubmit())
-          } else {
-            selectAutocomplete(selected.item)
-          }
+          selectAutocomplete(selected.item)
         }
         return
       }
