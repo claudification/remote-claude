@@ -30,11 +30,23 @@ export interface ContextDeps {
     resolve(callerCwd: string, localId: string): string | undefined
   }
   messageQueue: {
-    enqueue(targetCwd: string, fromCwd: string, fromProject: string, message: Record<string, unknown>, targetName?: string): void
+    enqueue(
+      targetCwd: string,
+      fromCwd: string,
+      fromProject: string,
+      message: Record<string, unknown>,
+      targetName?: string,
+    ): void
     drain(
       targetCwd: string,
       sessionName?: string,
-    ): Array<{ ts: number; fromCwd: string; fromProject: string; message: Record<string, unknown>; targetName?: string }>
+    ): Array<{
+      ts: number
+      fromCwd: string
+      fromProject: string
+      message: Record<string, unknown>
+      targetName?: string
+    }>
     getQueueSize(targetCwd: string): number
   }
 }

@@ -220,7 +220,7 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
   // Maps taskId -> toolUseId (reverse of what onTaskStarted builds externally)
   const agentTaskToToolUse = new Map<string, string>()
 
-  // Replay buffer: accumulate replayed entries from --continue, flush as isInitial=true
+  // Replay buffer: accumulate replayed entries from --resume, flush as isInitial=true
   const MAX_INITIAL_ENTRIES = 500
   const METADATA_TYPES = new Set(['summary', 'custom-title', 'agent-name', 'pr-link'])
   let replayBuffer: TranscriptEntry[] = []

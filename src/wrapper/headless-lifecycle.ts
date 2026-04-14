@@ -350,11 +350,10 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
 
     onExit(code) {
       if (ctx.clearRequested) {
-        // /clear: respawn CC fresh (strip --continue/--resume/--session-id)
+        // /clear: respawn CC fresh (strip --resume/--session-id)
         ctx.clearRequested = false
         const freshArgs = finalClaudeArgs.filter(
           (a, i, arr) =>
-            a !== '--continue' &&
             a !== '--resume' &&
             !(i > 0 && arr[i - 1] === '--resume') &&
             a !== '--session-id' &&

@@ -253,7 +253,7 @@ function buildHeadlessEnv(opts: {
  * Build CLI args for a directly-spawned headless rclaude process.
  */
 function buildHeadlessArgs(opts: {
-  mode?: 'fresh' | 'continue' | 'resume'
+  mode?: 'fresh' | 'resume'
   resumeId?: string
   resumeName?: string
   effort?: string
@@ -262,8 +262,7 @@ function buildHeadlessArgs(opts: {
   maxBudgetUsd?: number
 }): string[] {
   const args = ['--dangerously-skip-permissions']
-  if (opts.mode === 'continue') args.push('--continue')
-  else if (opts.mode === 'resume') {
+  if (opts.mode === 'resume') {
     // Use CC session ID for --resume, not rclaude session name.
     // rclaude names (e.g. "raging-walrus") are unknown to CC and cause interactive picker hang.
     const resumeKey = opts.resumeId || opts.resumeName
@@ -515,7 +514,7 @@ async function reviveSession(
   reviveScript: string,
   secret: string,
   verbose: boolean,
-  mode?: string,
+  mode?: 'fresh' | 'resume',
   headless = true,
   effort?: string,
   model?: string,
@@ -544,7 +543,7 @@ async function reviveSession(
     }
 
     const args = buildHeadlessArgs({
-      mode: mode as 'fresh' | 'continue' | 'resume',
+      mode,
       resumeId: sessionId,
       resumeName: sessionName,
       effort,
@@ -566,7 +565,7 @@ async function reviveSession(
     const spawnRes = spawnHeadlessDirect(rclaudeBin, cwd, wrapperId, args, env, jobId)
     result.success = spawnRes.success
     result.error = spawnRes.error
-    result.continued = mode === 'continue'
+    result.continued = mode === 'resume'
     return result
   }
 
@@ -616,7 +615,7 @@ async function reviveSession(
       result.continued = true
       launchLog(jobId, 'Session revived', 'ok', `continued=true tmux=${result.tmuxSession}`)
       break
-    case 1: // success, fresh session (--continue failed)
+    case 1: // success, fresh session (resume failed or not requested)
       result.success = true
       result.continued = false
       launchLog(jobId, 'Fresh session started', 'ok', `tmux=${result.tmuxSession}`)
@@ -675,7 +674,7 @@ async function spawnSession(
   secret: string,
   _verbose: boolean,
   mkdir = false,
-  mode?: 'fresh' | 'continue' | 'resume',
+  mode?: 'fresh' | 'resume',
   resumeId?: string,
   headless = true,
   effort?: string,
@@ -1117,7 +1116,7 @@ function connect(
             sessionId: string
             cwd: string
             wrapperId: string
-            mode?: string
+            mode?: 'fresh' | 'resume'
             headless?: boolean
             effort?: string
             model?: string
@@ -1202,7 +1201,7 @@ function connect(
             cwd: string
             wrapperId: string
             mkdir?: boolean
-            mode?: 'fresh' | 'continue' | 'resume'
+            mode?: 'fresh' | 'resume'
             resumeId?: string
             headless?: boolean
             effort?: string

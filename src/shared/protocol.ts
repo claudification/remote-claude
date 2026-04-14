@@ -18,7 +18,7 @@ export type WrapperCapability = 'terminal' | 'channel' | 'headless' | 'ad-hoc'
 export interface SessionMeta {
   type: 'meta'
   sessionId: string
-  wrapperId: string // unique per rclaude instance (multiple wrappers can share a sessionId via --continue)
+  wrapperId: string // unique per rclaude instance (multiple wrappers can share a sessionId via --resume)
   cwd: string
   startedAt: number
   model?: string
@@ -953,7 +953,7 @@ export interface ReviveResult {
   success: boolean
   error?: string
   tmuxSession?: string
-  continued: boolean // true if --continue worked, false if fresh session
+  continued: boolean // true if --resume worked, false if fresh session
 }
 
 export interface SpawnResult {

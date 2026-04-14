@@ -90,7 +90,7 @@ export interface McpChannelCallbacks {
   }>
   onSpawnSession?: (params: {
     cwd: string
-    mode?: 'fresh' | 'continue' | 'resume'
+    mode?: 'fresh' | 'resume'
     resumeId?: string
     mkdir?: boolean
     headless?: boolean
@@ -428,9 +428,9 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             },
             mode: {
               type: 'string',
-              enum: ['fresh', 'continue', 'resume'],
+              enum: ['fresh', 'resume'],
               description:
-                'Spawn mode (only for action=spawn): "fresh" = new session, "continue" = resume latest in that dir, "resume" = resume specific session. Default: tries continue first, falls back to fresh.',
+                'Spawn mode (only for action=spawn): "fresh" = new session, "resume" = resume specific session by ID. Default: fresh.',
             },
             resume_id: {
               type: 'string',
@@ -848,7 +848,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           // --- SPAWN (default) ---
           const cwd = params.cwd
           if (!cwd) return { content: [{ type: 'text', text: 'Error: cwd is required for spawn' }], isError: true }
-          const mode = params.mode as 'fresh' | 'continue' | 'resume' | undefined
+          const mode = params.mode as 'fresh' | 'resume' | undefined
           const resumeId = params.resume_id
           if (mode === 'resume' && !resumeId) {
             return {
@@ -865,8 +865,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             debug(`[channel] spawn_session failed: ${result?.error}`)
             return { content: [{ type: 'text', text: result?.error || 'Failed to spawn session' }], isError: true }
           }
-          const modeDesc =
-            mode === 'resume' ? `resuming ${resumeId}` : mode === 'continue' ? 'continuing latest' : 'fresh start'
+          const modeDesc = mode === 'resume' ? `resuming ${resumeId}` : 'fresh start'
           debug(`[channel] spawn_session: ${cwd} (${modeDesc}) session=${result.session ? 'ready' : 'pending'}`)
 
           if (result.session) {

@@ -505,9 +505,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       })),
       taskCount: session.tasks.length,
       pendingTaskCount: session.tasks.filter(t => t.status === 'pending' || t.status === 'in_progress').length,
-      activeTasks: session.tasks
-        .filter(t => t.status === 'in_progress')
-        .map(t => ({ id: t.id, subject: t.subject })),
+      activeTasks: session.tasks.filter(t => t.status === 'in_progress').map(t => ({ id: t.id, subject: t.subject })),
       pendingTasks: session.tasks
         .filter(t => t.status === 'pending')
         .slice(0, 4)

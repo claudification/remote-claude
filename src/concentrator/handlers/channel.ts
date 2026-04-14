@@ -159,7 +159,9 @@ const channelListSessions: MessageHandler = (ctx, data) => {
     const queueSize = ctx.messageQueue.getQueueSize(s.cwd)
 
     // Assign a stable project-level slug via the caller's address book
-    const projectSlug = callerCwd ? ctx.addressBook.getOrAssign(callerCwd, s.cwd, sessionName) : s.cwd.split('/').pop() || s.id
+    const projectSlug = callerCwd
+      ? ctx.addressBook.getOrAssign(callerCwd, s.cwd, sessionName)
+      : s.cwd.split('/').pop() || s.id
 
     // Compound addressing: if multiple sessions share this CWD, append :session-slug
     const cwdGroup = cwdGroups.get(s.cwd) || []
@@ -168,7 +170,9 @@ const channelListSessions: MessageHandler = (ctx, data) => {
       // Generate unique session slugs within this CWD group
       const sessionSlug = slugify(s.title || s.id.slice(0, 8))
       // Check for collisions within the group
-      const sameSlug = cwdGroup.filter(other => other.id !== s.id && slugify(other.title || other.id.slice(0, 8)) === sessionSlug)
+      const sameSlug = cwdGroup.filter(
+        other => other.id !== s.id && slugify(other.title || other.id.slice(0, 8)) === sessionSlug,
+      )
       const finalSessionSlug = sameSlug.length > 0 ? `${sessionSlug}-${s.id.slice(0, 6)}` : sessionSlug
       localId = `${projectSlug}:${finalSessionSlug}`
     } else {
@@ -235,9 +239,7 @@ const channelSend: MessageHandler = (ctx, data) => {
       // Bare project slug: single session -> route, multiple live -> error
       const liveSessions = sessionsAtCwd.filter(s => ctx.sessions.getActiveWrapperCount(s.id) > 0)
       if (liveSessions.length > 1) {
-        const names = liveSessions
-          .map(s => `${projectSlug}:${slugify(s.title || s.id.slice(0, 8))}`)
-          .join(', ')
+        const names = liveSessions.map(s => `${projectSlug}:${slugify(s.title || s.id.slice(0, 8))}`).join(', ')
         ctx.reply({
           type: 'channel_send_result',
           ok: false,

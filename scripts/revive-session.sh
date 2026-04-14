@@ -5,11 +5,10 @@
 # Called by rclaude-agent when the dashboard requests a session revival or spawn.
 # Customize this script to change tmux behavior, rclaude flags, etc.
 #
-# Usage: revive-session.sh <session-id> <cwd> [--mode fresh|continue|resume] [--resume-id <claude-session-id>] [--resume-name <session-name>]
+# Usage: revive-session.sh <session-id> <cwd> [--mode fresh|resume] [--resume-id <claude-session-id>] [--resume-name <session-name>]
 #
 # Modes:
 #   fresh    - Start a new session (default for spawn, uses --session-id for deterministic ID)
-#   continue - Resume the most recent session in the CWD (claude --continue)
 #   resume   - Resume a specific Claude session by ID (claude --resume <id>)
 #
 # Exit codes:
@@ -52,17 +51,9 @@ case "$SPAWN_MODE" in
     RESUME_KEY="${RESUME_ID:-$RESUME_NAME}"
     BASE_CMD="rclaude --dangerously-skip-permissions --resume $RESUME_KEY"
     ;;
-  continue)
-    # Resume the most recent session in this CWD - direct rclaude, no boot script
-    BASE_CMD="rclaude --dangerously-skip-permissions --continue"
-    ;;
-  fresh)
+  fresh|*)
     # Fresh start - direct rclaude, no boot script
     BASE_CMD="rclaude --dangerously-skip-permissions"
-    ;;
-  *)
-    # Default: use rclaude-boot.sh which tries --continue first, falls back to fresh
-    BASE_CMD="$SCRIPT_DIR/rclaude-boot.sh --dangerously-skip-permissions"
     ;;
 esac
 
@@ -179,9 +170,6 @@ tmux_launch() {
   echo "PANE_ID=$pane_id"
 }
 
-# Always spawn fresh - the --continue path had a race condition where both
-# --continue and fresh could launch simultaneously (--continue dies after 2s
-# verify window but before tmux cleans up, fresh launches alongside it)
 if tmux_launch "$SPAWN_CMD"; then
   echo "TMUX_SESSION=$TMUX_NAME"
   exit 0

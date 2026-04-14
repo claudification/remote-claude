@@ -655,7 +655,7 @@ export function ToolLine({
       const cwd = input.cwd as string
       const mode = input.mode as string | undefined
       const shortCwd = shortPath(cwd) || cwd
-      const modeLabel = mode === 'continue' ? 'continue' : mode === 'resume' ? 'resume' : 'fresh'
+      const modeLabel = mode === 'resume' ? 'resume' : 'fresh'
       // Parse result for session metadata
       let spawnedSession: Record<string, unknown> | undefined
       if (result) {

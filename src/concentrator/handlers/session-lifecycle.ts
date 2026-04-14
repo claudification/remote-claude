@@ -106,7 +106,9 @@ const meta: MessageHandler = (ctx, data) => {
         for (const item of queued) {
           targetWs.send(JSON.stringify(item.message))
         }
-        ctx.log.info(`Drained ${queued.length} queued message(s) for ${drainCwd.split('/').pop()}${sessionNameSlug ? `:${sessionNameSlug}` : ''}`)
+        ctx.log.info(
+          `Drained ${queued.length} queued message(s) for ${drainCwd.split('/').pop()}${sessionNameSlug ? `:${sessionNameSlug}` : ''}`,
+        )
       }
     }
   }

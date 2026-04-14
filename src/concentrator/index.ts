@@ -643,7 +643,7 @@ async function main() {
                       sessionId: session.id,
                       cwd: pendingRestart.cwd,
                       wrapperId,
-                      mode: 'continue',
+                      mode: 'resume',
                     }),
                   )
 

@@ -728,7 +728,7 @@ async function main() {
           if (trimmed === '/exit' || trimmed === '/quit' || trimmed === ':q' || trimmed === ':q!') {
             ctx.streamProc.kill()
           } else if (trimmed === '/clear') {
-            // Kill CC process and respawn fresh (no --continue/--resume)
+            // Kill CC process and respawn fresh (no --resume)
             diag('headless', 'Clear requested - killing CC and respawning fresh')
             ctx.streamProc.kill()
             // Don't exit -- respawn handled in onExit when clearRequested is set
@@ -1469,10 +1469,10 @@ async function main() {
   )
   // Auto-generate a funny session name unless user already specified --name/-n
   const hasUserName = claudeArgs.includes('--name') || claudeArgs.includes('-n')
-  const isResuming = claudeArgs.includes('--resume') || claudeArgs.includes('--continue') || claudeArgs.includes('-c')
+  const isResuming = claudeArgs.includes('--resume') || claudeArgs.includes('-c')
   // Managed sessions (spawned/revived via agent) get a funny name even when resuming,
   // unless a name was already provided via RCLAUDE_SESSION_NAME (-> hasUserName).
-  // User-initiated --continue/--resume skips name generation (existing session has one).
+  // User-initiated --resume skips name generation (existing session has one).
   const isManagedSession = !!process.env.RCLAUDE_WRAPPER_ID
   const sessionName = hasUserName || (isResuming && !isManagedSession) ? undefined : generateFunnyName()
 

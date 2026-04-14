@@ -78,8 +78,7 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
       sessionId: targetSessionId,
       cwd: target.cwd,
       wrapperId,
-      // Default mode uses rclaude-boot.sh which checks RCLAUDE_SESSION_ID
-      // and uses --resume (specific session) instead of --continue (CWD guess).
+      mode: 'resume',
       effort: resolveEffort(target.cwd, ctx.getProjectSettings),
       sessionName: target.title || undefined,
     }),
@@ -244,7 +243,7 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
         sessionId: target.id,
         cwd: target.cwd,
         wrapperId,
-        // Default mode uses rclaude-boot.sh which checks RCLAUDE_SESSION_ID
+        mode: 'resume',
         effort: resolveEffort(target.cwd, ctx.getProjectSettings),
         sessionName: target.title || undefined,
       }),

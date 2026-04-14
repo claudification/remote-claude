@@ -105,11 +105,23 @@ export interface HandlerContext {
   }
   /** Persistent message queue for offline delivery */
   messageQueue: {
-    enqueue(targetCwd: string, fromCwd: string, fromProject: string, message: Record<string, unknown>, targetName?: string): void
+    enqueue(
+      targetCwd: string,
+      fromCwd: string,
+      fromProject: string,
+      message: Record<string, unknown>,
+      targetName?: string,
+    ): void
     drain(
       targetCwd: string,
       sessionName?: string,
-    ): Array<{ ts: number; fromCwd: string; fromProject: string; message: Record<string, unknown>; targetName?: string }>
+    ): Array<{
+      ts: number
+      fromCwd: string
+      fromProject: string
+      message: Record<string, unknown>
+      targetName?: string
+    }>
     getQueueSize(targetCwd: string): number
   }
 

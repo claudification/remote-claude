@@ -651,7 +651,7 @@ export function createRouter(options: RouteOptions): Hono {
         sessionId,
         cwd: session.cwd,
         wrapperId,
-        mode: 'continue',
+        mode: 'resume',
         effort,
         model,
         sessionName: session.title || undefined,
@@ -742,7 +742,7 @@ export function createRouter(options: RouteOptions): Hono {
     const body = await c.req.json<{
       cwd: string
       mkdir?: boolean
-      mode?: 'fresh' | 'continue' | 'resume'
+      mode?: 'fresh' | 'resume'
       resumeId?: string
       headless?: boolean
       bare?: boolean
