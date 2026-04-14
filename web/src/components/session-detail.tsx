@@ -19,7 +19,7 @@ import { EventsView } from './events-view'
 import { FileEditor } from './file-editor'
 import { InlineTerminal } from './inline-terminal'
 import { MarkdownInput } from './markdown-input'
-import { ProjectBoard, TaskEditor } from './project-board'
+import { ProjectBoard, RunTaskDialog, TaskEditor } from './project-board'
 import { renderProjectIcon } from './project-settings-editor'
 import { ReviveMonitor } from './revive-monitor'
 import { ShareBanner } from './share-panel'
@@ -813,6 +813,7 @@ export const SessionDetail = memo(function SessionDetail() {
   const pendingTaskEdit = useSessionsStore(s => s.pendingTaskEdit)
   const { readTask, updateTask, moveTask } = useProject(selectedSessionId ?? null)
   const [taskEditorTask, setTaskEditorTask] = useState<import('@/hooks/use-project').ProjectTask | null>(null)
+  const [runTaskFromEditor, setRunTaskFromEditor] = useState<import('@/hooks/use-project').ProjectTask | null>(null)
   useEffect(() => {
     if (!pendingTaskEdit) return
     useSessionsStore.getState().setPendingTaskEdit(null)
@@ -886,7 +887,18 @@ export const SessionDetail = memo(function SessionDetail() {
               setTaskEditorTask(prev => (prev && prev.slug === slug ? { ...prev, slug: result, status: to } : prev))
             return !!result
           }}
+          onRun={task => {
+            setTaskEditorTask(null)
+            setRunTaskFromEditor(task)
+          }}
           onClose={() => setTaskEditorTask(null)}
+        />
+      )}
+      {runTaskFromEditor && selectedSessionId && (
+        <RunTaskDialog
+          task={runTaskFromEditor}
+          sessionId={selectedSessionId}
+          onClose={() => setRunTaskFromEditor(null)}
         />
       )}
       {/* Session Info - Collapsible */}

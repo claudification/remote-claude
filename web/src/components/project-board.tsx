@@ -21,6 +21,7 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronRight,
+  Copy,
   Eye,
   MoreHorizontal,
   Pencil,
@@ -120,6 +121,7 @@ export function TaskEditor({
   sessionId,
   onSave,
   onMove,
+  onRun,
   onClose,
 }: {
   task: ProjectTask
@@ -130,6 +132,7 @@ export function TaskEditor({
     patch: { title?: string; body?: string; priority?: string; tags?: string[] },
   ) => Promise<unknown>
   onMove: (slug: string, from: TaskStatus, to: TaskStatus) => Promise<boolean>
+  onRun: (task: ProjectTask) => void
   onClose: () => void
 }) {
   const [title, setTitle] = useState(task.title)
@@ -140,7 +143,6 @@ export function TaskEditor({
   const [tagInput, setTagInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(!body.trim())
-  const [showRunDialog, setShowRunDialog] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
   useKeyLayer({ Escape: () => onClose() }, { id: 'task-editor' })
@@ -404,7 +406,7 @@ export function TaskEditor({
                     type="button"
                     onClick={() => {
                       haptic('tap')
-                      setShowRunDialog(true)
+                      onRun({ ...task, title, body, status, priority, tags })
                     }}
                     className="flex items-center gap-1 whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
                   >
@@ -490,13 +492,6 @@ export function TaskEditor({
           </div>
         </div>
       </div>
-      {showRunDialog && (
-        <RunTaskDialog
-          task={{ ...task, title, body, status, priority, tags }}
-          sessionId={sessionId}
-          onClose={() => setShowRunDialog(false)}
-        />
-      )}
     </div>
   )
 }
@@ -508,17 +503,26 @@ type LaunchStep = {
   ts?: number
 }
 
-function RunTaskDialog({ task, sessionId, onClose }: { task: ProjectTask; sessionId: string; onClose: () => void }) {
+export function RunTaskDialog({
+  task,
+  sessionId,
+  onClose,
+}: {
+  task: ProjectTask
+  sessionId: string
+  onClose: () => void
+}) {
   const cwd = useSessionsStore(state => state.sessionsById[sessionId]?.cwd || '')
   const projectSettings = useSessionsStore(state => state.projectSettings[cwd])
   const [model, setModel] = useState(projectSettings?.defaultModel || '')
   const [effort, setEffort] = useState<string>(projectSettings?.defaultEffort || 'default')
   const [useWorktree, setUseWorktree] = useState(true)
   const [branchName, setBranchName] = useState(task.slug)
-  const [autoCommit, setAutoCommit] = useState(false)
+  const [autoCommit, setAutoCommit] = useState(true)
   const [maxBudgetUsd, setMaxBudgetUsd] = useState('')
-  const [timeout, setTimeout_] = useState('10')
+  const [timeout, setTimeout_] = useState('30')
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   // Launch monitor state
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
@@ -733,6 +737,58 @@ function RunTaskDialog({ task, sessionId, onClose }: { task: ProjectTask; sessio
     if (launchSessionId) {
       useSessionsStore.getState().selectSession(launchSessionId)
       onClose()
+    }
+  }
+
+  async function handleCopyDiagnostics() {
+    const elapsed = startTimeRef.current ? Math.round((Date.now() - startTimeRef.current) / 1000) : 0
+    const diag = {
+      type: 'run_task_diagnostics',
+      time: new Date().toISOString(),
+      task: { slug: task.slug, title: task.title, status: task.status, priority: task.priority, tags: task.tags },
+      cwd,
+      jobId,
+      wrapperId: wrapperId || launch.wrapperId || null,
+      sessionId: launchSessionId || launch.sessionId || null,
+      elapsed: `${elapsed}s`,
+      error: error || launch.error || null,
+      config: {
+        model: model || null,
+        effort,
+        worktree: useWorktree ? branchName : null,
+        autoCommit,
+        maxBudgetUsd: maxBudgetUsd || null,
+        timeout,
+      },
+      steps: steps.map(s => ({
+        label: s.label,
+        status: s.status,
+        detail: s.detail || null,
+        ts: s.ts || null,
+      })),
+      launchEvents: launch.events.map(e => ({
+        step: e.step,
+        status: e.status,
+        detail: e.detail || null,
+        t: e.t,
+      })),
+      launchState: { completed: launch.completed, failed: launch.failed },
+    }
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(diag, null, 2))
+      setCopied(true)
+      haptic('success')
+      globalThis.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = JSON.stringify(diag, null, 2)
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      setCopied(true)
+      haptic('success')
+      globalThis.setTimeout(() => setCopied(false), 2000)
     }
   }
 
@@ -1208,6 +1264,7 @@ function DroppableColumn({ status, children }: { status: TaskStatus; children: R
 export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionId: string }) {
   const { tasks, loading, refresh, createTask, moveTask, deleteTask, readTask, updateTask } = useProject(sessionId)
   const [editingTask, setEditingTask] = useState<ProjectTask | null>(null)
+  const [runTask, setRunTask] = useState<ProjectTask | null>(null)
   const [activeDragTask, setActiveDragTask] = useState<ProjectTaskMeta | null>(null)
   const [archiveExpanded, setArchiveExpanded] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -1550,9 +1607,16 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
             }
             return !!result
           }}
+          onRun={task => {
+            setEditingTask(null)
+            setRunTask(task)
+          }}
           onClose={() => setEditingTask(null)}
         />
       )}
+
+      {/* Run task dialog (lifted out of TaskEditor so it persists after editor closes) */}
+      {runTask && <RunTaskDialog task={runTask} sessionId={sessionId} onClose={() => setRunTask(null)} />}
     </div>
   )
 })
