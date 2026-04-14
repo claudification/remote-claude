@@ -153,29 +153,52 @@ export function getCacheEfficiency(
   return { ratio, label: 'poor', color: 'text-orange-400' }
 }
 
-const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+const CACHE_TTL_5M = 5 * 60 * 1000
+const CACHE_TTL_1H = 60 * 60 * 1000
 
-/** Estimate re-cache cost if the session has been idle past cache TTL */
-export function getCacheWarning(
-  lastActivity: number,
+function resolveCacheTtlMs(cacheTtl?: '5m' | '1h'): number {
+  return cacheTtl === '1h' ? CACHE_TTL_1H : CACHE_TTL_5M
+}
+
+export type CacheTimerState = 'hot' | 'warning' | 'critical' | 'expired' | 'unknown'
+
+/** Live cache timer state for countdown display */
+export function getCacheTimerInfo(
+  lastTurnEndedAt: number | undefined,
   tokenUsage: { input: number; cacheCreation: number; cacheRead: number } | undefined,
   model?: string,
-): { idleMs: number; reCacheCost: number; contextTokens: number } | null {
-  const idleMs = Date.now() - lastActivity
-  if (idleMs < CACHE_TTL_MS) return null
-  if (!tokenUsage) return null
+  cacheTtl?: '5m' | '1h',
+): {
+  state: CacheTimerState
+  remainingMs: number
+  ttlMs: number
+  reCacheCost: number
+  contextTokens: number
+} | null {
+  if (!lastTurnEndedAt || !tokenUsage) return null
 
-  // Context size = sum of all input components from the LAST turn
-  // (input + cacheCreation + cacheRead = total tokens sent to the API)
   const contextTokens = tokenUsage.input + tokenUsage.cacheCreation + tokenUsage.cacheRead
-  if (contextTokens < 50_000) return null // not worth warning about
+  if (contextTokens < 50_000) return null // not worth showing timer for tiny contexts
+
+  const ttlMs = resolveCacheTtlMs(cacheTtl)
+  const elapsed = Date.now() - lastTurnEndedAt
+  const remainingMs = ttlMs - elapsed
 
   const p = getPricing(model)
-  // Re-cache cost = context size * (cacheWrite5m - cacheRead) per token
-  // because a warm cache would pay cacheRead, but cold cache pays cacheWrite
   const reCacheCost = (contextTokens * (p.cacheWrite5m - p.cacheRead)) / 1_000_000
 
-  if (reCacheCost < 0.1) return null // not worth showing
+  if (reCacheCost < 0.05) return null // too small to care
 
-  return { idleMs, reCacheCost, contextTokens }
+  let state: CacheTimerState
+  if (remainingMs <= 0) {
+    state = 'expired'
+  } else if (remainingMs <= 30_000) {
+    state = 'critical'
+  } else if (remainingMs <= 60_000) {
+    state = 'warning'
+  } else {
+    state = 'hot'
+  }
+
+  return { state, remainingMs: Math.max(0, remainingMs), ttlMs, reCacheCost, contextTokens }
 }

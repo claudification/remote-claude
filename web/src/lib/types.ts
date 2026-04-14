@@ -80,6 +80,8 @@ export interface Session {
   }
   hasNotification?: boolean
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
+  cacheTtl?: '5m' | '1h'
+  lastTurnEndedAt?: number
   summary?: string
   title?: string
   agentName?: string

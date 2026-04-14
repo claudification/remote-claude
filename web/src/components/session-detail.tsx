@@ -5,27 +5,12 @@ import { useShallow } from 'zustand/react/shallow'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { type TaskStatus, useProject } from '@/hooks/use-project'
-import { fetchSubagentTranscript, reviveSession, sendInput, useSessionsStore, wsSend } from '@/hooks/use-sessions'
-import {
-  formatCost,
-  getBurnRate,
-  getCacheEfficiency,
-  getCacheWarning,
-  getCostColor,
-  getSessionCost,
-} from '@/lib/cost-utils'
+import { fetchSubagentTranscript, sendInput, useSessionsStore, wsSend } from '@/hooks/use-sessions'
+import { formatCost, getBurnRate, getCacheEfficiency, getCostColor, getSessionCost } from '@/lib/cost-utils'
 import { canTerminal, type TranscriptEntry } from '@/lib/types'
-import {
-  cn,
-  contextWindowSize,
-  formatAge,
-  formatDurationMs,
-  formatEffort,
-  formatModel,
-  haptic,
-  isMobileViewport,
-} from '@/lib/utils'
+import { cn, contextWindowSize, formatAge, formatEffort, formatModel, haptic, isMobileViewport } from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
+import { CacheExpiredBanner, CacheTimer } from './cache-timer'
 import { ConversationView } from './conversation-view'
 import { CostSparkline } from './cost-sparkline'
 import { DiagView } from './diag-view'
@@ -36,6 +21,7 @@ import { InlineTerminal } from './inline-terminal'
 import { MarkdownInput } from './markdown-input'
 import { ProjectBoard, TaskEditor } from './project-board'
 import { renderProjectIcon } from './project-settings-editor'
+import { ReviveMonitor } from './revive-monitor'
 import { ShareBanner } from './share-panel'
 import { SharedView } from './shared-view'
 import { SubagentView } from './subagent-view'
@@ -716,18 +702,15 @@ export const SessionDetail = memo(function SessionDetail() {
   const [follow, setFollow] = useState(true)
   const showThinking = useSessionsStore(s => s.dashboardPrefs.showThinking)
   const showDiag = useSessionsStore(s => s.dashboardPrefs.showDiag)
-  const [reviveState, setReviveState] = useState<'idle' | 'sending' | 'waiting' | 'error'>('idle')
-  const [reviveError, setReviveError] = useState<string | null>(null)
+  const [showReviveMonitor, setShowReviveMonitor] = useState(false)
   const [conversationTarget, setConversationTarget] = useState<{
     cwdA: string
     cwdB: string
     nameA: string
     nameB: string
   } | null>(null)
-  const [reviveCountdown, setReviveCountdown] = useState(0)
   const disableFollow = useCallback(() => setFollow(false), [])
   const enableFollow = useCallback(() => setFollow(true), [])
-  const reviveStartRef = useRef(0) // timestamp when revive started, to ignore pre-existing sessions
   const [infoExpanded, setInfoExpanded] = useState(false)
   const showTerminal = useSessionsStore(state => state.showTerminal)
   const terminalWrapperId = useSessionsStore(state => state.terminalWrapperId)
@@ -741,10 +724,7 @@ export const SessionDetail = memo(function SessionDetail() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedSessionId is the trigger dep, setters are stable React dispatch functions
   useEffect(() => {
     setFollow(true)
-    setReviveState('idle')
-    setReviveError(null)
-    setReviveCountdown(0)
-    reviveStartRef.current = 0
+    setShowReviveMonitor(false)
     setConversationTarget(null)
   }, [selectedSessionId])
 
@@ -834,38 +814,6 @@ export const SessionDetail = memo(function SessionDetail() {
 
   // HOOKS MUST BE BEFORE EARLY RETURNS - React rules!
 
-  // Countdown timer while waiting for revived session
-  useEffect(() => {
-    if (reviveState !== 'waiting') return
-    if (reviveCountdown <= 0) {
-      setReviveState('error')
-      setReviveError('Timed out - no session connected within 30s')
-      return
-    }
-    const t = setTimeout(() => setReviveCountdown(c => c - 1), 1000)
-    return () => clearTimeout(t)
-  }, [reviveState, reviveCountdown])
-
-  // Watch for new session connecting in same cwd (revive success)
-  const reviveCwd = session?.cwd
-  const reviveSessionId = session?.id
-  useEffect(() => {
-    if (reviveState !== 'waiting' || !reviveCwd || !reviveSessionId) return
-    return useSessionsStore.subscribe(state => {
-      const reviveTime = reviveStartRef.current
-      if (reviveTime === 0) return
-      const newSession = state.sessions.find(
-        s => s.id !== reviveSessionId && s.cwd === reviveCwd && s.status !== 'ended' && s.startedAt > reviveTime,
-      )
-      if (newSession) {
-        setReviveState('idle')
-        setReviveCountdown(0)
-        reviveStartRef.current = 0
-        useSessionsStore.getState().selectSession(newSession.id)
-      }
-    })
-  }, [reviveState, reviveCwd, reviveSessionId])
-
   // Plan mode: prefer concentrator state, fall back to transcript scan.
   // MUST be above the `if (!session)` early return -- hooks can't be after conditional returns.
   // biome-ignore lint/correctness/useExhaustiveDependencies: transcript.length used as dep key to avoid deep array comparison; transcript ref is accessed in body intentionally
@@ -912,19 +860,9 @@ export const SessionDetail = memo(function SessionDetail() {
   const canRevive = session?.status === 'ended' && agentConnected && canSpawn
 
   function handleRevive() {
-    if (!selectedSessionId || reviveState !== 'idle') return
-    setReviveState('sending')
-    setReviveError(null)
-    const sent = reviveSession(selectedSessionId)
-    if (!sent) {
-      setReviveError('WebSocket not connected')
-      setReviveState('error')
-      return
-    }
-    // Signal sent - now wait for new session to connect
-    reviveStartRef.current = Date.now()
-    setReviveState('waiting')
-    setReviveCountdown(30)
+    if (!selectedSessionId) return
+    haptic('tap')
+    setShowReviveMonitor(true)
   }
 
   return (
@@ -1079,24 +1017,24 @@ export const SessionDetail = memo(function SessionDetail() {
                         </span>
                       )
                     })()}
+                  <CacheTimer
+                    lastTurnEndedAt={session.lastTurnEndedAt}
+                    tokenUsage={session.tokenUsage}
+                    model={model || session.model}
+                    cacheTtl={session.cacheTtl}
+                    isIdle={session.status === 'idle'}
+                  />
                 </span>
               )
             })()}
         </button>
-        {session.status === 'idle' &&
-          (() => {
-            const cw = getCacheWarning(session.lastActivity, session.tokenUsage, model || session.model)
-            if (!cw) return null
-            return (
-              <div className="mx-3 sm:mx-4 mt-1 px-2 py-1 bg-amber-400/10 border border-amber-400/20 text-[10px] font-mono flex items-center gap-2">
-                <span className="text-amber-400 font-bold uppercase">Cache Cold</span>
-                <span className="text-amber-400/70">
-                  {formatDurationMs(cw.idleMs)} idle -- next prompt re-caches ~{Math.round(cw.contextTokens / 1000)}K
-                  tokens (~${cw.reCacheCost.toFixed(2)})
-                </span>
-              </div>
-            )
-          })()}
+        <CacheExpiredBanner
+          lastTurnEndedAt={session.lastTurnEndedAt}
+          tokenUsage={session.tokenUsage}
+          model={model || session.model}
+          cacheTtl={session.cacheTtl}
+          isIdle={session.status === 'idle'}
+        />
         {infoExpanded &&
           (() => {
             const s = session.stats
@@ -1829,36 +1767,15 @@ export const SessionDetail = memo(function SessionDetail() {
           {canRevive ? (
             <div>
               <Button
-                onClick={
-                  reviveState === 'error'
-                    ? () => {
-                        setReviveState('idle')
-                        setReviveError(null)
-                      }
-                    : handleRevive
-                }
-                disabled={reviveState === 'sending' || reviveState === 'waiting'}
+                onClick={handleRevive}
                 size="sm"
-                className={cn(
-                  'w-full text-xs border',
-                  reviveState === 'waiting'
-                    ? 'bg-amber-400/20 text-amber-400 border-amber-400/50'
-                    : reviveState === 'error'
-                      ? 'bg-red-400/20 text-red-400 border-red-400/50 hover:bg-red-400/30'
-                      : 'bg-active/20 text-active border-active/50 hover:bg-active/30',
-                )}
+                className="w-full text-xs border bg-active/20 text-active border-active/50 hover:bg-active/30"
               >
-                {reviveState === 'sending' && 'Sending signal...'}
-                {reviveState === 'waiting' && `Waiting for connection... ${reviveCountdown}s`}
-                {reviveState === 'error' && 'Retry'}
-                {reviveState === 'idle' && 'Revive Session'}
+                Revive Session
               </Button>
-              {reviveError && <p className="text-[10px] text-red-400 mt-1">{reviveError}</p>}
-              {reviveState === 'idle' && (
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Spawns new rclaude in tmux at {session.cwd.split('/').slice(-2).join('/')}
-                </p>
-              )}
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Spawns new rclaude in tmux at {session.cwd.split('/').slice(-2).join('/')}
+              </p>
             </div>
           ) : (
             <p className="text-[10px] text-muted-foreground text-center">
@@ -1866,6 +1783,16 @@ export const SessionDetail = memo(function SessionDetail() {
             </p>
           )}
         </div>
+      )}
+
+      {/* Revive launch monitor modal */}
+      {showReviveMonitor && session && (
+        <ReviveMonitor
+          sessionId={session.id}
+          sessionTitle={session.title}
+          cwd={session.cwd}
+          onClose={() => setShowReviveMonitor(false)}
+        />
       )}
     </div>
   )

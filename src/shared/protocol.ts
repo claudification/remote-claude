@@ -35,6 +35,7 @@ export interface SessionMeta {
   }
   spinnerVerbs?: string[]
   autocompactPct?: number // CLAUDE_AUTOCOMPACT_PCT_OVERRIDE value if set
+  maxBudgetUsd?: number // --max-budget-usd value if set (headless only)
   adHocTaskId?: string // project board task slug that spawned this ad-hoc session
   adHocWorktree?: string // worktree branch name for ad-hoc sessions
 }
@@ -875,6 +876,8 @@ export interface Session {
     timestamp: number
   }
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
+  cacheTtl?: '5m' | '1h' // dominant cache TTL tier from last turn
+  lastTurnEndedAt?: number // timestamp when last turn completed (Stop hook)
   // Transcript-derived metadata (from special JSONL entry types)
   summary?: string // AI-generated session summary
   title?: string // custom session title (from /rename or auto-generated)
@@ -900,6 +903,7 @@ export interface Session {
   gitBranch?: string
   spinnerVerbs?: string[] // custom spinner verbs from ~/.claude/settings.json
   autocompactPct?: number // CLAUDE_AUTOCOMPACT_PCT_OVERRIDE value if set
+  maxBudgetUsd?: number // --max-budget-usd value if set (headless only)
   adHocTaskId?: string // project board task slug that spawned this ad-hoc session
   adHocWorktree?: string // worktree branch name for ad-hoc sessions
   resultText?: string // final result text from headless session (captured from stream-json result message)
@@ -916,6 +920,7 @@ export interface ReviveResult {
   type: 'revive_result'
   sessionId: string
   wrapperId?: string // echoes the pre-assigned wrapperId
+  cwd?: string // echoed back for scoped broadcast when session is evicted
   success: boolean
   error?: string
   tmuxSession?: string
@@ -1070,11 +1075,14 @@ export interface SessionSummary {
   prLinks?: Session['prLinks']
   linkedSessions?: Array<{ id: string; name: string; cwd: string }>
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
+  cacheTtl?: '5m' | '1h'
+  lastTurnEndedAt?: number
   stats: Session['stats']
   costTimeline?: Session['costTimeline']
   gitBranch?: string
   spinnerVerbs?: string[]
   autocompactPct?: number
+  maxBudgetUsd?: number
   adHocTaskId?: string
   adHocWorktree?: string
   resultText?: string

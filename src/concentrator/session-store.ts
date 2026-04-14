@@ -460,6 +460,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       claudeAuth: session.claudeAuth,
       spinnerVerbs: session.spinnerVerbs,
       autocompactPct: session.autocompactPct,
+      maxBudgetUsd: session.maxBudgetUsd,
       wrapperIds: wrappers ? Array.from(wrappers.keys()) : [],
       startedAt: session.startedAt,
       lastActivity: session.lastActivity,
@@ -481,7 +482,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       })),
       taskCount: session.tasks.length,
       pendingTaskCount: session.tasks.filter(t => t.status === 'pending' || t.status === 'in_progress').length,
-      activeTasks: session.tasks.filter(t => t.status === 'in_progress').map(t => ({ id: t.id, subject: t.subject })),
+      activeTasks: session.tasks
+        .filter(t => t.status === 'in_progress' || t.status === 'completed')
+        .map(t => ({ id: t.id, subject: t.subject })),
       pendingTasks: session.tasks
         .filter(t => t.status === 'pending')
         .slice(0, 4)
@@ -529,6 +532,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         })
         .filter(Boolean) as Array<{ id: string; name: string; cwd: string }>,
       tokenUsage: session.tokenUsage,
+      cacheTtl: session.cacheTtl,
+      lastTurnEndedAt: session.lastTurnEndedAt,
       stats: session.stats,
       costTimeline: session.costTimeline,
       gitBranch: session.gitBranch,
@@ -1228,6 +1233,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       if (!isSubagentEvent) {
         if (event.hookEvent === 'Stop' || event.hookEvent === 'StopFailure') {
           session.status = 'idle'
+          session.lastTurnEndedAt = event.timestamp
           // Capture error details from StopFailure
           if (event.hookEvent === 'StopFailure' && event.data) {
             const d = event.data as Record<string, unknown>
@@ -1982,12 +1988,55 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     const bytes = json.length
     const sent = new Set<ServerWebSocket<unknown>>()
 
+    // Pre-compute filtered JSON for share viewers with hideUserInput
+    // Only needed for transcript channels (user entries are in transcript_entries messages)
+    let filteredJson: string | null = null
+    let filteredBytes = 0
+    function getFilteredJson(): string {
+      if (filteredJson !== null) return filteredJson
+      const msg = message as { entries?: Array<{ type?: string }> }
+      if (msg.entries) {
+        const filtered = { ...msg, entries: msg.entries.filter(e => e.type !== 'user') }
+        // Skip sending if all entries were user messages
+        filteredJson = filtered.entries.length > 0 ? syncStamp(filtered) : ''
+        filteredBytes = filteredJson.length
+      } else {
+        filteredJson = json // no entries field, pass through
+        filteredBytes = bytes
+      }
+      return filteredJson
+    }
+
     // Send to v2 channel subscribers
     const key = channelKey(channel, sessionId, agentId)
     const subs = channelSubscribers.get(key)
     if (subs) {
       for (const ws of subs) {
         try {
+          // Filter transcript entries for share viewers with hideUserInput
+          const wsData = ws.data as { hideUserInput?: boolean }
+          if (channel === 'session:transcript' && wsData.hideUserInput) {
+            const fj = getFilteredJson()
+            if (!fj) {
+              sent.add(ws)
+              continue // all entries were user messages, skip
+            }
+            ws.send(fj)
+            sent.add(ws)
+            recordTraffic('out', filteredBytes)
+            const entry = subscriberRegistry.get(ws)
+            if (entry) {
+              entry.totals.messagesSent++
+              entry.totals.bytesSent += filteredBytes
+              const chStats = entry.channels.get(key)
+              if (chStats) {
+                chStats.messagesSent++
+                chStats.bytesSent += filteredBytes
+                chStats.lastMessageAt = Date.now()
+              }
+            }
+            continue
+          }
           ws.send(json)
           sent.add(ws)
           recordTraffic('out', bytes)
@@ -2138,6 +2187,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       createdBy: s.createdBy,
       label: s.label,
       permissions: s.permissions,
+      hideUserInput: s.hideUserInput || false,
       viewerCount: getShareViewerCount(s.token),
     }))
     const json = JSON.stringify({ type: 'shares_updated', shares })
@@ -2467,6 +2517,11 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           const cwTotal = usage.cache_creation_input_tokens || 0
           const cwRemainder = Math.max(0, cwTotal - cw5m - cw1h)
 
+          // Determine dominant cache TTL tier for this turn
+          if (cw5m + cwRemainder > 0 || cw1h > 0) {
+            session.cacheTtl = cw1h > cw5m + cwRemainder ? '1h' : '5m'
+          }
+
           session.stats.totalInputTokens += (usage.input_tokens || 0) + cwTotal + (usage.cache_read_input_tokens || 0)
           session.stats.totalOutputTokens += usage.output_tokens || 0
           session.stats.totalCacheCreation += cwTotal
@@ -2549,24 +2604,35 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           batch.push(entry)
         }
       }
-      // Push to subagent transcript cache + broadcast
-      for (const [agentId, agentBatch] of agentEntries) {
-        console.log(
-          `[transcript] ${sessionId.slice(0, 8)}... live agent ${agentId.slice(0, 7)} ${agentBatch.length} entries from parent`,
-        )
-        addSubagentTranscriptEntries(sessionId, agentId, agentBatch, false)
-        broadcastToChannel(
-          'session:subagent_transcript',
-          sessionId,
-          {
-            type: 'subagent_transcript',
+      // Push to subagent transcript cache + broadcast, and remove from parent cache
+      if (agentEntries.size > 0) {
+        for (const [agentId, agentBatch] of agentEntries) {
+          console.log(
+            `[transcript] ${sessionId.slice(0, 8)}... live agent ${agentId.slice(0, 7)} ${agentBatch.length} entries from parent`,
+          )
+          addSubagentTranscriptEntries(sessionId, agentId, agentBatch, false)
+          broadcastToChannel(
+            'session:subagent_transcript',
             sessionId,
+            {
+              type: 'subagent_transcript',
+              sessionId,
+              agentId,
+              entries: agentBatch,
+              isInitial: false,
+            },
             agentId,
-            entries: agentBatch,
-            isInitial: false,
-          },
-          agentId,
-        )
+          )
+        }
+        // Filter extracted agent entries out of parent cache (they were copied, not moved)
+        const agentEntrySet = new Set([...agentEntries.values()].flat())
+        const cached = transcriptCache.get(sessionId)
+        if (cached) {
+          transcriptCache.set(
+            sessionId,
+            cached.filter(e => !agentEntrySet.has(e)),
+          )
+        }
       }
     }
 

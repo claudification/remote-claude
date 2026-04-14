@@ -103,6 +103,8 @@ function toSession(summary: SessionSummary): Session {
     prLinks: summary.prLinks,
     linkedSessions: summary.linkedSessions,
     tokenUsage: summary.tokenUsage,
+    cacheTtl: summary.cacheTtl,
+    lastTurnEndedAt: summary.lastTurnEndedAt,
     stats: summary.stats,
     costTimeline: summary.costTimeline,
     gitBranch: summary.gitBranch,
@@ -730,6 +732,14 @@ function processMessage(msg: DashboardMessage) {
       if (msg.ok === false) {
         console.error(`[ws] ${msg.type}: ${msg.error}`)
       }
+      // Dispatch for LaunchMonitor to pick up
+      window.dispatchEvent(new CustomEvent('revive-session-result', { detail: msg }))
+      break
+    }
+
+    case 'revive_result': {
+      // Agent's revive result -- forwarded by concentrator for pipeline tracking
+      window.dispatchEvent(new CustomEvent('revive-agent-result', { detail: msg }))
       break
     }
   }

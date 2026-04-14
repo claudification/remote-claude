@@ -14,9 +14,9 @@ import type { HookEvent } from '@shared/protocol'
 import { ContextMenu } from 'radix-ui'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { reviveSession, saveSessionOrder, useSessionsStore } from '@/hooks/use-sessions'
-import { formatCost, getCacheWarning, getCostBgColor, getCostLevel, getSessionCost } from '@/lib/cost-utils'
+import { formatCost, getCacheTimerInfo, getCostBgColor, getCostLevel, getSessionCost } from '@/lib/cost-utils'
 import type { Session, SessionOrderGroup, SessionOrderNode, SessionOrderV2 } from '@/lib/types'
-import { cn, contextWindowSize, formatAge, formatDurationMs, formatModel, haptic, lastPathSegments } from '@/lib/utils'
+import { cn, contextWindowSize, formatAge, formatModel, haptic, lastPathSegments } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from './project-settings-editor'
 import { ShareIndicator } from './share-panel'
 import { openSpawnDialog } from './spawn-dialog'
@@ -352,9 +352,22 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
           )}
           {session.planMode && <span className="text-[9px] text-blue-400 font-bold">PLAN</span>}
           {session.status === 'idle' &&
-            getCacheWarning(session.lastActivity, session.tokenUsage, model || session.model) && (
-              <span className="text-[9px] text-amber-400/70 font-bold">CACHE</span>
-            )}
+            (() => {
+              const ci = getCacheTimerInfo(
+                session.lastTurnEndedAt,
+                session.tokenUsage,
+                model || session.model,
+                session.cacheTtl,
+              )
+              if (!ci) return null
+              return ci.state === 'expired' ? (
+                <span className="text-[9px] text-red-400/70 font-bold">EXPIRED</span>
+              ) : ci.state === 'critical' ? (
+                <span className="text-[9px] text-red-400 font-bold animate-pulse">CACHE</span>
+              ) : ci.state === 'warning' ? (
+                <span className="text-[9px] text-amber-400 font-bold">CACHE</span>
+              ) : null
+            })()}
           {showCost &&
             session.stats &&
             (() => {
@@ -555,13 +568,22 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
       {!compact &&
         session.status === 'idle' &&
         (() => {
-          const cw = getCacheWarning(session.lastActivity, session.tokenUsage, model || session.model)
-          if (!cw) return null
-          return (
-            <div className="mt-1 text-[9px] font-mono text-amber-400/60 truncate">
-              cache expired ({formatDurationMs(cw.idleMs)} idle) -- ~${cw.reCacheCost.toFixed(2)} re-cache
-            </div>
+          const ci = getCacheTimerInfo(
+            session.lastTurnEndedAt,
+            session.tokenUsage,
+            model || session.model,
+            session.cacheTtl,
           )
+          if (!ci || ci.state === 'hot') return null
+          if (ci.state === 'expired') {
+            const idleMin = Math.floor((Date.now() - (session.lastTurnEndedAt || 0)) / 60_000)
+            return (
+              <div className="mt-1 text-[9px] font-mono text-amber-400/60 truncate">
+                cache expired ({idleMin}m idle) -- ~${ci.reCacheCost.toFixed(2)} re-cache
+              </div>
+            )
+          }
+          return null
         })()}
     </div>
   )
