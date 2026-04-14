@@ -14,7 +14,14 @@ import type { HookEvent } from '@shared/protocol'
 import { ContextMenu, Popover } from 'radix-ui'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { reviveSession, saveSessionOrder, useSessionsStore } from '@/hooks/use-sessions'
-import { formatCost, getCacheTimerInfo, getCostBgColor, getCostColor, getCostLevel, getSessionCost } from '@/lib/cost-utils'
+import {
+  formatCost,
+  getCacheTimerInfo,
+  getCostBgColor,
+  getCostColor,
+  getCostLevel,
+  getSessionCost,
+} from '@/lib/cost-utils'
 import type { Session, SessionOrderGroup, SessionOrderNode, SessionOrderV2 } from '@/lib/types'
 import {
   cn,
@@ -93,7 +100,11 @@ function SessionHoverTooltip({
   session,
   model,
   children,
-}: { session: Session; model: string | undefined; children: React.ReactNode }) {
+}: {
+  session: Session
+  model: string | undefined
+  children: React.ReactNode
+}) {
   const [open, setOpen] = useState(false)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -121,7 +132,7 @@ function SessionHoverTooltip({
 
       <Popover.Portal>
         <Popover.Content
-          className="z-50 w-72 border border-border bg-background/95 backdrop-blur-sm shadow-lg p-3 font-mono text-[11px]"
+          className="z-50 w-72 border border-border/80 bg-card shadow-xl p-3 font-mono text-[11px]"
           sideOffset={8}
           side="right"
           align="start"
@@ -134,21 +145,21 @@ function SessionHoverTooltip({
           <div className="space-y-2">
             {/* Model + effort */}
             <div className="flex items-center gap-2">
-              <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Model</span>
+              <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Model</span>
               <span className="ml-auto text-primary">{formatModel(resolvedModel)}</span>
               {effort && (
-                <span className="text-muted-foreground" title={`effort: ${effort.label}`}>
+                <span className="text-foreground/60" title={`effort: ${effort.label}`}>
                   {effort.symbol} {effort.label}
                 </span>
               )}
             </div>
 
-            <div className="border-t border-border/50" />
+            <div className="border-t border-border" />
 
             {/* Cost */}
             {cost && cost.cost > 0 && (
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Cost</span>
+                <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Cost</span>
                 <span className={cn('ml-auto font-bold', getCostColor(cost.cost))}>
                   {formatCost(cost.cost, cost.exact)}
                 </span>
@@ -158,42 +169,46 @@ function SessionHoverTooltip({
             {/* Duration */}
             {duration > 0 && (
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Duration</span>
-                <span className="ml-auto text-muted-foreground">{formatDurationMs(duration)}</span>
+                <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Duration</span>
+                <span className="ml-auto text-foreground/80">{formatDurationMs(duration)}</span>
               </div>
             )}
 
             {/* Turn count */}
             {session.stats && session.stats.turnCount > 0 && (
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Turns</span>
-                <span className="ml-auto text-muted-foreground">{session.stats.turnCount}</span>
+                <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Turns</span>
+                <span className="ml-auto text-foreground/80">{session.stats.turnCount}</span>
               </div>
             )}
 
             {/* Token usage */}
             {session.stats && (session.stats.totalInputTokens > 0 || session.stats.totalOutputTokens > 0) && (
               <>
-                <div className="border-t border-border/50" />
+                <div className="border-t border-border" />
                 <div className="space-y-1">
-                  <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Tokens</span>
+                  <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Tokens</span>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
-                    <span className="text-muted-foreground/70">input</span>
-                    <span className="text-right tabular-nums">{formatTokenCount(session.stats.totalInputTokens)}</span>
-                    <span className="text-muted-foreground/70">output</span>
-                    <span className="text-right tabular-nums">{formatTokenCount(session.stats.totalOutputTokens)}</span>
+                    <span className="text-muted-foreground">input</span>
+                    <span className="text-right tabular-nums text-foreground/80">
+                      {formatTokenCount(session.stats.totalInputTokens)}
+                    </span>
+                    <span className="text-muted-foreground">output</span>
+                    <span className="text-right tabular-nums text-foreground/80">
+                      {formatTokenCount(session.stats.totalOutputTokens)}
+                    </span>
                     {session.stats.totalCacheRead > 0 && (
                       <>
-                        <span className="text-muted-foreground/70">cache read</span>
-                        <span className="text-right tabular-nums text-emerald-400/70">
+                        <span className="text-muted-foreground">cache read</span>
+                        <span className="text-right tabular-nums text-emerald-400">
                           {formatTokenCount(session.stats.totalCacheRead)}
                         </span>
                       </>
                     )}
                     {session.stats.totalCacheCreation > 0 && (
                       <>
-                        <span className="text-muted-foreground/70">cache write</span>
-                        <span className="text-right tabular-nums text-amber-400/70">
+                        <span className="text-muted-foreground">cache write</span>
+                        <span className="text-right tabular-nums text-amber-400">
                           {formatTokenCount(session.stats.totalCacheCreation)}
                         </span>
                       </>
@@ -206,10 +221,10 @@ function SessionHoverTooltip({
             {/* Git branch */}
             {session.gitBranch && (
               <>
-                <div className="border-t border-border/50" />
+                <div className="border-t border-border" />
                 <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Branch</span>
-                  <span className="ml-auto text-sky-400/80 truncate max-w-[160px]">{session.gitBranch}</span>
+                  <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Branch</span>
+                  <span className="ml-auto text-sky-400 truncate max-w-[160px]">{session.gitBranch}</span>
                 </div>
               </>
             )}
@@ -217,11 +232,11 @@ function SessionHoverTooltip({
             {/* Identity */}
             {session.claudeAuth?.email && (
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Auth</span>
-                <span className="ml-auto text-muted-foreground truncate max-w-[160px]">
+                <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Auth</span>
+                <span className="ml-auto text-foreground/80 truncate max-w-[160px]">
                   {session.claudeAuth.email}
                   {session.claudeAuth.orgName && (
-                    <span className="text-muted-foreground/50"> ({session.claudeAuth.orgName})</span>
+                    <span className="text-muted-foreground"> ({session.claudeAuth.orgName})</span>
                   )}
                 </span>
               </div>
@@ -230,10 +245,10 @@ function SessionHoverTooltip({
             {/* Ad-hoc result preview */}
             {isAdHoc && session.resultText && (
               <>
-                <div className="border-t border-border/50" />
+                <div className="border-t border-border" />
                 <div className="space-y-1">
-                  <span className="text-muted-foreground/50 text-[10px] uppercase tracking-wider">Result</span>
-                  <div className="text-[10px] text-muted-foreground/80 line-clamp-4 break-words">
+                  <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Result</span>
+                  <div className="text-[10px] text-foreground/70 line-clamp-4 break-words">
                     {truncate(session.resultText, 200)}
                   </div>
                 </div>
@@ -242,7 +257,7 @@ function SessionHoverTooltip({
 
             {/* Session ID */}
             <div className="border-t border-border/50" />
-            <div className="text-[9px] text-muted-foreground/30 truncate">{session.id}</div>
+            <div className="text-[9px] text-muted-foreground/50 truncate">{session.id}</div>
           </div>
         </Popover.Content>
       </Popover.Portal>
@@ -539,9 +554,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
             </span>
           )}
           <ShareIndicator sessionCwd={session.cwd} />
-          {session.resultText && session.capabilities?.includes('ad-hoc') && (
-            <ResultTextModal session={session} />
-          )}
+          {session.resultText && session.capabilities?.includes('ad-hoc') && <ResultTextModal session={session} />}
           {session.status === 'ended' && <DismissButton sessionId={session.id} />}
           {showCost &&
             session.stats &&
@@ -862,7 +875,6 @@ function InlineRename({ session }: { session: Session }) {
   return (
     <input
       ref={inputRef}
-      autoFocus
       value={value}
       onChange={e => setValue(e.target.value)}
       onKeyDown={e => {
