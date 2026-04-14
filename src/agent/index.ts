@@ -943,8 +943,8 @@ function parseUsageResponse(raw: RawUsageResponse): UsageUpdate | null {
   if (raw.extra_usage) {
     update.extraUsage = {
       isEnabled: raw.extra_usage.is_enabled,
-      monthlyLimit: raw.extra_usage.monthly_limit / 100, // API returns cents
-      usedCredits: raw.extra_usage.used_credits / 100, // API returns cents
+      monthlyLimit: raw.extra_usage.monthly_limit,
+      usedCredits: raw.extra_usage.used_credits,
       utilization: raw.extra_usage.utilization,
     } satisfies ExtraUsage
   }
