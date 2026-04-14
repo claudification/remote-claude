@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import type { WrapperMessage } from '../shared/protocol'
 import { debug as _debug } from './debug'
 import { hasPendingAskRequests } from './local-server'
-import { hasPendingDialogs } from './mcp-channel'
+import { hasPendingDialogs, resetMcpChannel } from './mcp-channel'
 import { writeMergedSettings } from './settings-merge'
 import type { StreamBackendOptions, StreamProcess } from './stream-backend'
 import { sendTranscriptEntriesChunked, startSubagentWatcher } from './transcript-manager'
@@ -538,6 +538,10 @@ export function sendAdHocPrompt(ctx: WrapperContext): void {
  * deleted the original files).
  */
 async function respawnHeadless(deps: HeadlessCallbackDeps, args: string[]) {
+  // Reset MCP transport so the new CC gets a clean connection
+  // (old CC's transport state may linger and block the new client)
+  await resetMcpChannel()
+
   // Re-write settings file (hooks) and MCP config -- they may have been
   // deleted by CC's exit cleanup or a race with the stale reaper.
   const { ctx, rclaudeDir, localServerPort, claudeVersion, mcpConfigPath } = deps

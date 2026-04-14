@@ -1174,6 +1174,52 @@ export async function sendPermissionResponse(requestId: string, behavior: 'allow
 }
 
 /**
+ * Reset the MCP channel for a fresh CC process (e.g. after /clear).
+ * Closes the old transport, clears pending state, creates a fresh transport,
+ * and re-connects the McpServer. The HTTP server and port are unchanged --
+ * only the internal transport is recycled so the new CC gets a clean connection.
+ */
+export async function resetMcpChannel(): Promise<void> {
+  if (!state) return
+
+  // Close old transport (releases any lingering SSE connections from dead CC)
+  try {
+    await state.transport.close()
+  } catch {}
+
+  // Clear pending dialogs (stale from old CC)
+  for (const [, pending] of pendingDialogs) {
+    clearTimeout(pending.timer)
+    pending.resolve({ _action: 'dismiss', _timeout: false, _cancelled: true })
+  }
+  pendingDialogs.clear()
+
+  // Create fresh transport
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+  })
+  transport.onclose = () => {
+    debug('[channel] Transport closed (client disconnected)')
+    if (state) state.connected = false
+    callbacks.onDisconnect?.()
+  }
+  transport.onerror = err => {
+    debug(`[channel] Transport error: ${err.message}`)
+  }
+
+  // Re-connect McpServer to fresh transport
+  state.transport = transport
+  state.connected = false
+  try {
+    await state.mcpServer.connect(transport)
+    state.connected = true
+    debug('[channel] MCP channel reset -- fresh transport connected')
+  } catch (err) {
+    debug(`[channel] MCP channel reset failed: ${err instanceof Error ? err.message : err}`)
+  }
+}
+
+/**
  * Shut down the MCP channel server.
  */
 export async function closeMcpChannel(): Promise<void> {
