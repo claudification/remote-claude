@@ -36,6 +36,7 @@ import type { ProjectTask } from '@/hooks/use-project'
 import { type ProjectTaskMeta, type TaskStatus, useProject } from '@/hooks/use-project'
 import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { useKeyLayer } from '@/lib/key-layers'
+import { buildTaskPrompt } from '@/lib/task-scoring'
 import { uploadFileWithPlaceholder } from '@/lib/upload'
 import { cn, haptic } from '@/lib/utils'
 import { Markdown } from './markdown'
@@ -435,18 +436,7 @@ export function TaskEditor({
                   <button
                     type="button"
                     onClick={() => {
-                      const tagAttrs = [
-                        `id="${task.slug}"`,
-                        `title="${title.replace(/"/g, '&quot;')}"`,
-                        priority !== 'medium' ? `priority="${priority}"` : '',
-                        `status="${status}"`,
-                        tags.length ? `tags="${tags.join(',')}"` : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')
-                      const instructions = `Set status to in-progress when you start, in-review when complete. Use mcp__rclaude__project_set_status with id="${task.slug}".`
-                      const prompt = `<project-task ${tagAttrs}>\n${body.trim() || title}\n\n${instructions}\n</project-task>`
-                      sendInput(sessionId, prompt)
+                      sendInput(sessionId, buildTaskPrompt({ ...task, title, body, status, priority, tags }))
                       haptic('success')
                       onClose()
                     }}
@@ -727,21 +717,11 @@ export function RunTaskDialog({
     setSteps([{ label: 'Sending spawn request...', status: 'active', ts: Date.now() }])
 
     // Build the prompt from the task
-    const tagAttrs = [
-      `id="${task.slug}"`,
-      `title="${task.title.replace(/"/g, '&quot;')}"`,
-      task.priority !== 'medium' ? `priority="${task.priority}"` : '',
-      `status="${task.status}"`,
-      task.tags.length ? `tags="${task.tags.join(',')}"` : '',
-    ]
-      .filter(Boolean)
-      .join(' ')
-    const instructions = `Set status to in-progress when you start, in-review when complete. Use mcp__rclaude__project_set_status with id="${task.slug}".`
     const commitLine = autoCommit ? '\n\nWhen you are done, commit all changes with a descriptive commit message.' : ''
     const worktreeMerge = useWorktree
       ? '\n\nIMPORTANT - WORKTREE MERGE-BACK:\nYou are working in a git worktree (isolated branch). Before finishing:\n1. Commit all changes\n2. Merge back to main: run `git rebase main && git fetch . HEAD:main`\n3. If rebase conflicts occur, resolve them and run `git rebase --continue`, then `git fetch . HEAD:main`\n4. Verify: `git log --oneline main -5`\nThis merges your work back to main so it is not stranded on a dead branch.'
       : ''
-    const prompt = `<project-task ${tagAttrs}>\n${task.body.trim() || task.title}\n\n${instructions}${commitLine}${worktreeMerge}\n</project-task>`
+    const prompt = buildTaskPrompt(task, `${commitLine}${worktreeMerge}`)
 
     try {
       const res = await fetch('/api/spawn', {

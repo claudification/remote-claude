@@ -4,8 +4,8 @@ import { createPortal } from 'react-dom'
 import { VoiceOverlay } from '@/components/voice-overlay'
 import type { ProjectTaskMeta } from '@/hooks/use-project'
 import { useProject } from '@/hooks/use-project'
-import { useSessionsStore } from '@/hooks/use-sessions'
-import { scoreAndSortTasks } from '@/lib/task-scoring'
+import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
+import { buildTaskPrompt, scoreAndSortTasks } from '@/lib/task-scoring'
 import { uploadFileWithPlaceholder } from '@/lib/upload'
 import { cn, haptic, isMobileViewport } from '@/lib/utils'
 
@@ -25,6 +25,7 @@ interface SubCommandItem {
 
 interface SubCommandContext {
   tasks: ProjectTaskMeta[]
+  sessionId: string | null
 }
 
 interface SubCommandDef {
@@ -59,12 +60,10 @@ const SUB_COMMANDS: SubCommandDef[] = [
         })),
     onSelect: (slug, ctx) => {
       const task = ctx.tasks.find(t => t.slug === slug)
-      if (!task) return null
-      const parts = [`/workon: ${task.title}`]
-      const meta = [task.status, task.priority].filter(Boolean).join(', ')
-      if (meta) parts[0] += ` (${meta})`
-      if (task.bodyPreview) parts.push('', task.bodyPreview)
-      return parts.join('\n')
+      if (!task || !ctx.sessionId) return null
+      sendInput(ctx.sessionId, buildTaskPrompt(task))
+      haptic('success')
+      return '' // clear input
     },
   },
   { name: 'clear', noArg: true },
@@ -231,7 +230,10 @@ export function MarkdownInput({
   const hasSubCommandWithTasks = enableAutocomplete && /^\/workon\s/i.test(value)
   const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
   const { tasks: projectTasks } = useProject(hasSubCommandWithTasks ? selectedSessionId : null)
-  const subCmdCtx = useMemo((): SubCommandContext => ({ tasks: projectTasks }), [projectTasks])
+  const subCmdCtx = useMemo(
+    (): SubCommandContext => ({ tasks: projectTasks, sessionId: selectedSessionId }),
+    [projectTasks, selectedSessionId],
+  )
 
   const acItems = useMemo((): Array<{ item: string; label?: string; builtin: boolean }> => {
     if (!maybeAutocomplete) return []
