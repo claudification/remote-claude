@@ -3,6 +3,7 @@
  * heartbeat, session clear (re-key), notify, and end.
  */
 
+import { slugify } from '../address-book'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
@@ -91,16 +92,21 @@ const meta: MessageHandler = (ctx, data) => {
   ctx.reply({ type: 'ack', eventId: sessionId, origins: ctx.origins })
 
   // Drain queued messages for this CWD (sent while session was offline)
-  const drainCwd = (existingSession || ctx.sessions.getSession(sessionId))?.cwd
+  // Pass session title so only messages targeted at this specific session
+  // (or CWD-level messages with no target) are drained. Messages for other
+  // sessions at the same CWD stay queued.
+  const drainSession = existingSession || ctx.sessions.getSession(sessionId)
+  const drainCwd = drainSession?.cwd
   if (drainCwd) {
-    const queued = ctx.messageQueue.drain(drainCwd)
+    const sessionNameSlug = drainSession?.title ? slugify(drainSession.title) : undefined
+    const queued = ctx.messageQueue.drain(drainCwd, sessionNameSlug)
     if (queued.length > 0) {
       const targetWs = ctx.sessions.getSessionSocket(sessionId)
       if (targetWs) {
         for (const item of queued) {
           targetWs.send(JSON.stringify(item.message))
         }
-        ctx.log.info(`Drained ${queued.length} queued message(s) for ${drainCwd.split('/').pop()}`)
+        ctx.log.info(`Drained ${queued.length} queued message(s) for ${drainCwd.split('/').pop()}${sessionNameSlug ? `:${sessionNameSlug}` : ''}`)
       }
     }
   }

@@ -13,6 +13,7 @@ interface QueuedMessage {
   fromCwd: string
   fromProject: string
   message: Record<string, unknown> // the delivery payload
+  targetName?: string // session name slug for compound-addressed delivery
 }
 
 // targetCwd -> queued messages
@@ -74,6 +75,7 @@ export function enqueue(
   fromCwd: string,
   fromProject: string,
   message: Record<string, unknown>,
+  targetName?: string,
 ): void {
   if (!queues[targetCwd]) queues[targetCwd] = []
   const queue = queues[targetCwd]
@@ -83,20 +85,48 @@ export function enqueue(
     queue.shift() // drop oldest
   }
 
-  queue.push({ ts: Date.now(), fromCwd, fromProject, message })
+  queue.push({ ts: Date.now(), fromCwd, fromProject, message, ...(targetName ? { targetName } : {}) })
   scheduleSave()
 }
 
-/** Drain all pending messages for a target CWD. Purges expired. Returns messages in order. */
-export function drain(targetCwd: string): QueuedMessage[] {
+/**
+ * Drain pending messages for a target CWD. Purges expired. Returns messages in order.
+ * If sessionName is provided, only drains messages targeted at that session name
+ * (or messages with no targetName -- CWD-level messages). Messages targeted at
+ * other session names stay in the queue.
+ */
+export function drain(targetCwd: string, sessionName?: string): QueuedMessage[] {
   const queue = queues[targetCwd]
   if (!queue || queue.length === 0) return []
 
   const now = Date.now()
   const valid = queue.filter(m => now - m.ts < MESSAGE_TTL_MS)
-  delete queues[targetCwd]
+
+  if (!sessionName) {
+    // No session name filter -- drain everything (backward compat)
+    delete queues[targetCwd]
+    scheduleSave()
+    return valid
+  }
+
+  // Partition: take messages for this session (or CWD-level), leave the rest
+  const forMe: QueuedMessage[] = []
+  const forOthers: QueuedMessage[] = []
+  for (const m of valid) {
+    if (!m.targetName || m.targetName === sessionName) {
+      forMe.push(m)
+    } else {
+      forOthers.push(m)
+    }
+  }
+
+  if (forOthers.length === 0) {
+    delete queues[targetCwd]
+  } else {
+    queues[targetCwd] = forOthers
+  }
   scheduleSave()
-  return valid
+  return forMe
 }
 
 /** Check how many messages are queued for a target CWD. */

@@ -4,6 +4,7 @@
  */
 
 import type { SubscriptionChannel } from '../../shared/protocol'
+import { slugify } from '../address-book'
 import { getUser } from '../auth'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
@@ -121,50 +122,84 @@ const channelListSessions: MessageHandler = (ctx, data) => {
   const callerCwd = ctx.caller?.cwd
   const isBenevolent = ctx.callerSettings?.trustLevel === 'benevolent'
   const all = Array.from(ctx.sessions.getAllSessions())
-  const result = all
+
+  // Filter by status and exclude self
+  const filtered = all
     .filter(s => {
       if (status === 'all') return true
       const isLive = ctx.sessions.getActiveWrapperCount(s.id) > 0
       return status === 'live' ? isLive : !isLive
     })
     .filter(s => s.id !== callerSession)
-    .map(s => {
-      const linkStatus = callerSession ? ctx.sessions.checkSessionLink(callerSession, s.id) : 'unknown'
-      const isLinked = linkStatus === 'linked'
-      const showFull = isBenevolent || isLinked
-      const shortCwd = s.cwd.split('/').slice(-2).join('/')
-      const projSettings = ctx.getProjectSettings(s.cwd)
-      const sessionName = s.title || projSettings?.label || s.cwd.split('/').pop() || s.cwd
-      const isLive = ctx.sessions.getActiveWrapperCount(s.id) > 0
-      const queueSize = ctx.messageQueue.getQueueSize(s.cwd)
-
-      // Assign a stable local ID via the caller's address book
-      const localId = callerCwd ? ctx.addressBook.getOrAssign(callerCwd, s.cwd, sessionName) : s.id
-
-      return {
-        id: localId, // stable local address (use for send_message, etc.)
-        session_id: s.id,
-        name: sessionName,
-        cwd: showFull ? s.cwd : shortCwd,
-        status: (isLive ? 'live' : 'inactive') as 'live' | 'inactive',
-        capabilities: s.capabilities,
-        ...(projSettings?.description ? { description: projSettings.description } : {}),
-        link: isLinked ? 'connected' : linkStatus === 'blocked' ? 'blocked' : undefined,
-        title: s.title,
-        summary: s.summary,
-        ...(queueSize > 0 ? { queued: queueSize } : {}),
-        ...(showMetadata && isBenevolent && projSettings
-          ? {
-              metadata: {
-                label: projSettings.label,
-                icon: projSettings.icon,
-                color: projSettings.color,
-                keyterms: projSettings.keyterms,
-              },
-            }
-          : {}),
-      }
+    .filter(s => {
+      // Hide ad-hoc sessions unless they have an established link with the caller
+      const isAdHoc = s.capabilities?.includes('ad-hoc')
+      if (!isAdHoc) return true
+      if (!callerSession) return false
+      const linkStatus = ctx.sessions.checkSessionLink(callerSession, s.id)
+      return linkStatus === 'linked'
     })
+
+  // Group sessions by CWD to detect multi-session projects
+  const cwdGroups = new Map<string, typeof filtered>()
+  for (const s of filtered) {
+    const group = cwdGroups.get(s.cwd) || []
+    group.push(s)
+    cwdGroups.set(s.cwd, group)
+  }
+
+  const result = filtered.map(s => {
+    const linkStatus = callerSession ? ctx.sessions.checkSessionLink(callerSession, s.id) : 'unknown'
+    const isLinked = linkStatus === 'linked'
+    const showFull = isBenevolent || isLinked
+    const shortCwd = s.cwd.split('/').slice(-2).join('/')
+    const projSettings = ctx.getProjectSettings(s.cwd)
+    const sessionName = s.title || projSettings?.label || s.cwd.split('/').pop() || s.cwd
+    const isLive = ctx.sessions.getActiveWrapperCount(s.id) > 0
+    const queueSize = ctx.messageQueue.getQueueSize(s.cwd)
+
+    // Assign a stable project-level slug via the caller's address book
+    const projectSlug = callerCwd ? ctx.addressBook.getOrAssign(callerCwd, s.cwd, sessionName) : s.cwd.split('/').pop() || s.id
+
+    // Compound addressing: if multiple sessions share this CWD, append :session-slug
+    const cwdGroup = cwdGroups.get(s.cwd) || []
+    let localId: string
+    if (cwdGroup.length > 1) {
+      // Generate unique session slugs within this CWD group
+      const sessionSlug = slugify(s.title || s.id.slice(0, 8))
+      // Check for collisions within the group
+      const sameSlug = cwdGroup.filter(other => other.id !== s.id && slugify(other.title || other.id.slice(0, 8)) === sessionSlug)
+      const finalSessionSlug = sameSlug.length > 0 ? `${sessionSlug}-${s.id.slice(0, 6)}` : sessionSlug
+      localId = `${projectSlug}:${finalSessionSlug}`
+    } else {
+      localId = projectSlug
+    }
+
+    return {
+      id: localId, // stable local address (use for send_message, etc.)
+      project: projectSlug, // project-level grouping ID
+      session_id: s.id,
+      name: sessionName,
+      cwd: showFull ? s.cwd : shortCwd,
+      status: (isLive ? 'live' : 'inactive') as 'live' | 'inactive',
+      capabilities: s.capabilities,
+      ...(projSettings?.description ? { description: projSettings.description } : {}),
+      link: isLinked ? 'connected' : linkStatus === 'blocked' ? 'blocked' : undefined,
+      title: s.title,
+      summary: s.summary,
+      ...(queueSize > 0 ? { queued: queueSize } : {}),
+      ...(showMetadata && isBenevolent && projSettings
+        ? {
+            metadata: {
+              label: projSettings.label,
+              icon: projSettings.icon,
+              color: projSettings.color,
+              keyterms: projSettings.keyterms,
+            },
+          }
+        : {}),
+    }
+  })
   ctx.reply({ type: 'channel_sessions_list', sessions: result })
 }
 
@@ -178,11 +213,44 @@ const channelSend: MessageHandler = (ctx, data) => {
   const fromSess = ctx.sessions.getSession(fromSession)
   const callerCwd = fromSess?.cwd
 
+  // Parse compound target: "project:session-name" or bare "project"
+  const colonIdx = toTarget.indexOf(':')
+  const projectSlug = colonIdx >= 0 ? toTarget.slice(0, colonIdx) : toTarget
+  const sessionSlug = colonIdx >= 0 ? toTarget.slice(colonIdx + 1) : undefined
+
   // Resolve target: address book first, then wrapper ID, then session ID (backwards compat)
-  const targetCwd = callerCwd ? ctx.addressBook.resolve(callerCwd, toTarget) : undefined
-  const toSess = targetCwd
-    ? Array.from(ctx.sessions.getAllSessions()).find(s => s.cwd === targetCwd)
-    : ctx.sessions.getSessionByWrapper(toTarget) || ctx.sessions.getSession(toTarget)
+  const targetCwd = callerCwd ? ctx.addressBook.resolve(callerCwd, projectSlug) : undefined
+
+  let toSess: ReturnType<typeof ctx.sessions.getSession> | undefined
+  if (targetCwd) {
+    const sessionsAtCwd = Array.from(ctx.sessions.getAllSessions()).filter(s => s.cwd === targetCwd)
+    if (sessionSlug) {
+      // Compound address: match by slugified session title within this CWD
+      toSess = sessionsAtCwd.find(s => slugify(s.title || s.id.slice(0, 8)) === sessionSlug)
+      if (!toSess) {
+        // Fuzzy: try prefix match for partial session slugs
+        toSess = sessionsAtCwd.find(s => slugify(s.title || s.id.slice(0, 8)).startsWith(sessionSlug))
+      }
+    } else {
+      // Bare project slug: single session -> route, multiple live -> error
+      const liveSessions = sessionsAtCwd.filter(s => ctx.sessions.getActiveWrapperCount(s.id) > 0)
+      if (liveSessions.length > 1) {
+        const names = liveSessions
+          .map(s => `${projectSlug}:${slugify(s.title || s.id.slice(0, 8))}`)
+          .join(', ')
+        ctx.reply({
+          type: 'channel_send_result',
+          ok: false,
+          error: `Ambiguous target: ${liveSessions.length} live sessions at "${projectSlug}". Use compound address: ${names}`,
+        })
+        return
+      }
+      toSess = liveSessions[0] || sessionsAtCwd[0]
+    }
+  } else {
+    toSess = ctx.sessions.getSessionByWrapper(toTarget) || ctx.sessions.getSession(toTarget)
+  }
+
   const toSession = toSess?.id
 
   // If we resolved a CWD but no active session, queue for offline delivery
@@ -204,7 +272,7 @@ const channelSend: MessageHandler = (ctx, data) => {
       context: data.context,
       conversationId,
     }
-    ctx.messageQueue.enqueue(targetCwd, callerCwd || '', fromProject, delivery)
+    ctx.messageQueue.enqueue(targetCwd, callerCwd || '', fromProject, delivery, sessionSlug)
 
     // Brief wait: if target reconnects within 1s, the queue drains automatically
     // and we can report 'delivered' instead of 'queued'

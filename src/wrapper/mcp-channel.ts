@@ -46,7 +46,8 @@ function elog(msg: string): void {
 }
 
 export interface SessionInfo {
-  id: string // wrapper ID for live sessions, session ID for inactive
+  id: string // addressable ID: bare project slug or compound "project:session-name"
+  project?: string // project-level grouping slug (same CWD = same project)
   session_id?: string // CC session ID (for transcript/task context)
   name: string
   cwd: string
@@ -339,7 +340,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
       {
         name: 'list_sessions',
         description:
-          'List other Claude Code sessions. Returns a stable addressable ID per session (persisted, survives restarts). Use the returned ID for send_message, terminate_session, configure_session. Messages to offline sessions are queued for delivery on reconnect. Use show_metadata for icon/color/keyterms (benevolent only). HINT: When the user says "tell X to Y", "ask X to Y", or "use X to Y", consider that X may be a session name -- call list_sessions to check. Use caution with ambiguous names: if multiple sessions match or the name could refer to a person/service rather than a session, ask the user to clarify.',
+          'List other Claude Code sessions. Returns a stable addressable ID per session. When multiple sessions share a project directory, IDs use compound format "project:session-name" (e.g. "rclaude:fuzzy-rabbit"). Single-session projects use bare IDs (e.g. "rclaude"). Each entry also has a "project" field showing the project-level grouping. Use the returned ID for send_message, terminate_session, configure_session. Messages to offline sessions are queued for delivery on reconnect. Ad-hoc sessions are hidden unless they have an established link. HINT: When the user says "tell X to Y", "ask X to Y", or "use X to Y", consider that X may be a session name -- call list_sessions to check.',
         inputSchema: {
           type: 'object' as const,
           properties: {
@@ -364,11 +365,11 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
       {
         name: 'send_message',
         description:
-          'Send a message to another Claude Code session. Use the ID from list_sessions. Messages to offline sessions are queued and delivered on reconnect. Returns status: "delivered" or "queued". First contact triggers approval prompt. Include conversation_id in replies to maintain thread context.',
+          'Send a message to another Claude Code session. Use the exact ID from list_sessions (bare "project" or compound "project:session-name"). For projects with multiple live sessions, you must use the compound format -- bare IDs are rejected as ambiguous. Messages to offline sessions are queued and delivered on reconnect. Returns status: "delivered" or "queued". First contact triggers approval prompt. Include conversation_id in replies to maintain thread context.',
         inputSchema: {
           type: 'object' as const,
           properties: {
-            to: { type: 'string', description: 'Target ID from list_sessions' },
+            to: { type: 'string', description: 'Target ID from list_sessions (bare or compound "project:session-name")' },
             intent: {
               type: 'string',
               enum: ['request', 'response', 'notify', 'progress'],

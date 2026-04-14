@@ -42,8 +42,8 @@ function scheduleSave(): void {
   }, 1000) // debounce 1s
 }
 
-/** Generate a slug from a project name. Lowercase, alphanumeric + hyphens. */
-function slugify(name: string): string {
+/** Generate a slug from a name. Lowercase, alphanumeric + hyphens. */
+export function slugify(name: string): string {
   return (
     name
       .toLowerCase()
