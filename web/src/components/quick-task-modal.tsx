@@ -3,7 +3,7 @@
  * Creates a project task in .rclaude/project/inbox/
  */
 
-import { FileText, X } from 'lucide-react'
+import { AlertTriangle, FileText, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useProject } from '@/hooks/use-project'
 import { useSessionsStore } from '@/hooks/use-sessions'
@@ -18,10 +18,9 @@ export function QuickTaskModal() {
   const [flash, setFlash] = useState(false)
 
   const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
-  const isActive = useSessionsStore(state => {
-    const s = state.sessions.find(s => s.id === state.selectedSessionId)
-    return s != null && s.status !== 'ended'
-  })
+  const session = useSessionsStore(state => state.sessions.find(s => s.id === state.selectedSessionId))
+  const isActive = session != null && session.status !== 'ended'
+  const hasWrapper = (session?.wrapperIds?.length ?? 0) > 0
 
   const { createTask } = useProject(selectedSessionId && isActive ? selectedSessionId : null)
 
@@ -61,18 +60,24 @@ export function QuickTaskModal() {
   )
 
   const handleSubmit = useCallback(() => {
-    if (!text.trim()) return
+    if (!text.trim() || !hasWrapper) return
     haptic('tap')
     const lines = text.trim().split('\n')
     const title = lines[0]
     const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : text.trim()
-    createTask({ title, body }).catch(() => {})
+
+    // Log to console for recovery in case the WS relay fails
+    console.log('[quick-task] Creating task:', JSON.stringify({ title, body, sessionId: selectedSessionId }))
+
+    createTask({ title, body }).catch(err => {
+      console.error('[quick-task] Failed to create task:', err, { title, body })
+    })
     haptic('success')
     setText('')
     setOpen(false)
     setFlash(true)
     setTimeout(() => setFlash(false), 1000)
-  }, [text, createTask])
+  }, [text, createTask, hasWrapper, selectedSessionId])
 
   if (!open) {
     if (flash) {
@@ -121,6 +126,12 @@ export function QuickTaskModal() {
             <X className="w-4 h-4" />
           </button>
         </div>
+        {!hasWrapper && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border-b border-amber-500/30 text-amber-400">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            <span className="text-[10px] font-mono">No wrapper connected -- task cannot be delivered</span>
+          </div>
+        )}
         <div className="p-3 flex-1 min-h-0">
           <MarkdownInput
             value={text}
@@ -138,7 +149,7 @@ export function QuickTaskModal() {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!text.trim()}
+            disabled={!text.trim() || !hasWrapper}
             className="px-3 py-1 text-xs font-bold bg-accent/20 text-accent hover:bg-accent/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Add
