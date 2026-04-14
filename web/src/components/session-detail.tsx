@@ -738,6 +738,13 @@ export const SessionDetail = memo(function SessionDetail() {
   }, [requestedTab, requestedTabSeq])
 
   const session = useSessionsStore(state => state.sessions.find(s => s.id === state.selectedSessionId))
+
+  // Fall back to transcript if current tab is hidden for ended sessions
+  useEffect(() => {
+    if (session?.status === 'ended' && (activeTab === 'files' || activeTab === 'project')) {
+      setActiveTab('transcript')
+    }
+  }, [session?.status, activeTab])
   const { canAdmin, canChat, canReadTerminal, canReadFiles, canSpawn } = useSessionsStore(
     useShallow(s => {
       const p = (s.selectedSessionId && s.sessionPermissions[s.selectedSessionId]) || s.permissions
@@ -1576,21 +1583,23 @@ export const SessionDetail = memo(function SessionDetail() {
                 Files
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                haptic('tick')
-                setActiveTab('project')
-              }}
-              className={cn(
-                'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
-                activeTab === 'project'
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-muted-foreground hover:text-foreground',
-              )}
-            >
-              Project
-            </button>
+            {session.status !== 'ended' && (
+              <button
+                type="button"
+                onClick={() => {
+                  haptic('tick')
+                  setActiveTab('project')
+                }}
+                className={cn(
+                  'px-3 sm:px-4 py-2 text-xs border-b-2 transition-colors',
+                  activeTab === 'project'
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+              >
+                Project
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
