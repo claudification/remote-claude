@@ -294,7 +294,7 @@ export async function writeMergedSettings(
   const settingsPath = dir ? `${dir}/settings/settings-${sessionId}.json` : `/tmp/rclaude-settings-${sessionId}.json`
 
   await Bun.write(settingsPath, JSON.stringify(settings, null, 2))
-  console.error(
+  console.log(
     `[settings] Written ${settingsPath} (port=${port} session=${sessionId.slice(0, 8)} hooks=${Object.keys(settings.hooks || {}).length})`,
   )
 
