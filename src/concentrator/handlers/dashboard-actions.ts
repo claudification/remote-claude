@@ -261,9 +261,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
       cwd: session.cwd,
       wrapperId,
       jobId,
-      // Default mode uses rclaude-boot.sh which checks RCLAUDE_SESSION_ID
-      // and uses --resume (specific session) instead of --continue (CWD guess).
-      // This prevents picking up the wrong session after /clear.
+      mode: 'resume',
       headless,
       effort,
       model,

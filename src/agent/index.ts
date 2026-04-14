@@ -545,6 +545,7 @@ async function reviveSession(
 
     const args = buildHeadlessArgs({
       mode: mode as 'fresh' | 'continue' | 'resume',
+      resumeId: sessionId,
       resumeName: sessionName,
       effort,
       model,
@@ -572,6 +573,7 @@ async function reviveSession(
   // ─── tmux path for PTY sessions ────────────────────────────
   const scriptArgs = [reviveScript, sessionId, cwd]
   if (mode) scriptArgs.push('--mode', mode)
+  if (mode === 'resume') scriptArgs.push('--resume-id', sessionId)
 
   launchLog(jobId, 'Running revive script (tmux)', 'info', `mode=${mode || 'default'}`)
   debug(`Running: ${scriptArgs.join(' ')}`, verbose)
