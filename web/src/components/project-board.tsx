@@ -383,6 +383,13 @@ export function TaskEditor({
   )
 }
 
+type LaunchStep = {
+  label: string
+  status: 'pending' | 'active' | 'done' | 'error'
+  detail?: string
+  ts?: number
+}
+
 function RunTaskDialog({ task, sessionId, onClose }: { task: ProjectTask; sessionId: string; onClose: () => void }) {
   const cwd = useSessionsStore(state => state.sessions.find(s => s.id === sessionId)?.cwd || '')
   const projectSettings = useSessionsStore(state => state.projectSettings[cwd])
@@ -392,16 +399,103 @@ function RunTaskDialog({ task, sessionId, onClose }: { task: ProjectTask; sessio
   const [branchName, setBranchName] = useState(`adhoc/${task.slug}`)
   const [autoCommit, setAutoCommit] = useState(false)
   const [timeout, setTimeout_] = useState('10')
-  const [spawning, setSpawning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Launch monitor state
+  const [phase, setPhase] = useState<'config' | 'launching'>('config')
+  const [wrapperId, setWrapperId] = useState<string | null>(null)
+  const [steps, setSteps] = useState<LaunchStep[]>([])
+  const [launchSessionId, setLaunchSessionId] = useState<string | null>(null)
+  const startTimeRef = useRef(0)
 
   useKeyLayer({ Escape: onClose })
 
+  // Watch for the spawned session appearing in the sessions store
+  const spawnedSession = useSessionsStore(
+    useCallback(
+      state => {
+        if (!wrapperId) return null
+        return state.sessions.find(s => s.wrapperIds?.includes(wrapperId)) || null
+      },
+      [wrapperId],
+    ),
+  )
+
+  // Track session lifecycle in the launch monitor
+  useEffect(() => {
+    if (!wrapperId || phase !== 'launching') return
+
+    if (spawnedSession && !launchSessionId) {
+      // Session appeared -- wrapper connected to concentrator
+      setLaunchSessionId(spawnedSession.id)
+      const elapsed = Date.now() - startTimeRef.current
+      setSteps(prev => [
+        ...prev.map(s =>
+          s.label === 'Waiting for session...' ? { ...s, status: 'done' as const, detail: `${elapsed}ms` } : s,
+        ),
+        { label: 'Session connected', status: 'done', ts: Date.now(), detail: spawnedSession.id.slice(0, 8) },
+        { label: 'Waiting for prompt submission...', status: 'active', ts: Date.now() },
+      ])
+    }
+
+    if (spawnedSession && launchSessionId) {
+      const isActive = spawnedSession.status === 'active' || spawnedSession.status === 'idle'
+      const isEnded = spawnedSession.status === 'ended'
+
+      setSteps(prev => {
+        const updated = [...prev]
+        const promptStep = updated.find(s => s.label === 'Waiting for prompt submission...')
+        if (promptStep && isActive && promptStep.status !== 'done') {
+          promptStep.status = 'done'
+          promptStep.detail = spawnedSession.lastEvent?.hookEvent || 'active'
+          updated.push({
+            label: isEnded ? 'Task complete' : 'Running...',
+            status: isEnded ? 'done' : 'active',
+            ts: Date.now(),
+            detail: `${spawnedSession.eventCount || 0} events`,
+          })
+        }
+        // Update running step event count
+        const runningStep = updated.find(s => s.label === 'Running...')
+        if (runningStep && !isEnded) {
+          runningStep.detail = `${spawnedSession.eventCount || 0} events`
+        }
+        // Mark complete
+        if (isEnded && runningStep) {
+          runningStep.status = 'done'
+          runningStep.label = 'Task complete'
+          const totalElapsed = Math.round((Date.now() - startTimeRef.current) / 1000)
+          runningStep.detail = `${totalElapsed}s, ${spawnedSession.eventCount || 0} events`
+        }
+        return updated
+      })
+    }
+  }, [wrapperId, phase, spawnedSession, launchSessionId])
+
+  // Timeout watchdog
+  useEffect(() => {
+    if (phase !== 'launching' || !startTimeRef.current) return
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - startTimeRef.current
+      if (elapsed > 30000 && !launchSessionId) {
+        setSteps(prev => [
+          ...prev.map(s => (s.status === 'active' ? { ...s, status: 'error' as const, detail: 'Timed out (30s)' } : s)),
+        ])
+        setError('Session failed to connect within 30s')
+        clearInterval(timer)
+      }
+    }, 2000)
+    return () => clearInterval(timer)
+  }, [phase, launchSessionId])
+
   async function handleRun() {
-    if (spawning || !cwd) return
-    setSpawning(true)
+    if (phase !== 'config' || !cwd) return
+    setPhase('launching')
     setError(null)
+    startTimeRef.current = Date.now()
     haptic('tap')
+
+    setSteps([{ label: 'Sending spawn request...', status: 'active', ts: Date.now() }])
 
     // Build the prompt from the task
     const tagAttrs = [
@@ -439,16 +533,49 @@ function RunTaskDialog({ task, sessionId, onClose }: { task: ProjectTask; sessio
       const data = await res.json()
       if (data.success) {
         haptic('success')
-        onClose()
+        const wid = data.wrapperId as string
+        setWrapperId(wid)
+        setSteps(prev => [
+          ...prev.map(s =>
+            s.status === 'active' ? { ...s, status: 'done' as const, detail: `wrapper=${wid.slice(0, 8)}` } : s,
+          ),
+          { label: 'Waiting for session...', status: 'active', ts: Date.now() },
+        ])
       } else {
         setError(data.error || 'Spawn failed')
+        setSteps(prev =>
+          prev.map(s => (s.status === 'active' ? { ...s, status: 'error' as const, detail: data.error } : s)),
+        )
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Network error')
-    } finally {
-      setSpawning(false)
+      const msg = err instanceof Error ? err.message : 'Network error'
+      setError(msg)
+      setSteps(prev => prev.map(s => (s.status === 'active' ? { ...s, status: 'error' as const, detail: msg } : s)))
     }
   }
+
+  function handleViewSession() {
+    if (launchSessionId) {
+      useSessionsStore.getState().selectSession(launchSessionId)
+      onClose()
+    }
+  }
+
+  const stepIcon = (status: LaunchStep['status']) => {
+    switch (status) {
+      case 'pending':
+        return <span className="w-2 h-2 rounded-full bg-[#33467c]/50 inline-block" />
+      case 'active':
+        return <span className="w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse" />
+      case 'done':
+        return <span className="text-[10px] text-emerald-400">&#x2713;</span>
+      case 'error':
+        return <span className="text-[10px] text-red-400">&#x2717;</span>
+    }
+  }
+
+  const isComplete = spawnedSession?.status === 'ended'
+  const isRunning = spawnedSession && !isComplete
 
   return (
     <div
@@ -471,7 +598,9 @@ function RunTaskDialog({ task, sessionId, onClose }: { task: ProjectTask; sessio
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-500/20">
           <Zap className="w-4 h-4 text-amber-400" />
-          <span className="text-sm font-mono font-bold text-amber-400">Run Task</span>
+          <span className="text-sm font-mono font-bold text-amber-400">
+            {phase === 'config' ? 'Run Task' : isComplete ? 'Task Complete' : 'Launching...'}
+          </span>
           <button type="button" onClick={onClose} className="ml-auto text-muted-foreground hover:text-foreground">
             <X className="w-4 h-4" />
           </button>
@@ -480,128 +609,178 @@ function RunTaskDialog({ task, sessionId, onClose }: { task: ProjectTask; sessio
         {/* Task title */}
         <div className="px-4 py-3 border-b border-[#33467c]/30">
           <div className="text-xs font-mono text-foreground truncate">{task.title}</div>
-          {task.body && (
+          {phase === 'config' && task.body && (
             <div className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{task.body.slice(0, 200)}</div>
           )}
         </div>
 
-        {/* Options */}
-        <div className="px-4 py-3 space-y-3">
-          {/* Model */}
-          <div className="flex items-center justify-between">
-            <label htmlFor="run-task-model" className="text-[10px] font-mono text-muted-foreground">
-              Model
-            </label>
-            <select
-              id="run-task-model"
-              value={model}
-              onChange={e => setModel(e.target.value)}
-              className="text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
-            >
-              <option value="">default</option>
-              <option value="opus">opus</option>
-              <option value="sonnet">sonnet</option>
-              <option value="haiku">haiku</option>
-            </select>
-          </div>
-
-          {/* Effort */}
-          <div className="flex items-center justify-between">
-            <label htmlFor="run-task-effort" className="text-[10px] font-mono text-muted-foreground">
-              Effort
-            </label>
-            <select
-              id="run-task-effort"
-              value={effort}
-              onChange={e => setEffort(e.target.value)}
-              className="text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
-            >
-              <option value="default">default</option>
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-            </select>
-          </div>
-
-          {/* Worktree */}
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={useWorktree}
-                onChange={e => setUseWorktree(e.target.checked)}
-                className="accent-amber-400"
-              />
-              <span className="text-[10px] font-mono text-muted-foreground">Use git worktree (isolated branch)</span>
-            </label>
-            {useWorktree && (
-              <input
-                type="text"
-                value={branchName}
-                onChange={e => setBranchName(e.target.value)}
-                className="w-full text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
-                placeholder="Branch name..."
-              />
-            )}
-          </div>
-
-          {/* Auto-commit */}
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoCommit}
-              onChange={e => setAutoCommit(e.target.checked)}
-              className="accent-amber-400"
-            />
-            <span className="text-[10px] font-mono text-muted-foreground">Auto-commit changes on completion</span>
-          </label>
-
-          {/* Timeout */}
-          <div className="flex items-center justify-between">
-            <label htmlFor="run-task-timeout" className="text-[10px] font-mono text-muted-foreground">
-              Timeout
-            </label>
-            <select
-              id="run-task-timeout"
-              value={timeout}
-              onChange={e => setTimeout_(e.target.value)}
-              className="text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
-            >
-              <option value="5">5 min</option>
-              <option value="10">10 min</option>
-              <option value="15">15 min</option>
-              <option value="30">30 min</option>
-              <option value="0">unlimited</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="px-4 py-2 text-[10px] font-mono text-red-400 border-t border-red-500/20 bg-red-500/5">
-            {error}
-          </div>
+        {/* Phase 1: Config form */}
+        {phase === 'config' && (
+          <>
+            <div className="px-4 py-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <label htmlFor="run-task-model" className="text-[10px] font-mono text-muted-foreground">
+                  Model
+                </label>
+                <select
+                  id="run-task-model"
+                  value={model}
+                  onChange={e => setModel(e.target.value)}
+                  className="text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
+                >
+                  <option value="">default</option>
+                  <option value="opus">opus</option>
+                  <option value="sonnet">sonnet</option>
+                  <option value="haiku">haiku</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between">
+                <label htmlFor="run-task-effort" className="text-[10px] font-mono text-muted-foreground">
+                  Effort
+                </label>
+                <select
+                  id="run-task-effort"
+                  value={effort}
+                  onChange={e => setEffort(e.target.value)}
+                  className="text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
+                >
+                  <option value="default">default</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useWorktree}
+                    onChange={e => setUseWorktree(e.target.checked)}
+                    className="accent-amber-400"
+                  />
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    Use git worktree (isolated branch)
+                  </span>
+                </label>
+                {useWorktree && (
+                  <input
+                    type="text"
+                    value={branchName}
+                    onChange={e => setBranchName(e.target.value)}
+                    className="w-full text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
+                    placeholder="Branch name..."
+                  />
+                )}
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoCommit}
+                  onChange={e => setAutoCommit(e.target.checked)}
+                  className="accent-amber-400"
+                />
+                <span className="text-[10px] font-mono text-muted-foreground">Auto-commit changes on completion</span>
+              </label>
+              <div className="flex items-center justify-between">
+                <label htmlFor="run-task-timeout" className="text-[10px] font-mono text-muted-foreground">
+                  Timeout
+                </label>
+                <select
+                  id="run-task-timeout"
+                  value={timeout}
+                  onChange={e => setTimeout_(e.target.value)}
+                  className="text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
+                >
+                  <option value="5">5 min</option>
+                  <option value="10">10 min</option>
+                  <option value="15">15 min</option>
+                  <option value="30">30 min</option>
+                  <option value="0">unlimited</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#33467c]/30">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3 py-1 text-xs font-mono text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRun}
+                disabled={!cwd}
+                className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold font-mono bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-colors disabled:opacity-50"
+              >
+                <Zap className="w-3 h-3" />
+                Run
+              </button>
+            </div>
+          </>
         )}
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#33467c]/30">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1 text-xs font-mono text-muted-foreground hover:text-foreground"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleRun}
-            disabled={spawning || !cwd}
-            className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold font-mono bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-colors disabled:opacity-50"
-          >
-            <Zap className="w-3 h-3" />
-            {spawning ? 'Spawning...' : 'Run'}
-          </button>
-        </div>
+        {/* Phase 2: Launch monitor */}
+        {phase === 'launching' && (
+          <>
+            <div className="px-4 py-3 space-y-2">
+              {steps.map((step, i) => (
+                <div key={i} className="flex items-start gap-2 font-mono">
+                  <span className="mt-0.5 w-3 flex-shrink-0 text-center">{stepIcon(step.status)}</span>
+                  <div className="min-w-0">
+                    <span
+                      className={cn(
+                        'text-[11px]',
+                        step.status === 'error'
+                          ? 'text-red-400'
+                          : step.status === 'done'
+                            ? 'text-muted-foreground'
+                            : 'text-foreground',
+                      )}
+                    >
+                      {step.label}
+                    </span>
+                    {step.detail && <span className="text-[10px] text-muted-foreground/60 ml-2">{step.detail}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {error && (
+              <div className="px-4 py-2 text-[10px] font-mono text-red-400 border-t border-red-500/20 bg-red-500/5">
+                {error}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#33467c]/30">
+              {isRunning && (
+                <button
+                  type="button"
+                  onClick={handleViewSession}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
+                >
+                  View Session
+                </button>
+              )}
+              {isComplete && (
+                <button
+                  type="button"
+                  onClick={handleViewSession}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
+                >
+                  View Result
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3 py-1 text-xs font-mono text-muted-foreground hover:text-foreground"
+              >
+                {isComplete || error ? 'Close' : 'Background'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
