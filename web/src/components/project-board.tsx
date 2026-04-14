@@ -996,8 +996,19 @@ export function RunTaskDialog({
             </div>
 
             {error && (
-              <div className="px-4 py-2 text-[10px] font-mono text-red-400 border-t border-red-500/20 bg-red-500/5">
-                {error}
+              <div className="px-4 py-2 border-t border-red-500/20 bg-red-500/5">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[10px] font-mono text-red-400 break-all">{error}</span>
+                  <button
+                    type="button"
+                    onClick={handleCopyDiagnostics}
+                    className="flex-shrink-0 flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors"
+                    title="Copy full diagnostics to clipboard"
+                  >
+                    <Copy className="w-3 h-3" />
+                    {copied ? 'Copied' : 'Copy diagnostics'}
+                  </button>
+                </div>
               </div>
             )}
 
