@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-04-14
+
+### Features
+- `449da5c` Agent direct-spawns headless sessions via `Bun.spawn()` (no tmux)
+  - PID registry for restart survival (`~/.rclaude/agent-sessions.json`)
+  - Immediate crash detection + stderr capture as diag entries
+  - Early failure detection (exit < 5s = likely hook/config issue)
+  - `SpawnFailed` protocol message for async crash reporting
+  - SIGTERM/SIGINT: unref children, persist registry, clean exit
+  - PTY/interactive sessions still use tmux via revive-session.sh
+- `ab5c5bd` Cache TTL countdown timer with live expiry warning
+- `bd359e5` Filter subagent task_progress/task_notification from parent transcript
+- `d8b5ac5` Launch monitor UI - live pipeline status in RunTaskDialog
+
+### Fixes
+- `37460cd` Ad-hoc sessions auto-terminate after first result
+- `5445d9a` Ad-hoc task runner - prompt delivery, shell quoting, session names
+
+### Chores
+- `1022d1e` Add task-statuses shared module, biome formatting fixes
+- `cee8326` Fix all 155 biome lint diagnostics
+
+---
+
 ## 2026-04-12
 
 ### Features
