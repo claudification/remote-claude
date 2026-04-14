@@ -130,7 +130,12 @@ export function interceptTodoWrite(ctx: WrapperContext, entries: TranscriptEntry
  * duplicates in the dashboard transcript.
  */
 function filterParentEntries(entries: TranscriptEntry[]): TranscriptEntry[] {
-  return entries.filter(e => !(e as Record<string, unknown>).parent_tool_use_id)
+  return entries.filter(e => {
+    if ((e as Record<string, unknown>).parent_tool_use_id) return false
+    // Filter progress entries belonging to a subagent (they have their own file watchers)
+    if (e.type === 'progress' && ((e as Record<string, unknown>).data as Record<string, unknown>)?.agentId) return false
+    return true
+  })
 }
 
 /**

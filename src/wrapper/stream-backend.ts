@@ -216,6 +216,10 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
     }
   }
 
+  // Track agent task IDs so we can route task_progress/task_notification to subagent transcript
+  // Maps taskId -> toolUseId (reverse of what onTaskStarted builds externally)
+  const agentTaskToToolUse = new Map<string, string>()
+
   // Replay buffer: accumulate replayed entries from --continue, flush as isInitial=true
   const MAX_INITIAL_ENTRIES = 500
   const METADATA_TYPES = new Set(['summary', 'custom-title', 'agent-name', 'pr-link'])
@@ -284,6 +288,10 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
           const toolUseId = msg.tool_use_id as string
           const description = (msg.description as string) || ''
           debug(`task_started: ${taskType} id=${taskId?.slice(0, 8)} ${description.slice(0, 40)}`)
+          // Track agent tasks so task_progress/task_notification can be routed to subagent
+          if (taskType === 'local_agent' && taskId && toolUseId) {
+            agentTaskToToolUse.set(taskId, toolUseId)
+          }
           onTaskStarted?.({ taskId, toolUseId, taskType, description })
           break
         }
@@ -309,6 +317,7 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
           break
         }
 
+        let routedToSubagent = false
         switch (subtype) {
           case 'local_command_output':
             debug(`local_command_output: ${((msg.content as string) || '').slice(0, 80)}`)
@@ -329,12 +338,26 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
           case 'session_state_changed':
             debug(`session_state_changed: ${msg.state}`)
             break
-          case 'task_notification':
+          case 'task_notification': {
             debug(`task_notification: task=${msg.task_id} status=${msg.status}`)
+            // Route to subagent transcript if this task belongs to an agent
+            const notifToolUseId = agentTaskToToolUse.get(msg.task_id as string)
+            if (notifToolUseId && onSubagentEntry) {
+              onSubagentEntry(notifToolUseId, systemEntry)
+              routedToSubagent = true
+            }
             break
-          case 'task_progress':
+          }
+          case 'task_progress': {
             debug(`task_progress: task=${msg.task_id} tokens=${(msg.usage as Record<string, unknown>)?.total_tokens}`)
+            // Route to subagent transcript if this task belongs to an agent
+            const progressToolUseId = agentTaskToToolUse.get(msg.task_id as string)
+            if (progressToolUseId && onSubagentEntry) {
+              onSubagentEntry(progressToolUseId, systemEntry)
+              routedToSubagent = true
+            }
             break
+          }
           case 'turn_duration':
             debug(`turn_duration: ${JSON.stringify(msg.duration_ms ?? msg)}`)
             break
@@ -366,7 +389,9 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
             break
         }
 
-        onTranscriptEntries?.([systemEntry], false)
+        if (!routedToSubagent) {
+          onTranscriptEntries?.([systemEntry], false)
+        }
         break
       }
 
