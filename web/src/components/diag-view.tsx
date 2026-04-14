@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { getHighlighter } from './transcript/syntax'
 
 interface DiagViewProps {
   sessionId: string
@@ -63,13 +64,13 @@ function toYaml(obj: unknown, indent = 0): string {
   return `${pad}${String(obj)}`
 }
 
-// Lazy Shiki highlighter (reuses transcript-view's singleton)
+// Shiki highlighter singleton (shared with transcript via static import)
 let highlightPromise: Promise<{ codeToHtml: (code: string, opts: { lang: string; theme: string }) => string }> | null =
   null
 
 function getDiagHighlighter() {
   if (!highlightPromise) {
-    highlightPromise = import('./transcript/syntax').then(m => m.getHighlighter())
+    highlightPromise = getHighlighter()
   }
   return highlightPromise
 }
