@@ -146,6 +146,18 @@ function reportDeadPids(ws: WebSocket) {
   deadPidsToReport.length = 0
 }
 
+// ─── CC Transcript Discovery ─────────────────────────────────────────
+
+/** Check if a CC transcript file exists for the given session ID and CWD.
+ *  CC stores transcripts at ~/.claude/projects/{mangled-cwd}/{session-id}.jsonl
+ *  where mangled-cwd replaces all / with - in the absolute path. */
+function ccTranscriptExists(sessionId: string, cwd: string): boolean {
+  const home = process.env.HOME || '/root'
+  const mangledCwd = cwd.replace(/\//g, '-')
+  const transcriptPath = join(home, '.claude', 'projects', mangledCwd, `${sessionId}.jsonl`)
+  return existsSync(transcriptPath)
+}
+
 // ─── rclaude Binary Discovery ────────────────────────────────────────
 
 function findRclaudeBinary(): string | null {
@@ -543,8 +555,22 @@ async function reviveSession(
       return result
     }
 
+    // Check if CC transcript exists before attempting --resume.
+    // If missing, fall back to fresh start to avoid immediate exit code 1.
+    let effectiveMode = mode
+    if (mode === 'resume' && !ccTranscriptExists(sessionId, cwd)) {
+      log(`CC transcript missing for ${sessionId.slice(0, 8)} - falling back to fresh start`)
+      launchLog(
+        jobId,
+        'CC transcript missing, starting fresh',
+        'info',
+        `session ${sessionId.slice(0, 8)} has no JSONL file`,
+      )
+      effectiveMode = 'fresh'
+    }
+
     const args = buildHeadlessArgs({
-      mode,
+      mode: effectiveMode,
       resumeId: sessionId,
       resumeName: sessionName,
       effort,
@@ -563,18 +589,31 @@ async function reviveSession(
       worktree: adHocWorktree,
     })
 
-    launchLog(jobId, 'Reviving headless (direct spawn)', 'info', `mode=${mode || 'default'}`)
+    launchLog(jobId, 'Reviving headless (direct spawn)', 'info', `mode=${effectiveMode || 'default'}`)
     const spawnRes = spawnHeadlessDirect(rclaudeBin, cwd, wrapperId, args, env, jobId)
     result.success = spawnRes.success
     result.error = spawnRes.error
-    result.continued = mode === 'resume'
+    result.continued = effectiveMode === 'resume'
     return result
   }
 
   // ─── tmux path for PTY sessions ────────────────────────────
+  // Same transcript check as headless path
+  let effectiveTmuxMode = mode
+  if (mode === 'resume' && !ccTranscriptExists(sessionId, cwd)) {
+    log(`CC transcript missing for ${sessionId.slice(0, 8)} - falling back to fresh start (tmux)`)
+    launchLog(
+      jobId,
+      'CC transcript missing, starting fresh',
+      'info',
+      `session ${sessionId.slice(0, 8)} has no JSONL file`,
+    )
+    effectiveTmuxMode = 'fresh'
+  }
+
   const scriptArgs = [reviveScript, sessionId, cwd]
-  if (mode) scriptArgs.push('--mode', mode)
-  if (mode === 'resume') scriptArgs.push('--resume-id', sessionId)
+  if (effectiveTmuxMode) scriptArgs.push('--mode', effectiveTmuxMode)
+  if (effectiveTmuxMode === 'resume') scriptArgs.push('--resume-id', sessionId)
 
   launchLog(jobId, 'Running revive script (tmux)', 'info', `mode=${mode || 'default'}`)
   debug(`Running: ${scriptArgs.join(' ')}`, verbose)
