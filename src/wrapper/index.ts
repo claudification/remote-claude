@@ -1585,10 +1585,9 @@ async function main() {
     ctx.eventQueue.length = 0
     cleanupSettings(internalId, rclaudeDir).catch(() => {})
     closeMcpChannel().catch(() => {})
-    if (mcpConfigPath)
-      try {
-        unlinkSync(mcpConfigPath)
-      } catch {}
+    // NOTE: Do NOT delete mcpConfigPath here. CC reads it asynchronously and
+    // another wrapper with the same RCLAUDE_WRAPPER_ID may still need it.
+    // The 25-day stale reaper handles cleanup. (77 bytes per file.)
     try {
       unlinkSync(promptFile)
     } catch {}
