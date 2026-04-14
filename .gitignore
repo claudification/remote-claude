@@ -6,6 +6,7 @@ bin/
 .*.bun-build
 package-lock.json
 *.tsbuildinfo
+*.tgz
 .env
 .agent.pid
 src/shared/version.ts
