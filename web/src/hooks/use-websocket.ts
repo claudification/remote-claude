@@ -742,6 +742,14 @@ function processMessage(msg: DashboardMessage) {
       window.dispatchEvent(new CustomEvent('revive-agent-result', { detail: msg }))
       break
     }
+
+    // ─── Launch Job Events ──────────────────────────────────────────
+    case 'launch_log':
+    case 'job_complete':
+    case 'job_failed': {
+      window.dispatchEvent(new CustomEvent('launch-job-event', { detail: msg }))
+      break
+    }
   }
 }
 

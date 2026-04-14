@@ -225,6 +225,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
   if (!agent) throw new GuardError('No host agent connected')
 
   const wrapperId = crypto.randomUUID()
+  const jobId = data.jobId as string | undefined
   const projSettings = getProjectSettings(session.cwd)
   const name = session.title || projSettings?.label || session.cwd.split('/').pop() || sessionId.slice(0, 8)
 
@@ -238,12 +239,18 @@ const reviveSession: MessageHandler = (ctx, data) => {
   const effort = effortRaw && effortRaw !== 'default' ? effortRaw : undefined
   const model = projSettings?.defaultModel || globalSettings.defaultModel || undefined
 
+  // Register launch job if dashboard provided a jobId
+  if (jobId) {
+    ctx.sessions.createJob(jobId, wrapperId)
+  }
+
   agent.send(
     JSON.stringify({
       type: 'revive',
       sessionId,
       cwd: session.cwd,
       wrapperId,
+      jobId,
       // Default mode uses rclaude-boot.sh which checks RCLAUDE_SESSION_ID
       // and uses --resume (specific session) instead of --continue (CWD guess).
       // This prevents picking up the wrong session after /clear.
@@ -284,6 +291,22 @@ const renameSession: MessageHandler = (ctx, data) => {
   ctx.reply({ type: 'rename_session_result', ok: true })
 }
 
+// ─── Launch Job Subscriptions ─────────────────────────────────────
+
+const subscribeJob: MessageHandler = (ctx, data) => {
+  const jobId = data.jobId as string
+  if (!jobId) throw new GuardError('Missing jobId')
+  ctx.sessions.subscribeJob(jobId, ctx.ws)
+  ctx.log.debug(`[job] Subscribed: ${jobId.slice(0, 8)}`)
+}
+
+const unsubscribeJob: MessageHandler = (ctx, data) => {
+  const jobId = data.jobId as string
+  if (!jobId) return
+  ctx.sessions.unsubscribeJob(jobId, ctx.ws)
+  ctx.log.debug(`[job] Unsubscribed: ${jobId.slice(0, 8)}`)
+}
+
 // ─── Register all dashboard action handlers ───────────────────────
 
 export function registerDashboardActionHandlers(): void {
@@ -297,5 +320,7 @@ export function registerDashboardActionHandlers(): void {
     update_session_order: updateSessionOrder,
     revive_session: reviveSession,
     rename_session: renameSession,
+    subscribe_job: subscribeJob,
+    unsubscribe_job: unsubscribeJob,
   })
 }

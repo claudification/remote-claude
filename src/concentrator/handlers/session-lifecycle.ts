@@ -76,6 +76,9 @@ const meta: MessageHandler = (ctx, data) => {
 
   ctx.sessions.broadcastSessionUpdate(sessionId)
 
+  // Complete launch job if this wrapperId is tracked
+  ctx.sessions.completeJob(wrapperId, sessionId)
+
   // Check rendezvous: someone may be waiting for this wrapper to connect
   const rvResolved = ctx.sessions.resolveRendezvous(wrapperId, sessionId)
   if (!rvResolved) {

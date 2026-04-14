@@ -745,6 +745,8 @@ export function createRouter(options: RouteOptions): Hono {
       adHoc?: boolean
       adHocTaskId?: string
       worktree?: string
+      // Launch job correlation
+      jobId?: string
     }>()
     if (!body.cwd || typeof body.cwd !== 'string') return c.json({ error: 'Missing cwd field' }, 400)
     if (body.mode === 'resume' && !body.resumeId) return c.json({ error: 'resumeId required for resume mode' }, 400)
@@ -761,6 +763,12 @@ export function createRouter(options: RouteOptions): Hono {
 
     const requestId = randomUUID()
     const wrapperId = randomUUID()
+    const jobId = body.jobId
+
+    // Register launch job if dashboard provided a jobId
+    if (jobId) {
+      sessionStore.createJob(jobId, wrapperId)
+    }
 
     const cwdLabel = body.cwd.split('/').pop() || body.cwd
     if (body.adHoc) {
@@ -799,6 +807,7 @@ export function createRouter(options: RouteOptions): Hono {
           requestId,
           cwd: body.cwd,
           wrapperId,
+          jobId,
           mkdir: body.mkdir || false,
           mode: body.adHoc ? 'fresh' : body.mode || 'fresh',
           resumeId: body.resumeId,
@@ -860,7 +869,7 @@ export function createRouter(options: RouteOptions): Hono {
         })
     }
 
-    return c.json({ success: true, wrapperId, tmuxSession: result.tmuxSession })
+    return c.json({ success: true, wrapperId, jobId, tmuxSession: result.tmuxSession })
   })
 
   // ─── Directory listing (agent relay) ───────────────────────────────
