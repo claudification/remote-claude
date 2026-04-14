@@ -402,18 +402,19 @@ function ActionButton({
 
 function StackLayout({
   direction = 'vertical',
-  children,
+  items,
   form,
   onAction,
 }: {
   direction?: 'vertical' | 'horizontal'
-  children: DialogComponent[]
+  items: DialogComponent[]
   form: DialogFormState
   onAction: (actionId: string) => void
 }) {
   return (
     <div className={cn(direction === 'horizontal' ? 'flex flex-wrap gap-2 items-start' : 'flex flex-col gap-3')}>
-      {children.map((child, i) => (
+      {items.map((child, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: dialog layout children are positional, no stable IDs
         <ComponentRenderer key={i} component={child} form={form} onAction={onAction} />
       ))}
     </div>
@@ -422,18 +423,19 @@ function StackLayout({
 
 function GridLayout({
   columns = 2,
-  children,
+  items,
   form,
   onAction,
 }: {
   columns?: number
-  children: DialogComponent[]
+  items: DialogComponent[]
   form: DialogFormState
   onAction: (actionId: string) => void
 }) {
   return (
     <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(columns, 4)}, minmax(0, 1fr))` }}>
-      {children.map((child, i) => (
+      {items.map((child, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: grid layout children are positional, no stable IDs
         <ComponentRenderer key={i} component={child} form={form} onAction={onAction} />
       ))}
     </div>
@@ -443,13 +445,13 @@ function GridLayout({
 function GroupLayout({
   label,
   collapsed: initialCollapsed = false,
-  children,
+  items,
   form,
   onAction,
 }: {
   label: string
   collapsed?: boolean
-  children: DialogComponent[]
+  items: DialogComponent[]
   form: DialogFormState
   onAction: (actionId: string) => void
 }) {
@@ -471,7 +473,8 @@ function GroupLayout({
       </div>
       {!isCollapsed && (
         <div className="p-3 space-y-3">
-          {children.map((child, i) => (
+          {items.map((child, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: group layout children are positional, no stable IDs
             <ComponentRenderer key={i} component={child} form={form} onAction={onAction} />
           ))}
         </div>
@@ -564,17 +567,15 @@ export const ComponentRenderer = memo(function ComponentRenderer({
 
     // Layout
     case 'Stack':
-      return (
-        <StackLayout direction={component.direction} children={component.children} form={form} onAction={onAction} />
-      )
+      return <StackLayout direction={component.direction} items={component.children} form={form} onAction={onAction} />
     case 'Grid':
-      return <GridLayout columns={component.columns} children={component.children} form={form} onAction={onAction} />
+      return <GridLayout columns={component.columns} items={component.children} form={form} onAction={onAction} />
     case 'Group':
       return (
         <GroupLayout
           label={component.label}
           collapsed={component.collapsed}
-          children={component.children}
+          items={component.children}
           form={form}
           onAction={onAction}
         />

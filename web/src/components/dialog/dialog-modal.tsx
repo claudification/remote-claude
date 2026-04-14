@@ -172,7 +172,7 @@ export const DialogModal = memo(function DialogModal({ layout, onSubmit, onCance
             const optId = noteMatch[1]
             const optVal = noteMatch[2]
             if (!optionNotes[optId]) optionNotes[optId] = ''
-            optionNotes[optId] += (optionNotes[optId] ? '; ' : '') + `${optVal}: ${v.trim()}`
+            optionNotes[optId] += `${optionNotes[optId] ? '; ' : ''}${optVal}: ${v.trim()}`
           }
           continue
         }
@@ -289,6 +289,7 @@ export const DialogModal = memo(function DialogModal({ layout, onSubmit, onCance
           <div className="flex gap-1 px-4 py-2 border-b border-border/20 shrink-0 overflow-x-auto">
             {pages.map((page, i) => (
               <button
+                // biome-ignore lint/suspicious/noArrayIndexKey: page tabs are positional, no stable IDs
                 key={i}
                 type="button"
                 onClick={() => {
@@ -312,6 +313,7 @@ export const DialogModal = memo(function DialogModal({ layout, onSubmit, onCance
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {currentPage?.body.map((component, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: dialog components are positional content blocks
             <ComponentRenderer key={`${activePage}-${i}`} component={component} form={form} onAction={handleAction} />
           ))}
           {/* Auto-injected notes field -- skip if the page already has a TextInput */}

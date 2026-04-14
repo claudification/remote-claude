@@ -738,6 +738,7 @@ export const SessionDetail = memo(function SessionDetail() {
   const expandAll = useSessionsStore(state => state.expandAll)
 
   // Reset follow + revive state on session switch
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedSessionId is the trigger dep, setters are stable React dispatch functions
   useEffect(() => {
     setFollow(true)
     setReviveState('idle')
@@ -749,6 +750,7 @@ export const SessionDetail = memo(function SessionDetail() {
 
   // Apply requested tab - fires on selectSession (always 'transcript'), openTab, and badge clicks
   // requestedTabSeq ensures re-clicks on the same session still trigger
+  // biome-ignore lint/correctness/useExhaustiveDependencies: requestedTabSeq is a counter dep key to re-trigger on same-tab clicks, not accessed in the body
   useEffect(() => {
     if (requestedTab) {
       setActiveTab(requestedTab as Tab)
@@ -866,6 +868,7 @@ export const SessionDetail = memo(function SessionDetail() {
 
   // Plan mode: prefer concentrator state, fall back to transcript scan.
   // MUST be above the `if (!session)` early return -- hooks can't be after conditional returns.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: transcript.length used as dep key to avoid deep array comparison; transcript ref is accessed in body intentionally
   const inPlanMode = useMemo(() => {
     if (session?.planMode) return true
     let pm = false
@@ -1002,12 +1005,23 @@ export const SessionDetail = memo(function SessionDetail() {
                   )}
                   {session.capabilities?.includes('ad-hoc') && (
                     <span
+                      role="button"
+                      tabIndex={0}
                       className="text-[10px] text-amber-400 font-bold ml-1 px-1 py-0.5 bg-amber-500/10 rounded cursor-pointer hover:bg-amber-500/20"
                       onClick={() => {
                         if (session.adHocTaskId) {
                           window.dispatchEvent(
                             new CustomEvent('open-project-task', { detail: { taskId: session.adHocTaskId } }),
                           )
+                        }
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          if (session.adHocTaskId) {
+                            window.dispatchEvent(
+                              new CustomEvent('open-project-task', { detail: { taskId: session.adHocTaskId } }),
+                            )
+                          }
                         }
                       }}
                       title={session.adHocTaskId ? `Task: ${session.adHocTaskId}` : 'Ad-hoc session'}

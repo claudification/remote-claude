@@ -105,7 +105,7 @@ export function CostSparkline({ timeline, className }: CostSparklineProps) {
             <span className="text-muted-foreground">({win.bucketLabel} buckets)</span>
           </>
         )}
-        <div className="flex gap-0.5 ml-auto">
+        <div className="flex gap-0.5">
           {WINDOWS.map((w, i) => (
             <button
               key={w.label}

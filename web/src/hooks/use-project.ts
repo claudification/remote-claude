@@ -2,10 +2,11 @@
  * useProject - Hook for project board task CRUD via WS relay to wrapper
  */
 
+import type { TaskStatus } from '@shared/task-statuses'
 import { useCallback, useEffect, useState } from 'react'
 import { useSessionsStore } from './use-sessions'
 
-export type TaskStatus = 'inbox' | 'open' | 'in-progress' | 'in-review' | 'done' | 'archived'
+export type { TaskStatus } from '@shared/task-statuses'
 
 export interface ProjectTaskMeta {
   slug: string
@@ -86,6 +87,7 @@ export function useProject(sessionId: string | null) {
     }
   }, [])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but is intentionally not in deps - sessionId is the real trigger
   const refresh = useCallback(async () => {
     if (!sessionId) return
     setLoading(true)
@@ -103,6 +105,7 @@ export function useProject(sessionId: string | null) {
     refresh()
   }, [refresh])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId is the real trigger
   const createTask = useCallback(
     async (input: { title?: string; body: string; priority?: string; tags?: string[] }) => {
       if (!sessionId) return null
@@ -114,6 +117,7 @@ export function useProject(sessionId: string | null) {
     [sessionId],
   )
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId is the real trigger
   const moveTask = useCallback(
     async (slug: string, from: TaskStatus, to: TaskStatus) => {
       if (!sessionId) return false
@@ -126,6 +130,7 @@ export function useProject(sessionId: string | null) {
     [sessionId],
   )
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId is the real trigger
   const deleteTask = useCallback(
     async (slug: string, status: TaskStatus) => {
       if (!sessionId) return false
@@ -138,6 +143,7 @@ export function useProject(sessionId: string | null) {
     [sessionId],
   )
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId is the real trigger
   const readTask = useCallback(
     async (slug: string, status: TaskStatus): Promise<ProjectTask | null> => {
       if (!sessionId) return null
@@ -147,6 +153,7 @@ export function useProject(sessionId: string | null) {
     [sessionId],
   )
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId is the real trigger
   const updateTask = useCallback(
     async (
       slug: string,

@@ -150,12 +150,21 @@ function GrantEditor({ grants, onChange }: GrantEditorProps) {
     <div className="space-y-3">
       {/* Existing grants - click to edit */}
       {grants.map((g, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: grants may share cwd, positional index needed for disambiguation
         <div key={`${g.cwd}-${i}`} className="bg-secondary/50 rounded text-xs">
           <div
+            role="button"
+            tabIndex={0}
             className="flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-secondary/80 transition-colors"
             onClick={() => {
               haptic('tap')
               setEditingIdx(editingIdx === i ? null : i)
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                haptic('tap')
+                setEditingIdx(editingIdx === i ? null : i)
+              }
             }}
           >
             <div className="flex-1 min-w-0">
@@ -168,7 +177,11 @@ function GrantEditor({ grants, onChange }: GrantEditorProps) {
                     </span>
                   )),
                   ...(g.permissions || []).map(p => <span key={p}>{p}</span>),
-                ].reduce<React.ReactNode[]>((acc, el, idx) => (idx === 0 ? [el] : [...acc, ', ', el]), [])}
+                ].reduce<React.ReactNode[]>((acc, el, idx) => {
+                  if (idx === 0) return [el]
+                  acc.push(', ', el)
+                  return acc
+                }, [])}
               </div>
               {(g.notBefore || g.notAfter) && (
                 <div className="text-muted-foreground/60 mt-0.5">
@@ -207,8 +220,11 @@ function GrantEditor({ grants, onChange }: GrantEditorProps) {
               />
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className="text-[9px] text-muted-foreground uppercase">From</label>
+                  <label htmlFor={`grant-from-${i}`} className="text-[9px] text-muted-foreground uppercase">
+                    From
+                  </label>
                   <input
+                    id={`grant-from-${i}`}
                     type="date"
                     value={g.notBefore ? new Date(g.notBefore).toISOString().split('T')[0] : ''}
                     onChange={e =>
@@ -220,8 +236,11 @@ function GrantEditor({ grants, onChange }: GrantEditorProps) {
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="text-[9px] text-muted-foreground uppercase">Until</label>
+                  <label htmlFor={`grant-until-${i}`} className="text-[9px] text-muted-foreground uppercase">
+                    Until
+                  </label>
                   <input
+                    id={`grant-until-${i}`}
                     type="date"
                     value={g.notAfter ? new Date(g.notAfter).toISOString().split('T')[0] : ''}
                     onChange={e =>
@@ -334,8 +353,11 @@ function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void })
         ) : (
           <div className="space-y-4 mt-2">
             <div>
-              <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Name</label>
+              <label htmlFor="invite-name" className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                Name
+              </label>
               <input
+                id="invite-name"
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
@@ -346,7 +368,7 @@ function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void })
             </div>
 
             <div>
-              <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Grants</label>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Grants</div>
               <p className="text-[10px] text-muted-foreground/60 mb-2">Leave empty for admin access.</p>
               <GrantEditor grants={grants} onChange={setGrants} />
             </div>
@@ -444,7 +466,7 @@ function UserEditPanel({ user, onSave, onClose }: { user: UserSummary; onSave: (
 
       {/* Server roles */}
       <div>
-        <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Server Roles</label>
+        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Server Roles</div>
         <div className="flex gap-1 mt-1">
           <button
             type="button"
@@ -466,9 +488,9 @@ function UserEditPanel({ user, onSave, onClose }: { user: UserSummary; onSave: (
 
       {/* Passkeys */}
       <div>
-        <label className="text-[10px] text-muted-foreground uppercase tracking-wider">
+        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
           Passkeys ({user.credentials.length})
-        </label>
+        </div>
         <div className="mt-1 space-y-1.5">
           {user.credentials.map(cred => (
             <div
@@ -527,7 +549,7 @@ function UserEditPanel({ user, onSave, onClose }: { user: UserSummary; onSave: (
 
       {/* Grants */}
       <div>
-        <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Grants</label>
+        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Grants</div>
         <div className="mt-1">
           <GrantEditor grants={grants} onChange={setGrants} />
         </div>
@@ -611,11 +633,18 @@ export function UserAdminDialog({ open, onOpenChange }: { open: boolean; onOpenC
                 {users.map(user => (
                   <div
                     key={user.name}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
                       haptic('tap')
                       setEditingUser(user.name)
                     }}
-                    onKeyDown={e => e.key === 'Enter' && setEditingUser(user.name)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        haptic('tap')
+                        setEditingUser(user.name)
+                      }
+                    }}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer"
                   >
                     <div className="flex-1 min-w-0">

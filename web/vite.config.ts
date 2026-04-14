@@ -30,7 +30,7 @@ function assetManifestPlugin(): Plugin {
       const publicFiles = ['sw.js', 'icon-192.png', 'icon-512.png', 'favicon.ico']
       for (const f of publicFiles) {
         try {
-          const content = require('fs').readFileSync(join(outDir, f))
+          const content = require('node:fs').readFileSync(join(outDir, f))
           const fileHash = createHash('md5').update(content).digest('hex').slice(0, 8)
           files.push({ url: `/${f}`, size: content.length, hash: fileHash })
           h.update(f + fileHash)

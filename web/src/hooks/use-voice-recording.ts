@@ -52,6 +52,7 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
   }, [])
 
   // Clean up on unmount
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - cleanup is a stable function defined in this scope, runs once on unmount
   useEffect(() => {
     return () => {
       cleanup()
@@ -134,6 +135,7 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
     wsListenerRef.current = handleMessage
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cleanup is a stable function defined in this scope
   const reset = useCallback(() => {
     cleanup()
     setState('idle')
@@ -145,6 +147,7 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
     pendingStopRef.current = false
   }, [])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: attachWsListener and stop are stable functions defined in this scope
   const start = useCallback(async () => {
     if (stateRef.current !== 'idle') return
 

@@ -253,6 +253,7 @@ export function useKeyLayer(bindings: KeyBindings, options: KeyLayerOptions = {}
   }, [options.enabled])
 
   // Sync bindings: rebuild proxy when keys change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: deps tracked via serialized key - Object.keys(bindings).sort().join(',') detects key-set changes; bindings values proxied via ref
   useEffect(() => {
     if (!layerRef.current) return
     const proxyBindings: KeyBindings = {}

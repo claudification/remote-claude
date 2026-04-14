@@ -755,6 +755,7 @@ export function useWebSocket() {
     w.send(json)
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: send is a module-scope function, not a React dep
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
@@ -928,7 +929,7 @@ export function useWebSocket() {
         } catch {
           // Ignore parse errors
         } finally {
-          if (wsT0) perfRecord('ws', 'onmessage', performance.now() - wsT0, (raw.length / 1024).toFixed(1) + 'KB')
+          if (wsT0) perfRecord('ws', 'onmessage', performance.now() - wsT0, `${(raw.length / 1024).toFixed(1)}KB`)
         }
       }
     } catch {
@@ -936,6 +937,7 @@ export function useWebSocket() {
     }
   }, [])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - runs once on mount, send is a module-scope function
   useEffect(() => {
     connect()
 

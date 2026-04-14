@@ -341,7 +341,7 @@ function SessionItemContent({ session, compact }: { session: Session; compact?: 
               title={session.id}
             >
               {session.title || session.agentName
-                ? `${(session.title || session.agentName)!.slice(0, 20)} [${session.id.slice(0, 6)}]`
+                ? `${((session.title || session.agentName) ?? '').slice(0, 20)} [${session.id.slice(0, 6)}]`
                 : session.id.slice(0, 8)}
             </span>
           )}
@@ -1059,7 +1059,7 @@ export function SessionList() {
   const sessionOrder = rawSessionOrder?.tree ? rawSessionOrder : { version: 2 as const, tree: [] }
   const dashPrefs = useSessionsStore(s => s.dashboardPrefs)
   const [showInactive, setShowInactive] = useState(dashPrefs.showInactiveByDefault)
-  const [pulseSessionId, setPulseSessionId] = useState<string | null>(null)
+  const [_pulseSessionId, setPulseSessionId] = useState<string | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem('collapsed-groups')

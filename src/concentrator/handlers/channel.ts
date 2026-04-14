@@ -211,6 +211,7 @@ const channelSend: MessageHandler = (ctx, data) => {
     async function checkDelivered() {
       for (let i = 0; i < 4; i++) {
         await new Promise(r => setTimeout(r, 250))
+        // biome-ignore lint/style/noNonNullAssertion: guaranteed non-null by enclosing if (targetCwd) block
         if (ctx.messageQueue.getQueueSize(targetCwd!) === 0) {
           ctx.reply({ type: 'channel_send_result', ok: true, conversationId, status: 'delivered' })
           ctx.log.debug(`[inter-session] ${fromSession.slice(0, 8)} -> ${toTarget} (queued then delivered)`)

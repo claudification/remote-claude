@@ -66,7 +66,7 @@ export function useCommand(id: string, action: CommandAction, options: UseComman
       shortcut: options.shortcut,
       group: options.group,
       action: (...args: string[]) => actionRef.current(...args),
-      when: whenRef.current ? () => whenRef.current!() : undefined,
+      when: whenRef.current ? () => whenRef.current?.() ?? false : undefined,
     }
     return registerCommand(cmd)
   }, [id, options.label, options.shortcut, options.group])

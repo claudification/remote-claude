@@ -116,8 +116,8 @@ export function initAuth(opts: {
             if ((grant.permissions as string[] | undefined)?.includes('admin')) {
               grant.roles = grant.roles || []
               if (!grant.roles.includes('admin')) grant.roles.push('admin')
-              grant.permissions = grant.permissions!.filter((p: string) => p !== 'admin')
-              if (grant.permissions!.length === 0) delete grant.permissions
+              grant.permissions = (grant.permissions ?? []).filter((p: string) => p !== 'admin')
+              if ((grant.permissions ?? []).length === 0) delete grant.permissions
               migrated = true
             }
           }

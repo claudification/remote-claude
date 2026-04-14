@@ -255,6 +255,7 @@ export function Markdown({ children, inline }: MarkdownProps) {
   const ref = useRef<HTMLDivElement>(null)
 
   // Post-mount: render mermaid blocks into SVG
+  // biome-ignore lint/correctness/useExhaustiveDependencies: html used as dep key to re-render mermaid after content changes; ref is stable
   useEffect(() => {
     if (ref.current) renderMermaidBlocks(ref.current)
   }, [html])

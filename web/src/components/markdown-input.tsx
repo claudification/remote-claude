@@ -277,6 +277,7 @@ export function MarkdownInput({
   }, [expanded, syncScroll])
 
   // Resize on value change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: value used as dep key to trigger resize when content changes; autoResize handles the actual reading
   useEffect(() => {
     autoResize()
   }, [value, autoResize])
@@ -714,6 +715,7 @@ export function MarkdownInput({
   }
 
   // Clean up all compose timers on unmount
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - runs once on unmount, clearComposeTimers is a stable function defined in this scope
   useEffect(() => {
     return () => clearComposeTimers()
   }, [])
@@ -913,13 +915,18 @@ export function MarkdownInput({
     <div ref={containerRef} className={cn('relative grid', className)}>
       {/* Autocomplete dropdown: / commands, @ skills/agents */}
       {acItems.length > 0 && (
-        <div className="absolute bottom-full left-0 right-0 z-30 mb-1 bg-background border border-border rounded shadow-lg max-h-[240px] overflow-y-auto">
+        <div
+          role="listbox"
+          className="absolute bottom-full left-0 right-0 z-30 mb-1 bg-background border border-border rounded shadow-lg max-h-[240px] overflow-y-auto"
+        >
           {acItems.map((entry, i) => {
             const trigger = acTrigger || '/'
             return (
-              // biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled in textarea
               <div
                 key={`${trigger}${entry.item}`}
+                role="option"
+                aria-selected={i === acIndex}
+                tabIndex={-1}
                 className={cn(
                   'px-3 py-1.5 text-xs font-mono cursor-pointer',
                   i === acIndex
@@ -929,6 +936,9 @@ export function MarkdownInput({
                       : 'text-foreground hover:bg-muted/50',
                 )}
                 onClick={() => selectAutocomplete(entry.item)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') selectAutocomplete(entry.item)
+                }}
                 onMouseEnter={() => setAcIndex(i)}
               >
                 <span className={entry.builtin ? 'text-amber-500/60' : 'text-muted-foreground'}>{trigger}</span>

@@ -64,6 +64,7 @@ export function AgentTranscriptEntries({ entries }: { entries: TranscriptEntry[]
   return (
     <div className="space-y-2 border-l-2 border-pink-400/30 pl-3">
       {groups.map((group, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: transcript groups are ordered, no stable IDs
         <AgentGroupView key={i} group={group} resultMap={resultMap} />
       ))}
     </div>
@@ -137,6 +138,7 @@ function AgentGroupView({
           if (item.kind === 'thinking') {
             if (!showThinking && !expandAll) return null
             return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
               <div key={i} className="border-l-2 border-purple-400/40 pl-2 py-1">
                 <div className="text-[10px] text-purple-400/70 uppercase font-bold tracking-wider mb-1">thinking</div>
                 <div className="text-[11px] opacity-75">
@@ -147,12 +149,14 @@ function AgentGroupView({
           }
           if (item.kind === 'text') {
             return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
               <div key={i} className="text-[11px]">
                 <Markdown>{item.text}</Markdown>
               </div>
             )
           }
           if (item.kind === 'tool') {
+            // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
             return <ToolLine key={i} tool={item.tool} result={item.result} toolUseResult={item.extra} />
           }
           return null

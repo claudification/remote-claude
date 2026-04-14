@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { getRates, subscribe as subscribeStats } from '@/hooks/ws-stats'
-import { clearLog, copyLogText, getLogEntries, type LogEntry, subscribeLog } from '@/lib/debug-log'
+import { clearLog, copyLogText, getLogEntries, subscribeLog } from '@/lib/debug-log'
 import { useKeyLayer } from '@/lib/key-layers'
 import {
   categoryStats,
@@ -253,6 +253,7 @@ function LogTab() {
             const ts = new Date(entry.t).toISOString().slice(11, 23)
             return (
               <div
+                // biome-ignore lint/suspicious/noArrayIndexKey: display-only log entries, no stable IDs
                 key={i}
                 className={`flex gap-2 font-mono text-[10px] leading-relaxed ${LEVEL_COLORS[entry.level] || 'text-foreground'}`}
               >
@@ -377,6 +378,7 @@ function PerfTab() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const enabled = isPerfEnabled()
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: entries.length is a dep key to trigger scroll on new entries; scrollRef is a stable ref
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
   }, [entries.length])
@@ -461,6 +463,7 @@ function PerfTab() {
             const barWidth = Math.min(100, (e.durationMs / 50) * 100)
             return (
               <div
+                // biome-ignore lint/suspicious/noArrayIndexKey: traffic events share timestamps, no stable unique key
                 key={`${e.t}-${i}`}
                 className="flex items-center gap-2 py-0.5 px-1 text-[10px] hover:bg-[#1a1b26]/50 border-b border-[#33467c]/10"
               >

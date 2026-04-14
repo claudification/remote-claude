@@ -5,7 +5,7 @@
  */
 
 import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir, homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const home = homedir()
@@ -21,8 +21,9 @@ async function tryAsync(check: string, fn: () => Promise<void>) {
   try {
     await fn()
     report(check, 'ok')
-  } catch (e: any) {
-    report(check, e.code || e.message || 'failed')
+  } catch (e) {
+    const err = e as { code?: string; message?: string }
+    report(check, err.code || err.message || 'failed')
   }
 }
 
@@ -30,8 +31,9 @@ function trySync(check: string, fn: () => void) {
   try {
     fn()
     report(check, 'ok')
-  } catch (e: any) {
-    report(check, e.code || e.message || 'failed')
+  } catch (e) {
+    const err = e as { code?: string; message?: string }
+    report(check, err.code || err.message || 'failed')
   }
 }
 
@@ -157,9 +159,9 @@ trySync('Bun.write /tmp', () => {
 })
 
 // -- Summary --
-const ok = results.filter((r) => r.status === 'ok').length
-const failed = results.filter((r) => r.status !== 'ok' && r.status !== 'skip').length
-const skipped = results.filter((r) => r.status === 'skip').length
+const ok = results.filter(r => r.status === 'ok').length
+const failed = results.filter(r => r.status !== 'ok' && r.status !== 'skip').length
+const skipped = results.filter(r => r.status === 'skip').length
 
 console.log(`\n\x1b[1m--- Done: ${ok} ok, ${failed} failed, ${skipped} skipped ---\x1b[0m`)
 console.log('If you saw macOS permission dialogs, click Allow to grant Bun access.\n')

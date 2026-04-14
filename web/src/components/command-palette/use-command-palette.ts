@@ -22,6 +22,7 @@ export function useCommandPalette(onClose: () => void) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Apply initial filter when switcher opens with a prefilled value
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - runs once on mount to consume the initial filter; switcherInitialFilter read from closure at mount time
   useEffect(() => {
     if (switcherInitialFilter) {
       setFilter(switcherInitialFilter)
@@ -50,6 +51,7 @@ export function useCommandPalette(onClose: () => void) {
   const commandRaw = isCommandMode ? filter.slice(1).trim() : ''
   const commandSearch = commandRaw.toLowerCase()
   const _gen = getCommandGeneration()
+  // biome-ignore lint/correctness/useExhaustiveDependencies: _gen is a generation counter dep key that invalidates memoized command list when registry changes
   const registryCommands = useMemo(
     () =>
       getCommands().map(c => ({

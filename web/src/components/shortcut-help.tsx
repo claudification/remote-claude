@@ -25,11 +25,12 @@ export function ShortcutHelp() {
   useKeyLayer({ Escape: () => setOpen(false) }, { id: 'shortcut-help', enabled: open })
 
   const _gen = getCommandGeneration()
+  // biome-ignore lint/correctness/useExhaustiveDependencies: _gen is a generation counter dep key that invalidates memoized command list when registry changes
   const shortcuts = useMemo(
     () =>
       getCommands()
         .filter(c => c.shortcut)
-        .map(c => ({ keys: formatShortcut(c.shortcut!), action: c.label })),
+        .map(c => ({ keys: formatShortcut(c.shortcut ?? ''), action: c.label })),
     [_gen],
   )
 
@@ -46,6 +47,7 @@ export function ShortcutHelp() {
         role="dialog"
         className="w-full max-w-md bg-[#16161e] border border-[#33467c] shadow-2xl font-mono p-6"
         onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
       >
         <pre className="text-[#7aa2f7] text-[10px] leading-tight mb-4 select-none">
           {`┌──────────────────────────────────────┐

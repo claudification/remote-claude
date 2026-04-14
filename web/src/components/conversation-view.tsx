@@ -128,6 +128,7 @@ export function ConversationView({
           const intentStyle = INTENT_STYLES[msg.intent] || INTENT_STYLES.notify
 
           return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: messages may share timestamp, no stable unique key
             <div key={`${msg.ts}-${i}`} className={cn('flex flex-col', align)}>
               <div className={cn('max-w-[85%] rounded-xl border px-3 py-2', bubbleColor)}>
                 <div className="flex items-center gap-2 mb-1">

@@ -74,6 +74,7 @@ export function DiffView({
         {visibleLines.map((line, j) => {
           if (line.hunkHeader) {
             return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: diff lines are positional, no stable IDs
               <div key={j} className="text-muted-foreground">
                 {line.hunkHeader}
               </div>
@@ -82,6 +83,7 @@ export function DiffView({
           const syntaxHtml = highlighted?.get(line.content)
           return (
             <div
+              // biome-ignore lint/suspicious/noArrayIndexKey: diff lines are positional, no stable IDs
               key={j}
               className={cn(line.prefix === '+' && 'bg-green-500/10', line.prefix === '-' && 'bg-red-500/10')}
             >
@@ -213,6 +215,7 @@ export function WritePreview({ content, filePath }: { content: string; filePath?
         {htmlLines ? (
           <code>
             {htmlLines.slice(0, visibleLines).map((lineHtml, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: file lines are positional, no stable IDs
               <div key={i} className="hover:bg-muted/20">
                 <span
                   className="text-muted-foreground/40 select-none inline-block text-right mr-3"
@@ -227,6 +230,7 @@ export function WritePreview({ content, filePath }: { content: string; filePath?
         ) : (
           <code className="text-foreground/70">
             {lines.slice(0, visibleLines).map((line, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: file lines are positional, no stable IDs
               <div key={i} className="hover:bg-muted/20">
                 <span
                   className="text-muted-foreground/40 select-none inline-block text-right mr-3"

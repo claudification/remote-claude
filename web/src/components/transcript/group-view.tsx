@@ -242,6 +242,7 @@ export function GroupView({
     return (
       <div className="mb-2 space-y-1">
         {group.notifications.map((n, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: notifications are ordered display items, no stable IDs
           <TaskNotificationLine key={i} notification={n} time={time} />
         ))}
       </div>
@@ -254,9 +255,40 @@ export function GroupView({
 
   const isUser = group.type === 'user'
 
+  // Parse <project-task id="..." title="..." ...>body</project-task> from user input
+  const projectTaskRe = /^<project-task\s+([^>]*)>([\s\S]*?)<\/project-task>$/
+  function parseProjectTask(text: string): RenderItem | null {
+    const m = text.trim().match(projectTaskRe)
+    if (!m) return null
+    const attrs = m[1]
+    const body = m[2].trim()
+    const attr = (name: string) => {
+      const a = attrs.match(new RegExp(`${name}="([^"]*?)"`))
+      return a?.[1]
+    }
+    const id = attr('id') || ''
+    const title = attr('title')?.replace(/&quot;/g, '"') || id
+    const priority = attr('priority')
+    const taskStatus = attr('status')
+    const tagsStr = attr('tags')
+    const tags = tagsStr ? tagsStr.split(',').filter(Boolean) : undefined
+    // Strip the LLM instruction suffix (everything after the last blank line before </project-task>)
+    const cleanBody = body.replace(/\n\nSet status to .*$/s, '').trim()
+    return { kind: 'project-task', id, title, body: cleanBody, priority, taskStatus, tags }
+  }
+
   type RenderItem =
     | { kind: 'text'; text: string }
     | { kind: 'thinking'; text: string }
+    | {
+        kind: 'project-task'
+        id: string
+        title: string
+        body: string
+        priority?: string
+        taskStatus?: string
+        tags?: string[]
+      }
     | {
         kind: 'tool'
         tool: TranscriptContentBlock
@@ -327,8 +359,9 @@ export function GroupView({
               dialogAction: action || undefined,
             })
           } else if (source === 'rclaude') {
-            // Our own dashboard input -- strip wrapper, show as text
-            items.push({ kind: 'text', text: msg })
+            // Our own dashboard input -- strip wrapper, check for project-task tag
+            const pt = parseProjectTask(msg)
+            items.push(pt || { kind: 'text', text: msg })
           } else {
             // External channel (telegram, discord, etc.)
             items.push({ kind: 'channel', text: msg, source })
@@ -342,7 +375,8 @@ export function GroupView({
             items.push({ kind: 'bash', text: content })
           }
         } else {
-          items.push({ kind: 'text', text: content })
+          const pt = parseProjectTask(content)
+          items.push(pt || { kind: 'text', text: content })
         }
       }
     } else if (Array.isArray(content)) {
@@ -389,9 +423,10 @@ export function GroupView({
   const { chatBubbles, bubbleColor } = settings
 
   // Chat bubble layout for user messages (opt-in)
-  // Skip bubbles for inter-session messages - they use the teal card renderer instead
+  // Skip bubbles for inter-session messages and project-task cards - they use rich card renderers
   const hasInterSessionContent = items.some(it => it.kind === 'channel' && (it.isInterSession || it.isDialog))
-  if (chatBubbles && isUser && !hasInterSessionContent) {
+  const hasProjectTask = items.some(it => it.kind === 'project-task')
+  if (chatBubbles && isUser && !hasInterSessionContent && !hasProjectTask) {
     const bubbleBg = BUBBLE_COLORS[bubbleColor] || BUBBLE_COLORS.blue
     return (
       <div className="mb-3 flex justify-end">
@@ -403,6 +438,7 @@ export function GroupView({
                 const hasBlocks = /^```/m.test(item.text) || /^\|.*\|.*\|/m.test(item.text)
                 return (
                   <div
+                    // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
                     key={i}
                     className="text-sm [&_a]:text-blue-200 [&_a]:underline [&_code]:!bg-black/25 [&_code]:!px-1.5 [&_code]:!py-0.5 [&_code]:!rounded-sm [&_code]:!text-white/80 [&_code]:!text-[0.85em]"
                   >
@@ -412,6 +448,7 @@ export function GroupView({
               }
               if (item.kind === 'images') {
                 return (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
                   <div key={i} className="flex gap-1 flex-wrap mt-1">
                     {item.images.map(img => (
                       <img key={img.hash} src={img.url} alt="" className="max-h-24 rounded" />
@@ -470,6 +507,7 @@ export function GroupView({
             case 'thinking':
               if (!showThinking && !expandAll) return null
               return (
+                // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
                 <div key={i} className="border-l-2 border-purple-400/40 pl-3 py-1">
                   <div className="text-[10px] text-purple-400/70 uppercase font-bold tracking-wider mb-1">thinking</div>
                   <div className="text-sm opacity-75">
@@ -477,10 +515,72 @@ export function GroupView({
                   </div>
                 </div>
               )
+            case 'project-task': {
+              const prioColors: Record<string, string> = {
+                high: 'border-l-red-500',
+                medium: 'border-l-amber-500',
+                low: 'border-l-blue-500',
+              }
+              const prioColor = prioColors[item.priority || 'medium'] || prioColors.medium
+              const statusColors: Record<string, string> = {
+                inbox: 'bg-zinc-500/20 text-zinc-400',
+                open: 'bg-blue-500/20 text-blue-400',
+                'in-progress': 'bg-amber-500/20 text-amber-400',
+                'in-review': 'bg-purple-500/20 text-purple-400',
+                done: 'bg-emerald-500/20 text-emerald-400',
+              }
+              const sColor = statusColors[item.taskStatus || ''] || statusColors.inbox
+              return (
+                <div
+                  // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
+                  key={i}
+                  className={cn(
+                    'rounded-lg border border-[#33467c]/40 bg-[#0d1b3e]/60 border-l-[3px] overflow-hidden',
+                    prioColor,
+                  )}
+                >
+                  <div className="px-3 py-2 flex items-center gap-2 border-b border-[#33467c]/30">
+                    <span className="text-xs font-mono text-muted-foreground/50">TASK</span>
+                    <span className="text-sm font-bold text-foreground/90 flex-1 truncate">{item.title}</span>
+                    {item.taskStatus && (
+                      <span
+                        className={cn('px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded', sColor)}
+                      >
+                        {item.taskStatus}
+                      </span>
+                    )}
+                    {item.priority && item.priority !== 'medium' && (
+                      <span className="text-[9px] font-mono text-muted-foreground/40 uppercase">{item.priority}</span>
+                    )}
+                  </div>
+                  {item.tags && item.tags.length > 0 && (
+                    <div className="px-3 pt-1.5 flex gap-1 flex-wrap">
+                      {item.tags.map(tag => (
+                        <span
+                          key={tag}
+                          className="px-1.5 py-0.5 text-[9px] font-mono bg-indigo-500/15 text-indigo-400/80 rounded"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {item.body && (
+                    <div className="px-3 py-2 text-sm text-foreground/70">
+                      <Markdown>{item.body}</Markdown>
+                    </div>
+                  )}
+                  <div className="px-3 pb-1.5">
+                    <span className="text-[9px] font-mono text-muted-foreground/30">{item.id}.md</span>
+                  </div>
+                </div>
+              )
+            }
             case 'text': {
               const isApiError = /^API Error:\s*\d+\s*\{/.test(item.text)
               return isApiError ? (
                 <div
+                  // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
                   key={i}
                   className="text-sm px-3 py-2 bg-destructive/15 border border-destructive/40 rounded font-mono"
                 >
@@ -488,6 +588,7 @@ export function GroupView({
                   <pre className="text-[11px] text-destructive/80 whitespace-pre-wrap break-all">{item.text}</pre>
                 </div>
               ) : (
+                // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
                 <div key={i} className="text-sm group/text relative">
                   <Markdown>{item.text}</Markdown>
                   <CopyMenu
@@ -500,6 +601,7 @@ export function GroupView({
             }
             case 'images':
               return (
+                // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
                 <div key={i} className="flex flex-wrap gap-2 pt-2">
                   {item.images.map(img => (
                     <a
@@ -538,6 +640,7 @@ export function GroupView({
                   : undefined
                 const senderDisplayName = senderSession?.title || senderLabel || item.source
                 return (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
                   <div key={i} className="rounded-lg border border-teal-500/30 bg-teal-500/5 px-3 py-2.5 my-1">
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[10px] font-mono text-teal-400/60">from</span>
@@ -594,6 +697,7 @@ export function GroupView({
                 }
 
                 return (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
                   <div key={i} className="rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-2.5 my-1">
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[10px] font-mono text-violet-400/60">dialog</span>
@@ -632,6 +736,7 @@ export function GroupView({
                                 <span className="flex flex-wrap gap-1">
                                   {val.map((v, j) => (
                                     <span
+                                      // biome-ignore lint/suspicious/noArrayIndexKey: display-only array values, no stable IDs
                                       key={j}
                                       className="px-1.5 py-0.5 bg-violet-500/15 text-violet-300 border border-violet-500/25 rounded text-[9px]"
                                     >
@@ -657,6 +762,7 @@ export function GroupView({
                 )
               }
               return (
+                // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
                 <div key={i} className="text-sm border-l-2 border-teal-400/40 pl-3 py-1">
                   <div className="text-[10px] text-teal-400/70 uppercase font-bold tracking-wider mb-1">
                     channel: {item.source}
@@ -666,6 +772,7 @@ export function GroupView({
               )
             case 'bash':
               return (
+                // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
                 <div key={i} className="text-sm">
                   <BashOutput result={item.text} />
                 </div>
@@ -673,6 +780,7 @@ export function GroupView({
             case 'tool':
               return (
                 <MemoizedToolLine
+                  // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
                   key={i}
                   tool={item.tool}
                   result={item.result}

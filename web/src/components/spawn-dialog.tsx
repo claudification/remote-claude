@@ -330,10 +330,18 @@ export function SpawnDialog() {
 
               {/* Bare toggle */}
               <div
+                role="button"
+                tabIndex={0}
                 className="flex items-center justify-between py-1.5 pl-3 cursor-pointer select-none"
                 onClick={() => {
                   setBare(!bare)
                   haptic('tap')
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    setBare(!bare)
+                    haptic('tap')
+                  }
                 }}
               >
                 <div>

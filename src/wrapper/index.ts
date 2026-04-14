@@ -27,6 +27,7 @@ import { generateFunnyName } from '../shared/funny-names'
 import { isPathWithinCwd } from '../shared/path-guard'
 import type { HookEvent, TaskInfo, TasksUpdate, TranscriptEntry, WrapperMessage } from '../shared/protocol'
 import { DEFAULT_CONCENTRATOR_URL } from '../shared/protocol'
+import { TASK_STATUS_PATTERN } from '../shared/task-statuses'
 import { checkForUpdate, formatUpdateResult, formatVersion } from '../shared/update-check'
 import { debug, setDebugStderr } from './debug'
 import { handleFileEditorMessage } from './file-editor-handler'
@@ -315,7 +316,6 @@ async function main() {
   let channelEnabled = process.env.RCLAUDE_CHANNELS !== '0'
   const isAdHoc = process.env.RCLAUDE_ADHOC === '1'
   const adHocTaskId = process.env.RCLAUDE_ADHOC_TASK_ID
-  const initialPromptFile = process.env.RCLAUDE_INITIAL_PROMPT_FILE
   const claudeArgs: string[] = []
 
   debug(`Concentrator URL: ${concentratorUrl} (source: ${process.env.RCLAUDE_CONCENTRATOR ? 'env' : 'default'})`)
@@ -444,12 +444,18 @@ async function main() {
     diagFlushTimer: null,
 
     // Functions -- wired up below
+    // biome-ignore lint/style/noNonNullAssertion: deferred init, assigned immediately after ctx is created
     diag: null!,
+    // biome-ignore lint/style/noNonNullAssertion: deferred init, assigned immediately after ctx is created
     flushDiag: null!,
     debug,
+    // biome-ignore lint/style/noNonNullAssertion: deferred init, assigned immediately after ctx is created
     connectToConcentrator: null!,
+    // biome-ignore lint/style/noNonNullAssertion: deferred init, assigned immediately after ctx is created
     startTaskWatching: null!,
+    // biome-ignore lint/style/noNonNullAssertion: deferred init, assigned immediately after ctx is created
     readTasks: null!,
+    // biome-ignore lint/style/noNonNullAssertion: deferred init, assigned immediately after ctx is created
     startProjectWatching: null!,
     startTranscriptWatcher: (path: string) => startTranscriptWatcher(ctx, path),
     startSubagentWatcher: (agentId: string, path: string, live: boolean) =>
@@ -588,7 +594,7 @@ async function main() {
    * Debounces and sends project_changed to concentrator so dashboard can refresh.
    */
   let projectDebounce: ReturnType<typeof setTimeout> | null = null
-  const PROJECT_TASK_PATTERN = /\.rclaude\/project\/(open|in-progress|done|archived)\/.+\.md$/
+  const PROJECT_TASK_PATTERN = new RegExp(`\\.rclaude/project/(${TASK_STATUS_PATTERN})/.+\\.md$`)
 
   function startProjectWatching() {
     if (ctx.projectWatcher) return

@@ -182,6 +182,7 @@ export function VoiceFab() {
   const transcriptRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll transcript to bottom on new text
+  // biome-ignore lint/correctness/useExhaustiveDependencies: displayText and displayInterim used as dep keys to trigger scroll on new text; transcriptRef is a stable ref
   useEffect(() => {
     if (transcriptRef.current) {
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight

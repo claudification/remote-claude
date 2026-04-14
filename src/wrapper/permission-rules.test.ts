@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRulesEngine } from './permission-rules'
 
-const testDir = join(tmpdir(), 'rclaude-permission-test-' + Date.now())
+const testDir = join(tmpdir(), `rclaude-permission-test-${Date.now()}`)
 const rclaudeDir = join(testDir, '.rclaude')
 
 function input(obj: Record<string, unknown>): string {
@@ -68,12 +68,12 @@ describe('project rules - Write/Edit patterns', () => {
   })
 
   test('Bash not supported (CC handles it)', () => {
-    const engine = engineWithRules({ Bash: { allow: ['*'] } } as any)
+    const engine = engineWithRules({ Bash: { allow: ['*'] } })
     expect(engine.shouldAutoApprove('Bash', input({ command: 'ls' }))).toBe(false)
   })
 
   test('Glob not supported (CC handles it)', () => {
-    const engine = engineWithRules({ Glob: { allow: ['**'] } } as any)
+    const engine = engineWithRules({ Glob: { allow: ['**'] } })
     expect(engine.shouldAutoApprove('Glob', input({ pattern: '*.ts' }))).toBe(false)
   })
 })

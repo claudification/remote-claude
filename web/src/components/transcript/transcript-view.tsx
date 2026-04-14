@@ -6,7 +6,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { memo, Profiler, type ProfilerOnRenderCallback, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
-import { isPerfEnabled, record } from '@/lib/perf-metrics'
+import { record } from '@/lib/perf-metrics'
 import type { TranscriptEntry } from '@/lib/types'
 import { Markdown } from '../markdown'
 import { CompactedDivider, CompactingBanner, MemoizedGroupView, SkillDivider } from './group-view'
@@ -92,12 +92,14 @@ const ThinkingSpinner = memo(function ThinkingSpinner({ sessionId }: { sessionId
   const baselineRef = useRef(0)
 
   // Capture baseline when turn starts
+  // biome-ignore lint/correctness/useExhaustiveDependencies: totalOutput intentionally omitted - only capture baseline on status transition, not every token update
   useEffect(() => {
     if (isActive) baselineRef.current = totalOutput
   }, [isActive]) // only on status transition, not on every token update
 
   const turnTokens = isActive ? Math.max(0, totalOutput - baselineRef.current) : 0
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: verbList intentionally omitted - stable for session duration, re-registering interval on every render unnecessary
   useEffect(() => {
     if (!isActive) return
     const verbInterval = setInterval(() => {
@@ -233,6 +235,7 @@ export function TranscriptView({
     if (!session?.subagents?.length) return ''
     return session.subagents.map(a => `${a.agentId}:${a.status}:${a.description || ''}`).join('|')
   })
+  // biome-ignore lint/correctness/useExhaustiveDependencies: subagentsSummary is a serialized primitive dep key that triggers recompute when subagent state changes
   const subagents = useMemo(() => {
     return useSessionsStore.getState().sessions.find(s => s.id === useSessionsStore.getState().selectedSessionId)
       ?.subagents
@@ -332,6 +335,7 @@ export function TranscriptView({
   }, [scrollToBottom])
 
   // Scroll to bottom on initial mount, follow toggle, and entry count changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: entries.length is used as a dep key to trigger scroll on new entries, not to access entries directly
   useEffect(() => {
     if (!follow) return
     // Delay slightly to allow virtualizer to process new items and measure
@@ -370,9 +374,12 @@ export function TranscriptView({
         }}
       >
         <Profiler id="TranscriptGroups" onRender={onRenderProfile}>
-          {((lastVirtualItemCount = virtualizer.getVirtualItems().length),
-          (lastTotalGroupCount = mainGroups.length),
-          virtualizer.getVirtualItems()).map(virtualItem => (
+          {(() => {
+            const virtualItems = virtualizer.getVirtualItems()
+            lastVirtualItemCount = virtualItems.length
+            lastTotalGroupCount = mainGroups.length
+            return virtualItems
+          })().map(virtualItem => (
             <div
               key={virtualItem.key}
               data-index={virtualItem.index}
@@ -426,6 +433,7 @@ export function TranscriptView({
           <div className="text-[10px] font-mono text-amber-500/60 px-1 mb-1">QUEUED</div>
           {queuedGroups.map((group, i) => (
             <MemoizedGroupView
+              // biome-ignore lint/suspicious/noArrayIndexKey: queued groups may share timestamp, index disambiguates
               key={`queued-${group.timestamp}-${i}`}
               group={group}
               getResult={getResult}

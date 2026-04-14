@@ -7,9 +7,11 @@
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { TASK_STATUSES, type TaskStatus } from '../shared/task-statuses'
 
-export type TaskStatus = 'inbox' | 'open' | 'in-progress' | 'in-review' | 'done' | 'archived'
-const STATUSES: TaskStatus[] = ['inbox', 'open', 'in-progress', 'in-review', 'done', 'archived']
+export type { TaskStatus } from '../shared/task-statuses'
+
+const STATUSES = TASK_STATUSES
 
 export interface ProjectTaskMeta {
   slug: string

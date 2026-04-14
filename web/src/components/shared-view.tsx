@@ -58,6 +58,7 @@ export function SharedView({ cwd }: { cwd: string }) {
   const [loading, setLoading] = useState(true)
   const [seq, setSeq] = useState(0) // bump to re-fetch after delete
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: seq is a counter dep key used to trigger re-fetch after delete; not accessed in the body
   useEffect(() => {
     setLoading(true)
     fetch(`${API_BASE}/api/shared-files?cwd=${encodeURIComponent(cwd)}`)

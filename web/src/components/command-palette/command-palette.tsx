@@ -25,6 +25,7 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
         role="dialog"
         className="w-full max-w-lg bg-[#16161e] border border-[#33467c] shadow-2xl font-mono"
         onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
       >
         {/* Search input */}
         <div className="px-3 py-2 border-b border-[#33467c] flex items-center gap-2">

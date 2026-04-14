@@ -21,9 +21,10 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import type { DialogLayout, DialogResult } from '../shared/dialog-schema'
 import { dialogToolInputSchema, validateDialogLayout } from '../shared/dialog-schema'
 import { isPathWithinCwd } from '../shared/path-guard'
+import { DEFAULT_VISIBLE_STATUSES, TASK_STATUSES, type TaskStatus } from '../shared/task-statuses'
 import { checkForUpdate, formatUpdateResult } from '../shared/update-check'
 import { debug } from './debug'
-import { moveProjectTask, type TaskStatus } from './project-tasks'
+import { moveProjectTask } from './project-tasks'
 
 const DIALOG_LOG = '/tmp/rclaude-dialog.log'
 
@@ -470,8 +471,8 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           properties: {
             status: {
               type: 'string',
-              enum: ['inbox', 'open', 'in-progress', 'in-review', 'done', 'archived', 'all'],
-              description: 'Filter by status folder. Default: all (inbox + open + in-progress + in-review)',
+              enum: [...TASK_STATUSES, 'all'],
+              description: `Filter by status folder. Default: all (${DEFAULT_VISIBLE_STATUSES.join(' + ')})`,
             },
             show_done: {
               type: 'boolean',
@@ -497,7 +498,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             },
             status: {
               type: 'string',
-              enum: ['inbox', 'open', 'in-progress', 'in-review', 'done', 'archived'],
+              enum: [...TASK_STATUSES],
               description: 'Target status folder',
             },
           },
@@ -531,7 +532,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           const statusFilter = params.status || 'all'
           let statuses: string[]
           if (statusFilter === 'all') {
-            statuses = ['inbox', 'open', 'in-progress', 'in-review']
+            statuses = [...DEFAULT_VISIBLE_STATUSES]
             if (String(params.show_done) === 'true') statuses.push('done')
             if (String(params.show_archived) === 'true') statuses.push('archived')
           } else {
@@ -571,11 +572,11 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           const taskId = params.id
           const targetStatus = params.status as TaskStatus
           if (!taskId) return { content: [{ type: 'text', text: 'Error: id is required' }], isError: true }
-          if (!['inbox', 'open', 'in-progress', 'in-review', 'done', 'archived'].includes(targetStatus))
+          if (!(TASK_STATUSES as readonly string[]).includes(targetStatus))
             return { content: [{ type: 'text', text: `Error: invalid status "${targetStatus}"` }], isError: true }
 
           // Find the task in any status folder
-          const allStatuses: TaskStatus[] = ['inbox', 'open', 'in-progress', 'in-review', 'done', 'archived']
+          const allStatuses = TASK_STATUSES
           let fromStatus: TaskStatus | null = null
           for (const s of allStatuses) {
             const dir = join(dialogCwd, '.rclaude', 'project', s)

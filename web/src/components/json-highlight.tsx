@@ -24,6 +24,7 @@ function colorize(value: unknown, depth = 0): ReactElement {
         <span className="text-muted-foreground">[</span>
         {'\n'}
         {value.map((item, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: display-only JSON array items, no stable IDs
           <span key={i}>
             {innerIndent}
             {colorize(item, depth + 1)}

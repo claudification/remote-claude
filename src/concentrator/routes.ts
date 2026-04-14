@@ -1232,6 +1232,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
       for (const node of nodes) {
         if (node.type === 'session') {
           const cwd = node.id.startsWith('cwd:') ? node.id.slice(4) : node.id
+          // biome-ignore lint/style/noNonNullAssertion: guaranteed non-null by early return above
           const { permissions } = resolvePermissions(grants!, cwd)
           if (permissions.has('chat:read')) result.push(node)
         } else if (node.type === 'group') {
@@ -1265,6 +1266,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
             for (const node of nodes) {
               if (node.type === 'session') {
                 const cwd = node.id.startsWith('cwd:') ? node.id.slice(4) : node.id
+                // biome-ignore lint/style/noNonNullAssertion: guaranteed non-null by else branch above
                 const { permissions } = resolvePermissions(wsGrants!, cwd)
                 if (permissions.has('chat:read')) result.push(node)
               } else if (node.type === 'group') {
@@ -1846,7 +1848,8 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     const cwdB = c.req.query('cwdB')
     const cwd = c.req.query('cwd')
     const limit = Number.parseInt(c.req.query('limit') || '50', 10)
-    const before = c.req.query('before') ? Number.parseInt(c.req.query('before')!, 10) : undefined
+    const beforeStr = c.req.query('before')
+    const before = beforeStr ? Number.parseInt(beforeStr, 10) : undefined
 
     const result = queryMessages({
       cwdA: cwdA || undefined,

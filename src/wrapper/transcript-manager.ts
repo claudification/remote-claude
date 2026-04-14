@@ -5,7 +5,6 @@
  */
 
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 import { structuredPatch as computeStructuredPatch } from 'diff'
 import type { SessionNameUpdate, TaskInfo, TasksUpdate, TranscriptEntry } from '../shared/protocol'
 import { debug as _debug, DEBUG } from './debug'

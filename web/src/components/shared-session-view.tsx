@@ -16,7 +16,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
   const selectedSessionId = useSessionsStore(s => s.selectedSessionId)
   const isConnected = useSessionsStore(s => s.isConnected)
   const [expired, setExpired] = useState(false)
-  const [timeLeft, setTimeLeft] = useState('')
+  const [timeLeft, _setTimeLeft] = useState('')
 
   // Connect WebSocket (share token is baked into the URL)
   useWebSocket()
@@ -49,6 +49,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
   }, [selectedSessionId, isConnected])
 
   // Listen for share_expired from server
+  // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected used as trigger to re-attach listener on reconnect; ws obtained via getState() inside
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
       try {

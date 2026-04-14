@@ -105,6 +105,7 @@ export function useFileEditor(sessionId: string | null) {
   }, [handleMessage])
 
   // Load file list
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId is the real trigger
   const loadFileList = useCallback(async () => {
     if (!sessionId) return
     setLoading(true)
@@ -123,6 +124,7 @@ export function useFileEditor(sessionId: string | null) {
   }, [sessionId])
 
   // Open a file
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId/sendWsMessage are the real triggers
   const openFile = useCallback(
     async (path: string) => {
       if (!sessionId) return
@@ -167,6 +169,7 @@ export function useFileEditor(sessionId: string | null) {
   }, [sessionId, activeFile, sendWsMessage])
 
   // Save file
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId/dirty are the real triggers
   const saveFile = useCallback(async () => {
     if (!sessionId || !activeFileRef.current || !dirty) return
     setSaving(true)
@@ -221,6 +224,7 @@ export function useFileEditor(sessionId: string | null) {
   )
 
   // Load history
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId is the real trigger
   const loadHistory = useCallback(
     async (path: string) => {
       if (!sessionId) return
@@ -239,6 +243,7 @@ export function useFileEditor(sessionId: string | null) {
   )
 
   // Restore version
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId is the real trigger
   const restoreVersion = useCallback(
     async (path: string, ver: number) => {
       if (!sessionId) return
@@ -261,6 +266,7 @@ export function useFileEditor(sessionId: string | null) {
   )
 
   // Quick note append
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId is the real trigger
   const appendQuickNote = useCallback(
     async (text: string) => {
       if (!sessionId) return
@@ -278,6 +284,7 @@ export function useFileEditor(sessionId: string | null) {
   )
 
   // Cleanup on session change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sessionId is intentionally used as cleanup trigger even though not read in the effect body
   useEffect(() => {
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)

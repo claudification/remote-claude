@@ -372,12 +372,14 @@ export function ToolLine({
         details = (
           <div className="text-[10px] font-mono space-y-1 mt-1">
             {questions.map((q, qi) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: question list items are positional, no stable IDs
               <div key={qi}>
                 {q.header && <span className="text-amber-400/70">[{q.header}] </span>}
                 <span className="text-foreground/80">{q.question}</span>
                 {q.options && (
                   <div className="ml-2 text-muted-foreground">
                     {q.options.map((o, oi) => (
+                      // biome-ignore lint/suspicious/noArrayIndexKey: option list items are positional, no stable IDs
                       <div key={oi} className="text-amber-400/50">
                         {'>'} {o.label}
                       </div>
@@ -429,6 +431,7 @@ export function ToolLine({
         details = (
           <div className="text-[10px] font-mono text-muted-foreground">
             {todos.slice(0, 10).map((t, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: todo items are positional display list, no stable IDs
               <div key={i}>
                 <span className={t.status === 'completed' ? 'text-green-400' : 'text-foreground/60'}>
                   {t.status === 'completed' ? '[x]' : '[ ]'}

@@ -52,7 +52,7 @@ export function queryMessages(opts: { cwdA?: string; cwdB?: string; cwd?: string
   }
 
   if (opts.before) {
-    filtered = filtered.filter(e => e.ts < opts.before!)
+    filtered = filtered.filter(e => e.ts < (opts.before as number))
   }
 
   // Return most recent, paginated

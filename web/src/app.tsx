@@ -222,6 +222,7 @@ function Dashboard() {
   // Server responds with sync_ok (caught up), sync_catchup (missed messages pushed),
   // or sync_stale (full resync needed). Works on both mobile and desktop without
   // unnecessary re-fetches on alt-tab.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - reads store state inline, fetchSidebarMetadata is stable
   useEffect(() => {
     let hiddenAt = 0
     function handleVisibility() {
@@ -298,6 +299,7 @@ function Dashboard() {
   // On connectSeq bump (WS reconnect or sync_stale): refresh session list
   // and re-fetch current session. Non-current sessions were evicted from LIFO
   // cache in onopen - they'll be fetched fresh when the user navigates to them.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected intentionally omitted - connectSeq only bumps while connected
   useEffect(() => {
     if (!isConnected) return
     const sid = useSessionsStore.getState().selectedSessionId
@@ -314,6 +316,7 @@ function Dashboard() {
   // Cached sessions have active WS subscriptions pushing entries in real-time.
   // The subscription diff subscriber ensures all cached sessions stay subscribed
   // even across WS reconnects (clearSubscribedSessions in onopen).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected and fetchSessionData intentionally omitted - only re-run on session switch
   useEffect(() => {
     if (!selectedSessionId || !isConnected) return
     const cached = (useSessionsStore.getState().transcripts[selectedSessionId]?.length ?? 0) > 0

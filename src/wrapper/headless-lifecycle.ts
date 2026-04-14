@@ -35,7 +35,7 @@ export interface HeadlessCallbackDeps {
  * Returns the options object to pass to spawnStreamClaude.
  */
 export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBackendOptions {
-  const { ctx, permissionRules, finalClaudeArgs, spawnStreamClaude, cleanup } = deps
+  const { ctx, permissionRules, finalClaudeArgs, cleanup } = deps
 
   const opts: StreamBackendOptions = {
     args: finalClaudeArgs,
