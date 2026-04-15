@@ -13,8 +13,8 @@ import { SessionList } from '@/components/session-list'
 import { SharedSessionView } from '@/components/shared-session-view'
 import { ShortcutHelp } from '@/components/shortcut-help'
 import { openSpawnDialog, SpawnDialog } from '@/components/spawn-dialog'
-import { openTerminateConfirm, TerminateConfirmDialog } from '@/components/terminate-confirm'
 import { TaskBatchSelector } from '@/components/task-batch-selector'
+import { openTerminateConfirm, TerminateConfirmDialog } from '@/components/terminate-confirm'
 import { ToastContainer } from '@/components/toast'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -552,6 +552,15 @@ function Dashboard() {
     shortcut: 'mod+g Space',
     group: 'Navigation',
   })
+
+  useCommand(
+    'toggle-ended-sessions',
+    () => {
+      const store = useSessionsStore.getState()
+      store.updateDashboardPrefs({ showEndedSessions: !store.dashboardPrefs.showEndedSessions })
+    },
+    { label: 'Toggle show ended sessions', shortcut: 'mod+g e', group: 'View' },
+  )
 
   useCommand(
     'interrupt',

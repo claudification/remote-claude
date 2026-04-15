@@ -550,9 +550,23 @@ const SETTINGS: SettingItem[] = [
   // --- Display ---
   {
     group: 'Display',
-    label: 'Show inactive sessions',
-    description: 'Show ended sessions in sidebar by default',
-    keywords: 'sidebar ended',
+    label: 'Show ended sessions',
+    description: 'Show [ENDED] sessions within CWD groups in sidebar',
+    keywords: 'sidebar ended filter',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.showEndedSessions}
+        onChange={e => ctx.updatePrefs({ showEndedSessions: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
+  {
+    group: 'Display',
+    label: 'Show inactive projects',
+    description: 'Show projects with only ended sessions at bottom of sidebar',
+    keywords: 'sidebar inactive',
     render: ctx => (
       <input
         type="checkbox"

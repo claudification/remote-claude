@@ -32,6 +32,7 @@ export const DEFAULT_TOOL_DISPLAY: Record<ToolDisplayKey, ToolDisplayPrefs> = {
 }
 
 export interface DashboardPrefs {
+  showEndedSessions: boolean // show [ENDED] sessions within CWD groups (organized + unorganized)
   showInactiveByDefault: boolean
   compactMode: boolean
   showVoiceInput: boolean
@@ -55,6 +56,7 @@ export interface DashboardPrefs {
 }
 
 export const defaultPrefs: DashboardPrefs = {
+  showEndedSessions: true,
   showInactiveByDefault: false,
   compactMode: false,
   showVoiceInput: true,

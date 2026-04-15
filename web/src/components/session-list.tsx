@@ -1441,6 +1441,7 @@ export function SessionList() {
   const selectedSessionId = useSessionsStore(s => s.selectedSessionId)
   const rawSessionOrder = useSessionsStore(s => s.sessionOrder)
   const sessionOrder = rawSessionOrder?.tree ? rawSessionOrder : { version: 2 as const, tree: [] }
+  const showEnded = useSessionsStore(s => s.dashboardPrefs.showEndedSessions)
   const showInactive = useSessionsStore(s => s.dashboardPrefs.showInactiveByDefault)
   const updatePrefs = useSessionsStore(s => s.updateDashboardPrefs)
   const [_pulseSessionId, setPulseSessionId] = useState<string | null>(null)
@@ -1471,6 +1472,17 @@ export function SessionList() {
     return map
   }, [sessions])
 
+  // Filtered view: hide ended sessions from CWD groups when toggle is off
+  const visibleSessionsByCwd = useMemo(() => {
+    if (showEnded) return sessionsByCwd
+    const map = new Map<string, Session[]>()
+    for (const [cwd, group] of sessionsByCwd) {
+      const filtered = group.filter(s => s.status !== 'ended')
+      if (filtered.length > 0) map.set(cwd, filtered)
+    }
+    return map
+  }, [sessionsByCwd, showEnded])
+
   // Track which CWDs are in the organized tree
   const treeCwds = useMemo(() => {
     const cwds = new Set<string>()
@@ -1487,14 +1499,14 @@ export function SessionList() {
     return cwds
   }, [sessionOrder])
 
-  // Unorganized active sessions
+  // Unorganized active sessions (uses visibleSessionsByCwd to respect showEnded filter)
   const unorganized = useMemo(() => {
     const seen = new Set<string>()
     const result: Array<{ cwd: string; sessions: Session[] }> = []
     for (const s of sessions) {
       if (s.status !== 'ended' && !treeCwds.has(s.cwd) && !seen.has(s.cwd)) {
         seen.add(s.cwd)
-        const cwdSessions = (sessionsByCwd.get(s.cwd) || []).filter(x => x.status !== 'ended')
+        const cwdSessions = visibleSessionsByCwd.get(s.cwd) || []
         if (cwdSessions.length > 0) result.push({ cwd: s.cwd, sessions: cwdSessions })
       }
     }
@@ -1509,7 +1521,7 @@ export function SessionList() {
       return bMax - aMax
     })
     return result
-  }, [sessions, treeCwds, sessionsByCwd])
+  }, [sessions, treeCwds, visibleSessionsByCwd])
 
   // Inactive sessions (ended, not in tree, not in unorganized)
   const inactive = useMemo(() => {
@@ -1766,7 +1778,7 @@ export function SessionList() {
                 <SortableNode key={node.id} id={node.id}>
                   <GroupNode
                     group={node}
-                    sessionsByCwd={sessionsByCwd}
+                    sessionsByCwd={visibleSessionsByCwd}
                     collapsed={isCollapsed}
                     onToggle={() => toggleGroup(node.id)}
                     onRename={name => handleRename(node.id, name)}
@@ -1776,7 +1788,7 @@ export function SessionList() {
                       {node.children.map(child => {
                         if (child.type === 'group') return null
                         const childCwd = child.id.startsWith('cwd:') ? child.id.slice(4) : child.id
-                        const childSessions = sessionsByCwd.get(childCwd)
+                        const childSessions = visibleSessionsByCwd.get(childCwd)
                         if (!childSessions || childSessions.length === 0) return null
                         return (
                           <SortableNode key={child.id} id={child.id}>
@@ -1805,7 +1817,7 @@ export function SessionList() {
             }
             // Root-level session node
             const cwd = node.id.startsWith('cwd:') ? node.id.slice(4) : node.id
-            const cwdSessions = sessionsByCwd.get(cwd)
+            const cwdSessions = visibleSessionsByCwd.get(cwd)
             if (!cwdSessions || cwdSessions.length === 0) return null
             return (
               <SortableNode key={node.id} id={node.id}>

@@ -146,28 +146,46 @@ function findBinding(bindings: KeyBindings, normalized: string): KeyHandler | un
   return undefined
 }
 
-// A chord binding has a space between TWO DIFFERENT keys: 'mod+g t'
-// A double-tap has the same key twice: 'Escape Escape'
+// A chord binding has a space between TWO DIFFERENT keys: 'mod+g t', 'mod+g s e'
+// A double-tap has the same key repeated: 'Escape Escape'
 function isChordBinding(binding: string): boolean {
   if (!binding.includes(' ')) return false
-  const [a, b] = binding.split(' ', 2)
-  return a !== b
+  const parts = binding.split(' ')
+  // Double-tap: all parts identical. Chord: at least one differs.
+  return !parts.every(p => p === parts[0])
 }
 
-// Check if normalized key is a chord prefix (any registered binding is a chord starting with it)
-function isChordPrefix(normalized: string): boolean {
-  // Also check the mod/ctrl equivalent
-  const alts = [normalized]
-  if (normalized.includes('mod')) alts.push(normalized.replace('mod', 'ctrl'))
-  else if (normalized.includes('ctrl')) alts.push(normalized.replace('ctrl', 'mod'))
+// Check if a (possibly multi-part) pattern is a prefix of any registered chord binding.
+// e.g. "mod+g" is a prefix of "mod+g t", and "mod+g s" is a prefix of "mod+g s e"
+function isChordPrefix(pattern: string): boolean {
+  // Also check the mod/ctrl equivalent for the first segment
+  const alts = [pattern]
+  if (pattern.includes('mod')) alts.push(pattern.replace('mod', 'ctrl'))
+  else if (pattern.includes('ctrl')) alts.push(pattern.replace('ctrl', 'mod'))
+
+  const prefix0 = `${alts[0]} `
+  const prefix1 = alts.length > 1 ? `${alts[1]} ` : null
 
   for (const layer of layers) {
     if (layer.options.enabled === false) continue
     for (const key of Object.keys(layer.bindings)) {
       if (!isChordBinding(key)) continue
-      for (const alt of alts) {
-        if (key.startsWith(`${alt} `)) return true
-      }
+      if (key.startsWith(prefix0)) return true
+      if (prefix1 && key.startsWith(prefix1)) return true
+    }
+  }
+  return false
+}
+
+// Fire a binding pattern across all enabled layers (top-down). Returns true if a handler was found.
+function fireBinding(pattern: string, e?: KeyboardEvent): boolean {
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const layer = layers[i]
+    if (layer.options.enabled === false) continue
+    const handler = findBinding(layer.bindings, pattern)
+    if (handler) {
+      handler(e ?? new KeyboardEvent('keydown'))
+      return true
     }
   }
   return false
@@ -183,28 +201,38 @@ function dispatch(e: KeyboardEvent) {
   const inTextInput = isTextInput(e.target as Element)
   const inTerminal = isTerminal(e.target as Element)
 
-  // ── Chord mode: consume second key ────────────────────────────────────────
+  // ── Chord mode: consume next key in sequence ──────────────────────────────
   if (activeChord) {
     e.preventDefault()
     e.stopPropagation()
     e.stopImmediatePropagation()
 
-    const prefix = activeChord.prefix
-    exitChordMode()
-
-    if (normalized === 'Escape') return // ESC = dismiss, no action
-
-    const chordPattern = `${prefix} ${normalized}`
-    for (let i = layers.length - 1; i >= 0; i--) {
-      const layer = layers[i]
-      if (layer.options.enabled === false) continue
-      const handler = findBinding(layer.bindings, chordPattern)
-      if (handler) {
-        handler(e)
-        return
-      }
+    if (normalized === 'Escape') {
+      exitChordMode()
+      return
     }
-    return // No chord match: just dismiss
+
+    const candidate = `${activeChord.prefix} ${normalized}`
+
+    // If candidate is a prefix of longer chords, stay in chord mode (drill deeper)
+    if (isChordPrefix(candidate)) {
+      clearTimeout(activeChord.timeoutId)
+      activeChord.prefix = candidate
+      activeChord.timeoutId = setTimeout(() => {
+        // Timeout: try to fire accumulated prefix as a binding, then exit
+        const timedOutPrefix = activeChord?.prefix
+        activeChord = null
+        notifyChordListeners(null)
+        if (timedOutPrefix) fireBinding(timedOutPrefix)
+      }, chordTimeoutMs)
+      notifyChordListeners(candidate)
+      return
+    }
+
+    // Not a prefix -- exit chord mode and try to fire as exact match
+    exitChordMode()
+    fireBinding(candidate, e)
+    return
   }
 
   // ── Double-tap detection (same key) ───────────────────────────────────────
