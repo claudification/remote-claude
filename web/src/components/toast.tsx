@@ -49,7 +49,7 @@ export function ToastContainer() {
       {toasts.map(t => (
         <div
           key={t.id}
-          className={`bg-background border rounded-lg shadow-lg p-3 animate-in slide-in-from-right-5 fade-in duration-200 ${t.variant === 'success' ? 'border-amber-500/50' : 'border-accent/50'} ${t.sessionId || t.taskId ? 'cursor-pointer hover:border-accent' : ''}`}
+          className={`bg-background border rounded-lg shadow-lg p-3 animate-in slide-in-from-right-5 fade-in duration-200 ${t.variant === 'warning' ? 'border-orange-500/50' : t.variant === 'success' ? 'border-amber-500/50' : 'border-accent/50'} ${t.sessionId || t.taskId ? 'cursor-pointer hover:border-accent' : ''}`}
           onClick={() => handleClick(t)}
           onKeyDown={e => {
             if (e.key === 'Enter') handleClick(t)
@@ -59,7 +59,11 @@ export function ToastContainer() {
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-xs font-bold text-accent uppercase tracking-wider">{t.title}</div>
+              <div
+                className={`text-xs font-bold uppercase tracking-wider ${t.variant === 'warning' ? 'text-orange-400' : 'text-accent'}`}
+              >
+                {t.title}
+              </div>
               <div className="text-sm text-foreground mt-1">{t.body}</div>
             </div>
             <button

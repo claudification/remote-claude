@@ -84,6 +84,42 @@ export function useCommand(id: string, action: CommandAction, options: UseComman
   )
 }
 
+// ── Chord validation ───────────────────────────────────────────────────
+
+export interface ChordConflict {
+  /** The binding that's both a command AND a prefix of a longer chord */
+  binding: string
+  bindingLabel: string
+  /** The longer chord(s) that use it as a prefix */
+  longerChords: Array<{ shortcut: string; label: string }>
+}
+
+/**
+ * Detect chord bindings that are also prefixes of longer chords.
+ * e.g. "mod+g s" (spawn) conflicts with "mod+g s e" (sub-action)
+ * because pressing S would enter chord mode instead of firing spawn immediately.
+ */
+export function validateChordBindings(): ChordConflict[] {
+  const all = Array.from(commands.values()).filter(
+    (c): c is Command & { shortcut: string } => !!c.shortcut?.includes(' '),
+  )
+  const conflicts: ChordConflict[] = []
+
+  for (const cmd of all) {
+    const prefix = `${cmd.shortcut} `
+    const longer = all.filter(other => other.id !== cmd.id && other.shortcut.startsWith(prefix))
+    if (longer.length > 0) {
+      conflicts.push({
+        binding: cmd.shortcut,
+        bindingLabel: cmd.label,
+        longerChords: longer.map(c => ({ shortcut: c.shortcut, label: c.label })),
+      })
+    }
+  }
+
+  return conflicts
+}
+
 // ── Formatting helpers ──────────────────────────────────────────────────
 
 const isMac =

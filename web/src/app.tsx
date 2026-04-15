@@ -38,7 +38,7 @@ import {
   wsSend,
 } from '@/hooks/use-sessions'
 import { useWebSocket } from '@/hooks/use-websocket'
-import { executeCommand, useCommand } from '@/lib/commands'
+import { executeCommand, formatShortcut, useCommand, validateChordBindings } from '@/lib/commands'
 import { setChordTimeout } from '@/lib/key-layers'
 import { canTerminal } from '@/lib/types'
 import { clearCacheAndReload, isMobileViewport, isTouchDevice, PRE_RELOAD_KEY } from '@/lib/utils'
@@ -601,6 +601,26 @@ function Dashboard() {
     },
     { label: 'Set effort level', group: 'Session' },
   )
+
+  // Validate chord bindings after all commands have mounted -- toast conflicts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const conflicts = validateChordBindings()
+      for (const c of conflicts) {
+        const longer = c.longerChords.map(l => formatShortcut(l.shortcut)).join(', ')
+        window.dispatchEvent(
+          new CustomEvent('rclaude-toast', {
+            detail: {
+              title: 'CHORD CONFLICT',
+              body: `"${c.bindingLabel}" (${formatShortcut(c.binding)}) is also a prefix of: ${longer} -- it will only fire on timeout`,
+              variant: 'warning',
+            },
+          }),
+        )
+      }
+    }, 500) // short delay to let all useCommand hooks register
+    return () => clearTimeout(timer)
+  }, [])
 
   function handleSwitcherSelect(id: string) {
     const store = useSessionsStore.getState()
