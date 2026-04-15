@@ -12,7 +12,8 @@ import { SessionDetail } from '@/components/session-detail'
 import { SessionList } from '@/components/session-list'
 import { SharedSessionView } from '@/components/shared-session-view'
 import { ShortcutHelp } from '@/components/shortcut-help'
-import { SpawnDialog } from '@/components/spawn-dialog'
+import { openSpawnDialog, SpawnDialog } from '@/components/spawn-dialog'
+import { openTerminateConfirm, TerminateConfirmDialog } from '@/components/terminate-confirm'
 import { TaskBatchSelector } from '@/components/task-batch-selector'
 import { ToastContainer } from '@/components/toast'
 import { Button } from '@/components/ui/button'
@@ -471,6 +472,32 @@ function Dashboard() {
   )
 
   useCommand(
+    'launch-session',
+    () => {
+      const store = useSessionsStore.getState()
+      const cwd = store.selectedSessionId
+        ? (store.sessionsById[store.selectedSessionId]?.cwd ?? store.dashboardPrefs.defaultSessionCwd)
+        : store.dashboardPrefs.defaultSessionCwd
+      openSpawnDialog({ cwd: cwd || './' })
+    },
+    { label: 'Launch session', shortcut: 'mod+g l', group: 'Session' },
+  )
+
+  useCommand(
+    'terminate-session',
+    () => {
+      const store = useSessionsStore.getState()
+      const sid = store.selectedSessionId
+      if (!sid) return
+      const session = store.sessionsById[sid]
+      if (!session || session.status === 'ended') return
+      const name = session.title || session.agentName || null
+      openTerminateConfirm(sid, name)
+    },
+    { label: 'Terminate session', shortcut: 'mod+g x', group: 'Session' },
+  )
+
+  useCommand(
     'search-tasks',
     () => {
       useSessionsStore.getState().openSwitcherWithFilter('T: ')
@@ -742,6 +769,9 @@ function Dashboard() {
 
       {/* Spawn dialog */}
       <SpawnDialog />
+
+      {/* Terminate confirmation (mod+g x) */}
+      <TerminateConfirmDialog />
 
       {/* Toast notifications */}
       <ToastContainer />
