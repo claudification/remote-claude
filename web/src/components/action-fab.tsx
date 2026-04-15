@@ -15,6 +15,7 @@ import {
   PenLine,
   Power,
   RefreshCw,
+  Rocket,
   RotateCcw,
   Share2,
   Trash2,
@@ -23,6 +24,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { reviveSession, useSessionsStore } from '@/hooks/use-sessions'
 import type { Session } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
+import { openSpawnDialog } from './spawn-dialog'
 
 interface FanAction {
   id: string
@@ -56,6 +58,13 @@ function buildActions(session: Session | undefined, selectedSessionId: string | 
       label: 'Batch',
       action: () => window.dispatchEvent(new Event('open-batch-selector')),
       color: 'bg-[#2ac3de]',
+    },
+    {
+      id: 'launch',
+      icon: <Rocket className="w-4 h-4" />,
+      label: 'Launch',
+      action: () => openSpawnDialog({ cwd: session?.cwd || '.' }),
+      color: 'bg-[#ff9e64]',
     },
     {
       id: 'spawn',
