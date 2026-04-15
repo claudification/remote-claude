@@ -640,7 +640,11 @@ export function GroupView({
                 const senderLabel = senderSession?.cwd
                   ? useSessionsStore.getState().projectSettings[senderSession.cwd]?.label
                   : undefined
-                const senderDisplayName = senderSession?.title || senderLabel || item.source
+                const senderTitle = senderSession?.title
+                const senderDisplayName =
+                  senderLabel && senderTitle
+                    ? `${senderLabel} :: ${senderTitle}`
+                    : senderTitle || senderLabel || item.source
                 return (
                   // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
                   <div key={i} className="rounded-lg border border-teal-500/30 bg-teal-500/5 px-3 py-2.5 my-1">
