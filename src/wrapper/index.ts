@@ -1152,8 +1152,7 @@ async function main() {
           debug(`[channel] share_file: file not found: ${filePath}`)
           return null
         }
-        // Use ArrayBuffer instead of BunFile as fetch body to avoid Bun SIGTRAP crash
-        const bytes = await file.arrayBuffer()
+        // Stream the file -- Bun handles BunFile (Blob) as fetch body natively
         const contentType = file.type || 'application/octet-stream'
         const res = await fetch(`${httpUrl}/api/files`, {
           method: 'POST',
@@ -1162,7 +1161,7 @@ async function main() {
             'X-Session-Id': ctx.claudeSessionId || internalId,
             ...(concentratorSecret ? { Authorization: `Bearer ${concentratorSecret}` } : {}),
           },
-          body: bytes,
+          body: file,
         })
         if (!res.ok) {
           debug(`[channel] share_file: upload failed: ${res.status}`)

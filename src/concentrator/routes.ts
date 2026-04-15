@@ -4,7 +4,16 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { Hono } from 'hono'
 import type { ListDirsResult, SendInput, Session, SpawnResult, TeamInfo } from '../shared/protocol'
@@ -112,12 +121,45 @@ export function registerBlob(data: string, mediaType: string): string {
   return hash
 }
 
-function storeBlobDirect(hash: string, bytes: Uint8Array, mediaType: string): void {
-  if (!blobDir) return
-  const blobPath = join(blobDir, hash)
-  if (!existsSync(blobPath)) {
-    writeFileSync(blobPath, bytes)
-    writeFileSync(`${blobPath}.meta`, JSON.stringify({ mediaType, createdAt: Date.now() }))
+/** Stream request body to temp file, compute full SHA256, rename to content hash. O(1) memory. */
+async function storeBlobStreaming(
+  body: ReadableStream<Uint8Array>,
+  mediaType: string,
+): Promise<{ hash: string; size: number }> {
+  const tempPath = join(blobDir, `_upload_${randomUUID()}`)
+  const hasher = new Bun.CryptoHasher('sha256')
+  const writer = Bun.file(tempPath).writer()
+  let size = 0
+
+  try {
+    for await (const chunk of body) {
+      hasher.update(chunk)
+      writer.write(chunk)
+      size += chunk.byteLength
+    }
+    await writer.end()
+
+    // Content-based hash (full SHA256, not just first 200 bytes)
+    const digest = hasher.digest()
+    const n = digest.readBigUInt64BE(0)
+    const hash = n.toString(36)
+
+    const blobPath = join(blobDir, hash)
+    if (existsSync(blobPath)) {
+      // Dedup: identical content already stored
+      unlinkSync(tempPath)
+    } else {
+      renameSync(tempPath, blobPath)
+      writeFileSync(`${blobPath}.meta`, JSON.stringify({ mediaType, size, createdAt: Date.now() }))
+    }
+
+    return { hash, size }
+  } catch (err) {
+    // Clean up temp file on any error
+    try {
+      unlinkSync(tempPath)
+    } catch {}
+    throw err
   }
 }
 
@@ -186,7 +228,7 @@ function dismissSharedFile(hash: string): boolean {
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'heic', 'svg']
 
-function mediaTypeToExt(mediaType: string): string {
+function mediaTypeToExt(mediaType: string, fallback = 'bin'): string {
   const map: Record<string, string> = {
     'image/png': 'png',
     'image/jpeg': 'jpg',
@@ -195,8 +237,26 @@ function mediaTypeToExt(mediaType: string): string {
     'image/avif': 'avif',
     'image/heic': 'heic',
     'image/svg+xml': 'svg',
+    'video/mp4': 'mp4',
+    'video/webm': 'webm',
+    'video/quicktime': 'mov',
+    'audio/mpeg': 'mp3',
+    'audio/mp4': 'm4a',
+    'audio/wav': 'wav',
+    'audio/ogg': 'ogg',
+    'application/pdf': 'pdf',
+    'application/json': 'json',
+    'application/zip': 'zip',
+    'text/plain': 'txt',
+    'text/html': 'html',
+    'text/css': 'css',
+    'application/octet-stream': 'bin',
   }
-  return map[mediaType] || 'png'
+  if (map[mediaType]) return map[mediaType]
+  // Fallback: use MIME subtype if it looks like a clean extension (no hyphens/plus)
+  const sub = mediaType.split('/')[1] || ''
+  if (sub && /^[a-z0-9]+$/i.test(sub)) return sub
+  return fallback
 }
 
 export function processImagesInEntry(entry: Record<string, unknown>): Record<string, unknown> {
@@ -468,7 +528,7 @@ export function createRouter(options: RouteOptions): Hono {
   // ─── File serving by hash ──────────────────────────────────────────
   app.get('/file/:hash', async c => {
     if (!blobDir) return new Response(null, { status: 503 })
-    const hash = c.req.param('hash').replace(/\.[a-z]+$/i, '') // strip extension
+    const hash = c.req.param('hash').replace(/\.[^.]+$/, '') // strip extension (everything after last dot)
     const blobPath = join(blobDir, hash)
     const metaPath = `${blobPath}.meta`
 
@@ -483,9 +543,41 @@ export function createRouter(options: RouteOptions): Hono {
       /* no meta, use generic type */
     }
 
-    return new Response(file, {
-      headers: { 'Content-Type': mediaType, 'Cache-Control': 'public, max-age=86400' },
-    })
+    const totalSize = file.size
+    const headers: Record<string, string> = {
+      'Content-Type': mediaType,
+      'Cache-Control': 'public, max-age=86400',
+      'Accept-Ranges': 'bytes',
+      ETag: `"${hash}"`,
+    }
+
+    // Range request support (video seeking, resumable downloads)
+    const rangeHeader = c.req.header('range')
+    if (rangeHeader) {
+      const match = rangeHeader.match(/bytes=(\d+)-(\d*)/)
+      if (match) {
+        const start = parseInt(match[1], 10)
+        const end = match[2] ? parseInt(match[2], 10) : totalSize - 1
+        if (start >= totalSize || end >= totalSize || start > end) {
+          return new Response(null, {
+            status: 416,
+            headers: { 'Content-Range': `bytes */${totalSize}` },
+          })
+        }
+        const sliced = file.slice(start, end + 1)
+        return new Response(sliced, {
+          status: 206,
+          headers: {
+            ...headers,
+            'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+            'Content-Length': String(end - start + 1),
+          },
+        })
+      }
+    }
+
+    headers['Content-Length'] = String(totalSize)
+    return new Response(file, { headers })
   })
 
   // ─── Sessions (all gated by grants) ────────────────────────────────
@@ -752,6 +844,7 @@ export function createRouter(options: RouteOptions): Hono {
       resumeId?: string
       headless?: boolean
       bare?: boolean
+      repl?: boolean
       name?: string
       model?: string
       effort?: string
@@ -834,6 +927,7 @@ export function createRouter(options: RouteOptions): Hono {
           effort,
           model,
           bare: body.bare || false,
+          repl: body.repl || false,
           sessionName:
             body.name?.trim() ||
             generateSessionName(
@@ -1191,35 +1285,43 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
   // ─── File upload ───────────────────────────────────────────────────
   app.post('/api/files', async c => {
+    if (!blobDir) return c.json({ error: 'Blob store not configured' }, 503)
+
     // Require files permission (check against session CWD if available, else global)
     const uploadSessionId = c.req.header('x-session-id') || c.req.query('sessionId') || undefined
     const uploadCwd = uploadSessionId ? sessionStore.getSession(uploadSessionId)?.cwd : undefined
     if (!httpHasPermission(c.req.raw, 'files', uploadCwd || '*'))
       return c.json({ error: 'Forbidden: files permission required' }, 403)
+
     const contentType = c.req.header('content-type') || ''
-    let bytes: Uint8Array
+    let hash: string
+    let size: number
     let mediaType: string
-    let filename = 'image'
+    let filename = 'upload'
 
     if (contentType.includes('multipart/form-data')) {
+      // Multipart: must buffer the form part (no streaming for multipart)
       const formData = await c.req.formData()
       const file = formData.get('file') as File | null
       if (!file) return c.json({ error: 'No file in form data' }, 400)
-      bytes = new Uint8Array(await file.arrayBuffer())
-      mediaType = file.type || 'image/png'
-      filename = file.name || 'image'
+      mediaType = file.type || 'application/octet-stream'
+      filename = file.name || 'upload'
+      // Stream the File blob through the hashing pipeline
+      const result = await storeBlobStreaming(file.stream(), mediaType)
+      hash = result.hash
+      size = result.size
     } else {
-      bytes = new Uint8Array(await c.req.arrayBuffer())
-      mediaType = contentType.split(';')[0] || 'image/png'
-      const ext = mediaType.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
-      filename = `paste.${ext}`
+      // Raw body: stream directly -- O(1) memory
+      mediaType = contentType.split(';')[0] || 'application/octet-stream'
+      filename = `upload.${mediaTypeToExt(mediaType)}`
+      const body = c.req.raw.body
+      if (!body) return c.json({ error: 'Empty request body' }, 400)
+      const result = await storeBlobStreaming(body, mediaType)
+      hash = result.hash
+      size = result.size
     }
 
-    const key = `${bytes.length}:${Array.from(bytes.slice(0, 200)).join(',')}`
-    const hash = hashString(key)
-    storeBlobDirect(hash, bytes, mediaType)
-
-    const ext = mediaType.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
+    const ext = mediaTypeToExt(mediaType)
     const filePath = `/file/${hash}.${ext}`
     const url = publicOrigin
       ? `${publicOrigin}${filePath}`
@@ -1235,12 +1337,12 @@ Output a JSON array of strings. Each string should be the correct spelling of on
       mediaType,
       cwd: sessionCwd,
       sessionId,
-      size: bytes.length,
+      size,
       url,
       createdAt: Date.now(),
     })
 
-    return c.json({ hash, url, filename, mediaType })
+    return c.json({ hash, url, filename, mediaType, size })
   })
 
   // ─── Shared files + clipboard (per-CWD) ─────────────────────────
