@@ -444,7 +444,7 @@ export const TranscriptView = memo(function TranscriptView({
   return (
     <div
       ref={parentRef}
-      className="h-full overflow-y-auto p-3 sm:p-4"
+      className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4"
       style={{ overscrollBehavior: 'contain', touchAction: 'pan-y' }}
       onWheel={killFollow}
       onTouchStart={killFollow}

@@ -1681,7 +1681,7 @@ export const SessionDetail = memo(function SessionDetail() {
           {!conversationTarget && (activeTab === 'transcript' || (activeTab === 'tty' && !hasTerminal)) && (
             <div
               className={cn(
-                'flex-1 min-h-0 overflow-hidden relative transition-colors duration-300',
+                'flex-1 min-h-0 overflow-hidden relative flex flex-col transition-colors duration-300',
                 inPlanMode && 'bg-blue-950/20',
               )}
             >
