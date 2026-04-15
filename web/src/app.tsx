@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, Command, FileText, Menu } from 'lucide-react
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { ActionFab } from '@/components/action-fab'
 import { AuthGate } from '@/components/auth-gate'
+import { ChordOverlay } from '@/components/chord-overlay'
 import { CommandPalette } from '@/components/command-palette'
 import { DebugConsole } from '@/components/debug-console'
 import { Header } from '@/components/header'
@@ -386,7 +387,7 @@ function Dashboard() {
       if (store.showTerminal) store.setShowTerminal(false)
       store.toggleSwitcher()
     },
-    { label: 'Session switcher', shortcut: 'mod+k', group: 'Navigation' },
+    { label: 'Session switcher', shortcut: 'mod+g k', group: 'Navigation' },
   )
 
   useCommand(
@@ -410,7 +411,7 @@ function Dashboard() {
     () => {
       useSessionsStore.getState().toggleDebugConsole()
     },
-    { label: 'Toggle debug console', shortcut: 'mod+shift+d', group: 'View' },
+    { label: 'Toggle debug console', shortcut: 'mod+g d', group: 'View' },
   )
 
   useCommand(
@@ -425,7 +426,7 @@ function Dashboard() {
         store.openTab(store.selectedSessionId, currentTab === 'tty' ? 'transcript' : 'tty')
       }
     },
-    { label: 'Toggle terminal tab', shortcut: 'mod+shift+t', group: 'Navigation' },
+    { label: 'Toggle terminal tab', shortcut: 'mod+g t', group: 'Navigation' },
   )
 
   useCommand(
@@ -442,7 +443,7 @@ function Dashboard() {
         }
       }
     },
-    { label: 'Toggle fullscreen terminal', shortcut: 'mod+shift+alt+t', group: 'Navigation' },
+    { label: 'Toggle fullscreen terminal', shortcut: 'mod+g f', group: 'Navigation' },
   )
 
   useCommand(
@@ -450,7 +451,7 @@ function Dashboard() {
     () => {
       useSessionsStore.getState().openSwitcherWithFilter('S:./')
     },
-    { label: 'Spawn new session', shortcut: 'mod+shift+s', group: 'Session' },
+    { label: 'Spawn new session', shortcut: 'mod+g s', group: 'Session' },
   )
 
   useCommand(
@@ -458,7 +459,7 @@ function Dashboard() {
     () => {
       useSessionsStore.getState().openSwitcherWithFilter('T: ')
     },
-    { label: 'Search tasks', shortcut: 'ctrl+shift+t', group: 'Navigation' },
+    { label: 'Search tasks', shortcut: 'mod+g /', group: 'Navigation' },
   )
 
   useCommand(
@@ -470,7 +471,7 @@ function Dashboard() {
         store.setPendingFilePath('NOTES.md')
       }
     },
-    { label: 'Open NOTES.md', shortcut: 'mod+shift+alt+n', group: 'Navigation' },
+    { label: 'Open NOTES.md', shortcut: 'mod+g o', group: 'Navigation' },
   )
 
   useCommand(
@@ -484,7 +485,7 @@ function Dashboard() {
         store.openTab(sid, 'project')
       }
     },
-    { label: 'Open project board', shortcut: 'ctrl+shift+p', group: 'Navigation' },
+    { label: 'Open project board', shortcut: 'mod+g p', group: 'Navigation' },
   )
 
   useCommand(
@@ -711,6 +712,9 @@ function Dashboard() {
 
       {/* Auth expired modal */}
       <AuthExpiredModal />
+
+      {/* Chord mode overlay (⌘G prefix) */}
+      <ChordOverlay />
 
       {/* Spawn dialog */}
       <SpawnDialog />

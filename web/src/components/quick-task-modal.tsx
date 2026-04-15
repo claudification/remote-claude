@@ -35,7 +35,7 @@ export function QuickTaskModal() {
         setOpen(true)
       }
     },
-    { label: 'Quick task', shortcut: 'ctrl+shift+n', group: 'Navigation' },
+    { label: 'Quick task', shortcut: 'mod+g n', group: 'Navigation' },
   )
 
   // Also listen for window event (from action FAB + command palette)

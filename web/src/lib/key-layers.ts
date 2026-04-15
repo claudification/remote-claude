@@ -24,6 +24,45 @@ interface DoubleTapState {
   time: number
 }
 
+// ── Chord mode ──────────────────────────────────────────────────────────────
+
+const CHORD_TIMEOUT = 1500
+
+interface ChordState {
+  prefix: string
+  timeoutId: ReturnType<typeof setTimeout>
+}
+
+let activeChord: ChordState | null = null
+type ChordListener = (prefix: string | null) => void
+const chordListeners = new Set<ChordListener>()
+
+export function subscribeChordMode(fn: ChordListener): () => void {
+  chordListeners.add(fn)
+  return () => chordListeners.delete(fn)
+}
+
+function notifyChordListeners(prefix: string | null) {
+  for (const fn of chordListeners) fn(prefix)
+}
+
+function exitChordMode() {
+  if (!activeChord) return
+  clearTimeout(activeChord.timeoutId)
+  activeChord = null
+  notifyChordListeners(null)
+}
+
+function enterChordMode(prefix: string) {
+  if (activeChord) clearTimeout(activeChord.timeoutId)
+  const timeoutId = setTimeout(() => {
+    activeChord = null
+    notifyChordListeners(null)
+  }, CHORD_TIMEOUT)
+  activeChord = { prefix, timeoutId }
+  notifyChordListeners(prefix)
+}
+
 // ── Platform detection ─────────────────────────────────────────────────────
 
 const isMac =
@@ -101,6 +140,33 @@ function findBinding(bindings: KeyBindings, normalized: string): KeyHandler | un
   return undefined
 }
 
+// A chord binding has a space between TWO DIFFERENT keys: 'mod+g t'
+// A double-tap has the same key twice: 'Escape Escape'
+function isChordBinding(binding: string): boolean {
+  if (!binding.includes(' ')) return false
+  const [a, b] = binding.split(' ', 2)
+  return a !== b
+}
+
+// Check if normalized key is a chord prefix (any registered binding is a chord starting with it)
+function isChordPrefix(normalized: string): boolean {
+  // Also check the mod/ctrl equivalent
+  const alts = [normalized]
+  if (normalized.includes('mod')) alts.push(normalized.replace('mod', 'ctrl'))
+  else if (normalized.includes('ctrl')) alts.push(normalized.replace('ctrl', 'mod'))
+
+  for (const layer of layers) {
+    if (layer.options.enabled === false) continue
+    for (const key of Object.keys(layer.bindings)) {
+      if (!isChordBinding(key)) continue
+      for (const alt of alts) {
+        if (key.startsWith(`${alt} `)) return true
+      }
+    }
+  }
+  return false
+}
+
 // ── Dispatch ───────────────────────────────────────────────────────────────
 
 function dispatch(e: KeyboardEvent) {
@@ -111,12 +177,35 @@ function dispatch(e: KeyboardEvent) {
   const inTextInput = isTextInput(e.target as Element)
   const inTerminal = isTerminal(e.target as Element)
 
-  // Check double-tap first (before single-key matching)
+  // ── Chord mode: consume second key ────────────────────────────────────────
+  if (activeChord) {
+    e.preventDefault()
+    e.stopPropagation()
+    e.stopImmediatePropagation()
+
+    const prefix = activeChord.prefix
+    exitChordMode()
+
+    if (normalized === 'Escape') return // ESC = dismiss, no action
+
+    const chordPattern = `${prefix} ${normalized}`
+    for (let i = layers.length - 1; i >= 0; i--) {
+      const layer = layers[i]
+      if (layer.options.enabled === false) continue
+      const handler = findBinding(layer.bindings, chordPattern)
+      if (handler) {
+        handler(e)
+        return
+      }
+    }
+    return // No chord match: just dismiss
+  }
+
+  // ── Double-tap detection (same key) ───────────────────────────────────────
   const now = Date.now()
   let doubleTapFired = false
 
   if (doubleTap.key === normalized && now - doubleTap.time < DOUBLE_TAP_THRESHOLD) {
-    // Potential double-tap -- find a handler
     const doubleTapPattern = `${normalized} ${normalized}`
     for (let i = layers.length - 1; i >= 0; i--) {
       const layer = layers[i]
@@ -128,7 +217,7 @@ function dispatch(e: KeyboardEvent) {
         e.preventDefault()
         e.stopPropagation()
         e.stopImmediatePropagation()
-        doubleTap = { key: '', time: 0 } // reset to prevent triple-tap
+        doubleTap = { key: '', time: 0 }
         handler(e)
         doubleTapFired = true
         break
@@ -136,19 +225,26 @@ function dispatch(e: KeyboardEvent) {
     }
   }
 
-  // Update double-tap tracking (after checking, so the second press is recorded before matching)
   if (!doubleTapFired) {
     doubleTap = { key: normalized, time: now }
   }
 
   if (doubleTapFired) return
 
-  // Single-key dispatch with layer resolution
+  // ── Chord prefix detection ─────────────────────────────────────────────────
+  // Chord prefixes work with modifier combos only, and not inside terminals
   const isModified = hasModifier(normalized)
+  const isNonPrintable = e.key.length > 1
 
-  // For printable keys in text inputs, bail (let the input handle it).
-  // Non-printable keys (Escape, arrows, etc.) and modifier combos always pass through.
-  const isNonPrintable = e.key.length > 1 // 'Escape', 'ArrowDown', 'Enter', etc.
+  if (isModified && !inTerminal && isChordPrefix(normalized)) {
+    e.preventDefault()
+    e.stopPropagation()
+    e.stopImmediatePropagation()
+    enterChordMode(normalized)
+    return
+  }
+
+  // ── Single-key dispatch ────────────────────────────────────────────────────
   if (inTextInput && !isModified && !isNonPrintable) return
 
   for (let i = layers.length - 1; i >= 0; i--) {
@@ -282,4 +378,6 @@ export const _test = {
   resetDoubleTap: () => {
     doubleTap = { key: '', time: 0 }
   },
+  exitChordMode,
+  getActiveChord: () => activeChord,
 }
