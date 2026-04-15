@@ -78,6 +78,14 @@ export function getPaletteCommands(onClose: () => void): PaletteCommand[] {
         onClose()
       },
     },
+    {
+      id: 'batch-tasks',
+      label: 'Batch select tasks',
+      action: () => {
+        window.dispatchEvent(new Event('open-batch-selector'))
+        onClose()
+      },
+    },
     ...(store.selectedSessionId
       ? [
           {

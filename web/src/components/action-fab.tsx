@@ -8,7 +8,17 @@
  * Mobile only - hidden on desktop (hover-capable devices).
  */
 
-import { Command, MessageSquarePlus, PenLine, Power, RefreshCw, RotateCcw, Share2, Trash2 } from 'lucide-react'
+import {
+  Command,
+  ListChecks,
+  MessageSquarePlus,
+  PenLine,
+  Power,
+  RefreshCw,
+  RotateCcw,
+  Share2,
+  Trash2,
+} from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { reviveSession, useSessionsStore } from '@/hooks/use-sessions'
 import type { Session } from '@/lib/types'
@@ -39,6 +49,13 @@ function buildActions(session: Session | undefined, selectedSessionId: string | 
       label: 'Task',
       action: () => window.dispatchEvent(new Event('open-quick-task')),
       color: 'bg-[#9ece6a]',
+    },
+    {
+      id: 'batch-tasks',
+      icon: <ListChecks className="w-4 h-4" />,
+      label: 'Batch',
+      action: () => window.dispatchEvent(new Event('open-batch-selector')),
+      color: 'bg-[#2ac3de]',
     },
     {
       id: 'spawn',

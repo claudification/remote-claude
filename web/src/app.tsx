@@ -12,6 +12,7 @@ import { SessionList } from '@/components/session-list'
 import { SharedSessionView } from '@/components/shared-session-view'
 import { ShortcutHelp } from '@/components/shortcut-help'
 import { SpawnDialog } from '@/components/spawn-dialog'
+import { TaskBatchSelector } from '@/components/task-batch-selector'
 import { ToastContainer } from '@/components/toast'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -692,6 +693,7 @@ function Dashboard() {
       <JsonInspectorDialog />
       {/* Ctrl+Shift+N quick note modal - admin only */}
       {canAdmin && <QuickTaskModal />}
+      {canAdmin && <TaskBatchSelector />}
       {/* Shift+? shortcut help - admin only */}
       {canAdmin && <ShortcutHelp />}
 

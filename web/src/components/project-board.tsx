@@ -23,6 +23,7 @@ import {
   ChevronRight,
   Copy,
   Eye,
+  ListChecks,
   MoreHorizontal,
   Pencil,
   Search,
@@ -1530,6 +1531,17 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
         <div className="flex items-center justify-between px-3 py-2">
           <span className="text-xs font-bold text-foreground font-mono">Project</span>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              title="Batch select tasks"
+              className="p-0.5 text-muted-foreground/40 hover:text-accent transition-colors"
+              onClick={() => {
+                haptic('tap')
+                window.dispatchEvent(new Event('open-batch-selector'))
+              }}
+            >
+              <ListChecks className="w-3.5 h-3.5" />
+            </button>
             <button
               type="button"
               className={cn(

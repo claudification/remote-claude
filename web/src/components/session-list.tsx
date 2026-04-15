@@ -1074,6 +1074,16 @@ function SessionContextMenu({ session, children }: { session: Session; children:
           >
             Launch new...
           </ContextMenu.Item>
+          <ContextMenu.Item
+            className={cn(menuItemClass, 'text-[#2ac3de]')}
+            onSelect={() => {
+              haptic('tap')
+              selectSession(session.id)
+              window.dispatchEvent(new Event('open-batch-selector'))
+            }}
+          >
+            Assign tasks...
+          </ContextMenu.Item>
           <ContextMenu.Separator className="h-px bg-border my-1" />
           {session.status !== 'ended' && (
             <ContextMenu.Item
