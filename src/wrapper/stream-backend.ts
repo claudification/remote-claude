@@ -122,6 +122,9 @@ export interface StreamProcess {
   sendInterrupt: () => void
   forwardStdin: () => void
   kill: (signal?: NodeJS.Signals) => void
+  /** Close CC's stdin pipe (EOF) for graceful shutdown. CC will flush
+   *  its transcript and exit naturally. Returns true if stdin was closed. */
+  closeStdin: () => boolean
 }
 
 /**
@@ -617,6 +620,20 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
 
     kill(signal: NodeJS.Signals = 'SIGTERM') {
       proc.kill(signal)
+    },
+
+    closeStdin() {
+      try {
+        const stdin = proc.stdin
+        if (stdin && typeof stdin !== 'number') {
+          stdin.end()
+          debug('[stream] CC stdin closed (EOF sent)')
+          return true
+        }
+      } catch (e) {
+        debug(`[stream] Failed to close stdin: ${e}`)
+      }
+      return false
     },
   }
 }

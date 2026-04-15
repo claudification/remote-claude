@@ -1086,9 +1086,28 @@ async function main() {
         }
       },
       onQuitSession() {
-        diag('session', 'Quit requested from dashboard - sending SIGTERM')
-        if (headless && ctx.streamProc) ctx.streamProc.kill()
-        else if (ctx.ptyProcess) ctx.ptyProcess.kill('SIGTERM')
+        if (headless && ctx.streamProc) {
+          // Graceful: close stdin so CC flushes transcript and exits naturally
+          diag('session', 'Quit requested from dashboard - closing stdin for graceful shutdown')
+          const closed = ctx.streamProc.closeStdin()
+          if (closed) {
+            // Safety net: SIGTERM if CC doesn't exit within 10s
+            const proc = ctx.streamProc
+            setTimeout(() => {
+              if (!proc.proc.killed) {
+                diag('session', 'CC still alive 10s after stdin close - sending SIGTERM')
+                proc.kill()
+              }
+            }, 10_000)
+          } else {
+            // Stdin close failed, fall back to SIGTERM
+            diag('session', 'Stdin close failed - falling back to SIGTERM')
+            ctx.streamProc.kill()
+          }
+        } else if (ctx.ptyProcess) {
+          diag('session', 'Quit requested from dashboard - sending SIGTERM')
+          ctx.ptyProcess.kill('SIGTERM')
+        }
       },
       onInterrupt() {
         if (headless && ctx.streamProc) {
