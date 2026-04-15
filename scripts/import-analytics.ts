@@ -75,6 +75,12 @@ function classifyTurn(toolNames: string[], promptSnippet: string): TaskCategory 
   return 'unknown'
 }
 
+function deriveProjectId(cwd: string): string {
+  if (!cwd) return 'unknown'
+  const segments = cwd.replace(/\/+$/, '').split('/')
+  return segments[segments.length - 1] || 'unknown'
+}
+
 function countRetries(toolNames: string[]): number {
   let sawEditBeforeBash = false
   let sawBashAfterEdit = false
@@ -290,6 +296,7 @@ function main() {
         timestamp INTEGER NOT NULL,
         session_id TEXT NOT NULL,
         cwd TEXT NOT NULL DEFAULT '',
+        project_id TEXT NOT NULL DEFAULT '',
         model TEXT NOT NULL DEFAULT '',
         account TEXT NOT NULL DEFAULT '',
         tool_sequence TEXT NOT NULL DEFAULT '',
@@ -314,6 +321,7 @@ function main() {
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_timestamp ON turns(timestamp)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_session ON turns(session_id)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_cwd ON turns(cwd)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_analytics_project ON turns(project_id)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_category ON turns(task_category)')
     db.run('CREATE INDEX IF NOT EXISTS idx_tool_uses_timestamp ON tool_uses(timestamp)')
     db.run('CREATE INDEX IF NOT EXISTS idx_tool_uses_name ON tool_uses(tool_name)')
@@ -330,10 +338,10 @@ function main() {
   }
 
   const stmtTurn = db?.prepare(`
-    INSERT INTO turns (timestamp, session_id, cwd, model, account,
+    INSERT INTO turns (timestamp, session_id, cwd, project_id, model, account,
       tool_sequence, tool_call_count, task_category, retry_count,
       one_shot, had_error, prompt_snippet)
-    VALUES ($timestamp, $sessionId, $cwd, $model, $account,
+    VALUES ($timestamp, $sessionId, $cwd, $projectId, $model, $account,
       $toolSequence, $toolCallCount, $taskCategory, $retryCount,
       $oneShot, $hadError, $promptSnippet)
   `)
@@ -363,6 +371,7 @@ function main() {
         timestamp: turn.timestamp,
         sessionId: turn.sessionId,
         cwd: turn.cwd,
+        projectId: deriveProjectId(turn.cwd),
         model: turn.model,
         account: '',
         toolSequence: turn.toolNames.join(','),

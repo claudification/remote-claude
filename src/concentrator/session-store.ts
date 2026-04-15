@@ -1240,6 +1240,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         cwd: session.cwd,
         model: session.model || '',
         account: (session.claudeAuth?.email as string) || '',
+        projectLabel: getProjectSettings(session.cwd)?.label,
       })
 
       // Correlate hook events to subagents: if the hook's session_id differs

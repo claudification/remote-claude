@@ -1722,29 +1722,32 @@ Output a JSON array of strings. Each string should be the correct spelling of on
   app.get('/api/analytics/summary', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const period = (c.req.query('period') || '7d') as '24h' | '7d' | '30d' | '90d'
+    const project = c.req.query('project') || undefined
     if (!['24h', '7d', '30d', '90d'].includes(period)) {
       return c.json({ error: 'Invalid period. Use 24h, 7d, 30d, or 90d' }, 400)
     }
-    return c.json(queryAnalyticsSummary(period))
+    return c.json(queryAnalyticsSummary(period, project))
   })
 
   app.get('/api/analytics/timeseries', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const period = (c.req.query('period') || '7d') as '24h' | '7d' | '30d'
     const granularity = (c.req.query('granularity') || 'hour') as 'hour' | 'day'
+    const project = c.req.query('project') || undefined
     if (!['24h', '7d', '30d'].includes(period)) {
       return c.json({ error: 'Invalid period. Use 24h, 7d, or 30d' }, 400)
     }
-    return c.json(queryAnalyticsTimeSeries(period, granularity))
+    return c.json(queryAnalyticsTimeSeries(period, granularity, project))
   })
 
   app.get('/api/analytics/models', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const period = (c.req.query('period') || '7d') as '24h' | '7d' | '30d' | '90d'
+    const project = c.req.query('project') || undefined
     if (!['24h', '7d', '30d', '90d'].includes(period)) {
       return c.json({ error: 'Invalid period. Use 24h, 7d, 30d, or 90d' }, 400)
     }
-    return c.json(queryAnalyticsModels(period))
+    return c.json(queryAnalyticsModels(period, project))
   })
 
   // ─── Static file serving ───────────────────────────────────────────

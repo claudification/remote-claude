@@ -14,6 +14,22 @@
 import { Database, type Statement } from 'bun:sqlite'
 import { resolve } from 'node:path'
 
+// ─── Project ID ─────────────────────────────────────────────────────
+
+/**
+ * Derive a stable project_id from a cwd path.
+ * Uses last path segment by default. Caller can override with project-settings label.
+ * This is the forward-compatible identity key -- when we move to URIs
+ * (claude://{host}/{cwd}), we just change this function.
+ */
+export function deriveProjectId(cwd: string, label?: string): string {
+  if (label) return label.toLowerCase().replace(/\s+/g, '-')
+  if (!cwd) return 'unknown'
+  // Strip trailing slash, take last segment
+  const segments = cwd.replace(/\/+$/, '').split('/')
+  return segments[segments.length - 1] || 'unknown'
+}
+
 // ─── Types ──────────────────────────────────────────────────────────
 
 /** Tool categories for classification */
@@ -46,6 +62,7 @@ export interface TurnAnalytics {
   sessionId: string
   timestamp: number
   cwd: string
+  projectId: string
   model: string
   account: string
   /** Ordered tool names used this turn (compact: "Edit,Bash,Edit") */
@@ -171,6 +188,7 @@ function flushBatch(): void {
           timestamp: turn.timestamp,
           sessionId: turn.sessionId,
           cwd: turn.cwd,
+          projectId: turn.projectId,
           model: turn.model,
           account: turn.account,
           toolSequence: turn.toolSequence,
@@ -212,6 +230,27 @@ const turnAccumulators = new Map<string, TurnAccumulator>()
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000 // 90 days (longer than cost-store)
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000
 
+/** Add project_id column to existing DB (no-op if already present) */
+function migrate(d: Database): void {
+  try {
+    const cols = d.query("PRAGMA table_info('turns')").all() as Array<{ name: string }>
+    if (!cols.some(c => c.name === 'project_id')) {
+      d.run("ALTER TABLE turns ADD COLUMN project_id TEXT NOT NULL DEFAULT ''")
+      // Backfill from cwd: extract last path segment
+      d.run(`
+        UPDATE turns SET project_id = CASE
+          WHEN cwd = '' THEN 'unknown'
+          ELSE replace(cwd, rtrim(cwd, replace(cwd, '/', '')), '')
+        END
+        WHERE project_id = ''
+      `)
+      console.log('[analytics] Migrated: added project_id column and backfilled from cwd')
+    }
+  } catch (err) {
+    console.error('[analytics] Migration failed:', err)
+  }
+}
+
 // ─── Init ───────────────────────────────────────────────────────────
 
 export function initAnalyticsStore(cacheDir: string): void {
@@ -229,6 +268,7 @@ export function initAnalyticsStore(cacheDir: string): void {
         timestamp INTEGER NOT NULL,
         session_id TEXT NOT NULL,
         cwd TEXT NOT NULL DEFAULT '',
+        project_id TEXT NOT NULL DEFAULT '',
         model TEXT NOT NULL DEFAULT '',
         account TEXT NOT NULL DEFAULT '',
         tool_sequence TEXT NOT NULL DEFAULT '',
@@ -240,6 +280,9 @@ export function initAnalyticsStore(cacheDir: string): void {
         prompt_snippet TEXT NOT NULL DEFAULT ''
       )
     `)
+
+    // Migration: add project_id column to existing tables
+    migrate(db)
 
     db.run(`
       CREATE TABLE IF NOT EXISTS tool_uses (
@@ -254,15 +297,16 @@ export function initAnalyticsStore(cacheDir: string): void {
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_timestamp ON turns(timestamp)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_session ON turns(session_id)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_cwd ON turns(cwd)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_analytics_project ON turns(project_id)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_category ON turns(task_category)')
     db.run('CREATE INDEX IF NOT EXISTS idx_tool_uses_timestamp ON tool_uses(timestamp)')
     db.run('CREATE INDEX IF NOT EXISTS idx_tool_uses_name ON tool_uses(tool_name)')
 
     stmtInsertTurn = db.prepare(`
-      INSERT INTO turns (timestamp, session_id, cwd, model, account,
+      INSERT INTO turns (timestamp, session_id, cwd, project_id, model, account,
         tool_sequence, tool_call_count, task_category, retry_count,
         one_shot, had_error, prompt_snippet)
-      VALUES ($timestamp, $sessionId, $cwd, $model, $account,
+      VALUES ($timestamp, $sessionId, $cwd, $projectId, $model, $account,
         $toolSequence, $toolCallCount, $taskCategory, $retryCount,
         $oneShot, $hadError, $promptSnippet)
     `)
@@ -298,7 +342,7 @@ export function recordHookEvent(
   sessionId: string,
   hookEvent: string,
   data: Record<string, unknown>,
-  sessionMeta: { cwd: string; model: string; account: string },
+  sessionMeta: { cwd: string; model: string; account: string; projectLabel?: string },
 ): void {
   if (!db) return
 
@@ -362,6 +406,7 @@ export function recordHookEvent(
         sessionId,
         timestamp: Date.now(),
         cwd: sessionMeta.cwd,
+        projectId: deriveProjectId(sessionMeta.cwd, sessionMeta.projectLabel),
         model: sessionMeta.model,
         account: sessionMeta.account,
         toolSequence: acc.tools.map(t => t.toolName).join(','),
@@ -407,54 +452,60 @@ function queryGet(sql: string, binds?: Binds): unknown {
 
 export interface AnalyticsSummary {
   period: string
+  project?: string
   totalTurns: number
   oneShotRate: number // 0-1
   avgRetries: number
   taskBreakdown: Array<{ category: TaskCategory; count: number; oneShotRate: number }>
   topTools: Array<{ toolName: string; count: number }>
-  topProjects: Array<{ cwd: string; turns: number; oneShotRate: number }>
+  topProjects: Array<{ projectId: string; turns: number; oneShotRate: number }>
 }
 
-export function querySummary(period: '24h' | '7d' | '30d' | '90d'): AnalyticsSummary {
+export function querySummary(period: '24h' | '7d' | '30d' | '90d', project?: string): AnalyticsSummary {
   const cutoff = Date.now() - periodToMs(period)
-  const b = { cutoff }
+  const { where, binds } = buildFilter(cutoff, project)
 
   const totals = queryGet(
     `SELECT COUNT(*) as turns,
       COALESCE(AVG(CASE WHEN tool_call_count > 0 AND one_shot = 1 THEN 1.0
                        WHEN tool_call_count > 0 AND one_shot = 0 THEN 0.0 END), 0) as one_shot_rate,
       COALESCE(AVG(retry_count), 0) as avg_retries
-    FROM turns WHERE timestamp >= $cutoff`,
-    b,
+    FROM turns ${where}`,
+    binds,
   ) as { turns: number; one_shot_rate: number; avg_retries: number } | null
 
   const taskBreakdown = queryAll(
     `SELECT task_category as category, COUNT(*) as count,
       COALESCE(AVG(CASE WHEN one_shot = 1 THEN 1.0
                        WHEN one_shot = 0 AND tool_call_count > 0 THEN 0.0 END), 0) as one_shot_rate
-    FROM turns WHERE timestamp >= $cutoff
+    FROM turns ${where}
     GROUP BY task_category ORDER BY count DESC`,
-    b,
+    binds,
   ) as Array<{ category: TaskCategory; count: number; one_shot_rate: number }>
 
+  // For top tools, join through session_id + timestamp range (tool_uses has no project_id)
+  const toolWhere = project
+    ? `WHERE tu.timestamp >= $cutoff AND tu.session_id IN (SELECT DISTINCT session_id FROM turns ${where})`
+    : 'WHERE tu.timestamp >= $cutoff'
   const topTools = queryAll(
-    `SELECT tool_name as toolName, COUNT(*) as count
-    FROM tool_uses WHERE timestamp >= $cutoff
-    GROUP BY tool_name ORDER BY count DESC LIMIT 20`,
-    b,
+    `SELECT tu.tool_name as toolName, COUNT(*) as count
+    FROM tool_uses tu ${toolWhere}
+    GROUP BY tu.tool_name ORDER BY count DESC LIMIT 20`,
+    binds,
   ) as Array<{ toolName: string; count: number }>
 
   const topProjects = queryAll(
-    `SELECT cwd, COUNT(*) as turns,
+    `SELECT project_id, COUNT(*) as turns,
       COALESCE(AVG(CASE WHEN one_shot = 1 THEN 1.0
                        WHEN one_shot = 0 AND tool_call_count > 0 THEN 0.0 END), 0) as one_shot_rate
-    FROM turns WHERE timestamp >= $cutoff
-    GROUP BY cwd ORDER BY turns DESC LIMIT 10`,
-    b,
-  ) as Array<{ cwd: string; turns: number; one_shot_rate: number }>
+    FROM turns ${where}
+    GROUP BY project_id ORDER BY turns DESC LIMIT 10`,
+    binds,
+  ) as Array<{ project_id: string; turns: number; one_shot_rate: number }>
 
   return {
     period,
+    project,
     totalTurns: totals?.turns || 0,
     oneShotRate: totals?.one_shot_rate || 0,
     avgRetries: totals?.avg_retries || 0,
@@ -465,7 +516,7 @@ export function querySummary(period: '24h' | '7d' | '30d' | '90d'): AnalyticsSum
     })),
     topTools,
     topProjects: topProjects.map(r => ({
-      cwd: r.cwd,
+      projectId: r.project_id,
       turns: r.turns,
       oneShotRate: r.one_shot_rate,
     })),
@@ -486,8 +537,10 @@ export interface AnalyticsTimeSeries {
 export function queryTimeSeries(
   period: '24h' | '7d' | '30d',
   granularity: 'hour' | 'day' = 'hour',
+  project?: string,
 ): AnalyticsTimeSeries[] {
   const cutoff = Date.now() - periodToMs(period)
+  const { where, binds } = buildFilter(cutoff, project)
   const fmt = granularity === 'day' ? '%Y-%m-%d' : '%Y-%m-%dT%H:00'
 
   const rows = queryAll(
@@ -499,9 +552,9 @@ export function queryTimeSeries(
       SUM(CASE WHEN task_category = 'coding' THEN 1 ELSE 0 END) as coding_turns,
       SUM(CASE WHEN task_category = 'debugging' THEN 1 ELSE 0 END) as debugging_turns,
       SUM(CASE WHEN task_category = 'exploration' THEN 1 ELSE 0 END) as exploration_turns
-    FROM turns WHERE timestamp >= $cutoff
+    FROM turns ${where}
     GROUP BY bucket ORDER BY bucket`,
-    { cutoff },
+    binds,
   ) as Array<Record<string, unknown>>
 
   return rows.map(r => ({
@@ -524,8 +577,11 @@ export interface ModelAnalytics {
   codingTurns: number
 }
 
-export function queryModelComparison(period: '24h' | '7d' | '30d' | '90d'): ModelAnalytics[] {
+export function queryModelComparison(period: '24h' | '7d' | '30d' | '90d', project?: string): ModelAnalytics[] {
   const cutoff = Date.now() - periodToMs(period)
+  const { where, binds } = buildFilter(cutoff, project)
+  // Append model != '' to the existing WHERE
+  const modelWhere = `${where} AND model != ''`
 
   const rows = queryAll(
     `SELECT model, COUNT(*) as turns,
@@ -533,9 +589,9 @@ export function queryModelComparison(period: '24h' | '7d' | '30d' | '90d'): Mode
                        WHEN one_shot = 0 AND tool_call_count > 0 THEN 0.0 END), 0) as one_shot_rate,
       COALESCE(AVG(retry_count), 0) as avg_retries,
       SUM(CASE WHEN task_category = 'coding' THEN 1 ELSE 0 END) as coding_turns
-    FROM turns WHERE timestamp >= $cutoff AND model != ''
+    FROM turns ${modelWhere}
     GROUP BY model ORDER BY turns DESC`,
-    { cutoff },
+    binds,
   ) as Array<Record<string, unknown>>
 
   return rows.map(r => ({
@@ -560,6 +616,22 @@ export function importTurn(turn: TurnAnalytics): void {
 /** Force flush the batch queue (for import scripts and shutdown) */
 export function flush(): void {
   flushBatch()
+}
+
+// ─── Query helpers ──────────────────────────────────────────────────
+
+/** Build WHERE clause with optional project filter */
+function buildFilter(cutoff: number, project?: string): { where: string; binds: Binds } {
+  if (project) {
+    return {
+      where: 'WHERE timestamp >= $cutoff AND project_id = $project',
+      binds: { cutoff, project },
+    }
+  }
+  return {
+    where: 'WHERE timestamp >= $cutoff',
+    binds: { cutoff },
+  }
 }
 
 // ─── Cleanup ────────────────────────────────────────────────────────
