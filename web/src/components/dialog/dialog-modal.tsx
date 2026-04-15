@@ -8,9 +8,10 @@
  * - Countdown timer (subtle, top of dialog)
  * - Auto-extends timeout on user interaction (50% rule)
  * - Buttons record their id in _action but don't dismiss (only Submit/Next does)
+ * - Slide-to-edge minimize: collapses to a thin vertical strip on the right edge
  */
 
-import { X } from 'lucide-react'
+import { Minimize2, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Markdown } from '@/components/markdown'
 import { Button } from '@/components/ui/button'
@@ -93,6 +94,7 @@ export const DialogModal = memo(function DialogModal({ layout, onSubmit, onCance
   const [values, setValues] = useState(() => getInitialValues(layout))
   const [activePage, setActivePage] = useState(0)
   const [lastAction, setLastAction] = useState<string | null>(null)
+  const [minimized, setMinimized] = useState(false)
   const timeoutSec = layout.timeout ?? 300
   const [remaining, setRemaining] = useState(timeoutSec)
   const lastInteractionRef = useRef(Date.now())
@@ -110,6 +112,17 @@ export const DialogModal = memo(function DialogModal({ layout, onSubmit, onCance
     }, 1000)
     return () => clearInterval(interval)
   }, [])
+
+  // Keepalive interval while minimized (every 30s)
+  useEffect(() => {
+    if (!minimized) return
+    const interval = setInterval(() => {
+      const minRemaining = Math.ceil(timeoutSec * 0.5)
+      setRemaining(prev => Math.max(prev, minRemaining))
+      onKeepalive?.()
+    }, 30_000)
+    return () => clearInterval(interval)
+  }, [minimized, timeoutSec, onKeepalive])
 
   // Send keepalive on user interaction and reset local countdown
   const onInteraction = useCallback(() => {
@@ -223,6 +236,17 @@ export const DialogModal = memo(function DialogModal({ layout, onSubmit, onCance
     setActivePage(p => Math.max(0, p - 1))
   }, [onInteraction])
 
+  const handleMinimize = useCallback(() => {
+    haptic('tap')
+    setMinimized(true)
+  }, [])
+
+  const handleRestore = useCallback(() => {
+    haptic('tap')
+    onInteraction()
+    setMinimized(false)
+  }, [onInteraction])
+
   const allComponents = currentPage?.body || []
   const requiredIds = useMemo(() => collectRequired(allComponents), [allComponents])
   const canProceed = requiredIds.every(id => hasValue(values[id]))
@@ -230,6 +254,70 @@ export const DialogModal = memo(function DialogModal({ layout, onSubmit, onCance
   // Countdown visual state
   const urgent = remaining <= 30
   const critical = remaining <= 10
+  const countdownColor = critical ? 'bg-destructive' : urgent ? 'bg-amber-500' : 'bg-primary/40'
+  const countdownTextColor = critical
+    ? 'text-destructive animate-pulse'
+    : urgent
+      ? 'text-amber-500'
+      : 'text-muted-foreground/50'
+
+  // Minimized: thin vertical strip on the right edge
+  if (minimized) {
+    return (
+      // biome-ignore lint/a11y/useKeyWithClickEvents: restore handle
+      // biome-ignore lint/a11y/noStaticElementInteractions: restore handle
+      <div
+        className="fixed top-0 right-0 bottom-0 z-50 w-10 flex flex-col items-center cursor-pointer group"
+        onClick={handleRestore}
+      >
+        {/* Background strip */}
+        <div
+          className={cn(
+            'absolute inset-0 border-l border-border/50 backdrop-blur-md transition-colors',
+            critical ? 'bg-destructive/20' : urgent ? 'bg-amber-950/30' : 'bg-background/80',
+          )}
+        />
+
+        {/* Countdown progress (vertical, bottom to top) */}
+        <div className="absolute bottom-0 left-0 w-1 bg-muted/10" style={{ height: '100%' }}>
+          <div
+            className={cn('w-full transition-all duration-1000 ease-linear absolute bottom-0', countdownColor)}
+            style={{ height: `${(remaining / timeoutSec) * 100}%` }}
+          />
+        </div>
+
+        {/* Rotated title */}
+        <div className="relative flex-1 flex items-center justify-center min-h-0">
+          <span
+            className={cn(
+              'text-[11px] font-mono font-semibold tracking-wider whitespace-nowrap',
+              'group-hover:text-foreground transition-colors',
+              critical ? 'text-destructive' : urgent ? 'text-amber-500' : 'text-muted-foreground',
+            )}
+            style={{
+              writingMode: 'vertical-rl',
+              textOrientation: 'mixed',
+              transform: 'rotate(180deg)',
+            }}
+          >
+            {layout.title}
+          </span>
+        </div>
+
+        {/* Countdown at bottom */}
+        <div className={cn('relative pb-3 text-[10px] font-mono tabular-nums', countdownTextColor)}>
+          {formatCountdown(remaining)}
+        </div>
+
+        {/* Hover hint */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <div className="bg-popover border border-border rounded px-2 py-1 text-xs text-foreground shadow-lg mr-1 whitespace-nowrap">
+            Click to restore
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -247,10 +335,7 @@ export const DialogModal = memo(function DialogModal({ layout, onSubmit, onCance
         {/* Countdown bar */}
         <div className="shrink-0 h-0.5 bg-muted/20">
           <div
-            className={cn(
-              'h-full transition-all duration-1000 ease-linear',
-              critical ? 'bg-destructive' : urgent ? 'bg-amber-500' : 'bg-primary/40',
-            )}
+            className={cn('h-full transition-all duration-1000 ease-linear', countdownColor)}
             style={{ width: `${(remaining / timeoutSec) * 100}%` }}
           />
         </div>
@@ -260,12 +345,7 @@ export const DialogModal = memo(function DialogModal({ layout, onSubmit, onCance
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-semibold text-foreground truncate">{layout.title}</h2>
-              <span
-                className={cn(
-                  'text-[10px] font-mono shrink-0 tabular-nums',
-                  critical ? 'text-destructive animate-pulse' : urgent ? 'text-amber-500' : 'text-muted-foreground/50',
-                )}
-              >
+              <span className={cn('text-[10px] font-mono shrink-0 tabular-nums', countdownTextColor)}>
                 {formatCountdown(remaining)}
               </span>
             </div>
@@ -275,6 +355,14 @@ export const DialogModal = memo(function DialogModal({ layout, onSubmit, onCance
               </div>
             )}
           </div>
+          <button
+            type="button"
+            onClick={handleMinimize}
+            className="p-1 text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            title="Minimize"
+          >
+            <Minimize2 className="size-4" />
+          </button>
           <button
             type="button"
             onClick={handleCancel}
