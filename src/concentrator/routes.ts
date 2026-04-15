@@ -10,6 +10,11 @@ import { Hono } from 'hono'
 import type { ListDirsResult, SendInput, Session, SpawnResult, TeamInfo } from '../shared/protocol'
 import { generateSessionName } from '../shared/session-names'
 import {
+  queryModelComparison as queryAnalyticsModels,
+  querySummary as queryAnalyticsSummary,
+  queryTimeSeries as queryAnalyticsTimeSeries,
+} from './analytics-store'
+import {
   createInvite,
   getAllUsers,
   getUser,
@@ -1710,6 +1715,36 @@ Output a JSON array of strings. Each string should be the correct spelling of on
       return c.json({ error: 'Invalid period. Use 24h, 7d, or 30d' }, 400)
     }
     return c.json(querySummary(period))
+  })
+
+  // ─── Analytics ─────────────────────────────────────────────────────
+
+  app.get('/api/analytics/summary', c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
+    const period = (c.req.query('period') || '7d') as '24h' | '7d' | '30d' | '90d'
+    if (!['24h', '7d', '30d', '90d'].includes(period)) {
+      return c.json({ error: 'Invalid period. Use 24h, 7d, 30d, or 90d' }, 400)
+    }
+    return c.json(queryAnalyticsSummary(period))
+  })
+
+  app.get('/api/analytics/timeseries', c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
+    const period = (c.req.query('period') || '7d') as '24h' | '7d' | '30d'
+    const granularity = (c.req.query('granularity') || 'hour') as 'hour' | 'day'
+    if (!['24h', '7d', '30d'].includes(period)) {
+      return c.json({ error: 'Invalid period. Use 24h, 7d, or 30d' }, 400)
+    }
+    return c.json(queryAnalyticsTimeSeries(period, granularity))
+  })
+
+  app.get('/api/analytics/models', c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
+    const period = (c.req.query('period') || '7d') as '24h' | '7d' | '30d' | '90d'
+    if (!['24h', '7d', '30d', '90d'].includes(period)) {
+      return c.json({ error: 'Invalid period. Use 24h, 7d, 30d, or 90d' }, 400)
+    }
+    return c.json(queryAnalyticsModels(period))
   })
 
   // ─── Static file serving ───────────────────────────────────────────

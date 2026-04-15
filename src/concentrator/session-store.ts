@@ -23,6 +23,7 @@ import type {
   WrapperCapability,
 } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
+import { clearSession as clearAnalyticsSession, recordHookEvent } from './analytics-store'
 import { recordTurnFromCumulatives } from './cost-store'
 import { getModelInfo } from './model-pricing'
 import type { UserGrant } from './permissions'
@@ -1234,6 +1235,13 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       }
       session.lastActivity = Date.now()
 
+      // Feed analytics store (non-blocking, fire-and-forget)
+      recordHookEvent(sessionId, event.hookEvent, (event.data || {}) as Record<string, unknown>, {
+        cwd: session.cwd,
+        model: session.model || '',
+        account: (session.claudeAuth?.email as string) || '',
+      })
+
       // Correlate hook events to subagents: if the hook's session_id differs
       // from the parent session ID, it came from a subagent context.
       // MUST happen BEFORE status transitions so subagent activity doesn't
@@ -1685,6 +1693,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     if (session) {
       session.status = 'ended'
       session.planMode = false
+      clearAnalyticsSession(sessionId)
 
       // Mark all running subagents as stopped (SubagentStop hook may not fire)
       for (const agent of session.subagents) {

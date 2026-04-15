@@ -12,6 +12,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DEFAULT_CONCENTRATOR_PORT } from '../shared/protocol'
 import { getOrAssign, initAddressBook, resolve } from './address-book'
+import { closeAnalyticsStore, initAnalyticsStore } from './analytics-store'
 import { getUser, initAuth, reloadState, validateSession } from './auth'
 import { getAuthenticatedUser, requireAuth, setRclaudeSecret, setShareValidator } from './auth-routes'
 import { closeCostStore, initCostStore } from './cost-store'
@@ -258,6 +259,9 @@ async function main() {
   // Initialize cost reporting store (SQLite)
   initCostStore(authCacheDir)
 
+  // Initialize analytics store (SQLite, non-critical)
+  initAnalyticsStore(authCacheDir)
+
   // Initialize settings
   initProjectSettings(authCacheDir)
   initGlobalSettings(authCacheDir)
@@ -296,11 +300,13 @@ async function main() {
   // Save state on shutdown
   process.on('SIGINT', async () => {
     console.log('\n[shutdown] Saving state...')
+    closeAnalyticsStore()
     closeCostStore()
     await Promise.all([sessionStore.saveState(), sessionStore.flushTranscripts()])
     process.exit(0)
   })
   process.on('SIGTERM', async () => {
+    closeAnalyticsStore()
     closeCostStore()
     await Promise.all([sessionStore.saveState(), sessionStore.flushTranscripts()])
     process.exit(0)
