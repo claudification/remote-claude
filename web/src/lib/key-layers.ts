@@ -26,7 +26,7 @@ interface DoubleTapState {
 
 // ── Chord mode ──────────────────────────────────────────────────────────────
 
-const CHORD_TIMEOUT = 1500
+const CHORD_TIMEOUT = 3000
 
 interface ChordState {
   prefix: string
