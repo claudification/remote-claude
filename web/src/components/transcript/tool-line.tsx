@@ -576,7 +576,11 @@ export function ToolLine({
       const { sessions: allSessions, projectSettings: allProjSettings } = useSessionsStore.getState()
       const targetSession = allSessions.find(s => s.id === to) || findSessionBySlug(to)
       const targetProjLabel = targetSession?.cwd ? allProjSettings[targetSession.cwd]?.label : undefined
-      const targetName = targetSession?.title || targetProjLabel || targetSession?.cwd?.split('/').pop() || to
+      const sessionTitle = targetSession?.title
+      const targetName =
+        targetProjLabel && sessionTitle
+          ? `${targetProjLabel} :: ${sessionTitle}`
+          : sessionTitle || targetProjLabel || targetSession?.cwd?.split('/').pop() || to
       const intentStyles: Record<string, string> = {
         request: 'bg-yellow-400/15 text-yellow-400 border-yellow-400/30',
         response: 'bg-green-400/15 text-green-400 border-green-400/30',
