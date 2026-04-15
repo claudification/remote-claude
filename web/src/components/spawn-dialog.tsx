@@ -8,8 +8,10 @@
 import { ChevronDown, Copy, Zap } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { useLaunchChannel } from '@/hooks/use-launch-channel'
 import { useSessionsStore } from '@/hooks/use-sessions'
+import { useKeyLayer } from '@/lib/key-layers'
 import { cn, haptic } from '@/lib/utils'
 
 export interface SpawnDialogOptions {
@@ -220,7 +222,7 @@ export function SpawnDialog() {
     worktreeName,
   ])
 
-  // Handle Enter key to submit
+  // Handle Enter key to submit (config) or view session (launching)
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && !e.shiftKey && phase === 'config') {
@@ -229,6 +231,22 @@ export function SpawnDialog() {
       }
     },
     [handleSpawn, phase],
+  )
+
+  // Keyboard layer: ESC closes, Enter jumps to session when connected
+  useKeyLayer(
+    {
+      Escape: handleClose,
+      Enter: () => {
+        const connected = launch.completed || (spawnedSession != null && spawnedSession.status !== 'ended')
+        if (phase === 'launching' && connected) {
+          const sid = launch.sessionId || spawnedSession?.id
+          if (sid) useSessionsStore.getState().selectSession(sid)
+          handleClose()
+        }
+      },
+    },
+    { id: 'spawn-dialog', enabled: state.open },
   )
 
   async function handleCopyLog() {
@@ -652,9 +670,11 @@ export function SpawnDialog() {
                     'flex-1 px-4 py-2 rounded text-sm font-mono',
                     'bg-transparent border border-border text-muted-foreground',
                     'hover:bg-accent/10 transition-colors',
+                    'flex items-center justify-center gap-2',
                   )}
                 >
                   Cancel
+                  <Kbd>Esc</Kbd>
                 </button>
                 <button
                   type="button"
@@ -663,9 +683,13 @@ export function SpawnDialog() {
                     'flex-1 px-4 py-2 rounded text-sm font-mono font-bold',
                     'bg-[#7aa2f7] text-[#1a1b26] hover:bg-[#7aa2f7]/90',
                     'transition-colors',
+                    'flex items-center justify-center gap-2',
                   )}
                 >
                   Spawn
+                  <KbdGroup>
+                    <Kbd className="bg-[#1a1b26]/20 text-[#1a1b26]/70">↵</Kbd>
+                  </KbdGroup>
                 </button>
               </>
             )}
@@ -684,9 +708,11 @@ export function SpawnDialog() {
                       'flex-1 px-4 py-2 rounded text-sm font-mono font-bold',
                       'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
                       'hover:bg-emerald-500/25 transition-colors',
+                      'flex items-center justify-center gap-2',
                     )}
                   >
                     View Session{viewCountdown != null && viewCountdown > 0 ? ` (${viewCountdown}s)` : ''}
+                    <Kbd className="bg-emerald-500/20 text-emerald-400/70">↵</Kbd>
                   </button>
                 )}
                 <button
@@ -696,9 +722,11 @@ export function SpawnDialog() {
                     'flex-1 px-4 py-2 rounded text-sm font-mono',
                     'bg-transparent border border-border text-muted-foreground',
                     'hover:bg-accent/10 transition-colors',
+                    'flex items-center justify-center gap-2',
                   )}
                 >
                   {hasError || isSessionConnected ? 'Close' : 'Background'}
+                  <Kbd>Esc</Kbd>
                 </button>
               </>
             )}
