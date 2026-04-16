@@ -823,6 +823,11 @@ const SessionItemContent = memo(function SessionItemContent({
           {session.summary}
         </div>
       )}
+      {!compact && !session.summary && session.recap && (
+        <div className="mt-1 text-[10px] text-muted-foreground/50 italic truncate" title={session.recap.content}>
+          {session.recap.content}
+        </div>
+      )}
       {!compact && session.prLinks && session.prLinks.length > 0 && (
         <div className="mt-1 flex items-center gap-1.5 flex-wrap">
           {session.prLinks.map(pr => (
@@ -953,33 +958,29 @@ function InlineRename({ session }: { session: Session }) {
 
 // ─── Session context menu (right-click) ─────────────────────────────
 
-function SessionContextMenu({ session, children }: { session: Session; children: React.ReactNode }) {
+const menuItemClass =
+  'flex items-center px-3 py-1.5 text-[11px] font-mono cursor-pointer outline-none data-[highlighted]:bg-accent/20 data-[highlighted]:text-accent'
+
+// Grouping actions that operate on a cwd key (shared by session + project menus).
+function useCwdGroupingActions(cwd: string) {
   const rawSessionOrder = useSessionsStore(s => s.sessionOrder) as SessionOrderV2 | null
   const sessionOrder = rawSessionOrder?.tree ? rawSessionOrder : { version: 2 as const, tree: [] }
-  const dismissSession = useSessionsStore(s => s.dismissSession)
-  const selectSession = useSessionsStore(s => s.selectSession)
-  const projectSettings = useSessionsStore(s => s.projectSettings)
-  const defaultMode = projectSettings[session.cwd]?.defaultLaunchMode || 'headless'
-
   const groups = sessionOrder.tree.filter((n): n is SessionOrderGroup => n.type === 'group')
-  const sessionCwdKey = `cwd:${session.cwd}`
+  const cwdKey = `cwd:${cwd}`
 
   function moveToGroup(groupId: string) {
     haptic('tap')
     const newTree = sessionOrder.tree.map(node => {
       if (node.type === 'group') {
-        // Remove from any existing group
-        const filtered = { ...node, children: node.children.filter(c => c.id !== sessionCwdKey) }
-        // Add to target group
+        const filtered = { ...node, children: node.children.filter(c => c.id !== cwdKey) }
         if (node.id === groupId) {
-          return { ...filtered, children: [...filtered.children, { id: sessionCwdKey, type: 'session' as const }] }
+          return { ...filtered, children: [...filtered.children, { id: cwdKey, type: 'session' as const }] }
         }
         return filtered
       }
       return node
     })
-    // Remove from root level if it was there
-    const rootFiltered = newTree.filter(n => n.id !== sessionCwdKey)
+    const rootFiltered = newTree.filter(n => n.id !== cwdKey)
     saveSessionOrder({ version: 2, tree: rootFiltered })
   }
 
@@ -987,13 +988,12 @@ function SessionContextMenu({ session, children }: { session: Session; children:
     haptic('tap')
     const newTree = sessionOrder.tree.map(node => {
       if (node.type === 'group') {
-        return { ...node, children: node.children.filter(c => c.id !== sessionCwdKey) }
+        return { ...node, children: node.children.filter(c => c.id !== cwdKey) }
       }
       return node
     })
-    // Add to root level if not already there
-    if (!newTree.some(n => n.id === sessionCwdKey)) {
-      newTree.push({ id: sessionCwdKey, type: 'session' as const })
+    if (!newTree.some(n => n.id === cwdKey)) {
+      newTree.push({ id: cwdKey, type: 'session' as const })
     }
     saveSessionOrder({ version: 2, tree: newTree })
   }
@@ -1003,59 +1003,72 @@ function SessionContextMenu({ session, children }: { session: Session; children:
     if (!name?.trim()) return
     haptic('tap')
     const groupId = `group-${name.trim().toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`
-    // Remove session from any existing group/root
     let newTree = sessionOrder.tree
-      .filter(n => n.id !== sessionCwdKey)
+      .filter(n => n.id !== cwdKey)
       .map(node => {
         if (node.type === 'group') {
-          return { ...node, children: node.children.filter(c => c.id !== sessionCwdKey) }
+          return { ...node, children: node.children.filter(c => c.id !== cwdKey) }
         }
         return node
       })
-    // Create new group with the session
     newTree = [
       {
         id: groupId,
         type: 'group' as const,
         name: name.trim(),
-        children: [{ id: sessionCwdKey, type: 'session' as const }],
+        children: [{ id: cwdKey, type: 'session' as const }],
       },
       ...newTree,
     ]
     saveSessionOrder({ version: 2, tree: newTree })
   }
 
-  const menuItemClass =
-    'flex items-center px-3 py-1.5 text-[11px] font-mono cursor-pointer outline-none data-[highlighted]:bg-accent/20 data-[highlighted]:text-accent'
+  return { groups, moveToGroup, removeFromGroups, createGroupAndMove }
+}
+
+function GroupingMenuItems({ cwd }: { cwd: string }) {
+  const { groups, moveToGroup, removeFromGroups, createGroupAndMove } = useCwdGroupingActions(cwd)
+  return (
+    <>
+      {groups.length > 0 && (
+        <ContextMenu.Sub>
+          <ContextMenu.SubTrigger className={menuItemClass}>
+            Move to <span className="ml-auto text-muted-foreground">{'\u25B8'}</span>
+          </ContextMenu.SubTrigger>
+          <ContextMenu.Portal>
+            <ContextMenu.SubContent className="min-w-[160px] bg-popover border border-border rounded-md shadow-lg py-1 z-50">
+              {groups.map(g => (
+                <ContextMenu.Item key={g.id} className={menuItemClass} onSelect={() => moveToGroup(g.id)}>
+                  {g.name}
+                </ContextMenu.Item>
+              ))}
+              <ContextMenu.Separator className="h-px bg-border my-1" />
+              <ContextMenu.Item className={menuItemClass} onSelect={removeFromGroups}>
+                Unpin (no group)
+              </ContextMenu.Item>
+            </ContextMenu.SubContent>
+          </ContextMenu.Portal>
+        </ContextMenu.Sub>
+      )}
+      <ContextMenu.Item className={menuItemClass} onSelect={createGroupAndMove}>
+        New group...
+      </ContextMenu.Item>
+    </>
+  )
+}
+
+function SessionContextMenu({ session, children }: { session: Session; children: React.ReactNode }) {
+  const dismissSession = useSessionsStore(s => s.dismissSession)
+  const selectSession = useSessionsStore(s => s.selectSession)
+  const projectSettings = useSessionsStore(s => s.projectSettings)
+  const defaultMode = projectSettings[session.cwd]?.defaultLaunchMode || 'headless'
 
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content className="min-w-[180px] bg-popover border border-border rounded-md shadow-lg py-1 z-50">
-          {groups.length > 0 && (
-            <ContextMenu.Sub>
-              <ContextMenu.SubTrigger className={menuItemClass}>
-                Move to <span className="ml-auto text-muted-foreground">{'\u25B8'}</span>
-              </ContextMenu.SubTrigger>
-              <ContextMenu.Portal>
-                <ContextMenu.SubContent className="min-w-[160px] bg-popover border border-border rounded-md shadow-lg py-1 z-50">
-                  {groups.map(g => (
-                    <ContextMenu.Item key={g.id} className={menuItemClass} onSelect={() => moveToGroup(g.id)}>
-                      {g.name}
-                    </ContextMenu.Item>
-                  ))}
-                  <ContextMenu.Separator className="h-px bg-border my-1" />
-                  <ContextMenu.Item className={menuItemClass} onSelect={removeFromGroups}>
-                    Unpin (no group)
-                  </ContextMenu.Item>
-                </ContextMenu.SubContent>
-              </ContextMenu.Portal>
-            </ContextMenu.Sub>
-          )}
-          <ContextMenu.Item className={menuItemClass} onSelect={createGroupAndMove}>
-            New group...
-          </ContextMenu.Item>
+          <GroupingMenuItems cwd={session.cwd} />
           <ContextMenu.Item
             className={menuItemClass}
             onSelect={() => {
@@ -1167,6 +1180,65 @@ function SessionCard({ session }: { session: Session }) {
 
 // ─── Multi-session CWD card ────────────────────────────────────────
 
+function ProjectContextMenu({
+  cwd,
+  sessions,
+  onOpenSettings,
+  children,
+}: {
+  cwd: string
+  sessions: Session[]
+  onOpenSettings: () => void
+  children: React.ReactNode
+}) {
+  const dismissSession = useSessionsStore(s => s.dismissSession)
+  const ended = sessions.filter(s => s.status === 'ended')
+
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content className="min-w-[180px] bg-popover border border-border rounded-md shadow-lg py-1 z-50">
+          <GroupingMenuItems cwd={cwd} />
+          <ContextMenu.Separator className="h-px bg-border my-1" />
+          <ContextMenu.Item
+            className={cn(menuItemClass, 'text-cyan-400')}
+            onSelect={() => {
+              haptic('tap')
+              openSpawnDialog({ cwd })
+            }}
+          >
+            Launch new...
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className={menuItemClass}
+            onSelect={() => {
+              haptic('tap')
+              onOpenSettings()
+            }}
+          >
+            Project settings...
+          </ContextMenu.Item>
+          {ended.length > 0 && (
+            <>
+              <ContextMenu.Separator className="h-px bg-border my-1" />
+              <ContextMenu.Item
+                className={cn(menuItemClass, 'text-destructive')}
+                onSelect={() => {
+                  haptic('tap')
+                  for (const s of ended) dismissSession(s.id)
+                }}
+              >
+                Dismiss {ended.length} ended
+              </ContextMenu.Item>
+            </>
+          )}
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
+  )
+}
+
 function CwdSessionGroup({ sessions, cwd }: { sessions: Session[]; cwd: string }) {
   const [showSettings, setShowSettings] = useState(false)
   const ps = useSessionsStore(s => s.projectSettings[cwd])
@@ -1179,25 +1251,27 @@ function CwdSessionGroup({ sessions, cwd }: { sessions: Session[]; cwd: string }
         className="border border-border"
         style={displayColor ? { borderLeftColor: displayColor, borderLeftWidth: '3px' } : undefined}
       >
-        <div className="flex items-center gap-1.5 p-3 pb-1">
-          {ps?.icon && (
-            <span style={displayColor ? { color: displayColor } : undefined}>{renderProjectIcon(ps.icon)}</span>
-          )}
-          <span
-            className="font-bold text-sm flex-1 truncate text-primary"
-            style={displayColor ? { color: displayColor } : undefined}
-          >
-            {displayName}
-          </span>
-          <span className="text-[10px] text-muted-foreground font-mono">{sessions.length} sessions</span>
-          {sessions.some(s => s.status === 'ended') && <DismissAllEndedButton sessions={sessions} />}
-          <ProjectSettingsButton
-            onClick={e => {
-              e.stopPropagation()
-              setShowSettings(!showSettings)
-            }}
-          />
-        </div>
+        <ProjectContextMenu cwd={cwd} sessions={sessions} onOpenSettings={() => setShowSettings(true)}>
+          <div className="flex items-center gap-1.5 p-3 pb-1">
+            {ps?.icon && (
+              <span style={displayColor ? { color: displayColor } : undefined}>{renderProjectIcon(ps.icon)}</span>
+            )}
+            <span
+              className="font-bold text-sm flex-1 truncate text-primary"
+              style={displayColor ? { color: displayColor } : undefined}
+            >
+              {displayName}
+            </span>
+            <span className="text-[10px] text-muted-foreground font-mono">{sessions.length} sessions</span>
+            {sessions.some(s => s.status === 'ended') && <DismissAllEndedButton sessions={sessions} />}
+            <ProjectSettingsButton
+              onClick={e => {
+                e.stopPropagation()
+                setShowSettings(!showSettings)
+              }}
+            />
+          </div>
+        </ProjectContextMenu>
         <div className="space-y-0.5 pb-1">
           {sessions
             .filter(s => !s.capabilities?.includes('ad-hoc'))
