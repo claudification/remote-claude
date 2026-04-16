@@ -300,13 +300,36 @@ export function SpawnDialog() {
     progress,
   ])
 
-  // Keyboard layer: ESC closes, Enter spawns (config) or views session (launching)
+  // Keyboard layer: ESC closes, Enter spawns (config) or views session (launching).
+  // Config-only quick toggles: h/p = Headless/PTY, 1/2 = Basic/Advanced tab.
+  // Single-letter/digit bindings are auto-skipped when a text input is focused
+  // (see useKeyLayer: `if (inTextInput && !isModified && !isNonPrintable) return`).
   useKeyLayer(
     {
       Escape: handleClose,
       Enter: () => {
         if (phase === 'config') handleSpawn()
         else if (phase === 'launching' && progress.isConnected) handleViewSession()
+      },
+      h: () => {
+        if (phase !== 'config') return
+        setHeadless(true)
+        haptic('tap')
+      },
+      p: () => {
+        if (phase !== 'config') return
+        setHeadless(false)
+        haptic('tap')
+      },
+      '1': () => {
+        if (phase !== 'config') return
+        setConfigTab('basic')
+        haptic('tick')
+      },
+      '2': () => {
+        if (phase !== 'config') return
+        setConfigTab('advanced')
+        haptic('tick')
       },
     },
     { id: 'spawn-dialog', enabled: state.open },
@@ -429,13 +452,14 @@ export function SpawnDialog() {
                     haptic('tick')
                   }}
                   className={cn(
-                    'px-3 py-1 text-[11px] font-mono rounded transition-colors',
+                    'px-3 py-1 text-[11px] font-mono rounded transition-colors inline-flex items-center gap-1.5',
                     configTab === 'basic'
                       ? 'bg-[#7aa2f7]/15 text-[#7aa2f7] border border-[#7aa2f7]/30'
                       : 'text-[#565f89] hover:text-muted-foreground',
                   )}
                 >
                   Basic
+                  <Kbd className="text-[10px]">1</Kbd>
                 </button>
                 <button
                   type="button"
@@ -444,13 +468,14 @@ export function SpawnDialog() {
                     haptic('tick')
                   }}
                   className={cn(
-                    'px-3 py-1 text-[11px] font-mono rounded transition-colors',
+                    'px-3 py-1 text-[11px] font-mono rounded transition-colors inline-flex items-center gap-1.5',
                     configTab === 'advanced'
                       ? 'bg-[#7aa2f7]/15 text-[#7aa2f7] border border-[#7aa2f7]/30'
                       : 'text-[#565f89] hover:text-muted-foreground',
                   )}
                 >
                   Advanced
+                  <Kbd className="text-[10px]">2</Kbd>
                 </button>
               </div>
 
@@ -494,6 +519,7 @@ export function SpawnDialog() {
                             haptic('tap')
                           }}
                           label="Headless"
+                          shortcut="H"
                         />
                         <TogglePill
                           active={!headless}
@@ -502,6 +528,7 @@ export function SpawnDialog() {
                             haptic('tap')
                           }}
                           label="PTY"
+                          shortcut="P"
                         />
                       </div>
                     </div>
@@ -893,18 +920,20 @@ function TogglePill({
   onClick,
   label,
   small,
+  shortcut,
 }: {
   active: boolean
   onClick: () => void
   label: string
   small?: boolean
+  shortcut?: string
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        'rounded font-mono transition-all duration-150',
+        'rounded font-mono transition-all duration-150 inline-flex items-center gap-1.5',
         small ? 'px-2.5 py-1 text-[11px]' : 'px-4 py-1.5 text-sm',
         active
           ? 'bg-[#7aa2f7]/20 text-[#7aa2f7] border border-[#7aa2f7]/40'
@@ -912,6 +941,7 @@ function TogglePill({
       )}
     >
       {label}
+      {shortcut && <Kbd className="text-[10px]">{shortcut}</Kbd>}
     </button>
   )
 }
