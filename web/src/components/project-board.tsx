@@ -21,7 +21,6 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronRight,
-  Copy,
   Eye,
   ListChecks,
   MoreHorizontal,
@@ -33,7 +32,7 @@ import {
 } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Kbd } from '@/components/ui/kbd'
-import { useLaunchChannel } from '@/hooks/use-launch-channel'
+import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import type { ProjectTask } from '@/hooks/use-project'
 import { type ProjectTaskMeta, type TaskStatus, useProject } from '@/hooks/use-project'
 import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
@@ -41,6 +40,7 @@ import { useKeyLayer } from '@/lib/key-layers'
 import { buildTaskPrompt } from '@/lib/task-scoring'
 import { uploadFileWithPlaceholder } from '@/lib/upload'
 import { cn, haptic } from '@/lib/utils'
+import { LaunchErrorBanner, LaunchFooterActions, LaunchStepList } from './launch-monitor'
 import { Markdown } from './markdown'
 import { MarkdownInput } from './markdown-input'
 
@@ -607,13 +607,6 @@ export function TaskEditor({
   )
 }
 
-type LaunchStep = {
-  label: string
-  status: 'pending' | 'active' | 'done' | 'error'
-  detail?: string
-  ts?: number
-}
-
 export function RunTaskDialog({
   task,
   sessionId,
@@ -633,166 +626,121 @@ export function RunTaskDialog({
   const [leaveRunning, setLeaveRunning] = useState(false)
   const [maxBudgetUsd, setMaxBudgetUsd] = useState('')
   const [timeout, setTimeout_] = useState('30')
-  const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
 
-  // Launch monitor state
+  // Launch state
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [wrapperId, setWrapperId] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
-  const [steps, setSteps] = useState<LaunchStep[]>([])
-  const [launchSessionId, setLaunchSessionId] = useState<string | null>(null)
-  const startTimeRef = useRef(0)
+  const sessionAtLaunchRef = useRef<string | null>(null)
 
-  // Launch channel - request-scoped events from agent
-  const launch = useLaunchChannel(jobId)
+  // Shared launch progress hook
+  const progress = useLaunchProgress({
+    jobId,
+    wrapperId,
+    timeoutMs: 30_000,
+    enabled: phase === 'launching',
+  })
 
   useKeyLayer({
     Escape: onClose,
     Enter: () => {
       if (phase === 'config') handleRun()
-      else handleViewSession()
+      else if (progress.isConnected) handleViewSession()
     },
   })
 
-  // Watch for the spawned session appearing in the sessions store
-  const spawnedSession = useSessionsStore(
-    useCallback(
-      state => {
-        const wid = launch.wrapperId || wrapperId
-        if (!wid) return null
-        return state.sessions.find(s => s.wrapperIds?.includes(wid)) || null
-      },
-      [launch.wrapperId, wrapperId],
-    ),
-  )
-
-  // Insert agent events as steps in the launch monitor
+  // Task lifecycle tracking: add steps after session connects
+  const connectedStepRef = useRef(false)
   useEffect(() => {
-    if (launch.events.length === 0 || phase !== 'launching') return
-    setSteps(prev => {
-      const updated = [...prev]
-      const existingLabels = new Set(updated.map(s => s.label))
-      // Insert agent events before "Waiting for session..."
-      const waitIdx = updated.findIndex(s => s.label === 'Waiting for session...')
-      const insertAt = waitIdx >= 0 ? waitIdx : updated.length
-      let inserted = 0
-      for (const evt of launch.events) {
-        if (!existingLabels.has(evt.step)) {
-          updated.splice(insertAt + inserted, 0, {
-            label: evt.step,
-            status: evt.status === 'ok' ? 'done' : evt.status === 'error' ? 'error' : 'active',
-            detail: evt.detail,
-            ts: evt.t,
-          })
-          existingLabels.add(evt.step)
-          inserted++
-        }
-      }
+    if (!progress.isConnected || connectedStepRef.current || !progress.spawnedSession) return
+    connectedStepRef.current = true
+    progress.setSteps(prev => [
+      ...prev,
+      {
+        label: 'Session connected',
+        status: 'done' as const,
+        ts: Date.now(),
+        detail: progress.spawnedSession!.id.slice(0, 8),
+      },
+      { label: 'Waiting for prompt submission...', status: 'active' as const, ts: Date.now() },
+    ])
+  }, [progress.isConnected, progress.spawnedSession])
+
+  // Detect session becoming active (prompt submitted) -> add "Running..." step
+  const promptDoneRef = useRef(false)
+  useEffect(() => {
+    if (!progress.spawnedSession || promptDoneRef.current) return
+    const status = progress.spawnedSession.status
+    if (status !== 'active' && status !== 'idle') return
+    promptDoneRef.current = true
+    progress.setSteps(prev => {
+      const updated = prev.map(s =>
+        s.label === 'Waiting for prompt submission...' && s.status === 'active'
+          ? { ...s, status: 'done' as const, detail: progress.spawnedSession!.lastEvent?.hookEvent || 'active' }
+          : s,
+      )
+      updated.push({
+        label: 'Running...',
+        status: 'active' as const,
+        ts: Date.now(),
+        detail: `${progress.spawnedSession!.eventCount || 0} events`,
+      })
       return updated
     })
-  }, [launch.events, phase])
+  }, [progress.spawnedSession])
 
-  // Handle job completion from launch channel
+  // Update running step event count + detect completion
   useEffect(() => {
-    if (launch.completed && !launchSessionId) {
-      setLaunchSessionId(launch.sessionId)
-    }
-  }, [launch.completed, launch.sessionId, launchSessionId])
-
-  // Handle job failure from launch channel
-  useEffect(() => {
-    if (launch.failed) {
-      setError(launch.error || 'Launch failed')
-      setSteps(prev =>
+    if (!progress.spawnedSession || !promptDoneRef.current) return
+    if (progress.isComplete) {
+      progress.setSteps(prev =>
         prev.map(s =>
-          s.status === 'active' ? { ...s, status: 'error' as const, detail: launch.error || 'failed' } : s,
+          s.label === 'Running...' && s.status === 'active'
+            ? {
+                ...s,
+                status: 'done' as const,
+                label: 'Task complete',
+                detail: `${progress.elapsed}s, ${progress.spawnedSession!.eventCount || 0} events`,
+              }
+            : s,
+        ),
+      )
+    } else {
+      progress.setSteps(prev =>
+        prev.map(s =>
+          s.label === 'Running...' ? { ...s, detail: `${progress.spawnedSession!.eventCount || 0} events` } : s,
         ),
       )
     }
-  }, [launch.failed, launch.error])
+  }, [progress.spawnedSession, progress.isComplete, progress.elapsed])
 
-  // Track session lifecycle in the launch monitor
+  // Auto-redirect when countdown reaches 0
   useEffect(() => {
-    if (!wrapperId || phase !== 'launching') return
-
-    if (spawnedSession && !launchSessionId) {
-      // Session appeared -- wrapper connected to concentrator
-      setLaunchSessionId(spawnedSession.id)
-      const elapsed = Date.now() - startTimeRef.current
-      setSteps(prev => [
-        ...prev.map(s =>
-          s.label === 'Waiting for session...' ? { ...s, status: 'done' as const, detail: `${elapsed}ms` } : s,
-        ),
-        { label: 'Session connected', status: 'done', ts: Date.now(), detail: spawnedSession.id.slice(0, 8) },
-        { label: 'Waiting for prompt submission...', status: 'active', ts: Date.now() },
-      ])
+    if (progress.viewCountdown !== 0) return
+    const sid = progress.launch.sessionId || progress.spawnedSession?.id
+    if (!sid) return
+    const currentId = useSessionsStore.getState().selectedSessionId
+    const userNavigatedAway = currentId !== sessionAtLaunchRef.current && currentId !== null
+    if (!userNavigatedAway) {
+      useSessionsStore.getState().selectSession(sid, 'project-board-auto-redirect')
+    } else {
+      console.log(
+        `[nav] project-board: NOT switching to ${sid.slice(0, 8)} -- user navigated to ${currentId?.slice(0, 8)} during launch`,
+      )
     }
-
-    if (spawnedSession && launchSessionId) {
-      const isActive = spawnedSession.status === 'active' || spawnedSession.status === 'idle'
-      const isEnded = spawnedSession.status === 'ended'
-
-      setSteps(prev => {
-        const updated = [...prev]
-        const promptStep = updated.find(s => s.label === 'Waiting for prompt submission...')
-        if (promptStep && isActive && promptStep.status !== 'done') {
-          promptStep.status = 'done'
-          promptStep.detail = spawnedSession.lastEvent?.hookEvent || 'active'
-          updated.push({
-            label: isEnded ? 'Task complete' : 'Running...',
-            status: isEnded ? 'done' : 'active',
-            ts: Date.now(),
-            detail: `${spawnedSession.eventCount || 0} events`,
-          })
-        }
-        // Update running step event count
-        const runningStep = updated.find(s => s.label === 'Running...')
-        if (runningStep && !isEnded) {
-          runningStep.detail = `${spawnedSession.eventCount || 0} events`
-        }
-        // Mark complete
-        if (isEnded && runningStep) {
-          runningStep.status = 'done'
-          runningStep.label = 'Task complete'
-          const totalElapsed = Math.round((Date.now() - startTimeRef.current) / 1000)
-          runningStep.detail = `${totalElapsed}s, ${spawnedSession.eventCount || 0} events`
-        }
-        return updated
-      })
-    }
-  }, [wrapperId, phase, spawnedSession, launchSessionId])
-
-  // Timeout watchdog
-  useEffect(() => {
-    if (phase !== 'launching' || !startTimeRef.current) return
-    const timer = setInterval(() => {
-      const elapsed = Date.now() - startTimeRef.current
-      if (elapsed > 30000 && !launchSessionId) {
-        setSteps(prev => [
-          ...prev.map(s => (s.status === 'active' ? { ...s, status: 'error' as const, detail: 'Timed out (30s)' } : s)),
-        ])
-        setError('Session failed to connect within 30s')
-        clearInterval(timer)
-      }
-    }, 2000)
-    return () => clearInterval(timer)
-  }, [phase, launchSessionId])
+    onClose()
+  }, [progress.viewCountdown, progress.launch.sessionId, progress.spawnedSession, onClose])
 
   async function handleRun() {
     if (phase !== 'config' || !cwd) return
     setPhase('launching')
-    setError(null)
-    startTimeRef.current = Date.now()
+    sessionAtLaunchRef.current = useSessionsStore.getState().selectedSessionId
     haptic('tap')
 
-    // Generate jobId and subscribe BEFORE making the HTTP request
     const newJobId = crypto.randomUUID()
     setJobId(newJobId)
+    progress.start([{ label: 'Sending spawn request...', status: 'active', ts: Date.now() }])
 
-    setSteps([{ label: 'Sending spawn request...', status: 'active', ts: Date.now() }])
-
-    // Build the prompt from the task
     const commitLine = autoCommit ? '\n\nWhen you are done, commit all changes with a descriptive commit message.' : ''
     const worktreeMerge = useWorktree
       ? '\n\nIMPORTANT - WORKTREE MERGE-BACK:\nYou are working in a git worktree (isolated branch). Before finishing:\n1. Commit all changes\n2. Merge back to main: run `git rebase main && git fetch . HEAD:main`\n3. If rebase conflicts occur, resolve them and run `git rebase --continue`, then `git fetch . HEAD:main`\n4. Verify: `git log --oneline main -5`\nThis merges your work back to main so it is not stranded on a dead branch.'
@@ -823,44 +771,40 @@ export function RunTaskDialog({
         haptic('success')
         const wid = data.wrapperId as string
         setWrapperId(wid)
-        setSteps(prev => [
+        progress.setSteps(prev => [
           ...prev.map(s =>
             s.status === 'active' ? { ...s, status: 'done' as const, detail: `wrapper=${wid.slice(0, 8)}` } : s,
           ),
-          { label: 'Waiting for session...', status: 'active', ts: Date.now() },
+          { label: 'Waiting for session...', status: 'active' as const, ts: Date.now() },
         ])
       } else {
-        setError(data.error || 'Spawn failed')
-        setSteps(prev =>
-          prev.map(s => (s.status === 'active' ? { ...s, status: 'error' as const, detail: data.error } : s)),
-        )
+        progress.setError(data.error || 'Spawn failed')
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Network error'
-      setError(msg)
-      setSteps(prev => prev.map(s => (s.status === 'active' ? { ...s, status: 'error' as const, detail: msg } : s)))
+      progress.setError(err instanceof Error ? err.message : 'Network error')
     }
   }
 
   function handleViewSession() {
-    if (launchSessionId) {
-      useSessionsStore.getState().selectSession(launchSessionId)
+    const sid = progress.launch.sessionId || progress.spawnedSession?.id
+    if (sid) {
+      useSessionsStore.getState().selectSession(sid, 'project-board-view-session')
+      progress.setViewCountdown(null)
       onClose()
     }
   }
 
-  async function handleCopyDiagnostics() {
-    const elapsed = startTimeRef.current ? Math.round((Date.now() - startTimeRef.current) / 1000) : 0
+  function handleCopyDiagnostics() {
     const diag = {
       type: 'run_task_diagnostics',
       time: new Date().toISOString(),
       task: { slug: task.slug, title: task.title, status: task.status, priority: task.priority, tags: task.tags },
       cwd,
       jobId,
-      wrapperId: wrapperId || launch.wrapperId || null,
-      sessionId: launchSessionId || launch.sessionId || null,
-      elapsed: `${elapsed}s`,
-      error: error || launch.error || null,
+      wrapperId: wrapperId || progress.launch.wrapperId || null,
+      sessionId: progress.launch.sessionId || null,
+      elapsed: `${progress.elapsed}s`,
+      error: progress.error || progress.launch.error || null,
       config: {
         model: model || null,
         effort,
@@ -870,76 +814,27 @@ export function RunTaskDialog({
         maxBudgetUsd: maxBudgetUsd || null,
         timeout,
       },
-      steps: steps.map(s => ({
+      steps: progress.steps.map(s => ({
         label: s.label,
         status: s.status,
         detail: s.detail || null,
         ts: s.ts || null,
       })),
-      launchEvents: launch.events.map(e => ({
+      launchEvents: progress.launch.events.map(e => ({
         step: e.step,
         status: e.status,
         detail: e.detail || null,
         t: e.t,
       })),
-      launchState: { completed: launch.completed, failed: launch.failed },
+      launchState: { completed: progress.launch.completed, failed: progress.launch.failed },
     }
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(diag, null, 2))
-      setCopied(true)
-      haptic('success')
-      globalThis.setTimeout(() => setCopied(false), 2000)
-    } catch {
-      const ta = document.createElement('textarea')
-      ta.value = JSON.stringify(diag, null, 2)
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
-      setCopied(true)
-      haptic('success')
-      globalThis.setTimeout(() => setCopied(false), 2000)
-    }
+    progress.copyToClipboard(JSON.stringify(diag, null, 2))
   }
 
-  const stepIcon = (status: LaunchStep['status']) => {
-    switch (status) {
-      case 'pending':
-        return <span className="w-2 h-2 rounded-full bg-[#33467c]/50 inline-block" />
-      case 'active':
-        return <span className="w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse" />
-      case 'done':
-        return <span className="text-[10px] text-emerald-400">&#x2713;</span>
-      case 'error':
-        return <span className="text-[10px] text-red-400">&#x2717;</span>
-    }
-  }
-
-  const isComplete = spawnedSession?.status === 'ended'
-  const isRunning = spawnedSession && !isComplete
-
-  // Auto-redirect countdown: 3s after session is running, auto-navigate
-  const [viewCountdown, setViewCountdown] = useState<number | null>(null)
-  useEffect(() => {
-    if (isRunning && viewCountdown === null) {
-      setViewCountdown(3)
-    }
-  }, [isRunning, viewCountdown])
-
-  useEffect(() => {
-    if (viewCountdown === null || viewCountdown <= 0) return
-    const timer = setTimeout(() => setViewCountdown(prev => (prev !== null ? prev - 1 : null)), 1000)
-    return () => clearTimeout(timer)
-  }, [viewCountdown])
-
-  useEffect(() => {
-    if (viewCountdown === 0 && launchSessionId) {
-      useSessionsStore.getState().selectSession(launchSessionId)
-      onClose()
-    }
-  }, [viewCountdown, launchSessionId, onClose])
+  const displayError = progress.error || progress.launch.error
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: modal backdrop
     <div
       role="button"
       tabIndex={-1}
@@ -961,8 +856,19 @@ export function RunTaskDialog({
         <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-500/20">
           <Zap className="w-4 h-4 text-amber-400" />
           <span className="text-sm font-mono font-bold text-amber-400">
-            {phase === 'config' ? 'Run Task' : isComplete ? 'Task Complete' : 'Launching...'}
+            {phase === 'config'
+              ? 'Run Task'
+              : progress.isComplete
+                ? 'Task Complete'
+                : progress.hasError
+                  ? 'Launch Failed'
+                  : 'Launching...'}
           </span>
+          {phase === 'launching' && (
+            <span className="text-[10px] font-mono text-muted-foreground/60 ml-auto mr-2 tabular-nums">
+              {progress.elapsed}s
+            </span>
+          )}
           <button type="button" onClick={onClose} className="ml-auto text-muted-foreground hover:text-foreground">
             <X className="w-4 h-4" />
           </button>
@@ -1124,75 +1030,30 @@ export function RunTaskDialog({
         {/* Phase 2: Launch monitor */}
         {phase === 'launching' && (
           <>
-            <div className="px-4 py-3 space-y-2">
-              {steps.map((step, i) => (
-                <div key={i} className="flex items-start gap-2 font-mono">
-                  <span className="mt-0.5 w-3 flex-shrink-0 text-center">{stepIcon(step.status)}</span>
-                  <div className="min-w-0">
-                    <span
-                      className={cn(
-                        'text-[11px]',
-                        step.status === 'error'
-                          ? 'text-red-400'
-                          : step.status === 'done'
-                            ? 'text-muted-foreground'
-                            : 'text-foreground',
-                      )}
-                    >
-                      {step.label}
-                    </span>
-                    {step.detail && <span className="text-[10px] text-muted-foreground/60 ml-2">{step.detail}</span>}
-                  </div>
-                </div>
-              ))}
+            <div className="px-4 py-3">
+              <LaunchStepList steps={progress.steps} />
             </div>
 
-            {error && (
-              <div className="px-4 py-2 border-t border-red-500/20 bg-red-500/5">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-[10px] font-mono text-red-400 break-all">{error}</span>
-                  <button
-                    type="button"
-                    onClick={handleCopyDiagnostics}
-                    className="flex-shrink-0 flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors"
-                    title="Copy full diagnostics to clipboard"
-                  >
-                    <Copy className="w-3 h-3" />
-                    {copied ? 'Copied' : 'Copy diagnostics'}
-                  </button>
-                </div>
+            {displayError && (
+              <div className="px-4 py-2 border-t border-red-500/20">
+                <LaunchErrorBanner
+                  error={displayError}
+                  copied={progress.copied}
+                  onCopy={handleCopyDiagnostics}
+                  copyLabel="Copy diagnostics"
+                />
               </div>
             )}
 
             <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#33467c]/30">
-              {isRunning && (
-                <button
-                  type="button"
-                  onClick={handleViewSession}
-                  className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
-                >
-                  View Session{viewCountdown != null && viewCountdown > 0 ? ` (${viewCountdown}s)` : ''}
-                  <Kbd className="bg-emerald-500/20 text-emerald-400/70">↵</Kbd>
-                </button>
-              )}
-              {isComplete && (
-                <button
-                  type="button"
-                  onClick={handleViewSession}
-                  className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
-                >
-                  View Result
-                  <Kbd className="bg-emerald-500/20 text-emerald-400/70">↵</Kbd>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono text-muted-foreground hover:text-foreground"
-              >
-                {isComplete || error ? 'Close' : 'Background'}
-                <Kbd className="opacity-60">Esc</Kbd>
-              </button>
+              <LaunchFooterActions
+                isConnected={progress.isConnected}
+                isComplete={progress.isComplete}
+                hasError={progress.hasError}
+                viewCountdown={progress.viewCountdown}
+                onViewSession={handleViewSession}
+                onClose={onClose}
+              />
             </div>
           </>
         )}

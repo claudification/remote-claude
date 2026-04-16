@@ -2,17 +2,18 @@
  * Spawn Dialog - Pre-spawn configuration + launch monitor
  *
  * Phase 1 (config): Configure model, effort, mode, etc.
- * Phase 2 (launching): Step-by-step progress via launch job channel.
+ * Phase 2 (launching): Step-by-step progress via shared LaunchMonitor.
  */
 
-import { ChevronDown, Copy, Zap } from 'lucide-react'
+import { ChevronDown, Zap } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
-import { useLaunchChannel } from '@/hooks/use-launch-channel'
+import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { useKeyLayer } from '@/lib/key-layers'
 import { cn, haptic } from '@/lib/utils'
+import { LaunchErrorBanner, LaunchFooterActions, LaunchStepList } from './launch-monitor'
 
 export interface SpawnDialogOptions {
   cwd: string
@@ -61,6 +62,7 @@ export function SpawnDialog() {
   const [model, setModel] = useState('')
   const [effort, setEffort] = useState('')
   const [bare, setBare] = useState(false)
+  const [repl, setRepl] = useState(false)
   const [useWorktree, setUseWorktree] = useState(false)
   const [worktreeName, setWorktreeName] = useState('')
   const [name, setName] = useState('')
@@ -69,40 +71,23 @@ export function SpawnDialog() {
   const [maxBudgetUsd, setMaxBudgetUsd] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
-  const [error, setError] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
   const [wrapperId, setWrapperId] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
-  const startTimeRef = useRef(0)
-  const [elapsed, setElapsed] = useState(0)
+  // Track which session was selected when spawn started -- don't yank the user
+  // back to the spawned session if they navigated away during the countdown
+  const sessionAtSpawnRef = useRef<string | null>(null)
 
   const projectSettings = useSessionsStore(s => s.projectSettings)
   const globalSettings = useSessionsStore(s => s.globalSettings)
 
-  // Launch channel - streams job events from agent
-  const launch = useLaunchChannel(jobId)
-
-  // Track the spawned session by wrapperId (fallback if job_complete doesn't fire)
-  const spawnedSession = useSessionsStore(
-    useCallback(
-      state => {
-        const wid = launch.wrapperId || wrapperId
-        if (!wid) return null
-        return state.sessions.find(s => s.wrapperIds?.includes(wid)) || null
-      },
-      [launch.wrapperId, wrapperId],
-    ),
-  )
-
-  // Elapsed timer for launch phase
-  useEffect(() => {
-    if (phase !== 'launching') return
-    const timer = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000))
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [phase])
+  // Shared launch progress hook
+  const progress = useLaunchProgress({
+    jobId,
+    wrapperId,
+    timeoutMs: 60_000,
+    enabled: phase === 'launching',
+  })
 
   // Register the open callback
   useEffect(() => {
@@ -113,6 +98,7 @@ export function SpawnDialog() {
       setModel('')
       setEffort('')
       setBare(false)
+      setRepl(false)
       setUseWorktree(false)
       setWorktreeName('')
       setName('')
@@ -120,13 +106,9 @@ export function SpawnDialog() {
       setAutocompactPct('')
       setMaxBudgetUsd('')
       setShowAdvanced(false)
-      setError(null)
       setPhase('config')
       setJobId(null)
       setWrapperId(null)
-      setElapsed(0)
-      setCopied(false)
-      setViewCountdown(null)
       setState({ open: true, options })
     }
     return () => {
@@ -141,40 +123,68 @@ export function SpawnDialog() {
     }
   }, [state.open, phase])
 
-  // Timeout watchdog
+  // Add "Session connected" step when session connects
+  const addedConnectedStepRef = useRef(false)
   useEffect(() => {
-    if (phase !== 'launching' || !startTimeRef.current) return
-    const timer = setInterval(() => {
-      const el = Date.now() - startTimeRef.current
-      if (el > 60_000 && !spawnedSession && !launch.completed && !launch.failed) {
-        setError('Session failed to connect within 60s')
-        clearInterval(timer)
-      }
-    }, 2000)
-    return () => clearInterval(timer)
-  }, [phase, spawnedSession, launch.completed, launch.failed])
+    if (!progress.isConnected || addedConnectedStepRef.current) return
+    addedConnectedStepRef.current = true
+    progress.setSteps(prev => [
+      ...prev,
+      {
+        label: 'Session connected',
+        status: 'done',
+        ts: Date.now(),
+        detail: (progress.launch.sessionId || progress.spawnedSession?.id || '').slice(0, 8),
+      },
+    ])
+  }, [progress.isConnected, progress.launch.sessionId, progress.spawnedSession?.id])
 
+  // Auto-redirect when countdown reaches 0
+  useEffect(() => {
+    if (progress.viewCountdown !== 0) return
+    handleClose()
+  }, [progress.viewCountdown]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Close and optionally navigate to spawned session.
+   *  Skips navigation if the user switched sessions during the spawn countdown. */
   const handleClose = useCallback(() => {
-    // If session connected, auto-select it
-    if (launch.sessionId) {
-      useSessionsStore.getState().selectSession(launch.sessionId)
-    } else if (spawnedSession && spawnedSession.status !== 'ended') {
-      useSessionsStore.getState().selectSession(spawnedSession.id)
+    addedConnectedStepRef.current = false
+    const currentId = useSessionsStore.getState().selectedSessionId
+    const userNavigatedAway = currentId !== sessionAtSpawnRef.current && currentId !== null
+    const sid =
+      progress.launch.sessionId ||
+      (progress.spawnedSession && progress.spawnedSession.status !== 'ended' ? progress.spawnedSession.id : null)
+
+    if (sid && !userNavigatedAway) {
+      useSessionsStore.getState().selectSession(sid, 'spawn-dialog-close')
+    } else if (sid && userNavigatedAway) {
+      console.log(
+        `[nav] spawn-dialog: NOT switching to ${sid.slice(0, 8)} -- user navigated to ${currentId?.slice(0, 8)} during spawn`,
+      )
     }
     setState({ open: false, options: null })
     setJobId(null)
-  }, [launch.sessionId, spawnedSession])
+  }, [progress.launch.sessionId, progress.spawnedSession])
+
+  /** Explicitly navigate to the spawned session and close. */
+  const handleViewSession = useCallback(() => {
+    const sid = progress.launch.sessionId || progress.spawnedSession?.id
+    if (sid) useSessionsStore.getState().selectSession(sid, 'spawn-dialog-view-session')
+    progress.setViewCountdown(null)
+    setState({ open: false, options: null })
+    setJobId(null)
+  }, [progress.launch.sessionId, progress.spawnedSession, progress.setViewCountdown])
 
   const handleSpawn = useCallback(async () => {
     if (!state.options || phase !== 'config') return
     setPhase('launching')
-    setError(null)
-    startTimeRef.current = Date.now()
+    sessionAtSpawnRef.current = useSessionsStore.getState().selectedSessionId
     haptic('tap')
 
     // Generate jobId and subscribe BEFORE making the HTTP request
     const newJobId = crypto.randomUUID()
     setJobId(newJobId)
+    progress.start([{ label: 'Sending spawn request', status: 'active', ts: Date.now() }])
 
     try {
       const res = await fetch('/api/spawn', {
@@ -185,6 +195,7 @@ export function SpawnDialog() {
           mkdir: state.options.mkdir || false,
           headless,
           bare: bare || undefined,
+          repl: repl || undefined,
           name: name.trim() || undefined,
           model: model || undefined,
           effort: effort || undefined,
@@ -199,12 +210,20 @@ export function SpawnDialog() {
       if (data.success) {
         haptic('success')
         setWrapperId(data.wrapperId)
+        progress.setSteps(prev => [
+          ...prev.map(s =>
+            s.status === 'active'
+              ? { ...s, status: 'done' as const, detail: `wrapper=${data.wrapperId.slice(0, 8)}` }
+              : s,
+          ),
+          { label: 'Waiting for session...', status: 'active' as const, ts: Date.now() },
+        ])
       } else {
-        setError(data.error || 'Spawn failed')
+        progress.setError(data.error || 'Spawn failed')
         haptic('error')
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Network error')
+      progress.setError(err instanceof Error ? err.message : 'Network error')
       haptic('error')
     }
   }, [
@@ -212,6 +231,7 @@ export function SpawnDialog() {
     phase,
     headless,
     bare,
+    repl,
     name,
     model,
     effort,
@@ -220,46 +240,32 @@ export function SpawnDialog() {
     maxBudgetUsd,
     useWorktree,
     worktreeName,
+    progress,
   ])
 
-  // Handle Enter key to submit (config) or view session (launching)
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey && phase === 'config') {
-        e.preventDefault()
-        handleSpawn()
-      }
-    },
-    [handleSpawn, phase],
-  )
-
-  // Keyboard layer: ESC closes, Enter jumps to session when connected
+  // Keyboard layer: ESC closes, Enter spawns (config) or views session (launching)
   useKeyLayer(
     {
       Escape: handleClose,
       Enter: () => {
-        const connected = launch.completed || (spawnedSession != null && spawnedSession.status !== 'ended')
-        if (phase === 'launching' && connected) {
-          const sid = launch.sessionId || spawnedSession?.id
-          if (sid) useSessionsStore.getState().selectSession(sid)
-          handleClose()
-        }
+        if (phase === 'config') handleSpawn()
+        else if (phase === 'launching' && progress.isConnected) handleViewSession()
       },
     },
     { id: 'spawn-dialog', enabled: state.open },
   )
 
-  async function handleCopyLog() {
+  function handleCopyLog() {
     const log = {
       type: 'spawn_log',
       time: new Date().toISOString(),
       cwd: state.options?.cwd,
       jobId,
-      wrapperId: wrapperId || launch.wrapperId || null,
-      sessionId: launch.sessionId || null,
-      elapsed: `${elapsed}s`,
-      error: error || launch.error || null,
-      events: launch.events.map(e => ({
+      wrapperId: wrapperId || progress.launch.wrapperId || null,
+      sessionId: progress.launch.sessionId || null,
+      elapsed: `${progress.elapsed}s`,
+      error: progress.error || progress.launch.error || null,
+      events: progress.launch.events.map(e => ({
         status: e.status,
         step: e.step,
         detail: e.detail || null,
@@ -274,61 +280,32 @@ export function SpawnDialog() {
         permissionMode: permissionMode || null,
       },
     }
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(log, null, 2))
-      setCopied(true)
-      haptic('success')
-      setTimeout(() => setCopied(false), 2000)
-    } catch {}
+    progress.copyToClipboard(JSON.stringify(log, null, 2))
   }
 
   const shortPath = state.options?.cwd?.replace(/^\/Users\/[^/]+/, '~') || ''
   const projSettings = state.options ? projectSettings[state.options.cwd] : undefined
   const defaultModel = projSettings?.defaultModel || (globalSettings.defaultModel as string) || 'opus'
   const defaultEffort = projSettings?.defaultEffort || (globalSettings.defaultEffort as string) || 'default'
-
-  const isSessionConnected = launch.completed || (spawnedSession && spawnedSession.status !== 'ended')
-  const hasError = error || launch.failed
-
-  // Auto-redirect countdown: 3s after session connects, auto-navigate
-  const [viewCountdown, setViewCountdown] = useState<number | null>(null)
-  useEffect(() => {
-    if (isSessionConnected && viewCountdown === null) {
-      setViewCountdown(3)
-    }
-  }, [isSessionConnected, viewCountdown])
-
-  useEffect(() => {
-    if (viewCountdown === null || viewCountdown <= 0) return
-    const timer = setTimeout(() => setViewCountdown(prev => (prev !== null ? prev - 1 : null)), 1000)
-    return () => clearTimeout(timer)
-  }, [viewCountdown])
-
-  useEffect(() => {
-    if (viewCountdown === 0) {
-      const sid = launch.sessionId || spawnedSession?.id
-      if (sid) useSessionsStore.getState().selectSession(sid)
-      handleClose()
-    }
-  }, [viewCountdown, launch.sessionId, spawnedSession, handleClose])
+  const displayError = progress.error || progress.launch.error
 
   return (
     <Dialog open={state.open} onOpenChange={open => !open && handleClose()}>
-      <DialogContent className="max-w-md rounded-lg" onKeyDown={handleKeyDown}>
+      <DialogContent className="max-w-md rounded-lg">
         <div className="p-5 space-y-4">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-sm font-bold font-mono flex items-center gap-2">
               {phase === 'launching' && <Zap className="w-4 h-4 text-[#7aa2f7]" />}
               {phase === 'config'
                 ? 'SPAWN SESSION'
-                : isSessionConnected
+                : progress.isConnected
                   ? 'SESSION CONNECTED'
-                  : hasError
+                  : progress.hasError
                     ? 'SPAWN FAILED'
                     : 'LAUNCHING...'}
             </DialogTitle>
             {phase === 'launching' && (
-              <span className="text-[10px] font-mono text-muted-foreground/60 tabular-nums">{elapsed}s</span>
+              <span className="text-[10px] font-mono text-muted-foreground/60 tabular-nums">{progress.elapsed}s</span>
             )}
           </div>
 
@@ -574,6 +551,31 @@ export function SpawnDialog() {
                     )}
                   </div>
 
+                  {/* REPL tool toggle */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="flex items-center justify-between py-1.5 pl-3 cursor-pointer select-none"
+                    onClick={() => {
+                      setRepl(!repl)
+                      haptic('tap')
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        setRepl(!repl)
+                        haptic('tap')
+                      }
+                    }}
+                  >
+                    <div>
+                      <div className="text-sm font-mono">REPL tool</div>
+                      <div className="text-[10px] text-[#565f89]">
+                        JS sandbox for batched tool calls (CLAUDE_CODE_REPL)
+                      </div>
+                    </div>
+                    <ToggleSwitch on={repl} />
+                  </div>
+
                   {/* Bare toggle */}
                   <div
                     role="button"
@@ -604,60 +606,12 @@ export function SpawnDialog() {
           {/* ── Launching Phase ── */}
           {phase === 'launching' && (
             <div className="space-y-3">
-              {/* Built-in steps */}
-              <StepLine
-                status={wrapperId ? 'done' : error && !wrapperId ? 'error' : 'active'}
-                label="Sending spawn request"
-                detail={wrapperId ? `wrapper=${wrapperId.slice(0, 8)}` : undefined}
-              />
-
-              {/* Agent events from launch channel */}
-              {launch.events.map((evt, i) => {
-                // info = "in progress" step. Active only if it's the last event overall
-                // (any subsequent event -- info or ok -- means this step is past)
-                const isCurrentStep = evt.status === 'info' && i === launch.events.length - 1
-                const stepStatus =
-                  evt.status === 'ok'
-                    ? 'done'
-                    : evt.status === 'error'
-                      ? 'error'
-                      : isCurrentStep && !isSessionConnected
-                        ? 'active'
-                        : 'done'
-                return <StepLine key={i} status={stepStatus} label={evt.step} detail={evt.detail} />
-              })}
-
-              {/* Session connection step */}
-              {wrapperId && !launch.failed && (
-                <StepLine
-                  status={isSessionConnected ? 'done' : hasError ? 'error' : 'active'}
-                  label={isSessionConnected ? 'Session connected' : 'Waiting for session...'}
-                  detail={
-                    launch.sessionId
-                      ? launch.sessionId.slice(0, 8)
-                      : spawnedSession
-                        ? spawnedSession.id.slice(0, 8)
-                        : undefined
-                  }
-                />
-              )}
+              <LaunchStepList steps={progress.steps} />
             </div>
           )}
 
-          {/* Error banner with copy */}
-          {(error || launch.error) && (
-            <div className="flex items-start justify-between gap-2 bg-red-500/5 border border-red-500/20 px-3 py-2">
-              <span className="text-[10px] font-mono text-red-400 break-all">{error || launch.error}</span>
-              <button
-                type="button"
-                onClick={handleCopyLog}
-                className="flex-shrink-0 flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors"
-              >
-                <Copy className="w-3 h-3" />
-                {copied ? 'Copied' : 'Copy Log'}
-              </button>
-            </div>
-          )}
+          {/* Error banner */}
+          {displayError && <LaunchErrorBanner error={displayError} copied={progress.copied} onCopy={handleCopyLog} />}
 
           {/* Actions */}
           <div className="flex gap-2 pt-1">
@@ -694,41 +648,17 @@ export function SpawnDialog() {
               </>
             )}
             {phase === 'launching' && (
-              <>
-                {isSessionConnected && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setViewCountdown(null)
-                      const sid = launch.sessionId || spawnedSession?.id
-                      if (sid) useSessionsStore.getState().selectSession(sid)
-                      handleClose()
-                    }}
-                    className={cn(
-                      'flex-1 px-4 py-2 rounded text-sm font-mono font-bold',
-                      'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
-                      'hover:bg-emerald-500/25 transition-colors',
-                      'flex items-center justify-center gap-2',
-                    )}
-                  >
-                    View Session{viewCountdown != null && viewCountdown > 0 ? ` (${viewCountdown}s)` : ''}
-                    <Kbd className="bg-emerald-500/20 text-emerald-400/70">↵</Kbd>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className={cn(
-                    'flex-1 px-4 py-2 rounded text-sm font-mono',
-                    'bg-transparent border border-border text-muted-foreground',
-                    'hover:bg-accent/10 transition-colors',
-                    'flex items-center justify-center gap-2',
-                  )}
-                >
-                  {hasError || isSessionConnected ? 'Close' : 'Background'}
-                  <Kbd>Esc</Kbd>
-                </button>
-              </>
+              <LaunchFooterActions
+                isConnected={progress.isConnected}
+                isComplete={progress.isComplete}
+                hasError={progress.hasError}
+                viewCountdown={progress.viewCountdown}
+                onViewSession={() => {
+                  progress.setViewCountdown(null)
+                  handleViewSession()
+                }}
+                onClose={handleClose}
+              />
             )}
           </div>
         </div>
@@ -738,38 +668,6 @@ export function SpawnDialog() {
 }
 
 // ─── Sub-components ──────────────────────────────────────────────
-
-function StepLine({
-  status,
-  label,
-  detail,
-}: {
-  status: 'active' | 'done' | 'error' | 'info'
-  label: string
-  detail?: string
-}) {
-  return (
-    <div className="flex items-start gap-2 font-mono">
-      <span className="mt-0.5 w-3 flex-shrink-0 text-center">
-        {status === 'active' && <span className="w-2 h-2 rounded-full bg-[#7aa2f7] inline-block animate-pulse" />}
-        {status === 'done' && <span className="text-[10px] text-emerald-400">&#x2713;</span>}
-        {status === 'error' && <span className="text-[10px] text-red-400">&#x2717;</span>}
-        {status === 'info' && <span className="w-1.5 h-1.5 rounded-full bg-[#565f89] inline-block" />}
-      </span>
-      <div className="min-w-0">
-        <span
-          className={cn(
-            'text-[11px]',
-            status === 'error' ? 'text-red-400' : status === 'done' ? 'text-muted-foreground' : 'text-foreground',
-          )}
-        >
-          {label}
-        </span>
-        {detail && <span className="text-[10px] text-muted-foreground/60 ml-2">{detail}</span>}
-      </div>
-    </div>
-  )
-}
 
 function TogglePill({
   active,

@@ -1,14 +1,15 @@
 /**
  * ReviveMonitor - Launch monitor for session revive flow.
- * Uses the launch job channel for request-scoped progress events.
- * Falls back to legacy CustomEvent flow for backwards compatibility.
+ * Uses useLaunchProgress for core monitoring + shared LaunchMonitor for rendering.
+ * Keeps legacy CustomEvent listeners for backwards compatibility with older agents.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useLaunchChannel } from '@/hooks/use-launch-channel'
+import { useEffect, useRef, useState } from 'react'
+import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import { reviveSession, useSessionsStore } from '@/hooks/use-sessions'
+import { useKeyLayer } from '@/lib/key-layers'
 import { haptic } from '@/lib/utils'
-import { LaunchMonitor, type LaunchStep } from './launch-monitor'
+import { LaunchMonitor } from './launch-monitor'
 
 interface ReviveMonitorProps {
   sessionId: string
@@ -19,43 +20,58 @@ interface ReviveMonitorProps {
 }
 
 export function ReviveMonitor({ sessionId, sessionTitle, cwd, headless, onClose }: ReviveMonitorProps) {
-  const [steps, setSteps] = useState<LaunchStep[]>([])
-  const [wrapperId, setWrapperId] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [wrapperId, setWrapperId] = useState<string | null>(null)
   const [errorLog, setErrorLog] = useState<string | null>(null)
   const startedRef = useRef(false)
 
-  // Launch channel - request-scoped events from agent
-  const launch = useLaunchChannel(jobId)
+  // Shared launch progress hook (manual event insertion for revive-specific flow)
+  const progress = useLaunchProgress({
+    jobId,
+    wrapperId,
+    timeoutMs: 30_000,
+    autoInsertEvents: false,
+    onTimeout: () => {
+      setErrorLog(
+        [
+          '=== rclaude revive timeout log ===',
+          `Time: ${new Date().toISOString()}`,
+          `Session: ${sessionId}${sessionTitle ? ` (${sessionTitle})` : ''}`,
+          `CWD: ${cwd}`,
+          `Wrapper: ${wrapperId || 'n/a'}`,
+          `Job: ${jobId || 'n/a'}`,
+          `Headless: ${headless ?? 'default'}`,
+          '',
+          'Error: Timed out after 30s -- session never connected to concentrator.',
+          '',
+          'Agent events:',
+          ...progress.launch.events.map(e => `  [${e.status}] ${e.step}${e.detail ? ` -- ${e.detail}` : ''}`),
+          '',
+          'Diagnostic hints:',
+          `  - Check: docker compose logs concentrator | grep ${wrapperId?.slice(0, 8) || sessionId.slice(0, 8)}`,
+          '  - Check: .rclaude/settings/headless-*.ndjsonl for crash logs',
+          '  - Check: /tmp/concentrator-launch-log.log for shell script output',
+        ].join('\n'),
+      )
+    },
+  })
 
-  // Track the spawned session by wrapperId
-  const spawnedSession = useSessionsStore(
-    useCallback(
-      state => {
-        const wid = launch.wrapperId || wrapperId
-        if (!wid) return null
-        return state.sessions.find(s => s.wrapperIds?.includes(wid)) || null
-      },
-      [launch.wrapperId, wrapperId],
-    ),
-  )
+  useKeyLayer({ Escape: handleClose }, { id: 'revive-monitor' })
 
-  // Convert launch channel events to steps
+  // Convert launch channel events to steps (custom for revive flow)
   useEffect(() => {
-    if (launch.events.length === 0) return
-
-    setSteps(prev => {
+    if (progress.launch.events.length === 0) return
+    progress.setSteps(prev => {
       const updated = [...prev]
-      // Mark "Agent processing..." as done when we get agent events
+      // Mark "Agent processing..." as done when agent events arrive
       const agentStep = updated.find(s => s.label === 'Agent processing...')
-      if (agentStep && agentStep.status === 'active' && launch.events.length > 0) {
+      if (agentStep && agentStep.status === 'active' && progress.launch.events.length > 0) {
         agentStep.status = 'done'
         agentStep.detail = 'received'
       }
-      // Add agent events as steps (avoid duplicates)
+      // Add new agent events (dedup by label)
       const existingLabels = new Set(updated.map(s => s.label))
-      for (const evt of launch.events) {
+      for (const evt of progress.launch.events) {
         if (!existingLabels.has(evt.step)) {
           updated.push({
             label: evt.step,
@@ -68,72 +84,57 @@ export function ReviveMonitor({ sessionId, sessionTitle, cwd, headless, onClose 
       }
       return updated
     })
-  }, [launch.events])
+  }, [progress.launch.events])
 
-  // Handle job completion
+  // Handle job completion from launch channel
   useEffect(() => {
-    if (launch.completed) {
-      haptic('success')
-      setSteps(prev => {
-        const updated = prev.map(s => (s.status === 'active' ? { ...s, status: 'done' as const } : s))
-        updated.push({
-          label: 'Session connected',
-          status: 'done',
-          ts: Date.now(),
-          detail: launch.sessionId?.slice(0, 8),
-        })
-        return updated
+    if (!progress.launch.completed) return
+    haptic('success')
+    progress.setSteps(prev => {
+      const updated = prev.map(s => (s.status === 'active' ? { ...s, status: 'done' as const } : s))
+      updated.push({
+        label: 'Session connected',
+        status: 'done',
+        ts: Date.now(),
+        detail: progress.launch.sessionId?.slice(0, 8),
       })
-    }
-  }, [launch.completed, launch.sessionId])
+      return updated
+    })
+  }, [progress.launch.completed, progress.launch.sessionId])
 
-  // Handle job failure
+  // Auto-select session on connect (via Zustand fallback)
   useEffect(() => {
-    if (launch.failed) {
-      haptic('error')
-      setError(launch.error || 'Launch failed')
-      setSteps(prev =>
-        prev.map(s =>
-          s.status === 'active' ? { ...s, status: 'error' as const, detail: launch.error || 'failed' } : s,
-        ),
-      )
-    }
-  }, [launch.failed, launch.error])
-
-  // Auto-select the new session when it connects (via Zustand fallback)
-  useEffect(() => {
-    if (spawnedSession && spawnedSession.status !== 'ended' && !launch.completed) {
-      setSteps(prev => {
+    if (progress.spawnedSession && progress.spawnedSession.status !== 'ended' && !progress.launch.completed) {
+      progress.setSteps(prev => {
         const updated = [...prev]
         const connecting = updated.find(s => s.label === 'Session connecting...')
         if (connecting && connecting.status === 'active') {
           connecting.status = 'done'
-          connecting.detail = spawnedSession.id.slice(0, 8)
+          connecting.detail = progress.spawnedSession!.id.slice(0, 8)
           updated.push({ label: 'Session active', status: 'done', ts: Date.now() })
         }
         return updated
       })
     }
-  }, [spawnedSession, launch.completed])
+  }, [progress.spawnedSession, progress.launch.completed])
 
   // Trigger revive on mount (once)
   useEffect(() => {
     if (startedRef.current) return
     startedRef.current = true
 
-    // Generate jobId and subscribe before sending the revive
     const newJobId = crypto.randomUUID()
     setJobId(newJobId)
 
-    // Small delay to ensure subscription is registered before the revive fires
+    // Small delay to ensure WS subscription is registered before the revive fires
     requestAnimationFrame(() => {
-      setSteps([{ label: 'Sending revive request...', status: 'active', ts: Date.now() }])
+      progress.start([{ label: 'Sending revive request...', status: 'active', ts: Date.now() }])
       haptic('tap')
 
       const sent = reviveSession(sessionId, headless, newJobId)
       if (!sent) {
-        setError('WebSocket not connected')
-        setSteps(prev =>
+        progress.setError('WebSocket not connected')
+        progress.setSteps(prev =>
           prev.map(s => (s.status === 'active' ? { ...s, status: 'error' as const, detail: 'WS disconnected' } : s)),
         )
       }
@@ -147,8 +148,8 @@ export function ReviveMonitor({ sessionId, sessionTitle, cwd, headless, onClose 
       if (!detail) return
 
       if (detail.ok === false) {
-        setError(detail.error || 'Revive rejected')
-        setSteps(prev =>
+        progress.setError(detail.error || 'Revive rejected')
+        progress.setSteps(prev =>
           prev.map(s => (s.status === 'active' ? { ...s, status: 'error' as const, detail: detail.error } : s)),
         )
         return
@@ -156,7 +157,7 @@ export function ReviveMonitor({ sessionId, sessionTitle, cwd, headless, onClose 
 
       const wid = detail.wrapperId as string
       setWrapperId(wid)
-      setSteps(prev => [
+      progress.setSteps(prev => [
         ...prev.map(s =>
           s.status === 'active'
             ? { ...s, status: 'done' as const, detail: detail.name ? `${detail.name}` : `wrapper=${wid?.slice(0, 8)}` }
@@ -179,11 +180,11 @@ export function ReviveMonitor({ sessionId, sessionTitle, cwd, headless, onClose 
       if (wrapperId && detail.wrapperId !== wrapperId) return
       if (!wrapperId && detail.sessionId !== sessionId) return
       // Skip if we already have job channel events (they're more granular)
-      if (launch.events.length > 0) return
+      if (progress.launch.events.length > 0) return
 
       if (detail.success) {
         haptic('success')
-        setSteps(prev => [
+        progress.setSteps(prev => [
           ...prev.map(s =>
             s.label === 'Agent processing...'
               ? { ...s, status: 'done' as const, detail: detail.continued ? 'resumed' : 'fresh session' }
@@ -199,8 +200,8 @@ export function ReviveMonitor({ sessionId, sessionTitle, cwd, headless, onClose 
       } else {
         haptic('error')
         const errMsg = detail.error || 'Revive failed'
-        setError(errMsg)
-        setSteps(prev =>
+        progress.setError(errMsg)
+        progress.setSteps(prev =>
           prev.map(s => (s.status === 'active' ? { ...s, status: 'error' as const, detail: errMsg } : s)),
         )
         setErrorLog(
@@ -216,7 +217,7 @@ export function ReviveMonitor({ sessionId, sessionTitle, cwd, headless, onClose 
             `Error: ${errMsg}`,
             '',
             'Agent events:',
-            ...launch.events.map(e => `  [${e.status}] ${e.step}${e.detail ? ` -- ${e.detail}` : ''}`),
+            ...progress.launch.events.map(e => `  [${e.status}] ${e.step}${e.detail ? ` -- ${e.detail}` : ''}`),
             '',
             'Agent result:',
             JSON.stringify(detail, null, 2),
@@ -227,55 +228,71 @@ export function ReviveMonitor({ sessionId, sessionTitle, cwd, headless, onClose 
 
     window.addEventListener('revive-agent-result', handleAgentResult)
     return () => window.removeEventListener('revive-agent-result', handleAgentResult)
-  }, [wrapperId, sessionId, sessionTitle, cwd, headless, jobId, launch.events])
+  }, [wrapperId, sessionId, sessionTitle, cwd, headless, jobId, progress.launch.events])
 
-  function handleTimeout() {
-    setError('Session failed to connect within 30s')
-    setSteps(prev =>
-      prev.map(s => (s.status === 'active' ? { ...s, status: 'error' as const, detail: 'Timed out (30s)' } : s)),
-    )
-    setErrorLog(
-      [
-        '=== rclaude revive timeout log ===',
-        `Time: ${new Date().toISOString()}`,
-        `Session: ${sessionId}${sessionTitle ? ` (${sessionTitle})` : ''}`,
-        `CWD: ${cwd}`,
-        `Wrapper: ${wrapperId || 'n/a'}`,
-        `Job: ${jobId || 'n/a'}`,
-        `Headless: ${headless ?? 'default'}`,
-        '',
-        'Error: Timed out after 30s -- session never connected to concentrator.',
-        '',
-        'Agent events:',
-        ...launch.events.map(e => `  [${e.status}] ${e.step}${e.detail ? ` -- ${e.detail}` : ''}`),
-        '',
-        'Diagnostic hints:',
-        `  - Check: docker compose logs concentrator | grep ${wrapperId?.slice(0, 8) || sessionId.slice(0, 8)}`,
-        '  - Check: .rclaude/settings/headless-*.ndjsonl for crash logs',
-        '  - Check: /tmp/concentrator-launch-log.log for shell script output',
-      ].join('\n'),
-    )
-  }
+  // Auto-redirect when countdown reaches 0
+  useEffect(() => {
+    if (progress.viewCountdown !== 0) return
+    handleClose()
+  }, [progress.viewCountdown]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleClose() {
-    // If session connected, auto-select it
-    const sid = launch.sessionId || (spawnedSession && spawnedSession.status !== 'ended' ? spawnedSession.id : null)
+    // If session connected, auto-select it (revive = user explicitly chose this session)
+    const sid =
+      progress.launch.sessionId ||
+      (progress.spawnedSession && progress.spawnedSession.status !== 'ended' ? progress.spawnedSession.id : null)
     if (sid) {
-      useSessionsStore.getState().selectSession(sid)
+      useSessionsStore.getState().selectSession(sid, 'revive-monitor-close')
     }
     onClose()
+  }
+
+  function handleViewSession() {
+    const sid = progress.spawnedSession?.id
+    if (sid) useSessionsStore.getState().selectSession(sid, 'revive-monitor-view')
+    onClose()
+  }
+
+  function handleCopyLog() {
+    if (errorLog) {
+      progress.copyToClipboard(errorLog)
+      return
+    }
+    const log = [
+      '=== rclaude revive log ===',
+      `Time: ${new Date().toISOString()}`,
+      `Session: ${sessionId}${sessionTitle ? ` (${sessionTitle})` : ''}`,
+      `CWD: ${cwd}`,
+      `Wrapper: ${wrapperId || 'n/a'}`,
+      `Job: ${jobId || 'n/a'}`,
+      '',
+      'Steps:',
+      ...progress.steps.map(s => {
+        const icon =
+          s.status === 'done' ? '[OK]' : s.status === 'error' ? '[FAIL]' : s.status === 'active' ? '[...]' : '[ ]'
+        return `  ${icon} ${s.label}${s.detail ? ` -- ${s.detail}` : ''}`
+      }),
+      '',
+      `Error: ${progress.error || 'none'}`,
+      `Elapsed: ${progress.elapsed}s`,
+    ].join('\n')
+    progress.copyToClipboard(log)
   }
 
   return (
     <LaunchMonitor
       title="Reviving Session"
       subtitle={sessionTitle || cwd.split('/').pop()}
-      wrapperId={launch.wrapperId || wrapperId}
-      steps={steps}
-      error={error}
-      errorLog={errorLog}
-      timeoutMs={30000}
-      onTimeout={handleTimeout}
+      steps={progress.steps}
+      error={progress.error}
+      elapsed={progress.elapsed}
+      isConnected={progress.isConnected}
+      isComplete={progress.isComplete}
+      hasError={progress.hasError}
+      viewCountdown={progress.viewCountdown}
+      copied={progress.copied}
+      onCopyLog={handleCopyLog}
+      onViewSession={handleViewSession}
       onClose={handleClose}
       accentColor="teal"
     />
