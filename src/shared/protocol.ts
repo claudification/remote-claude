@@ -1056,6 +1056,7 @@ export interface ReviveSession {
   wrapperId: string // pre-assigned wrapperId so concentrator can correlate the incoming connection
   jobId?: string // launch job correlation ID for progress events
   adHocWorktree?: string // restore worktree context on revive (RCLAUDE_WORKTREE env)
+  env?: Record<string, string> // custom env vars forwarded to claude process
 }
 
 export interface SpawnSession {
@@ -1069,6 +1070,7 @@ export interface SpawnSession {
   adHoc?: boolean // fire-and-forget headless session
   adHocTaskId?: string // project board task slug for deep linking
   worktree?: string // git worktree branch name (passed as --worktree to claude CLI)
+  env?: Record<string, string> // custom env vars forwarded to claude process
 }
 
 export interface ListDirs {

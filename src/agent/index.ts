@@ -198,6 +198,7 @@ const RCLAUDE_SESSION_VARS = new Set([
   'RCLAUDE_AUTOCOMPACT_PCT',
   'RCLAUDE_MAX_BUDGET_USD',
   'RCLAUDE_PORT',
+  'RCLAUDE_CUSTOM_ENV',
 ])
 
 /**
@@ -237,6 +238,7 @@ function buildHeadlessEnv(opts: {
   model?: string
   bare?: boolean
   repl?: boolean
+  env?: Record<string, string>
 }): Record<string, string | undefined> {
   // Start from sanitized agent env (PATH, API keys, etc. but no session-scoped vars)
   const env = cleanAgentEnv()
@@ -261,6 +263,7 @@ function buildHeadlessEnv(opts: {
   if (opts.leaveRunning) env.RCLAUDE_LEAVE_RUNNING = '1'
   if (opts.promptFile) env.RCLAUDE_INITIAL_PROMPT_FILE = opts.promptFile
   if (opts.worktree) env.RCLAUDE_WORKTREE = opts.worktree
+  if (opts.env && Object.keys(opts.env).length) env.RCLAUDE_CUSTOM_ENV = JSON.stringify(opts.env)
 
   return env
 }
@@ -539,6 +542,7 @@ async function reviveSession(
   maxBudgetUsd?: number,
   jobId?: string,
   adHocWorktree?: string,
+  env?: Record<string, string>,
 ): Promise<ReviveResult & { tmuxPaneId?: string }> {
   const result: ReviveResult = {
     type: 'revive_result',
@@ -581,7 +585,7 @@ async function reviveSession(
       model,
       maxBudgetUsd,
     })
-    const env = buildHeadlessEnv({
+    const spawnEnv = buildHeadlessEnv({
       secret,
       wrapperId,
       sessionId,
@@ -591,10 +595,11 @@ async function reviveSession(
       effort,
       model,
       worktree: adHocWorktree,
+      env,
     })
 
     launchLog(jobId, 'Reviving headless (direct spawn)', 'info', `mode=${effectiveMode || 'default'}`)
-    const spawnRes = spawnHeadlessDirect(rclaudeBin, cwd, wrapperId, args, env, jobId)
+    const spawnRes = spawnHeadlessDirect(rclaudeBin, cwd, wrapperId, args, spawnEnv, jobId)
     result.success = spawnRes.success
     result.error = spawnRes.error
     result.continued = effectiveMode === 'resume'
@@ -636,6 +641,7 @@ async function reviveSession(
       ...(autocompactPct ? { RCLAUDE_AUTOCOMPACT_PCT: String(autocompactPct) } : {}),
       ...(maxBudgetUsd ? { RCLAUDE_MAX_BUDGET_USD: String(maxBudgetUsd) } : {}),
       ...(adHocWorktree ? { RCLAUDE_WORKTREE: adHocWorktree } : {}),
+      ...(env && Object.keys(env).length ? { RCLAUDE_CUSTOM_ENV: JSON.stringify(env) } : {}),
     },
   })
 
@@ -737,6 +743,7 @@ async function spawnSession(
   worktree?: string,
   jobId?: string,
   leaveRunning = false,
+  env?: Record<string, string>,
 ): Promise<{ success: boolean; error?: string; tmuxSession?: string; tmuxPaneId?: string }> {
   launchLog(jobId, 'Validating directory', 'info', cwd)
 
@@ -813,7 +820,7 @@ async function spawnSession(
     }
 
     const args = buildHeadlessArgs({ mode, resumeId, resumeName: sessionName, effort, model, worktree, maxBudgetUsd })
-    const env = buildHeadlessEnv({
+    const spawnEnv = buildHeadlessEnv({
       secret,
       wrapperId,
       sessionName,
@@ -829,9 +836,10 @@ async function spawnSession(
       model,
       bare,
       repl,
+      env,
     })
 
-    const spawnRes = spawnHeadlessDirect(rclaudeBin, cwd, wrapperId, args, env, jobId)
+    const spawnRes = spawnHeadlessDirect(rclaudeBin, cwd, wrapperId, args, spawnEnv, jobId)
     if (spawnRes.success) {
       launchLog(jobId, 'Waiting for session to connect', 'info')
     }
@@ -869,6 +877,7 @@ async function spawnSession(
     ...(leaveRunning ? { RCLAUDE_LEAVE_RUNNING: '1' } : {}),
     ...(promptFile ? { RCLAUDE_INITIAL_PROMPT_FILE: promptFile } : {}),
     ...(worktree ? { RCLAUDE_WORKTREE: shellSafe(worktree) } : {}),
+    ...(env && Object.keys(env).length ? { RCLAUDE_CUSTOM_ENV: JSON.stringify(env) } : {}),
   }
 
   launchLog(jobId, 'Starting tmux session', 'info')
@@ -1177,6 +1186,7 @@ function connect(
             maxBudgetUsd?: number
             jobId?: string
             adHocWorktree?: string
+            env?: Record<string, string>
           }
           log(
             `Reviving session ${reviveMsg.sessionId.slice(0, 8)}... wrapper=${reviveMsg.wrapperId.slice(0, 8)} mode=${reviveMsg.mode || 'default'} headless=${reviveMsg.headless !== false}${reviveMsg.effort ? ` effort=${reviveMsg.effort}` : ''}${reviveMsg.model ? ` model=${reviveMsg.model}` : ''}${reviveMsg.maxBudgetUsd ? ` maxBudget=$${reviveMsg.maxBudgetUsd}` : ''}${reviveMsg.jobId ? ` job=${reviveMsg.jobId.slice(0, 8)}` : ''} (${reviveMsg.cwd})`,
@@ -1198,6 +1208,7 @@ function connect(
             reviveMsg.maxBudgetUsd,
             reviveMsg.jobId,
             reviveMsg.adHocWorktree,
+            reviveMsg.env,
           )
           // Strip agent-internal tmuxPaneId before sending over WS
           const { tmuxPaneId, ...reviveResult } = result
@@ -1272,6 +1283,7 @@ function connect(
             leaveRunning?: boolean
             worktree?: string
             jobId?: string
+            env?: Record<string, string>
           }
           if (noSpawn) {
             launchLog(spawnMsg.jobId, 'Spawning disabled', 'error', '--no-spawn flag is set')
@@ -1322,6 +1334,7 @@ function connect(
             spawnMsg.worktree,
             spawnMsg.jobId,
             spawnMsg.leaveRunning || false,
+            spawnMsg.env,
           )
           const response: SpawnResult = {
             type: 'spawn_result',

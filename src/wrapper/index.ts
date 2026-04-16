@@ -317,6 +317,16 @@ async function main() {
   const isAdHoc = process.env.RCLAUDE_ADHOC === '1'
   const adHocTaskId = process.env.RCLAUDE_ADHOC_TASK_ID
   const adHocWorktree = process.env.RCLAUDE_WORKTREE
+  const customEnv: Record<string, string> = process.env.RCLAUDE_CUSTOM_ENV
+    ? (() => {
+        try {
+          return JSON.parse(process.env.RCLAUDE_CUSTOM_ENV)
+        } catch {
+          debug('Failed to parse RCLAUDE_CUSTOM_ENV, ignoring')
+          return {}
+        }
+      })()
+    : {}
   const claudeArgs: string[] = []
 
   debug(`Concentrator URL: ${concentratorUrl} (source: ${process.env.RCLAUDE_CONCENTRATOR ? 'env' : 'default'})`)
@@ -1565,6 +1575,7 @@ async function main() {
       concentratorSecret,
       spawnStreamClaude,
       cleanup,
+      env: Object.keys(customEnv).length ? customEnv : undefined,
     })
 
     ctx.streamProc = spawnStreamClaude(headlessSpawnOptions)
@@ -1583,6 +1594,7 @@ async function main() {
         localServerPort,
         concentratorUrl: concentratorHttpUrl,
         concentratorSecret,
+        env: Object.keys(customEnv).length ? customEnv : undefined,
         onData(data) {
           // Auto-confirm dev channel warning prompt (fires once on startup)
           if (channelEnabled && !devChannelConfirmed) {

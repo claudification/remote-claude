@@ -269,6 +269,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
       autocompactPct: data.autocompactPct as number | undefined,
       maxBudgetUsd: data.maxBudgetUsd as number | undefined,
       adHocWorktree: session.adHocWorktree || undefined,
+      env: (data.env as Record<string, string>) || undefined,
     }),
   )
 

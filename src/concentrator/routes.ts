@@ -857,6 +857,7 @@ export function createRouter(options: RouteOptions): Hono {
       adHocTaskId?: string
       leaveRunning?: boolean
       worktree?: string
+      env?: Record<string, string>
       // Launch job correlation
       jobId?: string
     }>()
@@ -947,6 +948,7 @@ export function createRouter(options: RouteOptions): Hono {
           adHocTaskId: body.adHocTaskId || undefined,
           leaveRunning: body.leaveRunning || undefined,
           worktree: body.worktree || undefined,
+          env: body.env || undefined,
         }),
       )
     })

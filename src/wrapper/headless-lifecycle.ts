@@ -33,6 +33,7 @@ export interface HeadlessCallbackDeps {
   concentratorSecret?: string
   spawnStreamClaude: (opts: StreamBackendOptions) => StreamProcess
   cleanup: () => void
+  env?: Record<string, string>
 }
 
 /**
@@ -48,6 +49,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
     settingsPath: deps.settingsPath,
     sessionId: ctx.internalId,
     localServerPort: deps.localServerPort,
+    env: deps.env,
     concentratorUrl: deps.concentratorUrl,
     concentratorSecret: deps.concentratorSecret,
 

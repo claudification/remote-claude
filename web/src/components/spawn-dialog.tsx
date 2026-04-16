@@ -48,6 +48,34 @@ const PERMISSION_MODES = [
   { value: 'bypassPermissions', label: 'Bypass' },
 ]
 
+/** Parse KEY=value lines into env record. Returns [env, errors]. */
+function parseEnvText(text: string): [Record<string, string> | null, string[]] {
+  if (!text.trim()) return [null, []]
+  const env: Record<string, string> = {}
+  const errors: string[] = []
+  for (const [i, raw] of text.split('\n').entries()) {
+    const line = raw.trim()
+    if (!line || line.startsWith('#')) continue
+    const eq = line.indexOf('=')
+    if (eq < 1) {
+      errors.push(`Line ${i + 1}: missing KEY=value`)
+      continue
+    }
+    const key = line.slice(0, eq)
+    const value = line.slice(eq + 1)
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      errors.push(`Line ${i + 1}: invalid key "${key}"`)
+      continue
+    }
+    if (/["']/.test(value)) {
+      errors.push(`Line ${i + 1}: no quotes needed, use raw value`)
+      continue
+    }
+    env[key] = value
+  }
+  return [errors.length ? null : Object.keys(env).length ? env : null, errors]
+}
+
 // Module-level state so any component can trigger the dialog
 let _openDialog: ((options: SpawnDialogOptions) => void) | null = null
 
@@ -70,6 +98,8 @@ export function SpawnDialog() {
   const [autocompactPct, setAutocompactPct] = useState<number | ''>('')
   const [maxBudgetUsd, setMaxBudgetUsd] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [envText, setEnvText] = useState('')
+  const [envErrors, setEnvErrors] = useState<string[]>([])
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [jobId, setJobId] = useState<string | null>(null)
   const [wrapperId, setWrapperId] = useState<string | null>(null)
@@ -106,6 +136,8 @@ export function SpawnDialog() {
       setAutocompactPct('')
       setMaxBudgetUsd('')
       setShowAdvanced(false)
+      setEnvText('')
+      setEnvErrors([])
       setPhase('config')
       setJobId(null)
       setWrapperId(null)
@@ -177,6 +209,14 @@ export function SpawnDialog() {
 
   const handleSpawn = useCallback(async () => {
     if (!state.options || phase !== 'config') return
+
+    // Validate env before spawning
+    const [parsedEnv, errors] = parseEnvText(envText)
+    if (errors.length) {
+      setEnvErrors(errors)
+      return
+    }
+
     setPhase('launching')
     sessionAtSpawnRef.current = useSessionsStore.getState().selectedSessionId
     haptic('tap')
@@ -203,6 +243,7 @@ export function SpawnDialog() {
           autocompactPct: autocompactPct || undefined,
           maxBudgetUsd: maxBudgetUsd ? Number(maxBudgetUsd) : undefined,
           worktree: useWorktree && worktreeName.trim() ? worktreeName.trim() : undefined,
+          env: parsedEnv || undefined,
           jobId: newJobId,
         }),
       })
@@ -240,6 +281,7 @@ export function SpawnDialog() {
     maxBudgetUsd,
     useWorktree,
     worktreeName,
+    envText,
     progress,
   ])
 
@@ -278,6 +320,7 @@ export function SpawnDialog() {
         model: model || null,
         effort: effort || null,
         permissionMode: permissionMode || null,
+        env: envText.trim() || null,
       },
     }
     progress.copyToClipboard(JSON.stringify(log, null, 2))
@@ -597,6 +640,41 @@ export function SpawnDialog() {
                       <div className="text-[10px] text-[#565f89]">Skip hooks, plugins, CLAUDE.md, auto-memory</div>
                     </div>
                     <ToggleSwitch on={bare} />
+                  </div>
+
+                  {/* Custom env vars */}
+                  <div className="space-y-1.5 pl-3">
+                    <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
+                      Environment variables
+                    </div>
+                    <textarea
+                      value={envText}
+                      onChange={e => {
+                        setEnvText(e.target.value)
+                        setEnvErrors([])
+                      }}
+                      placeholder={'MAX_THINKING_TOKENS=16000\nCLAUDE_CODE_EFFORT_LEVEL=max'}
+                      rows={3}
+                      spellCheck={false}
+                      className={cn(
+                        'w-full bg-[#1a1b26] border rounded px-3 py-2',
+                        'text-xs font-mono text-foreground placeholder:text-[#565f89]/60',
+                        'focus:outline-none resize-y leading-relaxed',
+                        envErrors.length
+                          ? 'border-red-500/60 focus:border-red-500'
+                          : 'border-border focus:border-[#7aa2f7]/50',
+                      )}
+                    />
+                    {envErrors.length > 0 && (
+                      <div className="text-[10px] font-mono text-red-400 space-y-0.5">
+                        {envErrors.map(e => (
+                          <div key={e}>{e}</div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="text-[9px] text-[#565f89]">
+                      KEY=value per line, set before executing claude. # comments ok.
+                    </div>
                   </div>
                 </div>
               )}
