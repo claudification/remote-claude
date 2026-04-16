@@ -5,7 +5,7 @@
  * Phase 2 (launching): Step-by-step progress via shared LaunchMonitor.
  */
 
-import { ChevronDown, Zap } from 'lucide-react'
+import { Zap } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
@@ -97,7 +97,7 @@ export function SpawnDialog() {
   const [permissionMode, setPermissionMode] = useState('')
   const [autocompactPct, setAutocompactPct] = useState<number | ''>('')
   const [maxBudgetUsd, setMaxBudgetUsd] = useState('')
-  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [configTab, setConfigTab] = useState<'basic' | 'advanced'>('basic')
   const [envText, setEnvText] = useState('')
   const [envErrors, setEnvErrors] = useState<string[]>([])
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
@@ -143,7 +143,7 @@ export function SpawnDialog() {
       setMaxBudgetUsd(budget > 0 ? String(budget) : '')
       const envDefault = ps?.defaultEnvText || (gs.defaultEnvText as string) || ''
       setEnvText(envDefault)
-      // Auto-expand Advanced if any defaults are non-trivial
+      // Auto-switch to Advanced tab if any defaults are non-trivial
       const hasAdvancedDefaults =
         (ps?.defaultBare ?? (gs.defaultBare as boolean)) ||
         (ps?.defaultRepl ?? (gs.defaultRepl as boolean)) ||
@@ -151,7 +151,7 @@ export function SpawnDialog() {
         acp > 0 ||
         budget > 0 ||
         envDefault.trim().length > 0
-      setShowAdvanced(!!hasAdvancedDefaults)
+      setConfigTab(hasAdvancedDefaults ? 'advanced' : 'basic')
       setEnvErrors([])
       setSavedFeedback(null)
       setPhase('config')
@@ -398,8 +398,8 @@ export function SpawnDialog() {
   return (
     <Dialog open={state.open} onOpenChange={open => !open && handleClose()}>
       <DialogContent className="max-w-md rounded-lg">
-        <div className="p-5 space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="p-5 flex flex-col gap-4 min-h-0 max-h-[calc(85vh-2rem)]">
+          <div className="flex items-center justify-between shrink-0">
             <DialogTitle className="text-sm font-bold font-mono flex items-center gap-2">
               {phase === 'launching' && <Zap className="w-4 h-4 text-[#7aa2f7]" />}
               {phase === 'config'
@@ -416,358 +416,384 @@ export function SpawnDialog() {
           </div>
 
           {/* CWD display */}
-          <div className="text-[11px] font-mono text-muted-foreground truncate">{shortPath}</div>
+          <div className="text-[11px] font-mono text-muted-foreground truncate shrink-0">{shortPath}</div>
 
           {/* ── Config Phase ── */}
           {phase === 'config' && (
             <>
-              {/* Name input */}
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="spawn-name"
-                  className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide"
-                >
-                  Name <span className="text-[#565f89]">(optional)</span>
-                </label>
-                <input
-                  ref={nameRef}
-                  id="spawn-name"
-                  type="text"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="e.g. refactor-auth"
+              {/* Tab selector */}
+              <div className="flex gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfigTab('basic')
+                    haptic('tick')
+                  }}
                   className={cn(
-                    'w-full bg-[#1a1b26] border border-border rounded px-3 py-1.5',
-                    'text-sm font-mono text-foreground placeholder:text-[#565f89]',
-                    'focus:outline-none focus:border-[#7aa2f7]/50',
+                    'px-3 py-1 text-[11px] font-mono rounded transition-colors',
+                    configTab === 'basic'
+                      ? 'bg-[#7aa2f7]/15 text-[#7aa2f7] border border-[#7aa2f7]/30'
+                      : 'text-[#565f89] hover:text-muted-foreground',
                   )}
-                />
+                >
+                  Basic
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfigTab('advanced')
+                    haptic('tick')
+                  }}
+                  className={cn(
+                    'px-3 py-1 text-[11px] font-mono rounded transition-colors',
+                    configTab === 'advanced'
+                      ? 'bg-[#7aa2f7]/15 text-[#7aa2f7] border border-[#7aa2f7]/30'
+                      : 'text-[#565f89] hover:text-muted-foreground',
+                  )}
+                >
+                  Advanced
+                </button>
               </div>
 
-              {/* Mode toggle */}
-              <div className="space-y-2">
-                <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">Mode</div>
-                <div className="flex gap-2">
-                  <TogglePill
-                    active={headless}
-                    onClick={() => {
-                      setHeadless(true)
-                      haptic('tap')
-                    }}
-                    label="Headless"
-                  />
-                  <TogglePill
-                    active={!headless}
-                    onClick={() => {
-                      setHeadless(false)
-                      haptic('tap')
-                    }}
-                    label="PTY"
-                  />
-                </div>
-              </div>
-
-              {/* Model selector */}
-              <div className="space-y-2">
-                <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">Model</div>
-                <div className="flex gap-1.5 flex-wrap">
-                  {MODEL_OPTIONS.map(opt => (
-                    <TogglePill
-                      key={opt.value}
-                      active={model === opt.value}
-                      onClick={() => {
-                        setModel(opt.value)
-                        haptic('tap')
-                      }}
-                      label={opt.value === '' ? `Default (${defaultModel})` : opt.label}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Effort selector */}
-              <div className="space-y-2">
-                <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">Effort</div>
-                <div className="flex gap-1.5 flex-wrap">
-                  {EFFORT_OPTIONS.map(opt => (
-                    <TogglePill
-                      key={opt.value}
-                      active={effort === opt.value}
-                      onClick={() => {
-                        setEffort(opt.value)
-                        haptic('tap')
-                      }}
-                      label={opt.value === '' ? `Default (${defaultEffort})` : opt.label}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Advanced toggle */}
-              <button
-                type="button"
-                className="flex items-center gap-1.5 text-[11px] font-mono text-[#565f89] hover:text-muted-foreground transition-colors"
-                onClick={() => {
-                  setShowAdvanced(!showAdvanced)
-                  haptic('tick')
-                }}
-              >
-                <ChevronDown
-                  className={cn('w-3 h-3 transition-transform duration-150', showAdvanced && 'rotate-180')}
-                />
-                Advanced
-              </button>
-
-              {showAdvanced && (
-                <div className="space-y-3 pl-1 border-l-2 border-border/50 ml-1">
-                  {/* Permission mode */}
-                  <div className="space-y-2 pl-3">
-                    <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
-                      Permission mode
-                    </div>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {PERMISSION_MODES.map(opt => (
-                        <TogglePill
-                          key={opt.value}
-                          active={permissionMode === opt.value}
-                          onClick={() => {
-                            setPermissionMode(opt.value)
-                            haptic('tap')
-                          }}
-                          label={opt.label}
-                          small
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Autocompact threshold */}
-                  <div className="space-y-2 pl-3">
-                    <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
-                      Autocompact threshold
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range"
-                        min={50}
-                        max={99}
-                        value={autocompactPct || 83}
-                        onChange={e => {
-                          setAutocompactPct(Number(e.target.value))
-                          haptic('tick')
-                        }}
-                        className="flex-1 h-1.5 accent-[#7aa2f7] bg-muted rounded-full"
-                      />
-                      <span
-                        className={cn(
-                          'text-sm font-mono w-12 text-right tabular-nums',
-                          autocompactPct ? 'text-[#7aa2f7]' : 'text-[#565f89]',
-                        )}
+              {/* Scrollable content area */}
+              <div className="overflow-y-auto flex-1 min-h-0 space-y-4 pr-1">
+                {configTab === 'basic' && (
+                  <>
+                    {/* Name input */}
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="spawn-name"
+                        className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide"
                       >
-                        {autocompactPct || 83}%
-                      </span>
-                      {autocompactPct && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAutocompactPct('')
-                            haptic('tap')
-                          }}
-                          className="text-[10px] text-[#565f89] hover:text-foreground font-mono"
-                        >
-                          reset
-                        </button>
-                      )}
-                    </div>
-                    <div className="text-[9px] text-[#565f89]">Context % that triggers compaction (default ~83%)</div>
-                  </div>
-
-                  {/* Max budget (headless only) */}
-                  {headless && (
-                    <div className="space-y-2 pl-3">
-                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
-                        Max budget (USD)
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[#565f89] text-sm">$</span>
-                        <input
-                          type="number"
-                          min={0.01}
-                          step={0.01}
-                          placeholder="no limit"
-                          value={maxBudgetUsd}
-                          onChange={e => setMaxBudgetUsd(e.target.value)}
-                          className="w-24 bg-[#1a1b26] border border-[#292e42] rounded px-2 py-1 text-sm font-mono text-foreground focus:outline-none focus:border-[#7aa2f7] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        />
-                        {maxBudgetUsd && (
-                          <button
-                            type="button"
-                            onClick={() => setMaxBudgetUsd('')}
-                            className="text-[10px] text-[#565f89] hover:text-foreground font-mono"
-                          >
-                            clear
-                          </button>
-                        )}
-                      </div>
-                      <div className="text-[9px] text-[#565f89]">
-                        Stop session after spending this amount (--max-budget-usd, headless only)
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Worktree toggle */}
-                  <div className="space-y-1.5 pl-3">
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className="flex items-center justify-between py-1.5 cursor-pointer select-none"
-                      onClick={() => {
-                        const next = !useWorktree
-                        setUseWorktree(next)
-                        if (next && !worktreeName) setWorktreeName(name.trim() || '')
-                        haptic('tap')
-                      }}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          const next = !useWorktree
-                          setUseWorktree(next)
-                          if (next && !worktreeName) setWorktreeName(name.trim() || '')
-                          haptic('tap')
-                        }
-                      }}
-                    >
-                      <div>
-                        <div className="text-sm font-mono">Git worktree</div>
-                        <div className="text-[10px] text-[#565f89]">Isolated branch, auto-merges on completion</div>
-                      </div>
-                      <ToggleSwitch on={useWorktree} />
-                    </div>
-                    {useWorktree && (
+                        Name <span className="text-[#565f89]">(optional)</span>
+                      </label>
                       <input
+                        ref={nameRef}
+                        id="spawn-name"
                         type="text"
-                        value={worktreeName}
-                        onChange={e => setWorktreeName(e.target.value)}
-                        placeholder="Branch name..."
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        placeholder="e.g. refactor-auth"
                         className={cn(
                           'w-full bg-[#1a1b26] border border-border rounded px-3 py-1.5',
                           'text-sm font-mono text-foreground placeholder:text-[#565f89]',
                           'focus:outline-none focus:border-[#7aa2f7]/50',
                         )}
                       />
-                    )}
-                  </div>
+                    </div>
 
-                  {/* REPL tool toggle */}
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    className="flex items-center justify-between py-1.5 pl-3 cursor-pointer select-none"
-                    onClick={() => {
-                      setRepl(!repl)
-                      haptic('tap')
-                    }}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        setRepl(!repl)
-                        haptic('tap')
-                      }
-                    }}
-                  >
-                    <div>
-                      <div className="text-sm font-mono">REPL tool</div>
-                      <div className="text-[10px] text-[#565f89]">
-                        JS sandbox for batched tool calls (CLAUDE_CODE_REPL)
+                    {/* Mode toggle */}
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">Mode</div>
+                      <div className="flex gap-2">
+                        <TogglePill
+                          active={headless}
+                          onClick={() => {
+                            setHeadless(true)
+                            haptic('tap')
+                          }}
+                          label="Headless"
+                        />
+                        <TogglePill
+                          active={!headless}
+                          onClick={() => {
+                            setHeadless(false)
+                            haptic('tap')
+                          }}
+                          label="PTY"
+                        />
                       </div>
                     </div>
-                    <ToggleSwitch on={repl} />
-                  </div>
 
-                  {/* Bare toggle */}
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    className="flex items-center justify-between py-1.5 pl-3 cursor-pointer select-none"
-                    onClick={() => {
-                      setBare(!bare)
-                      haptic('tap')
-                    }}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        setBare(!bare)
-                        haptic('tap')
-                      }
-                    }}
-                  >
-                    <div>
-                      <div className="text-sm font-mono">Bare session</div>
-                      <div className="text-[10px] text-[#565f89]">Skip hooks, plugins, CLAUDE.md, auto-memory</div>
-                    </div>
-                    <ToggleSwitch on={bare} />
-                  </div>
-
-                  {/* Custom env vars */}
-                  <div className="space-y-1.5 pl-3">
-                    <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
-                      Environment variables
-                    </div>
-                    <textarea
-                      value={envText}
-                      onChange={e => {
-                        setEnvText(e.target.value)
-                        setEnvErrors([])
-                      }}
-                      placeholder={'MAX_THINKING_TOKENS=16000\nCLAUDE_CODE_EFFORT_LEVEL=max'}
-                      rows={3}
-                      spellCheck={false}
-                      className={cn(
-                        'w-full bg-[#1a1b26] border rounded px-3 py-2',
-                        'text-xs font-mono text-foreground placeholder:text-[#565f89]/60',
-                        'focus:outline-none resize-y leading-relaxed',
-                        envErrors.length
-                          ? 'border-red-500/60 focus:border-red-500'
-                          : 'border-border focus:border-[#7aa2f7]/50',
-                      )}
-                    />
-                    {envErrors.length > 0 && (
-                      <div className="text-[10px] font-mono text-red-400 space-y-0.5">
-                        {envErrors.map(e => (
-                          <div key={e}>{e}</div>
+                    {/* Model selector */}
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">Model</div>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {MODEL_OPTIONS.map(opt => (
+                          <TogglePill
+                            key={opt.value}
+                            active={model === opt.value}
+                            onClick={() => {
+                              setModel(opt.value)
+                              haptic('tap')
+                            }}
+                            label={opt.value === '' ? `Default (${defaultModel})` : opt.label}
+                          />
                         ))}
                       </div>
+                    </div>
+
+                    {/* Effort selector */}
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">Effort</div>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {EFFORT_OPTIONS.map(opt => (
+                          <TogglePill
+                            key={opt.value}
+                            active={effort === opt.value}
+                            onClick={() => {
+                              setEffort(opt.value)
+                              haptic('tap')
+                            }}
+                            label={opt.value === '' ? `Default (${defaultEffort})` : opt.label}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {configTab === 'advanced' && (
+                  <div className="space-y-3">
+                    {/* Permission mode */}
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
+                        Permission mode
+                      </div>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {PERMISSION_MODES.map(opt => (
+                          <TogglePill
+                            key={opt.value}
+                            active={permissionMode === opt.value}
+                            onClick={() => {
+                              setPermissionMode(opt.value)
+                              haptic('tap')
+                            }}
+                            label={opt.label}
+                            small
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Autocompact threshold */}
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
+                        Autocompact threshold
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={50}
+                          max={99}
+                          value={autocompactPct || 83}
+                          onChange={e => {
+                            setAutocompactPct(Number(e.target.value))
+                            haptic('tick')
+                          }}
+                          className="flex-1 h-1.5 accent-[#7aa2f7] bg-muted rounded-full"
+                        />
+                        <span
+                          className={cn(
+                            'text-sm font-mono w-12 text-right tabular-nums',
+                            autocompactPct ? 'text-[#7aa2f7]' : 'text-[#565f89]',
+                          )}
+                        >
+                          {autocompactPct || 83}%
+                        </span>
+                        {autocompactPct && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAutocompactPct('')
+                              haptic('tap')
+                            }}
+                            className="text-[10px] text-[#565f89] hover:text-foreground font-mono"
+                          >
+                            reset
+                          </button>
+                        )}
+                      </div>
+                      <div className="text-[9px] text-[#565f89]">Context % that triggers compaction (default ~83%)</div>
+                    </div>
+
+                    {/* Max budget (headless only) */}
+                    {headless && (
+                      <div className="space-y-2">
+                        <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
+                          Max budget (USD)
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#565f89] text-sm">$</span>
+                          <input
+                            type="number"
+                            min={0.01}
+                            step={0.01}
+                            placeholder="no limit"
+                            value={maxBudgetUsd}
+                            onChange={e => setMaxBudgetUsd(e.target.value)}
+                            className="w-24 bg-[#1a1b26] border border-[#292e42] rounded px-2 py-1 text-sm font-mono text-foreground focus:outline-none focus:border-[#7aa2f7] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          {maxBudgetUsd && (
+                            <button
+                              type="button"
+                              onClick={() => setMaxBudgetUsd('')}
+                              className="text-[10px] text-[#565f89] hover:text-foreground font-mono"
+                            >
+                              clear
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-[9px] text-[#565f89]">
+                          Stop session after spending this amount (--max-budget-usd, headless only)
+                        </div>
+                      </div>
                     )}
-                    <div className="text-[9px] text-[#565f89]">
-                      KEY=value per line, set before executing claude. # comments ok.
+
+                    {/* Worktree toggle */}
+                    <div className="space-y-1.5">
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className="flex items-center justify-between py-1.5 cursor-pointer select-none"
+                        onClick={() => {
+                          const next = !useWorktree
+                          setUseWorktree(next)
+                          if (next && !worktreeName) setWorktreeName(name.trim() || '')
+                          haptic('tap')
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            const next = !useWorktree
+                            setUseWorktree(next)
+                            if (next && !worktreeName) setWorktreeName(name.trim() || '')
+                            haptic('tap')
+                          }
+                        }}
+                      >
+                        <div>
+                          <div className="text-sm font-mono">Git worktree</div>
+                          <div className="text-[10px] text-[#565f89]">Isolated branch, auto-merges on completion</div>
+                        </div>
+                        <ToggleSwitch on={useWorktree} />
+                      </div>
+                      {useWorktree && (
+                        <input
+                          type="text"
+                          value={worktreeName}
+                          onChange={e => setWorktreeName(e.target.value)}
+                          placeholder="Branch name..."
+                          className={cn(
+                            'w-full bg-[#1a1b26] border border-border rounded px-3 py-1.5',
+                            'text-sm font-mono text-foreground placeholder:text-[#565f89]',
+                            'focus:outline-none focus:border-[#7aa2f7]/50',
+                          )}
+                        />
+                      )}
+                    </div>
+
+                    {/* REPL tool toggle */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="flex items-center justify-between py-1.5 cursor-pointer select-none"
+                      onClick={() => {
+                        setRepl(!repl)
+                        haptic('tap')
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          setRepl(!repl)
+                          haptic('tap')
+                        }
+                      }}
+                    >
+                      <div>
+                        <div className="text-sm font-mono">REPL tool</div>
+                        <div className="text-[10px] text-[#565f89]">
+                          JS sandbox for batched tool calls (CLAUDE_CODE_REPL)
+                        </div>
+                      </div>
+                      <ToggleSwitch on={repl} />
+                    </div>
+
+                    {/* Bare toggle */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="flex items-center justify-between py-1.5 cursor-pointer select-none"
+                      onClick={() => {
+                        setBare(!bare)
+                        haptic('tap')
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          setBare(!bare)
+                          haptic('tap')
+                        }
+                      }}
+                    >
+                      <div>
+                        <div className="text-sm font-mono">Bare session</div>
+                        <div className="text-[10px] text-[#565f89]">Skip hooks, plugins, CLAUDE.md, auto-memory</div>
+                      </div>
+                      <ToggleSwitch on={bare} />
+                    </div>
+
+                    {/* Custom env vars */}
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
+                        Environment variables
+                      </div>
+                      <textarea
+                        value={envText}
+                        onChange={e => {
+                          setEnvText(e.target.value)
+                          setEnvErrors([])
+                        }}
+                        placeholder={'MAX_THINKING_TOKENS=16000\nCLAUDE_CODE_EFFORT_LEVEL=max'}
+                        rows={3}
+                        spellCheck={false}
+                        className={cn(
+                          'w-full bg-[#1a1b26] border rounded px-3 py-2',
+                          'text-xs font-mono text-foreground placeholder:text-[#565f89]/60',
+                          'focus:outline-none resize-y leading-relaxed',
+                          envErrors.length
+                            ? 'border-red-500/60 focus:border-red-500'
+                            : 'border-border focus:border-[#7aa2f7]/50',
+                        )}
+                      />
+                      {envErrors.length > 0 && (
+                        <div className="text-[10px] font-mono text-red-400 space-y-0.5">
+                          {envErrors.map(e => (
+                            <div key={e}>{e}</div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="text-[9px] text-[#565f89]">
+                        KEY=value per line, set before executing claude. # comments ok.
+                      </div>
+                    </div>
+
+                    {/* Save / Reset defaults */}
+                    <div className="flex items-center gap-3 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleSaveProjectDefaults}
+                        className="text-[10px] font-mono text-[#7aa2f7]/70 hover:text-[#7aa2f7] transition-colors"
+                      >
+                        {savedFeedback === 'project' ? 'Saved!' : 'Save for project'}
+                      </button>
+                      <span className="text-[#292e42]">|</span>
+                      <button
+                        type="button"
+                        onClick={handleSaveGlobalDefaults}
+                        className="text-[10px] font-mono text-[#565f89] hover:text-muted-foreground transition-colors"
+                      >
+                        {savedFeedback === 'global' ? 'Saved!' : 'Save globally'}
+                      </button>
+                      <span className="text-[#292e42]">|</span>
+                      <button
+                        type="button"
+                        onClick={handleResetDefaults}
+                        className="text-[10px] font-mono text-[#565f89] hover:text-red-400 transition-colors"
+                      >
+                        Reset
+                      </button>
                     </div>
                   </div>
-
-                  {/* Save / Reset defaults */}
-                  <div className="flex items-center gap-3 pl-3 pt-1">
-                    <button
-                      type="button"
-                      onClick={handleSaveProjectDefaults}
-                      className="text-[10px] font-mono text-[#7aa2f7]/70 hover:text-[#7aa2f7] transition-colors"
-                    >
-                      {savedFeedback === 'project' ? 'Saved!' : 'Save for project'}
-                    </button>
-                    <span className="text-[#292e42]">|</span>
-                    <button
-                      type="button"
-                      onClick={handleSaveGlobalDefaults}
-                      className="text-[10px] font-mono text-[#565f89] hover:text-muted-foreground transition-colors"
-                    >
-                      {savedFeedback === 'global' ? 'Saved!' : 'Save globally'}
-                    </button>
-                    <span className="text-[#292e42]">|</span>
-                    <button
-                      type="button"
-                      onClick={handleResetDefaults}
-                      className="text-[10px] font-mono text-[#565f89] hover:text-red-400 transition-colors"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </>
           )}
 
@@ -779,10 +805,14 @@ export function SpawnDialog() {
           )}
 
           {/* Error banner */}
-          {displayError && <LaunchErrorBanner error={displayError} copied={progress.copied} onCopy={handleCopyLog} />}
+          {displayError && (
+            <div className="shrink-0">
+              <LaunchErrorBanner error={displayError} copied={progress.copied} onCopy={handleCopyLog} />
+            </div>
+          )}
 
           {/* Actions */}
-          <div className="flex gap-2 pt-1">
+          <div className="flex gap-2 pt-1 shrink-0">
             {phase === 'config' && (
               <>
                 <button
