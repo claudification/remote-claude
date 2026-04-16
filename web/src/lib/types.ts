@@ -114,6 +114,7 @@ export interface Session {
   adHocTaskId?: string
   adHocWorktree?: string
   resultText?: string
+  recap?: { content: string; timestamp: number }
   lastEvent?: {
     hookEvent: string
     timestamp: number

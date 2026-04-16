@@ -556,6 +556,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       adHocTaskId: session.adHocTaskId,
       adHocWorktree: session.adHocWorktree,
       resultText: session.resultText,
+      recap: session.recap,
     }
   }
 
@@ -822,6 +823,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         adHocTaskId: s.adHocTaskId,
         adHocWorktree: s.adHocWorktree,
         resultText: s.resultText,
+        recap: s.recap,
         title: s.title,
         titleUserSet: s.titleUserSet,
         summary: s.summary,
@@ -1266,9 +1268,20 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         }
       }
 
+      // Detect recap/away_summary events -- these are system-generated, not real user activity.
+      // CC fires hook events when processing recaps but they shouldn't flip status to 'active'.
+      const eventData = event.data as Record<string, unknown> | undefined
+      const eventInput = eventData?.input as Record<string, unknown> | undefined
+      const isRecap = eventInput?.type === 'system' && eventInput?.subtype === 'away_summary'
+      if (isRecap && typeof eventInput?.content === 'string') {
+        session.recap = { content: eventInput.content, timestamp: event.timestamp }
+        scheduleSessionUpdate(sessionId)
+      }
+
       // Status transitions based on actual Claude hooks (not artificial timers).
       // Skip subagent events -- they shouldn't change the parent's status.
-      if (!isSubagentEvent) {
+      // Skip recap events -- away_summary is system-generated, not user work.
+      if (!isSubagentEvent && !isRecap) {
         if (event.hookEvent === 'Stop' || event.hookEvent === 'StopFailure') {
           session.status = 'idle'
           session.lastTurnEndedAt = event.timestamp
@@ -2390,6 +2403,15 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
               sessionChanged = true
               console.log(`[compact] detected via JSONL compact_boundary (session ${sessionId.slice(0, 8)})`)
             }
+          }
+        }
+
+        // Extract recap from away_summary transcript entries
+        if (entry.type === 'system' && (entry as Record<string, unknown>).subtype === 'away_summary') {
+          const content = (entry as Record<string, unknown>).content
+          if (typeof content === 'string' && content.trim()) {
+            session.recap = { content: content.trim(), timestamp: new Date(entry.timestamp || 0).getTime() }
+            sessionChanged = true
           }
         }
 

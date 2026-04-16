@@ -947,6 +947,7 @@ export interface Session {
   adHocTaskId?: string // project board task slug that spawned this ad-hoc session
   adHocWorktree?: string // worktree branch name for ad-hoc sessions
   resultText?: string // final result text from headless session (captured from stream-json result message)
+  recap?: { content: string; timestamp: number } // away_summary from CC recaps
 }
 
 // ─── Launch Jobs (request-scoped event channels for spawn/revive) ────
@@ -1180,6 +1181,7 @@ export interface SessionSummary {
   adHocTaskId?: string
   adHocWorktree?: string
   resultText?: string
+  recap?: Session['recap']
 }
 
 // Subscription channels (dashboard <-> concentrator pub/sub)

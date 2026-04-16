@@ -1050,6 +1050,14 @@ export const SessionDetail = memo(function SessionDetail() {
               )
             })()}
         </button>
+        {!infoExpanded && session.recap && (
+          <div
+            className="px-3 pb-1.5 -mt-0.5 text-[10px] text-muted-foreground/40 italic truncate"
+            title={session.recap.content}
+          >
+            {session.recap.content}
+          </div>
+        )}
         <CacheExpiredBanner
           lastTurnEndedAt={session.lastTurnEndedAt}
           tokenUsage={session.tokenUsage}
@@ -1346,6 +1354,11 @@ export const SessionDetail = memo(function SessionDetail() {
                 {session.summary && (
                   <div className="text-[10px] text-muted-foreground/70 truncate" title={session.summary}>
                     {session.summary}
+                  </div>
+                )}
+                {session.recap && (
+                  <div className="text-[10px] text-muted-foreground/40 italic truncate" title={session.recap.content}>
+                    Recap: {session.recap.content}
                   </div>
                 )}
                 {session.prLinks && session.prLinks.length > 0 && (
