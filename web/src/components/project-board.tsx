@@ -650,7 +650,6 @@ export function RunTaskDialog({
   })
 
   useKeyLayer({
-    Escape: onClose,
     Enter: () => {
       if (phase === 'config') handleRun()
       else if (progress.isConnected) handleViewSession()

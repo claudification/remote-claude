@@ -259,13 +259,12 @@ export function SpawnDialog() {
     progress,
   ])
 
-  // Keyboard layer: ESC closes, Enter spawns (config) or views session (launching).
+  // Keyboard layer: Enter spawns (config) or views session (launching). Radix Dialog handles Escape.
   // Config-only quick toggles: h/p = Headless/PTY, 1/2 = Basic/Advanced tab.
   // Single-letter/digit bindings are auto-skipped when a text input is focused
   // (see useKeyLayer: `if (inTextInput && !isModified && !isNonPrintable) return`).
   useKeyLayer(
     {
-      Escape: handleClose,
       Enter: () => {
         if (phase === 'config') handleSpawn()
         else if (phase === 'launching' && progress.isConnected) handleViewSession()
