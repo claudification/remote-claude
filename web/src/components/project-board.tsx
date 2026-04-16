@@ -15,6 +15,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
+import { composeSpawnPrompt } from '@shared/spawn-prompt'
 import { DEFAULT_SENTINEL, EFFORT_OPTIONS, MODEL_OPTIONS } from '@shared/spawn-schema'
 import {
   Archive,
@@ -744,11 +745,11 @@ export function RunTaskDialog({
     setJobId(newJobId)
     progress.start([{ label: 'Sending spawn request...', status: 'active', ts: Date.now() }])
 
-    const commitLine = autoCommit ? '\n\nWhen you are done, commit all changes with a descriptive commit message.' : ''
-    const worktreeMerge = useWorktree
-      ? '\n\nIMPORTANT - WORKTREE MERGE-BACK:\nYou are working in a git worktree (isolated branch). Before finishing:\n1. Commit all changes\n2. Merge back to main: run `git rebase main && git fetch . HEAD:main`\n3. If rebase conflicts occur, resolve them and run `git rebase --continue`, then `git fetch . HEAD:main`\n4. Verify: `git log --oneline main -5`\nThis merges your work back to main so it is not stranded on a dead branch.'
-      : ''
-    const prompt = buildTaskPrompt(task, `${commitLine}${worktreeMerge}`)
+    const prompt = composeSpawnPrompt('', {
+      taskWrapper: task,
+      autoCommit,
+      worktreeMergeBack: useWorktree,
+    })
 
     try {
       const res = await fetch('/api/spawn', {

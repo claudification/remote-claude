@@ -18,7 +18,8 @@ import { join } from 'node:path'
 import { Hono } from 'hono'
 import type { ListDirsResult, SendInput, Session, SpawnResult, TeamInfo } from '../shared/protocol'
 import { generateSessionName } from '../shared/session-names'
-import { spawnRequestSchema } from '../shared/spawn-schema'
+import { resolveSpawnConfig } from '../shared/spawn-defaults'
+import { type SpawnRequest, spawnRequestSchema } from '../shared/spawn-schema'
 import {
   queryModelComparison as queryAnalyticsModels,
   querySummary as queryAnalyticsSummary,
@@ -743,13 +744,25 @@ export function createRouter(options: RouteOptions): Hono {
     const lc = session.launchConfig // stored launch config from original spawn
     const name =
       session.title || getProjectSettings(session.cwd)?.label || session.cwd.split('/').pop() || sessionId.slice(0, 8)
-    // Resolve effort + model: launch config > project default > global default > undefined
+    // Resolve defaults: launch config > project > global > undefined
     const projSettings = getProjectSettings(session.cwd)
     const globalSettings = getGlobalSettings()
-    const effortRaw = lc?.effort || projSettings?.defaultEffort || globalSettings.defaultEffort
-    const effort = effortRaw && effortRaw !== 'default' ? effortRaw : undefined
-    const model = lc?.model || projSettings?.defaultModel || globalSettings.defaultModel || undefined
-    const headless = lc?.headless ?? (projSettings?.defaultLaunchMode || globalSettings.defaultLaunchMode) !== 'pty'
+    const resolved = resolveSpawnConfig(
+      {
+        cwd: session.cwd,
+        headless: lc?.headless,
+        model: lc?.model as SpawnRequest['model'] | undefined,
+        effort: lc?.effort as SpawnRequest['effort'] | undefined,
+        bare: lc?.bare,
+        repl: lc?.repl,
+        permissionMode: lc?.permissionMode as SpawnRequest['permissionMode'] | undefined,
+        autocompactPct: lc?.autocompactPct,
+        maxBudgetUsd: lc?.maxBudgetUsd,
+      },
+      projSettings,
+      globalSettings,
+    )
+    const { headless, model, effort, bare, repl, permissionMode, autocompactPct, maxBudgetUsd } = resolved
 
     agent.send(
       JSON.stringify({
@@ -762,11 +775,11 @@ export function createRouter(options: RouteOptions): Hono {
         effort,
         model,
         sessionName: session.title || undefined,
-        bare: lc?.bare || undefined,
-        repl: lc?.repl || undefined,
-        permissionMode: lc?.permissionMode || undefined,
-        autocompactPct: lc?.autocompactPct || session.autocompactPct,
-        maxBudgetUsd: lc?.maxBudgetUsd || session.maxBudgetUsd,
+        bare: bare || undefined,
+        repl: repl || undefined,
+        permissionMode,
+        autocompactPct: autocompactPct ?? session.autocompactPct,
+        maxBudgetUsd: maxBudgetUsd ?? session.maxBudgetUsd,
         adHocWorktree: session.adHocWorktree || undefined,
         env: lc?.env || undefined,
       }),
@@ -897,29 +910,22 @@ export function createRouter(options: RouteOptions): Hono {
         resolve(msg as SpawnResult)
       })
 
-      // Resolve headless: ad-hoc always headless > explicit override > project default > global setting
+      // Resolve defaults (explicit > project > global > undefined)
       const projSettings = getProjectSettings(body.cwd)
       const globalSettings = getGlobalSettings()
-      const headless = body.adHoc
-        ? true
-        : (body.headless ?? (projSettings?.defaultLaunchMode || globalSettings.defaultLaunchMode) !== 'pty')
-
-      // Resolve effort + model: explicit body override > project default > global default > undefined
-      const effortRaw = body.effort || projSettings?.defaultEffort || globalSettings.defaultEffort
-      const effort = effortRaw && effortRaw !== 'default' ? effortRaw : undefined
-      const modelRaw = body.model || projSettings?.defaultModel || globalSettings.defaultModel
-      const model = modelRaw || undefined
+      const resolved = resolveSpawnConfig(body, projSettings, globalSettings)
+      const { headless, model, effort, permissionMode, autocompactPct, maxBudgetUsd, bare, repl } = resolved
 
       // Store launch config so it can be reused on revive
       sessionStore.setPendingLaunchConfig(wrapperId, {
         headless,
         model,
         effort,
-        bare: body.bare || false,
-        repl: body.repl || false,
-        permissionMode: body.adHoc ? 'bypassPermissions' : body.permissionMode || undefined,
-        autocompactPct: body.autocompactPct || undefined,
-        maxBudgetUsd: body.maxBudgetUsd || undefined,
+        bare: bare || false,
+        repl: repl || false,
+        permissionMode,
+        autocompactPct,
+        maxBudgetUsd,
         env: body.env || undefined,
       })
 
@@ -936,8 +942,8 @@ export function createRouter(options: RouteOptions): Hono {
           headless,
           effort,
           model,
-          bare: body.bare || false,
-          repl: body.repl || false,
+          bare: bare || false,
+          repl: repl || false,
           sessionName:
             body.name?.trim() ||
             generateSessionName(
@@ -948,9 +954,9 @@ export function createRouter(options: RouteOptions): Hono {
                   .filter(Boolean) as string[],
               ),
             ),
-          permissionMode: body.adHoc ? 'bypassPermissions' : body.permissionMode || undefined,
-          autocompactPct: body.autocompactPct || undefined,
-          maxBudgetUsd: body.maxBudgetUsd || undefined,
+          permissionMode,
+          autocompactPct,
+          maxBudgetUsd,
           // Ad-hoc fields
           prompt: body.prompt || undefined,
           adHoc: body.adHoc || undefined,

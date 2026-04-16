@@ -4,6 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { resolveSpawnConfig } from '../../shared/spawn-defaults'
 import { getGlobalSettings } from '../global-settings'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
@@ -13,9 +14,7 @@ function resolveEffort(
   cwd: string,
   getProjectSettings: (cwd: string) => { defaultEffort?: string } | null,
 ): string | undefined {
-  const proj = getProjectSettings(cwd)
-  const raw = proj?.defaultEffort || getGlobalSettings().defaultEffort
-  return raw && raw !== 'default' ? raw : undefined
+  return resolveSpawnConfig({}, getProjectSettings(cwd), getGlobalSettings()).effort
 }
 
 const handleQuitRemoteSession: MessageHandler = (ctx, data) => {
