@@ -10,6 +10,7 @@ import type { WrapperMessage } from '../shared/protocol'
 import { debug as _debug } from './debug'
 import { hasPendingAskRequests } from './local-server'
 import { hasPendingDialogs, resetMcpChannel } from './mcp-channel'
+import { countInteractions, sendInteraction } from './pending-interactions'
 import { writeMergedSettings } from './settings-merge'
 import type { StreamBackendOptions, StreamProcess } from './stream-backend'
 import { sendTranscriptEntriesChunked, startBgTaskOutputWatcher, startSubagentWatcher } from './transcript-manager'
@@ -119,6 +120,8 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
 
     onResult(result) {
       ctx.diag('headless', `Result: ${result.subtype} cost=$${result.total_cost_usd} turns=${result.num_turns}`)
+      // Signal idle -- turn is done
+      ctx.wsClient?.sendSessionStatus('idle')
       if (result.total_cost_usd != null && ctx.wsClient?.isConnected() && ctx.claudeSessionId) {
         ctx.wsClient.send({
           type: 'turn_cost',
@@ -142,17 +145,22 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       const isAdHoc = process.env.RCLAUDE_ADHOC === '1'
       const leaveRunning = process.env.RCLAUDE_LEAVE_RUNNING === '1'
       if (isAdHoc && !leaveRunning) {
-        // Check for pending user interactions (dialogs, AskUserQuestion, plan approvals).
-        // If any are pending, CC is waiting for user input and will continue processing
-        // after they resolve -- shutting down now would kill the session prematurely.
-        const pendingCount =
-          (hasPendingDialogs() ? 1 : 0) + ctx.pendingAskRequests.size + (hasPendingAskRequests() ? 1 : 0)
+        // Check for pending user interactions (permission/ask/dialog/plan).
+        // countInteractions() covers every registered interaction in one call --
+        // replaces the older ad-hoc sum across hasPendingDialogs/pendingAskRequests/
+        // hasPendingAskRequests. Also still counts the legacy MCP channel's own
+        // pending dialogs / local-server asks since those don't go through the
+        // registry (kept for defensive reasons during migration).
+        const interactionCount = countInteractions(ctx)
+        const mcpDialogs = hasPendingDialogs() ? 1 : 0
+        const hookAsks = hasPendingAskRequests() ? 1 : 0
+        const pendingCount = interactionCount + mcpDialogs + hookAsks
 
         if (pendingCount > 0) {
           debug(`[ad-hoc] Result received but ${pendingCount} pending interaction(s) -- deferring shutdown`)
           ctx.diag(
             'ad-hoc',
-            `Deferring shutdown: ${pendingCount} pending interaction(s) (dialogs=${hasPendingDialogs()}, asks=${ctx.pendingAskRequests.size}, hookAsks=${hasPendingAskRequests()})`,
+            `Deferring shutdown: ${pendingCount} pending (registry=${interactionCount}, mcpDialogs=${mcpDialogs}, hookAsks=${hookAsks})`,
           )
           // Poll until all pending interactions are resolved, then let the next
           // result message (after CC continues) trigger normal ad-hoc shutdown.
@@ -161,8 +169,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
           const POLL_MS = 2_000
           const startedAt = Date.now()
           const checkPending = () => {
-            const still =
-              (hasPendingDialogs() ? 1 : 0) + ctx.pendingAskRequests.size + (hasPendingAskRequests() ? 1 : 0)
+            const still = countInteractions(ctx) + (hasPendingDialogs() ? 1 : 0) + (hasPendingAskRequests() ? 1 : 0)
             if (still > 0 && Date.now() - startedAt < MAX_WAIT_MS) {
               setTimeout(checkPending, POLL_MS)
               return
@@ -258,6 +265,13 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       }
     },
 
+    onApiStatus(status) {
+      // Backend-agnostic activity signal: CC is making an API request
+      if (status === 'requesting') {
+        ctx.wsClient?.sendSessionStatus('active')
+      }
+    },
+
     onPlanModeChanged(planMode) {
       const sessionId = ctx.claudeSessionId || ctx.internalId
       ctx.diag('headless', `Plan mode: ${planMode ? 'ON' : 'OFF'} (from status message)`)
@@ -316,42 +330,35 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
           plan = '(Plan content not available -- file missing or empty)'
         }
 
-        // Store pending request for response routing
-        const pendingKey = `plan_${request.requestId}`
-        ctx.pendingAskRequests.set(pendingKey, { requestId: request.requestId, questions: [] })
-
-        if (ctx.wsClient?.isConnected()) {
-          ctx.wsClient.send({
-            type: 'plan_approval',
-            sessionId,
-            requestId: request.requestId,
-            toolUseId,
-            plan,
-            planFilePath,
-            allowedPrompts,
-          } as unknown as WrapperMessage)
-          ctx.diag('headless', `ExitPlanMode: forwarded for approval (${request.requestId.slice(0, 8)})`)
-        } else {
-          // No dashboard connected -- auto-approve to prevent CC from hanging
-          ctx.diag('headless', 'ExitPlanMode: no WS connection, auto-approving')
-          ctx.streamProc?.sendPermissionResponse(request.requestId, true, undefined, toolUseId)
-          ctx.pendingAskRequests.delete(pendingKey)
-        }
+        // Register in the outstandingInteractions registry. wsClient.send()
+        // handles offline queuing, and onConnected replays the registry so a
+        // concentrator restart between now and the user's response is harmless.
+        sendInteraction(ctx, 'plan_approval', request.requestId, {
+          type: 'plan_approval',
+          sessionId,
+          requestId: request.requestId,
+          toolUseId,
+          plan,
+          planFilePath,
+          allowedPrompts,
+        } as unknown as WrapperMessage)
+        ctx.diag('headless', `ExitPlanMode: forwarded for approval (${request.requestId.slice(0, 8)})`)
         return
       }
 
-      // AskUserQuestion: route to dashboard ask_question UI, respond with answers
+      // AskUserQuestion: route to dashboard ask_question UI, respond with answers.
+      // pendingAskRequests is the in-wrapper map used to route the answer back to
+      // CC's control_response; outstandingInteractions is the reconnect-recovery
+      // registry replayed to the concentrator on (re)connect. Both required.
       if (request.toolName === 'AskUserQuestion' && toolUseId) {
         const questions = (request.toolInput?.questions as unknown[]) || []
         ctx.pendingAskRequests.set(toolUseId, { requestId: request.requestId, questions })
-        if (ctx.wsClient?.isConnected()) {
-          ctx.wsClient.send({
-            type: 'ask_question',
-            sessionId: ctx.claudeSessionId || ctx.internalId,
-            toolUseId,
-            questions,
-          } as unknown as WrapperMessage)
-        }
+        sendInteraction(ctx, 'ask_question', toolUseId, {
+          type: 'ask_question',
+          sessionId: ctx.claudeSessionId || ctx.internalId,
+          toolUseId,
+          questions,
+        } as unknown as WrapperMessage)
         ctx.diag('headless', `AskUserQuestion: ${toolUseId.slice(0, 12)} ${questions.length}q`)
         return
       }
@@ -372,19 +379,18 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
         return
       }
 
-      // Forward to concentrator for dashboard handling
-      if (ctx.wsClient?.isConnected()) {
-        ctx.wsClient.send({
-          type: 'permission_request',
-          sessionId: ctx.claudeSessionId || ctx.internalId,
-          toolName: request.toolName,
-          description: (request.decision_reason as string) || `${request.toolName}: ${inputStr.slice(0, 100)}`,
-          inputPreview: inputStr.slice(0, 200),
-          requestId: request.requestId,
-          toolUseId,
-        })
-        ctx.diag('headless', `Permission request: ${request.toolName} (${request.requestId.slice(0, 8)})`)
-      }
+      // Forward to concentrator for dashboard handling. Registry holds the
+      // payload so onConnected can replay after a concentrator restart.
+      sendInteraction(ctx, 'permission_request', request.requestId, {
+        type: 'permission_request',
+        sessionId: ctx.claudeSessionId || ctx.internalId,
+        toolName: request.toolName,
+        description: (request.decision_reason as string) || `${request.toolName}: ${inputStr.slice(0, 100)}`,
+        inputPreview: inputStr.slice(0, 200),
+        requestId: request.requestId,
+        toolUseId,
+      } as unknown as WrapperMessage)
+      ctx.diag('headless', `Permission request: ${request.toolName} (${request.requestId.slice(0, 8)})`)
     },
 
     onExit(code) {

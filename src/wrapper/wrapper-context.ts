@@ -5,12 +5,25 @@
  */
 
 import type { FSWatcher as ChokidarWatcher } from 'chokidar'
-import type { HookEvent, TranscriptEntry } from '../shared/protocol'
+import type { HookEvent, TranscriptEntry, WrapperMessage } from '../shared/protocol'
 import type { FileEditor } from './file-editor'
 import type { PtyProcess } from './pty-spawn'
 import type { StreamProcess } from './stream-backend'
 import type { TranscriptWatcher } from './transcript-watcher'
 import type { WsClient } from './ws-client'
+
+/**
+ * An outstanding user-facing interaction whose response is held in concentrator
+ * memory. Stored on the wrapper so we can re-send on every (re)connect — a
+ * concentrator restart mid-interaction would otherwise strand CC/MCP forever.
+ * Kinds: permission_request, ask_question, dialog_show, plan_approval.
+ */
+export interface OutstandingInteraction {
+  kind: 'permission_request' | 'ask_question' | 'dialog_show' | 'plan_approval'
+  id: string
+  payload: WrapperMessage
+  createdAt: number
+}
 
 export interface WrapperContext {
   // Identity
@@ -54,6 +67,12 @@ export interface WrapperContext {
 
   // Pending session name (sent when WS connects)
   pendingSessionName?: { name: string; userSet: boolean }
+
+  // Outstanding user interactions (permission_request / ask_question /
+  // dialog_show / plan_approval) keyed by their id. Full payload is kept
+  // verbatim; re-sent on every (re)connect so a concentrator restart
+  // mid-interaction doesn't strand CC/MCP waiting for a user response.
+  readonly outstandingInteractions: Map<string, OutstandingInteraction>
 
   // Diagnostics
   readonly diagBuffer: Array<{ t: number; type: string; msg: string; args?: unknown }>

@@ -611,6 +611,10 @@ function processMessage(msg: DashboardMessage) {
       const exId = msg.dialogId as string
       const exLayout = msg.layout as import('@shared/dialog-schema').DialogLayout
       if (exSid && exId && exLayout) {
+        // Dedup: the wrapper replays dialog_show on reconnect. If we already
+        // have this exact dialog open, preserve any in-progress user input.
+        const existing = useSessionsStore.getState().pendingDialogs[exSid]
+        if (existing?.dialogId === exId) break
         useSessionsStore.setState(state => ({
           pendingDialogs: {
             ...state.pendingDialogs,
@@ -641,6 +645,12 @@ function processMessage(msg: DashboardMessage) {
       }
       const paSid = pa.sessionId
       if (paSid && pa.requestId && pa.plan) {
+        const dialogId = `plan_${pa.requestId}`
+        // Dedup: wrapper replays plan_approval on reconnect so the concentrator
+        // can rebuild pending state. If we already have this exact dialog open,
+        // don't overwrite -- would wipe any feedback the user has typed.
+        const existing = useSessionsStore.getState().pendingDialogs[paSid]
+        if (existing?.dialogId === dialogId && existing.source === 'plan_approval') break
         // Build a dialog layout from the plan content
         const layout: import('@shared/dialog-schema').DialogLayout = {
           title: 'Plan Approval',
@@ -659,7 +669,6 @@ function processMessage(msg: DashboardMessage) {
             },
           ],
         }
-        const dialogId = `plan_${pa.requestId}`
         useSessionsStore.setState(state => ({
           pendingDialogs: {
             ...state.pendingDialogs,

@@ -78,6 +78,9 @@ export interface LocalServerOptions {
   onHookEvent: (event: HookEvent) => void
   onNotify?: (message: string, title?: string) => void
   onAskQuestion?: (request: AskQuestionRequest) => void
+  /** Fired when a queued ask request times out -- gives the wrapper a chance
+   *  to clear it from the reconnect registry so a stale prompt isn't re-shown. */
+  onAskTimeout?: (toolUseId: string) => void
   hasDashboardSubscribers?: () => boolean
 }
 
@@ -107,7 +110,7 @@ async function findAvailablePort(startPort: number): Promise<number> {
  * Create and start the local HTTP server for hook callbacks
  */
 export async function startLocalServer(options: LocalServerOptions): Promise<{ server: HttpServer; port: number }> {
-  const { sessionId, mcpEnabled, onHookEvent, onNotify, onAskQuestion, hasDashboardSubscribers } = options
+  const { sessionId, mcpEnabled, onHookEvent, onNotify, onAskQuestion, onAskTimeout, hasDashboardSubscribers } = options
 
   // Derive port deterministically from session/wrapper ID so it survives restarts.
   // CC's hook settings bake in the port at launch time - if the wrapper restarts
@@ -197,6 +200,7 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
             const hookResponse = await new Promise<AskHookResponse | null>(resolve => {
               const timer = setTimeout(() => {
                 pendingAskRequests.delete(toolUseId)
+                onAskTimeout?.(toolUseId)
                 resolve(null) // Timeout -- fall through to terminal
               }, ASK_TIMEOUT_MS)
 

@@ -106,6 +106,7 @@ export interface WsClient {
   sendBgTaskOutput: (taskId: string, data: string, done: boolean) => void
   sendStreamDelta: (event: Record<string, unknown>) => void
   sendRateLimit: (retryAfterMs: number, message: string) => void
+  sendSessionStatus: (status: 'active' | 'idle') => void
   close: () => void
   isConnected: () => boolean
 }
@@ -572,6 +573,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
     },
     sendRateLimit(retryAfterMs: number, message: string) {
       send({ type: 'rate_limit', sessionId, retryAfterMs, message } as WrapperMessage)
+    },
+    sendSessionStatus(status: 'active' | 'idle') {
+      send({ type: 'session_status', sessionId, status } as WrapperMessage)
     },
     close,
     isConnected,

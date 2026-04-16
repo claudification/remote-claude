@@ -47,6 +47,7 @@ import {
   setDialogCwd,
 } from './mcp-channel'
 import { Osc52Parser } from './osc52-parser'
+import { clearInteraction, replayInteractions, sendInteraction } from './pending-interactions'
 import { createRulesEngine } from './permission-rules'
 import { listProjectTasks } from './project-tasks'
 import { buildSystemPrompt } from './prompt-builder'
@@ -451,6 +452,7 @@ async function main() {
     pendingEditInputs: new Map(),
     agentToolUseMap: new Map(),
     pendingAskRequests: new Map(),
+    outstandingInteractions: new Map(),
 
     // Event queue
     eventQueue: [],
@@ -719,6 +721,10 @@ async function main() {
         }
         // Re-send transcript from JSONL file (repopulates concentrator cache after restart)
         if (headless) resendTranscriptFromFile(ctx)
+        // Replay every outstanding user interaction (permission / ask / dialog / plan).
+        // Concentrator in-memory pending* state is lost on restart; the wrapper is
+        // the authoritative holder, so a reconnect rehydrates the concentrator.
+        replayInteractions(ctx)
         // Start polling task files + watching task notes
         startTaskWatching()
         startProjectWatching()
@@ -977,6 +983,7 @@ async function main() {
         // Link requests are handled by the dashboard UI, not by Claude
       },
       onPermissionResponse(requestId: string, behavior: 'allow' | 'deny', toolUseId?: string) {
+        clearInteraction(ctx, requestId)
         if (headless && ctx.streamProc) {
           // Headless: respond via control_response on stdin
           ctx.streamProc.sendPermissionResponse(requestId, behavior === 'allow', undefined, toolUseId)
@@ -990,6 +997,7 @@ async function main() {
         }
       },
       onAskAnswer(toolUseId, answers, annotations, skip) {
+        clearInteraction(ctx, toolUseId)
         // Headless: resolve via control_response to CC's can_use_tool request
         const pending = ctx.pendingAskRequests.get(toolUseId)
         if (pending && headless && ctx.streamProc) {
@@ -1016,6 +1024,7 @@ async function main() {
         )
       },
       onDialogResult(dialogId, result) {
+        clearInteraction(ctx, dialogId)
         const resolved = resolveDialog(dialogId, result)
         diag(
           'dialog',
@@ -1029,8 +1038,7 @@ async function main() {
       },
       onPlanApprovalResponse(requestId, action, feedback, toolUseId) {
         if (!headless || !ctx.streamProc) return
-        const pendingKey = `plan_${requestId}`
-        ctx.pendingAskRequests.delete(pendingKey)
+        clearInteraction(ctx, requestId)
 
         const sessionId = ctx.claudeSessionId || ctx.internalId
         if (action === 'approve') {
@@ -1246,37 +1254,32 @@ async function main() {
       }
 
       diag('channel', `Permission request: ${data.requestId} ${data.toolName}`)
-      if (ctx.wsClient?.isConnected()) {
-        ctx.wsClient.send({
-          type: 'permission_request',
-          sessionId: ctx.claudeSessionId || internalId,
-          requestId: data.requestId,
-          toolName: data.toolName,
-          description: data.description,
-          inputPreview: data.inputPreview,
-        })
-      }
+      sendInteraction(ctx, 'permission_request', data.requestId, {
+        type: 'permission_request',
+        sessionId: ctx.claudeSessionId || internalId,
+        requestId: data.requestId,
+        toolName: data.toolName,
+        description: data.description,
+        inputPreview: data.inputPreview,
+      })
     },
     onDialogShow(dialogId, layout) {
       diag('dialog', `Show: "${layout.title}" (${dialogId.slice(0, 8)})`)
-      if (ctx.wsClient?.isConnected()) {
-        ctx.wsClient.send({
-          type: 'dialog_show',
-          sessionId: ctx.claudeSessionId || internalId,
-          dialogId,
-          layout,
-        } as unknown as WrapperMessage)
-      }
+      sendInteraction(ctx, 'dialog_show', dialogId, {
+        type: 'dialog_show',
+        sessionId: ctx.claudeSessionId || internalId,
+        dialogId,
+        layout,
+      } as unknown as WrapperMessage)
     },
     onDialogDismiss(dialogId) {
       diag('dialog', `Dismiss: ${dialogId.slice(0, 8)}`)
-      if (ctx.wsClient?.isConnected()) {
-        ctx.wsClient.send({
-          type: 'dialog_dismiss',
-          sessionId: ctx.claudeSessionId || internalId,
-          dialogId,
-        } as unknown as WrapperMessage)
-      }
+      clearInteraction(ctx, dialogId)
+      ctx.wsClient?.send({
+        type: 'dialog_dismiss',
+        sessionId: ctx.claudeSessionId || internalId,
+        dialogId,
+      } as unknown as WrapperMessage)
     },
     onDeliverMessage(content, meta) {
       if (headless && ctx.streamProc) {
@@ -1483,9 +1486,13 @@ async function main() {
     },
     onAskQuestion(request) {
       debug(`AskUserQuestion: ${request.questions.length} questions, toolUseId=${request.toolUseId.slice(0, 12)}`)
-      if (ctx.wsClient?.isConnected()) {
-        ctx.wsClient.send({ ...request, sessionId: ctx.claudeSessionId || internalId })
-      }
+      sendInteraction(ctx, 'ask_question', request.toolUseId, {
+        ...request,
+        sessionId: ctx.claudeSessionId || internalId,
+      } as unknown as WrapperMessage)
+    },
+    onAskTimeout(toolUseId: string) {
+      clearInteraction(ctx, toolUseId)
     },
     hasDashboardSubscribers() {
       return ctx.wsClient?.isConnected() ?? false
