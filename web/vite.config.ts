@@ -99,6 +99,14 @@ export default defineConfig(({ mode }) => {
     server: {
       port: parseInt(process.env.PORT || '3456', 10),
       proxy: {
+        '/auth': {
+          target: 'http://localhost:9999',
+          changeOrigin: true,
+        },
+        '/api': {
+          target: 'http://localhost:9999',
+          changeOrigin: true,
+        },
         '/sessions': {
           target: 'http://localhost:9999',
           changeOrigin: true,
