@@ -6,23 +6,17 @@
  */
 
 import { buildSpawnDiagnostics } from '@shared/spawn-diagnostics'
-import {
-  DEFAULT_SENTINEL,
-  EFFORT_OPTIONS,
-  MODEL_OPTIONS,
-  PERMISSION_MODE_OPTIONS,
-  type SpawnRequest,
-} from '@shared/spawn-schema'
+import type { SpawnRequest } from '@shared/spawn-schema'
 import { Zap } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import { updateProjectSettings, useSessionsStore, wsSend } from '@/hooks/use-sessions'
 import { sendSpawnRequest } from '@/hooks/use-spawn'
 import { useKeyLayer } from '@/lib/key-layers'
 import { cn, haptic } from '@/lib/utils'
+import { LaunchConfigFields, type LaunchFieldsValue } from './launch-config-fields'
 import { LaunchErrorBanner, LaunchFooterActions, LaunchStepList } from './launch-monitor'
 
 export interface SpawnDialogOptions {
@@ -91,7 +85,6 @@ export function SpawnDialog() {
   const [savedFeedback, setSavedFeedback] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
   const [wrapperId, setWrapperId] = useState<string | null>(null)
-  const nameRef = useRef<HTMLInputElement>(null)
   // Track which session was selected when spawn started -- don't yank the user
   // back to the spawned session if they navigated away during the countdown
   const sessionAtSpawnRef = useRef<string | null>(null)
@@ -142,13 +135,6 @@ export function SpawnDialog() {
       _openDialog = null
     }
   }, [projectSettings, globalSettings])
-
-  // Focus name input when dialog opens in config phase
-  useEffect(() => {
-    if (state.open && phase === 'config') {
-      setTimeout(() => nameRef.current?.focus(), 100)
-    }
-  }, [state.open, phase])
 
   // Add "Session connected" step when session connects
   const addedConnectedStepRef = useRef(false)
@@ -390,10 +376,34 @@ export function SpawnDialog() {
   }
 
   const shortPath = state.options?.cwd?.replace(/^\/Users\/[^/]+/, '~') || ''
-  const projSettings = state.options ? projectSettings[state.options.cwd] : undefined
-  const defaultModel = projSettings?.defaultModel || (globalSettings.defaultModel as string) || 'opus'
-  const defaultEffort = projSettings?.defaultEffort || (globalSettings.defaultEffort as string) || 'default'
   const displayError = progress.error || progress.launch.error
+
+  function applyFieldsPatch(patch: Partial<LaunchFieldsValue>) {
+    if ('model' in patch) setModel(patch.model ?? '')
+    if ('effort' in patch) setEffort(patch.effort ?? '')
+    if ('permissionMode' in patch) setPermissionMode(patch.permissionMode ?? '')
+    if ('autocompactPct' in patch) setAutocompactPct(patch.autocompactPct ?? '')
+    if ('maxBudgetUsd' in patch) setMaxBudgetUsd(patch.maxBudgetUsd ?? '')
+    if ('useWorktree' in patch) setUseWorktree(!!patch.useWorktree)
+    if ('worktreeName' in patch) setWorktreeName(patch.worktreeName ?? '')
+    if ('envText' in patch) {
+      setEnvText(patch.envText ?? '')
+      setEnvErrors([])
+    }
+    if ('name' in patch) setName(patch.name ?? '')
+  }
+
+  const fieldsValue: LaunchFieldsValue = {
+    model,
+    effort,
+    permissionMode,
+    autocompactPct,
+    maxBudgetUsd,
+    useWorktree,
+    worktreeName,
+    envText,
+    name,
+  }
 
   return (
     <Dialog open={state.open} onOpenChange={open => !open && handleClose()}>
@@ -460,31 +470,8 @@ export function SpawnDialog() {
               {/* Scrollable content area */}
               <div className="overflow-y-auto flex-1 min-h-0 space-y-4 px-0.5">
                 {configTab === 'basic' && (
-                  <>
-                    {/* Name input */}
-                    <div className="space-y-1.5">
-                      <label
-                        htmlFor="spawn-name"
-                        className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5"
-                      >
-                        Name <span className="text-[#565f89]">(optional)</span>
-                      </label>
-                      <input
-                        ref={nameRef}
-                        id="spawn-name"
-                        type="text"
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                        placeholder="e.g. refactor-auth"
-                        className={cn(
-                          'w-full bg-[#1a1b26] border border-border rounded px-3 py-1.5',
-                          'text-sm font-mono text-foreground placeholder:text-[#565f89]',
-                          'focus:outline-none focus:border-[#7aa2f7]/50',
-                        )}
-                      />
-                    </div>
-
-                    {/* Mode toggle */}
+                  <div className="space-y-3">
+                    {/* Mode toggle (dialog-specific: drives headless + keyboard shortcut) */}
                     <div className="space-y-2">
                       <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
                         Mode
@@ -511,207 +498,28 @@ export function SpawnDialog() {
                       </div>
                     </div>
 
-                    {/* Model selector */}
-                    <div className="space-y-1.5">
-                      <label
-                        htmlFor="spawn-model"
-                        className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5"
-                      >
-                        Model
-                      </label>
-                      <Select
-                        value={model === '' ? DEFAULT_SENTINEL : model}
-                        onValueChange={v => {
-                          setModel(v === DEFAULT_SENTINEL ? '' : v)
-                          haptic('tap')
-                        }}
-                      >
-                        <SelectTrigger id="spawn-model" className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MODEL_OPTIONS.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value} info={opt.info}>
-                              {opt.value === DEFAULT_SENTINEL ? `Default (${defaultModel})` : opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Effort selector */}
-                    <div className="space-y-1.5">
-                      <label
-                        htmlFor="spawn-effort"
-                        className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5"
-                      >
-                        Effort
-                      </label>
-                      <Select
-                        value={effort === '' ? DEFAULT_SENTINEL : effort}
-                        onValueChange={v => {
-                          setEffort(v === DEFAULT_SENTINEL ? '' : v)
-                          haptic('tap')
-                        }}
-                      >
-                        <SelectTrigger id="spawn-effort" className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {EFFORT_OPTIONS.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value} info={opt.info}>
-                              {opt.value === DEFAULT_SENTINEL ? `Default (${defaultEffort})` : opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
+                    <LaunchConfigFields
+                      value={fieldsValue}
+                      onChange={applyFieldsPatch}
+                      show={{ name: true, model: true, effort: true }}
+                    />
+                  </div>
                 )}
 
                 {configTab === 'advanced' && (
                   <div className="space-y-3">
-                    {/* Permission mode */}
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
-                        Permission mode
-                      </div>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {PERMISSION_MODE_OPTIONS.map(opt => {
-                          const stored = opt.value === DEFAULT_SENTINEL ? '' : opt.value
-                          return (
-                            <TogglePill
-                              key={opt.value}
-                              active={permissionMode === stored}
-                              onClick={() => {
-                                setPermissionMode(stored)
-                                haptic('tap')
-                              }}
-                              label={opt.label}
-                              small
-                            />
-                          )
-                        })}
-                      </div>
-                    </div>
+                    <LaunchConfigFields
+                      value={fieldsValue}
+                      onChange={applyFieldsPatch}
+                      show={{
+                        permissionMode: true,
+                        autocompactPct: true,
+                        maxBudgetUsd: headless,
+                        worktree: true,
+                      }}
+                    />
 
-                    {/* Autocompact threshold */}
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
-                        Autocompact threshold
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="range"
-                          min={50}
-                          max={99}
-                          value={autocompactPct || 83}
-                          onChange={e => {
-                            setAutocompactPct(Number(e.target.value))
-                            haptic('tick')
-                          }}
-                          className="flex-1 h-1.5 accent-[#7aa2f7] bg-muted rounded-full"
-                        />
-                        <span
-                          className={cn(
-                            'text-sm font-mono w-12 text-right tabular-nums',
-                            autocompactPct ? 'text-[#7aa2f7]' : 'text-[#565f89]',
-                          )}
-                        >
-                          {autocompactPct || 83}%
-                        </span>
-                        {autocompactPct && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAutocompactPct('')
-                              haptic('tap')
-                            }}
-                            className="text-[10px] text-[#565f89] hover:text-foreground font-mono"
-                          >
-                            reset
-                          </button>
-                        )}
-                      </div>
-                      <div className="text-[9px] text-[#565f89]">Context % that triggers compaction (default ~83%)</div>
-                    </div>
-
-                    {/* Max budget (headless only) */}
-                    {headless && (
-                      <div className="space-y-2">
-                        <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
-                          Max budget (USD)
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[#565f89] text-sm">$</span>
-                          <input
-                            type="number"
-                            min={0.01}
-                            step={0.01}
-                            placeholder="no limit"
-                            value={maxBudgetUsd}
-                            onChange={e => setMaxBudgetUsd(e.target.value)}
-                            className="w-24 bg-[#1a1b26] border border-[#292e42] rounded px-2 py-1 text-sm font-mono text-foreground focus:outline-none focus:border-[#7aa2f7] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                          {maxBudgetUsd && (
-                            <button
-                              type="button"
-                              onClick={() => setMaxBudgetUsd('')}
-                              className="text-[10px] text-[#565f89] hover:text-foreground font-mono"
-                            >
-                              clear
-                            </button>
-                          )}
-                        </div>
-                        <div className="text-[9px] text-[#565f89]">
-                          Stop session after spending this amount (--max-budget-usd, headless only)
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Worktree toggle */}
-                    <div className="space-y-1.5">
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        className="flex items-center justify-between py-1.5 cursor-pointer select-none"
-                        onClick={() => {
-                          const next = !useWorktree
-                          setUseWorktree(next)
-                          if (next && !worktreeName) setWorktreeName(name.trim() || '')
-                          haptic('tap')
-                        }}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            const next = !useWorktree
-                            setUseWorktree(next)
-                            if (next && !worktreeName) setWorktreeName(name.trim() || '')
-                            haptic('tap')
-                          }
-                        }}
-                      >
-                        <div>
-                          <div className="text-sm font-mono">Git worktree</div>
-                          <div className="text-[10px] text-[#565f89]">Isolated branch, auto-merges on completion</div>
-                        </div>
-                        <ToggleSwitch on={useWorktree} />
-                      </div>
-                      {useWorktree && (
-                        <input
-                          type="text"
-                          value={worktreeName}
-                          onChange={e => setWorktreeName(e.target.value)}
-                          placeholder="Branch name..."
-                          className={cn(
-                            'w-full bg-[#1a1b26] border border-border rounded px-3 py-1.5',
-                            'text-sm font-mono text-foreground placeholder:text-[#565f89]',
-                            'focus:outline-none focus:border-[#7aa2f7]/50',
-                          )}
-                        />
-                      )}
-                    </div>
-
-                    {/* REPL tool toggle */}
+                    {/* REPL tool toggle (dialog-specific) */}
                     <div
                       role="button"
                       tabIndex={0}
@@ -736,7 +544,7 @@ export function SpawnDialog() {
                       <ToggleSwitch on={repl} />
                     </div>
 
-                    {/* Bare toggle */}
+                    {/* Bare toggle (dialog-specific) */}
                     <div
                       role="button"
                       tabIndex={0}
@@ -759,39 +567,17 @@ export function SpawnDialog() {
                       <ToggleSwitch on={bare} />
                     </div>
 
-                    {/* Custom env vars */}
-                    <div className="space-y-1.5">
-                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
-                        Environment variables
+                    {/* Env vars (LaunchConfigFields renders textarea, errors below) */}
+                    <LaunchConfigFields value={fieldsValue} onChange={applyFieldsPatch} show={{ env: true }} />
+                    {envErrors.length > 0 && (
+                      <div className="text-[10px] font-mono text-red-400 space-y-0.5">
+                        {envErrors.map(e => (
+                          <div key={e}>{e}</div>
+                        ))}
                       </div>
-                      <textarea
-                        value={envText}
-                        onChange={e => {
-                          setEnvText(e.target.value)
-                          setEnvErrors([])
-                        }}
-                        placeholder={'MAX_THINKING_TOKENS=16000\nCLAUDE_CODE_EFFORT_LEVEL=max'}
-                        rows={3}
-                        spellCheck={false}
-                        className={cn(
-                          'w-full bg-[#1a1b26] border rounded px-3 py-2',
-                          'text-xs font-mono text-foreground placeholder:text-[#565f89]/60',
-                          'focus:outline-none resize-y leading-relaxed',
-                          envErrors.length
-                            ? 'border-red-500/60 focus:border-red-500'
-                            : 'border-border focus:border-[#7aa2f7]/50',
-                        )}
-                      />
-                      {envErrors.length > 0 && (
-                        <div className="text-[10px] font-mono text-red-400 space-y-0.5">
-                          {envErrors.map(e => (
-                            <div key={e}>{e}</div>
-                          ))}
-                        </div>
-                      )}
-                      <div className="text-[9px] text-[#565f89]">
-                        KEY=value per line, set before executing claude. # comments ok.
-                      </div>
+                    )}
+                    <div className="text-[9px] text-[#565f89]">
+                      KEY=value per line, set before executing claude. # comments ok.
                     </div>
 
                     {/* Save / Reset defaults */}

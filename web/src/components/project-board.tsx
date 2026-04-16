@@ -18,7 +18,7 @@ import {
 import { buildSpawnDiagnostics } from '@shared/spawn-diagnostics'
 import { deriveSessionName } from '@shared/spawn-naming'
 import { composeSpawnPrompt } from '@shared/spawn-prompt'
-import { DEFAULT_SENTINEL, EFFORT_OPTIONS, MODEL_OPTIONS, type SpawnRequest } from '@shared/spawn-schema'
+import type { SpawnRequest } from '@shared/spawn-schema'
 import {
   Archive,
   ArrowLeft,
@@ -36,7 +36,6 @@ import {
 } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Kbd } from '@/components/ui/kbd'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import type { ProjectTask } from '@/hooks/use-project'
 import { type ProjectTaskMeta, type TaskStatus, useProject } from '@/hooks/use-project'
@@ -46,6 +45,7 @@ import { useKeyLayer } from '@/lib/key-layers'
 import { buildTaskPrompt } from '@/lib/task-scoring'
 import { uploadFileWithPlaceholder } from '@/lib/upload'
 import { cn, haptic } from '@/lib/utils'
+import { LaunchConfigFields, type LaunchFieldsValue } from './launch-config-fields'
 import { LaunchErrorBanner, LaunchFooterActions, LaunchStepList } from './launch-monitor'
 import { Markdown } from './markdown'
 import { MarkdownInput } from './markdown-input'
@@ -885,136 +885,38 @@ export function RunTaskDialog({
         {/* Phase 1: Config form */}
         {phase === 'config' && (
           <>
-            <div className="px-4 py-3 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <label htmlFor="run-task-model" className="text-[10px] font-mono text-muted-foreground shrink-0">
-                  Model
-                </label>
-                <div className="flex-1 max-w-[220px]">
-                  <Select
-                    value={model === '' ? DEFAULT_SENTINEL : model}
-                    onValueChange={v => setModel(v === DEFAULT_SENTINEL ? '' : v)}
-                  >
-                    <SelectTrigger id="run-task-model" size="sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MODEL_OPTIONS.map(opt => (
-                        <SelectItem key={opt.value} value={opt.value} info={opt.info}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <label htmlFor="run-task-effort" className="text-[10px] font-mono text-muted-foreground shrink-0">
-                  Effort
-                </label>
-                <div className="flex-1 max-w-[220px]">
-                  <Select
-                    value={effort === '' || effort === 'default' ? DEFAULT_SENTINEL : effort}
-                    onValueChange={v => setEffort(v === DEFAULT_SENTINEL ? 'default' : v)}
-                  >
-                    <SelectTrigger id="run-task-effort" size="sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {EFFORT_OPTIONS.map(opt => (
-                        <SelectItem key={opt.value} value={opt.value} info={opt.info}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={useWorktree}
-                    onChange={e => setUseWorktree(e.target.checked)}
-                    className="accent-amber-400"
-                  />
-                  <span className="text-[10px] font-mono text-muted-foreground">
-                    Use git worktree (isolated branch)
-                  </span>
-                </label>
-                {useWorktree && (
-                  <input
-                    type="text"
-                    value={branchName}
-                    onChange={e => setBranchName(e.target.value)}
-                    className="w-full text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
-                    placeholder="Branch name..."
-                  />
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={autoCommit}
-                    onChange={e => setAutoCommit(e.target.checked)}
-                    className="accent-amber-400"
-                  />
-                  <span className="text-[10px] font-mono text-muted-foreground">Auto-commit on completion</span>
-                </label>
-                <div className="text-[9px] text-[#565f89] pl-5">
-                  Adds a prompt instruction to commit when the task finishes
-                </div>
-              </div>
-              <div className="space-y-0.5">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={leaveRunning}
-                    onChange={e => setLeaveRunning(e.target.checked)}
-                    className="accent-amber-400"
-                  />
-                  <span className="text-[10px] font-mono text-muted-foreground">Leave session running when done</span>
-                </label>
-                <div className="text-[9px] text-[#565f89] pl-5">
-                  Keep session alive after the task completes for follow-up work
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <label htmlFor="run-task-budget" className="text-[10px] font-mono text-muted-foreground">
-                  Max budget
-                </label>
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-[#565f89]">$</span>
-                  <input
-                    id="run-task-budget"
-                    type="number"
-                    min={0.01}
-                    step={0.01}
-                    placeholder="none"
-                    value={maxBudgetUsd}
-                    onChange={e => setMaxBudgetUsd(e.target.value)}
-                    className="w-16 text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <label htmlFor="run-task-timeout" className="text-[10px] font-mono text-muted-foreground">
-                  Timeout
-                </label>
-                <select
-                  id="run-task-timeout"
-                  value={timeout}
-                  onChange={e => setTimeout_(e.target.value)}
-                  className="text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
-                >
-                  <option value="5">5 min</option>
-                  <option value="10">10 min</option>
-                  <option value="15">15 min</option>
-                  <option value="30">30 min</option>
-                  <option value="0">unlimited</option>
-                </select>
-              </div>
+            <div className="px-4 py-3">
+              <LaunchConfigFields
+                value={{
+                  model,
+                  effort: effort === 'default' ? '' : effort,
+                  useWorktree,
+                  worktreeName: branchName,
+                  autoCommit,
+                  leaveRunning,
+                  maxBudgetUsd,
+                  timeout,
+                }}
+                onChange={(patch: Partial<LaunchFieldsValue>) => {
+                  if ('model' in patch) setModel(patch.model ?? '')
+                  if ('effort' in patch) setEffort(patch.effort ? patch.effort : 'default')
+                  if ('useWorktree' in patch) setUseWorktree(!!patch.useWorktree)
+                  if ('worktreeName' in patch) setBranchName(patch.worktreeName ?? '')
+                  if ('autoCommit' in patch) setAutoCommit(!!patch.autoCommit)
+                  if ('leaveRunning' in patch) setLeaveRunning(!!patch.leaveRunning)
+                  if ('maxBudgetUsd' in patch) setMaxBudgetUsd(patch.maxBudgetUsd ?? '')
+                  if ('timeout' in patch) setTimeout_(patch.timeout ?? '30')
+                }}
+                show={{
+                  model: true,
+                  effort: true,
+                  worktree: true,
+                  autoCommit: true,
+                  leaveRunning: true,
+                  maxBudgetUsd: true,
+                  timeout: true,
+                }}
+              />
             </div>
             <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#33467c]/30">
               <button
