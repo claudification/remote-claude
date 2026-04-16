@@ -59,6 +59,7 @@ export interface WrapperContext {
 
   // Caches
   readonly pendingEditInputs: Map<string, { oldString: string; newString: string }>
+  readonly pendingReadPaths: Map<string, string> // tool_use_id -> file_path for image upload
   readonly agentToolUseMap: Map<string, string>
   readonly pendingAskRequests: Map<string, { requestId: string; questions: unknown[] }>
 
@@ -91,4 +92,7 @@ export interface WrapperContext {
   startSubagentWatcher: (agentId: string, transcriptPath: string, live: boolean) => void
   stopSubagentWatcher: (agentId: string) => void
   sendTranscriptEntriesChunked: (entries: TranscriptEntry[], isInitial: boolean, agentId?: string) => void
+
+  // Upload a blob to the concentrator blob store, returns URL or null on failure
+  uploadBlob: ((data: Uint8Array, mediaType: string) => Promise<string | null>) | null
 }

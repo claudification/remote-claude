@@ -450,6 +450,7 @@ async function main() {
 
     // Caches
     pendingEditInputs: new Map(),
+    pendingReadPaths: new Map(),
     agentToolUseMap: new Map(),
     pendingAskRequests: new Map(),
     outstandingInteractions: new Map(),
@@ -483,6 +484,28 @@ async function main() {
     stopSubagentWatcher: (agentId: string) => stopSubagentWatcher(ctx, agentId),
     sendTranscriptEntriesChunked: (entries: TranscriptEntry[], isInitial: boolean, agentId?: string) =>
       sendTranscriptEntriesChunked(ctx, entries, isInitial, agentId),
+
+    // Upload blob to concentrator blob store, returns URL or null
+    uploadBlob: noConcentrator
+      ? null
+      : async (data: Uint8Array, mediaType: string) => {
+          const httpUrl = wsToHttpUrl(concentratorUrl)
+          try {
+            const res = await fetch(`${httpUrl}/api/files`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': mediaType,
+                ...(concentratorSecret ? { Authorization: `Bearer ${concentratorSecret}` } : {}),
+              },
+              body: data,
+            })
+            if (!res.ok) return null
+            const json = (await res.json()) as { url?: string }
+            return json.url || null
+          } catch {
+            return null
+          }
+        },
   }
 
   // Local aliases for code remaining in index.ts (read/write the ctx object)

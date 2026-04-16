@@ -216,7 +216,80 @@ export function ToolLine({
     }
     case 'Read': {
       const path = input.file_path as string
-      // Headless mode puts file content in toolUseResult.file
+      const readPath = shortPath(path) || path
+
+      // Binary Read result (headless mode: toolUseResult has file with url/originalSize)
+      // Handles images, PDFs, and any other binary type CC produces
+      if (toolUseResult?.type && toolUseResult.type !== 'text') {
+        const binFile = toolUseResult.file as
+          | {
+              url?: string
+              type?: string
+              originalSize?: number
+              dimensions?: {
+                originalWidth: number
+                originalHeight: number
+                displayWidth: number
+                displayHeight: number
+              }
+            }
+          | undefined
+        const binType = toolUseResult.type as string
+        const isImage = binType === 'image'
+        const dims = binFile?.dimensions
+        const dimStr = dims ? `${dims.originalWidth}x${dims.originalHeight}` : ''
+        const sizeKB = binFile?.originalSize ? `${(binFile.originalSize / 1024).toFixed(0)}KB` : ''
+        summary = (
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="truncate text-foreground/90">{readPath}</span>
+            {!isImage && <span className="text-violet-400/70 shrink-0">{binType}</span>}
+            {dimStr && <span className="text-cyan-400/70 shrink-0">{dimStr}</span>}
+            {sizeKB && <span className="text-muted-foreground/50 shrink-0">({sizeKB})</span>}
+          </span>
+        )
+        if (binFile?.url) {
+          if (isImage) {
+            details = (
+              <div className="space-y-1.5 py-1">
+                <img
+                  src={binFile.url}
+                  alt={path?.split('/').pop() || 'image'}
+                  className="max-w-sm max-h-64 rounded border border-border/50 hover:border-primary/50 transition-colors"
+                  loading="lazy"
+                />
+              </div>
+            )
+          } else {
+            // Non-image binary (PDF, etc.) -- show download link
+            details = (
+              <div className="text-[10px] font-mono flex items-center gap-2 py-1">
+                {binFile.type && <span className="text-muted-foreground">{binFile.type}</span>}
+                {sizeKB && <span className="text-muted-foreground">{sizeKB}</span>}
+                <a
+                  href={binFile.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent hover:text-accent/80 underline"
+                >
+                  view file
+                </a>
+              </div>
+            )
+          }
+        } else {
+          details = (
+            <div className="text-[10px] text-muted-foreground font-mono flex items-center gap-2 py-1">
+              {binFile?.type && <span>{binFile.type}</span>}
+              {dimStr && <span>{dimStr}</span>}
+              {sizeKB && <span>{sizeKB}</span>}
+              <span className="text-amber-400/70">(file not available)</span>
+            </div>
+          )
+        }
+        break
+      }
+
+      // Text Read result -- headless mode puts file content in toolUseResult.file
       const readFile = toolUseResult?.file as
         | { content?: string; filePath?: string; numLines?: number; startLine?: number; totalLines?: number }
         | undefined
@@ -224,7 +297,6 @@ export function ToolLine({
       const startLine = readFile?.startLine ?? (input.offset as number | undefined)
       const numLines = readFile?.numLines
       const totalLines = readFile?.totalLines
-      const readPath = shortPath(path) || path
       // Partial read: show "lines X-Y of Z" with colored segments
       // Full read: show just total count
       const endLine = startLine && numLines ? startLine + numLines - 1 : undefined

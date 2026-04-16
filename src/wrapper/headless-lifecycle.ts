@@ -45,6 +45,11 @@ export interface HeadlessCallbackDeps {
 export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBackendOptions {
   const { ctx, permissionRules, finalClaudeArgs, cleanup } = deps
 
+  // Promise chain to ensure transcript batches are processed and sent in order.
+  // sendTranscriptEntriesChunked is async (image uploads), but the callback is
+  // fire-and-forget from stream-backend. Chaining prevents interleaving.
+  let transcriptSendChain = Promise.resolve()
+
   const opts: StreamBackendOptions = {
     args: finalClaudeArgs,
     settingsPath: deps.settingsPath,
@@ -55,7 +60,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
     concentratorSecret: deps.concentratorSecret,
 
     onTranscriptEntries(entries, isInitial) {
-      sendTranscriptEntriesChunked(ctx, entries, isInitial)
+      transcriptSendChain = transcriptSendChain.then(() => sendTranscriptEntriesChunked(ctx, entries, isInitial))
     },
 
     onInit(init) {
@@ -408,8 +413,10 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
         ctx.claudeSessionId = null
         ctx.parentTranscriptPath = ''
         ctx.pendingEditInputs.clear()
+        ctx.pendingReadPaths.clear()
         ctx.agentToolUseMap.clear()
         ctx.pendingAskRequests.clear()
+        transcriptSendChain = Promise.resolve()
         // Don't rekey yet -- wait for the new CC's real session ID from onInit.
         // Sending randomUUID() here caused double-rekey and transcript loss.
         ctx.pendingClearFromId = oldSessionId

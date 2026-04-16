@@ -139,9 +139,92 @@ function filterParentEntries(entries: TranscriptEntry[]): TranscriptEntry[] {
 }
 
 /**
+ * Process binary Read results: upload to concentrator blob store,
+ * replace base64 with URL. Handles any type with file.base64 (images, PDFs, etc.).
+ * Two-phase cache (same pattern as augmentEditPatches):
+ *   Phase A: cache Read tool_use file_path by block.id
+ *   Phase B: on tool_result with file.base64, upload and strip base64
+ */
+export async function processImageReadResults(ctx: WrapperContext, entries: TranscriptEntry[]): Promise<void> {
+  for (const entry of entries) {
+    const e = entry as Record<string, unknown>
+    const msg = (e as { message?: { content?: unknown[] } }).message
+
+    // Phase A: assistant entry with Read tool_use -> cache file_path
+    if (entry.type === 'assistant' && Array.isArray(msg?.content)) {
+      for (const block of msg.content as Record<string, unknown>[]) {
+        if (block.type === 'tool_use' && block.name === 'Read' && block.id) {
+          const input = block.input as Record<string, unknown> | undefined
+          if (input?.file_path) {
+            ctx.pendingReadPaths.set(block.id as string, input.file_path as string)
+          }
+        }
+      }
+    }
+
+    // Phase B: user entry with binary tool_result -> upload and strip base64
+    // Matches any toolUseResult with file.base64 (image, pdf, etc.)
+    if (entry.type === 'user' && Array.isArray(msg?.content)) {
+      const tur = e.toolUseResult as Record<string, unknown> | undefined
+      const file = tur?.file as Record<string, unknown> | undefined
+      if (!file?.base64) continue
+
+      const base64 = file.base64 as string
+      const mediaType = (file.type as string) || 'application/octet-stream'
+
+      // Find the file_path from cached tool_use input
+      let filePath: string | undefined
+      for (const block of msg.content as Record<string, unknown>[]) {
+        if (block.type === 'tool_result' && block.tool_use_id) {
+          filePath = ctx.pendingReadPaths.get(block.tool_use_id as string)
+          if (filePath) ctx.pendingReadPaths.delete(block.tool_use_id as string)
+          break
+        }
+      }
+
+      // Always strip base64 before WS send
+      delete file.base64
+
+      // Try upload: local file first, fallback to decoded base64
+      if (!ctx.uploadBlob) continue
+      try {
+        let data: Uint8Array | null = null
+
+        // Try reading original file (cheaper than decoding base64)
+        if (filePath) {
+          try {
+            const localFile = Bun.file(filePath)
+            if (await localFile.exists()) {
+              data = new Uint8Array(await localFile.arrayBuffer())
+            }
+          } catch {
+            // File gone or unreadable, fall back to base64
+          }
+        }
+
+        // Fallback: decode base64
+        if (!data) {
+          data = new Uint8Array(Buffer.from(base64, 'base64'))
+        }
+
+        const url = await ctx.uploadBlob(data, mediaType)
+        if (url) {
+          file.url = url
+          debug(`[image] Uploaded Read image: ${filePath || 'base64'} -> ${url}`)
+        } else {
+          debug(`[image] Upload failed for Read image: ${filePath || 'base64'}`)
+        }
+      } catch (err) {
+        debug(`[image] Upload error: ${err instanceof Error ? err.message : err}`)
+      }
+    }
+  }
+}
+
+/**
  * Send transcript entries to concentrator in fixed-size chunks.
  */
-export function sendTranscriptEntriesChunked(
+export async function sendTranscriptEntriesChunked(
   ctx: WrapperContext,
   entries: TranscriptEntry[],
   isInitial: boolean,
@@ -156,6 +239,9 @@ export function sendTranscriptEntriesChunked(
 
   // Detect /rename from local_command transcript entries
   if (!agentId) detectRename(ctx, entries)
+
+  // Upload image Read results and strip base64 before sending over WS
+  await processImageReadResults(ctx, entries)
 
   // Augment Edit tool results with structuredPatch for diff rendering
   const augmented = augmentEditPatches(ctx, entries)
@@ -311,21 +397,22 @@ export function resendTranscriptFromFile(ctx: WrapperContext) {
     return
   }
   try {
-    const raw = Bun.file(path).text()
-    raw.then(text => {
-      const entries: TranscriptEntry[] = []
-      for (const line of text.split('\n')) {
-        if (!line.trim()) continue
-        try {
-          entries.push(JSON.parse(line))
-        } catch {}
-      }
-      const parentEntries = filterParentEntries(entries)
-      if (parentEntries.length > 0) {
-        debug(`resendTranscript: sending ${parentEntries.length}/${entries.length} entries from ${path}`)
-        sendTranscriptEntriesChunked(ctx, parentEntries, true)
-      }
-    })
+    Bun.file(path)
+      .text()
+      .then(async text => {
+        const entries: TranscriptEntry[] = []
+        for (const line of text.split('\n')) {
+          if (!line.trim()) continue
+          try {
+            entries.push(JSON.parse(line))
+          } catch {}
+        }
+        const parentEntries = filterParentEntries(entries)
+        if (parentEntries.length > 0) {
+          debug(`resendTranscript: sending ${parentEntries.length}/${entries.length} entries from ${path}`)
+          await sendTranscriptEntriesChunked(ctx, parentEntries, true)
+        }
+      })
   } catch (err) {
     debug(`resendTranscript error: ${err instanceof Error ? err.message : err}`)
   }
