@@ -54,14 +54,27 @@ export type LaunchFieldsProps = {
   disabled?: Partial<Record<LaunchFieldKey, boolean>>
 }
 
-/** Tiny row component for label + right-aligned control. */
-function Row({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
+/** Tiny row component for label + right-aligned control. Optional subtitle. */
+function Row({
+  label,
+  subtitle,
+  htmlFor,
+  children,
+}: {
+  label: string
+  subtitle?: string
+  htmlFor?: string
+  children: React.ReactNode
+}) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <label htmlFor={htmlFor} className="text-[10px] font-mono text-muted-foreground shrink-0">
-        {label}
-      </label>
-      {children}
+    <div className="flex items-start justify-between gap-3 py-0.5">
+      <div className="min-w-0">
+        <label htmlFor={htmlFor} className="text-[10px] font-mono text-muted-foreground block">
+          {label}
+        </label>
+        {subtitle && <div className="text-[9px] text-[#565f89] mt-0.5 leading-snug">{subtitle}</div>}
+      </div>
+      <div className="shrink-0">{children}</div>
     </div>
   )
 }
@@ -70,7 +83,7 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
   return (
     <div className="space-y-3">
       {show.model && (
-        <Row label="Model" htmlFor="lcf-model">
+        <Row label="Model" subtitle="Claude model version" htmlFor="lcf-model">
           <div className="flex-1 max-w-[220px]">
             <Select
               value={value.model ? value.model : DEFAULT_SENTINEL}
@@ -92,7 +105,7 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
         </Row>
       )}
       {show.effort && (
-        <Row label="Effort" htmlFor="lcf-effort">
+        <Row label="Effort" subtitle="Thinking budget (higher = slower, deeper)" htmlFor="lcf-effort">
           <div className="flex-1 max-w-[220px]">
             <Select
               value={value.effort ? value.effort : DEFAULT_SENTINEL}
@@ -134,7 +147,11 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
         </div>
       )}
       {show.autocompactPct && (
-        <Row label="Auto-compact %" htmlFor="lcf-compact">
+        <Row
+          label="Auto-compact %"
+          subtitle="Compact context when usage hits this % of the window"
+          htmlFor="lcf-compact"
+        >
           <input
             id="lcf-compact"
             type="number"
@@ -148,7 +165,11 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
         </Row>
       )}
       {show.maxBudgetUsd && (
-        <Row label="Max budget USD" htmlFor="lcf-budget">
+        <Row
+          label="Max budget USD"
+          subtitle="Stop session when spend reaches this (blank = no limit)"
+          htmlFor="lcf-budget"
+        >
           <input
             id="lcf-budget"
             type="number"
@@ -163,7 +184,7 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
         </Row>
       )}
       {show.timeout && (
-        <Row label="Timeout" htmlFor="lcf-timeout">
+        <Row label="Timeout" subtitle="Max runtime before forced stop" htmlFor="lcf-timeout">
           <select
             id="lcf-timeout"
             value={value.timeout ?? ''}
@@ -180,7 +201,7 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
         </Row>
       )}
       {show.name && (
-        <Row label="Name" htmlFor="lcf-name">
+        <Row label="Name" subtitle="Display label in sidebar" htmlFor="lcf-name">
           <input
             id="lcf-name"
             type="text"

@@ -35,6 +35,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
 import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import type { ProjectTask } from '@/hooks/use-project'
@@ -834,24 +835,9 @@ export function RunTaskDialog({
   const displayError = progress.error || progress.launch.error
 
   return (
-    // biome-ignore lint/a11y/useSemanticElements: modal backdrop
-    <div
-      role="button"
-      tabIndex={-1}
-      aria-label="Close dialog"
-      className="fixed inset-0 z-[110] flex items-center justify-center p-4"
-      onClick={onClose}
-      onKeyDown={e => {
-        if (e.key === 'Escape') onClose()
-      }}
-    >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        role="dialog"
-        className="relative w-full max-w-md bg-[#1a1b26] border border-amber-500/30 shadow-2xl"
-        onClick={e => e.stopPropagation()}
-        onKeyDown={e => e.stopPropagation()}
-      >
+    <Dialog open={true} onOpenChange={open => !open && onClose()}>
+      <DialogContent className="max-w-md rounded-lg p-0 gap-0 bg-[#1a1b26] border-amber-500/30">
+        <DialogTitle className="sr-only">Run Task: {task.title}</DialogTitle>
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-500/20">
           <Zap className="w-4 h-4 text-amber-400" />
@@ -869,9 +855,6 @@ export function RunTaskDialog({
               {progress.elapsed}s
             </span>
           )}
-          <button type="button" onClick={onClose} className="ml-auto text-muted-foreground hover:text-foreground">
-            <X className="w-4 h-4" />
-          </button>
         </div>
 
         {/* Task title */}
@@ -971,8 +954,8 @@ export function RunTaskDialog({
             </div>
           </>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
