@@ -9,6 +9,7 @@ import { Zap } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import { updateProjectSettings, useSessionsStore, wsSend } from '@/hooks/use-sessions'
 import { useKeyLayer } from '@/lib/key-layers'
@@ -25,20 +26,25 @@ interface SpawnDialogState {
   options: SpawnDialogOptions | null
 }
 
-const MODEL_OPTIONS = [
-  { value: '', label: 'Default' },
-  { value: 'opus', label: 'Opus' },
-  { value: 'sonnet', label: 'Sonnet' },
-  { value: 'haiku', label: 'Haiku' },
+// Radix Select requires non-empty string values; map '' <-> DEFAULT_SENTINEL
+const DEFAULT_SENTINEL = '__default__'
+
+const MODEL_OPTIONS: Array<{ value: string; label: string; info: string }> = [
+  { value: DEFAULT_SENTINEL, label: 'Default', info: 'Use project / global default' },
+  { value: 'opus', label: 'Opus (latest)', info: 'Most capable, best for complex reasoning' },
+  { value: 'claude-opus-4-7', label: 'Opus 4.7', info: 'Opus 4.7 pinned (1M context)' },
+  { value: 'claude-opus-4-6', label: 'Opus 4.6', info: 'Opus 4.6 pinned (1M context)' },
+  { value: 'sonnet', label: 'Sonnet (latest)', info: 'Balanced speed and capability' },
+  { value: 'haiku', label: 'Haiku (latest)', info: 'Fastest, lowest cost' },
 ]
 
-const EFFORT_OPTIONS = [
-  { value: '', label: 'Default' },
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Med' },
-  { value: 'high', label: 'High' },
-  { value: 'xhigh', label: 'XHigh' },
-  { value: 'max', label: 'Max' },
+const EFFORT_OPTIONS: Array<{ value: string; label: string; info: string }> = [
+  { value: DEFAULT_SENTINEL, label: 'Default', info: 'Use project / global default' },
+  { value: 'low', label: 'Low', info: 'Minimal thinking budget' },
+  { value: 'medium', label: 'Medium', info: 'Moderate thinking' },
+  { value: 'high', label: 'High', info: 'Deep thinking (slower)' },
+  { value: 'xhigh', label: 'XHigh', info: 'Extended deep thinking' },
+  { value: 'max', label: 'Max', info: 'Maximum thinking budget' },
 ]
 
 const PERMISSION_MODES = [
@@ -144,15 +150,7 @@ export function SpawnDialog() {
       setMaxBudgetUsd(budget > 0 ? String(budget) : '')
       const envDefault = ps?.defaultEnvText || (gs.defaultEnvText as string) || ''
       setEnvText(envDefault)
-      // Auto-switch to Advanced tab if any defaults are non-trivial
-      const hasAdvancedDefaults =
-        (ps?.defaultBare ?? (gs.defaultBare as boolean)) ||
-        (ps?.defaultRepl ?? (gs.defaultRepl as boolean)) ||
-        pm !== 'default' ||
-        acp > 0 ||
-        budget > 0 ||
-        envDefault.trim().length > 0
-      setConfigTab(hasAdvancedDefaults ? 'advanced' : 'basic')
+      setConfigTab('basic')
       setEnvErrors([])
       setSavedFeedback(null)
       setPhase('config')
@@ -457,14 +455,14 @@ export function SpawnDialog() {
               </div>
 
               {/* Scrollable content area */}
-              <div className="overflow-y-auto flex-1 min-h-0 space-y-4 pr-1">
+              <div className="overflow-y-auto flex-1 min-h-0 space-y-4 px-0.5">
                 {configTab === 'basic' && (
                   <>
                     {/* Name input */}
                     <div className="space-y-1.5">
                       <label
                         htmlFor="spawn-name"
-                        className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide"
+                        className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5"
                       >
                         Name <span className="text-[#565f89]">(optional)</span>
                       </label>
@@ -485,7 +483,9 @@ export function SpawnDialog() {
 
                     {/* Mode toggle */}
                     <div className="space-y-2">
-                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">Mode</div>
+                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
+                        Mode
+                      </div>
                       <div className="flex gap-2">
                         <TogglePill
                           active={headless}
@@ -507,39 +507,59 @@ export function SpawnDialog() {
                     </div>
 
                     {/* Model selector */}
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">Model</div>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {MODEL_OPTIONS.map(opt => (
-                          <TogglePill
-                            key={opt.value}
-                            active={model === opt.value}
-                            onClick={() => {
-                              setModel(opt.value)
-                              haptic('tap')
-                            }}
-                            label={opt.value === '' ? `Default (${defaultModel})` : opt.label}
-                          />
-                        ))}
-                      </div>
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="spawn-model"
+                        className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5"
+                      >
+                        Model
+                      </label>
+                      <Select
+                        value={model === '' ? DEFAULT_SENTINEL : model}
+                        onValueChange={v => {
+                          setModel(v === DEFAULT_SENTINEL ? '' : v)
+                          haptic('tap')
+                        }}
+                      >
+                        <SelectTrigger id="spawn-model" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MODEL_OPTIONS.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value} info={opt.info}>
+                              {opt.value === DEFAULT_SENTINEL ? `Default (${defaultModel})` : opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     {/* Effort selector */}
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">Effort</div>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {EFFORT_OPTIONS.map(opt => (
-                          <TogglePill
-                            key={opt.value}
-                            active={effort === opt.value}
-                            onClick={() => {
-                              setEffort(opt.value)
-                              haptic('tap')
-                            }}
-                            label={opt.value === '' ? `Default (${defaultEffort})` : opt.label}
-                          />
-                        ))}
-                      </div>
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="spawn-effort"
+                        className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5"
+                      >
+                        Effort
+                      </label>
+                      <Select
+                        value={effort === '' ? DEFAULT_SENTINEL : effort}
+                        onValueChange={v => {
+                          setEffort(v === DEFAULT_SENTINEL ? '' : v)
+                          haptic('tap')
+                        }}
+                      >
+                        <SelectTrigger id="spawn-effort" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {EFFORT_OPTIONS.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value} info={opt.info}>
+                              {opt.value === DEFAULT_SENTINEL ? `Default (${defaultEffort})` : opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </>
                 )}
@@ -548,7 +568,7 @@ export function SpawnDialog() {
                   <div className="space-y-3">
                     {/* Permission mode */}
                     <div className="space-y-2">
-                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
+                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
                         Permission mode
                       </div>
                       <div className="flex gap-1.5 flex-wrap">
@@ -569,7 +589,7 @@ export function SpawnDialog() {
 
                     {/* Autocompact threshold */}
                     <div className="space-y-2">
-                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
+                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
                         Autocompact threshold
                       </div>
                       <div className="flex items-center gap-3">
@@ -611,7 +631,7 @@ export function SpawnDialog() {
                     {/* Max budget (headless only) */}
                     {headless && (
                       <div className="space-y-2">
-                        <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
+                        <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
                           Max budget (USD)
                         </div>
                         <div className="flex items-center gap-2">
@@ -733,7 +753,7 @@ export function SpawnDialog() {
 
                     {/* Custom env vars */}
                     <div className="space-y-1.5">
-                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide">
+                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
                         Environment variables
                       </div>
                       <textarea
