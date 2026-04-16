@@ -939,6 +939,7 @@ export interface Session {
     timestamp: number
   }
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
+  contextMode?: '1m' | 'standard' // detected from /model or /context stdout; overrides model-name heuristic
   cacheTtl?: '5m' | '1h' // dominant cache TTL tier from last turn
   lastTurnEndedAt?: number // timestamp when last turn completed (Stop hook)
   // Transcript-derived metadata (from special JSONL entry types)
@@ -1207,6 +1208,7 @@ export interface SessionSummary {
   prLinks?: Session['prLinks']
   linkedProjects?: Array<{ cwd: string; name: string }>
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
+  contextWindow?: number // effective window (200K or 1M) matching Claude Code's current selection
   cacheTtl?: '5m' | '1h'
   lastTurnEndedAt?: number
   stats: Session['stats']

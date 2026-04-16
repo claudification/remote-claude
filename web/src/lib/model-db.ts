@@ -1,6 +1,9 @@
 /**
  * Model pricing database -- fetched from concentrator (LiteLLM data).
- * Used for context window sizing and cost estimation.
+ * Used for cost estimation. Context window sizing is NOT from this DB:
+ * LiteLLM's max_input_tokens reports the beta-opt-in maximum, not Claude
+ * Code's actual default. For context window, use session.contextWindow
+ * (set by the concentrator based on transcript signals).
  */
 
 import { appendShareParam } from './share-mode'
@@ -59,21 +62,12 @@ export function getModelInfo(modelName: string | undefined): ModelInfo | undefin
   return best
 }
 
-/** Context window size from model DB, with hardcoded fallback */
+/** Context window for display. Claude Code defaults to 200K; 1M is opt-in
+ * (via /model menu or explicit `[1m]`/`-1m` model variant). The authoritative
+ * value comes from the backend as `session.contextWindow` -- this function is
+ * just a fallback when that field is absent.
+ */
 export function contextWindowFromDb(model: string | undefined): number {
-  const info = getModelInfo(model)
-  if (info) return info.maxInputTokens
-  // Hardcoded fallback when DB not loaded
-  if (!model) return 200_000
-  const m = model.toLowerCase()
-  if (
-    m.includes('opus-4-6') ||
-    m.includes('opus-4.6') ||
-    m.includes('opus-4-7') ||
-    m.includes('opus-4.7') ||
-    m.includes('sonnet-4-6') ||
-    m.includes('sonnet-4-7')
-  )
-    return 1_000_000
+  if (model && /(-1m|\[1m\])/i.test(model)) return 1_000_000
   return 200_000
 }

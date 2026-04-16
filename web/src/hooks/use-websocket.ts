@@ -106,6 +106,7 @@ function toSession(summary: SessionSummary): Session {
     prLinks: summary.prLinks,
     linkedProjects: summary.linkedProjects,
     tokenUsage: summary.tokenUsage,
+    contextWindow: summary.contextWindow,
     cacheTtl: summary.cacheTtl,
     lastTurnEndedAt: summary.lastTurnEndedAt,
     stats: summary.stats,

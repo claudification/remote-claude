@@ -84,6 +84,7 @@ export interface Session {
   }
   hasNotification?: boolean
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
+  contextWindow?: number
   cacheTtl?: '5m' | '1h'
   lastTurnEndedAt?: number
   summary?: string

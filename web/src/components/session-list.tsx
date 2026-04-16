@@ -207,7 +207,7 @@ function SessionInfoDialog({
                 <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Context</span>
                 <span className="ml-auto text-foreground/80">
                   {formatTokenCount(session.stats.totalInputTokens)} /{' '}
-                  {formatTokenCount(contextWindowSize(resolvedModel))}
+                  {formatTokenCount(session.contextWindow ?? contextWindowSize(resolvedModel))}
                 </span>
               </div>
             </>
@@ -857,7 +857,7 @@ const SessionItemContent = memo(function SessionItemContent({
           const { input, cacheCreation, cacheRead } = session.tokenUsage
           const total = input + cacheCreation + cacheRead
           if (total === 0) return null
-          const maxTokens = contextWindowSize(model || session.model)
+          const maxTokens = session.contextWindow ?? contextWindowSize(model || session.model)
           const pct = Math.min(100, Math.round((total / maxTokens) * 100))
           const threshold = session.autocompactPct || 83
           const warnAt = threshold - 5

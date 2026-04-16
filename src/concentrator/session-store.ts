@@ -35,6 +35,23 @@ import { listShares } from './shares'
 
 export type { SessionSummary }
 
+/** Parse /model or /context command stdout to detect 1M vs standard context mode.
+ * Returns undefined if the entry isn't a relevant local-command-stdout. */
+function detectContextModeFromStdout(content: string): '1m' | 'standard' | undefined {
+  // Strip ANSI escape codes for cleaner matching
+  const clean = content.replace(/\u001b\[[0-9;]*m/g, '')
+  // /model confirmation: "Set model to <label>" or "Kept model as <label>"
+  const modelMatch = clean.match(/(?:Set model to|Kept model as)\s+(.+?)(?:\s+·|\n|$)/i)
+  if (modelMatch) {
+    return /\(1M context\)/i.test(modelMatch[1]) ? '1m' : 'standard'
+  }
+  // /context output: header "Context Usage" + full model id including variant suffix
+  if (/Context Usage/i.test(clean)) {
+    return /\[1m\]/i.test(clean) ? '1m' : 'standard'
+  }
+  return undefined
+}
+
 /** Detect image MIME type from base64 prefix (same logic as osc52-parser.ts) */
 function detectClipboardMime(base64: string): string | null {
   if (base64.startsWith('iVBORw0K')) return 'image/png'
@@ -552,6 +569,13 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       prLinks: session.prLinks,
       linkedProjects: getLinkedProjects(session.id),
       tokenUsage: session.tokenUsage,
+      contextWindow: (() => {
+        // Claude Code defaults to 200K; 1M is opt-in (/model menu or [1m] variant).
+        // Priority: parsed /model|/context stdout > model-name suffix > default.
+        if (session.contextMode === '1m') return 1_000_000
+        if (session.model && /(-1m|\[1m\])/i.test(session.model)) return 1_000_000
+        return 200_000
+      })(),
       cacheTtl: session.cacheTtl,
       lastTurnEndedAt: session.lastTurnEndedAt,
       stats: session.stats,
@@ -2433,6 +2457,28 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
               })
               sessionChanged = true
               console.log(`[compact] detected via JSONL compact_boundary (session ${sessionId.slice(0, 8)})`)
+            }
+          }
+        }
+
+        // Detect effective context mode from /model or /context stdout.
+        // These appear as `user` entries with string content wrapping <local-command-stdout>,
+        // or `system` entries with subtype 'local_command'.
+        {
+          let stdoutContent: string | undefined
+          if (entry.type === 'user') {
+            const c = (entry as TranscriptUserEntry).message?.content
+            if (typeof c === 'string' && c.includes('local-command-stdout')) stdoutContent = c
+          } else if (entry.type === 'system' && (entry as Record<string, unknown>).subtype === 'local_command') {
+            const c = (entry as Record<string, unknown>).content
+            if (typeof c === 'string') stdoutContent = c
+          }
+          if (stdoutContent) {
+            const mode = detectContextModeFromStdout(stdoutContent)
+            if (mode && session.contextMode !== mode) {
+              session.contextMode = mode
+              sessionChanged = true
+              console.log(`[meta] context mode: ${mode} (session ${sessionId.slice(0, 8)})`)
             }
           }
         }
