@@ -382,14 +382,26 @@ export function AskQuestionCard({
   })
 
   return (
-    <div className="flex flex-col gap-2 px-3 py-2.5 bg-violet-500/10 border border-violet-400/40 rounded font-mono text-xs">
-      <div className="flex items-center gap-2">
-        <span className="text-violet-400 font-bold shrink-0">QUESTION</span>
-        <span className="text-muted-foreground text-[10px] ml-auto tabular-nums">
-          <span className={isExpiring ? 'text-red-400 font-bold animate-pulse' : ''}>{timeLeft}s</span>
-        </span>
-      </div>
-
+    <SessionBanner
+      accent="violet"
+      label="QUESTION"
+      meta={
+        <span className={cn('tabular-nums', isExpiring && 'text-red-400 font-bold animate-pulse')}>{timeLeft}s</span>
+      }
+      className="gap-2 py-2.5"
+      actions={
+        <>
+          <BannerButton
+            accent="violet"
+            label="SUBMIT"
+            onClick={handleSubmit}
+            disabled={!allAnswered}
+            className="px-4 py-1.5"
+          />
+          <BannerButton accent="muted" label="SKIP TO TERMINAL" onClick={handleSkip} className="px-3 py-1.5" />
+        </>
+      }
+    >
       {request.questions.map(q => (
         <div key={q.question} className="space-y-1.5">
           <div className="flex items-center gap-2">
@@ -441,17 +453,6 @@ export function AskQuestionCard({
           />
         </div>
       ))}
-
-      <div className="flex items-center gap-2 mt-1">
-        <BannerButton
-          accent="violet"
-          label="SUBMIT"
-          onClick={handleSubmit}
-          disabled={!allAnswered}
-          className="px-4 py-1.5"
-        />
-        <BannerButton accent="muted" label="SKIP TO TERMINAL" onClick={handleSkip} className="px-3 py-1.5" />
-      </div>
-    </div>
+    </SessionBanner>
   )
 }
