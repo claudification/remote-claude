@@ -59,14 +59,16 @@ export function GroupNode({
     if (editing && inputRef.current) inputRef.current.focus()
   }, [editing])
 
-  // Count children with live sessions
-  const childCount = group.children.filter(c => {
-    if (c.type === 'session') {
-      const cwd = c.id.startsWith('cwd:') ? c.id.slice(4) : c.id
-      return sessionsByCwd.has(cwd)
-    }
-    return true
-  }).length
+  // Live-session count only rendered when collapsed -- skip the filter otherwise.
+  const childCount = collapsed
+    ? group.children.filter(c => {
+        if (c.type === 'session') {
+          const cwd = c.id.startsWith('cwd:') ? c.id.slice(4) : c.id
+          return sessionsByCwd.has(cwd)
+        }
+        return true
+      }).length
+    : 0
 
   return (
     <div>

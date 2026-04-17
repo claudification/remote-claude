@@ -6,7 +6,7 @@ import { renderProjectIcon } from '@/components/project-settings-editor'
 import { wsSend } from '@/hooks/use-sessions'
 import { formatCost, getBurnRate, getCacheEfficiency, getCostColor, getSessionCost } from '@/lib/cost-utils'
 import type { Session } from '@/lib/types'
-import { cn, contextWindowSize, formatAge, formatEffort, formatModel, haptic } from '@/lib/utils'
+import { cn, contextWindowSize, formatAge, formatEffort, formatModel, formatTime, haptic } from '@/lib/utils'
 
 interface ConversationTarget {
   cwdA: string
@@ -406,9 +406,7 @@ export function SessionHeader({
                 )}
                 <span>
                   <span className="text-muted-foreground">started </span>
-                  <span className="text-foreground">
-                    {new Date(session.startedAt).toLocaleTimeString('en-US', { hour12: false })}
-                  </span>
+                  <span className="text-foreground">{formatTime(session.startedAt)}</span>
                 </span>
                 <span>
                   <span className="text-muted-foreground">last </span>
@@ -424,9 +422,7 @@ export function SessionHeader({
                     {session.lastError.errorType && (
                       <span className="text-destructive/80">{session.lastError.errorType}</span>
                     )}
-                    <span className="text-muted-foreground ml-auto">
-                      {new Date(session.lastError.timestamp).toLocaleTimeString('en-US', { hour12: false })}
-                    </span>
+                    <span className="text-muted-foreground ml-auto">{formatTime(session.lastError.timestamp)}</span>
                   </div>
                   {session.lastError.errorMessage && (
                     <div className="text-destructive/70">{session.lastError.errorMessage}</div>
@@ -442,9 +438,7 @@ export function SessionHeader({
                 <div className="px-2 py-1 bg-amber-500/10 border border-amber-500/30 text-[10px] font-mono flex items-center gap-2">
                   <span className="text-amber-400 font-bold uppercase">Rate Limited</span>
                   <span className="text-amber-400/70">{session.rateLimit.message}</span>
-                  <span className="text-muted-foreground ml-auto">
-                    {new Date(session.rateLimit.timestamp).toLocaleTimeString('en-US', { hour12: false })}
-                  </span>
+                  <span className="text-muted-foreground ml-auto">{formatTime(session.rateLimit.timestamp)}</span>
                 </div>
               )}
 

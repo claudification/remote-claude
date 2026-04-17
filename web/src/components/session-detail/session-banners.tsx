@@ -59,9 +59,9 @@ export function LinkRequestBanners() {
 // ---------------------------------------------------------------------------
 
 function formatPermissionInput(toolName: string, inputPreview: string, cwd?: string): ReactNode {
+  const relativize = (p: string) => (cwd && p.startsWith(`${cwd}/`) ? p.slice(cwd.length + 1) : p)
   try {
     const input = JSON.parse(inputPreview)
-    const relativize = (p: string) => (cwd && p.startsWith(`${cwd}/`) ? p.slice(cwd.length + 1) : p)
 
     if (toolName === 'Write' || toolName === 'Edit') {
       const path = input.file_path || input.path
@@ -109,7 +109,6 @@ function formatPermissionInput(toolName: string, inputPreview: string, cwd?: str
     )
   } catch {
     // JSON parse failed (likely truncated). Try to extract known fields with regex.
-    const relativize = (p: string) => (cwd && p.startsWith(`${cwd}/`) ? p.slice(cwd.length + 1) : p)
     const pathMatch = inputPreview.match(/"file_path"\s*:\s*"([^"]+)"/)
     const cmdMatch = inputPreview.match(/"command"\s*:\s*"([^"]*(?:\\.[^"]*)*)/)
     const oldStrMatch = inputPreview.match(/"old_string"\s*:\s*"([^"]*(?:\\.[^"]*)*)/)

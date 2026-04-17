@@ -8,6 +8,10 @@
 import type { ServerWebSocket } from 'bun'
 import type { ChannelStats, SubscriberDiag, SubscriptionChannel, SubscriptionsDiag } from '../../shared/protocol'
 
+// Shared empty set returned by getChannelSubscribers on a miss (avoids allocating a throwaway Set per call).
+// Safe to share because callers only read (`.has()`, iteration); never mutate.
+const EMPTY_SUBSCRIBER_SET: Set<ServerWebSocket<unknown>> = new Set()
+
 export interface SubscriberEntry {
   id: string
   protocolVersion: number
@@ -145,7 +149,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
     agentId?: string,
   ): Set<ServerWebSocket<unknown>> {
     const key = channelKey(channel, sessionId, agentId)
-    return channelSubscribers.get(key) || new Set()
+    return channelSubscribers.get(key) || EMPTY_SUBSCRIBER_SET
   }
 
   function broadcastToChannel(
