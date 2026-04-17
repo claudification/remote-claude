@@ -394,28 +394,28 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     return c.json({ ok })
   })
 
+  // Filter a session-order tree to only include nodes the grants can read.
+  function filterSessionOrderTree(nodes: SessionOrderV2['tree'], grants: UserGrant[]): SessionOrderV2['tree'] {
+    const result: SessionOrderV2['tree'] = []
+    for (const node of nodes) {
+      if (node.type === 'session') {
+        const cwd = node.id.startsWith('cwd:') ? node.id.slice(4) : node.id
+        const { permissions } = resolvePermissions(grants, cwd)
+        if (permissions.has('chat:read')) result.push(node)
+      } else if (node.type === 'group') {
+        const children = filterSessionOrderTree(node.children, grants)
+        if (children.length > 0) result.push({ ...node, children })
+      }
+    }
+    return result
+  }
+
   // ─── Session order ─────────────────────────────────────────────────
   app.get('/api/session-order', c => {
     const order = getSessionOrder()
     const grants = resolveHttpGrants(c.req.raw)
     if (!grants) return c.json(order) // admin sees full tree
-    // Filter tree to only include CWDs the user can access
-    function filterTree(nodes: SessionOrderV2['tree']): SessionOrderV2['tree'] {
-      const result: SessionOrderV2['tree'] = []
-      for (const node of nodes) {
-        if (node.type === 'session') {
-          const cwd = node.id.startsWith('cwd:') ? node.id.slice(4) : node.id
-          // biome-ignore lint/style/noNonNullAssertion: guaranteed non-null by early return above
-          const { permissions } = resolvePermissions(grants!, cwd)
-          if (permissions.has('chat:read')) result.push(node)
-        } else if (node.type === 'group') {
-          const children = filterTree(node.children)
-          if (children.length > 0) result.push({ ...node, children })
-        }
-      }
-      return result
-    }
-    return c.json({ ...order, tree: filterTree(order.tree) })
+    return c.json({ ...order, tree: filterSessionOrderTree(order.tree, grants) })
   })
 
   app.post('/api/session-order', async c => {
@@ -431,26 +431,8 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     for (const ws of sessionStore.getSubscribers()) {
       try {
         const wsGrants = (ws.data as { grants?: UserGrant[] }).grants
-        if (!wsGrants) {
-          ws.send(JSON.stringify({ type: 'session_order_updated', order }))
-        } else {
-          function filterNodes(nodes: SessionOrderV2['tree']): SessionOrderV2['tree'] {
-            const result: SessionOrderV2['tree'] = []
-            for (const node of nodes) {
-              if (node.type === 'session') {
-                const cwd = node.id.startsWith('cwd:') ? node.id.slice(4) : node.id
-                // biome-ignore lint/style/noNonNullAssertion: guaranteed non-null by else branch above
-                const { permissions } = resolvePermissions(wsGrants!, cwd)
-                if (permissions.has('chat:read')) result.push(node)
-              } else if (node.type === 'group') {
-                const children = filterNodes(node.children)
-                if (children.length > 0) result.push({ ...node, children })
-              }
-            }
-            return result
-          }
-          ws.send(JSON.stringify({ type: 'session_order_updated', order: { ...order, tree: filterNodes(order.tree) } }))
-        }
+        const scopedOrder = wsGrants ? { ...order, tree: filterSessionOrderTree(order.tree, wsGrants) } : order
+        ws.send(JSON.stringify({ type: 'session_order_updated', order: scopedOrder }))
       } catch {
         /* dead socket */
       }
