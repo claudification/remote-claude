@@ -8,6 +8,7 @@ import { DebugConsole } from '@/components/debug-console'
 import { Header } from '@/components/header'
 import { JsonInspectorDialog } from '@/components/json-inspector'
 import { QuickTaskModal } from '@/components/quick-task-modal'
+import { ReviveDialog } from '@/components/revive-dialog'
 import { SessionDetail } from '@/components/session-detail'
 import { SessionList } from '@/components/session-list'
 import { SharedSessionView } from '@/components/shared-session-view'
@@ -798,6 +799,9 @@ function Dashboard() {
 
       {/* Spawn dialog */}
       <SpawnDialog />
+
+      {/* Revive dialog */}
+      <ReviveDialog />
 
       {/* Terminate confirmation (mod+g x) */}
       <TerminateConfirmDialog />

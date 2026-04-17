@@ -795,11 +795,21 @@ export async function fetchSubagentTranscript(sessionId: string, agentId: string
   return res.json()
 }
 
-export function reviveSession(sessionId: string, headless?: boolean, jobId?: string): boolean {
+export interface ReviveSessionOptions {
+  headless?: boolean
+  jobId?: string
+  model?: string
+  effort?: string
+}
+
+export function reviveSession(sessionId: string, options: ReviveSessionOptions = {}): boolean {
+  const { headless, jobId, model, effort } = options
   return wsSend('revive_session', {
     sessionId,
     ...(headless !== undefined && { headless }),
     ...(jobId && { jobId }),
+    ...(model && { model }),
+    ...(effort && { effort }),
   })
 }
 

@@ -1,8 +1,9 @@
 import { ContextMenu } from 'radix-ui'
 import type { ReactNode } from 'react'
-import { reviveSession, saveSessionOrder, useSessionsStore } from '@/hooks/use-sessions'
+import { saveSessionOrder, useSessionsStore } from '@/hooks/use-sessions'
 import type { Session, SessionOrderGroup, SessionOrderV2 } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
+import { openReviveDialog } from '../revive-dialog'
 import { openSpawnDialog } from '../spawn-dialog'
 
 // ─── Session context menu (right-click) ─────────────────────────────
@@ -109,8 +110,6 @@ function GroupingMenuItems({ cwd }: { cwd: string }) {
 export function SessionContextMenu({ session, children }: { session: Session; children: ReactNode }) {
   const dismissSession = useSessionsStore(s => s.dismissSession)
   const selectSession = useSessionsStore(s => s.selectSession)
-  const projectSettings = useSessionsStore(s => s.projectSettings)
-  const defaultMode = projectSettings[session.cwd]?.defaultLaunchMode || 'headless'
 
   return (
     <ContextMenu.Root>
@@ -165,20 +164,10 @@ export function SessionContextMenu({ session, children }: { session: Session; ch
                 onSelect={() => {
                   haptic('tap')
                   selectSession(session.id)
-                  reviveSession(session.id, true)
+                  openReviveDialog({ sessionId: session.id })
                 }}
               >
-                Revive (headless){defaultMode === 'headless' ? ' *' : ''}
-              </ContextMenu.Item>
-              <ContextMenu.Item
-                className={cn(menuItemClass, 'text-purple-400')}
-                onSelect={() => {
-                  haptic('tap')
-                  selectSession(session.id)
-                  reviveSession(session.id, false)
-                }}
-              >
-                Revive (PTY){defaultMode === 'pty' ? ' *' : ''}
+                Revive...
               </ContextMenu.Item>
               <ContextMenu.Item
                 className={cn(menuItemClass, 'text-destructive')}

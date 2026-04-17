@@ -1,15 +1,15 @@
 /**
- * LaunchMonitor - Shared launch monitoring UI components.
+ * LaunchMonitor - Shared launch monitoring UI primitives used by
+ * SpawnDialog and ReviveDialog. Each dialog hosts its own Dialog/phase
+ * wrapper; this file just exports the pieces they share.
  *
  * Exports:
  *   LaunchStepList    - Step rendering with status icons
  *   LaunchErrorBanner - Error display with copy button
  *   LaunchFooterActions - View Session + Close buttons
- *   LaunchMonitor     - Full modal wrapper (used by ReviveMonitor)
  */
 
-import { Copy, Zap } from 'lucide-react'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Copy } from 'lucide-react'
 import { Kbd } from '@/components/ui/kbd'
 import type { LaunchStep } from '@/hooks/use-launch-progress'
 import { cn } from '@/lib/utils'
@@ -136,109 +136,5 @@ export function LaunchFooterActions({
         <Kbd className="opacity-60">Esc</Kbd>
       </button>
     </>
-  )
-}
-
-// ─── Full modal wrapper (backward compat for ReviveMonitor) ─────
-
-const ACCENT = {
-  amber: { border: 'border-amber-500/30', headerBorder: 'border-amber-500/20', text: 'text-amber-400' },
-  teal: { border: 'border-teal-500/30', headerBorder: 'border-teal-500/20', text: 'text-teal-400' },
-  emerald: { border: 'border-emerald-500/30', headerBorder: 'border-emerald-500/20', text: 'text-emerald-400' },
-  blue: { border: 'border-[#7aa2f7]/30', headerBorder: 'border-[#7aa2f7]/20', text: 'text-[#7aa2f7]' },
-} as const
-
-export interface LaunchMonitorProps {
-  title: string
-  subtitle?: string
-  steps: LaunchStep[]
-  error?: string | null
-  elapsed?: number
-  isConnected?: boolean
-  isComplete?: boolean
-  hasError?: boolean
-  viewCountdown?: number | null
-  copied?: boolean
-  onCopyLog?: () => void
-  onViewSession?: () => void
-  onClose: () => void
-  accentColor?: keyof typeof ACCENT
-  children?: React.ReactNode
-}
-
-export function LaunchMonitor({
-  title,
-  subtitle,
-  steps,
-  error,
-  elapsed = 0,
-  isConnected = false,
-  isComplete = false,
-  hasError: hasErrorProp,
-  viewCountdown = null,
-  copied = false,
-  onCopyLog,
-  onViewSession,
-  onClose,
-  accentColor = 'amber',
-  children,
-}: LaunchMonitorProps) {
-  const hasError = hasErrorProp ?? (!!error || steps.some(s => s.status === 'error'))
-  const accent = ACCENT[accentColor]
-
-  return (
-    <Dialog open={true} onOpenChange={open => !open && onClose()}>
-      <DialogContent className={cn('max-w-md rounded-lg p-0 gap-0 bg-[#1a1b26]', accent.border)}>
-        <DialogTitle className="sr-only">{title}</DialogTitle>
-        {/* Header */}
-        <div className={cn('flex items-center gap-2 px-4 py-3 border-b', accent.headerBorder)}>
-          <Zap className={cn('w-4 h-4', accent.text)} />
-          <span className={cn('text-sm font-mono font-bold', accent.text)}>
-            {isComplete ? 'Complete' : hasError ? 'Failed' : title}
-          </span>
-          {steps.length > 0 && (
-            <span className="text-[10px] font-mono text-muted-foreground/60 ml-auto mr-2 tabular-nums">{elapsed}s</span>
-          )}
-        </div>
-
-        {/* Subtitle */}
-        {subtitle && (
-          <div className="px-4 py-3 border-b border-[#33467c]/30">
-            <div className="text-xs font-mono text-foreground truncate">{subtitle}</div>
-          </div>
-        )}
-
-        {/* Children (config form, etc.) */}
-        {children}
-
-        {/* Steps */}
-        {steps.length > 0 && (
-          <div className="px-4 py-3">
-            <LaunchStepList steps={steps} />
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div className="px-4 py-2 border-t border-red-500/20">
-            <LaunchErrorBanner error={error} copied={copied} onCopy={onCopyLog || (() => {})} />
-          </div>
-        )}
-
-        {/* Footer */}
-        {steps.length > 0 && (
-          <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#33467c]/30">
-            <LaunchFooterActions
-              isConnected={isConnected}
-              isComplete={isComplete}
-              hasError={hasError}
-              viewCountdown={viewCountdown}
-              onViewSession={onViewSession || (() => {})}
-              onClose={onClose}
-            />
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
   )
 }

@@ -8,22 +8,12 @@
  * Mobile only - hidden on desktop (hover-capable devices).
  */
 
-import {
-  Command,
-  ListChecks,
-  MessageSquarePlus,
-  PenLine,
-  Power,
-  RefreshCw,
-  Rocket,
-  RotateCcw,
-  Share2,
-  Trash2,
-} from 'lucide-react'
+import { Command, ListChecks, MessageSquarePlus, PenLine, Power, RefreshCw, Rocket, Share2, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { reviveSession, useSessionsStore } from '@/hooks/use-sessions'
+import { useSessionsStore } from '@/hooks/use-sessions'
 import type { Session } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
+import { openReviveDialog } from './revive-dialog'
 import { openSpawnDialog } from './spawn-dialog'
 import { openTerminateConfirm } from './terminate-confirm'
 
@@ -102,24 +92,14 @@ function buildActions(session: Session | undefined, selectedSessionId: string | 
     } else {
       // Ended session actions
       actions.push({
-        id: 'revive-headless',
+        id: 'revive',
         icon: <RefreshCw className="w-4 h-4" />,
-        label: 'Revive',
+        label: 'Revive...',
         action: () => {
           useSessionsStore.getState().selectSession(session.id)
-          reviveSession(session.id, true)
+          openReviveDialog({ sessionId: session.id })
         },
         color: 'bg-emerald-500',
-      })
-      actions.push({
-        id: 'revive-pty',
-        icon: <RotateCcw className="w-4 h-4" />,
-        label: 'Revive PTY',
-        action: () => {
-          useSessionsStore.getState().selectSession(session.id)
-          reviveSession(session.id, false)
-        },
-        color: 'bg-purple-500',
       })
       actions.push({
         id: 'dismiss',

@@ -246,10 +246,12 @@ const reviveSession: MessageHandler = (ctx, data) => {
   const headless =
     headlessParam ?? lc?.headless ?? (projSettings?.defaultLaunchMode || globalSettings.defaultLaunchMode) !== 'pty'
 
-  // Resolve effort + model: launch config > project/global defaults
-  const effortRaw = lc?.effort || projSettings?.defaultEffort || globalSettings.defaultEffort
+  // Resolve effort + model: dashboard override > launch config > project/global defaults
+  const effortOverride = data.effort as string | undefined
+  const modelOverride = data.model as string | undefined
+  const effortRaw = effortOverride || lc?.effort || projSettings?.defaultEffort || globalSettings.defaultEffort
   const effort = effortRaw && effortRaw !== 'default' ? effortRaw : undefined
-  const model = lc?.model || projSettings?.defaultModel || globalSettings.defaultModel || undefined
+  const model = modelOverride || lc?.model || projSettings?.defaultModel || globalSettings.defaultModel || undefined
 
   // Register launch job if dashboard provided a jobId
   if (jobId) {

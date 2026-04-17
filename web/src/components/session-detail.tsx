@@ -15,7 +15,7 @@ import { EventsView } from './events-view'
 import { FileEditor } from './file-editor'
 import { InlineTerminal } from './inline-terminal'
 import { ProjectBoard, RunTaskDialog, TaskEditor } from './project-board'
-import { ReviveMonitor } from './revive-monitor'
+import { openReviveDialog } from './revive-dialog'
 import {
   AskQuestionBanners,
   ClipboardBanners,
@@ -43,7 +43,6 @@ export const SessionDetail = memo(function SessionDetail() {
   const [follow, setFollow] = useState(true)
   const showThinking = useSessionsStore(s => s.dashboardPrefs.showThinking)
   const showDiag = useSessionsStore(s => s.dashboardPrefs.showDiag)
-  const [showReviveMonitor, setShowReviveMonitor] = useState(false)
   const [conversationTarget, setConversationTarget] = useState<{
     cwdA: string
     cwdB: string
@@ -61,11 +60,10 @@ export const SessionDetail = memo(function SessionDetail() {
   const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
   const expandAll = useSessionsStore(state => state.expandAll)
 
-  // Reset follow + revive state on session switch
+  // Reset follow state on session switch
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedSessionId is the trigger dep, setters are stable React dispatch functions
   useEffect(() => {
     setFollow(true)
-    setShowReviveMonitor(false)
     setConversationTarget(null)
   }, [selectedSessionId])
 
@@ -213,7 +211,7 @@ export const SessionDetail = memo(function SessionDetail() {
   function handleRevive() {
     if (!selectedSessionId) return
     haptic('tap')
-    setShowReviveMonitor(true)
+    openReviveDialog({ sessionId: selectedSessionId })
   }
 
   return (
@@ -481,16 +479,6 @@ export const SessionDetail = memo(function SessionDetail() {
             </p>
           )}
         </div>
-      )}
-
-      {/* Revive launch monitor modal */}
-      {showReviveMonitor && session && (
-        <ReviveMonitor
-          sessionId={session.id}
-          sessionTitle={session.title}
-          cwd={session.cwd}
-          onClose={() => setShowReviveMonitor(false)}
-        />
       )}
     </div>
   )
