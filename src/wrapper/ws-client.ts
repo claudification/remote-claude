@@ -102,6 +102,7 @@ export interface WsClientOptions {
   onLaunchJobEvent?: (event: Record<string, unknown>) => void
   onChannelConfigureResult?: (result: { ok: boolean; error?: string }) => void
   onChannelRenameResult?: (result: { ok: boolean; error?: string }) => void
+  onSessionControlResult?: (result: { ok: boolean; error?: string; name?: string; action?: string }) => void
   onAskAnswer?: (
     toolUseId: string,
     answers?: Record<string, string>,
@@ -118,6 +119,14 @@ export interface WsClientOptions {
   ) => void
   onQuitSession?: () => void
   onInterrupt?: () => void
+  /**
+   * Control verb delivered by concentrator (dashboard self-control or inter-session MCP).
+   * Backend-specific dispatch lives in the wrapper -- this callback is just the entry point.
+   */
+  onControl?: (
+    action: 'clear' | 'quit' | 'interrupt' | 'set_model',
+    args: { model?: string; fromSession?: string },
+  ) => void
 }
 
 export interface WsClient {
@@ -191,12 +200,14 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onLaunchJobEvent,
     onChannelConfigureResult,
     onChannelRenameResult,
+    onSessionControlResult,
     onAskAnswer,
     onDialogResult,
     onDialogKeepalive,
     onPlanApprovalResponse,
     onQuitSession,
     onInterrupt,
+    onControl,
   } = options
 
   let sessionId: string | null = initialSessionId
@@ -407,15 +418,27 @@ export function createWsClient(options: WsClientOptions): WsClient {
             case 'terminate_session':
               onQuitSession?.()
               break
+            case 'control': {
+              const action = message.action
+              if (action === 'clear' || action === 'quit' || action === 'interrupt' || action === 'set_model') {
+                onControl?.(action, {
+                  model: typeof message.model === 'string' ? message.model : undefined,
+                  fromSession: typeof message.fromSession === 'string' ? message.fromSession : undefined,
+                })
+              } else {
+                debug(`control: unknown action "${String(action)}"`)
+              }
+              break
+            }
             default: {
-              const msgType = (message as Record<string, unknown>).type as string
+              const msgType = (message as unknown as Record<string, unknown>).type as string
               // Deprecated alias for terminate_session
               if (msgType === 'quit_session') {
                 onQuitSession?.()
                 break
               }
               if (msgType === 'dialog_keepalive') {
-                const m = message as Record<string, unknown>
+                const m = message as unknown as Record<string, unknown>
                 onDialogKeepalive?.(m.dialogId as string)
                 break
               }
@@ -425,7 +448,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
                 break
               }
               if (msgType === 'permission_rule') {
-                const m = message as Record<string, unknown>
+                const m = message as unknown as Record<string, unknown>
                 onPermissionRule?.(m.toolName as string, m.behavior as 'allow' | 'deny')
                 break
               }
@@ -477,6 +500,12 @@ export function createWsClient(options: WsClientOptions): WsClient {
                 onChannelRenameResult?.(message as unknown as { ok: boolean; error?: string })
                 break
               }
+              if (msgType === 'session_control_result') {
+                onSessionControlResult?.(
+                  message as unknown as { ok: boolean; error?: string; name?: string; action?: string },
+                )
+                break
+              }
               if (
                 msgType === 'spawn_ready' ||
                 msgType === 'spawn_timeout' ||
@@ -485,7 +514,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
                 msgType === 'restart_ready' ||
                 msgType === 'restart_timeout'
               ) {
-                onRendezvousResult?.(message as Record<string, unknown>)
+                onRendezvousResult?.(message as unknown as Record<string, unknown>)
                 break
               }
               if (msgType?.startsWith('file_') || msgType?.startsWith('project_') || msgType === 'project_quick_add') {

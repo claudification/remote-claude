@@ -317,6 +317,82 @@ const handleChannelConfigure: MessageHandler = (ctx, data) => {
   ctx.log.debug(`Configure: -> ${target.id.slice(0, 8)} ${Object.keys(update).join(',')}`)
 }
 
+// ─── Unified session control (clear / quit / interrupt / set_model) ───
+
+const VALID_CONTROL_ACTIONS = new Set(['clear', 'quit', 'interrupt', 'set_model'])
+
+const handleSessionControl: MessageHandler = (ctx, data) => {
+  const targetId = data.targetSession as string
+  const action = data.action as string
+  const model = typeof data.model === 'string' ? data.model : undefined
+  const fromSession = (data.fromSession as string) || ctx.ws.data.sessionId
+
+  if (!targetId) {
+    ctx.reply({ type: 'session_control_result', ok: false, error: 'Missing targetSession' })
+    return
+  }
+  if (!VALID_CONTROL_ACTIONS.has(action)) {
+    ctx.reply({ type: 'session_control_result', ok: false, action, error: `Unknown action "${action}"` })
+    return
+  }
+  if (action === 'set_model' && !model) {
+    ctx.reply({ type: 'session_control_result', ok: false, action, error: 'model is required for set_model' })
+    return
+  }
+
+  // Resolve target: wrapper ID first, then session ID
+  const targetSess = ctx.sessions.getSessionByWrapper(targetId) || ctx.sessions.getSession(targetId)
+  const targetWs = ctx.sessions.getSessionSocketByWrapper(targetId) || ctx.sessions.getSessionSocket(targetId)
+  if (!targetSess || !targetWs) {
+    ctx.reply({
+      type: 'session_control_result',
+      ok: false,
+      action,
+      error: 'Target not connected. Use list_sessions to find current sessions.',
+    })
+    return
+  }
+  if (targetSess.status === 'ended') {
+    ctx.reply({ type: 'session_control_result', ok: false, action, error: 'Session has ended' })
+    return
+  }
+
+  // Auth: dashboard needs chat permission on target cwd; inter-session needs benevolent.
+  if (ctx.ws.data.isDashboard) {
+    ctx.requirePermission('chat', targetSess.cwd)
+  } else if (ctx.ws.data.sessionId) {
+    ctx.requireBenevolent()
+  } else {
+    ctx.reply({ type: 'session_control_result', ok: false, action, error: 'Not authorized' })
+    return
+  }
+
+  targetWs.send(
+    JSON.stringify({
+      type: 'control',
+      action,
+      ...(model && { model }),
+      ...(fromSession && { fromSession }),
+    }),
+  )
+
+  // For interrupt, mark idle immediately (matches send_interrupt behavior -- CC won't fire Stop).
+  if (action === 'interrupt') {
+    targetSess.status = 'idle'
+    ctx.sessions.broadcastSessionUpdate(targetSess.id)
+  }
+
+  ctx.reply({
+    type: 'session_control_result',
+    ok: true,
+    action: action as 'clear' | 'quit' | 'interrupt' | 'set_model',
+    name: targetSess.title || targetSess.cwd?.split('/').pop(),
+  })
+  ctx.log.debug(
+    `session_control: ${fromSession?.slice(0, 8) ?? 'dashboard'} -> ${targetSess.id.slice(0, 8)} action=${action}${model ? ` model=${model}` : ''}`,
+  )
+}
+
 export function registerInterSessionHandlers(): void {
   registerHandlers({
     quit_remote_session: handleQuitRemoteSession,
@@ -324,5 +400,6 @@ export function registerInterSessionHandlers(): void {
     channel_spawn: handleChannelSpawn,
     channel_restart: handleChannelRestart,
     channel_configure: handleChannelConfigure,
+    session_control: handleSessionControl,
   })
 }

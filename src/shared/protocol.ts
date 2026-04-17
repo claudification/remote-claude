@@ -683,6 +683,8 @@ export type ConcentratorMessage =
   | PermissionResponse
   | AskQuestionResponse
   | QuitSession
+  | SessionControl
+  | ControlDeliver
   | DialogResultMessage
   | PlanApprovalResponse
 
@@ -694,6 +696,39 @@ export interface SendInterrupt {
 export interface QuitSession {
   type: 'terminate_session'
   sessionId: string
+}
+
+/**
+ * Higher-level control verbs routed to a target session's wrapper. The wrapper
+ * interprets these backend-specifically (headless vs PTY) instead of letting
+ * the text reach the model. Used by:
+ *   - dashboard input: when user types a bare `/clear`, `/quit`, `:q`, etc.
+ *   - inter-session MCP `control_session` tool
+ */
+export type SessionControlAction = 'clear' | 'quit' | 'interrupt' | 'set_model'
+
+export interface SessionControl {
+  type: 'session_control'
+  targetSession: string
+  action: SessionControlAction
+  fromSession?: string
+  model?: string // required when action === 'set_model'
+}
+
+export interface SessionControlResult {
+  type: 'session_control_result'
+  ok: boolean
+  action?: SessionControlAction
+  name?: string
+  error?: string
+}
+
+/** Concentrator -> wrapper: execute a control verb against the local CC. */
+export interface ControlDeliver {
+  type: 'control'
+  action: SessionControlAction
+  model?: string
+  fromSession?: string
 }
 
 // Hook event types from Claude Code

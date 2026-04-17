@@ -84,6 +84,17 @@ export interface McpChannelCallbacks {
   onTogglePlanMode?: () => void
   onReviveSession?: (sessionId: string) => Promise<{ ok: boolean; error?: string; name?: string }>
   onQuitSession?: (sessionId: string) => Promise<{ ok: boolean; error?: string; name?: string }>
+  /**
+   * Unified session control: clear | quit | interrupt | set_model. Dashboards
+   * and the MCP `control_session` tool both route through here. The wrapper
+   * forwards to the target via WS `session_control` and the concentrator
+   * routes to the target's wrapper for backend-specific dispatch.
+   */
+  onControlSession?: (params: {
+    sessionId: string
+    action: 'clear' | 'quit' | 'interrupt' | 'set_model'
+    model?: string
+  }) => Promise<{ ok: boolean; error?: string; name?: string }>
   onRestartSession?: (sessionId: string) => Promise<{
     ok: boolean
     error?: string
@@ -443,6 +454,27 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             session_id: { type: 'string', description: 'Target ID from list_sessions' },
           },
           required: ['session_id'],
+        },
+      },
+      {
+        name: 'control_session',
+        description:
+          "Send a high-level control verb to another session's wrapper. Unlike send_message (which delivers text to the model's context), control_session bypasses the model and tells the wrapper itself what to do. Requires benevolent trust. Actions:\n- clear: reset context (headless respawns CC fresh; PTY runs /clear in CC's CLI)\n- quit: graceful shutdown (headless closes stdin; PTY sends SIGTERM)\n- interrupt: cancel the current turn (Ctrl+C equivalent)\n- set_model: switch model (requires `model`, e.g. 'sonnet', 'opus')",
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            session_id: { type: 'string', description: 'Target ID from list_sessions' },
+            action: {
+              type: 'string',
+              enum: ['clear', 'quit', 'interrupt', 'set_model'],
+              description: 'Control verb to execute on the target session',
+            },
+            model: {
+              type: 'string',
+              description: 'Model name/alias (e.g. "sonnet", "opus"). Required when action is "set_model".',
+            },
+          },
+          required: ['session_id', 'action'],
         },
       },
       {
@@ -830,6 +862,43 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
               },
             ],
           }
+        }
+        case 'control_session': {
+          const sessionId = params.session_id
+          const action = params.action as 'clear' | 'quit' | 'interrupt' | 'set_model'
+          const model = typeof params.model === 'string' ? params.model : undefined
+          if (!sessionId) return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
+          if (!action || !['clear', 'quit', 'interrupt', 'set_model'].includes(action)) {
+            return {
+              content: [{ type: 'text', text: 'Error: action must be one of clear | quit | interrupt | set_model' }],
+              isError: true,
+            }
+          }
+          if (action === 'set_model' && !model) {
+            return {
+              content: [{ type: 'text', text: 'Error: model is required when action is "set_model"' }],
+              isError: true,
+            }
+          }
+          const result = await callbacks.onControlSession?.({ sessionId, action, model })
+          if (!result?.ok) {
+            debug(`[channel] control_session(${action}) failed: ${result?.error}`)
+            return {
+              content: [{ type: 'text', text: result?.error || `Failed to control session (${action})` }],
+              isError: true,
+            }
+          }
+          debug(`[channel] control_session(${action}): ${sessionId.slice(0, 8)}${model ? ` model=${model}` : ''}`)
+          const label = result.name || sessionId.slice(0, 8)
+          const verbText =
+            action === 'clear'
+              ? `Clear requested on ${label}. Context will reset in a few seconds.`
+              : action === 'quit'
+                ? `Quit signal sent to ${label}. The session will end within a few seconds.`
+                : action === 'interrupt'
+                  ? `Interrupt sent to ${label}. Current turn will stop.`
+                  : `Model switch requested on ${label} -> ${model}.`
+          return { content: [{ type: 'text', text: verbText }] }
         }
         case 'spawn_session': {
           const action = (params.action as 'spawn' | 'revive' | 'restart') || 'spawn'

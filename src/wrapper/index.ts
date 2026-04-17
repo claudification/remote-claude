@@ -708,6 +708,83 @@ async function main() {
       'boot_stream' as const,
     ]
 
+    /**
+     * Execute a high-level control verb against the local CC process. Shared
+     * entry point for:
+     *   - dashboard input: user types a bare `/clear`, `/quit`, `:q`, `/model X`
+     *   - dashboard control buttons (quit / interrupt)
+     *   - inter-session MCP `control_session` tool
+     * Backend-specific: headless uses typed methods (kill+respawn, sendSetModel,
+     * closeStdin), PTY writes the raw slash command into CC's CLI input layer.
+     */
+    function executeControl(
+      action: 'clear' | 'quit' | 'interrupt' | 'set_model',
+      args: { model?: string; source?: string } = {},
+    ): boolean {
+      const source = args.source || 'unknown'
+      if (headless) {
+        if (!ctx.streamProc) return false
+        switch (action) {
+          case 'clear':
+            diag('session', `Clear requested (${source}) - killing CC and respawning fresh`)
+            ctx.streamProc.kill()
+            ctx.clearRequested = true
+            return true
+          case 'quit': {
+            diag('session', `Quit requested (${source}) - closing stdin for graceful shutdown`)
+            const closed = ctx.streamProc.closeStdin()
+            if (closed) {
+              // Safety net: SIGTERM if CC doesn't exit within 10s
+              const proc = ctx.streamProc
+              setTimeout(() => {
+                if (!proc.proc.killed) {
+                  diag('session', 'CC still alive 10s after stdin close - sending SIGTERM')
+                  proc.kill()
+                }
+              }, 10_000)
+            } else {
+              diag('session', 'Stdin close failed - falling back to SIGTERM')
+              ctx.streamProc.kill()
+            }
+            return true
+          }
+          case 'interrupt':
+            diag('session', `Interrupt requested (${source})`)
+            ctx.streamProc.sendInterrupt()
+            return true
+          case 'set_model':
+            if (!args.model) return false
+            diag('session', `Set model requested (${source}): ${args.model}`)
+            ctx.streamProc.sendSetModel(args.model)
+            return true
+        }
+        return false
+      }
+
+      // PTY mode
+      if (!ctx.ptyProcess) return false
+      switch (action) {
+        case 'clear':
+          diag('session', `Clear requested (${source}) - injecting /clear via PTY`)
+          ctx.ptyProcess.write('/clear\r')
+          return true
+        case 'quit':
+          diag('session', `Quit requested (${source}) - sending SIGTERM to PTY`)
+          ctx.ptyProcess.kill('SIGTERM')
+          return true
+        case 'interrupt':
+          diag('session', `Interrupt requested (${source}) - sending Ctrl+C to PTY`)
+          ctx.ptyProcess.write('\x03')
+          return true
+        case 'set_model':
+          if (!args.model) return false
+          diag('session', `Set model requested (${source}): ${args.model}`)
+          ctx.ptyProcess.write(`/model ${args.model}\r`)
+          return true
+      }
+      return false
+    }
+
     ctx.wsClient = createWsClient({
       concentratorUrl,
       concentratorSecret,
@@ -777,18 +854,17 @@ async function main() {
         if (headless) {
           if (!ctx.streamProc || !input) return
           const trimmed = input.trimEnd()
-          // Intercept headless-specific commands
+          // Legacy safety net: older dashboards (and scripts) may still send
+          // bare slash commands via `send_input`. The dashboard now translates
+          // these into `session_control` up-front, but we keep interception
+          // here so a bare /clear typed in either path still works.
           if (trimmed === '/exit' || trimmed === '/quit' || trimmed === ':q' || trimmed === ':q!') {
-            ctx.streamProc.kill()
+            executeControl('quit', { source: 'headless-input' })
           } else if (trimmed === '/clear') {
-            // Kill CC process and respawn fresh (no --resume)
-            diag('headless', 'Clear requested - killing CC and respawning fresh')
-            ctx.streamProc.kill()
-            // Don't exit -- respawn handled in onExit when clearRequested is set
-            ctx.clearRequested = true
+            executeControl('clear', { source: 'headless-input' })
           } else if (trimmed.startsWith('/model ')) {
             const model = trimmed.slice(7).trim()
-            if (model) ctx.streamProc.sendSetModel(model)
+            if (model) executeControl('set_model', { model, source: 'headless-input' })
           } else {
             ctx.streamProc.sendUserMessage(input)
           }
@@ -1000,6 +1076,9 @@ async function main() {
       onChannelRenameResult(result) {
         pendingRenameResult?.(result)
       },
+      onSessionControlResult(result) {
+        pendingControlResult?.(result)
+      },
       onChannelDeliver(delivery) {
         if (headless && ctx.streamProc) {
           // Headless mode: deliver inter-session messages via stdin as <channel> tags (no conduit wrapper)
@@ -1156,37 +1235,15 @@ async function main() {
         }
       },
       onQuitSession() {
-        if (headless && ctx.streamProc) {
-          // Graceful: close stdin so CC flushes transcript and exits naturally
-          diag('session', 'Quit requested from dashboard - closing stdin for graceful shutdown')
-          const closed = ctx.streamProc.closeStdin()
-          if (closed) {
-            // Safety net: SIGTERM if CC doesn't exit within 10s
-            const proc = ctx.streamProc
-            setTimeout(() => {
-              if (!proc.proc.killed) {
-                diag('session', 'CC still alive 10s after stdin close - sending SIGTERM')
-                proc.kill()
-              }
-            }, 10_000)
-          } else {
-            // Stdin close failed, fall back to SIGTERM
-            diag('session', 'Stdin close failed - falling back to SIGTERM')
-            ctx.streamProc.kill()
-          }
-        } else if (ctx.ptyProcess) {
-          diag('session', 'Quit requested from dashboard - sending SIGTERM')
-          ctx.ptyProcess.kill('SIGTERM')
-        }
+        executeControl('quit', { source: 'dashboard-quit' })
       },
       onInterrupt() {
-        if (headless && ctx.streamProc) {
-          diag('session', 'Interrupt requested from dashboard')
-          ctx.streamProc.sendInterrupt()
-        } else if (ctx.ptyProcess) {
-          diag('session', 'Interrupt requested from dashboard - sending Ctrl+C to PTY')
-          ctx.ptyProcess.write('\x03')
-        }
+        executeControl('interrupt', { source: 'dashboard-interrupt' })
+      },
+      onControl(action, args) {
+        const source = args.fromSession ? `inter-session:${args.fromSession.slice(0, 8)}` : 'control-channel'
+        const ok = executeControl(action, { model: args.model, source })
+        if (!ok) diag('session', `Control ignored: ${action} (backend not ready or missing args)`)
       },
     })
   }
@@ -1501,6 +1558,27 @@ async function main() {
         resolve({ ok: true })
       })
     },
+    async onControlSession({ sessionId, action, model }) {
+      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+      return new Promise(resolve => {
+        const timeout = setTimeout(
+          () => resolve({ ok: false, error: 'Timeout waiting for control confirmation' }),
+          10000,
+        )
+        pendingControlResult = result => {
+          clearTimeout(timeout)
+          pendingControlResult = null
+          resolve(result)
+        }
+        ctx.wsClient?.send({
+          type: 'session_control',
+          targetSession: sessionId,
+          action,
+          ...(model && { model }),
+          fromSession: ctx.claudeSessionId || internalId,
+        } as unknown as WrapperMessage)
+      })
+    },
     async onConfigureSession({ sessionId, label, icon, color, description, keyterms }) {
       if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
       return new Promise(resolve => {
@@ -1563,6 +1641,7 @@ async function main() {
   const launchJobListeners = new Map<string, (event: Record<string, unknown>) => void>()
   let pendingConfigureResult: ((result: { ok: boolean; error?: string }) => void) | null = null
   let pendingRenameResult: ((result: { ok: boolean; error?: string }) => void) | null = null
+  let pendingControlResult: ((result: { ok: boolean; error?: string; name?: string }) => void) | null = null
   const pendingRendezvous = new Map<
     string,
     { resolve: (msg: Record<string, unknown>) => void; reject: (error: string) => void }

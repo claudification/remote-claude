@@ -803,7 +803,45 @@ export function reviveSession(sessionId: string, headless?: boolean, jobId?: str
   })
 }
 
+/**
+ * Detect a bare control command typed on its own line and route it to the
+ * `session_control` channel instead of `send_input`. The wrapper interprets
+ * these verbs backend-specifically (headless vs PTY) rather than letting the
+ * text reach the model. Returns the verb + args when matched, null otherwise.
+ */
+function detectControlCommand(input: string): {
+  action: 'clear' | 'quit' | 'interrupt' | 'set_model'
+  model?: string
+} | null {
+  const trimmed = input.trim()
+  if (!trimmed || trimmed.includes('\n')) return null
+  if (trimmed === '/clear') return { action: 'clear' }
+  if (trimmed === '/quit' || trimmed === '/exit' || trimmed === ':q' || trimmed === ':q!') return { action: 'quit' }
+  const modelMatch = trimmed.match(/^\/model\s+(\S+)$/)
+  if (modelMatch) return { action: 'set_model', model: modelMatch[1] }
+  return null
+}
+
+export function sendSessionControl(
+  sessionId: string,
+  action: 'clear' | 'quit' | 'interrupt' | 'set_model',
+  opts: { model?: string } = {},
+): boolean {
+  return wsSend('session_control', {
+    targetSession: sessionId,
+    action,
+    ...(opts.model && { model: opts.model }),
+  })
+}
+
 export function sendInput(sessionId: string, input: string): boolean {
+  // Bare control commands (/clear, /quit, :q, /model X) bypass the model and
+  // go straight to the wrapper's control channel. Everything else flows
+  // through send_input as before.
+  const control = detectControlCommand(input)
+  if (control) {
+    return sendSessionControl(sessionId, control.action, { model: control.model })
+  }
   const crDelay = (useSessionsStore.getState().globalSettings.carriageReturnDelay as number) || 0
   const ok = wsSend('send_input', { sessionId, input, ...(crDelay > 0 && { crDelay }) })
   // Headless sessions: inject optimistic user entry so text appears immediately
