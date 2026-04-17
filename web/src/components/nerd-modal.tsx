@@ -373,10 +373,17 @@ const CAT_COLORS: Record<PerfCategory, string> = {
   other: 'text-muted-foreground',
 }
 
+const SIGNIFICANT_THRESHOLD_MS = 1
+
 function PerfTab() {
   const entries = useSyncExternalStore(subscribePerfMetrics, getPerfEntries) as PerfEntry[]
   const scrollRef = useRef<HTMLDivElement>(null)
   const enabled = isPerfEnabled()
+  const [significantOnly, setSignificantOnly] = useState(false)
+
+  const visibleEntries = significantOnly
+    ? entries.filter(e => e.durationMs >= SIGNIFICANT_THRESHOLD_MS)
+    : entries
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: entries.length is a dep key to trigger scroll on new entries; scrollRef is a stable ref
   useEffect(() => {
@@ -415,8 +422,19 @@ function PerfTab() {
 
       {/* Controls */}
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-[#565f89]">{entries.length} entries</span>
+        <span className="text-[10px] text-[#565f89]">
+          {significantOnly ? `${visibleEntries.length}/${entries.length}` : entries.length} entries
+        </span>
         <div className="flex items-center gap-3">
+          <label className="text-[10px] text-[#565f89] hover:text-[#a9b1d6] flex items-center gap-1 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={significantOnly}
+              onChange={e => setSignificantOnly(e.target.checked)}
+              className="accent-[#7aa2f7]"
+            />
+            Significant only (&ge;{SIGNIFICANT_THRESHOLD_MS}ms)
+          </label>
           <button
             type="button"
             onClick={() => {
@@ -430,8 +448,12 @@ function PerfTab() {
                 }
                 lines.push('')
               }
-              lines.push('## Entries', '', '| Time | Category | Label | Duration | Detail |', '|---|---|---|---|---|')
-              for (const e of entries.slice(-200)) {
+              const entriesToCopy = visibleEntries.slice(-200)
+              const heading = significantOnly
+                ? `## Entries (significant, \u2265${SIGNIFICANT_THRESHOLD_MS}ms)`
+                : '## Entries'
+              lines.push(heading, '', '| Time | Category | Label | Duration | Detail |', '|---|---|---|---|---|')
+              for (const e of entriesToCopy) {
                 const t = new Date(e.t).toLocaleTimeString('en-GB', { hour12: false })
                 lines.push(`| ${t} | ${e.category} | ${e.label} | ${e.durationMs.toFixed(1)}ms | ${e.detail || ''} |`)
               }
@@ -453,12 +475,14 @@ function PerfTab() {
 
       {/* Entry list */}
       <div ref={scrollRef} className="max-h-[300px] overflow-y-auto space-y-0">
-        {entries.length === 0 ? (
+        {visibleEntries.length === 0 ? (
           <div className="text-center text-[#565f89] text-[10px] py-4">
-            No entries yet -- interact with the dashboard
+            {entries.length === 0
+              ? 'No entries yet -- interact with the dashboard'
+              : `No entries \u2265${SIGNIFICANT_THRESHOLD_MS}ms`}
           </div>
         ) : (
-          entries.slice(-100).map((e, i) => {
+          visibleEntries.slice(-100).map((e, i) => {
             const time = new Date(e.t).toLocaleTimeString('en-GB', { hour12: false })
             const barWidth = Math.min(100, (e.durationMs / 50) * 100)
             return (
