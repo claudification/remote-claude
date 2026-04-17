@@ -226,8 +226,8 @@ describe('event ingestion', () => {
   it('updateTasks replaces session tasks', () => {
     store.createSession('task-sess', '/cwd')
     const tasks: TaskInfo[] = [
-      { id: 'task-1', subject: 'Do something', status: 'pending' },
-      { id: 'task-2', subject: 'Do another', status: 'in_progress' },
+      { id: 'task-1', subject: 'Do something', status: 'pending', updatedAt: Date.now() },
+      { id: 'task-2', subject: 'Do another', status: 'in_progress', updatedAt: Date.now() },
     ]
     store.updateTasks('task-sess', tasks)
     const session = store.getSession('task-sess')!
