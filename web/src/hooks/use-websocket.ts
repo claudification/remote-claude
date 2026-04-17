@@ -416,8 +416,12 @@ function processMessage(msg: DashboardMessage) {
               }
             })
           }
-        } else if (eventType === 'message_start' || eventType === 'content_block_start') {
-          // New turn or new content block -- reset streaming buffer
+        } else if (eventType === 'message_start') {
+          // New turn -- reset streaming buffer. Do NOT reset on content_block_start:
+          // a single assistant message can have multiple text blocks (interleaved with
+          // tool_use / thinking) and resetting on each block wipes earlier text_deltas
+          // before message_stop flushes the final assistant entry, making the first
+          // block look "missed" to the viewer.
           useSessionsStore.setState(state => {
             if (!state.streamingText[sid]) return state
             return { streamingText: { ...state.streamingText, [sid]: '' } }
