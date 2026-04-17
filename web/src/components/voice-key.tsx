@@ -8,7 +8,7 @@ import { useEffect, useRef } from 'react'
 import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { useVoiceRecording } from '@/hooks/use-voice-recording'
 import { haptic } from '@/lib/utils'
-import { formatKeyCode } from './settings-page'
+import { formatKeyCode } from './settings/key-capture'
 
 export function VoiceKey() {
   const voiceHoldKey = useSessionsStore(s => s.dashboardPrefs.voiceHoldKey)

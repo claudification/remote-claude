@@ -1052,7 +1052,7 @@ remote-claude/
 │   │   ├── pty-spawn.ts          # PTY subprocess management + OSC 52
 │   │   ├── ws-client.ts          # WebSocket client with reconnection
 │   │   ├── transcript-watcher.ts # JSONL file watcher (chokidar)
-│   │   ├── mcp-channel.ts        # MCP Streamable HTTP server (channel + tools)
+│   │   ├── mcp-channel.ts        # MCP Streamable HTTP server (tool registry)
 │   │   ├── local-server.ts       # Hook callback + MCP endpoint
 │   │   ├── file-editor.ts        # File operations for dashboard editor
 │   │   ├── osc52-parser.ts       # Clipboard capture (OSC 52 interception)
@@ -1076,9 +1076,19 @@ remote-claude/
 │   │   │   └── voice.ts             # Deepgram voice relay
 │   │   ├── address-book.ts        # Per-caller routing slugs (persisted)
 │   │   ├── message-queue.ts      # Offline message queue (persisted, 24h TTL)
-│   │   ├── routes.ts             # Hono HTTP routes (REST API)
+│   │   ├── routes.ts             # HTTP routes composition root
+│   │   ├── routes/               # Per-domain route modules
+│   │   │   ├── sessions.ts       # /sessions/*
+│   │   │   ├── admin.ts          # users, shares, inter-session links
+│   │   │   ├── api.ts            # push, crashes, files, transcribe, settings
+│   │   │   ├── stats.ts          # cost + analytics
+│   │   │   ├── spawn.ts          # /api/spawn, /api/dirs
+│   │   │   ├── blob-store.ts     # blob + shared-files store
+│   │   │   └── shared.ts         # RouteHelpers factory
+│   │   ├── __tests__/            # Vitest behavioral tests
 │   │   ├── ws-server.ts          # WebSocket server (separate port mode)
 │   │   ├── session-store.ts      # Session registry + persistence
+│   │   ├── session-store/        # Domain modules (pub/sub, terminals, parsers)
 │   │   ├── session-order.ts      # Tree-based session organization (DnD)
 │   │   ├── session-links.ts      # Inter-session permission management
 │   │   ├── inter-session-log.ts  # Message history between sessions
@@ -1122,8 +1132,10 @@ remote-claude/
 │       │   ├── inline-terminal.tsx      # Embedded terminal panel
 │       │   ├── terminal-toolbar.tsx     # Touch shortcut buttons
 │       │   ├── terminal-settings.tsx    # Theme/font/size picker
-│       │   ├── session-list.tsx         # Sidebar with DnD groups
-│       │   ├── session-detail.tsx       # Main panel (tabs + input)
+│       │   ├── session-list.tsx         # Sidebar composition + DnD tree
+│       │   ├── session-list/            # Sub-components (item, cwd-group, menu, sorting)
+│       │   ├── session-detail.tsx       # Main panel orchestrator
+│       │   ├── session-detail/          # Sub-components (banners, header, tabs, input)
 │       │   ├── file-editor.tsx          # CodeMirror markdown editor
 │       │   ├── markdown-input.tsx       # Input with syntax overlay
 │       │   ├── markdown.tsx             # Markdown renderer (mermaid support)
@@ -1134,8 +1146,10 @@ remote-claude/
 │       │   ├── voice-key.tsx            # Desktop push-to-talk
 │       │   ├── copy-menu.tsx            # Copy format picker (Rich/MD/Text/Image)
 │       │   ├── json-inspector.tsx       # Collapsible JSON tree viewer
-│       │   ├── settings-page.tsx        # Settings panel
+│       │   ├── settings-page.tsx        # Settings dialog orchestrator
+│       │   ├── settings/                # Per-section files (inputs, notifications, key-capture, links)
 │       │   ├── project-settings-editor.tsx # Project label/icon/color/trust
+│       │   ├── ui/session-banner.tsx     # Shared SessionBanner + BannerButton primitives
 │       │   ├── shortcut-help.tsx        # Shift+? keyboard help overlay
 │       │   ├── debug-console.tsx        # Ctrl+Shift+D debug panel
 │       │   ├── share-panel.tsx          # Session sharing management panel
