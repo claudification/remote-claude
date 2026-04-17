@@ -32,6 +32,16 @@ echo -e "${BOLD}  └───────────────────�
 echo ""
 
 # ─── Prerequisites ───────────────────────────────────────────────
+if ! command -v tmux &>/dev/null; then
+  warn "tmux is not installed. The agent uses tmux to spawn and revive sessions from the dashboard."
+  case "$(uname -s)" in
+    Darwin) echo -e "  Install with: ${CYAN}brew install tmux${NC}" ;;
+    Linux)  echo -e "  Install with: ${CYAN}sudo apt install tmux${NC} or ${CYAN}sudo dnf install tmux${NC}" ;;
+  esac
+else
+  ok "Found tmux $(tmux -V)"
+fi
+
 if ! command -v bun &>/dev/null; then
   warn "bun is not installed. Installing..."
   curl -fsSL https://bun.sh/install | bash

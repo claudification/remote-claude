@@ -18,6 +18,12 @@
 
 set -euo pipefail
 
+# Ensure package-manager-installed binaries (tmux, etc.) are on PATH even when
+# running as a launchd/systemd service, which inherits a minimal PATH.
+for dir in /opt/homebrew/bin /usr/local/bin /home/linuxbrew/.linuxbrew/bin "$HOME/.linuxbrew/bin"; do
+  [[ -d "$dir" ]] && [[ ":$PATH:" != *":$dir:"* ]] && export PATH="$dir:$PATH"
+done
+
 CWD="$2"
 SPAWN_MODE=""
 RESUME_ID=""

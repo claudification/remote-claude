@@ -65,6 +65,32 @@ function getMachineId(): string {
 
 const RECONNECT_DELAY_MS = 5000
 
+// ─── tmux binary discovery ────────────────────────────────────────────
+// When the agent runs as a launchd daemon (macOS), it inherits a minimal PATH
+// (e.g. /usr/bin:/bin:/usr/sbin:/sbin) without Homebrew's /opt/homebrew/bin.
+// Resolve tmux to an absolute path at startup by checking common package manager
+// locations directly, without mutating process.env.PATH (which would widen the
+// PATH inherited by all child processes).
+function findTmuxBinary(): string {
+  // First, check the existing PATH
+  const fromPath = Bun.which('tmux')
+  if (fromPath) return fromPath
+  // Check common package manager locations that may not be in PATH
+  const extraDirs = [
+    '/opt/homebrew/bin', // Homebrew on Apple Silicon
+    '/usr/local/bin', // Homebrew on Intel Mac / common Linux
+    '/home/linuxbrew/.linuxbrew/bin', // Homebrew on Linux (system-wide)
+    join(process.env.HOME || '/root', '.linuxbrew', 'bin'), // Homebrew on Linux (per-user)
+  ]
+  for (const dir of extraDirs) {
+    const candidate = join(dir, 'tmux')
+    if (existsSync(candidate)) return candidate
+  }
+  return 'tmux' // bare fallback — will fail with a clear error at the call site
+}
+
+const TMUX_BIN = findTmuxBinary()
+
 // ─── PID Registry (headless child process tracking) ─────────────────
 const PID_REGISTRY_DIR = join(process.env.HOME || '/root', '.rclaude')
 const PID_REGISTRY_PATH = join(PID_REGISTRY_DIR, 'agent-sessions.json')
@@ -894,7 +920,7 @@ async function spawnSession(
   const exitCode = proc.exitCode
 
   // After spawn, check if the tmux session/window actually exists
-  const tmuxCheck = Bun.spawnSync(['tmux', 'list-windows', '-t', 'remote-claude'])
+  const tmuxCheck = Bun.spawnSync([TMUX_BIN, 'list-windows', '-t', 'remote-claude'])
   const tmuxWindows = tmuxCheck.stdout.toString().trim()
 
   diag('spawn', 'Script completed', {
@@ -1233,7 +1259,7 @@ function connect(
               const wid = reviveMsg.wrapperId
               const jid = reviveMsg.jobId
               setTimeout(() => {
-                const check = Bun.spawnSync(['tmux', 'list-panes', '-t', paneId], {
+                const check = Bun.spawnSync([TMUX_BIN, 'list-panes', '-t', paneId], {
                   stdout: 'pipe',
                   stderr: 'pipe',
                 })
@@ -1356,7 +1382,7 @@ function connect(
               const jid = spawnMsg.jobId
               const spawnCwd = expandedCwd
               setTimeout(() => {
-                const check = Bun.spawnSync(['tmux', 'list-panes', '-t', paneId], {
+                const check = Bun.spawnSync([TMUX_BIN, 'list-panes', '-t', paneId], {
                   stdout: 'pipe',
                   stderr: 'pipe',
                 })
