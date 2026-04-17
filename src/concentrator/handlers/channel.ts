@@ -231,6 +231,37 @@ const channelListSessions: MessageHandler = (ctx, data) => {
 
 // ─── Inter-session messaging (channel_send) ────────────────────────
 
+/**
+ * Compute the sender's routable ID from the receiver's perspective.
+ *
+ * Must match the ID shape produced by `list_sessions` so a recipient can
+ * pass `from_session` straight back as `to` without a round-trip through
+ * list_sessions. When the sender's CWD hosts multiple sessions, the ID
+ * is compounded `project:session-slug` -- bare project slugs would be
+ * ambiguous and rejected by the send resolver.
+ */
+function computeSenderRoutableId(
+  ctx: Parameters<MessageHandler>[0],
+  fromSess: { id: string; cwd: string; title?: string } | undefined,
+  toCwd: string | undefined,
+  fromProject: string,
+): { routable: string; project: string } {
+  if (!fromSess?.cwd || !toCwd) {
+    const fallback = fromSess?.id || slugify(fromProject)
+    return { routable: fallback, project: fallback }
+  }
+  const projectSlug = ctx.addressBook.getOrAssign(toCwd, fromSess.cwd, fromProject)
+  const sessionsAtCwd = Array.from(ctx.sessions.getAllSessions()).filter(s => s.cwd === fromSess.cwd)
+  if (sessionsAtCwd.length <= 1) return { routable: projectSlug, project: projectSlug }
+
+  const sessionSlug = slugify(fromSess.title || fromSess.id.slice(0, 8))
+  const collides = sessionsAtCwd.some(
+    other => other.id !== fromSess.id && slugify(other.title || other.id.slice(0, 8)) === sessionSlug,
+  )
+  const finalSessionSlug = collides ? `${sessionSlug}-${fromSess.id.slice(0, 6)}` : sessionSlug
+  return { routable: `${projectSlug}:${finalSessionSlug}`, project: projectSlug }
+}
+
 const channelSend: MessageHandler = (ctx, data) => {
   const fromSession = ctx.ws.data.sessionId || (data.fromSession as string)
   const toTarget = data.toSession as string
@@ -294,13 +325,20 @@ const channelSend: MessageHandler = (ctx, data) => {
   if (targetCwd && !toSess) {
     const fromProject =
       ctx.getProjectSettings(callerCwd || '')?.label || callerCwd?.split('/').pop() || fromSession.slice(0, 8)
-    // Resolve sender slug from receiver's address book (works even when target is offline)
-    const fromSlug = callerCwd ? ctx.addressBook.getOrAssign(targetCwd, callerCwd, fromProject) : fromSession
+    // Resolve sender ID from receiver's address book perspective (works even when target is offline).
+    // `routable` is a list_sessions-compatible ID the recipient can pass straight back as `to`;
+    // `project` is the bare project slug for grouping/context.
+    const { routable: fromSlug, project: fromProjectSlug } = computeSenderRoutableId(
+      ctx,
+      fromSess && { id: fromSess.id, cwd: fromSess.cwd, title: fromSess.title },
+      targetCwd,
+      fromProject,
+    )
     const conversationId = (data.conversationId as string) || `conv_${Date.now().toString(36)}`
     const delivery = {
       type: 'channel_deliver',
       fromSession: fromSlug,
-      fromProject: fromSlug,
+      fromProject: fromProjectSlug,
       intent: data.intent,
       message: data.message,
       context: data.context,
@@ -349,14 +387,20 @@ const channelSend: MessageHandler = (ctx, data) => {
 
   const conversationId = (data.conversationId as string) || `conv_${Date.now().toString(36)}`
 
-  // Resolve sender identity from the RECEIVER's address book perspective
-  const fromSlug =
-    toSess.cwd && fromSess?.cwd ? ctx.addressBook.getOrAssign(toSess.cwd, fromSess.cwd, fromProject) : fromSession
+  // Resolve sender ID from the RECEIVER's address book perspective.
+  // `routable` matches what list_sessions would return for this sender,
+  // so the recipient can pass `from_session` straight back as `to`.
+  const { routable: fromSlug, project: fromProjectSlug } = computeSenderRoutableId(
+    ctx,
+    fromSess && { id: fromSess.id, cwd: fromSess.cwd, title: fromSess.title },
+    toSess.cwd,
+    fromProject,
+  )
 
   const delivery = {
     type: 'channel_deliver',
     fromSession: fromSlug,
-    fromProject: fromSlug,
+    fromProject: fromProjectSlug,
     intent: data.intent,
     message: data.message,
     context: data.context,
