@@ -29,7 +29,9 @@ import {
   ListChecks,
   MoreHorizontal,
   Pencil,
+  RotateCcw,
   Search,
+  Sliders,
   Trash2,
   X,
   Zap,
@@ -37,6 +39,13 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
+import {
+  type BoardViewConfig,
+  CLAMP_CLASS,
+  DENSITY_PADDING,
+  TITLE_SIZE_CLASS,
+  useBoardViewConfig,
+} from '@/hooks/use-board-view-config'
 import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import type { ProjectTask } from '@/hooks/use-project'
 import { type ProjectTaskMeta, type TaskStatus, useProject } from '@/hooks/use-project'
@@ -954,12 +963,14 @@ export function RunTaskDialog({
 
 function ProjectCard({
   task,
+  view,
   onMove,
   onDelete,
   onArchive,
   onEdit,
 }: {
   task: ProjectTaskMeta
+  view: BoardViewConfig
   onMove: (slug: string, from: TaskStatus, to: TaskStatus) => void
   onDelete: (slug: string, status: TaskStatus) => void
   onArchive: (slug: string, from: TaskStatus) => void
@@ -981,7 +992,8 @@ function ProjectCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'group px-3 py-2 bg-[#1a1b26] border border-[#33467c]/30 hover:border-[#33467c]/60 transition-colors cursor-pointer',
+        'group bg-[#1a1b26] border border-[#33467c]/30 hover:border-[#33467c]/60 transition-colors cursor-pointer',
+        DENSITY_PADDING[view.density],
         isDragging && 'opacity-50 z-50',
       )}
       onClick={() => !isDragging && onEdit(task)}
@@ -995,14 +1007,21 @@ function ProjectCard({
     >
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-mono text-foreground truncate flex items-center gap-1.5">
+          <div
+            className={cn(
+              'font-mono text-foreground truncate flex items-center gap-1.5',
+              TITLE_SIZE_CLASS[view.titleSize],
+            )}
+          >
             <span className="truncate">{task.title}</span>
             {task.created && (
               <span className="text-[9px] text-muted-foreground/40 shrink-0">{taskAge(task.created)}</span>
             )}
           </div>
-          {task.bodyPreview && (
-            <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{task.bodyPreview}</div>
+          {task.bodyPreview && view.bodyLines > 0 && (
+            <div className={cn('text-[10px] text-muted-foreground mt-0.5', CLAMP_CLASS[view.bodyLines])}>
+              {task.bodyPreview}
+            </div>
           )}
           <div className="flex items-center gap-1 mt-1 flex-wrap">
             {task.priority && (
@@ -1163,17 +1182,128 @@ function InlineAdd({ onAdd }: { onAdd: (text: string) => void }) {
   )
 }
 
-function DroppableColumn({ status, children }: { status: TaskStatus; children: React.ReactNode }) {
+function DroppableColumn({
+  status,
+  width,
+  children,
+}: {
+  status: TaskStatus
+  width: number
+  children: React.ReactNode
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
   return (
     <div
       ref={setNodeRef}
+      style={{ width: `${width}px`, minWidth: `${width}px` }}
       className={cn(
-        'flex-1 min-w-[220px] w-[220px] flex flex-col border-r border-border last:border-r-0 transition-colors',
+        'flex-1 flex flex-col border-r border-border last:border-r-0 transition-colors',
         isOver && 'bg-accent/5',
       )}
     >
       {children}
+    </div>
+  )
+}
+
+function ViewConfigPanel({
+  view,
+  update,
+  reset,
+}: {
+  view: BoardViewConfig
+  update: <K extends keyof BoardViewConfig>(key: K, value: BoardViewConfig[K]) => void
+  reset: () => void
+}) {
+  return (
+    <div className="border border-[#33467c]/40 bg-[#1a1b26]/60 px-3 py-2 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/60">View</span>
+        <button
+          type="button"
+          onClick={() => {
+            haptic('tap')
+            reset()
+          }}
+          className="flex items-center gap-1 text-[9px] font-mono text-muted-foreground/60 hover:text-foreground transition-colors"
+          title="Reset to defaults"
+        >
+          <RotateCcw className="w-3 h-3" />
+          Reset
+        </button>
+      </div>
+
+      <label className="flex items-center gap-2">
+        <span className="text-[10px] font-mono text-muted-foreground/70 w-16 shrink-0">Width</span>
+        <input
+          type="range"
+          min={200}
+          max={400}
+          step={10}
+          value={view.columnWidth}
+          onChange={e => update('columnWidth', Number(e.target.value))}
+          className="flex-1 accent-accent"
+        />
+        <span className="text-[10px] font-mono text-foreground w-10 text-right">{view.columnWidth}px</span>
+      </label>
+
+      <label className="flex items-center gap-2">
+        <span className="text-[10px] font-mono text-muted-foreground/70 w-16 shrink-0">Body</span>
+        <input
+          type="range"
+          min={0}
+          max={6}
+          step={1}
+          value={view.bodyLines}
+          onChange={e => update('bodyLines', Number(e.target.value))}
+          className="flex-1 accent-accent"
+        />
+        <span className="text-[10px] font-mono text-foreground w-10 text-right">
+          {view.bodyLines === 0 ? 'hidden' : `${view.bodyLines}L`}
+        </span>
+      </label>
+
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-mono text-muted-foreground/70 w-16 shrink-0">Density</span>
+        <div className="flex gap-1 flex-1">
+          {(['compact', 'normal', 'roomy'] as const).map(d => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => update('density', d)}
+              className={cn(
+                'flex-1 px-2 py-0.5 text-[9px] font-mono border rounded transition-colors',
+                view.density === d
+                  ? 'border-accent/60 text-accent bg-accent/10'
+                  : 'border-border/40 text-muted-foreground/60 hover:text-muted-foreground',
+              )}
+            >
+              {d}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-mono text-muted-foreground/70 w-16 shrink-0">Title</span>
+        <div className="flex gap-1 flex-1">
+          {(['xs', 'sm'] as const).map(s => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => update('titleSize', s)}
+              className={cn(
+                'flex-1 px-2 py-0.5 text-[9px] font-mono border rounded transition-colors',
+                view.titleSize === s
+                  ? 'border-accent/60 text-accent bg-accent/10'
+                  : 'border-border/40 text-muted-foreground/60 hover:text-muted-foreground',
+              )}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -1186,6 +1316,8 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
   const [archiveExpanded, setArchiveExpanded] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
+  const [configOpen, setConfigOpen] = useState(false)
+  const { config: view, update: updateView, reset: resetView } = useBoardViewConfig()
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
   const [selectedPriority, setSelectedPriority] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -1369,6 +1501,20 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
             </button>
             <button
               type="button"
+              title="View settings"
+              className={cn(
+                'p-0.5 transition-colors',
+                configOpen ? 'text-accent' : 'text-muted-foreground/40 hover:text-muted-foreground',
+              )}
+              onClick={() => {
+                haptic('tap')
+                setConfigOpen(v => !v)
+              }}
+            >
+              <Sliders className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
               className="text-[10px] text-muted-foreground hover:text-foreground font-mono"
               onClick={() => refresh()}
             >
@@ -1400,6 +1546,8 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
               )}
             </div>
           )}
+
+          {configOpen && <ViewConfigPanel view={view} update={updateView} reset={resetView} />}
 
           {/* Priority + tag filters -- always visible */}
           <div className="flex items-center gap-1">
@@ -1449,7 +1597,7 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
             {COLUMNS.map(col => {
               const colTasks = activeTasks.filter(n => n.status === col.status)
               return (
-                <DroppableColumn key={col.status} status={col.status}>
+                <DroppableColumn key={col.status} status={col.status} width={view.columnWidth}>
                   {/* Column header */}
                   <div className="px-3 py-2 border-b border-border/50 flex items-center gap-2 shrink-0">
                     <span className={cn('text-[11px] font-bold font-mono uppercase tracking-wider', col.color)}>
@@ -1464,6 +1612,7 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
                       <ProjectCard
                         key={task.slug}
                         task={task}
+                        view={view}
                         onMove={handleMove}
                         onDelete={handleDelete}
                         onArchive={handleArchive}
@@ -1517,6 +1666,7 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
                 <ProjectCard
                   key={task.slug}
                   task={task}
+                  view={view}
                   onMove={handleMove}
                   onDelete={handleDelete}
                   onArchive={handleArchive}
