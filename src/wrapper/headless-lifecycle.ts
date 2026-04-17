@@ -69,29 +69,34 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       debug(`[headless] init: session=${init.session_id?.slice(0, 8)} model=${init.model}`)
       if (init.session_id) {
         const newModel = typeof init.model === 'string' ? init.model : undefined
-        // Emit BEFORE observeClaudeSessionId so the `sessionId` stamp on
-        // subsequent launch events (rekeyed, ready) is the NEW id, and the
-        // init_received card carries the fresh init payload.
-        emitLaunchEvent(ctx, 'init_received', {
-          detail: `session=${init.session_id.slice(0, 8)} model=${newModel || '?'}`,
-          raw: {
-            session_id: init.session_id,
-            model: init.model,
-            tools: init.tools,
-            slash_commands: init.slash_commands,
-            skills: init.skills,
-            agents: init.agents,
-            mcp_servers: init.mcp_servers,
-            plugins: init.plugins,
-            permission_mode: init.permissionMode,
-            claude_code_version: init.claude_code_version,
-            fast_mode_state: init.fast_mode_state,
-          },
-        })
+        // CC's stream-json protocol emits `system.init` at the START OF EVERY
+        // TURN -- not just once per process. Emitting a launch_event here
+        // unconditionally produced a duplicate init_received card for every
+        // user message. Only emit when the session id actually changed (fresh
+        // spawn or /clear rekey) so the card marks real launch transitions.
+        if (ctx.claudeSessionId !== init.session_id) {
+          emitLaunchEvent(ctx, 'init_received', {
+            detail: `session=${init.session_id.slice(0, 8)} model=${newModel || '?'}`,
+            raw: {
+              session_id: init.session_id,
+              model: init.model,
+              tools: init.tools,
+              slash_commands: init.slash_commands,
+              skills: init.skills,
+              agents: init.agents,
+              mcp_servers: init.mcp_servers,
+              plugins: init.plugins,
+              permission_mode: init.permissionMode,
+              claude_code_version: init.claude_code_version,
+              fast_mode_state: init.fast_mode_state,
+            },
+          })
+        }
         // Single entry point: observeClaudeSessionId classifies this as
         // boot / rekey / confirm and performs the right concentrator action.
-        // Safe to call redundantly -- the SessionStart hook calls it too in
-        // non-bare headless mode; whoever fires first does the work.
+        // Safe to call redundantly -- same-id calls return 'confirm' with no
+        // side effects. The SessionStart hook calls it too in non-bare
+        // headless mode; whoever fires first does the work.
         observeClaudeSessionId(ctx, init.session_id, 'stream_json', newModel)
       }
       // Derive transcript path from init if not yet set by SessionStart hook
