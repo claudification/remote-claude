@@ -88,7 +88,7 @@ Per-turn cost and token storage. `bun:sqlite` WAL mode. 30-day retention.
 **bun:sqlite gotcha:** `$name` in SQL -> key WITHOUT `$` in JS:
 `db.prepare('WHERE x < $cutoff').run({ cutoff: 42 })`
 
-Files: `cost-store.ts`, `handlers/transcript.ts`, `session-store.ts`, `routes.ts`
+Files: `cost-store.ts`, `handlers/transcript.ts`, `session-store.ts`, `routes/stats.ts`
 
 ## Model Pricing (LiteLLM)
 
