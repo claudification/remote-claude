@@ -446,6 +446,33 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
     }
 
     for (const entry of newEntries) {
+      // Boot and launch timeline entries -- same rules as batch grouper.
+      // Both the incremental path (here) and the batch `groupEntries` must
+      // recognise these or the LaunchTimeline / BootTimeline never renders.
+      if (entry.type === 'boot') {
+        const prev = newGroups[newGroups.length - 1]
+        if (prev?.type === 'boot') {
+          prev.entries.push(entry)
+        } else {
+          lastGroup = null
+          newGroups.push({ type: 'boot', timestamp: entry.timestamp || '', entries: [entry] })
+        }
+        continue
+      }
+
+      if (entry.type === 'launch') {
+        const launchId = (entry as { launchId?: string }).launchId
+        const prev = newGroups[newGroups.length - 1]
+        const prevLaunchId = (prev?.entries[0] as { launchId?: string } | undefined)?.launchId
+        if (prev?.type === 'launch' && prevLaunchId === launchId) {
+          prev.entries.push(entry)
+        } else {
+          lastGroup = null
+          newGroups.push({ type: 'launch', timestamp: entry.timestamp || '', entries: [entry] })
+        }
+        continue
+      }
+
       if (entry.type === 'compacting' || entry.type === 'compacted') {
         lastGroup = null
         // When compacted arrives, replace the preceding compacting group
