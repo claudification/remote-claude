@@ -16,6 +16,7 @@ import { TogglePill } from '@/components/ui/toggle-pill'
 import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import { updateProjectSettings, useSessionsStore, wsSend } from '@/hooks/use-sessions'
 import { sendSpawnRequest } from '@/hooks/use-spawn'
+import { parseEnvText } from '@/lib/env-parse'
 import { useKeyLayer } from '@/lib/key-layers'
 import { cn, haptic } from '@/lib/utils'
 import { LaunchConfigFields, type LaunchFieldsValue } from './launch-config-fields'
@@ -29,34 +30,6 @@ export interface SpawnDialogOptions {
 interface SpawnDialogState {
   open: boolean
   options: SpawnDialogOptions | null
-}
-
-/** Parse KEY=value lines into env record. Returns [env, errors]. */
-function parseEnvText(text: string): [Record<string, string> | null, string[]] {
-  if (!text.trim()) return [null, []]
-  const env: Record<string, string> = {}
-  const errors: string[] = []
-  for (const [i, raw] of text.split('\n').entries()) {
-    const line = raw.trim()
-    if (!line || line.startsWith('#')) continue
-    const eq = line.indexOf('=')
-    if (eq < 1) {
-      errors.push(`Line ${i + 1}: missing KEY=value`)
-      continue
-    }
-    const key = line.slice(0, eq)
-    const value = line.slice(eq + 1)
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
-      errors.push(`Line ${i + 1}: invalid key "${key}"`)
-      continue
-    }
-    if (/["']/.test(value)) {
-      errors.push(`Line ${i + 1}: no quotes needed, use raw value`)
-      continue
-    }
-    env[key] = value
-  }
-  return [errors.length ? null : Object.keys(env).length ? env : null, errors]
 }
 
 // Module-level state so any component can trigger the dialog
@@ -82,7 +55,6 @@ export function SpawnDialog() {
   const [maxBudgetUsd, setMaxBudgetUsd] = useState('')
   const [configTab, setConfigTab] = useState<'basic' | 'advanced'>('basic')
   const [envText, setEnvText] = useState('')
-  const [envErrors, setEnvErrors] = useState<string[]>([])
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [savedFeedback, setSavedFeedback] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -127,7 +99,6 @@ export function SpawnDialog() {
       const envDefault = ps?.defaultEnvText || (gs.defaultEnvText as string) || ''
       setEnvText(envDefault)
       setConfigTab('basic')
-      setEnvErrors([])
       setSavedFeedback(null)
       setPhase('config')
       setJobId(null)
@@ -197,10 +168,12 @@ export function SpawnDialog() {
   const handleSpawn = useCallback(async () => {
     if (!state.options || phase !== 'config') return
 
-    // Validate env before spawning
+    // Validate env before spawning. Errors render inline in LaunchConfigFields
+    // as the user types, so we just block submit here.
     const [parsedEnv, errors] = parseEnvText(envText)
     if (errors.length) {
-      setEnvErrors(errors)
+      setConfigTab('advanced')
+      haptic('error')
       return
     }
 
@@ -340,7 +313,6 @@ export function SpawnDialog() {
     setAutocompactPct('')
     setMaxBudgetUsd('')
     setEnvText('')
-    setEnvErrors([])
     haptic('tap')
   }
 
@@ -391,10 +363,7 @@ export function SpawnDialog() {
     if ('maxBudgetUsd' in patch) setMaxBudgetUsd(patch.maxBudgetUsd ?? '')
     if ('useWorktree' in patch) setUseWorktree(!!patch.useWorktree)
     if ('worktreeName' in patch) setWorktreeName(patch.worktreeName ?? '')
-    if ('envText' in patch) {
-      setEnvText(patch.envText ?? '')
-      setEnvErrors([])
-    }
+    if ('envText' in patch) setEnvText(patch.envText ?? '')
     if ('name' in patch) setName(patch.name ?? '')
   }
 
@@ -543,15 +512,8 @@ export function SpawnDialog() {
                       onToggle={() => setBare(!bare)}
                     />
 
-                    {/* Env vars (LaunchConfigFields renders textarea, errors below) */}
+                    {/* Env vars (LaunchConfigFields renders textarea + inline errors) */}
                     <LaunchConfigFields value={fieldsValue} onChange={applyFieldsPatch} show={{ env: true }} />
-                    {envErrors.length > 0 && (
-                      <div className="text-[10px] font-mono text-red-400 space-y-0.5">
-                        {envErrors.map(e => (
-                          <div key={e}>{e}</div>
-                        ))}
-                      </div>
-                    )}
                     <div className="text-[9px] text-[#565f89]">
                       KEY=value per line, set before executing claude. # comments ok.
                     </div>
