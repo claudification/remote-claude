@@ -22,6 +22,7 @@ import {
   getCostLevel,
   getSessionCost,
 } from '@/lib/cost-utils'
+import { useKeyLayer } from '@/lib/key-layers'
 import type { Session, SessionOrderGroup, SessionOrderNode, SessionOrderV2 } from '@/lib/types'
 import {
   cn,
@@ -238,6 +239,8 @@ function SessionInfoDialog({
   const cost = session.stats ? getSessionCost(session.stats, resolvedModel) : null
   const duration = session.lastActivity - session.startedAt
   const isAdHoc = session.capabilities?.includes('ad-hoc')
+
+  useKeyLayer({ Escape: () => onOpenChange(false) }, { id: 'session-info-dialog', enabled: open })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
