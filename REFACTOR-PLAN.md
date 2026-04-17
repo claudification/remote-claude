@@ -3,7 +3,7 @@
 Living document. Aggregates status across every refactor initiative touching this repo --
 mega-file splits, shared-primitive extraction, architectural moves, naming cleanup.
 
-**Last updated:** 2026-04-17 (branch `refactor/mega-file-splits`, PR #46, 12 commits)
+**Last updated:** 2026-04-17 (branch `refactor/mega-file-splits`, PR #46, 17 commits)
 
 ## Currently in flight
 
@@ -13,7 +13,7 @@ mega-file splits, shared-primitive extraction, architectural moves, naming clean
 - **Duplication / reuse backlog:** [.claude/docs/duplication-candidates.md](./.claude/docs/duplication-candidates.md) (has both pre-split targets AND the deferred /simplify review findings)
 - **Built + deployed locally:** concentrator Docker rebuilt + restarted 2026-04-17 (port 9999 healthy)
 
-**Shipped in this PR (12 commits, 303/304 tests green):**
+**Shipped in this PR (17 commits, 303/304 tests green):**
 
 - `src/concentrator/routes.ts` 1964 -> 331 (-83%) + 7 route modules under `routes/`
 - `web/src/components/session-list.tsx` 2097 -> 484 + 4 sub-components under `session-list/`
@@ -21,32 +21,36 @@ mega-file splits, shared-primitive extraction, architectural moves, naming clean
 - `web/src/components/settings-page.tsx` 1380 -> 885 + sections under `settings/` + `lib/color-utils.ts`
 - `src/concentrator/session-store.ts` 3495 -> 3108 + `parsers.ts`, `terminal-registry.ts`, `channel-registry.ts` (3 of 6 planned modules -- phase 2 deferred)
 - Behavioral test safety net: 36 black-box tests in `src/concentrator/__tests__/session-store.test.ts`
-- `SessionBanner` + `BannerButton` + `BannerStack` primitives (`ui/session-banner.tsx`), 4 banners migrated
+- `SessionBanner` + `BannerButton` + `BannerStack` primitives (`ui/session-banner.tsx`), 5 banners migrated (`AskQuestionCard` joined on commit `7a5c917`)
 - `TabButton` extracted in `session-tabs.tsx` (8x duplication collapsed)
 - `filterSessionOrderTree` dedup in `routes/api.ts`
 - MCP tool registry: schemas + handlers colocated in a single map inside `initMcpChannel`
 - `/simplify` 3-agent review + 5 safe fixes applied (commit `a938cec`)
+- `cwd-group` 5 session passes collapsed to one `partitionSessions` (commit `3f4aa49`)
+- `SessionItemContent` per-render SessionStart scan dropped -- use `session.model` (commit `83a4ce7`)
+- `SessionItemContent` split into `SessionItemFull` + `SessionItemCompact` (commit `4bc7b61`); boolean `compact` prop retired
 - Skipped flaky `transcript-watcher > handles multiple rapid appends` test
 - Docs: README tree + `data-stores.md` updated
 
-### /simplify review findings -- DEFERRED (11 items)
+### /simplify review findings -- 4 of 11 landed, 7 still deferred
 
 Ran `/simplify` after the extractions. 3 parallel review agents (reuse, quality, efficiency)
 surfaced 18 findings; 5 safe mechanical ones fixed inline (`formatTime` adoption,
 `relativize` hoist, `EMPTY_SUBSCRIBER_SET` constant, `childCount` conditional, JSDoc cleanup).
 
-The remaining **11 findings are persisted in `.claude/docs/duplication-candidates.md`**
-under "Deferred from /simplify review (2026-04-17)". Each has file paths, the issue,
-a proposed shape, and a reason for deferring. Examples:
+Of the 11 deferred items, **4 landed in this PR** (`cwd-group` partition, `SessionItemContent`
+SessionStart scan drop, `SessionItemContent` compact-prop split, `AskQuestionCard` ->
+`SessionBanner` migration). The remaining **7 are still persisted in
+`.claude/docs/duplication-candidates.md`** under "Deferred from /simplify review
+(2026-04-17)". Examples of what's still open:
 
-- `AskQuestionCard` -> `SessionBanner` migration (redesign, not drop-in)
-- `SessionItemContent` boolean `compact` prop should be 2 components
 - `SessionTabs` 9-prop interface, 6 booleans -- collapse into permissions object
 - Zustand selector filter pushdown (risky without stable-reference design)
-- `SessionItemContent` O(n) scan for `SessionStart` event per render
-- `cwd-group.tsx` 5-pass partition
-- `channelTypes` hardcoded array (should derive from type)
-- ...and 4 more -- full list in the duplication-candidates doc.
+- `session-item.tsx` `Date.now()` inside `.filter()` predicate (hoist to `const now`)
+- `ChannelRegistry.migrateChannels` hardcodes channel list (derive from type)
+- `session-header.tsx` raw path split vs `lastPathSegments`
+- `formatAge` duplication: `session-links-section` vs shared helper
+- `AskQuestionCard` inline type shape (should import canonical)
 
 ## Status: refactor board tasks
 
