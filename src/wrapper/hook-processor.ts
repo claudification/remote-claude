@@ -8,6 +8,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { HookEvent } from '../shared/protocol'
 import { debug as _debug } from './debug'
+import { emitLaunchEvent } from './launch-events'
 import { observeClaudeSessionId } from './session-transition'
 import {
   startSubagentWatcher,
@@ -35,6 +36,25 @@ export function processHookEvent(ctx: WrapperContext, event: HookEvent) {
     if (data.session_id && typeof data.session_id === 'string') {
       const newSessionId = data.session_id
       const newModel = typeof data.model === 'string' ? data.model : undefined
+
+      // Emit init_received BEFORE observeClaudeSessionId if we don't already
+      // have this session id on ctx (i.e. stream-json onInit didn't beat us).
+      // Headless onInit carries richer data and emits its own init_received,
+      // so we only fire here for cases where the hook is the first/only
+      // signal (PTY mode, or --bare mode never happens since hooks are off
+      // there). Duplicate init_received for the same id from both paths is
+      // acceptable diagnostic noise.
+      if (ctx.claudeSessionId !== newSessionId) {
+        emitLaunchEvent(ctx, 'init_received', {
+          detail: `session=${newSessionId.slice(0, 8)} model=${newModel || '?'} (hook)`,
+          raw: {
+            session_id: newSessionId,
+            model: newModel,
+            source: data.source,
+            transcript_path: data.transcript_path,
+          },
+        })
+      }
 
       // Single entry point: observeClaudeSessionId classifies this as
       // boot / rekey / confirm and performs the right concentrator action.

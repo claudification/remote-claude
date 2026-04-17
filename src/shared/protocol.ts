@@ -256,6 +256,18 @@ export interface TranscriptBootEntry extends TranscriptEntryBase {
   raw?: unknown
 }
 
+/** Wrapper-generated CC launch lifecycle entry. Like TranscriptBootEntry but
+ *  covers the full lifecycle including /clear reboots. launchId groups all
+ *  steps of a single launch so the UI can render them as one card. */
+export interface TranscriptLaunchEntry extends TranscriptEntryBase {
+  type: 'launch'
+  launchId: string
+  phase: WrapperLaunchPhase
+  step: WrapperLaunchStep
+  detail?: string
+  raw?: Record<string, unknown>
+}
+
 export interface TranscriptSystemEntry extends TranscriptEntryBase {
   type: 'system'
   subtype?: 'stop_hook_summary' | 'turn_duration' | 'compact_boundary' | 'local_command' | string
@@ -305,6 +317,7 @@ export type TranscriptEntry =
   | TranscriptLastPromptEntry
   | TranscriptPrLinkEntry
   | TranscriptBootEntry
+  | TranscriptLaunchEntry
   | (TranscriptEntryBase & Record<string, unknown>) // fallback for unknown types
 
 // Streaming output from background bash tasks (.output file watching)
@@ -352,6 +365,50 @@ export interface BootEvent {
   t: number
 }
 
+/**
+ * Launch events — structured, persistent timeline of the CC process launching,
+ * re-launching (on /clear), and settling on a session id. Each logical launch
+ * gets a fresh `launchId` (uuid); every step in that launch carries the same
+ * id so the dashboard can group them. These are distinct from boot events:
+ *   - BootEvent fires only during the initial boot phase (wrapper_started
+ *     through session_ready) and is keyed by wrapperId.
+ *   - LaunchEvent covers the whole launch lifecycle including /clear reboots,
+ *     is keyed by both wrapperId AND launchId, and is rendered inline in the
+ *     transcript so the user always sees "which CC am I talking to and how
+ *     was it launched?". The full args/env/init payloads go in `raw` for the
+ *     (i) JSON inspector.
+ */
+export type WrapperLaunchPhase = 'initial' | 'reboot'
+
+export type WrapperLaunchStep =
+  | 'launch_started' // process about to be spawned. raw: { args, env, cwd, headless, channelEnabled, mcpConfigPath, settingsPath }
+  | 'clear_requested' // /clear dispatched. detail: source. Only on reboot phase.
+  | 'process_killed' // CC exited during reboot. raw: { code }
+  | 'mcp_reset' // MCP channel torn down (reboot only)
+  | 'settings_regenerated' // settings + mcp config re-written (reboot only)
+  | 'init_received' // CC reported a session id. raw: { session_id, model, tools, slash_commands, skills, agents, mcp_servers, plugins, ... }
+  | 'rekeyed' // observeClaudeSessionId completed the rekey. detail: from -> to
+  | 'ready' // launch settled; session usable
+
+/**
+ * Wrapper -> concentrator -> dashboard: CC process launch lifecycle event.
+ * Separate from `LaunchProgressEvent` (concentrator-initiated spawn jobs):
+ * WrapperLaunchEvent is emitted by the wrapper itself and covers its local
+ * CC process launching, re-launching on /clear, and settling on a session id.
+ */
+export interface WrapperLaunchEvent {
+  type: 'launch_event'
+  wrapperId: string
+  launchId: string
+  phase: WrapperLaunchPhase
+  step: WrapperLaunchStep
+  /** Session id at the time of the step. null before init_received. */
+  sessionId: string | null
+  detail?: string
+  raw?: Record<string, unknown>
+  t: number
+}
+
 /** Tells the concentrator to promote the boot session to a real session once
  *  CC has produced a session id. Source indicates which channel won the race
  *  (stream-json init in headless, SessionStart hook in PTY). */
@@ -369,6 +426,7 @@ export type WrapperMessage =
   | SessionClear
   | WrapperBoot
   | BootEvent
+  | WrapperLaunchEvent
   | SessionPromote
   | Heartbeat
   | TerminalData

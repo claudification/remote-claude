@@ -8,7 +8,14 @@
  * real one.
  */
 
-import type { BootStep, TranscriptBootEntry, WrapperCapability } from '../../shared/protocol'
+import type {
+  BootStep,
+  TranscriptBootEntry,
+  TranscriptLaunchEntry,
+  WrapperCapability,
+  WrapperLaunchPhase,
+  WrapperLaunchStep,
+} from '../../shared/protocol'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
@@ -82,6 +89,43 @@ const bootEvent: MessageHandler = (ctx, data) => {
   })
 }
 
+const launchEvent: MessageHandler = (ctx, data) => {
+  const wrapperId = data.wrapperId as string
+  const step = data.step as WrapperLaunchStep
+  const launchId = data.launchId as string
+  const phase = data.phase as WrapperLaunchPhase
+  if (!wrapperId || !step || !launchId || !phase) return
+
+  // Route via wrapperId (stable across rekeys) or the session id on the event.
+  const sessionIdFromEvent = data.sessionId as string | null
+  const session =
+    (sessionIdFromEvent ? ctx.sessions.getSession(sessionIdFromEvent) : undefined) ||
+    ctx.sessions.getSession(wrapperId) ||
+    ctx.sessions.getSessionByWrapper(wrapperId)
+  if (!session) {
+    ctx.log.debug(`[launch] event for unknown wrapper: ${wrapperId.slice(0, 8)} step=${step}`)
+    return
+  }
+
+  const entry: TranscriptLaunchEntry = {
+    type: 'launch',
+    launchId,
+    phase,
+    step,
+    detail: (data.detail as string | undefined) ?? undefined,
+    raw: (data.raw as Record<string, unknown> | undefined) ?? undefined,
+    timestamp: new Date().toISOString(),
+  }
+
+  ctx.sessions.addTranscriptEntries(session.id, [entry], false)
+  ctx.sessions.broadcastToChannel('session:transcript', session.id, {
+    type: 'transcript_entries',
+    sessionId: session.id,
+    entries: [entry],
+    isInitial: false,
+  })
+}
+
 const sessionPromote: MessageHandler = (ctx, data) => {
   const wrapperId = data.wrapperId as string
   const newSessionId = data.sessionId as string
@@ -119,6 +163,7 @@ export function registerBootLifecycleHandlers(): void {
   registerHandlers({
     wrapper_boot: wrapperBoot,
     boot_event: bootEvent,
+    launch_event: launchEvent,
     session_promote: sessionPromote,
   })
 }

@@ -41,6 +41,10 @@ function makeCtx(init: { claudeSessionId?: string | null; pendingClearFromId?: s
             wsCalls.push({ fn: 'sendBootEvent', step, detail, raw }),
           sendSessionClear: (id: string, cwd: string, model?: string) =>
             wsCalls.push({ fn: 'sendSessionClear', id, cwd, model }),
+          // observeClaudeSessionId now also emits launch events, which call
+          // wsClient.send() if connected. Swallow them in the stub -- they
+          // are verified indirectly via the kind/reason of the transition.
+          send: () => {},
         }
 
   // Partial<WrapperContext> cast -- only the fields observeClaudeSessionId
@@ -55,6 +59,9 @@ function makeCtx(init: { claudeSessionId?: string | null; pendingClearFromId?: s
     subagentWatchers: new Map(),
     lastTasksJson: 'stale',
     taskWatcher: null,
+    currentLaunchId: 'test-launch-id',
+    currentLaunchPhase: 'initial' as const,
+    launchEvents: [],
     diag: (type: string, msg: string, args?: unknown) => diagCalls.push({ type, msg, args }),
     debug: () => {},
     connectToConcentrator: (id: string | null) => connectCalls.push(id),

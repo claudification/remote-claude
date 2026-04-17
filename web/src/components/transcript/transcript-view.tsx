@@ -42,6 +42,8 @@ function estimateGroupSize(group: DisplayGroup, measuredSizes: Map<string, numbe
       // ~22px per step, plus a small header + padding. Clamp so a very long
       // boot timeline doesn't eat the whole viewport.
       return Math.min(48 + group.entries.length * 22, 400)
+    case 'launch':
+      return Math.min(48 + group.entries.length * 22, 400)
     case 'user': {
       const entries = group.entries
       let textLen = 0

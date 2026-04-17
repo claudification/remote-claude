@@ -8,6 +8,7 @@ import { readFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import type { WrapperMessage } from '../shared/protocol'
 import { debug as _debug } from './debug'
+import { emitLaunchEvent, filterRelevantEnv } from './launch-events'
 import { hasPendingAskRequests } from './local-server'
 import { hasPendingDialogs, resetMcpChannel } from './mcp-channel'
 import { countInteractions, sendInteraction } from './pending-interactions'
@@ -68,6 +69,25 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       debug(`[headless] init: session=${init.session_id?.slice(0, 8)} model=${init.model}`)
       if (init.session_id) {
         const newModel = typeof init.model === 'string' ? init.model : undefined
+        // Emit BEFORE observeClaudeSessionId so the `sessionId` stamp on
+        // subsequent launch events (rekeyed, ready) is the NEW id, and the
+        // init_received card carries the fresh init payload.
+        emitLaunchEvent(ctx, 'init_received', {
+          detail: `session=${init.session_id.slice(0, 8)} model=${newModel || '?'}`,
+          raw: {
+            session_id: init.session_id,
+            model: init.model,
+            tools: init.tools,
+            slash_commands: init.slash_commands,
+            skills: init.skills,
+            agents: init.agents,
+            mcp_servers: init.mcp_servers,
+            plugins: init.plugins,
+            permission_mode: init.permissionMode,
+            claude_code_version: init.claude_code_version,
+            fast_mode_state: init.fast_mode_state,
+          },
+        })
         // Single entry point: observeClaudeSessionId classifies this as
         // boot / rekey / confirm and performs the right concentrator action.
         // Safe to call redundantly -- the SessionStart hook calls it too in
@@ -392,6 +412,10 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       if (ctx.clearRequested) {
         // /clear: respawn CC fresh (strip --resume/--session-id)
         ctx.clearRequested = false
+        emitLaunchEvent(ctx, 'process_killed', {
+          detail: `exit=${code ?? '?'}`,
+          raw: { code },
+        })
         const freshArgs = finalClaudeArgs.filter(
           (a, i, arr) =>
             a !== '--resume' &&
@@ -582,13 +606,15 @@ export function sendAdHocPrompt(ctx: WrapperContext): void {
  * deleted the original files).
  */
 async function respawnHeadless(deps: HeadlessCallbackDeps, args: string[]) {
+  const { ctx, rclaudeDir, localServerPort, claudeVersion, mcpConfigPath } = deps
+
   // Reset MCP transport so the new CC gets a clean connection
   // (old CC's transport state may linger and block the new client)
   await resetMcpChannel()
+  emitLaunchEvent(ctx, 'mcp_reset')
 
   // Re-write settings file (hooks) and MCP config -- they may have been
   // deleted by CC's exit cleanup or a race with the stale reaper.
-  const { ctx, rclaudeDir, localServerPort, claudeVersion, mcpConfigPath } = deps
   try {
     deps.settingsPath = await writeMergedSettings(ctx.internalId, localServerPort, claudeVersion, rclaudeDir)
     ctx.diag('headless', `Regenerated settings: ${deps.settingsPath}`)
@@ -604,10 +630,25 @@ async function respawnHeadless(deps: HeadlessCallbackDeps, args: string[]) {
   } catch (e) {
     debug(`[respawn] Failed to regenerate MCP config: ${e}`)
   }
+  emitLaunchEvent(ctx, 'settings_regenerated', {
+    detail: `settings=${deps.settingsPath.split('/').pop()} mcp=${mcpConfigPath.split('/').pop()}`,
+    raw: { settingsPath: deps.settingsPath, mcpConfigPath },
+  })
 
   const opts = buildHeadlessSpawnOptions(deps)
   // Override args for the fresh spawn
   opts.args = args
+  emitLaunchEvent(ctx, 'launch_started', {
+    detail: `respawn (${args.length} args)`,
+    raw: {
+      args,
+      env: filterRelevantEnv(process.env, deps.env),
+      cwd: ctx.cwd,
+      headless: true,
+      mcpConfigPath,
+      settingsPath: deps.settingsPath,
+    },
+  })
   deps.ctx.streamProc = deps.spawnStreamClaude(opts)
   deps.ctx.streamProc.forwardStdin()
 }

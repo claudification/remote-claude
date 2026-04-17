@@ -26,7 +26,7 @@ export interface TaskNotification {
 }
 
 export interface DisplayGroup {
-  type: 'user' | 'assistant' | 'system' | 'compacting' | 'compacted' | 'skill' | 'boot'
+  type: 'user' | 'assistant' | 'system' | 'compacting' | 'compacted' | 'skill' | 'boot' | 'launch'
   timestamp: string
   entries: TranscriptEntry[]
   notifications?: TaskNotification[]
@@ -137,6 +137,26 @@ export function groupEntries(entries: TranscriptEntry[]): DisplayGroup[] {
         current = null
         groups.push({
           type: 'boot',
+          timestamp: entry.timestamp || '',
+          entries: [entry],
+        })
+      }
+      continue
+    }
+
+    if (entry.type === 'launch') {
+      // Collect entries by launchId. A single /clear produces steps spread
+      // across time (killed -> mcp_reset -> ... -> ready) and we want them
+      // all in one card, but a subsequent reboot gets its own card.
+      const launchId = (entry as { launchId: string }).launchId
+      const lastGroup = groups[groups.length - 1]
+      const lastLaunchId = (lastGroup?.entries[0] as { launchId?: string } | undefined)?.launchId
+      if (lastGroup?.type === 'launch' && lastLaunchId === launchId) {
+        lastGroup.entries.push(entry)
+      } else {
+        current = null
+        groups.push({
+          type: 'launch',
           timestamp: entry.timestamp || '',
           entries: [entry],
         })

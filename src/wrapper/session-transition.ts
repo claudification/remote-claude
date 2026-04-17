@@ -24,6 +24,7 @@
  * and no-op. One diag line per transition for easy debugging.
  */
 
+import { emitLaunchEvent } from './launch-events'
 import type { WrapperContext } from './wrapper-context'
 
 export type SessionTransitionKind = 'boot' | 'rekey' | 'confirm'
@@ -105,7 +106,16 @@ export function observeClaudeSessionId(
     // fallback so a missed update still produces a valid rekey message).
     const fromId = pendingClearFromId || prevSessionId || newSessionId
     handleRekey(ctx, fromId, newSessionId, model)
+    emitLaunchEvent(ctx, 'rekeyed', {
+      detail: `${fromId.slice(0, 8)} -> ${newSessionId.slice(0, 8)}`,
+      raw: { from: fromId, to: newSessionId, reason },
+    })
   }
+
+  // Launch is now fully settled on this session id.
+  emitLaunchEvent(ctx, 'ready', {
+    detail: `session=${newSessionId.slice(0, 8)} kind=${kind}`,
+  })
 
   return emitTransition(ctx, {
     kind,

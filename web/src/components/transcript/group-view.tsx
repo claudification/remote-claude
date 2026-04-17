@@ -36,6 +36,7 @@ import { Markdown } from '../markdown'
 import { AgentTranscriptInline } from './agent-views'
 import { BootTimeline } from './boot-timeline'
 import type { DisplayGroup, TaskNotification } from './grouping'
+import { LaunchTimeline } from './launch-timeline'
 import { SessionTag } from './session-tag'
 import { MemoizedToolLine } from './tool-line'
 import { BashOutput } from './tool-renderers'
@@ -243,6 +244,10 @@ export function GroupView({
 
   if (group.type === 'boot') {
     return <BootTimeline group={group} />
+  }
+
+  if (group.type === 'launch') {
+    return <LaunchTimeline group={group} />
   }
 
   if (group.type === 'system' && group.notifications?.length) {

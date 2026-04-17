@@ -39,6 +39,15 @@ export interface WrapperContext {
   claudeSessionId: string | null
   pendingClearFromId: string | null
   clearRequested: boolean
+  /** UUID for the currently-running launch. Rotates on every /clear reboot so
+   *  the dashboard can group launch events into their own timeline. */
+  currentLaunchId: string
+  /** Phase of the current launch. 'initial' on first spawn, flips to 'reboot'
+   *  when a /clear starts a new launch. */
+  currentLaunchPhase: 'initial' | 'reboot'
+  /** Persistent, append-only log of every launch event emitted so far.
+   *  Re-sent on WS reconnect so the dashboard catches up. */
+  readonly launchEvents: Array<import('../shared/protocol').WrapperLaunchEvent>
   terminalAttached: boolean
   parentTranscriptPath: string | null
   lastTasksJson: string

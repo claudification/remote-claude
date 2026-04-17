@@ -33,6 +33,7 @@ import { debug, setDebugStderr } from './debug'
 import { handleFileEditorMessage } from './file-editor-handler'
 import { buildHeadlessSpawnOptions, sendAdHocPrompt } from './headless-lifecycle'
 import { processHookEvent } from './hook-processor'
+import { beginLaunch, emitLaunchEvent, filterRelevantEnv, replayLaunchEvents } from './launch-events'
 import { resolveAskRequest, setLocalServerDebug, startLocalServer, stopLocalServer } from './local-server'
 import {
   closeMcpChannel,
@@ -430,6 +431,9 @@ async function main() {
     claudeSessionId: null,
     pendingClearFromId: null,
     clearRequested: false,
+    currentLaunchId: randomUUID(),
+    currentLaunchPhase: 'initial',
+    launchEvents: [],
     terminalAttached: false,
     parentTranscriptPath: null,
     lastTasksJson: '',
@@ -727,6 +731,11 @@ async function main() {
         switch (action) {
           case 'clear':
             diag('session', `Clear requested (${source}) - killing CC and respawning fresh`)
+            // Start a fresh launch timeline BEFORE killing. New launchId groups
+            // every subsequent event (process_killed, mcp_reset, ..., ready)
+            // into the reboot card in the dashboard.
+            beginLaunch(ctx, 'reboot')
+            emitLaunchEvent(ctx, 'clear_requested', { detail: source })
             ctx.streamProc.kill()
             ctx.clearRequested = true
             return true
@@ -766,6 +775,12 @@ async function main() {
       switch (action) {
         case 'clear':
           diag('session', `Clear requested (${source}) - injecting /clear via PTY`)
+          // PTY /clear: CC handles kill+respawn internally. We only see the
+          // downstream SessionStart hook with the new id. Still emit the
+          // requested step + mark a fresh launch so the rekey lands in the
+          // right card. No process_killed / mcp_reset etc. (CC is opaque).
+          beginLaunch(ctx, 'reboot')
+          emitLaunchEvent(ctx, 'clear_requested', { detail: `${source} (pty)` })
           ctx.ptyProcess.write('/clear\r')
           return true
         case 'quit':
@@ -835,6 +850,8 @@ async function main() {
         }
         // Re-send transcript from JSONL file (repopulates concentrator cache after restart)
         if (headless) resendTranscriptFromFile(ctx)
+        // Replay buffered launch events so late subscribers see the full timeline.
+        replayLaunchEvents(ctx)
         // Replay every outstanding user interaction (permission / ask / dialog / plan).
         // Concentrator in-memory pending* state is lost on restart; the wrapper is
         // the authoritative holder, so a reconnect rehydrates the concentrator.
@@ -1770,6 +1787,18 @@ async function main() {
     })
 
     ctx.wsClient?.sendBootEvent('claude_spawning', `headless ${finalClaudeArgs.length} args`)
+    emitLaunchEvent(ctx, 'launch_started', {
+      detail: `headless (${finalClaudeArgs.length} args)`,
+      raw: {
+        args: finalClaudeArgs,
+        env: filterRelevantEnv(process.env, customEnv),
+        cwd,
+        headless: true,
+        channelEnabled,
+        mcpConfigPath,
+        settingsPath,
+      },
+    })
     ctx.streamProc = spawnStreamClaude(headlessSpawnOptions)
     ctx.streamProc.forwardStdin()
     ctx.wsClient?.sendBootEvent('claude_started', `pid=${ctx.streamProc.proc.pid}`, {
@@ -1782,6 +1811,18 @@ async function main() {
   } else {
     // --- PTY MODE: existing behavior ---
     ctx.wsClient?.sendBootEvent('claude_spawning', `pty ${finalClaudeArgs.length} args`)
+    emitLaunchEvent(ctx, 'launch_started', {
+      detail: `pty (${finalClaudeArgs.length} args)`,
+      raw: {
+        args: finalClaudeArgs,
+        env: filterRelevantEnv(process.env, customEnv),
+        cwd,
+        headless: false,
+        channelEnabled,
+        mcpConfigPath,
+        settingsPath,
+      },
+    })
     const ptySpawnedAt = Date.now()
     try {
       ctx.ptyProcess = spawnClaude({
