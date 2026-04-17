@@ -3,6 +3,7 @@
  * heartbeat, session clear (re-key), notify, and end.
  */
 
+import { contextModeFromModel } from '../../shared/context-window'
 import { slugify } from '../address-book'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
@@ -32,7 +33,14 @@ const meta: MessageHandler = (ctx, data) => {
     if (data.adHocTaskId) existingSession.adHocTaskId = data.adHocTaskId as string
     if (data.adHocWorktree) existingSession.adHocWorktree = data.adHocWorktree as string
     // Only set launchConfig on first connect (spawn), don't overwrite on revive
-    if (pendingLaunchConfig && !existingSession.launchConfig) existingSession.launchConfig = pendingLaunchConfig
+    if (pendingLaunchConfig && !existingSession.launchConfig) {
+      existingSession.launchConfig = pendingLaunchConfig
+      // Seed context mode from launch model (e.g. claude-opus-4-6[1m]) before
+      // assistant responses overwrite session.model with the bare API name
+      if (!existingSession.contextMode) {
+        existingSession.contextMode = contextModeFromModel(pendingLaunchConfig.model)
+      }
+    }
     ctx.log.debug(
       `Session resumed: ${sessionId.slice(0, 8)}... wrapper=${wrapperId.slice(0, 8)} (${data.cwd}) [${ctx.sessions.getActiveWrapperCount(sessionId) + 1} wrapper(s)]${data.version ? ` [${data.version}]` : ''}`,
     )
@@ -52,7 +60,12 @@ const meta: MessageHandler = (ctx, data) => {
     if (data.maxBudgetUsd) newSession.maxBudgetUsd = data.maxBudgetUsd as number
     if (data.adHocTaskId) newSession.adHocTaskId = data.adHocTaskId as string
     if (data.adHocWorktree) newSession.adHocWorktree = data.adHocWorktree as string
-    if (pendingLaunchConfig) newSession.launchConfig = pendingLaunchConfig
+    if (pendingLaunchConfig) {
+      newSession.launchConfig = pendingLaunchConfig
+      // Seed context mode from launch model (e.g. claude-opus-4-6[1m]) before
+      // assistant responses overwrite session.model with the bare API name
+      newSession.contextMode = contextModeFromModel(pendingLaunchConfig.model)
+    }
     const isAdHoc = (data.capabilities as string[] | undefined)?.includes('ad-hoc')
     ctx.log.debug(
       `Session started: ${sessionId.slice(0, 8)}... wrapper=${wrapperId.slice(0, 8)} (${data.cwd})${data.version ? ` [${data.version}]` : ''}`,

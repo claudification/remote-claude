@@ -8,6 +8,7 @@
  * real one.
  */
 
+import { contextModeFromModel } from '../../shared/context-window'
 import type { BootStep, TranscriptBootEntry, WrapperCapability } from '../../shared/protocol'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
@@ -34,13 +35,21 @@ const wrapperBoot: MessageHandler = (ctx, data) => {
   if (existing) {
     existing.status = 'booting'
     existing.lastActivity = Date.now()
-    if (pendingLaunchConfig && !existing.launchConfig) existing.launchConfig = pendingLaunchConfig
+    if (pendingLaunchConfig && !existing.launchConfig) {
+      existing.launchConfig = pendingLaunchConfig
+      if (!existing.contextMode) {
+        existing.contextMode = contextModeFromModel(pendingLaunchConfig.model)
+      }
+    }
   } else {
     // Create a placeholder session keyed by wrapperId -- the real sessionId
     // replaces this once session_promote arrives.
     const placeholder = ctx.sessions.createSession(wrapperId, cwd, undefined, claudeArgs, capabilities)
     placeholder.status = 'booting'
-    if (pendingLaunchConfig) placeholder.launchConfig = pendingLaunchConfig
+    if (pendingLaunchConfig) {
+      placeholder.launchConfig = pendingLaunchConfig
+      placeholder.contextMode = contextModeFromModel(pendingLaunchConfig.model)
+    }
     if (data.claudeVersion) placeholder.claudeVersion = data.claudeVersion as string
     if (data.claudeAuth) placeholder.claudeAuth = data.claudeAuth as Record<string, unknown>
     if (data.title) placeholder.title = data.title as string

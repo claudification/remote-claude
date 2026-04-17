@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from 'no
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerWebSocket } from 'bun'
-import { resolveContextWindow } from '../shared/context-window'
+import { contextModeFromModel, resolveContextWindow } from '../shared/context-window'
 import type {
   ChannelStats,
   HookEvent,
@@ -1418,6 +1418,12 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         }
         if (data.model && typeof data.model === 'string' && !session.model) {
           session.model = data.model
+          // Seed context mode from init model suffix (e.g. claude-opus-4-6[1m])
+          // before assistant responses overwrite session.model with bare API name
+          if (!session.contextMode) {
+            const initMode = contextModeFromModel(data.model)
+            if (initMode) session.contextMode = initMode
+          }
         }
         // Clear stale error from previous run (belt and suspenders with resumeSession)
         session.lastError = undefined
