@@ -1,4 +1,3 @@
-import type { HookEvent } from '@shared/protocol'
 import { memo, type ReactNode, useEffect, useRef, useState } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import {
@@ -212,16 +211,14 @@ function LaunchParamsSection({ session }: { session: Session }) {
 
 function SessionInfoDialog({
   session,
-  model,
   open,
   onOpenChange,
 }: {
   session: Session
-  model: string | undefined
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const resolvedModel = model || session.model
+  const resolvedModel = session.model
   const effort = formatEffort(session.effortLevel)
   const cost = session.stats ? getSessionCost(session.stats, resolvedModel) : null
   const duration = session.lastActivity - session.startedAt
@@ -378,15 +375,7 @@ function SessionInfoDialog({
   )
 }
 
-function SessionInfoButton({
-  session,
-  model,
-  visible,
-}: {
-  session: Session
-  model: string | undefined
-  visible: boolean
-}) {
+function SessionInfoButton({ session, visible }: { session: Session; visible: boolean }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -414,7 +403,7 @@ function SessionInfoButton({
       >
         {'\u24D8'}
       </span>
-      <SessionInfoDialog session={session} model={model} open={open} onOpenChange={setOpen} />
+      <SessionInfoDialog session={session} open={open} onOpenChange={setOpen} />
     </>
   )
 }
@@ -476,8 +465,6 @@ function ResultTextModal({ session }: { session: Session }) {
     </>
   )
 }
-
-const EMPTY_EVENTS: HookEvent[] = []
 
 function DismissButton({ sessionId }: { sessionId: string }) {
   const dismissSession = useSessionsStore(s => s.dismissSession)
@@ -612,13 +599,10 @@ export const SessionItemContent = memo(function SessionItemContent({
   const selectSession = useSessionsStore(s => s.selectSession)
   const selectSubagent = useSessionsStore(s => s.selectSubagent)
   const openTab = useSessionsStore(s => s.openTab)
-  const cachedEvents = useSessionsStore(s => s.events[session.id] || EMPTY_EVENTS)
   const ps = useSessionsStore(s => s.projectSettings[session.cwd])
   const showContextBar = useSessionsStore(s => s.dashboardPrefs.showContextInList)
   const showCost = useSessionsStore(s => s.dashboardPrefs.showCostInList)
   const isRenaming = useSessionsStore(s => s.renamingSessionId === session.id)
-  const sessionStartEvent = cachedEvents.find(e => e.hookEvent === 'SessionStart')
-  const model = (sessionStartEvent?.data as { model?: string } | undefined)?.model
 
   function handleClick() {
     haptic('tap')
@@ -688,14 +672,14 @@ export const SessionItemContent = memo(function SessionItemContent({
               throttled
             </span>
           )}
-          <SessionInfoButton session={session} model={model} visible={isSelected} />
+          <SessionInfoButton session={session} visible={isSelected} />
           <ShareIndicator sessionCwd={session.cwd} />
           {session.resultText && session.capabilities?.includes('ad-hoc') && <ResultTextModal session={session} />}
           {session.status === 'ended' && <DismissButton sessionId={session.id} />}
           {showCost &&
             session.stats &&
             (() => {
-              const { cost, exact } = getSessionCost(session.stats, model || session.model)
+              const { cost, exact } = getSessionCost(session.stats, session.model)
               if (cost < 0.01) return null
               const level = getCostLevel(cost)
               return (
@@ -757,12 +741,7 @@ export const SessionItemContent = memo(function SessionItemContent({
           {session.planMode && <span className="text-[9px] text-blue-400 font-bold">PLAN</span>}
           {session.status === 'idle' &&
             (() => {
-              const ci = getCacheTimerInfo(
-                session.lastTurnEndedAt,
-                session.tokenUsage,
-                model || session.model,
-                session.cacheTtl,
-              )
+              const ci = getCacheTimerInfo(session.lastTurnEndedAt, session.tokenUsage, session.model, session.cacheTtl)
               if (!ci) return null
               return ci.state === 'expired' ? (
                 <span className="text-[9px] text-red-400/70 font-bold">EXPIRED</span>
@@ -775,7 +754,7 @@ export const SessionItemContent = memo(function SessionItemContent({
           {showCost &&
             session.stats &&
             (() => {
-              const { cost, exact } = getSessionCost(session.stats, model || session.model)
+              const { cost, exact } = getSessionCost(session.stats, session.model)
               if (cost < 0.5) return null
               return (
                 <span className={cn('text-[9px] font-bold font-mono', getCostBgColor(cost).split(' ')[1])}>
@@ -788,7 +767,7 @@ export const SessionItemContent = memo(function SessionItemContent({
             <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>
           )}
           {session.hasNotification && <span className="text-[9px] text-teal-400 font-bold">NOTIFY</span>}
-          <SessionInfoButton session={session} model={model} visible={isSelected} />
+          <SessionInfoButton session={session} visible={isSelected} />
           {session.status === 'ended' && <DismissButton sessionId={session.id} />}
         </div>
       )}
@@ -950,7 +929,7 @@ export const SessionItemContent = memo(function SessionItemContent({
           const { input, cacheCreation, cacheRead } = session.tokenUsage
           const total = input + cacheCreation + cacheRead
           if (total === 0) return null
-          const maxTokens = session.contextWindow ?? contextWindowSize(model || session.model)
+          const maxTokens = session.contextWindow ?? contextWindowSize(session.model)
           const pct = Math.min(100, Math.round((total / maxTokens) * 100))
           const threshold = session.autocompactPct || 83
           const warnAt = threshold - 5
@@ -979,12 +958,7 @@ export const SessionItemContent = memo(function SessionItemContent({
       {!compact &&
         session.status === 'idle' &&
         (() => {
-          const ci = getCacheTimerInfo(
-            session.lastTurnEndedAt,
-            session.tokenUsage,
-            model || session.model,
-            session.cacheTtl,
-          )
+          const ci = getCacheTimerInfo(session.lastTurnEndedAt, session.tokenUsage, session.model, session.cacheTtl)
           if (!ci || ci.state === 'hot') return null
           if (ci.state === 'expired') {
             const idleMin = Math.floor((Date.now() - (session.lastTurnEndedAt || 0)) / 60_000)
