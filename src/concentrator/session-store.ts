@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from 'no
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerWebSocket } from 'bun'
+import { resolveContextWindow } from '../shared/context-window'
 import type {
   ChannelStats,
   HookEvent,
@@ -589,13 +590,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       prLinks: session.prLinks,
       linkedProjects: getLinkedProjects(session.id),
       tokenUsage: session.tokenUsage,
-      contextWindow: (() => {
-        // Claude Code defaults to 200K; 1M is opt-in (/model menu or [1m] variant).
-        // Priority: parsed /model|/context stdout > model-name suffix > default.
-        if (session.contextMode === '1m') return 1_000_000
-        if (session.model && /(-1m|\[1m\])/i.test(session.model)) return 1_000_000
-        return 200_000
-      })(),
+      contextWindow: resolveContextWindow(session.model, session.contextMode),
       cacheTtl: session.cacheTtl,
       lastTurnEndedAt: session.lastTurnEndedAt,
       stats: session.stats,

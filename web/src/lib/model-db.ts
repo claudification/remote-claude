@@ -6,6 +6,7 @@
  * (set by the concentrator based on transcript signals).
  */
 
+import { resolveContextWindow } from '@shared/context-window'
 import { appendShareParam } from './share-mode'
 
 export interface ModelInfo {
@@ -63,11 +64,11 @@ export function getModelInfo(modelName: string | undefined): ModelInfo | undefin
 }
 
 /** Context window for display. Claude Code defaults to 200K; 1M is opt-in
- * (via /model menu or explicit `[1m]`/`-1m` model variant). The authoritative
- * value comes from the backend as `session.contextWindow` -- this function is
- * just a fallback when that field is absent.
+ * for Opus 4.5 / 4.6 (via /model menu or explicit `[1m]`/`-1m` model variant)
+ * but the DEFAULT for Opus 4.7+. The authoritative value comes from the backend
+ * as `session.contextWindow` -- this function is just a fallback when that
+ * field is absent.
  */
 export function contextWindowFromDb(model: string | undefined): number {
-  if (model && /(-1m|\[1m\])/i.test(model)) return 1_000_000
-  return 200_000
+  return resolveContextWindow(model)
 }
