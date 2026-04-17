@@ -12,7 +12,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import type { HookEvent } from '@shared/protocol'
 import { ContextMenu } from 'radix-ui'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { reviveSession, saveSessionOrder, useSessionsStore } from '@/hooks/use-sessions'
 import {
   formatCost,
@@ -92,6 +92,109 @@ function formatTokenCount(n: number): string {
   if (n < 1_000) return String(n)
   if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`
   return `${(n / 1_000_000).toFixed(2)}M`
+}
+
+// ─── Launch parameters section ───────────────────────────────────
+
+const SECRET_KEY_PATTERN = /TOKEN|KEY|SECRET|PASSWORD|AUTH|CREDENTIAL|PRIVATE/i
+
+function maskSecret(value: string): string {
+  if (value.length <= 8) return '*'.repeat(value.length)
+  return `${value.slice(0, 4)}${'*'.repeat(Math.min(value.length - 8, 12))}${value.slice(-4)}`
+}
+
+function LaunchParamRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-muted-foreground text-[10px] uppercase tracking-wider">{label}</span>
+      <span className="ml-auto text-foreground/80 truncate max-w-[220px]">{value}</span>
+    </div>
+  )
+}
+
+function LaunchParamsSection({ session }: { session: Session }) {
+  const lc = session.launchConfig
+  const [revealEnv, setRevealEnv] = useState(false)
+  const envEntries = lc?.env ? Object.entries(lc.env) : []
+  const hasAnyCore =
+    !!lc &&
+    (lc.headless !== undefined ||
+      !!lc.permissionMode ||
+      lc.bare ||
+      lc.repl ||
+      lc.autocompactPct !== undefined ||
+      lc.maxBudgetUsd !== undefined)
+
+  if (!lc || (!hasAnyCore && envEntries.length === 0)) return null
+
+  return (
+    <>
+      <div className="border-t border-border" />
+      <div className="space-y-1">
+        <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Launch</span>
+        <div className="space-y-1 pl-1">
+          {lc.headless !== undefined && (
+            <LaunchParamRow
+              label="mode"
+              value={
+                <span className={lc.headless ? 'text-sky-400' : 'text-amber-400'}>
+                  {lc.headless ? 'headless' : 'PTY'}
+                </span>
+              }
+            />
+          )}
+          {lc.permissionMode && <LaunchParamRow label="perms" value={lc.permissionMode} />}
+          {lc.bare && <LaunchParamRow label="bare" value="yes" />}
+          {lc.repl && <LaunchParamRow label="repl" value="yes" />}
+          {lc.autocompactPct !== undefined && <LaunchParamRow label="autocompact" value={`${lc.autocompactPct}%`} />}
+          {lc.maxBudgetUsd !== undefined && <LaunchParamRow label="budget" value={`$${lc.maxBudgetUsd.toFixed(2)}`} />}
+        </div>
+
+        {envEntries.length > 0 && (
+          <div className="pt-1">
+            <div className="flex items-center gap-2 pb-1">
+              <span className="text-muted-foreground text-[10px] uppercase tracking-wider">
+                Env ({envEntries.length})
+              </span>
+              <button
+                type="button"
+                className="ml-auto text-[9px] text-muted-foreground hover:text-foreground cursor-pointer px-1.5 py-0.5 border border-border hover:border-primary transition-colors"
+                onClick={e => {
+                  e.stopPropagation()
+                  haptic('tap')
+                  setRevealEnv(v => !v)
+                }}
+              >
+                {revealEnv ? 'hide secrets' : 'reveal secrets'}
+              </button>
+            </div>
+            <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[10px] pl-1">
+              {envEntries.map(([k, v]) => {
+                const isSecret = SECRET_KEY_PATTERN.test(k)
+                const display = isSecret && !revealEnv ? maskSecret(v) : v
+                return (
+                  <div key={k} className="contents">
+                    <span className="text-muted-foreground truncate max-w-[140px]" title={k}>
+                      {k}
+                    </span>
+                    <span
+                      className={cn(
+                        'text-right tabular-nums truncate',
+                        isSecret ? 'text-amber-400/80' : 'text-foreground/70',
+                      )}
+                      title={display}
+                    >
+                      {display}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  )
 }
 
 // ─── Session info dialog (replaces hover tooltip) ────────────────
@@ -236,6 +339,9 @@ function SessionInfoDialog({
               </span>
             </div>
           )}
+
+          {/* Launch parameters */}
+          <LaunchParamsSection session={session} />
 
           {/* Ad-hoc result preview */}
           {isAdHoc && session.resultText && (
