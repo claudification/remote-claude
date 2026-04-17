@@ -60,10 +60,22 @@ const spawnResult: MessageHandler = (ctx, data) => {
   const ok = data.success ? 'OK' : 'FAIL'
   ctx.log.debug(`Spawn ${ok}${data.error ? ` (${data.error})` : ''}`)
   ctx.sessions.resolveSpawn(data.requestId as string, data)
-  // Forward failure to job subscribers so launch monitor can show the error
   const jobId = data.jobId as string | undefined
-  if (jobId && !data.success) {
-    ctx.sessions.failJob(jobId, (data.error as string) || 'Spawn failed')
+  if (jobId) {
+    if (data.success) {
+      // Agent confirmed the wrapper process has started (tmux session is up)
+      ctx.sessions.forwardJobEvent(jobId, {
+        type: 'launch_progress',
+        jobId,
+        step: 'wrapper_booted',
+        status: 'done',
+        t: Date.now(),
+        detail: typeof data.tmuxSession === 'string' ? data.tmuxSession : undefined,
+      })
+    } else {
+      // Forward failure to job subscribers so launch monitor can show the error
+      ctx.sessions.failJob(jobId, (data.error as string) || 'Spawn failed')
+    }
   }
 }
 
@@ -104,6 +116,17 @@ const spawnFailed: MessageHandler = (ctx, data) => {
   if (wrapperId) {
     const jobId = ctx.sessions.getJobByWrapper(wrapperId)
     if (jobId) {
+      // Emit first-class progress alongside the legacy job_failed event
+      ctx.sessions.forwardJobEvent(jobId, {
+        type: 'launch_progress',
+        jobId,
+        step: 'failed',
+        status: 'error',
+        t: Date.now(),
+        error: errorMsg,
+        wrapperId,
+        elapsed: elapsedMs,
+      })
       ctx.sessions.failJob(jobId, errorMsg)
     }
   }

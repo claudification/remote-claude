@@ -69,6 +69,19 @@ export function useLaunchProgress({
     connectedRef.current = false
   }
 
+  /** Clear all progress state without starting a new run. Call when re-entering
+   *  a host UI (e.g. reopening a dialog) to drop stale error/steps from a
+   *  previous launch. */
+  function reset() {
+    setSteps([])
+    setError(null)
+    setStartTime(0)
+    setElapsed(0)
+    setCopied(false)
+    setViewCountdown(null)
+    connectedRef.current = false
+  }
+
   // Track spawned session by wrapperId
   const spawnedSession: Session | null = useSessionsStore(
     useCallback(
@@ -200,6 +213,7 @@ export function useLaunchProgress({
     startTime,
     // Mutations
     start,
+    reset,
     setSteps,
     setError,
     setViewCountdown,

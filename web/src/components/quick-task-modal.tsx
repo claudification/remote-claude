@@ -3,14 +3,14 @@
  * Creates a project task in .rclaude/project/inbox/
  */
 
-import { AlertTriangle, FileText, X } from 'lucide-react'
+import { AlertTriangle, FileText } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useProject } from '@/hooks/use-project'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { useCommand } from '@/lib/commands'
-import { useKeyLayer } from '@/lib/key-layers'
 import { haptic } from '@/lib/utils'
 import { MarkdownInput } from './markdown-input'
+import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Kbd, KbdGroup } from './ui/kbd'
 
 export function QuickTaskModal() {
@@ -63,16 +63,11 @@ export function QuickTaskModal() {
     return () => window.removeEventListener('open-quick-task', handleOpen)
   }, [selectedSessionId, isActive])
 
-  // ESC closes when open
-  useKeyLayer(
-    {
-      Escape: () => {
-        setOpen(false)
-        setText('')
-      },
-    },
-    { id: 'quick-task', enabled: open },
-  )
+  // Radix Dialog handles Escape natively; clear text on close via onOpenChange.
+  const handleOpenChange = useCallback((next: boolean) => {
+    setOpen(next)
+    if (!next) setText('')
+  }, [])
 
   const handleSubmit = useCallback(() => {
     if (!text.trim() || !hasWrapper) return
@@ -94,92 +89,60 @@ export function QuickTaskModal() {
     setTimeout(() => setFlash(false), 1000)
   }, [text, createTask, hasWrapper, selectedSessionId])
 
-  if (!open) {
-    if (flash) {
-      return (
+  return (
+    <>
+      {flash && !open && (
         <div className="fixed bottom-4 right-4 z-[100] px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 text-xs font-mono animate-pulse">
           Task created
         </div>
-      )
-    }
-    return null
-  }
-
-  return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop overlay closes on click
-    <div
-      role="presentation"
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]"
-      onClick={() => setOpen(false)}
-      onKeyDown={e => {
-        if (e.key === 'Escape') setOpen(false)
-      }}
-    >
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-      <div
-        role="dialog"
-        className="relative w-full max-w-lg mx-4 bg-background border border-border shadow-2xl flex flex-col max-h-[50vh]"
-        onClick={e => e.stopPropagation()}
-        onKeyDown={e => {
-          if (e.key === 'Escape') {
-            setOpen(false)
-            setText('')
-          } else {
-            e.stopPropagation()
-          }
-        }}
-      >
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
-          <FileText className="w-4 h-4 text-accent" />
-          <span className="text-xs font-bold text-foreground">Quick Task</span>
-          <span className="text-[10px] text-muted-foreground ml-1">project task</span>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            className="ml-auto text-muted-foreground hover:text-foreground"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        {!hasWrapper && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border-b border-amber-500/30 text-amber-400">
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-            <span className="text-[10px] font-mono">No wrapper connected -- task cannot be delivered</span>
+      )}
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="max-w-lg max-h-[50vh] flex flex-col p-0 top-[15vh] translate-y-0">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
+            <FileText className="w-4 h-4 text-accent" />
+            <DialogTitle className="text-xs">Quick Task</DialogTitle>
+            <span className="text-[10px] text-muted-foreground ml-1">project task</span>
           </div>
-        )}
-        <div className="p-3 flex-1 min-h-0">
-          <MarkdownInput
-            value={text}
-            onChange={setText}
-            onSubmit={handleSubmit}
-            placeholder="First line = title, rest = body... Shift+Enter for new line"
-            autoFocus
-            inline
-          />
-        </div>
-        <div className="flex items-center justify-between px-3 py-2 border-t border-border shrink-0">
-          <span className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-            <Kbd>↵</Kbd> add
-            <span className="text-muted-foreground/40">·</span>
-            <KbdGroup>
-              <Kbd>⇧</Kbd>
-              <Kbd>↵</Kbd>
-            </KbdGroup>{' '}
-            newline
-            <span className="text-muted-foreground/40">·</span>
-            <Kbd>Esc</Kbd> close
-          </span>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!text.trim() || !hasWrapper}
-            className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold bg-accent/20 text-accent hover:bg-accent/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Add
-            <Kbd className="bg-accent/20 text-accent/70">↵</Kbd>
-          </button>
-        </div>
-      </div>
-    </div>
+          {!hasWrapper && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border-b border-amber-500/30 text-amber-400">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span className="text-[10px] font-mono">No wrapper connected -- task cannot be delivered</span>
+            </div>
+          )}
+          <div className="p-3 flex-1 min-h-0">
+            <MarkdownInput
+              value={text}
+              onChange={setText}
+              onSubmit={handleSubmit}
+              placeholder="First line = title, rest = body... Shift+Enter for new line"
+              autoFocus
+              inline
+            />
+          </div>
+          <div className="flex items-center justify-between px-3 py-2 border-t border-border shrink-0">
+            <span className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+              <Kbd>↵</Kbd> add
+              <span className="text-muted-foreground/40">·</span>
+              <KbdGroup>
+                <Kbd>⇧</Kbd>
+                <Kbd>↵</Kbd>
+              </KbdGroup>{' '}
+              newline
+              <span className="text-muted-foreground/40">·</span>
+              <Kbd>Esc</Kbd> close
+            </span>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!text.trim() || !hasWrapper}
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold bg-accent/20 text-accent hover:bg-accent/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add
+              <Kbd className="bg-accent/20 text-accent/70">↵</Kbd>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

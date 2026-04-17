@@ -8,7 +8,8 @@
  *   LaunchMonitor     - Full modal wrapper (used by ReviveMonitor)
  */
 
-import { Copy, X, Zap } from 'lucide-react'
+import { Copy, Zap } from 'lucide-react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
 import type { LaunchStep } from '@/hooks/use-launch-progress'
 import { cn } from '@/lib/utils'
@@ -186,24 +187,9 @@ export function LaunchMonitor({
   const accent = ACCENT[accentColor]
 
   return (
-    // biome-ignore lint/a11y/useSemanticElements: modal backdrop
-    <div
-      role="button"
-      tabIndex={-1}
-      aria-label="Close dialog"
-      className="fixed inset-0 z-[110] flex items-center justify-center p-4"
-      onClick={onClose}
-      onKeyDown={e => {
-        if (e.key === 'Escape') onClose()
-      }}
-    >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        role="dialog"
-        className={cn('relative w-full max-w-md bg-[#1a1b26] border shadow-2xl', accent.border)}
-        onClick={e => e.stopPropagation()}
-        onKeyDown={e => e.stopPropagation()}
-      >
+    <Dialog open={true} onOpenChange={open => !open && onClose()}>
+      <DialogContent className={cn('max-w-md rounded-lg p-0 gap-0 bg-[#1a1b26]', accent.border)}>
+        <DialogTitle className="sr-only">{title}</DialogTitle>
         {/* Header */}
         <div className={cn('flex items-center gap-2 px-4 py-3 border-b', accent.headerBorder)}>
           <Zap className={cn('w-4 h-4', accent.text)} />
@@ -213,13 +199,6 @@ export function LaunchMonitor({
           {steps.length > 0 && (
             <span className="text-[10px] font-mono text-muted-foreground/60 ml-auto mr-2 tabular-nums">{elapsed}s</span>
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            className={cn('text-muted-foreground hover:text-foreground', steps.length === 0 && 'ml-auto')}
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
 
         {/* Subtitle */}
@@ -259,7 +238,7 @@ export function LaunchMonitor({
             />
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

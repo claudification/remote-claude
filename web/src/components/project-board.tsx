@@ -15,6 +15,10 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
+import { buildSpawnDiagnostics } from '@shared/spawn-diagnostics'
+import { deriveSessionName } from '@shared/spawn-naming'
+import { composeSpawnPrompt } from '@shared/spawn-prompt'
+import type { SpawnRequest } from '@shared/spawn-schema'
 import {
   Archive,
   ArrowLeft,
@@ -31,15 +35,18 @@ import {
   Zap,
 } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
 import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import type { ProjectTask } from '@/hooks/use-project'
 import { type ProjectTaskMeta, type TaskStatus, useProject } from '@/hooks/use-project'
 import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
+import { sendSpawnRequest } from '@/hooks/use-spawn'
 import { useKeyLayer } from '@/lib/key-layers'
 import { buildTaskPrompt } from '@/lib/task-scoring'
 import { uploadFileWithPlaceholder } from '@/lib/upload'
 import { cn, haptic } from '@/lib/utils'
+import { LaunchConfigFields, type LaunchFieldsValue } from './launch-config-fields'
 import { LaunchErrorBanner, LaunchFooterActions, LaunchStepList } from './launch-monitor'
 import { Markdown } from './markdown'
 import { MarkdownInput } from './markdown-input'
@@ -237,8 +244,8 @@ export function TaskEditor({
 
   useKeyLayer(
     {
-      Escape: () => onClose(),
-      // Bare keys -- auto-blocked when a text input / CodeMirror is focused
+      // Bare keys -- auto-blocked when a text input / CodeMirror is focused.
+      // Radix Dialog handles Escape itself via onOpenChange.
       w: () => {
         if (!canWork) return
         sendInput(sessionId, buildTaskPrompt({ ...task, title, body, status, priority, tags }))
@@ -324,15 +331,9 @@ export function TaskEditor({
   }
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop
-    <div role="presentation" className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        role="dialog"
-        className="relative w-full max-w-2xl bg-[#1a1b26] border border-[#33467c] shadow-2xl flex flex-col max-h-[80vh]"
-        onClick={e => e.stopPropagation()}
-        onKeyDown={e => e.stopPropagation()}
-      >
+    <Dialog open={true} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col p-0">
+        <DialogTitle className="sr-only">Edit task: {title}</DialogTitle>
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-[#33467c]/50 shrink-0">
           <input
@@ -603,8 +604,8 @@ export function TaskEditor({
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -643,7 +644,6 @@ export function RunTaskDialog({
   })
 
   useKeyLayer({
-    Escape: onClose,
     Enter: () => {
       if (phase === 'config') handleRun()
       else if (progress.isConnected) handleViewSession()
@@ -742,47 +742,43 @@ export function RunTaskDialog({
     setJobId(newJobId)
     progress.start([{ label: 'Sending spawn request...', status: 'active', ts: Date.now() }])
 
-    const commitLine = autoCommit ? '\n\nWhen you are done, commit all changes with a descriptive commit message.' : ''
-    const worktreeMerge = useWorktree
-      ? '\n\nIMPORTANT - WORKTREE MERGE-BACK:\nYou are working in a git worktree (isolated branch). Before finishing:\n1. Commit all changes\n2. Merge back to main: run `git rebase main && git fetch . HEAD:main`\n3. If rebase conflicts occur, resolve them and run `git rebase --continue`, then `git fetch . HEAD:main`\n4. Verify: `git log --oneline main -5`\nThis merges your work back to main so it is not stranded on a dead branch.'
-      : ''
-    const prompt = buildTaskPrompt(task, `${commitLine}${worktreeMerge}`)
+    const prompt = composeSpawnPrompt('', {
+      taskWrapper: task,
+      autoCommit,
+      worktreeMergeBack: useWorktree,
+    })
 
-    try {
-      const res = await fetch('/api/spawn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cwd,
-          adHoc: true,
-          adHocTaskId: task.slug,
-          prompt,
-          headless: true,
-          model: model || undefined,
-          effort: effort !== 'default' ? effort : undefined,
-          worktree: useWorktree ? branchName : undefined,
-          leaveRunning: leaveRunning || undefined,
-          name: task.title.replace(/['"]/g, '').slice(0, 60),
-          maxBudgetUsd: maxBudgetUsd ? Number(maxBudgetUsd) : undefined,
-          jobId: newJobId,
-        }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        haptic('success')
-        const wid = data.wrapperId as string
-        setWrapperId(wid)
-        progress.setSteps(prev => [
-          ...prev.map(s =>
-            s.status === 'active' ? { ...s, status: 'done' as const, detail: `wrapper=${wid.slice(0, 8)}` } : s,
-          ),
-          { label: 'Waiting for session...', status: 'active' as const, ts: Date.now() },
-        ])
-      } else {
-        progress.setError(data.error || 'Spawn failed')
-      }
-    } catch (err: unknown) {
-      progress.setError(err instanceof Error ? err.message : 'Network error')
+    const spawnReq: SpawnRequest = {
+      cwd,
+      adHoc: true,
+      adHocTaskId: task.slug,
+      prompt,
+      headless: true,
+      model: (model || undefined) as SpawnRequest['model'],
+      effort: (effort !== 'default' ? effort : undefined) as SpawnRequest['effort'],
+      worktree: useWorktree ? branchName : undefined,
+      leaveRunning: leaveRunning || undefined,
+      name:
+        deriveSessionName(
+          {},
+          { slug: task.slug, title: task.title, status: task.status, priority: task.priority, tags: task.tags },
+        ) ?? undefined,
+      maxBudgetUsd: maxBudgetUsd ? Number(maxBudgetUsd) : undefined,
+      jobId: newJobId,
+    }
+    const result = await sendSpawnRequest(spawnReq)
+    if (result.ok) {
+      haptic('success')
+      const wid = result.wrapperId
+      setWrapperId(wid)
+      progress.setSteps(prev => [
+        ...prev.map(s =>
+          s.status === 'active' ? { ...s, status: 'done' as const, detail: `wrapper=${wid.slice(0, 8)}` } : s,
+        ),
+        { label: 'Waiting for session...', status: 'active' as const, ts: Date.now() },
+      ])
+    } else {
+      progress.setError(result.error)
     }
   }
 
@@ -796,63 +792,45 @@ export function RunTaskDialog({
   }
 
   function handleCopyDiagnostics() {
-    const diag = {
-      type: 'run_task_diagnostics',
-      time: new Date().toISOString(),
-      task: { slug: task.slug, title: task.title, status: task.status, priority: task.priority, tags: task.tags },
-      cwd,
+    const diag = buildSpawnDiagnostics({
+      source: 'run-task-dialog',
       jobId,
       wrapperId: wrapperId || progress.launch.wrapperId || null,
-      sessionId: progress.launch.sessionId || null,
-      elapsed: `${progress.elapsed}s`,
+      sessionId: progress.launch.sessionId ?? null,
+      elapsedSec: progress.elapsed,
       error: progress.error || progress.launch.error || null,
       config: {
-        model: model || null,
-        effort,
-        worktree: useWorktree ? branchName : null,
-        autoCommit,
-        leaveRunning,
-        maxBudgetUsd: maxBudgetUsd || null,
-        timeout,
+        cwd: cwd || undefined,
+        model: (model || undefined) as SpawnRequest['model'],
+        effort: (effort !== 'default' ? effort : undefined) as SpawnRequest['effort'],
+        worktree: useWorktree ? branchName : undefined,
+        leaveRunning: leaveRunning || undefined,
+        maxBudgetUsd: maxBudgetUsd ? Number(maxBudgetUsd) : undefined,
       },
       steps: progress.steps.map(s => ({
         label: s.label,
         status: s.status,
-        detail: s.detail || null,
-        ts: s.ts || null,
+        detail: s.detail ?? null,
+        ts: s.ts ?? null,
       })),
       launchEvents: progress.launch.events.map(e => ({
         step: e.step,
         status: e.status,
-        detail: e.detail || null,
+        detail: e.detail ?? null,
         t: e.t,
       })),
       launchState: { completed: progress.launch.completed, failed: progress.launch.failed },
-    }
+      task: { slug: task.slug, title: task.title, status: task.status, priority: task.priority, tags: task.tags },
+    })
     progress.copyToClipboard(JSON.stringify(diag, null, 2))
   }
 
   const displayError = progress.error || progress.launch.error
 
   return (
-    // biome-ignore lint/a11y/useSemanticElements: modal backdrop
-    <div
-      role="button"
-      tabIndex={-1}
-      aria-label="Close dialog"
-      className="fixed inset-0 z-[110] flex items-center justify-center p-4"
-      onClick={onClose}
-      onKeyDown={e => {
-        if (e.key === 'Escape') onClose()
-      }}
-    >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        role="dialog"
-        className="relative w-full max-w-md bg-[#1a1b26] border border-amber-500/30 shadow-2xl"
-        onClick={e => e.stopPropagation()}
-        onKeyDown={e => e.stopPropagation()}
-      >
+    <Dialog open={true} onOpenChange={open => !open && onClose()}>
+      <DialogContent className="max-w-md rounded-lg p-0 gap-0 bg-[#1a1b26] border-amber-500/30">
+        <DialogTitle className="sr-only">Run Task: {task.title}</DialogTitle>
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-500/20">
           <Zap className="w-4 h-4 text-amber-400" />
@@ -870,9 +848,6 @@ export function RunTaskDialog({
               {progress.elapsed}s
             </span>
           )}
-          <button type="button" onClick={onClose} className="ml-auto text-muted-foreground hover:text-foreground">
-            <X className="w-4 h-4" />
-          </button>
         </div>
 
         {/* Task title */}
@@ -886,126 +861,38 @@ export function RunTaskDialog({
         {/* Phase 1: Config form */}
         {phase === 'config' && (
           <>
-            <div className="px-4 py-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <label htmlFor="run-task-model" className="text-[10px] font-mono text-muted-foreground">
-                  Model
-                </label>
-                <select
-                  id="run-task-model"
-                  value={model}
-                  onChange={e => setModel(e.target.value)}
-                  className="text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
-                >
-                  <option value="">default</option>
-                  <option value="opus">opus</option>
-                  <option value="sonnet">sonnet</option>
-                  <option value="haiku">haiku</option>
-                </select>
-              </div>
-              <div className="flex items-center justify-between">
-                <label htmlFor="run-task-effort" className="text-[10px] font-mono text-muted-foreground">
-                  Effort
-                </label>
-                <select
-                  id="run-task-effort"
-                  value={effort}
-                  onChange={e => setEffort(e.target.value)}
-                  className="text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
-                >
-                  <option value="default">default</option>
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
-                  <option value="xhigh">xhigh</option>
-                  <option value="max">max</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={useWorktree}
-                    onChange={e => setUseWorktree(e.target.checked)}
-                    className="accent-amber-400"
-                  />
-                  <span className="text-[10px] font-mono text-muted-foreground">
-                    Use git worktree (isolated branch)
-                  </span>
-                </label>
-                {useWorktree && (
-                  <input
-                    type="text"
-                    value={branchName}
-                    onChange={e => setBranchName(e.target.value)}
-                    className="w-full text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
-                    placeholder="Branch name..."
-                  />
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={autoCommit}
-                    onChange={e => setAutoCommit(e.target.checked)}
-                    className="accent-amber-400"
-                  />
-                  <span className="text-[10px] font-mono text-muted-foreground">Auto-commit on completion</span>
-                </label>
-                <div className="text-[9px] text-[#565f89] pl-5">
-                  Adds a prompt instruction to commit when the task finishes
-                </div>
-              </div>
-              <div className="space-y-0.5">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={leaveRunning}
-                    onChange={e => setLeaveRunning(e.target.checked)}
-                    className="accent-amber-400"
-                  />
-                  <span className="text-[10px] font-mono text-muted-foreground">Leave session running when done</span>
-                </label>
-                <div className="text-[9px] text-[#565f89] pl-5">
-                  Keep session alive after the task completes for follow-up work
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <label htmlFor="run-task-budget" className="text-[10px] font-mono text-muted-foreground">
-                  Max budget
-                </label>
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-[#565f89]">$</span>
-                  <input
-                    id="run-task-budget"
-                    type="number"
-                    min={0.01}
-                    step={0.01}
-                    placeholder="none"
-                    value={maxBudgetUsd}
-                    onChange={e => setMaxBudgetUsd(e.target.value)}
-                    className="w-16 text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <label htmlFor="run-task-timeout" className="text-[10px] font-mono text-muted-foreground">
-                  Timeout
-                </label>
-                <select
-                  id="run-task-timeout"
-                  value={timeout}
-                  onChange={e => setTimeout_(e.target.value)}
-                  className="text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
-                >
-                  <option value="5">5 min</option>
-                  <option value="10">10 min</option>
-                  <option value="15">15 min</option>
-                  <option value="30">30 min</option>
-                  <option value="0">unlimited</option>
-                </select>
-              </div>
+            <div className="px-4 py-3">
+              <LaunchConfigFields
+                value={{
+                  model,
+                  effort: effort === 'default' ? '' : effort,
+                  useWorktree,
+                  worktreeName: branchName,
+                  autoCommit,
+                  leaveRunning,
+                  maxBudgetUsd,
+                  timeout,
+                }}
+                onChange={(patch: Partial<LaunchFieldsValue>) => {
+                  if ('model' in patch) setModel(patch.model ?? '')
+                  if ('effort' in patch) setEffort(patch.effort ? patch.effort : 'default')
+                  if ('useWorktree' in patch) setUseWorktree(!!patch.useWorktree)
+                  if ('worktreeName' in patch) setBranchName(patch.worktreeName ?? '')
+                  if ('autoCommit' in patch) setAutoCommit(!!patch.autoCommit)
+                  if ('leaveRunning' in patch) setLeaveRunning(!!patch.leaveRunning)
+                  if ('maxBudgetUsd' in patch) setMaxBudgetUsd(patch.maxBudgetUsd ?? '')
+                  if ('timeout' in patch) setTimeout_(patch.timeout ?? '30')
+                }}
+                show={{
+                  model: true,
+                  effort: true,
+                  worktree: true,
+                  autoCommit: true,
+                  leaveRunning: true,
+                  maxBudgetUsd: true,
+                  timeout: true,
+                }}
+              />
             </div>
             <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#33467c]/30">
               <button
@@ -1060,8 +947,8 @@ export function RunTaskDialog({
             </div>
           </>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

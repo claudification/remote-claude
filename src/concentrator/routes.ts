@@ -17,7 +17,9 @@ import {
 import { join } from 'node:path'
 import { Hono } from 'hono'
 import type { ListDirsResult, SendInput, Session, SpawnResult, TeamInfo } from '../shared/protocol'
-import { generateSessionName } from '../shared/session-names'
+import { resolveSpawnConfig } from '../shared/spawn-defaults'
+import { mapProjectTrust, type SpawnCallerContext } from '../shared/spawn-permissions'
+import { type SpawnRequest, spawnRequestSchema } from '../shared/spawn-schema'
 import {
   queryModelComparison as queryAnalyticsModels,
   querySummary as queryAnalyticsSummary,
@@ -68,6 +70,7 @@ import {
   shareToGrants,
   validateShare,
 } from './shares'
+import { dispatchSpawn } from './spawn-dispatch'
 import { UI_HTML } from './ui'
 
 // ─── Image/Blob Store (disk-only, survives restarts) ────────────────────
@@ -742,13 +745,25 @@ export function createRouter(options: RouteOptions): Hono {
     const lc = session.launchConfig // stored launch config from original spawn
     const name =
       session.title || getProjectSettings(session.cwd)?.label || session.cwd.split('/').pop() || sessionId.slice(0, 8)
-    // Resolve effort + model: launch config > project default > global default > undefined
+    // Resolve defaults: launch config > project > global > undefined
     const projSettings = getProjectSettings(session.cwd)
     const globalSettings = getGlobalSettings()
-    const effortRaw = lc?.effort || projSettings?.defaultEffort || globalSettings.defaultEffort
-    const effort = effortRaw && effortRaw !== 'default' ? effortRaw : undefined
-    const model = lc?.model || projSettings?.defaultModel || globalSettings.defaultModel || undefined
-    const headless = lc?.headless ?? (projSettings?.defaultLaunchMode || globalSettings.defaultLaunchMode) !== 'pty'
+    const resolved = resolveSpawnConfig(
+      {
+        cwd: session.cwd,
+        headless: lc?.headless,
+        model: lc?.model as SpawnRequest['model'] | undefined,
+        effort: lc?.effort as SpawnRequest['effort'] | undefined,
+        bare: lc?.bare,
+        repl: lc?.repl,
+        permissionMode: lc?.permissionMode as SpawnRequest['permissionMode'] | undefined,
+        autocompactPct: lc?.autocompactPct,
+        maxBudgetUsd: lc?.maxBudgetUsd,
+      },
+      projSettings,
+      globalSettings,
+    )
+    const { headless, model, effort, bare, repl, permissionMode, autocompactPct, maxBudgetUsd } = resolved
 
     agent.send(
       JSON.stringify({
@@ -761,11 +776,11 @@ export function createRouter(options: RouteOptions): Hono {
         effort,
         model,
         sessionName: session.title || undefined,
-        bare: lc?.bare || undefined,
-        repl: lc?.repl || undefined,
-        permissionMode: lc?.permissionMode || undefined,
-        autocompactPct: lc?.autocompactPct || session.autocompactPct,
-        maxBudgetUsd: lc?.maxBudgetUsd || session.maxBudgetUsd,
+        bare: bare || undefined,
+        repl: repl || undefined,
+        permissionMode,
+        autocompactPct: autocompactPct ?? session.autocompactPct,
+        maxBudgetUsd: maxBudgetUsd ?? session.maxBudgetUsd,
         adHocWorktree: session.adHocWorktree || undefined,
         env: lc?.env || undefined,
       }),
@@ -849,181 +864,39 @@ export function createRouter(options: RouteOptions): Hono {
   app.post('/api/spawn', async c => {
     if (!httpHasPermission(c.req.raw, 'spawn', '*'))
       return c.json({ error: 'Forbidden: spawn permission required' }, 403)
-    const agent = sessionStore.getAgent()
-    if (!agent) return c.json({ error: 'No host agent connected' }, 503)
 
-    const body = await c.req.json<{
-      cwd: string
-      mkdir?: boolean
-      mode?: 'fresh' | 'resume'
-      resumeId?: string
-      headless?: boolean
-      bare?: boolean
-      repl?: boolean
-      name?: string
-      model?: string
-      effort?: string
-      permissionMode?: string
-      autocompactPct?: number
-      maxBudgetUsd?: number
-      // Ad-hoc task runner fields
-      prompt?: string
-      adHoc?: boolean
-      adHocTaskId?: string
-      leaveRunning?: boolean
-      worktree?: string
-      env?: Record<string, string>
-      // Launch job correlation
-      jobId?: string
-    }>()
-    if (!body.cwd || typeof body.cwd !== 'string') return c.json({ error: 'Missing cwd field' }, 400)
-    if (body.mode === 'resume' && !body.resumeId) return c.json({ error: 'resumeId required for resume mode' }, 400)
+    const parsed = spawnRequestSchema.safeParse(await c.req.json())
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.message, issues: parsed.error.issues }, 400)
+    }
+    const body = parsed.data
 
-    // Benevolent trust check for MCP callers (X-Caller-Session header)
+    // Build caller context for the unified permission gate. MCP callers
+    // identify themselves via X-Caller-Session; everything else is dashboard HTTP.
     const callerSessionId = c.req.header('X-Caller-Session')
-    if (callerSessionId) {
-      const callerSess = sessionStore.getSession(callerSessionId)
-      const callerTrust = callerSess?.cwd ? getProjectSettings(callerSess.cwd)?.trustLevel : undefined
-      if (callerTrust !== 'benevolent') {
-        return c.json({ error: 'Spawn requires benevolent trust level' }, 403)
-      }
+    const callerSess = callerSessionId ? sessionStore.getSession(callerSessionId) : null
+    const callerCwd = callerSess?.cwd ?? null
+    const callerTrust = callerCwd ? mapProjectTrust(getProjectSettings(callerCwd)?.trustLevel) : 'trusted'
+    const callerContext: SpawnCallerContext = {
+      kind: callerSessionId ? 'mcp' : 'http',
+      hasSpawnPermission: true, // already validated by httpHasPermission above
+      trustLevel: callerTrust,
+      cwd: callerCwd,
     }
 
-    const requestId = randomUUID()
-    const wrapperId = randomUUID()
-    const jobId = body.jobId
-
-    // Register launch job if dashboard provided a jobId
-    if (jobId) {
-      sessionStore.createJob(jobId, wrapperId)
-    }
-
-    const cwdLabel = body.cwd.split('/').pop() || body.cwd
-    if (body.adHoc) {
-      console.log(
-        `[ad-hoc] Spawn request: ${cwdLabel} task=${body.adHocTaskId || 'none'} wrapper=${wrapperId.slice(0, 8)} prompt=${body.prompt?.length || 0}chars worktree=${body.worktree || 'none'}`,
-      )
-    }
-
-    const result = await new Promise<SpawnResult>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        sessionStore.removeSpawnListener(requestId)
-        reject(new Error('Spawn timed out (15s)'))
-      }, 15000)
-
-      sessionStore.addSpawnListener(requestId, msg => {
-        clearTimeout(timeout)
-        resolve(msg as SpawnResult)
-      })
-
-      // Resolve headless: ad-hoc always headless > explicit override > project default > global setting
-      const projSettings = getProjectSettings(body.cwd)
-      const globalSettings = getGlobalSettings()
-      const headless = body.adHoc
-        ? true
-        : (body.headless ?? (projSettings?.defaultLaunchMode || globalSettings.defaultLaunchMode) !== 'pty')
-
-      // Resolve effort + model: explicit body override > project default > global default > undefined
-      const effortRaw = body.effort || projSettings?.defaultEffort || globalSettings.defaultEffort
-      const effort = effortRaw && effortRaw !== 'default' ? effortRaw : undefined
-      const modelRaw = body.model || projSettings?.defaultModel || globalSettings.defaultModel
-      const model = modelRaw || undefined
-
-      // Store launch config so it can be reused on revive
-      sessionStore.setPendingLaunchConfig(wrapperId, {
-        headless,
-        model,
-        effort,
-        bare: body.bare || false,
-        repl: body.repl || false,
-        permissionMode: body.adHoc ? 'bypassPermissions' : body.permissionMode || undefined,
-        autocompactPct: body.autocompactPct || undefined,
-        maxBudgetUsd: body.maxBudgetUsd || undefined,
-        env: body.env || undefined,
-      })
-
-      agent.send(
-        JSON.stringify({
-          type: 'spawn',
-          requestId,
-          cwd: body.cwd,
-          wrapperId,
-          jobId,
-          mkdir: body.mkdir || false,
-          mode: body.adHoc ? 'fresh' : body.mode || 'fresh',
-          resumeId: body.resumeId,
-          headless,
-          effort,
-          model,
-          bare: body.bare || false,
-          repl: body.repl || false,
-          sessionName:
-            body.name?.trim() ||
-            generateSessionName(
-              new Set(
-                sessionStore
-                  .getAllSessions()
-                  .map((s: Session) => s.title)
-                  .filter(Boolean) as string[],
-              ),
-            ),
-          permissionMode: body.adHoc ? 'bypassPermissions' : body.permissionMode || undefined,
-          autocompactPct: body.autocompactPct || undefined,
-          maxBudgetUsd: body.maxBudgetUsd || undefined,
-          // Ad-hoc fields
-          prompt: body.prompt || undefined,
-          adHoc: body.adHoc || undefined,
-          adHocTaskId: body.adHocTaskId || undefined,
-          leaveRunning: body.leaveRunning || undefined,
-          worktree: body.worktree || undefined,
-          env: body.env || undefined,
-        }),
-      )
+    const result = await dispatchSpawn(body, {
+      sessions: sessionStore,
+      getProjectSettings,
+      getGlobalSettings,
+      callerContext,
+      rendezvousCallerSessionId: callerSessionId ?? null,
     })
 
-    if (!result.success) {
-      if (body.adHoc) console.log(`[ad-hoc] Spawn FAILED: ${result.error || 'unknown'} (${cwdLabel})`)
-      return c.json({ error: result.error || 'Spawn failed' }, 500)
+    if (!result.ok) {
+      const status = (result.statusCode ?? 500) as 400 | 403 | 500 | 503
+      return c.json({ error: result.error }, status)
     }
-    if (body.adHoc) console.log(`[ad-hoc] Spawn OK: wrapper=${wrapperId.slice(0, 8)} tmux=${result.tmuxSession}`)
-
-    // Register rendezvous: wait for the spawned wrapper to connect (up to 2 min)
-    if (callerSessionId) {
-      // Don't block the HTTP response - caller gets immediate success + wrapperId.
-      // Rendezvous resolves async and delivers to caller via inter-session channel.
-      sessionStore
-        .addRendezvous(wrapperId, callerSessionId, body.cwd, 'spawn')
-        .then(session => {
-          // Deliver session metadata to caller via their WS connection
-          const callerWs = sessionStore.getSessionSocket(callerSessionId)
-          if (callerWs) {
-            callerWs.send(
-              JSON.stringify({
-                type: 'spawn_ready',
-                sessionId: session.id,
-                cwd: session.cwd,
-                wrapperId,
-                session,
-              }),
-            )
-          }
-        })
-        .catch(err => {
-          const callerWs = sessionStore.getSessionSocket(callerSessionId)
-          if (callerWs) {
-            callerWs.send(
-              JSON.stringify({
-                type: 'spawn_timeout',
-                wrapperId,
-                cwd: body.cwd,
-                error: typeof err === 'string' ? err : 'Spawn rendezvous timed out',
-              }),
-            )
-          }
-        })
-    }
-
-    return c.json({ success: true, wrapperId, jobId, tmuxSession: result.tmuxSession })
+    return c.json({ success: true, wrapperId: result.wrapperId, jobId: result.jobId, tmuxSession: result.tmuxSession })
   })
 
   // ─── Directory listing (agent relay) ───────────────────────────────

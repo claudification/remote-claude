@@ -24,7 +24,7 @@
         "marked": "^17.0.6",
         "tailwind-merge": "^3.5.0",
         "tailwindcss": "^4.2.2",
-        "vite": "^8.0.6",
+        "vite": "8.0.6",
         "vite-tsconfig-paths": "^6.1.1",
         "web-push": "^3.6.7",
         "zod": "^4.3.6",

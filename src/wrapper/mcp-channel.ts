@@ -18,9 +18,11 @@ import { join, resolve as resolvePath } from 'node:path'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { z } from 'zod'
 import type { DialogLayout, DialogResult } from '../shared/dialog-schema'
 import { dialogToolInputSchema, validateDialogLayout } from '../shared/dialog-schema'
 import { isPathWithinCwd } from '../shared/path-guard'
+import { spawnRequestSchema } from '../shared/spawn-schema'
 import { DEFAULT_VISIBLE_STATUSES, TASK_STATUSES, type TaskStatus } from '../shared/task-statuses'
 import { checkForUpdate, formatUpdateResult } from '../shared/update-check'
 import { debug } from './debug'
@@ -95,7 +97,19 @@ export interface McpChannelCallbacks {
     resumeId?: string
     mkdir?: boolean
     headless?: boolean
-  }) => Promise<{ ok: boolean; error?: string; wrapperId?: string }>
+    /**
+     * If set, the callback should create a tracked job with this ID and call
+     * onProgress on each launch_progress event so the MCP tool can forward
+     * them as notifications/progress. Implementation detail: the wrapper
+     * subscribes on this WS before dispatching channel_spawn so no events are
+     * missed.
+     */
+    jobId?: string
+    onProgress?: (event: Record<string, unknown>) => void
+  }) => Promise<{ ok: boolean; error?: string; wrapperId?: string; jobId?: string }>
+  onGetSpawnDiagnostics?: (
+    jobId: string,
+  ) => Promise<{ ok: boolean; error?: string; diagnostics?: Record<string, unknown> }>
   onConfigureSession?: (params: {
     sessionId: string
     label?: string
@@ -314,6 +328,29 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
   )
   const server = mcpServer.server // low-level access for custom handlers
 
+  // spawn_session input schema: shared spawn fields + MCP-specific (action, session_id, resume_id alias).
+  // cwd is only required for action=spawn; make it optional at schema level and validate in handler.
+  const spawnToolSchema = spawnRequestSchema
+    .extend({
+      action: z
+        .enum(['spawn', 'revive', 'restart'])
+        .optional()
+        .describe(
+          'Action to perform. "spawn" = new session at cwd, "revive" = bring back an ended session, "restart" = terminate + auto-revive. Default: spawn.',
+        ),
+      session_id: z
+        .string()
+        .optional()
+        .describe('Target session ID from list_sessions. Required for revive and restart actions.'),
+      resume_id: z.string().optional().describe('Claude Code session ID to resume (alias for resumeId).'),
+    })
+    .partial({ cwd: true })
+  const spawnToolInputSchema = z.toJSONSchema(spawnToolSchema) as {
+    type: 'object'
+    properties?: Record<string, unknown>
+    required?: string[]
+  }
+
   // Register MCP tools
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
@@ -412,43 +449,21 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         name: 'spawn_session',
         description:
           'Unified session lifecycle tool. Spawn new sessions, revive ended ones, or restart active sessions (terminate + auto-revive). Requires benevolent trust level. Sessions boot in tmux on the host - takes 10-30 seconds. Use list_sessions to poll for status.\n\nActions:\n- spawn (default): Start a new session at a directory\n- revive: Bring back an ended/inactive session\n- restart: Terminate an active session and automatically revive it. For self-restart, the MCP response may not arrive (your process dies and reboots).',
+        inputSchema: spawnToolInputSchema,
+      },
+      {
+        name: 'get_spawn_diagnostics',
+        description:
+          'Fetch a diagnostic snapshot for a spawn job by jobId. Returns the resolved config, the full event timeline (job_created, spawn_sent, agent_acked, wrapper_booted, session_connected, job_complete/job_failed), and any error. Use this to debug spawn failures after spawn_session returned a wrapperId but the session never connected. Jobs expire ~5 minutes after creation. The jobId comes from the spawn_session response (pass `jobId` to spawn_session to track it).',
         inputSchema: {
           type: 'object' as const,
           properties: {
-            action: {
+            job_id: {
               type: 'string',
-              enum: ['spawn', 'revive', 'restart'],
-              description:
-                'Action to perform. "spawn" = new session at cwd, "revive" = bring back an ended session, "restart" = terminate + auto-revive. Default: spawn.',
-            },
-            session_id: {
-              type: 'string',
-              description: 'Target session ID from list_sessions. Required for revive and restart actions.',
-            },
-            cwd: {
-              type: 'string',
-              description: 'Working directory for new session (absolute path, ~ supported). Required for spawn action.',
-            },
-            mode: {
-              type: 'string',
-              enum: ['fresh', 'resume'],
-              description:
-                'Spawn mode (only for action=spawn): "fresh" = new session, "resume" = resume specific session by ID. Default: fresh.',
-            },
-            resume_id: {
-              type: 'string',
-              description: 'Claude Code session ID to resume (required when mode is "resume")',
-            },
-            mkdir: {
-              type: 'boolean',
-              description: 'Create the directory if it does not exist (default: false, only for action=spawn)',
-            },
-            headless: {
-              type: 'boolean',
-              description:
-                'Spawn in headless mode (stream-json, no terminal). Default: true. Set false for interactive PTY mode.',
+              description: 'The jobId returned by a prior spawn_session call (or any spawn dispatch).',
             },
           },
+          required: ['job_id'],
         },
       },
       {
@@ -550,10 +565,14 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
     ],
   }))
 
-  server.setRequestHandler(CallToolRequestSchema, async request => {
+  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     try {
       const { name, arguments: args } = request.params
       const params = (args || {}) as Record<string, string>
+      // MCP clients opt into streaming progress by supplying a progressToken
+      // in the request _meta. If present, we push notifications/progress
+      // during long-running tools (currently spawn_session).
+      const progressToken = (request.params._meta as { progressToken?: string | number } | undefined)?.progressToken
 
       switch (name) {
         case 'notify': {
@@ -892,8 +911,76 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           }
           const mkdir = String(params.mkdir) === 'true'
           const spawnHeadless = params.headless !== undefined ? String(params.headless) !== 'false' : true
-          const result = (await callbacks.onSpawnSession?.({ cwd, mode, resumeId, mkdir, headless: spawnHeadless })) as
-            | { ok: boolean; error?: string; wrapperId?: string; session?: Record<string, unknown>; timedOut?: boolean }
+
+          // Wire progress streaming if the caller supplied a progressToken.
+          // We build a local jobId and a pump that forwards launch_progress
+          // events as notifications/progress with a rough phase -> percent
+          // mapping so MCP clients can render a progress bar instead of
+          // staring at silence while tmux spins up.
+          let jobId: string | undefined
+          let onProgress: ((event: Record<string, unknown>) => void) | undefined
+          if (progressToken !== undefined) {
+            jobId = randomUUID()
+            const stepToPercent: Record<string, number> = {
+              job_created: 5,
+              spawn_sent: 15,
+              agent_acked: 30,
+              wrapper_booted: 60,
+              session_connected: 95,
+              completed: 100,
+            }
+            onProgress = event => {
+              const type = event.type as string
+              const step = typeof event.step === 'string' ? event.step : undefined
+              const status = typeof event.status === 'string' ? event.status : undefined
+              const detail = typeof event.detail === 'string' ? event.detail : undefined
+              let progress = 0
+              let message = step || type
+              if (type === 'job_complete') {
+                progress = 100
+                message = 'Session connected'
+              } else if (type === 'job_failed') {
+                progress = 100
+                message = `Failed: ${typeof event.error === 'string' ? event.error : 'unknown'}`
+              } else if (step && step in stepToPercent) {
+                progress = stepToPercent[step]
+                if (detail) message = `${step}: ${detail}`
+                else message = step
+                if (status === 'error') message = `Failed at ${step}`
+              }
+              extra
+                .sendNotification?.({
+                  method: 'notifications/progress',
+                  params: {
+                    progressToken,
+                    progress,
+                    total: 100,
+                    message,
+                  },
+                })
+                .catch(() => {
+                  // Notifications are best-effort -- swallow to avoid killing the spawn if the transport hiccups
+                })
+            }
+          }
+
+          const result = (await callbacks.onSpawnSession?.({
+            cwd,
+            mode,
+            resumeId,
+            mkdir,
+            headless: spawnHeadless,
+            jobId,
+            onProgress,
+          })) as
+            | {
+                ok: boolean
+                error?: string
+                wrapperId?: string
+                jobId?: string
+                session?: Record<string, unknown>
+                timedOut?: boolean
+              }
             | undefined
           if (!result?.ok) {
             debug(`[channel] spawn_session failed: ${result?.error}`)
@@ -902,6 +989,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           const modeDesc = mode === 'resume' ? `resuming ${resumeId}` : 'fresh start'
           debug(`[channel] spawn_session: ${cwd} (${modeDesc}) session=${result.session ? 'ready' : 'pending'}`)
 
+          const responseJobId = result.jobId ?? jobId
           if (result.session) {
             return {
               content: [
@@ -912,6 +1000,8 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
                       status: 'ready',
                       message: `Session spawned and connected at ${cwd} (${modeDesc})`,
                       session: result.session,
+                      jobId: responseJobId,
+                      wrapperId: result.wrapperId,
                     },
                     null,
                     2,
@@ -926,8 +1016,40 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
               {
                 type: 'text',
                 text: result.timedOut
-                  ? `Session spawn sent to ${cwd} (${modeDesc}) but session did not connect within 2 minutes. It may still be booting - use list_sessions to check.`
-                  : `Session spawning at ${cwd} (${modeDesc}). Use list_sessions to check when ready.`,
+                  ? `Session spawn sent to ${cwd} (${modeDesc}) but session did not connect within 2 minutes. It may still be booting - use list_sessions to check.${responseJobId ? ` jobId=${responseJobId}` : ''}`
+                  : `Session spawning at ${cwd} (${modeDesc}). Use list_sessions to check when ready.${responseJobId ? ` jobId=${responseJobId}` : ''}`,
+              },
+            ],
+          }
+        }
+        case 'get_spawn_diagnostics': {
+          const jobId = typeof params.job_id === 'string' ? params.job_id.trim() : ''
+          if (!jobId) {
+            return {
+              content: [{ type: 'text', text: 'Error: job_id is required' }],
+              isError: true,
+            }
+          }
+          if (!callbacks.onGetSpawnDiagnostics) {
+            return {
+              content: [{ type: 'text', text: 'Error: diagnostics channel not available' }],
+              isError: true,
+            }
+          }
+          const result = await callbacks.onGetSpawnDiagnostics(jobId)
+          if (!result.ok) {
+            debug(`[channel] get_spawn_diagnostics(${jobId.slice(0, 8)}) failed: ${result.error}`)
+            return {
+              content: [{ type: 'text', text: result.error || 'Diagnostics unavailable' }],
+              isError: true,
+            }
+          }
+          debug(`[channel] get_spawn_diagnostics(${jobId.slice(0, 8)}): ok`)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result.diagnostics, null, 2),
               },
             ],
           }

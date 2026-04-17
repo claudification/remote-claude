@@ -74,6 +74,18 @@ export interface WsClientOptions {
     alreadyEnded?: boolean
   }) => void
   onChannelSpawnResult?: (result: { ok: boolean; error?: string; wrapperId?: string }) => void
+  onSpawnDiagnosticsResult?: (result: {
+    ok: boolean
+    jobId?: string
+    error?: string
+    diagnostics?: Record<string, unknown>
+  }) => void
+  /**
+   * Launch job events for jobs this wrapper subscribed to. Fires on
+   * launch_progress / launch_log / job_complete / job_failed -- the shape
+   * matches what the concentrator forwards verbatim via forwardJobEvent.
+   */
+  onLaunchJobEvent?: (event: Record<string, unknown>) => void
   onChannelConfigureResult?: (result: { ok: boolean; error?: string }) => void
   onChannelRenameResult?: (result: { ok: boolean; error?: string }) => void
   onAskAnswer?: (
@@ -155,6 +167,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onChannelReviveResult,
     onChannelRestartResult,
     onChannelSpawnResult,
+    onSpawnDiagnosticsResult,
+    onLaunchJobEvent,
     onChannelConfigureResult,
     onChannelRenameResult,
     onAskAnswer,
@@ -386,6 +400,26 @@ export function createWsClient(options: WsClientOptions): WsClient {
               }
               if (msgType === 'channel_spawn_result') {
                 onChannelSpawnResult?.(message as unknown as { ok: boolean; error?: string; wrapperId?: string })
+                break
+              }
+              if (msgType === 'spawn_diagnostics_result') {
+                onSpawnDiagnosticsResult?.(
+                  message as unknown as {
+                    ok: boolean
+                    jobId?: string
+                    error?: string
+                    diagnostics?: Record<string, unknown>
+                  },
+                )
+                break
+              }
+              if (
+                msgType === 'launch_progress' ||
+                msgType === 'launch_log' ||
+                msgType === 'job_complete' ||
+                msgType === 'job_failed'
+              ) {
+                onLaunchJobEvent?.(message as unknown as Record<string, unknown>)
                 break
               }
               if (msgType === 'channel_configure_result') {

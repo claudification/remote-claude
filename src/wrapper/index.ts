@@ -968,6 +968,18 @@ async function main() {
       onChannelSpawnResult(result) {
         pendingSpawnResult?.(result)
       },
+      onSpawnDiagnosticsResult(result) {
+        if (!result.jobId) return
+        const resolver = pendingSpawnDiagnostics.get(result.jobId)
+        if (!resolver) return
+        pendingSpawnDiagnostics.delete(result.jobId)
+        resolver(result)
+      },
+      onLaunchJobEvent(event) {
+        const jobId = typeof event.jobId === 'string' ? event.jobId : undefined
+        if (!jobId) return
+        launchJobListeners.get(jobId)?.(event)
+      },
       onChannelConfigureResult(result) {
         pendingConfigureResult?.(result)
       },
@@ -1345,29 +1357,51 @@ async function main() {
         } as unknown as WrapperMessage)
       })
     },
-    async onSpawnSession({ cwd, mode, resumeId, mkdir, headless: spawnHeadless }) {
+    async onSpawnSession({ cwd, mode, resumeId, mkdir, headless: spawnHeadless, jobId, onProgress }) {
       if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
 
-      // Step 1: Send spawn request via WS, get immediate ack with wrapperId
-      const spawnResult = await new Promise<{ ok: boolean; error?: string; wrapperId?: string }>(resolve => {
-        const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 15000)
-        pendingSpawnResult = result => {
-          clearTimeout(timeout)
-          pendingSpawnResult = null
-          resolve(result)
-        }
-        ctx.wsClient?.send({
-          type: 'channel_spawn',
-          cwd,
-          mode,
-          resumeId,
-          mkdir,
-          headless: spawnHeadless,
-        } as unknown as WrapperMessage)
-      })
+      // If the MCP caller wants progress, subscribe to the job BEFORE sending
+      // channel_spawn so the first launch_progress events are not missed.
+      if (jobId && onProgress) {
+        launchJobListeners.set(jobId, onProgress)
+        ctx.wsClient?.send({ type: 'subscribe_job', jobId } as unknown as WrapperMessage)
+      }
 
-      if (!spawnResult.ok) return spawnResult
+      // Step 1: Send spawn request via WS, get immediate ack with wrapperId
+      const spawnResult = await new Promise<{ ok: boolean; error?: string; wrapperId?: string; jobId?: string }>(
+        resolve => {
+          const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 15000)
+          pendingSpawnResult = result => {
+            clearTimeout(timeout)
+            pendingSpawnResult = null
+            resolve(result)
+          }
+          ctx.wsClient?.send({
+            type: 'channel_spawn',
+            cwd,
+            mode,
+            resumeId,
+            mkdir,
+            headless: spawnHeadless,
+            jobId,
+          } as unknown as WrapperMessage)
+        },
+      )
+
+      if (!spawnResult.ok) {
+        if (jobId) {
+          launchJobListeners.delete(jobId)
+          ctx.wsClient?.send({ type: 'unsubscribe_job', jobId } as unknown as WrapperMessage)
+        }
+        return spawnResult
+      }
       diag('channel', `spawn_session: ${cwd} mode=${mode || 'default'} wrapperId=${spawnResult.wrapperId?.slice(0, 8)}`)
+
+      const cleanupJob = () => {
+        if (!jobId) return
+        launchJobListeners.delete(jobId)
+        ctx.wsClient?.send({ type: 'unsubscribe_job', jobId } as unknown as WrapperMessage)
+      }
 
       // Step 2: Await rendezvous (concentrator sends spawn_ready/spawn_timeout when session connects)
       if (spawnResult.wrapperId) {
@@ -1391,14 +1425,34 @@ async function main() {
           })
           const session = result.session as Record<string, unknown> | undefined
           diag('channel', `spawn_session: rendezvous resolved session=${(result.sessionId as string)?.slice(0, 8)}`)
-          return { ok: true, wrapperId: spawnResult.wrapperId, session }
+          cleanupJob()
+          return { ok: true, wrapperId: spawnResult.wrapperId, jobId, session }
         } catch (err) {
           diag('channel', `spawn_session: rendezvous failed: ${err instanceof Error ? err.message : err}`)
-          return { ok: true, wrapperId: spawnResult.wrapperId, timedOut: true }
+          cleanupJob()
+          return { ok: true, wrapperId: spawnResult.wrapperId, jobId, timedOut: true }
         }
       }
 
-      return { ok: true, wrapperId: spawnResult.wrapperId }
+      cleanupJob()
+      return { ok: true, wrapperId: spawnResult.wrapperId, jobId }
+    },
+    async onGetSpawnDiagnostics(jobId) {
+      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+      return new Promise(resolve => {
+        const timeout = setTimeout(() => {
+          pendingSpawnDiagnostics.delete(jobId)
+          resolve({ ok: false, error: 'Timeout waiting for diagnostics' })
+        }, 10_000)
+        pendingSpawnDiagnostics.set(jobId, result => {
+          clearTimeout(timeout)
+          resolve(result)
+        })
+        ctx.wsClient?.send({
+          type: 'get_spawn_diagnostics',
+          jobId,
+        } as unknown as WrapperMessage)
+      })
     },
     async onRestartSession(sessionId) {
       if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
@@ -1483,6 +1537,16 @@ async function main() {
     | ((result: { ok: boolean; error?: string; name?: string; selfRestart?: boolean; alreadyEnded?: boolean }) => void)
     | null = null
   let pendingSpawnResult: ((result: { ok: boolean; error?: string; wrapperId?: string }) => void) | null = null
+  // Keyed by jobId so concurrent get_spawn_diagnostics calls don't trample each
+  // other. Concentrator replies include the jobId so we can route back.
+  const pendingSpawnDiagnostics = new Map<
+    string,
+    (result: { ok: boolean; jobId?: string; error?: string; diagnostics?: Record<string, unknown> }) => void
+  >()
+  // jobId -> listener for launch_progress / launch_log / job_complete /
+  // job_failed events. Populated when an MCP spawn_session caller passes a
+  // progressToken; cleared when the spawn resolves (either side of timeout).
+  const launchJobListeners = new Map<string, (event: Record<string, unknown>) => void>()
   let pendingConfigureResult: ((result: { ok: boolean; error?: string }) => void) | null = null
   let pendingRenameResult: ((result: { ok: boolean; error?: string }) => void) | null = null
   const pendingRendezvous = new Map<

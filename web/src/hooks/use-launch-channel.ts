@@ -86,6 +86,26 @@ export function useLaunchChannel(jobId: string | null): LaunchChannelState {
           }))
           break
 
+        case 'launch_progress': {
+          const uiStatus: LaunchEvent['status'] =
+            detail.status === 'done' ? 'ok' : detail.status === 'error' ? 'error' : 'info'
+          setState(prev => ({
+            ...prev,
+            events: [
+              ...prev.events,
+              {
+                step: detail.step,
+                status: uiStatus,
+                detail: detail.detail,
+                t: detail.t || Date.now(),
+              },
+            ],
+            wrapperId: detail.wrapperId || prev.wrapperId,
+            sessionId: detail.sessionId || prev.sessionId,
+          }))
+          break
+        }
+
         case 'job_complete':
           setState(prev => ({
             ...prev,

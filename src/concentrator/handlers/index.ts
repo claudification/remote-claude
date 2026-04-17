@@ -12,6 +12,7 @@ import { registerInterSessionHandlers } from './inter-session'
 import { registerPermissionHandlers } from './permissions'
 import { registerPlanApprovalHandlers } from './plan-approval'
 import { registerSessionLifecycleHandlers } from './session-lifecycle'
+import { registerSpawnHandlers } from './spawn'
 import { registerTerminalHandlers } from './terminal'
 import { registerTranscriptHandlers } from './transcript'
 import { registerVoiceHandlers } from './voice'
@@ -26,6 +27,7 @@ export function registerAllHandlers(): void {
   registerPermissionHandlers()
   registerPlanApprovalHandlers()
   registerSessionLifecycleHandlers()
+  registerSpawnHandlers()
   registerTerminalHandlers()
   registerTranscriptHandlers()
   registerVoiceHandlers()

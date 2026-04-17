@@ -24,6 +24,7 @@ import {
   type ProjectSettingsMap,
   useSessionsStore,
 } from './use-sessions'
+import { handleSpawnRequestAck } from './use-spawn'
 import { recordIn, recordOut } from './ws-stats'
 
 // Dashboard message from concentrator WS (loose type field for extensibility)
@@ -776,9 +777,25 @@ function processMessage(msg: DashboardMessage) {
 
     // ─── Launch Job Events ──────────────────────────────────────────
     case 'launch_log':
+    case 'launch_progress':
     case 'job_complete':
     case 'job_failed': {
       window.dispatchEvent(new CustomEvent('launch-job-event', { detail: msg }))
+      break
+    }
+
+    // ─── Spawn Request Ack (WS spawn_request → ack by jobId) ────────
+    case 'spawn_request_ack': {
+      handleSpawnRequestAck(
+        msg as unknown as {
+          type: 'spawn_request_ack'
+          ok: boolean
+          jobId?: string
+          wrapperId?: string
+          tmuxSession?: string
+          error?: string
+        },
+      )
       break
     }
   }

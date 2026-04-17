@@ -14,6 +14,7 @@
 import { Fzf } from 'fzf'
 import { CheckSquare, Copy, ListChecks, Search, Send, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
 import type { ProjectTaskMeta, TaskStatus } from '@/hooks/use-project'
 import { useProject } from '@/hooks/use-project'
@@ -341,41 +342,27 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
     setOpen(false)
   }
 
-  // Keyboard layer: ESC to close, Enter to submit (when not in textarea)
+  // Radix handles Escape natively; we keep mod+Enter for submit inside the dialog.
   useKeyLayer(
     {
-      Escape: handleClose,
       'mod+Enter': () => handleSubmit(),
     },
     { id: 'batch-selector', enabled: open },
   )
 
-  if (!open) return null
-
   const hasActiveSession = !!selectedSessionId && sessions.some(s => s.id === selectedSessionId && s.status !== 'ended')
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleClose} />
-
-      {/* Modal */}
-      <div className="relative w-full max-w-lg max-h-[85vh] flex flex-col bg-[#1a1b26] border border-[#33467c]/60 rounded-lg shadow-2xl overflow-hidden">
+    <Dialog open={open} onOpenChange={v => !v && handleClose()}>
+      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden rounded-lg p-0">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
           <div className="flex items-center gap-2">
             <ListChecks className="w-4 h-4 text-accent" />
-            <span className="text-sm font-bold font-mono text-foreground">Select Tasks</span>
+            <DialogTitle className="text-sm">Select Tasks</DialogTitle>
           </div>
           <div className="flex items-center gap-2">
             <Kbd className="text-[9px]">Esc</Kbd>
-            <button
-              type="button"
-              onClick={handleClose}
-              className="p-1 text-muted-foreground/60 hover:text-foreground transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
@@ -612,7 +599,7 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 })

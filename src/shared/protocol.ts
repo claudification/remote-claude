@@ -3,6 +3,21 @@
  * Defines the message format between wrapper and concentrator
  */
 
+import type { SpawnRequest } from './spawn-schema'
+
+// Dashboard -> Concentrator: spawn request (WS equivalent of POST /api/spawn)
+export type SpawnRequestMessage = { type: 'spawn_request' } & SpawnRequest
+
+// Concentrator -> Dashboard: ack for spawn_request (correlated by jobId)
+export interface SpawnRequestAck {
+  type: 'spawn_request_ack'
+  ok: boolean
+  jobId?: string
+  wrapperId?: string
+  tmuxSession?: string
+  error?: string
+}
+
 // Wrapper -> Concentrator messages
 export interface HookEvent {
   type: 'hook'
@@ -997,6 +1012,36 @@ export interface LaunchLog {
   status: 'info' | 'ok' | 'error'
   detail?: string
   t: number
+}
+
+/** Structured launch lifecycle step (concentrator -> dashboard, first-class) */
+export type LaunchStep =
+  | 'job_created'
+  | 'spawn_sent'
+  | 'agent_acked'
+  | 'wrapper_booted'
+  | 'session_connected'
+  | 'prompt_submitted'
+  | 'running'
+  | 'completed'
+  | 'failed'
+
+/**
+ * Concentrator -> Dashboard: first-class launch progress event.
+ * Emitted at each lifecycle step of a spawn/revive job so clients (dashboard,
+ * MCP callers) see real progress instead of silence.
+ */
+export interface LaunchProgressEvent {
+  type: 'launch_progress'
+  jobId: string
+  step: LaunchStep
+  status: 'active' | 'done' | 'error'
+  detail?: string
+  t: number
+  wrapperId?: string
+  sessionId?: string
+  elapsed?: number
+  error?: string
 }
 
 /** Concentrator -> Dashboard: launch job completed (session connected) */

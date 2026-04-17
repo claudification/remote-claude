@@ -202,12 +202,32 @@ export interface SessionStore {
   resolveFile: (requestId: string, result: unknown) => boolean
   // Launch jobs (request-scoped event channels for spawn/revive progress)
   createJob: (jobId: string, wrapperId: string) => void
+  recordJobConfig: (jobId: string, config: Record<string, unknown>) => void
   subscribeJob: (jobId: string, ws: ServerWebSocket<unknown>) => boolean
   unsubscribeJob: (jobId: string, ws: ServerWebSocket<unknown>) => void
   forwardJobEvent: (jobId: string, msg: Record<string, unknown>) => void
   completeJob: (wrapperId: string, sessionId: string) => void
   failJob: (jobId: string, error: string) => void
   getJobByWrapper: (wrapperId: string) => string | undefined
+  getJobDiagnostics: (jobId: string) => {
+    jobId: string
+    wrapperId: string
+    sessionId: string | null
+    completed: boolean
+    failed: boolean
+    error: string | null
+    createdAt: number
+    endedAt: number | null
+    elapsedMs: number
+    config: Record<string, unknown> | null
+    events: {
+      type: string
+      step?: string
+      status?: string
+      detail?: string | null
+      t: number
+    }[]
+  } | null
   cleanupJobSubscriber: (ws: ServerWebSocket<unknown>) => void
   // Session rendezvous (spawn/revive callback)
   addRendezvous: (
@@ -2897,11 +2917,31 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   // Dashboard subscribes to a jobId before spawning/reviving.
   // Agent sends launch_log events tagged with jobId.
   // Concentrator forwards to subscribers. Completes when session connects.
+  //
+  // We also accumulate events/state on the job so MCP callers (or any other
+  // late subscriber) can fetch a full diagnostic snapshot via getJobDiagnostics
+  // without having to tail the websocket in real time.
+  interface LaunchJobEvent {
+    type: string
+    step?: string
+    status?: string
+    detail?: string | null
+    t: number
+  }
   interface LaunchJob {
     jobId: string
     wrapperId: string
     subscribers: Set<ServerWebSocket<unknown>>
     createdAt: number
+    events: LaunchJobEvent[]
+    completed: boolean
+    failed: boolean
+    error: string | null
+    sessionId: string | null
+    // Snapshot of the spawn request config (sans the heavy prompt). Recorded
+    // via recordJobConfig() after dispatchSpawn resolves request defaults.
+    config: Record<string, unknown> | null
+    endedAt: number | null
   }
   const launchJobs = new Map<string, LaunchJob>() // jobId -> job
   const wrapperToJob = new Map<string, string>() // wrapperId -> jobId
@@ -2913,16 +2953,46 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       // Dashboard pre-subscribed before spawn HTTP returned - update wrapperId
       existing.wrapperId = wrapperId
     } else {
-      launchJobs.set(jobId, { jobId, wrapperId, subscribers: new Set(), createdAt: Date.now() })
+      launchJobs.set(jobId, {
+        jobId,
+        wrapperId,
+        subscribers: new Set(),
+        createdAt: Date.now(),
+        events: [],
+        completed: false,
+        failed: false,
+        error: null,
+        sessionId: null,
+        config: null,
+        endedAt: null,
+      })
     }
     wrapperToJob.set(wrapperId, jobId)
+  }
+
+  function recordJobConfig(jobId: string, config: Record<string, unknown>): void {
+    const job = launchJobs.get(jobId)
+    if (!job) return
+    job.config = config
   }
 
   function subscribeJob(jobId: string, ws: ServerWebSocket<unknown>): boolean {
     const job = launchJobs.get(jobId)
     if (!job) {
       // Job not created yet - create a placeholder (dashboard subscribes before HTTP spawn returns)
-      launchJobs.set(jobId, { jobId, wrapperId: '', subscribers: new Set([ws]), createdAt: Date.now() })
+      launchJobs.set(jobId, {
+        jobId,
+        wrapperId: '',
+        subscribers: new Set([ws]),
+        createdAt: Date.now(),
+        events: [],
+        completed: false,
+        failed: false,
+        error: null,
+        sessionId: null,
+        config: null,
+        endedAt: null,
+      })
       return true
     }
     job.subscribers.add(ws)
@@ -2940,6 +3010,16 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   function forwardJobEvent(jobId: string, msg: Record<string, unknown>): void {
     const job = launchJobs.get(jobId)
     if (!job) return
+    // Persist into the job so late subscribers (MCP get_spawn_diagnostics, etc.)
+    // can fetch the full event history even after the live stream has moved on.
+    const t = typeof msg.t === 'number' ? msg.t : Date.now()
+    job.events.push({
+      type: String(msg.type ?? 'unknown'),
+      step: typeof msg.step === 'string' ? msg.step : undefined,
+      status: typeof msg.status === 'string' ? msg.status : undefined,
+      detail: typeof msg.detail === 'string' ? msg.detail : msg.detail === null ? null : undefined,
+      t,
+    })
     const payload = JSON.stringify(msg)
     for (const ws of job.subscribers) {
       try {
@@ -2954,6 +3034,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     const job = launchJobs.get(jobId)
     if (!job) return
 
+    job.completed = true
+    job.sessionId = sessionId
+    job.endedAt = Date.now()
     forwardJobEvent(jobId, { type: 'job_complete', jobId, sessionId, wrapperId })
 
     // Cleanup after a short delay (let dashboard process the completion)
@@ -2964,14 +3047,55 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   }
 
   function failJob(jobId: string, error: string): void {
+    const job = launchJobs.get(jobId)
+    if (job) {
+      job.failed = true
+      job.error = error
+      job.endedAt = Date.now()
+    }
     forwardJobEvent(jobId, { type: 'job_failed', jobId, error })
     // Cleanup after delay
-    const job = launchJobs.get(jobId)
     if (job) {
       setTimeout(() => {
         launchJobs.delete(jobId)
         if (job.wrapperId) wrapperToJob.delete(job.wrapperId)
       }, 30_000)
+    }
+  }
+
+  /**
+   * Return a diagnostics snapshot for a job, or null if the job is unknown /
+   * already expired. Shape matches SpawnDiagnostics (built client-side via
+   * buildSpawnDiagnostics) but left loose here so we don't import UI types.
+   */
+  function getJobDiagnostics(jobId: string): {
+    jobId: string
+    wrapperId: string
+    sessionId: string | null
+    completed: boolean
+    failed: boolean
+    error: string | null
+    createdAt: number
+    endedAt: number | null
+    elapsedMs: number
+    config: Record<string, unknown> | null
+    events: LaunchJobEvent[]
+  } | null {
+    const job = launchJobs.get(jobId)
+    if (!job) return null
+    const now = Date.now()
+    return {
+      jobId: job.jobId,
+      wrapperId: job.wrapperId,
+      sessionId: job.sessionId,
+      completed: job.completed,
+      failed: job.failed,
+      error: job.error,
+      createdAt: job.createdAt,
+      endedAt: job.endedAt,
+      elapsedMs: (job.endedAt ?? now) - job.createdAt,
+      config: job.config,
+      events: job.events,
     }
   }
 
@@ -3285,12 +3409,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     getBgTaskOutput,
     broadcastSessionUpdate,
     createJob,
+    recordJobConfig,
     subscribeJob,
     unsubscribeJob,
     forwardJobEvent,
     completeJob,
     failJob,
     getJobByWrapper,
+    getJobDiagnostics,
     cleanupJobSubscriber,
     addSpawnListener,
     removeSpawnListener,

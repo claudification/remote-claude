@@ -4,10 +4,10 @@
  */
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { getRates, subscribe as subscribeStats } from '@/hooks/ws-stats'
 import { clearLog, copyLogText, getLogEntries, subscribeLog } from '@/lib/debug-log'
-import { useKeyLayer } from '@/lib/key-layers'
 import {
   categoryStats,
   clearEntries as clearPerfEntries,
@@ -526,10 +526,6 @@ export function NerdModal({ open, onClose }: { open: boolean; onClose: () => voi
     return () => clearInterval(id)
   }, [open, fetchStats])
 
-  useKeyLayer({ Escape: () => onClose() }, { id: 'nerd-modal', enabled: open })
-
-  if (!open) return null
-
   const tabs: { id: Tab; label: string }[] = [
     { id: 'cache', label: 'Cache' },
     { id: 'traffic', label: 'Traffic' },
@@ -539,16 +535,10 @@ export function NerdModal({ open, onClose }: { open: boolean; onClose: () => voi
   ]
 
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: Escape handled via window listener
-    // biome-ignore lint/a11y/noStaticElementInteractions: modal backdrop
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50" onClick={onClose}>
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation */}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: modal panel */}
-      <div
-        className="w-full max-w-lg max-h-[80vh] overflow-hidden bg-[#16161e] border border-[#33467c] shadow-2xl font-mono flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden font-mono flex flex-col p-0">
         <div className="p-4 pb-0">
+          <DialogTitle className="sr-only">Details for Nerds</DialogTitle>
           <pre className="text-[#7aa2f7] text-[10px] leading-tight mb-3 select-none text-center">
             {`┌─────────────────────────────────┐
 │      DETAILS FOR NERDS          │
@@ -585,7 +575,7 @@ export function NerdModal({ open, onClose }: { open: boolean; onClose: () => voi
         <div className="text-center text-[10px] text-[#565f89] py-2 border-t border-[#33467c]/30">
           <kbd className="px-1 py-0.5 bg-[#33467c]/30 text-[#7aa2f7]">Esc</kbd> to close
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
