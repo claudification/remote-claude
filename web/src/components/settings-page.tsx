@@ -199,6 +199,22 @@ const SETTINGS: SettingItem[] = [
   // --- Input ---
   {
     group: 'Input',
+    label: 'Editor backend',
+    description: 'Legacy textarea (default) or CodeMirror (experimental, better markdown rendering)',
+    keywords: 'codemirror editor markdown input experimental',
+    render: ctx => (
+      <select
+        value={ctx.prefs.inputBackend ?? 'legacy'}
+        onChange={e => ctx.updatePrefs({ inputBackend: e.target.value as 'legacy' | 'codemirror' })}
+        className="bg-muted border border-border text-foreground text-xs px-2 py-1 font-mono"
+      >
+        <option value="legacy">Legacy (textarea)</option>
+        <option value="codemirror">CodeMirror (experimental)</option>
+      </select>
+    ),
+  },
+  {
+    group: 'Input',
     label: 'CR delay',
     description: 'Delay (ms) before carriage return after paste (0 = auto)',
     server: true,

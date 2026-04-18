@@ -1,0 +1,265 @@
+/**
+ * CodeMirror 6 input editor factory.
+ *
+ * Builds on the existing createMarkdownEditor() from codemirror-setup.ts but
+ * adds the bits an *input* needs that a *task body editor* doesn't:
+ *   - Enter = submit, Shift+Enter = newline
+ *   - Placeholder text
+ *   - Disabled state (read-only)
+ *   - Auto-grow with min/max height caps
+ *   - Effort-keyword highlight (ultrathink)
+ *
+ * The factory returns a controller so React can imperatively focus / set value
+ * / dispatch changes from outside.
+ */
+
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
+import { markdown } from '@codemirror/lang-markdown'
+import { bracketMatching, HighlightStyle, syntaxTree } from '@codemirror/language'
+import { Compartment, EditorState, type Extension, RangeSetBuilder } from '@codemirror/state'
+import {
+  Decoration,
+  type DecorationSet,
+  drawSelection,
+  EditorView,
+  keymap,
+  placeholder as placeholderExt,
+  ViewPlugin,
+  type ViewUpdate,
+} from '@codemirror/view'
+import { highlightTree, tags } from '@lezer/highlight'
+
+// ---------------------------------------------------------------------------
+// Tokyo Night highlight (subset, reused from codemirror-setup.ts)
+// Kept local so input theming can diverge from file-editor theming.
+// ---------------------------------------------------------------------------
+
+const tokyoNightHighlight = HighlightStyle.define([
+  { tag: tags.heading1, color: '#7aa2f7', fontWeight: 'bold' },
+  { tag: tags.heading2, color: '#7aa2f7', fontWeight: 'bold' },
+  { tag: [tags.heading3, tags.heading4, tags.heading5, tags.heading6], color: '#7aa2f7', fontWeight: 'bold' },
+  { tag: tags.strong, color: '#c0caf5', fontWeight: 'bold' },
+  { tag: tags.emphasis, color: '#c0caf5', fontStyle: 'italic' },
+  { tag: tags.strikethrough, textDecoration: 'line-through', color: '#565f89' },
+  { tag: tags.link, color: '#73daca', textDecoration: 'underline' },
+  { tag: tags.url, color: '#73daca' },
+  { tag: tags.monospace, color: '#89ddff' },
+  { tag: tags.processingInstruction, color: '#565f89' },
+  { tag: tags.quote, color: '#9ece6a' },
+  { tag: tags.list, color: '#e0af68' },
+  { tag: tags.contentSeparator, color: '#565f89' },
+])
+
+// ---------------------------------------------------------------------------
+// Effort keyword highlighter (ultrathink etc.)
+// ---------------------------------------------------------------------------
+
+const effortMark = Decoration.mark({
+  class: 'cm-effort-keyword',
+})
+
+function buildEffortDecorations(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>()
+  const re = /\bultrathink\b/gi
+  for (const { from, to } of view.visibleRanges) {
+    const text = view.state.doc.sliceString(from, to)
+    let m: RegExpExecArray | null
+    re.lastIndex = 0
+    // biome-ignore lint/suspicious/noAssignInExpressions: idiomatic regex iteration
+    while ((m = re.exec(text))) {
+      builder.add(from + m.index, from + m.index + m[0].length, effortMark)
+    }
+  }
+  return builder.finish()
+}
+
+const effortKeywordPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet
+    constructor(view: EditorView) {
+      this.decorations = buildEffortDecorations(view)
+    }
+    update(u: ViewUpdate) {
+      if (u.docChanged || u.viewportChanged) {
+        this.decorations = buildEffortDecorations(u.view)
+      }
+    }
+  },
+  { decorations: v => v.decorations },
+)
+
+// ---------------------------------------------------------------------------
+// Direct syntax highlighter (reused pattern from codemirror-setup.ts)
+// CM6's syntaxHighlighting facet has been buggy here -- we paint decorations directly.
+// ---------------------------------------------------------------------------
+
+function makeDirectHighlightPlugin() {
+  const markCache: Record<string, Decoration> = Object.create(null)
+  return ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet
+      constructor(view: EditorView) {
+        this.decorations = this.build(view)
+      }
+      build(view: EditorView): DecorationSet {
+        const builder = new RangeSetBuilder<Decoration>()
+        const tree = syntaxTree(view.state)
+        for (const { from, to } of view.visibleRanges) {
+          highlightTree(
+            tree,
+            tokyoNightHighlight,
+            (hFrom, hTo, cls) => {
+              if (!markCache[cls]) markCache[cls] = Decoration.mark({ class: cls })
+              builder.add(hFrom, hTo, markCache[cls])
+            },
+            from,
+            to,
+          )
+        }
+        return builder.finish()
+      }
+      update(u: ViewUpdate) {
+        if (u.docChanged || u.viewportChanged || syntaxTree(u.state) !== syntaxTree(u.startState)) {
+          this.decorations = this.build(u.view)
+        }
+      }
+    },
+    { decorations: v => v.decorations },
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Theme
+// ---------------------------------------------------------------------------
+
+function inputTheme(fontSize: number, minHeight: string, maxHeight: string): Extension {
+  return EditorView.theme(
+    {
+      '&': {
+        fontSize: `${fontSize}px`,
+        fontFamily: '"Geist Mono", "JetBrains Mono", monospace',
+        backgroundColor: 'transparent',
+      },
+      '&.cm-focused': { outline: 'none' },
+      '.cm-content': {
+        padding: '0',
+        caretColor: '#7aa2f7',
+        color: '#a9b1d6',
+        minHeight,
+      },
+      '.cm-cursor': { borderLeftColor: '#7aa2f7' },
+      '.cm-selectionBackground': {
+        backgroundColor: 'rgba(122, 162, 247, 0.2) !important',
+      },
+      '&.cm-focused .cm-selectionBackground': {
+        backgroundColor: 'rgba(122, 162, 247, 0.3) !important',
+      },
+      '.cm-scroller': {
+        overflow: 'auto',
+        maxHeight,
+        lineHeight: '1.5',
+      },
+      '.cm-placeholder': {
+        color: 'rgba(169, 177, 214, 0.35)',
+      },
+      '.cm-effort-keyword': {
+        color: '#ff9e64',
+        textDecoration: 'underline',
+        textDecorationColor: 'rgba(255, 158, 100, 0.4)',
+        textUnderlineOffset: '2px',
+      },
+    },
+    { dark: true },
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+export interface InputEditorOptions {
+  initialValue: string
+  onChange: (value: string) => void
+  onSubmit: () => void
+  placeholder?: string
+  disabled?: boolean
+  fontSize?: number
+  minHeight?: string
+  maxHeight?: string
+  enableEffortKeywords?: boolean
+}
+
+export interface InputEditorController {
+  view: EditorView
+  destroy(): void
+  focus(): void
+  setValue(value: string): void
+  setDisabled(disabled: boolean): void
+  insertAtCursor(text: string): void
+}
+
+export function createInputEditor(parent: HTMLElement, opts: InputEditorOptions): InputEditorController {
+  const fontSize = opts.fontSize ?? 14
+  const minHeight = opts.minHeight ?? '1.5em'
+  const maxHeight = opts.maxHeight ?? '12em'
+
+  const updateListener = EditorView.updateListener.of(u => {
+    if (u.docChanged) opts.onChange(u.state.doc.toString())
+  })
+
+  // Submit on Enter, newline on Shift-Enter (default Enter behavior).
+  const submitKeymap = keymap.of([
+    {
+      key: 'Enter',
+      run: () => {
+        opts.onSubmit()
+        return true
+      },
+      shift: () => false, // let default newline insertion run
+    },
+  ])
+
+  const extensions: Extension[] = [
+    drawSelection(),
+    bracketMatching(),
+    history(),
+    submitKeymap, // before defaultKeymap so our Enter wins
+    keymap.of([...defaultKeymap, ...historyKeymap]),
+    markdown(),
+    inputTheme(fontSize, minHeight, maxHeight),
+    makeDirectHighlightPlugin(),
+    // biome-ignore lint/style/noNonNullAssertion: HighlightStyle.module is always defined after define()
+    EditorView.styleModule.of(tokyoNightHighlight.module!),
+    updateListener,
+    EditorView.lineWrapping,
+    EditorState.readOnly.of(!!opts.disabled),
+  ]
+
+  if (opts.placeholder) extensions.push(placeholderExt(opts.placeholder))
+  if (opts.enableEffortKeywords) extensions.push(effortKeywordPlugin)
+
+  // Compartment lets us swap readOnly later via setDisabled() without rebuilding state.
+  const readOnlyCompartment = new Compartment()
+  extensions.push(readOnlyCompartment.of(EditorState.readOnly.of(!!opts.disabled)))
+
+  const state = EditorState.create({ doc: opts.initialValue, extensions })
+  const view = new EditorView({ state, parent })
+
+  return {
+    view,
+    destroy: () => view.destroy(),
+    focus: () => view.focus(),
+    setValue: (value: string) => {
+      const current = view.state.doc.toString()
+      if (current === value) return
+      view.dispatch({ changes: { from: 0, to: current.length, insert: value } })
+    },
+    setDisabled: (disabled: boolean) => {
+      view.dispatch({ effects: readOnlyCompartment.reconfigure(EditorState.readOnly.of(disabled)) })
+    },
+    insertAtCursor: (text: string) => {
+      const head = view.state.selection.main.head
+      view.dispatch({ changes: { from: head, insert: text }, selection: { anchor: head + text.length } })
+    },
+  }
+}
