@@ -409,10 +409,10 @@ const channelSend: MessageHandler = (ctx, data) => {
 
   const targetTrust = toSess.cwd ? ctx.getProjectSettings(toSess.cwd)?.trustLevel : undefined
   const fromTrust = fromSess?.cwd ? ctx.getProjectSettings(fromSess.cwd)?.trustLevel : undefined
-  // Sister sessions (both authenticated on this concentrator = same user's fleet) are trusted
-  // by default. Link approval exists for semantic bookkeeping, not a security boundary -- every
-  // wrapper that got here already passed WS auth. `blocked` is still honored above.
-  const isSisterSession = !!fromSess && !!toSess
+  // Sister sessions = same CWD, different session IDs (worktrees, parallel headless runs, a PTY
+  // and its spawned helper). Cross-project stays on the link-approval path so unexpected A<->B
+  // chatter is surfaced to the user instead of being silently auto-linked.
+  const isSisterSession = !!fromSess?.cwd && !!toSess.cwd && fromSess.cwd === toSess.cwd
   const isTrusted = isSisterSession || targetTrust === 'open' || fromTrust === 'benevolent'
 
   const effectiveLinkStatus =
