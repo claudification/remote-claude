@@ -30,26 +30,12 @@ export function handleSpawnRequestAck(ack: SpawnRequestAck): void {
 }
 
 /**
- * Normalize a user-supplied cwd so it satisfies spawnRequestSchema (`/` or `~`-prefixed).
- * Treats bare / `.`-relative paths as `~`-relative, matching the agent's
- * historical behaviour but making it explicit before the server sees it.
- */
-export function normalizeSpawnCwd(cwd: string): string {
-  const trimmed = cwd.trim()
-  if (!trimmed || trimmed === '.' || trimmed === './') return '~'
-  if (trimmed.startsWith('/') || trimmed === '~' || trimmed.startsWith('~/')) return trimmed
-  if (trimmed.startsWith('./')) return `~/${trimmed.slice(2)}`
-  return `~/${trimmed}`
-}
-
-/**
  * Send a spawn request and wait for the server ack. Throws via resolve() the
  * error path if the ack times out or the WS is not connected.
  */
 export function sendSpawnRequest(req: SpawnRequest, timeoutMs = 15000): Promise<SpawnAckResult> {
   return new Promise(resolve => {
     const jobId = req.jobId ?? crypto.randomUUID()
-    const cwd = normalizeSpawnCwd(req.cwd)
 
     const timer = globalThis.setTimeout(() => {
       pendingAcks.delete(jobId)
@@ -65,7 +51,7 @@ export function sendSpawnRequest(req: SpawnRequest, timeoutMs = 15000): Promise<
       }
     })
 
-    const sent = wsSend('spawn_request', { ...req, cwd, jobId })
+    const sent = wsSend('spawn_request', { ...req, jobId })
     if (!sent) {
       pendingAcks.delete(jobId)
       globalThis.clearTimeout(timer)

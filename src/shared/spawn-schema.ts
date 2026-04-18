@@ -55,10 +55,10 @@ export const spawnModeEnum = z.enum(['fresh', 'resume'])
 export const spawnRequestSchema = z.object({
   cwd: z
     .string()
-    .refine(s => s.startsWith('/') || s === '~' || s.startsWith('~/'), {
-      message: 'cwd must be an absolute path (starting with /) or a ~-relative path',
-    })
-    .describe('Working directory (absolute path, ~ supported)'),
+    .min(1, 'cwd is required')
+    .describe(
+      'Working directory. Absolute (/…), ~-relative (~/…), or relative — relative paths resolve against agent spawnRoot ($HOME by default).',
+    ),
   mkdir: z.boolean().optional().describe('Create cwd if it does not exist'),
   mode: spawnModeEnum.optional().describe('"fresh" (default) or "resume" to resume a specific CC session'),
   resumeId: z.string().optional().describe('Claude Code session ID to resume when mode=resume'),

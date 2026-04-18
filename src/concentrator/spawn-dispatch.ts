@@ -67,16 +67,8 @@ export type SpawnDispatchResult =
  * SpawnRequest - callers should have parsed it via spawnRequestSchema already.
  */
 export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): Promise<SpawnDispatchResult> {
-  // Reject non-absolute cwd early -- the agent previously resolved relative
-  // paths against $HOME, silently spawning sessions in the wrong directory.
-  if (!req.cwd.startsWith('/') && req.cwd !== '~' && !req.cwd.startsWith('~/')) {
-    return {
-      ok: false,
-      error: `cwd must be an absolute path or ~-relative (got '${req.cwd}')`,
-      statusCode: 400,
-    }
-  }
-
+  // cwd can be absolute (/…), ~-relative (~/…), or relative (./… | ../… | bare).
+  // Relative paths are resolved on the agent side against spawnRoot ($HOME).
   try {
     assertSpawnAllowed(deps.callerContext, req)
   } catch (err) {

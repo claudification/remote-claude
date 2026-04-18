@@ -54,7 +54,7 @@ function buildActions(session: Session | undefined, selectedSessionId: string | 
       id: 'launch',
       icon: <Rocket className="w-4 h-4" />,
       label: 'Launch',
-      action: () => openSpawnDialog({ cwd: session?.cwd || '~' }),
+      action: () => openSpawnDialog({ cwd: session?.cwd || '.' }),
       color: 'bg-[#ff9e64]',
     },
     {
