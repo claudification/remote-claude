@@ -52,6 +52,7 @@ import { type ProjectTaskMeta, type TaskStatus, useProject } from '@/hooks/use-p
 import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { sendSpawnRequest } from '@/hooks/use-spawn'
 import { useKeyLayer } from '@/lib/key-layers'
+import { loadRunTaskDefaults, saveRunTaskDefaults } from '@/lib/run-task-defaults'
 import { buildTaskPrompt } from '@/lib/task-scoring'
 import { uploadFileWithPlaceholder } from '@/lib/upload'
 import { cn, haptic } from '@/lib/utils'
@@ -628,15 +629,15 @@ export function RunTaskDialog({
   onClose: () => void
 }) {
   const cwd = useSessionsStore(state => state.sessionsById[sessionId]?.cwd || '')
-  const projectSettings = useSessionsStore(state => state.projectSettings[cwd])
-  const [model, setModel] = useState(projectSettings?.defaultModel || '')
-  const [effort, setEffort] = useState<string>(projectSettings?.defaultEffort || 'default')
-  const [useWorktree, setUseWorktree] = useState(false)
+  const savedDefaults = useMemo(() => loadRunTaskDefaults(), [])
+  const [model, setModel] = useState(savedDefaults.model)
+  const [effort, setEffort] = useState<string>(savedDefaults.effort)
+  const [useWorktree, setUseWorktree] = useState(savedDefaults.useWorktree)
   const [branchName, setBranchName] = useState(task.slug)
-  const [autoCommit, setAutoCommit] = useState(true)
-  const [leaveRunning, setLeaveRunning] = useState(false)
-  const [maxBudgetUsd, setMaxBudgetUsd] = useState('')
-  const [timeout, setTimeout_] = useState('30')
+  const [autoCommit, setAutoCommit] = useState(savedDefaults.autoCommit)
+  const [leaveRunning, setLeaveRunning] = useState(savedDefaults.leaveRunning)
+  const [maxBudgetUsd, setMaxBudgetUsd] = useState(savedDefaults.maxBudgetUsd)
+  const [timeout, setTimeout_] = useState(savedDefaults.timeout)
 
   // Launch state
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
@@ -743,6 +744,7 @@ export function RunTaskDialog({
 
   async function handleRun() {
     if (phase !== 'config' || !cwd) return
+    saveRunTaskDefaults({ model, effort, useWorktree, autoCommit, leaveRunning, maxBudgetUsd, timeout })
     setPhase('launching')
     sessionAtLaunchRef.current = useSessionsStore.getState().selectedSessionId
     haptic('tap')
