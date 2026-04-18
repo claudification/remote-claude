@@ -7,10 +7,10 @@ import { CommandPalette } from '@/components/command-palette'
 import { DebugConsole } from '@/components/debug-console'
 import { Header } from '@/components/header'
 import { JsonInspectorDialog } from '@/components/json-inspector'
+import { ProjectList } from '@/components/project-list'
 import { QuickTaskModal } from '@/components/quick-task-modal'
 import { ReviveDialog } from '@/components/revive-dialog'
 import { SessionDetail } from '@/components/session-detail'
-import { SessionList } from '@/components/session-list'
 import { SharedSessionView } from '@/components/shared-session-view'
 import { ShortcutHelp } from '@/components/shortcut-help'
 import { openSpawnDialog, SpawnDialog } from '@/components/spawn-dialog'
@@ -29,10 +29,10 @@ const UserAdminDialog = lazy(() => import('@/components/user-admin').then(m => (
 
 import {
   fetchGlobalSettings,
+  fetchProjectOrder,
   fetchProjectSettings,
   fetchServerCapabilities,
   fetchSessionEvents,
-  fetchSessionOrder,
   fetchTranscript,
   sendInput,
   useSessionsStore,
@@ -180,14 +180,14 @@ function Dashboard() {
       fetchProjectSettings(),
       fetchServerCapabilities(),
       fetchGlobalSettings(),
-      fetchSessionOrder(),
+      fetchProjectOrder(),
       fetchModelDb(), // LiteLLM pricing + context windows (fire-and-forget)
     ])
     useSessionsStore.setState({
       projectSettings: settings,
       serverCapabilities: capabilities,
       globalSettings,
-      sessionOrder: order,
+      projectOrder: order,
     })
   }, [])
 
@@ -634,7 +634,7 @@ function Dashboard() {
   }
 
   const canAdmin = useSessionsStore(s => s.permissions.canAdmin)
-  const showSessionList = true // sidebar always visible for authenticated users
+  const showProjectList = true // sidebar always visible for authenticated users
 
   return (
     <div className="h-full flex flex-col p-2 sm:p-4 max-w-[1400px] mx-auto overflow-hidden" {...swipeHandlers}>
@@ -666,7 +666,7 @@ function Dashboard() {
       {/* Header with mobile menu */}
       <div className="flex items-center gap-2 mb-4 shrink-0">
         {/* Mobile menu button - only if session list is visible */}
-        {showSessionList && (
+        {showProjectList && (
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="lg:hidden shrink-0">
@@ -679,7 +679,7 @@ function Dashboard() {
                 <SheetTitle>Sessions</SheetTitle>
               </SheetHeader>
               <div className="flex-1 overflow-y-auto p-2 h-full">
-                <SessionList />
+                <ProjectList />
               </div>
             </SheetContent>
           </Sheet>
@@ -717,7 +717,7 @@ function Dashboard() {
       {/* Main content */}
       <div className="flex gap-4 flex-1 min-h-0 relative">
         {/* Desktop sidebar - only if session list is visible */}
-        {showSessionList &&
+        {showProjectList &&
           (sidebarCollapsed ? (
             <button
               type="button"
@@ -740,7 +740,7 @@ function Dashboard() {
                 </button>
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto p-2 pt-0">
-                <SessionList />
+                <ProjectList />
               </div>
             </div>
           ))}

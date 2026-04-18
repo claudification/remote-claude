@@ -15,7 +15,7 @@ const batch: (fn: () => void) => void = batchUpdates ?? (fn => fn())
 import type { SessionSummary } from '@shared/protocol'
 import { isPerfEnabled, record as perfRecord } from '@/lib/perf-metrics'
 import { buildWsUrl } from '@/lib/share-mode'
-import type { HookEvent, Session, SessionOrderV2, TaskInfo, TranscriptEntry } from '@/lib/types'
+import type { HookEvent, ProjectOrder, Session, TaskInfo, TranscriptEntry } from '@/lib/types'
 import {
   applyHashRoute,
   buildSessionsById,
@@ -506,9 +506,9 @@ function processMessage(msg: DashboardMessage) {
       }
       break
     }
-    case 'session_order_updated': {
+    case 'project_order_updated': {
       if (msg.order) {
-        useSessionsStore.getState().setSessionOrder(msg.order as SessionOrderV2)
+        useSessionsStore.getState().setProjectOrder(msg.order as ProjectOrder)
       }
       break
     }

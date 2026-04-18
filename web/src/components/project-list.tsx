@@ -9,16 +9,16 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { saveSessionOrder, useSessionsStore } from '@/hooks/use-sessions'
-import type { Session, SessionOrderGroup, SessionOrderNode, SessionOrderV2 } from '@/lib/types'
+import { saveProjectOrder, useSessionsStore } from '@/hooks/use-sessions'
+import type { ProjectOrder, ProjectOrderGroup, ProjectOrderNode, Session } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
-import { CwdNode } from './session-list/cwd-group'
-import { InactiveProjectItem, SessionItemCompact } from './session-list/session-item'
-import { GroupNode, NewGroupDropTarget, SortableNode } from './session-list/session-sorting'
+import { ProjectNode } from './project-list/project-node'
+import { InactiveProjectItem, SessionItemCompact } from './project-list/session-item'
+import { GroupNode, NewGroupDropTarget, SortableNode } from './project-list/session-sorting'
 
-// ─── Main SessionList ──────────────────────────────────────────────
+// ─── Main ProjectList ──────────────────────────────────────────────
 
-export function SessionList() {
+export function ProjectList() {
   const allSessions = useSessionsStore(s => s.sessions)
   const canAdmin = useSessionsStore(s => s.permissions.canAdmin)
   const sessionPermissions = useSessionsStore(s => s.sessionPermissions)
@@ -32,8 +32,8 @@ export function SessionList() {
   }, [allSessions, canAdmin, sessionPermissions])
   const sessionsById = useSessionsStore(s => s.sessionsById)
   const selectedSessionId = useSessionsStore(s => s.selectedSessionId)
-  const rawSessionOrder = useSessionsStore(s => s.sessionOrder)
-  const sessionOrder = rawSessionOrder?.tree ? rawSessionOrder : { version: 2 as const, tree: [] }
+  const rawProjectOrder = useSessionsStore(s => s.projectOrder)
+  const projectOrder = rawProjectOrder?.tree ? rawProjectOrder : { tree: [] }
   const showEnded = useSessionsStore(s => s.dashboardPrefs.showEndedSessions)
   const showInactive = useSessionsStore(s => s.dashboardPrefs.showInactiveByDefault)
   const updatePrefs = useSessionsStore(s => s.updateDashboardPrefs)
@@ -79,18 +79,18 @@ export function SessionList() {
   // Track which CWDs are in the organized tree
   const treeCwds = useMemo(() => {
     const cwds = new Set<string>()
-    function walk(nodes: SessionOrderNode[]) {
+    function walk(nodes: ProjectOrderNode[]) {
       for (const n of nodes) {
-        if (n.type === 'session') {
+        if (n.type === 'project') {
           cwds.add(n.id.startsWith('cwd:') ? n.id.slice(4) : n.id)
         } else if (n.type === 'group') {
           walk(n.children)
         }
       }
     }
-    walk(sessionOrder.tree)
+    walk(projectOrder.tree)
     return cwds
-  }, [sessionOrder])
+  }, [projectOrder])
 
   // Unorganized active sessions (uses visibleSessionsByCwd to respect showEnded filter)
   const unorganized = useMemo(() => {
@@ -165,24 +165,24 @@ export function SessionList() {
   // Rename group
   const handleRename = useCallback(
     (groupId: string, newName: string) => {
-      function renameInTree(nodes: SessionOrderNode[]): SessionOrderNode[] {
+      function renameInTree(nodes: ProjectOrderNode[]): ProjectOrderNode[] {
         return nodes.map(n => {
           if (n.type === 'group' && n.id === groupId) return { ...n, name: newName }
           if (n.type === 'group') return { ...n, children: renameInTree(n.children) }
           return n
         })
       }
-      const newOrder: SessionOrderV2 = { version: 2, tree: renameInTree(sessionOrder.tree) }
-      useSessionsStore.getState().setSessionOrder(newOrder)
-      saveSessionOrder(newOrder)
+      const newOrder: ProjectOrder = { tree: renameInTree(projectOrder.tree) }
+      useSessionsStore.getState().setProjectOrder(newOrder)
+      saveProjectOrder(newOrder)
     },
-    [sessionOrder],
+    [projectOrder],
   )
 
   // Flatten tree + unorganized into sortable IDs
   const sortableIds = useMemo(() => {
     const ids: string[] = []
-    for (const node of sessionOrder.tree) {
+    for (const node of projectOrder.tree) {
       ids.push(node.id) // group or root session
       if (node.type === 'group' && !collapsedGroups.has(node.id)) {
         for (const child of node.children) ids.push(child.id)
@@ -190,7 +190,7 @@ export function SessionList() {
     }
     for (const { cwd } of unorganized) ids.push(`cwd:${cwd}`)
     return ids
-  }, [sessionOrder, unorganized, collapsedGroups])
+  }, [projectOrder, unorganized, collapsedGroups])
 
   // Sensors: mouse (8px) + touch (300ms long-press)
   const sensors = useSensors(
@@ -201,7 +201,7 @@ export function SessionList() {
 
   // Find which group an ID belongs to
   function findParentGroup(id: string): string | null {
-    for (const node of sessionOrder.tree) {
+    for (const node of projectOrder.tree) {
       if (node.type === 'group') {
         if (node.children.some(c => c.id === id)) return node.id
       }
@@ -224,17 +224,17 @@ export function SessionList() {
       if (!name?.trim()) return
       const groupId = `group-${name.trim().toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`
       // Remove from current position
-      const newTree = removeFromTree(sessionOrder.tree, draggedId)
+      const newTree = removeFromTree(projectOrder.tree, draggedId)
       // Add new group with this item
       const sessionNode = draggedId.startsWith('group-')
-        ? sessionOrder.tree.find(n => n.id === draggedId) // dragging a group into a new group? just rename
-        : { id: draggedId, type: 'session' as const }
+        ? projectOrder.tree.find(n => n.id === draggedId) // dragging a group into a new group? just rename
+        : { id: draggedId, type: 'project' as const }
       if (sessionNode) {
         newTree.push({
           id: groupId,
           type: 'group',
           name: name.trim(),
-          children: [sessionNode.type === 'group' ? sessionNode : { id: draggedId, type: 'session' }],
+          children: [sessionNode.type === 'group' ? sessionNode : { id: draggedId, type: 'project' }],
         })
       }
       persistTree(newTree)
@@ -244,12 +244,12 @@ export function SessionList() {
     // Is the over target a group header?
     const overIsGroup = overId.startsWith('group-')
     const draggedIsGroup = draggedId.startsWith('group-')
-    const draggedIsInTree = sessionOrder.tree.some(n => n.id === draggedId) || findParentGroup(draggedId) !== null
-    const overIsInTree = sessionOrder.tree.some(n => n.id === overId) || findParentGroup(overId) !== null
+    const draggedIsInTree = projectOrder.tree.some(n => n.id === draggedId) || findParentGroup(draggedId) !== null
+    const overIsInTree = projectOrder.tree.some(n => n.id === overId) || findParentGroup(overId) !== null
 
     if (draggedIsGroup && overIsGroup) {
       // Reorder groups at root level
-      const newTree = [...sessionOrder.tree]
+      const newTree = [...projectOrder.tree]
       const fromIdx = newTree.findIndex(n => n.id === draggedId)
       const toIdx = newTree.findIndex(n => n.id === overId)
       if (fromIdx === -1 || toIdx === -1) return
@@ -258,46 +258,46 @@ export function SessionList() {
       persistTree(newTree)
     } else if (overIsGroup && !draggedIsGroup) {
       // Drop session into a group
-      const newTree = removeFromTree(sessionOrder.tree, draggedId)
-      const targetGroup = newTree.find(n => n.id === overId && n.type === 'group') as SessionOrderGroup | undefined
+      const newTree = removeFromTree(projectOrder.tree, draggedId)
+      const targetGroup = newTree.find(n => n.id === overId && n.type === 'group') as ProjectOrderGroup | undefined
       if (targetGroup) {
         targetGroup.children.push({
           id: draggedId.startsWith('cwd:') ? draggedId : `cwd:${draggedId}`,
-          type: 'session',
+          type: 'project',
         })
       }
       persistTree(newTree)
     } else if (overIsInTree && !draggedIsInTree) {
       // Drag unorganized onto organized -> pin it (insert near target)
       const overParent = findParentGroup(overId)
-      const newTree = [...sessionOrder.tree]
+      const newTree = [...projectOrder.tree]
       const sessionId = draggedId.startsWith('cwd:') ? draggedId : `cwd:${draggedId}`
       if (overParent) {
-        const group = newTree.find(n => n.id === overParent && n.type === 'group') as SessionOrderGroup | undefined
+        const group = newTree.find(n => n.id === overParent && n.type === 'group') as ProjectOrderGroup | undefined
         if (group) {
           const idx = group.children.findIndex(c => c.id === overId)
-          group.children.splice(idx >= 0 ? idx : group.children.length, 0, { id: sessionId, type: 'session' })
+          group.children.splice(idx >= 0 ? idx : group.children.length, 0, { id: sessionId, type: 'project' })
         }
       } else {
         const idx = newTree.findIndex(n => n.id === overId)
-        newTree.splice(idx >= 0 ? idx : newTree.length, 0, { id: sessionId, type: 'session' })
+        newTree.splice(idx >= 0 ? idx : newTree.length, 0, { id: sessionId, type: 'project' })
       }
       persistTree(newTree)
     } else if (draggedIsInTree && !overIsInTree) {
       // Drag organized onto unorganized -> unpin
-      const newTree = removeFromTree(sessionOrder.tree, draggedId)
+      const newTree = removeFromTree(projectOrder.tree, draggedId)
       persistTree(newTree)
     } else if (draggedIsInTree && overIsInTree) {
       // Reorder within tree
-      const newTree = removeFromTree(sessionOrder.tree, draggedId)
-      const draggedNode: SessionOrderNode = { id: draggedId, type: 'session' }
+      const newTree = removeFromTree(projectOrder.tree, draggedId)
+      const draggedNode: ProjectOrderNode = { id: draggedId, type: 'project' }
       // Find original node data (might be a group)
-      const origNode = findInTree(sessionOrder.tree, draggedId)
+      const origNode = findInTree(projectOrder.tree, draggedId)
       const nodeToInsert = origNode || draggedNode
 
       const overParent = findParentGroup(overId)
       if (overParent) {
-        const group = newTree.find(n => n.id === overParent && n.type === 'group') as SessionOrderGroup | undefined
+        const group = newTree.find(n => n.id === overParent && n.type === 'group') as ProjectOrderGroup | undefined
         if (group) {
           const idx = group.children.findIndex(c => c.id === overId)
           group.children.splice(idx >= 0 ? idx : group.children.length, 0, nodeToInsert)
@@ -310,7 +310,7 @@ export function SessionList() {
     }
   }
 
-  function removeFromTree(tree: SessionOrderNode[], id: string): SessionOrderNode[] {
+  function removeFromTree(tree: ProjectOrderNode[], id: string): ProjectOrderNode[] {
     return tree
       .filter(n => n.id !== id)
       .map(n => {
@@ -319,7 +319,7 @@ export function SessionList() {
       })
   }
 
-  function findInTree(tree: SessionOrderNode[], id: string): SessionOrderNode | null {
+  function findInTree(tree: ProjectOrderNode[], id: string): ProjectOrderNode | null {
     for (const n of tree) {
       if (n.id === id) return n
       if (n.type === 'group') {
@@ -330,10 +330,10 @@ export function SessionList() {
     return null
   }
 
-  function persistTree(tree: SessionOrderNode[]) {
-    const newOrder: SessionOrderV2 = { version: 2, tree }
-    useSessionsStore.getState().setSessionOrder(newOrder)
-    saveSessionOrder(newOrder)
+  function persistTree(tree: ProjectOrderNode[]) {
+    const newOrder: ProjectOrder = { tree }
+    useSessionsStore.getState().setProjectOrder(newOrder)
+    saveProjectOrder(newOrder)
   }
 
   if (sessions.length === 0) {
@@ -351,7 +351,7 @@ export function SessionList() {
     )
   }
 
-  const hasOrganized = sessionOrder.tree.length > 0
+  const hasOrganized = projectOrder.tree.length > 0
 
   return (
     <div className="space-y-2 overflow-y-auto">
@@ -364,7 +364,7 @@ export function SessionList() {
       >
         <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
           {/* Organized tree */}
-          {sessionOrder.tree.map(node => {
+          {projectOrder.tree.map(node => {
             if (node.type === 'group') {
               const isCollapsed = collapsedGroups.has(node.id)
               return (
@@ -385,7 +385,7 @@ export function SessionList() {
                         if (!childSessions || childSessions.length === 0) return null
                         return (
                           <SortableNode key={child.id} id={child.id}>
-                            <CwdNode cwd={childCwd} sessions={childSessions} />
+                            <ProjectNode cwd={childCwd} sessions={childSessions} />
                           </SortableNode>
                         )
                       })}
@@ -414,7 +414,7 @@ export function SessionList() {
             if (!cwdSessions || cwdSessions.length === 0) return null
             return (
               <SortableNode key={node.id} id={node.id}>
-                <CwdNode cwd={cwd} sessions={cwdSessions} />
+                <ProjectNode cwd={cwd} sessions={cwdSessions} />
               </SortableNode>
             )
           })}
@@ -455,7 +455,7 @@ export function SessionList() {
                         </div>
                       )}
                       <SortableNode id={`cwd:${cwd}`}>
-                        <CwdNode cwd={cwd} sessions={cwdSessions} />
+                        <ProjectNode cwd={cwd} sessions={cwdSessions} />
                       </SortableNode>
                     </div>
                   )

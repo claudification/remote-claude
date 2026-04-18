@@ -395,9 +395,9 @@ describe('real-world transcript patterns', () => {
   })
 
   test('JSX/React component mention', () => {
-    const html = render('Render <SessionList> in the sidebar')
-    expect(html).toContain('&lt;SessionList&gt;')
-    expect(textContent(html)).toContain('<SessionList>')
+    const html = render('Render <ProjectList> in the sidebar')
+    expect(html).toContain('&lt;ProjectList&gt;')
+    expect(textContent(html)).toContain('<ProjectList>')
   })
 
   test('HTML in assistant explanation', () => {

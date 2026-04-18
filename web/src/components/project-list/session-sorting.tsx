@@ -2,7 +2,7 @@ import { useDroppable } from '@dnd-kit/core'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import type { Session, SessionOrderGroup } from '@/lib/types'
+import type { ProjectOrderGroup, Session } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 
 // ─── Sortable wrapper ──────────────────────────────────────────────
@@ -46,7 +46,7 @@ export function GroupNode({
   onToggle,
   onRename,
 }: {
-  group: SessionOrderGroup
+  group: ProjectOrderGroup
   sessionsByCwd: Map<string, Session[]>
   collapsed: boolean
   onToggle: () => void
@@ -62,7 +62,7 @@ export function GroupNode({
   // Live-session count only rendered when collapsed -- skip the filter otherwise.
   const childCount = collapsed
     ? group.children.filter(c => {
-        if (c.type === 'session') {
+        if (c.type === 'project') {
           const cwd = c.id.startsWith('cwd:') ? c.id.slice(4) : c.id
           return sessionsByCwd.has(cwd)
         }

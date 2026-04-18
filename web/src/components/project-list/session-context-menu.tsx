@@ -1,7 +1,7 @@
 import { ContextMenu } from 'radix-ui'
 import type { ReactNode } from 'react'
-import { saveSessionOrder, useSessionsStore } from '@/hooks/use-sessions'
-import type { Session, SessionOrderGroup, SessionOrderV2 } from '@/lib/types'
+import { saveProjectOrder, useSessionsStore } from '@/hooks/use-sessions'
+import type { ProjectOrder, ProjectOrderGroup, Session } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { openReviveDialog } from '../revive-dialog'
 import { openSpawnDialog } from '../spawn-dialog'
@@ -13,39 +13,39 @@ const menuItemClass =
 
 // Grouping actions that operate on a cwd key (shared by session + project menus).
 function useCwdGroupingActions(cwd: string) {
-  const rawSessionOrder = useSessionsStore(s => s.sessionOrder) as SessionOrderV2 | null
-  const sessionOrder = rawSessionOrder?.tree ? rawSessionOrder : { version: 2 as const, tree: [] }
-  const groups = sessionOrder.tree.filter((n): n is SessionOrderGroup => n.type === 'group')
+  const rawProjectOrder = useSessionsStore(s => s.projectOrder) as ProjectOrder | null
+  const projectOrder = rawProjectOrder?.tree ? rawProjectOrder : { tree: [] }
+  const groups = projectOrder.tree.filter((n): n is ProjectOrderGroup => n.type === 'group')
   const cwdKey = `cwd:${cwd}`
 
   function moveToGroup(groupId: string) {
     haptic('tap')
-    const newTree = sessionOrder.tree.map(node => {
+    const newTree = projectOrder.tree.map(node => {
       if (node.type === 'group') {
         const filtered = { ...node, children: node.children.filter(c => c.id !== cwdKey) }
         if (node.id === groupId) {
-          return { ...filtered, children: [...filtered.children, { id: cwdKey, type: 'session' as const }] }
+          return { ...filtered, children: [...filtered.children, { id: cwdKey, type: 'project' as const }] }
         }
         return filtered
       }
       return node
     })
     const rootFiltered = newTree.filter(n => n.id !== cwdKey)
-    saveSessionOrder({ version: 2, tree: rootFiltered })
+    saveProjectOrder({ tree: rootFiltered })
   }
 
   function removeFromGroups() {
     haptic('tap')
-    const newTree = sessionOrder.tree.map(node => {
+    const newTree = projectOrder.tree.map(node => {
       if (node.type === 'group') {
         return { ...node, children: node.children.filter(c => c.id !== cwdKey) }
       }
       return node
     })
     if (!newTree.some(n => n.id === cwdKey)) {
-      newTree.push({ id: cwdKey, type: 'session' as const })
+      newTree.push({ id: cwdKey, type: 'project' as const })
     }
-    saveSessionOrder({ version: 2, tree: newTree })
+    saveProjectOrder({ tree: newTree })
   }
 
   function createGroupAndMove() {
@@ -53,7 +53,7 @@ function useCwdGroupingActions(cwd: string) {
     if (!name?.trim()) return
     haptic('tap')
     const groupId = `group-${name.trim().toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`
-    let newTree = sessionOrder.tree
+    let newTree = projectOrder.tree
       .filter(n => n.id !== cwdKey)
       .map(node => {
         if (node.type === 'group') {
@@ -66,11 +66,11 @@ function useCwdGroupingActions(cwd: string) {
         id: groupId,
         type: 'group' as const,
         name: name.trim(),
-        children: [{ id: cwdKey, type: 'session' as const }],
+        children: [{ id: cwdKey, type: 'project' as const }],
       },
       ...newTree,
     ]
-    saveSessionOrder({ version: 2, tree: newTree })
+    saveProjectOrder({ tree: newTree })
   }
 
   return { groups, moveToGroup, removeFromGroups, createGroupAndMove }

@@ -12,13 +12,13 @@ import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
 import { GuardError, type MessageHandler, type WsData } from '../handler-context'
 import { registerHandlers } from '../message-router'
 import { resolvePermissions } from '../permissions'
+import { getProjectOrder, type ProjectOrder, setProjectOrder } from '../project-order'
 import {
   deleteProjectSettings,
   getAllProjectSettings,
   getProjectSettings,
   setProjectSettings,
 } from '../project-settings'
-import { getSessionOrder, type SessionOrderV2, setSessionOrder } from '../session-order'
 
 // ─── Send input to a session ──────────────────────────────────────
 
@@ -138,30 +138,30 @@ const deleteProjectSettingsHandler: MessageHandler = (ctx, data) => {
   ctx.reply({ type: 'delete_project_settings_result', ok: true, projectSettings: all })
 }
 
-// ─── Update session order ─────────────────────────────────────────
+// ─── Update project order ─────────────────────────────────────────
 
-const updateSessionOrder: MessageHandler = (ctx, data) => {
-  const order = data.order as SessionOrderV2
-  if (!order || order.version !== 2 || !Array.isArray(order.tree)) {
-    throw new GuardError('Invalid session order: expected { version: 2, tree: [...] }')
+const updateProjectOrder: MessageHandler = (ctx, data) => {
+  const order = data.order as ProjectOrder
+  if (!order || !Array.isArray(order.tree)) {
+    throw new GuardError('Invalid project order: expected { tree: [...] }')
   }
   ctx.requirePermission('settings')
 
-  setSessionOrder(order)
-  const saved = getSessionOrder()
+  setProjectOrder(order)
+  const saved = getProjectOrder()
 
   // Broadcast filtered order per subscriber's grants (same as HTTP POST handler)
   for (const ws of ctx.sessions.getSubscribers()) {
     try {
       const wsGrants = (ws.data as WsData).grants
       if (!wsGrants) {
-        ws.send(JSON.stringify({ type: 'session_order_updated', order: saved }))
+        ws.send(JSON.stringify({ type: 'project_order_updated', order: saved }))
       } else {
         const grants = wsGrants
-        function filterNodes(nodes: SessionOrderV2['tree']): SessionOrderV2['tree'] {
-          const result: SessionOrderV2['tree'] = []
+        function filterNodes(nodes: ProjectOrder['tree']): ProjectOrder['tree'] {
+          const result: ProjectOrder['tree'] = []
           for (const node of nodes) {
-            if (node.type === 'session') {
+            if (node.type === 'project') {
               const cwd = node.id.startsWith('cwd:') ? node.id.slice(4) : node.id
               const { permissions } = resolvePermissions(grants, cwd)
               if (permissions.has('chat:read')) result.push(node)
@@ -172,14 +172,14 @@ const updateSessionOrder: MessageHandler = (ctx, data) => {
           }
           return result
         }
-        ws.send(JSON.stringify({ type: 'session_order_updated', order: { ...saved, tree: filterNodes(saved.tree) } }))
+        ws.send(JSON.stringify({ type: 'project_order_updated', order: { ...saved, tree: filterNodes(saved.tree) } }))
       }
     } catch {
       /* dead socket */
     }
   }
 
-  ctx.reply({ type: 'update_session_order_result', ok: true, order: saved })
+  ctx.reply({ type: 'update_project_order_result', ok: true, order: saved })
 }
 
 // ─── Interrupt a session (headless) ───────────────────────────────
@@ -343,7 +343,7 @@ export function registerDashboardActionHandlers(): void {
     update_settings: updateSettings,
     update_project_settings: updateProjectSettings,
     delete_project_settings: deleteProjectSettingsHandler,
-    update_session_order: updateSessionOrder,
+    update_project_order: updateProjectOrder,
     revive_session: reviveSession,
     rename_session: renameSession,
     subscribe_job: subscribeJob,

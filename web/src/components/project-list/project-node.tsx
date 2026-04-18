@@ -148,7 +148,7 @@ function CwdSessionGroup({ sessions, cwd }: { sessions: Session[]; cwd: string }
 
 // ─── CWD node renderer (single or multi-session) ──────────────────
 
-export function CwdNode({ cwd, sessions }: { cwd: string; sessions: Session[] }) {
+export function ProjectNode({ cwd, sessions }: { cwd: string; sessions: Session[] }) {
   if (sessions.length === 1) return <SessionCard session={sessions[0]} />
   return <CwdSessionGroup sessions={sessions} cwd={cwd} />
 }

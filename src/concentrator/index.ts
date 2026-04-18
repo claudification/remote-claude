@@ -34,11 +34,11 @@ import {
   removePersistedLink,
   touchLink,
 } from './project-links'
+import { initProjectOrder } from './project-order'
 import { getAllProjectSettings, getProjectSettings, initProjectSettings, setProjectSettings } from './project-settings'
 import { closeProjectStore, initProjectStore } from './project-store'
 import { initPush, isPushConfigured, sendPushToAll } from './push'
 import { createRouter } from './routes'
-import { initSessionOrder } from './session-order'
 import { createSessionStore } from './session-store'
 import {
   cleanExpired as cleanExpiredShares,
@@ -269,7 +269,7 @@ async function main() {
   // Initialize settings
   initProjectSettings(authCacheDir)
   initGlobalSettings(authCacheDir)
-  initSessionOrder(authCacheDir)
+  initProjectOrder(authCacheDir)
   initProjectLinks(authCacheDir)
   initInterSessionLog(authCacheDir)
   initAddressBook(authCacheDir)

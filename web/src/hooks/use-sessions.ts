@@ -12,10 +12,10 @@ import { DEFAULT_PERMISSIONS, type ResolvedPermissions } from '@/lib/permissions
 import { appendShareParam } from '@/lib/share-mode'
 import type {
   HookEvent,
+  ProjectOrder,
   ProjectSettings,
   ProjectSettingsMap,
   Session,
-  SessionOrderV2,
   SubagentInfo,
   TaskInfo,
   TranscriptEntry,
@@ -97,7 +97,7 @@ interface SessionsState {
   permissions: ResolvedPermissions
   /** Per-session resolved permissions (keyed by sessionId) */
   sessionPermissions: Record<string, ResolvedPermissions>
-  sessionOrder: SessionOrderV2
+  projectOrder: ProjectOrder
   serverCapabilities: { voice: boolean }
   setServerCapabilities: (caps: { voice: boolean }) => void
   isConnected: boolean
@@ -199,7 +199,7 @@ interface SessionsState {
   setTranscript: (sessionId: string, entries: TranscriptEntry[]) => void
   setTasks: (sessionId: string, tasks: TaskInfo[]) => void
   setProjectSettings: (settings: ProjectSettingsMap) => void
-  setSessionOrder: (order: SessionOrderV2) => void
+  setProjectOrder: (order: ProjectOrder) => void
   setConnected: (connected: boolean) => void
   setAgentConnected: (connected: boolean) => void
   setPlanUsage: (usage: UsageUpdate) => void
@@ -369,7 +369,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   globalSettings: {},
   permissions: DEFAULT_PERMISSIONS,
   sessionPermissions: {},
-  sessionOrder: { version: 2, tree: [] },
+  projectOrder: { tree: [] },
   serverCapabilities: { voice: false },
   setServerCapabilities: caps => set({ serverCapabilities: caps }),
   isConnected: false,
@@ -698,7 +698,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }),
   setTasks: (sessionId, tasks) => set(state => ({ tasks: { ...state.tasks, [sessionId]: tasks } })),
   setProjectSettings: settings => set({ projectSettings: settings }),
-  setSessionOrder: order => set({ sessionOrder: order }),
+  setProjectOrder: order => set({ projectOrder: order }),
   setConnected: connected =>
     set(state => ({
       isConnected: connected,
@@ -1021,18 +1021,17 @@ export function deleteProjectSettings(cwd: string): boolean {
   return wsSend('delete_project_settings', { cwd })
 }
 
-// Session order API
-export async function fetchSessionOrder(): Promise<SessionOrderV2> {
-  const res = await fetch(`${API_BASE}/api/session-order`)
-  if (!res.ok) return { version: 2, tree: [] }
+// Project order API
+export async function fetchProjectOrder(): Promise<ProjectOrder> {
+  const res = await fetch(`${API_BASE}/api/project-order`)
+  if (!res.ok) return { tree: [] }
   const data = await res.json()
-  // Handle legacy v1 response from old server
-  if (data.version !== 2) return { version: 2, tree: [] }
-  return data
+  if (!data || !Array.isArray(data.tree)) return { tree: [] }
+  return { tree: data.tree }
 }
 
-export function saveSessionOrder(order: SessionOrderV2): void {
-  wsSend('update_session_order', { order })
+export function saveProjectOrder(order: ProjectOrder): void {
+  wsSend('update_project_order', { order })
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {

@@ -124,25 +124,25 @@ export interface Session {
   }
 }
 
-// Session order tree types (v2)
-export interface SessionOrderGroup {
+// Project order tree types -- each leaf is a project (keyed by `cwd:<path>`
+// today, but project identity is intended to become CWD-agnostic).
+export interface ProjectOrderGroup {
   id: string
   type: 'group'
   name: string
-  children: SessionOrderNode[]
+  children: ProjectOrderNode[]
   isOpen?: boolean
 }
 
-export interface SessionOrderSession {
-  id: string // "cwd:<path>" format
-  type: 'session'
+export interface ProjectOrderProject {
+  id: string // "cwd:<path>" today; opaque project identity going forward
+  type: 'project'
 }
 
-export type SessionOrderNode = SessionOrderGroup | SessionOrderSession
+export type ProjectOrderNode = ProjectOrderGroup | ProjectOrderProject
 
-export interface SessionOrderV2 {
-  version: 2
-  tree: SessionOrderNode[]
+export interface ProjectOrder {
+  tree: ProjectOrderNode[]
 }
 
 export interface TranscriptImage {

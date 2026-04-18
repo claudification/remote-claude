@@ -72,11 +72,10 @@ function diffSessionInfo(prev: SessionInfoSnapshot, next: SessionInfoSnapshot): 
   }
   if (prev.permissionMode !== next.permissionMode && next.permissionMode) {
     out.push(
-      mkEntry(
-        'permission_mode_changed',
-        `${prev.permissionMode || '?'} -> ${next.permissionMode}`,
-        { from: prev.permissionMode, to: next.permissionMode },
-      ),
+      mkEntry('permission_mode_changed', `${prev.permissionMode || '?'} -> ${next.permissionMode}`, {
+        from: prev.permissionMode,
+        to: next.permissionMode,
+      }),
     )
   }
   if (prev.fastModeState !== next.fastModeState) {
@@ -105,9 +104,7 @@ function diffSessionInfo(prev: SessionInfoSnapshot, next: SessionInfoSnapshot): 
     const parts: string[] = []
     if (added.length > 0) parts.push(`+${added.length}`)
     if (removed.length > 0) parts.push(`-${removed.length}`)
-    out.push(
-      mkEntry(step, parts.join(' / '), { added, removed, count: nextNames.length }),
-    )
+    out.push(mkEntry(step, parts.join(' / '), { added, removed, count: nextNames.length }))
   }
 
   return out

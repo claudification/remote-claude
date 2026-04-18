@@ -1,5 +1,5 @@
 /**
- * API routes -- push, crashes, files, transcription, settings, session-order
+ * API routes -- push, crashes, files, transcription, settings, project-order
  */
 
 import { randomUUID } from 'node:crypto'
@@ -10,6 +10,7 @@ import { getAuthenticatedUser } from '../auth-routes'
 import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
 import { getModels, getModelsFetchedAt } from '../model-pricing'
 import { hasPermissionAnyCwd, resolvePermissions, type UserGrant } from '../permissions'
+import { getProjectOrder, type ProjectOrder, setProjectOrder } from '../project-order'
 import {
   deleteProjectSettings,
   getAllProjectSettings,
@@ -17,7 +18,6 @@ import {
   setProjectSettings,
 } from '../project-settings'
 import { addSubscription, getSubscriptionCount, isPushConfigured, removeSubscription, sendPushToAll } from '../push'
-import { getSessionOrder, type SessionOrderV2, setSessionOrder } from '../session-order'
 import type { SessionStore } from '../session-store'
 import { appendSharedFile, dismissSharedFile, mediaTypeToExt, readSharedFiles, storeBlobStreaming } from './blob-store'
 import type { RouteHelpers } from './shared'
@@ -394,45 +394,45 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     return c.json({ ok })
   })
 
-  // Filter a session-order tree to only include nodes the grants can read.
-  function filterSessionOrderTree(nodes: SessionOrderV2['tree'], grants: UserGrant[]): SessionOrderV2['tree'] {
-    const result: SessionOrderV2['tree'] = []
+  // Filter a project-order tree to only include nodes the grants can read.
+  function filterProjectOrderTree(nodes: ProjectOrder['tree'], grants: UserGrant[]): ProjectOrder['tree'] {
+    const result: ProjectOrder['tree'] = []
     for (const node of nodes) {
-      if (node.type === 'session') {
+      if (node.type === 'project') {
         const cwd = node.id.startsWith('cwd:') ? node.id.slice(4) : node.id
         const { permissions } = resolvePermissions(grants, cwd)
         if (permissions.has('chat:read')) result.push(node)
       } else if (node.type === 'group') {
-        const children = filterSessionOrderTree(node.children, grants)
+        const children = filterProjectOrderTree(node.children, grants)
         if (children.length > 0) result.push({ ...node, children })
       }
     }
     return result
   }
 
-  // ─── Session order ─────────────────────────────────────────────────
-  app.get('/api/session-order', c => {
-    const order = getSessionOrder()
+  // ─── Project order ─────────────────────────────────────────────────
+  app.get('/api/project-order', c => {
+    const order = getProjectOrder()
     const grants = resolveHttpGrants(c.req.raw)
     if (!grants) return c.json(order) // admin sees full tree
-    return c.json({ ...order, tree: filterSessionOrderTree(order.tree, grants) })
+    return c.json({ ...order, tree: filterProjectOrderTree(order.tree, grants) })
   })
 
-  app.post('/api/session-order', async c => {
+  app.post('/api/project-order', async c => {
     if (!httpHasPermission(c.req.raw, 'settings', '*'))
       return c.json({ error: 'Forbidden: settings permission required' }, 403)
-    const body = await c.req.json<{ version: number; tree: unknown[] }>()
-    if (body.version !== 2 || !Array.isArray(body.tree)) {
-      return c.json({ error: 'Invalid session order: expected { version: 2, tree: [...] }' }, 400)
+    const body = await c.req.json<{ tree: unknown[] }>()
+    if (!Array.isArray(body.tree)) {
+      return c.json({ error: 'Invalid project order: expected { tree: [...] }' }, 400)
     }
-    setSessionOrder(body as SessionOrderV2)
-    const order = getSessionOrder()
+    setProjectOrder(body as ProjectOrder)
+    const order = getProjectOrder()
     // Broadcast filtered order per subscriber's grants
     for (const ws of sessionStore.getSubscribers()) {
       try {
         const wsGrants = (ws.data as { grants?: UserGrant[] }).grants
-        const scopedOrder = wsGrants ? { ...order, tree: filterSessionOrderTree(order.tree, wsGrants) } : order
-        ws.send(JSON.stringify({ type: 'session_order_updated', order: scopedOrder }))
+        const scopedOrder = wsGrants ? { ...order, tree: filterProjectOrderTree(order.tree, wsGrants) } : order
+        ws.send(JSON.stringify({ type: 'project_order_updated', order: scopedOrder }))
       } catch {
         /* dead socket */
       }
