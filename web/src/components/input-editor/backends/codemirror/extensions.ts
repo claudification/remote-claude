@@ -129,7 +129,7 @@ function inputTheme(fontSize: number, minHeight: string, maxHeight: string): Ext
       },
       '&.cm-focused': { outline: 'none' },
       '.cm-content': {
-        padding: '0',
+        padding: '8px 12px',
         caretColor: '#7aa2f7',
         color: '#a9b1d6',
         minHeight,

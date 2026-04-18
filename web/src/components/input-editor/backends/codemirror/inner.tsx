@@ -107,7 +107,12 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
     <>
       {/* Inline placeholder/wrapper -- always rendered to preserve layout */}
       <div
-        className={cn('relative w-full', expanded && 'opacity-0 pointer-events-none', props.className)}
+        className={cn(
+          'relative w-full rounded-md border border-border/40 bg-muted/30 overflow-hidden',
+          'focus-within:border-accent/60 focus-within:bg-muted/50 transition-colors',
+          expanded && 'opacity-0 pointer-events-none',
+          props.className,
+        )}
         onDragOver={e => {
           e.preventDefault()
           setDragOver(true)

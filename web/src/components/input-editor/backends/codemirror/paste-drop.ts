@@ -13,14 +13,28 @@ function uploadFileIntoView(view: EditorView, file: File, sessionId?: string) {
   uploadFileWithPlaceholder(
     file,
     placeholder => {
+      // Insert placeholder at cursor and move the cursor to its end so the
+      // user can keep typing without re-positioning. Also focus the editor
+      // in case the upload was triggered while focus was elsewhere (drag/drop).
       const head = view.state.selection.main.head
-      view.dispatch({ changes: { from: head, insert: placeholder } })
+      view.dispatch({
+        changes: { from: head, insert: placeholder },
+        selection: { anchor: head + placeholder.length },
+      })
+      view.focus()
     },
     (search, replacement) => {
+      // Replace placeholder with final markdown. Move cursor to the end of
+      // the replacement -- the user's cursor was likely sitting at the end
+      // of the placeholder, but the placeholder length differs from the
+      // final URL so it would otherwise drift backward into the text.
       const content = view.state.doc.toString()
       const idx = content.indexOf(search)
       if (idx >= 0) {
-        view.dispatch({ changes: { from: idx, to: idx + search.length, insert: replacement } })
+        view.dispatch({
+          changes: { from: idx, to: idx + search.length, insert: replacement },
+          selection: { anchor: idx + replacement.length },
+        })
       }
     },
     sessionId,
