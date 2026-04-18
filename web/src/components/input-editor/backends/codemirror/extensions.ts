@@ -216,11 +216,28 @@ export function buildInputExtensions(opts: InputExtensionOptions): Extension[] {
     },
   ])
 
+  // Escape: blur the editor and let the event propagate so any ancestor
+  // (Radix Dialog, etc.) can handle it natively. Without this, contentEditable
+  // sometimes swallows Escape silently in modal contexts.
+  // The autocomplete extension's own Escape binding (only active when the
+  // popup is showing) runs at higher precedence and gets first crack -- so
+  // Escape still closes the popup before getting to us.
+  const escapeBlurKeymap = keymap.of([
+    {
+      key: 'Escape',
+      run: view => {
+        view.contentDOM.blur()
+        return false // don't claim handled -- let Dialog's keydown listener fire
+      },
+    },
+  ])
+
   const extensions: Extension[] = [
     drawSelection(),
     bracketMatching(),
     history(),
     submitKeymap, // before defaultKeymap so our Enter wins (autocomplete still wins over us when popup is open)
+    escapeBlurKeymap,
     keymap.of([...defaultKeymap, ...historyKeymap]),
     markdown(),
     // Portal tooltips (autocomplete popup, etc.) to <body> so the input
