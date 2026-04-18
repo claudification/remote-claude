@@ -20,7 +20,7 @@ import { useSessionsStore } from '@/hooks/use-sessions'
 import { record } from '@/lib/perf-metrics'
 import type { TranscriptEntry } from '@/lib/types'
 import { Markdown } from '../markdown'
-import { PermissionBanners } from '../session-detail/session-banners'
+import { LinkRequestBanners, PermissionBanners } from '../session-detail/session-banners'
 import { CompactedDivider, CompactingBanner, MemoizedGroupView, SkillDivider } from './group-view'
 import { type DisplayGroup, useIncrementalGroups } from './grouping'
 
@@ -336,6 +336,12 @@ export const TranscriptView = memo(function TranscriptView({
     state.selectedSessionId ? state.pendingPermissions.filter(p => p.sessionId === state.selectedSessionId).length : 0,
   )
 
+  // Same idea for pending project-link requests targeting this session -- they
+  // also render inline at the transcript bottom as a blocking gate.
+  const pendingLinkCount = useSessionsStore(state =>
+    state.selectedSessionId ? state.pendingProjectLinks.filter(r => r.toSession === state.selectedSessionId).length : 0,
+  )
+
   // Cache measured sizes so estimateSize can use real heights for groups
   // that have been rendered before (survives virtualizer cache invalidation)
   const measuredSizesRef = useRef(new Map<string, number>())
@@ -473,6 +479,15 @@ export const TranscriptView = memo(function TranscriptView({
     return () => clearTimeout(timer)
   }, [follow, pendingPermissionCount, scrollToBottom])
 
+  // Same for link requests -- when another session asks to link, pin the
+  // inline approve/block card into view if follow is active.
+  useEffect(() => {
+    if (!follow) return
+    if (pendingLinkCount === 0) return
+    const timer = setTimeout(scrollToBottom, 50)
+    return () => clearTimeout(timer)
+  }, [follow, pendingLinkCount, scrollToBottom])
+
   if (mainGroups.length === 0 && queuedGroups.length === 0) {
     return (
       <div className="text-muted-foreground text-center py-10 font-mono">
@@ -560,8 +575,11 @@ export const TranscriptView = memo(function TranscriptView({
         <StreamingBlock sessionId={selectedSessionId} />
         {/* Fun verb spinner while session is working */}
         <ThinkingSpinner sessionId={selectedSessionId} />
-        {/* Pending permission requests: rendered inline at the bottom as a blocking UI gate */}
+        {/* Pending permission + link requests: rendered inline at the bottom as
+            blocking UI gates. Both follow the same pattern -- structured wire
+            message -> store -> inline banner -> user response over WS. */}
         <div className="mt-2">
+          <LinkRequestBanners />
           <PermissionBanners />
         </div>
         {/* Queued messages: rendered inline at the bottom of the transcript */}

@@ -10,9 +10,15 @@ import { cn, haptic } from '@/lib/utils'
 export function LinkRequestBanners() {
   const requests = useSessionsStore(s => s.pendingProjectLinks)
   const respond = useSessionsStore(s => s.respondToProjectLink)
+  const selectedSession = useSessionsStore(s => s.selectedSessionId)
+  // Only surface requests whose target is the currently-viewed session. Rendered
+  // inline at the transcript bottom (see TranscriptView) as a blocking UI gate,
+  // same pattern as PermissionBanners. Without this filter we'd leak other
+  // sessions' pending links into whichever session the user happens to be on.
+  const relevant = requests.filter(r => r.toSession === selectedSession)
   return (
     <BannerStack
-      items={requests}
+      items={relevant}
       render={req => (
         <SessionBanner
           key={`${req.fromSession}:${req.toSession}`}
