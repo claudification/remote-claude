@@ -169,6 +169,28 @@ body {
 	display: none;
 }
 
+/*
+ * MarkdownInput overlay sync:
+ *   The highlight <div> must wrap text identically to the textarea that sits
+ *   on top of it. A visible scrollbar on the textarea reserves gutter space
+ *   that shrinks its content box -- without `scrollbar-gutter: stable` on
+ *   both layers, wrap points drift and the caret desyncs from the coloured
+ *   text. The highlight layer is decorative (pointer-events: none); paint
+ *   its scrollbar transparent so the gutter is reserved but invisible.
+ */
+.mi-stable-gutter {
+	scrollbar-gutter: stable;
+}
+.mi-invisible-scrollbar {
+	scrollbar-gutter: stable;
+	scrollbar-color: transparent transparent;
+}
+.mi-invisible-scrollbar::-webkit-scrollbar-thumb,
+.mi-invisible-scrollbar::-webkit-scrollbar-track,
+.mi-invisible-scrollbar::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
 /* Focus styles */
 :focus-visible {
 	outline: 2px solid var(--ring);

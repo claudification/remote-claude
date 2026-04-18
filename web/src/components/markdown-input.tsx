@@ -349,25 +349,19 @@ export function MarkdownInput({
     if (!textarea) return
 
     if (expanded) {
-      // In expanded mode, fill available space (handled by flex)
+      // Expanded mode fills available space via flex
       textarea.style.height = '100%'
-      textarea.style.overflowY = 'auto'
       return
     }
 
-    // Cap at 120px (~5 lines) to prevent layout reflow jerk in transcript above
+    // Cap at 120px (~5 lines) to prevent layout reflow jerk in transcript above.
+    // overflow-y is driven by CSS (scrollbar-gutter: stable) so wrap width never
+    // changes whether the scrollbar is visible or not -- don't toggle it here.
     const maxHeight = 120
-
-    // Measure scrollHeight without causing visible overflow:
-    // set overflow hidden first, then reset height, measure, apply
-    textarea.style.overflowY = 'hidden'
     textarea.style.height = 'auto'
     const scrollH = textarea.scrollHeight
-    const newHeight = Math.min(scrollH, maxHeight)
-    textarea.style.height = `${newHeight}px`
-    textarea.style.overflowY = scrollH > maxHeight ? 'auto' : 'hidden'
+    textarea.style.height = `${Math.min(scrollH, maxHeight)}px`
 
-    // Sync highlight layer scroll after resize
     requestAnimationFrame(syncScroll)
   }, [expanded, syncScroll])
 
@@ -903,11 +897,11 @@ export function MarkdownInput({
         />
         {/* Editor area */}
         <div className="relative flex-1 min-h-0">
-          {/* Highlight layer */}
+          {/* Highlight layer - must mirror the textarea's gutter so wrap matches. */}
           <div
             ref={highlightRef}
             className={cn(
-              'absolute inset-0 px-3 py-3 pointer-events-none overflow-auto',
+              'absolute inset-0 px-3 py-3 pointer-events-none overflow-y-auto overflow-x-hidden mi-invisible-scrollbar',
               textClasses,
               'text-foreground',
             )}
@@ -935,7 +929,7 @@ export function MarkdownInput({
             spellCheck={true}
             data-form-type="other"
             className={cn(
-              'absolute inset-0 w-full h-full bg-transparent px-3 py-3 resize-none',
+              'absolute inset-0 w-full h-full bg-transparent px-3 py-3 resize-none overflow-y-auto overflow-x-hidden mi-stable-gutter',
               textClasses,
               'text-transparent caret-foreground selection:bg-accent/30 selection:text-foreground',
               'focus:outline-none',
@@ -1105,11 +1099,12 @@ export function MarkdownInput({
           <span className="text-accent text-xs font-mono">Drop file here</span>
         </div>
       )}
-      {/* Highlight layer - renders colored markdown behind textarea */}
+      {/* Highlight layer - renders colored markdown behind textarea.
+          Must share overflow + gutter rules with the textarea so wrap points match. */}
       <div
         ref={highlightRef}
         className={cn(
-          'absolute inset-0 pl-3 pr-14 py-2 pointer-events-none overflow-hidden border border-transparent rounded',
+          'absolute inset-0 pl-3 pr-14 py-2 pointer-events-none overflow-y-auto overflow-x-hidden border border-transparent rounded mi-invisible-scrollbar',
           textClasses,
           'text-foreground',
         )}
@@ -1138,7 +1133,7 @@ export function MarkdownInput({
         spellCheck={false}
         data-form-type="other"
         className={cn(
-          'relative w-full bg-transparent border border-border rounded pl-3 pr-14 py-2 resize-none',
+          'relative w-full bg-transparent border border-border rounded pl-3 pr-14 py-2 resize-none overflow-y-auto overflow-x-hidden mi-stable-gutter',
           textClasses,
           'text-transparent caret-foreground selection:bg-accent/30 selection:text-foreground',
           'focus:outline-none focus:border-ring',
