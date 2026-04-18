@@ -201,6 +201,14 @@ function dispatch(e: KeyboardEvent) {
   const inTextInput = isTextInput(e.target as Element)
   const inTerminal = isTerminal(e.target as Element)
 
+  // Yield Escape to open Radix Dialogs (and our mobile compose panel) so they
+  // can dismiss themselves natively. Without this, the global Escape->goHome
+  // command (registered at window-capture) eats the event before Radix's own
+  // document-capture listener gets a chance.
+  if (normalized === 'Escape' && document.querySelector('[role="dialog"][data-state="open"], [data-mobile-compose-panel]')) {
+    return
+  }
+
   // ── Chord mode: consume next key in sequence ──────────────────────────────
   if (activeChord) {
     e.preventDefault()
