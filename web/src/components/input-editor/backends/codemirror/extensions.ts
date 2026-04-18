@@ -193,21 +193,35 @@ export interface InputExtensionOptions {
   shouldEnterSubmit?: () => boolean
 }
 
+/**
+ * Submit entry point shared by every surface that can fire a submit:
+ *   - the Enter keymap (desktop + inline)
+ *   - the mobile compose panel's Send button
+ *
+ * Clears the doc *before* calling onSubmit so the editor empties
+ * immediately. react-codemirror has a 200ms "typing latch" (see
+ * node_modules/@uiw/react-codemirror/esm/useCodeMirror.js TYPING_TIMOUT)
+ * that defers prop-driven `value=""` updates until typing settles -- if
+ * we only relied on React state -> value prop, the clear would lag by up
+ * to 200ms. Dispatching directly through CM sidesteps the latch; the
+ * parent's onChange still syncs React state in the same call stack, and
+ * the submit handler reads the (still-correct) pre-clear value from its
+ * own React-state closure.
+ */
+export function submitFromEditor(view: EditorView, onSubmit: () => void) {
+  const len = view.state.doc.length
+  if (len > 0) {
+    view.dispatch({ changes: { from: 0, to: len, insert: '' } })
+  }
+  onSubmit()
+}
+
 export function buildInputExtensions(opts: InputExtensionOptions): Extension[] {
   const fontSize = opts.fontSize ?? 14
   const minHeight = opts.minHeight ?? '1.5em'
   const maxHeight = opts.maxHeight ?? '12em'
 
   // Submit on Enter, newline on Shift-Enter (default Enter behavior).
-  //
-  // We clear the doc *before* calling onSubmit so the editor empties
-  // immediately. react-codemirror has a 200ms "typing latch" (see
-  // node_modules/@uiw/react-codemirror/esm/useCodeMirror.js TYPING_TIMOUT)
-  // that defers prop-driven `value=""` updates until typing settles --
-  // which felt laggy. Dispatching the clear transaction here goes
-  // directly through CM and the parent's onChange syncs React state in
-  // the same call stack. The submit handler reads the (still-correct)
-  // pre-clear value from its own React-state closure.
   const submitKeymap = keymap.of([
     {
       key: 'Enter',
@@ -216,11 +230,7 @@ export function buildInputExtensions(opts: InputExtensionOptions): Extension[] {
         // no Shift-Enter on a phone keyboard, so Enter must insert a newline
         // and submit happens via the Send button).
         if (opts.shouldEnterSubmit && !opts.shouldEnterSubmit()) return false
-        const len = view.state.doc.length
-        if (len > 0) {
-          view.dispatch({ changes: { from: 0, to: len, insert: '' } })
-        }
-        opts.onSubmit()
+        submitFromEditor(view, opts.onSubmit)
         return true
       },
       shift: () => false,

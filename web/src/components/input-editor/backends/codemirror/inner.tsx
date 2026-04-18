@@ -25,7 +25,7 @@ import { cn, haptic } from '@/lib/utils'
 import { useIsMobile } from '../../shell/use-is-mobile'
 import { useScrollLock } from '../../shell/use-scroll-lock'
 import type { InputEditorProps } from '../../types'
-import { buildInputExtensions } from './extensions'
+import { buildInputExtensions, submitFromEditor } from './extensions'
 import { attachPasteUpload, uploadDroppedFile } from './paste-drop'
 
 export default function CodeMirrorBackendInner(props: InputEditorProps) {
@@ -120,7 +120,17 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
     e.preventDefault()
     if (props.disabled) return
     haptic('tap')
-    props.onSubmit()
+    // Route through the same helper the Enter keymap uses so the CM doc
+    // clears instantly instead of waiting out react-codemirror's 200ms
+    // typing latch. viewRef is populated from onCreateEditor.
+    const view = viewRef.current
+    if (view) {
+      submitFromEditor(view, props.onSubmit)
+    } else {
+      // Editor hasn't mounted yet -- shouldn't happen from this button, but
+      // fall back to a plain submit so we don't silently drop the tap.
+      props.onSubmit()
+    }
     closePanel()
   }
 
