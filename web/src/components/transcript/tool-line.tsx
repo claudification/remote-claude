@@ -11,6 +11,7 @@ import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/dashboard-prefs'
 import type { TranscriptContentBlock } from '@/lib/types'
 import { cn, truncate } from '@/lib/utils'
 import { JsonInspector } from '../json-inspector'
+import { FileListResults, GlobSummary, GrepContentResults, GrepCountResults, GrepSummary } from './grep-results'
 import { SessionTag } from './session-tag'
 import { Collapsible, cleanCdPrefix, getToolStyle, shortPath, TruncatedPre } from './shared'
 import { BashOutput, DiffView, ReplResult, ReplView, ShellCommand, WritePreview } from './tool-renderers'
@@ -391,19 +392,83 @@ export function ToolLine({
       const pattern = input.pattern as string
       const grepPath = (input.path as string) || ''
       const grepGlob = (input.glob as string) || ''
-      const pathHint = grepPath ? ` in ${grepPath}` : ''
-      const globHint = grepGlob ? ` (${grepGlob})` : ''
-      summary = `${pattern}${pathHint}${globHint}`
-      if (result) {
-        let grepHighlight: RegExp | undefined
-        if (pattern) {
-          try {
-            grepHighlight = new RegExp(pattern, input['-i'] ? 'gi' : 'g')
-          } catch {
-            // Invalid regex - skip highlighting
+      const extra = toolUseResult as
+        | {
+            mode?: 'files_with_matches' | 'content' | 'count'
+            filenames?: string[]
+            numFiles?: number
+            numMatches?: number
+            numLines?: number
+            content?: string
+            truncated?: boolean
           }
+        | undefined
+      const filenames = Array.isArray(extra?.filenames) ? extra.filenames : undefined
+      // Grep's mode defaults to files_with_matches when omitted (matches CC's tool spec)
+      const mode = name === 'Glob' ? undefined : extra?.mode || (filenames ? 'files_with_matches' : undefined)
+
+      let grepHighlight: RegExp | undefined
+      if (pattern) {
+        try {
+          grepHighlight = new RegExp(pattern, input['-i'] ? 'gi' : 'g')
+        } catch {
+          // Invalid regex - skip highlighting
         }
-        details = <TruncatedPre text={result} tool={name as ToolDisplayKey} highlight={grepHighlight} />
+      }
+
+      if (name === 'Glob') {
+        summary = (
+          <GlobSummary
+            pattern={pattern}
+            path={grepPath || undefined}
+            numFiles={extra?.numFiles ?? filenames?.length}
+            truncated={extra?.truncated}
+            isError={isError}
+          />
+        )
+      } else {
+        summary = (
+          <GrepSummary
+            pattern={pattern}
+            path={grepPath || undefined}
+            glob={grepGlob || undefined}
+            numFiles={extra?.numFiles ?? filenames?.length}
+            numMatches={extra?.numMatches}
+            numLines={extra?.numLines}
+            mode={mode}
+            isError={isError}
+          />
+        )
+      }
+
+      if (!isError) {
+        if (mode === 'content' && extra?.content) {
+          details = (
+            <GrepContentResults
+              content={extra.content}
+              filenames={filenames ?? []}
+              numLines={extra.numLines}
+              numFiles={extra.numFiles}
+              highlight={grepHighlight}
+            />
+          )
+        } else if (mode === 'count' && extra?.content) {
+          details = <GrepCountResults content={extra.content} numMatches={extra.numMatches} numFiles={extra.numFiles} />
+        } else if (filenames) {
+          details = (
+            <FileListResults
+              filenames={filenames}
+              numFiles={extra?.numFiles}
+              truncated={extra?.truncated}
+              emptyLabel={name === 'Glob' ? 'No files matched' : 'No matches'}
+            />
+          )
+        } else if (result) {
+          // Fallback: pre-structured-result transcripts (older sessions)
+          details = <TruncatedPre text={result} tool={name as ToolDisplayKey} highlight={grepHighlight} />
+        }
+      } else if (result) {
+        details = <TruncatedPre text={result} tool={name as ToolDisplayKey} />
       }
       break
     }
@@ -527,18 +592,73 @@ export function ToolLine({
       break
     }
     case 'TodoWrite': {
-      const todos = input.todos as Array<{ content: string; status?: string }>
+      const todos = input.todos as Array<{ content: string; activeForm?: string; status?: string }>
       if (todos?.length) {
-        summary = `${todos.length} item${todos.length !== 1 ? 's' : ''}`
+        const total = todos.length
+        const completed = todos.filter(t => t.status === 'completed').length
+        const inProgress = todos.find(t => t.status === 'in_progress')
+        const nextPending = todos.find(t => !t.status || t.status === 'pending')
+        const allDone = completed === total
+        const someStarted = completed > 0 || !!inProgress
+
+        let label: React.ReactNode
+        if (allDone) {
+          label = <span className="text-green-400 font-semibold">All done</span>
+        } else if (inProgress) {
+          label = (
+            <>
+              <span className="text-blue-400/80 font-semibold shrink-0">Working on:</span>
+              <span className="text-foreground/85 truncate">{inProgress.activeForm || inProgress.content}</span>
+            </>
+          )
+        } else if (someStarted && nextPending) {
+          label = (
+            <>
+              <span className="text-amber-400/80 font-semibold shrink-0">Next:</span>
+              <span className="text-foreground/85 truncate">{nextPending.content}</span>
+            </>
+          )
+        } else {
+          label = (
+            <span className="text-foreground/85">
+              {total} item{total !== 1 ? 's' : ''}
+            </span>
+          )
+        }
+
+        summary = (
+          <span className="flex items-center gap-1.5 min-w-0">
+            {label}
+            {!allDone && someStarted && (
+              <span className="shrink-0 text-muted-foreground/50 text-[10px] tabular-nums">
+                ({completed}/{total})
+              </span>
+            )}
+          </span>
+        )
         details = (
           <div className="text-[10px] font-mono text-muted-foreground">
             {todos.slice(0, 10).map((t, i) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: todo items are positional display list, no stable IDs
-              <div key={i}>
-                <span className={t.status === 'completed' ? 'text-green-400' : 'text-foreground/60'}>
-                  {t.status === 'completed' ? '[x]' : '[ ]'}
-                </span>{' '}
-                {t.content}
+              <div key={i} className="flex items-baseline gap-1.5">
+                <span
+                  className={cn(
+                    'shrink-0',
+                    t.status === 'completed' && 'text-green-400',
+                    t.status === 'in_progress' && 'text-blue-400',
+                    (!t.status || t.status === 'pending') && 'text-foreground/40',
+                  )}
+                >
+                  {t.status === 'completed' ? '[x]' : t.status === 'in_progress' ? '[~]' : '[ ]'}
+                </span>
+                <span
+                  className={cn(
+                    t.status === 'completed' && 'text-muted-foreground/60 line-through',
+                    t.status === 'in_progress' && 'text-foreground/85',
+                  )}
+                >
+                  {t.status === 'in_progress' ? t.activeForm || t.content : t.content}
+                </span>
               </div>
             ))}
             {todos.length > 10 && <div>... +{todos.length - 10} more</div>}
