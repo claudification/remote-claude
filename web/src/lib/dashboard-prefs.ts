@@ -56,6 +56,7 @@ export interface DashboardPrefs {
   toolDisplay: Partial<Record<ToolDisplayKey, Partial<ToolDisplayPrefs>>>
   chordTimeoutMs: number // how long to wait for second chord key before dismissing (ms)
   sanitizePaths: boolean // strip redundant `cd <cwd> &&` prefixes from displayed commands
+  inputBackend: 'legacy' | 'codemirror' // editor backend for InputEditor (default legacy)
 }
 
 export const defaultPrefs: DashboardPrefs = {
@@ -81,6 +82,7 @@ export const defaultPrefs: DashboardPrefs = {
   toolDisplay: {},
   chordTimeoutMs: 3000,
   sanitizePaths: true,
+  inputBackend: 'legacy',
 }
 
 export function loadPrefs(): DashboardPrefs {

@@ -56,10 +56,10 @@ import { loadRunTaskDefaults, saveRunTaskDefaults } from '@/lib/run-task-default
 import { buildTaskPrompt } from '@/lib/task-scoring'
 import { uploadFileWithPlaceholder } from '@/lib/upload'
 import { cn, haptic } from '@/lib/utils'
+import { InputEditor } from './input-editor'
 import { LaunchConfigFields, type LaunchFieldsValue } from './launch-config-fields'
 import { LaunchErrorBanner, LaunchFooterActions, LaunchStepList } from './launch-monitor'
 import { Markdown } from './markdown'
-import { MarkdownInput } from './markdown-input'
 
 function taskAge(created: string): string {
   if (!created) return ''
@@ -1139,7 +1139,7 @@ function InlineAdd({ onAdd }: { onAdd: (text: string) => void }) {
 
   return (
     <div className="px-2 py-1.5 border-t border-[#33467c]/20">
-      <MarkdownInput
+      <InputEditor
         value={text}
         onChange={setText}
         onSubmit={() => {

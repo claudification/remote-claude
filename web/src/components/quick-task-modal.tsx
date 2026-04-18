@@ -9,7 +9,7 @@ import { useProject } from '@/hooks/use-project'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { useCommand } from '@/lib/commands'
 import { haptic } from '@/lib/utils'
-import { MarkdownInput } from './markdown-input'
+import { InputEditor } from './input-editor'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Kbd, KbdGroup } from './ui/kbd'
 
@@ -110,7 +110,7 @@ export function QuickTaskModal() {
             </div>
           )}
           <div className="p-3 flex-1 min-h-0">
-            <MarkdownInput
+            <InputEditor
               value={text}
               onChange={setText}
               onSubmit={handleSubmit}

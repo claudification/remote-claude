@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 import { DialogModal } from '@/components/dialog'
-import { MarkdownInput } from '@/components/markdown-input'
+import { InputEditor } from '@/components/input-editor'
 import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { canTerminal } from '@/lib/types'
 import { cn, haptic, isMobileViewport } from '@/lib/utils'
@@ -170,7 +170,7 @@ export const InputBar = memo(function InputBar({ sessionId }: { sessionId: strin
         </div>
       )}
       <div className="flex gap-2 items-stretch">
-        <MarkdownInput
+        <InputEditor
           value={inputValue}
           onChange={setInputValue}
           onSubmit={handleSend}
