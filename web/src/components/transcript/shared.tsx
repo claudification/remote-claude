@@ -139,8 +139,14 @@ export function cleanCdPrefix(text: string, cwd: string): string {
 
 // Clean `sh('cd <path> && ...')` inside REPL JavaScript code
 const SH_CD_RE = /sh\((['"`])(cd\s+(?:['"]?.+?['"]?\s*(?:&&|;)\s*))/g
+// Strip `chdir('<cwd>')` / `chdir("<cwd>")` / `chdir(`<cwd>`)` lines that are no-ops
+const CHDIR_LINE_RE = /^[ \t]*chdir\(\s*(['"`])(.+?)\1\s*\)\s*;?[ \t]*(\r?\n|$)/gm
 export function cleanReplShCalls(code: string, cwd: string): string {
-  return code.replace(SH_CD_RE, (full, quote, cdPart) => {
+  const normCwd = cwd.replace(/\/$/, '')
+  const withoutChdir = code.replace(CHDIR_LINE_RE, (full, _q, path) => {
+    return path.replace(/\/$/, '') === normCwd ? '' : full
+  })
+  return withoutChdir.replace(SH_CD_RE, (full, quote, cdPart) => {
     const cleaned = cleanCdPrefix(cdPart, cwd)
     if (cleaned !== cdPart) return `sh(${quote}${cleaned}`
     return full
