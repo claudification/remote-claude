@@ -201,14 +201,6 @@ function dispatch(e: KeyboardEvent) {
   const inTextInput = isTextInput(e.target as Element)
   const inTerminal = isTerminal(e.target as Element)
 
-  // Yield Escape to open Radix Dialogs (and our mobile compose panel) so they
-  // can dismiss themselves natively. Without this, the global Escape->goHome
-  // command (registered at window-capture) eats the event before Radix's own
-  // document-capture listener gets a chance.
-  if (normalized === 'Escape' && document.querySelector('[role="dialog"][data-state="open"], [data-mobile-compose-panel]')) {
-    return
-  }
-
   // ── Chord mode: consume next key in sequence ──────────────────────────────
   if (activeChord) {
     e.preventDefault()
@@ -240,6 +232,18 @@ function dispatch(e: KeyboardEvent) {
     // Not a prefix -- exit chord mode and try to fire as exact match
     exitChordMode()
     fireBinding(candidate, e)
+    return
+  }
+
+  // Yield Escape to open Radix Dialogs (and our mobile compose panel) so they
+  // can dismiss themselves natively. Without this, the global Escape->goHome
+  // command (registered at window-capture) eats the event before Radix's own
+  // document-capture listener gets a chance. Placed AFTER the chord block so
+  // Escape can still cancel an active chord regardless of open dialogs.
+  if (
+    normalized === 'Escape' &&
+    document.querySelector('[role="dialog"][data-state="open"], [data-mobile-compose-panel]')
+  ) {
     return
   }
 
