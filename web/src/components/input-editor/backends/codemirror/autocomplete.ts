@@ -12,10 +12,17 @@
  * (e.g. /workon <task>, /model <variant>) stay legacy-only for now.
  */
 
-import { autocompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
-import type { Extension } from '@codemirror/state'
+import {
+  acceptCompletion,
+  autocompletion,
+  type CompletionContext,
+  type CompletionResult,
+  completionStatus,
+} from '@codemirror/autocomplete'
+import { type Extension, Prec } from '@codemirror/state'
+import { keymap } from '@codemirror/view'
 import { useSessionsStore } from '@/hooks/use-sessions'
-import { BUILTIN_COMMAND_NAMES, fuzzyScore } from '../../autocomplete-shared'
+import { BUILTIN_COMMAND_NAMES, BUILTIN_SCORE_BOOST, fuzzyScore } from '../../autocomplete-shared'
 
 interface SourceInfo {
   slashCommands: string[]
@@ -38,31 +45,26 @@ function isInsideCodeFence(text: string): boolean {
 }
 
 function buildCompletions(trigger: '/' | '@', query: string, atDocStart: boolean, info: SourceInfo) {
-  const q = query.toLowerCase()
   const scored: Array<{ label: string; detail?: string; score: number }> = []
 
+  function add(name: string, detail: string | undefined, boost = 1) {
+    const s = fuzzyScore(query, name) * boost
+    if (s > 0) scored.push({ label: name, detail, score: s })
+  }
+
   if (trigger === '/') {
-    // Builtins only suggested at start of input (parity with legacy)
+    // Builtins only suggested at start of input (parity with legacy).
+    // Boosted so they rank above CC's slashCommands at otherwise-equal scores.
     if (atDocStart) {
-      for (const name of BUILTIN_COMMAND_NAMES) {
-        const score = !q ? 100 : name.includes(q) ? 100 + (name.startsWith(q) ? 10 : 0) : 0
-        if (score > 0) scored.push({ label: name, detail: 'builtin', score })
-      }
+      for (const name of BUILTIN_COMMAND_NAMES) add(name, 'builtin', BUILTIN_SCORE_BOOST)
     }
     for (const name of info.slashCommands) {
       if (BUILTIN_COMMAND_NAMES.includes(name as (typeof BUILTIN_COMMAND_NAMES)[number])) continue
-      const score = fuzzyScore(q, name)
-      if (score > 0) scored.push({ label: name, score })
+      add(name, undefined)
     }
   } else {
-    for (const name of info.skills) {
-      const score = fuzzyScore(q, name)
-      if (score > 0) scored.push({ label: name, detail: 'skill', score })
-    }
-    for (const name of info.agents) {
-      const score = fuzzyScore(q, name)
-      if (score > 0) scored.push({ label: name, detail: 'agent', score })
-    }
+    for (const name of info.skills) add(name, 'skill')
+    for (const name of info.agents) add(name, 'agent')
   }
 
   scored.sort((a, b) => b.score - a.score)
@@ -109,12 +111,35 @@ function completionSource(context: CompletionContext): CompletionResult | null {
   }
 }
 
+/**
+ * Explicit Tab -> acceptCompletion at high precedence. The autocompletion
+ * extension's defaultKeymap already binds Tab, but our extensions array
+ * also includes @codemirror/commands' defaultKeymap which binds Tab to
+ * indentMore. Pinning our binding above both guarantees Tab accepts when
+ * the popup is showing, and falls through (false) otherwise so indent
+ * still works in code-fenced contexts.
+ */
+const tabAcceptKeymap = Prec.highest(
+  keymap.of([
+    {
+      key: 'Tab',
+      run: view => {
+        if (completionStatus(view.state) === 'active') return acceptCompletion(view)
+        return false
+      },
+    },
+  ]),
+)
+
 export function autocompleteExtension(): Extension {
-  return autocompletion({
-    override: [completionSource],
-    activateOnTyping: true,
-    closeOnBlur: true,
-    icons: false,
-    defaultKeymap: true, // arrows + enter + tab to accept
-  })
+  return [
+    tabAcceptKeymap,
+    autocompletion({
+      override: [completionSource],
+      activateOnTyping: true,
+      closeOnBlur: true,
+      icons: false,
+      defaultKeymap: true, // arrows + enter + tab to accept (we re-pin Tab above for safety)
+    }),
+  ]
 }

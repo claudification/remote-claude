@@ -7,23 +7,53 @@
  */
 
 /**
- * Subsequence-match scorer. Returns 0 if `candidate` doesn't contain all of
- * `query`'s chars in order, otherwise a positive score (higher = better match,
- * with bonus for matches at the start).
+ * fzf-inspired fuzzy scorer. Returns 0 if `candidate` doesn't contain
+ * all of `query`'s chars in order; otherwise a positive score (higher =
+ * better match) with bonuses for:
+ *   - exact prefix match (whole query at start of candidate)
+ *   - matches at word boundaries (start of word, after - or _)
+ *   - consecutive matches (no gap between matched chars)
+ *   - early matches (closer to start of candidate)
+ *
+ * No penalty for length -- we already cap results to the top N elsewhere,
+ * so length-penalising would over-prefer short noisy matches.
  */
 export function fuzzyScore(query: string, candidate: string): number {
   if (!query) return 1
+  const q = query.toLowerCase()
   const c = candidate.toLowerCase()
-  let qi = 0
+
+  // Cheap fast-paths
+  if (c === q) return 1000
+  if (c.startsWith(q)) return 500 + (candidate.length - q.length === 0 ? 0 : 100)
+
   let score = 0
-  for (let ci = 0; ci < c.length && qi < query.length; ci++) {
-    if (c[ci] === query[qi]) {
-      score += ci === qi ? 3 : 1
-      qi++
+  let qi = 0
+  let lastMatch = -2 // -2 so the first matched char never registers as "consecutive"
+  let inGap = false
+
+  for (let ci = 0; ci < c.length && qi < q.length; ci++) {
+    if (c[ci] !== q[qi]) {
+      inGap = true
+      continue
     }
+    let charScore = 1
+    // Word-boundary bonus: start of string or preceded by separator
+    if (ci === 0 || /[-_/\s.]/.test(c[ci - 1])) charScore += 8
+    // Consecutive-match bonus: prior matched char was right next door
+    if (ci === lastMatch + 1) charScore += 5
+    // Early-match bonus (small): rewards left-anchored matches
+    if (!inGap) charScore += 1
+    score += charScore
+    lastMatch = ci
+    inGap = false
+    qi++
   }
-  return qi === query.length ? score : 0
+  return qi === q.length ? score : 0
 }
+
+/** Multiplicative boost applied to builtin commands so they sort above CC's slashCommands at parity. */
+export const BUILTIN_SCORE_BOOST = 1.3
 
 /**
  * Names of builtin slash commands the wrapper handles itself
