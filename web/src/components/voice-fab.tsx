@@ -195,7 +195,7 @@ export function VoiceFab() {
     <>
       {/* Live transcript banner at top of screen */}
       {isActive && (
-        <div className="fixed top-0 left-0 right-0 z-[60] pointer-events-none">
+        <div data-voice-fab className="fixed top-0 left-0 right-0 z-[60] pointer-events-none">
           <div className={cn('mx-auto max-w-[600px] px-4 pt-safe', 'animate-in slide-in-from-top duration-200')}>
             <div
               className={cn(
@@ -269,6 +269,7 @@ export function VoiceFab() {
 
       {/* Floating button */}
       <button
+        data-voice-fab
         type="button"
         className={cn(
           'fixed z-[55] right-3 top-1/2 -translate-y-1/2',

@@ -456,6 +456,15 @@ pre.mermaid {
 	border-radius: 2px;
 }
 
+/* Hide floating action/voice FABs while the mobile compose panel is open.
+   The panel overlays the viewport (z-[999] fixed inset-0); FABs underneath
+   it should not be tappable or visible to avoid a "ghost FAB" peeking
+   through on iOS composite-layer edge cases. */
+body:has([data-mobile-compose-panel]) [data-action-fab],
+body:has([data-mobile-compose-panel]) [data-voice-fab] {
+	display: none !important;
+}
+
 /* Session pulse animation (triggered on Ctrl+K selection) */
 @keyframes session-pulse-glow {
 	0%, 100% { box-shadow: none; }
