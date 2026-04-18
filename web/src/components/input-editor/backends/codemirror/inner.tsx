@@ -86,13 +86,32 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
   // Blur is async on iOS -- defer collapse so a tap on a toolbar button
   // (which steals focus from the editor) doesn't trip a premature close.
   // The buttons explicitly call closePanel() after their action.
+  //
+  // Timer id is tracked so repeated blur/focus cycles don't pile up stale
+  // timers -- on a busy session with heavy renders, an old timer firing
+  // while React is still dispatching a button pointerdown can race the
+  // button's handler and collapse the panel before submit runs.
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function cancelBlurTimer() {
+    if (blurTimerRef.current != null) {
+      clearTimeout(blurTimerRef.current)
+      blurTimerRef.current = null
+    }
+  }
+
   function onBlur() {
-    setTimeout(() => {
+    cancelBlurTimer()
+    blurTimerRef.current = setTimeout(() => {
+      blurTimerRef.current = null
       const active = document.activeElement
       if (active?.closest('[data-mobile-compose-panel]')) return
       setFocused(false)
     }, 50)
   }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cancelBlurTimer closes over a ref, stable across renders -- re-subscribing would burn a timer that's legitimately in-flight
+  useEffect(() => cancelBlurTimer, [])
 
   // Belt-and-braces for the refocus loop. Not strictly needed now that the
   // editor doesn't unmount, but cheap defense in depth against a future bug
@@ -109,15 +128,30 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
 
   function closePanel() {
     suppressFocusUntilRef.current = Date.now() + 400
+    cancelBlurTimer()
     setFocused(false)
     viewRef.current?.contentDOM.blur()
   }
 
-  function handleSubmitClick(e: React.PointerEvent) {
-    // pointerdown fires on first finger-down, sidestepping iOS's
-    // tap-to-dismiss-keyboard-then-click two-step. preventDefault keeps
-    // focus stable while the submit runs.
+  // Toolbar buttons dedupe across touchstart / pointerdown / (synthesized) click.
+  // touchstart fires earliest on iOS -- before the browser synthesizes a
+  // contenteditable blur on the editor -- so it's the most reliable way to
+  // land the handler before the blur timer can collapse the panel. We keep
+  // onPointerDown as a fallback for mouse/trackpad and non-touch pointer
+  // devices. lastActionRef gates duplicates so touchstart + mouse/click
+  // don't double-fire.
+  const lastActionRef = useRef(0)
+
+  function claimAction(e: React.SyntheticEvent): boolean {
     e.preventDefault()
+    const now = Date.now()
+    if (now - lastActionRef.current < 500) return false
+    lastActionRef.current = now
+    return true
+  }
+
+  function fireSubmit(e: React.SyntheticEvent) {
+    if (!claimAction(e)) return
     if (props.disabled) return
     haptic('tap')
     // Route through the same helper the Enter keymap uses so the CM doc
@@ -134,8 +168,8 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
     closePanel()
   }
 
-  function handleCancelClick(e: React.PointerEvent) {
-    e.preventDefault()
+  function fireCancel(e: React.SyntheticEvent) {
+    if (!claimAction(e)) return
     haptic('tap')
     closePanel()
   }
@@ -285,15 +319,18 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
         <div className="shrink-0 flex items-center justify-between px-3 py-2 border-t border-border/40">
           <button
             type="button"
-            onPointerDown={handleCancelClick}
+            onTouchStart={fireCancel}
+            onPointerDown={fireCancel}
             className="text-sm font-mono text-muted-foreground hover:text-foreground px-3 py-2"
+            style={{ touchAction: 'manipulation' } as React.CSSProperties}
           >
             Cancel
           </button>
           <button
             type="button"
             disabled={props.disabled}
-            onPointerDown={handleSubmitClick}
+            onTouchStart={fireSubmit}
+            onPointerDown={fireSubmit}
             className="flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded select-none bg-accent text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ touchAction: 'manipulation', WebkitTouchCallout: 'none' } as React.CSSProperties}
           >
