@@ -16,6 +16,7 @@ import {
   drawSelection,
   EditorView,
   keymap,
+  tooltips,
   ViewPlugin,
   type ViewUpdate,
 } from '@codemirror/view'
@@ -191,10 +192,23 @@ export function buildInputExtensions(opts: InputExtensionOptions): Extension[] {
   const maxHeight = opts.maxHeight ?? '12em'
 
   // Submit on Enter, newline on Shift-Enter (default Enter behavior).
+  //
+  // We clear the doc *before* calling onSubmit so the editor empties
+  // immediately. react-codemirror has a 200ms "typing latch" (see
+  // node_modules/@uiw/react-codemirror/esm/useCodeMirror.js TYPING_TIMOUT)
+  // that defers prop-driven `value=""` updates until typing settles --
+  // which felt laggy. Dispatching the clear transaction here goes
+  // directly through CM and the parent's onChange syncs React state in
+  // the same call stack. The submit handler reads the (still-correct)
+  // pre-clear value from its own React-state closure.
   const submitKeymap = keymap.of([
     {
       key: 'Enter',
-      run: () => {
+      run: view => {
+        const len = view.state.doc.length
+        if (len > 0) {
+          view.dispatch({ changes: { from: 0, to: len, insert: '' } })
+        }
         opts.onSubmit()
         return true
       },
@@ -209,6 +223,9 @@ export function buildInputExtensions(opts: InputExtensionOptions): Extension[] {
     submitKeymap, // before defaultKeymap so our Enter wins (autocomplete still wins over us when popup is open)
     keymap.of([...defaultKeymap, ...historyKeymap]),
     markdown(),
+    // Portal tooltips (autocomplete popup, etc.) to <body> so the input
+    // wrapper's overflow:hidden / rounded corners don't clip them.
+    tooltips({ parent: document.body }),
     inputTheme(fontSize, minHeight, maxHeight),
     makeDirectHighlightPlugin(),
     // biome-ignore lint/style/noNonNullAssertion: HighlightStyle.module is always defined after define()
