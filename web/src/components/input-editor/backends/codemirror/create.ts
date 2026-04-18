@@ -28,6 +28,7 @@ import {
   type ViewUpdate,
 } from '@codemirror/view'
 import { highlightTree, tags } from '@lezer/highlight'
+import { autocompleteExtension } from './autocomplete'
 
 // ---------------------------------------------------------------------------
 // Tokyo Night highlight (subset, reused from codemirror-setup.ts)
@@ -168,6 +169,41 @@ function inputTheme(fontSize: number, minHeight: string, maxHeight: string): Ext
         textDecorationColor: 'rgba(255, 158, 100, 0.4)',
         textUnderlineOffset: '2px',
       },
+      // Autocomplete popup
+      '.cm-tooltip.cm-tooltip-autocomplete': {
+        backgroundColor: '#1a1b26',
+        border: '1px solid #33467c',
+        borderRadius: '0',
+        fontFamily: '"Geist Mono", "JetBrains Mono", monospace',
+        fontSize: '12px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+      },
+      '.cm-tooltip.cm-tooltip-autocomplete > ul': {
+        maxHeight: '14em',
+        fontFamily: 'inherit',
+      },
+      '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
+        padding: '2px 8px',
+        color: '#a9b1d6',
+      },
+      '.cm-tooltip-autocomplete ul li[aria-selected]': {
+        backgroundColor: 'rgba(122, 162, 247, 0.2)',
+        color: '#c0caf5',
+      },
+      '.cm-completionLabel': {
+        color: 'inherit',
+      },
+      '.cm-completionDetail': {
+        marginLeft: '8px',
+        color: '#565f89',
+        fontStyle: 'normal',
+        fontSize: '11px',
+      },
+      '.cm-completionMatchedText': {
+        color: '#7aa2f7',
+        textDecoration: 'none',
+        fontWeight: 'bold',
+      },
     },
     { dark: true },
   )
@@ -187,6 +223,7 @@ export interface InputEditorOptions {
   minHeight?: string
   maxHeight?: string
   enableEffortKeywords?: boolean
+  enableAutocomplete?: boolean
 }
 
 export interface InputEditorController {
@@ -237,6 +274,7 @@ export function createInputEditor(parent: HTMLElement, opts: InputEditorOptions)
 
   if (opts.placeholder) extensions.push(placeholderExt(opts.placeholder))
   if (opts.enableEffortKeywords) extensions.push(effortKeywordPlugin)
+  if (opts.enableAutocomplete) extensions.push(autocompleteExtension())
 
   // Compartment lets us swap readOnly later via setDisabled() without rebuilding state.
   const readOnlyCompartment = new Compartment()

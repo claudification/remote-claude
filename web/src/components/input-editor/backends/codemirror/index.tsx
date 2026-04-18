@@ -64,6 +64,7 @@ export function CodeMirrorBackend(props: InputEditorProps) {
         disabled: props.disabled,
         fontSize: isMobileViewport() ? 15 : 14,
         enableEffortKeywords: props.enableEffortKeywords,
+        enableAutocomplete: props.enableAutocomplete,
       })
       controllerRef.current = controller
 

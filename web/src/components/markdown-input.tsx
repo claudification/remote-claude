@@ -8,6 +8,7 @@ import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { buildTaskPrompt, scoreAndSortTasks } from '@/lib/task-scoring'
 import { uploadFileWithPlaceholder } from '@/lib/upload'
 import { cn, haptic, isMobileViewport } from '@/lib/utils'
+import { fuzzyScore } from './input-editor/autocomplete-shared'
 
 const EMPTY_INFO: { slashCommands: string[]; skills: string[]; agents: string[] } = {
   slashCommands: [],
@@ -95,20 +96,6 @@ function matchSubCommand(input: string): [SubCommandDef, string] | null {
   if (!m) return null
   const cmd = SUB_COMMAND_MAP.get(m[1].toLowerCase())
   return cmd ? [cmd, m[2]] : null
-}
-
-function fuzzyScore(query: string, candidate: string): number {
-  if (!query) return 1
-  const c = candidate.toLowerCase()
-  let qi = 0
-  let score = 0
-  for (let ci = 0; ci < c.length && qi < query.length; ci++) {
-    if (c[ci] === query[qi]) {
-      score += ci === qi ? 3 : 1
-      qi++
-    }
-  }
-  return qi === query.length ? score : 0
 }
 
 interface MarkdownInputProps {
