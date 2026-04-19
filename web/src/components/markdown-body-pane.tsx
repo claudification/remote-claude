@@ -6,9 +6,14 @@
  */
 
 import type { EditorView } from '@codemirror/view'
-import CodeMirror from '@uiw/react-codemirror'
 import { useState } from 'react'
+import { SafeCodeMirror } from './codemirror/safe-codemirror'
 import { buildMarkdownBodyExtensions } from './codemirror-setup'
+
+// Hoisted out of render: buildMarkdownBodyExtensions() takes no args, so the
+// array is identical across mounts. Inline-calling it made `extensions` a new
+// reference per render -> CodeMirror reconfigure storm on every keystroke.
+const MARKDOWN_BODY_EXTENSIONS = buildMarkdownBodyExtensions()
 
 export default function MarkdownBodyPane({
   initialContent,
@@ -59,10 +64,10 @@ export default function MarkdownBodyPane({
         for (const file of files) onUpload(file)
       }}
     >
-      <CodeMirror
+      <SafeCodeMirror
         value={initial}
         onChange={onChange}
-        extensions={buildMarkdownBodyExtensions()}
+        extensions={MARKDOWN_BODY_EXTENSIONS}
         basicSetup={false}
         theme="dark"
         onCreateEditor={onCreateEditor}

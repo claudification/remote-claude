@@ -5,7 +5,8 @@
  * chunk. file-editor.tsx renders this behind React.lazy.
  */
 
-import CodeMirror from '@uiw/react-codemirror'
+import { useMemo } from 'react'
+import { SafeCodeMirror } from './codemirror/safe-codemirror'
 import { buildFileEditorExtensions } from './codemirror-setup'
 
 export default function FileEditorPane({
@@ -17,12 +18,13 @@ export default function FileEditorPane({
   onChange: (value: string) => void
   filePath?: string
 }) {
-  // Remount on file change to pick up the new language; cheaper than reconfiguring
-  // the compartment and matches prior behavior.
-  const extensions = buildFileEditorExtensions(filePath)
+  // Memoize: `extensions` is in CodeMirror's reconfigure dep array -- a new
+  // reference per render triggers a full extension teardown + rebuild on every
+  // keystroke. SafeCodeMirror pins onChange identity for us.
+  const extensions = useMemo(() => buildFileEditorExtensions(filePath), [filePath])
 
   return (
-    <CodeMirror
+    <SafeCodeMirror
       key={filePath ?? ''}
       value={content}
       onChange={onChange}

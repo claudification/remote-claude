@@ -17,12 +17,12 @@
  */
 
 import type { EditorView } from '@codemirror/view'
-import CodeMirror from '@uiw/react-codemirror'
 import { Send } from 'lucide-react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useProject } from '@/hooks/use-project'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { cn, haptic } from '@/lib/utils'
+import { SafeCodeMirror } from '../../../codemirror/safe-codemirror'
 import { useIsMobile } from '../../shell/use-is-mobile'
 import { useScrollLock } from '../../shell/use-scroll-lock'
 import type { SubCommandContext } from '../../sub-commands'
@@ -52,23 +52,9 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
   const onSubmitRef = useRef(props.onSubmit)
   onSubmitRef.current = props.onSubmit
 
-  // CRITICAL PERF: @uiw/react-codemirror's reconfigure useEffect (see
-  // node_modules/@uiw/react-codemirror/esm/useCodeMirror.js around L141-148)
-  // includes `onChange` in its dependency array. If we pass props.onChange
-  // straight through and the parent recreates that callback every render
-  // (the InputBar at session-input.tsx does -- `function setInputValue(...)`
-  // is a new identity on each commit), CM dispatches a full
-  // `StateEffect.reconfigure.of(getExtensions)` on EVERY KEYSTROKE, which
-  // tears down + rebuilds every plugin. Measured at 40-120ms per dispatch.
-  //
-  // Stabilize via ref + useCallback so the prop CM sees never changes
-  // identity, and reads through the ref to always invoke the latest
-  // parent callback.
-  const onChangeRef = useRef(props.onChange)
-  onChangeRef.current = props.onChange
-  const stableOnChange = useCallback((value: string) => {
-    onChangeRef.current(value)
-  }, [])
+  // SafeCodeMirror pins onChange identity internally, so we can pass
+  // props.onChange through even though it's a fresh function identity every
+  // parent render.
 
   // Enter=submit only when NOT in the mobile compose panel. On a phone there's
   // no Shift-Enter, so Enter must insert a newline and the Send button is the
@@ -221,9 +207,9 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
   }, [expanded])
 
   const editor = (
-    <CodeMirror
+    <SafeCodeMirror
       value={props.value}
-      onChange={stableOnChange}
+      onChange={props.onChange}
       extensions={extensions}
       placeholder={props.placeholder}
       editable={!props.disabled}
