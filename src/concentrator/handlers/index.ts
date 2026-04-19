@@ -12,6 +12,7 @@ import { registerFileHandlers } from './files'
 import { registerInterSessionHandlers } from './inter-session'
 import { registerPermissionHandlers } from './permissions'
 import { registerPlanApprovalHandlers } from './plan-approval'
+import { registerRclaudeConfigHandlers } from './rclaude-config'
 import { registerSessionLifecycleHandlers } from './session-lifecycle'
 import { registerSpawnHandlers } from './spawn'
 import { registerTerminalHandlers } from './terminal'
@@ -28,6 +29,7 @@ export function registerAllHandlers(): void {
   registerInterSessionHandlers()
   registerPermissionHandlers()
   registerPlanApprovalHandlers()
+  registerRclaudeConfigHandlers()
   registerSessionLifecycleHandlers()
   registerSpawnHandlers()
   registerTerminalHandlers()

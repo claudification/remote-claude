@@ -22,6 +22,7 @@ import {
   fetchTranscript,
   handleBgTaskOutputMessage,
   type ProjectSettingsMap,
+  resolveConfigResponse,
   useSessionsStore,
 } from './use-sessions'
 import { handleSpawnRequestAck } from './use-spawn'
@@ -484,7 +485,7 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'agent_status': {
       if (msg.connected !== undefined) {
-        useSessionsStore.getState().setAgentConnected(msg.connected)
+        useSessionsStore.getState().setAgentConnected(msg.connected, msg.capabilities as string[] | undefined)
       }
       break
     }
@@ -939,6 +940,12 @@ export function useWebSocket() {
           const msg = JSON.parse(raw) as DashboardMessage
 
           // --- Bypass buffer: latency-sensitive handlers ---
+
+          // rclaude config responses -> promise resolution
+          if (msg.type === 'rclaude_config_data' || msg.type === 'rclaude_config_ok') {
+            resolveConfigResponse(msg as unknown as Record<string, unknown>)
+            return
+          }
 
           // File editor messages -> direct handler callback
           if (

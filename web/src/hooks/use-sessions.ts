@@ -106,6 +106,7 @@ interface SessionsState {
   syncEpoch: string // server epoch (changes on server restart)
   syncSeq: number // last received sequence number
   agentConnected: boolean
+  agentCapabilities: string[]
   planUsage: UsageUpdate | null
   error: string | null
   authExpired: boolean
@@ -202,7 +203,7 @@ interface SessionsState {
   setProjectSettings: (settings: ProjectSettingsMap) => void
   setProjectOrder: (order: ProjectOrder) => void
   setConnected: (connected: boolean) => void
-  setAgentConnected: (connected: boolean) => void
+  setAgentConnected: (connected: boolean, capabilities?: string[]) => void
   setPlanUsage: (usage: UsageUpdate) => void
   setError: (error: string | null) => void
   setAuthExpired: (expired: boolean) => void
@@ -378,6 +379,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   syncEpoch: '',
   syncSeq: 0,
   agentConnected: false,
+  agentCapabilities: [],
   planUsage: null,
   error: null,
   authExpired: false,
@@ -705,7 +707,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       isConnected: connected,
       ...(connected && { connectSeq: state.connectSeq + 1 }),
     })),
-  setAgentConnected: connected => set({ agentConnected: connected }),
+  setAgentConnected: (connected, capabilities) =>
+    set({ agentConnected: connected, agentCapabilities: connected ? capabilities || [] : [] }),
   setPlanUsage: usage => set({ planUsage: usage }),
   setError: error => set({ error }),
   setAuthExpired: authExpired => set({ authExpired }),
@@ -1024,6 +1027,72 @@ export async function generateProjectKeyterms(
 
 export function deleteProjectSettings(cwd: string): boolean {
   return wsSend('delete_project_settings', { cwd })
+}
+
+// ─── rclaude config (permission rules) API ──────────────────────────
+export interface RclaudePermissionConfig {
+  permissions?: {
+    Write?: { allow?: string[] }
+    Edit?: { allow?: string[] }
+    Read?: { allow?: string[] }
+  }
+  allowPlanMode?: boolean
+}
+
+interface ConfigDataResponse {
+  config: RclaudePermissionConfig | null
+  path: string
+  cwd: string
+}
+
+interface ConfigOkResponse {
+  ok: boolean
+  error?: string
+}
+
+const configPending = new Map<string, (data: unknown) => void>()
+
+export function resolveConfigResponse(data: Record<string, unknown>): void {
+  const requestId = data.requestId as string
+  const cb = configPending.get(requestId)
+  if (cb) {
+    configPending.delete(requestId)
+    cb(data)
+  }
+}
+
+export function requestRclaudeConfig(cwd: string): Promise<ConfigDataResponse> {
+  const requestId = crypto.randomUUID()
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      configPending.delete(requestId)
+      reject(new Error('Config request timed out'))
+    }, 10000)
+
+    configPending.set(requestId, data => {
+      clearTimeout(timeout)
+      resolve(data as ConfigDataResponse)
+    })
+
+    wsSend('rclaude_config_get', { cwd, requestId })
+  })
+}
+
+export function saveRclaudeConfig(cwd: string, config: RclaudePermissionConfig): Promise<ConfigOkResponse> {
+  const requestId = crypto.randomUUID()
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      configPending.delete(requestId)
+      reject(new Error('Config save timed out'))
+    }, 10000)
+
+    configPending.set(requestId, data => {
+      clearTimeout(timeout)
+      resolve(data as ConfigOkResponse)
+    })
+
+    wsSend('rclaude_config_set', { cwd, config, requestId })
+  })
 }
 
 // Project order API

@@ -1055,6 +1055,10 @@ async function main() {
         ctx.lastTasksJson = ''
         readAndSendTasks()
       },
+      onConfigUpdated() {
+        permissionRules.reload()
+        diag('info', 'Permission rules reloaded (notify_config_updated)')
+      },
       onTranscriptKick() {
         // Concentrator detected we have events but no transcript - retry the watcher
         if (!ctx.transcriptWatcher && ctx.parentTranscriptPath) {

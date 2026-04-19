@@ -759,6 +759,11 @@ export type ConcentratorMessage =
   | ControlDeliver
   | DialogResultMessage
   | PlanApprovalResponse
+  | NotifyConfigUpdated
+
+export interface NotifyConfigUpdated {
+  type: 'notify_config_updated'
+}
 
 export interface SendInterrupt {
   type: 'interrupt'
@@ -1348,6 +1353,43 @@ export interface ListDirs {
   path: string
 }
 
+export interface RclaudeConfigGet {
+  type: 'rclaude_config_get'
+  requestId: string
+  cwd: string
+}
+
+export interface RclaudeConfigSet {
+  type: 'rclaude_config_set'
+  requestId: string
+  cwd: string
+  config: RclaudePermissionConfig
+}
+
+export interface RclaudePermissionConfig {
+  permissions?: {
+    Write?: { allow?: string[] }
+    Edit?: { allow?: string[] }
+    Read?: { allow?: string[] }
+  }
+  allowPlanMode?: boolean
+}
+
+export interface RclaudeConfigData {
+  type: 'rclaude_config_data'
+  requestId: string
+  config: RclaudePermissionConfig | null
+  path: string
+  cwd: string
+}
+
+export interface RclaudeConfigOk {
+  type: 'rclaude_config_ok'
+  requestId: string
+  ok: boolean
+  error?: string
+}
+
 export interface AgentQuit {
   type: 'quit'
   reason?: string
@@ -1358,12 +1400,22 @@ export interface AgentReject {
   reason: string
 }
 
-export type ConcentratorAgentMessage = ReviveSession | SpawnSession | ListDirs | AgentQuit | AgentReject
+export type ConcentratorAgentMessage =
+  | ReviveSession
+  | SpawnSession
+  | ListDirs
+  | RclaudeConfigGet
+  | RclaudeConfigSet
+  | AgentQuit
+  | AgentReject
 
 // Dashboard broadcast: agent status
+export type AgentCapability = 'config_rw'
+
 export interface AgentStatus {
   type: 'agent_status'
   connected: boolean
+  capabilities?: AgentCapability[]
 }
 
 // Session summary: concentrator -> dashboard wire format

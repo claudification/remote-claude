@@ -57,6 +57,7 @@ export interface DashboardMessage {
   sessions?: SessionSummary[]
   event?: HookEvent
   connected?: boolean
+  capabilities?: string[]
   machineId?: string
   hostname?: string
   title?: string
@@ -176,6 +177,10 @@ export interface SessionStore {
   addDirListener: (requestId: string, cb: (result: unknown) => void) => void
   removeDirListener: (requestId: string) => void
   resolveDir: (requestId: string, result: unknown) => void
+  addConfigListener: (requestId: string, cb: (result: unknown) => void) => void
+  removeConfigListener: (requestId: string) => void
+  resolveConfig: (requestId: string, result: unknown) => void
+  broadcastToWrappersAtCwd: (cwd: string, message: Record<string, unknown>) => number
   addFileListener: (requestId: string, cb: (result: unknown) => void) => void
   removeFileListener: (requestId: string) => void
   resolveFile: (requestId: string, result: unknown) => boolean
@@ -1952,7 +1957,13 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     if (agentSocket) return false // reject - already connected
     agentSocket = ws
     agentInfo = info
-    broadcast({ type: 'agent_status', connected: true, machineId: info?.machineId, hostname: info?.hostname })
+    broadcast({
+      type: 'agent_status',
+      connected: true,
+      capabilities: ['config_rw'],
+      machineId: info?.machineId,
+      hostname: info?.hostname,
+    })
     return true
   }
 
@@ -2271,7 +2282,12 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         // authoritative source. Assistant messages strip context-window suffixes
         // like [1m], so only use them when we have nothing better.
         const assistantModel = assistantEntry.message?.model
-        if (assistantModel && typeof assistantModel === 'string' && assistantModel !== '<synthetic>' && !session.model) {
+        if (
+          assistantModel &&
+          typeof assistantModel === 'string' &&
+          assistantModel !== '<synthetic>' &&
+          !session.model
+        ) {
           session.model = assistantModel
         }
 
@@ -2552,6 +2568,38 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       dirListeners.delete(requestId)
       cb(result)
     }
+  }
+
+  const configListeners = new Map<string, (result: unknown) => void>()
+  function addConfigListener(requestId: string, cb: (result: unknown) => void) {
+    configListeners.set(requestId, cb)
+  }
+  function removeConfigListener(requestId: string) {
+    configListeners.delete(requestId)
+  }
+  function resolveConfig(requestId: string, result: unknown) {
+    const cb = configListeners.get(requestId)
+    if (cb) {
+      configListeners.delete(requestId)
+      cb(result)
+    }
+  }
+
+  function broadcastToWrappersAtCwd(cwd: string, message: Record<string, unknown>): number {
+    const json = JSON.stringify(message)
+    let count = 0
+    for (const [sessionId, session] of sessions) {
+      if (session.cwd !== cwd) continue
+      const wrappers = sessionSockets.get(sessionId)
+      if (!wrappers) continue
+      for (const ws of wrappers.values()) {
+        try {
+          ws.send(json)
+          count++
+        } catch {}
+      }
+    }
+    return count
   }
 
   // ─── Pending Launch Configs (wrapperId -> LaunchConfig) ─────────────
@@ -3081,6 +3129,10 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     addDirListener,
     removeDirListener,
     resolveDir,
+    addConfigListener,
+    removeConfigListener,
+    resolveConfig,
+    broadcastToWrappersAtCwd,
     addFileListener,
     removeFileListener,
     resolveFile,

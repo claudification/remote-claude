@@ -255,6 +255,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { PermissionRulesEditor } from '@/components/settings/permission-rules-editor'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import {
   deleteProjectSettings,
@@ -999,6 +1000,15 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
             <div className="text-[9px] text-muted-foreground mt-0.5">
               Passed as --model flag when launching sessions
             </div>
+          </div>
+
+          {/* Permission rules (rclaude.json) */}
+          <div className="border-t border-border pt-3">
+            <div className="text-accent text-[10px] font-bold uppercase tracking-wider mb-2">Permission Rules</div>
+            <div className="text-[9px] text-muted-foreground mb-2">
+              Auto-approve Write/Edit/Read on protected paths (.claude/, .git/). Stored in .rclaude/rclaude.json.
+            </div>
+            <PermissionRulesEditor cwd={cwd} />
           </div>
         </div>
 

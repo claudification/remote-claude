@@ -33,6 +33,7 @@ interface RulesEngine {
   getSessionRules(): string[]
   getProjectRulesSummary(): Record<string, string[]>
   isPlanModeAllowed(): boolean
+  reload(): void
 }
 
 function matchGlob(pattern: string, value: string): boolean {
@@ -134,6 +135,20 @@ export function createRulesEngine(cwd: string): RulesEngine {
       if (process.env.RCLAUDE_NO_PLAN_MODE === '1') return false
       // rclaude.json setting (default: true)
       return projectRules.allowPlanMode !== false
+    },
+
+    reload() {
+      if (existsSync(configPath)) {
+        try {
+          projectRules = JSON.parse(readFileSync(configPath, 'utf-8'))
+        } catch (err) {
+          console.error(
+            `[permission-rules] Reload failed for ${configPath}: ${err instanceof Error ? err.message : err}`,
+          )
+        }
+      } else {
+        projectRules = {}
+      }
     },
   }
 }

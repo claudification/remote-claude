@@ -120,6 +120,7 @@ export interface WsClientOptions {
   ) => void
   onQuitSession?: () => void
   onInterrupt?: () => void
+  onConfigUpdated?: () => void
   /**
    * Control verb delivered by concentrator (dashboard self-control or inter-session MCP).
    * Backend-specific dispatch lives in the wrapper -- this callback is just the entry point.
@@ -213,6 +214,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onPlanApprovalResponse,
     onQuitSession,
     onInterrupt,
+    onConfigUpdated,
     onControl,
     onDiag,
   } = options
@@ -399,6 +401,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
               break
             case 'transcript_kick':
               onTranscriptKick?.()
+              break
+            case 'notify_config_updated':
+              onConfigUpdated?.()
               break
             case 'channel_sessions_list':
               onChannelSessionsList?.(message.sessions)

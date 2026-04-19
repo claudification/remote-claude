@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>rclaude config</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #1a1b26;
+      --bg-surface: #24283b;
+      --bg-hover: #292e42;
+      --bg-input: #1e2030;
+      --border: #3b4261;
+      --border-focus: #7aa2f7;
+      --text: #c0caf5;
+      --text-muted: #565f89;
+      --text-dim: #414868;
+      --accent: #7aa2f7;
+      --accent-hover: #89b4fa;
+      --green: #9ece6a;
+      --green-dim: #9ece6a33;
+      --red: #f7768e;
+      --red-dim: #f7768e33;
+      --amber: #e0af68;
+      --amber-dim: #e0af6833;
+      --purple: #bb9af7;
+      --purple-dim: #bb9af733;
+      --cyan: #7dcfff;
+      --orange: #ff9e64;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    /* ── Header ─────────────────────────────────────── */
+    .header {
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .header h1 {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+    .header .meta {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .header .meta span {
+      color: var(--text-dim);
+    }
+    .header .meta .path {
+      color: var(--text);
+    }
+
+    /* ── Presets ─────────────────────────────────────── */
+    .presets {
+      margin-bottom: 1.5rem;
+    }
+    .presets-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+    .presets-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .preset-btn {
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 0.4rem 0.75rem;
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .preset-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--bg-hover);
+    }
+    .preset-btn.hero {
+      border-color: var(--green);
+      color: var(--green);
+      background: var(--green-dim);
+      font-size: 12px;
+      padding: 0.5rem 1rem;
+    }
+    .preset-btn.hero:hover {
+      background: #9ece6a44;
+      border-color: var(--green);
+    }
+    .preset-btn.danger {
+      border-color: var(--red);
+      color: var(--red);
+      background: var(--red-dim);
+    }
+    .preset-btn.danger:hover {
+      background: #f7768e44;
+    }
+
+    /* ── Layout ──────────────────────────────────────── */
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    @media (max-width: 700px) {
+      .main { grid-template-columns: 1fr; }
+    }
+
+    /* ── Sections ────────────────────────────────────── */
+    .section {
+      margin-bottom: 1.25rem;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+    }
+    .section-line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .section-count {
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    /* ── Glob list ───────────────────────────────────── */
+    .glob-list {
+      list-style: none;
+      margin-bottom: 0.5rem;
+    }
+    .glob-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.3rem 0.5rem;
+      border: 1px solid transparent;
+      transition: all 0.1s;
+    }
+    .glob-item:hover {
+      background: var(--bg-hover);
+      border-color: var(--border);
+    }
+    .glob-item .pattern {
+      flex: 1;
+      font-size: 12px;
+    }
+    .glob-item.builtin .pattern {
+      color: var(--text-dim);
+    }
+    .glob-item .badge {
+      font-size: 9px;
+      padding: 0.1rem 0.4rem;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .glob-item .remove-btn {
+      font-family: inherit;
+      font-size: 14px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      padding: 0 0.25rem;
+      line-height: 1;
+      transition: color 0.1s;
+      visibility: hidden;
+    }
+    .glob-item:hover .remove-btn {
+      visibility: visible;
+    }
+    .glob-item .remove-btn:hover {
+      color: var(--red);
+    }
+
+    .empty-state {
+      font-size: 11px;
+      color: var(--text-dim);
+      padding: 0.3rem 0.5rem;
+      font-style: italic;
+    }
+
+    /* ── Add input ───────────────────────────────────── */
+    .add-row {
+      display: flex;
+      gap: 0.25rem;
+    }
+    .add-input {
+      flex: 1;
+      font-family: inherit;
+      font-size: 12px;
+      padding: 0.35rem 0.5rem;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .add-input:focus {
+      border-color: var(--border-focus);
+    }
+    .add-input::placeholder {
+      color: var(--text-dim);
+    }
+    .add-btn {
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 0.35rem 0.75rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.1s;
+    }
+    .add-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .add-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    /* ── Link toggle ─────────────────────────────────── */
+    .link-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      padding: 0.4rem 0.5rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+    }
+    .link-row label {
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .link-row input[type="checkbox"] {
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    /* ── Options ─────────────────────────────────────── */
+    .option-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.5rem;
+      margin-bottom: 0.25rem;
+    }
+    .option-row label {
+      font-size: 11px;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+    .option-row input[type="checkbox"] {
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .option-desc {
+      font-size: 10px;
+      color: var(--text-dim);
+      padding-left: 0.5rem;
+    }
+
+    /* ── Preview panel ───────────────────────────────── */
+    .preview-panel {
+      position: sticky;
+      top: 2rem;
+    }
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+    .preview-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+    }
+    .preview-code {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      padding: 1rem;
+      font-size: 11px;
+      line-height: 1.5;
+      overflow-x: auto;
+      white-space: pre;
+      color: var(--text);
+      margin-bottom: 1rem;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    /* ── Actions ─────────────────────────────────────── */
+    .actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .action-btn {
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .action-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--bg-hover);
+    }
+    .action-btn.primary {
+      border-color: var(--accent);
+      background: #7aa2f733;
+      color: var(--accent);
+    }
+    .action-btn.primary:hover {
+      background: #7aa2f755;
+    }
+    .action-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* ── Toast ───────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      padding: 0.6rem 1rem;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.2s;
+      pointer-events: none;
+      z-index: 100;
+    }
+    .toast.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .toast.success {
+      background: var(--green-dim);
+      border-color: var(--green);
+      color: var(--green);
+    }
+    .toast.error {
+      background: var(--red-dim);
+      border-color: var(--red);
+      color: var(--red);
+    }
+    .toast.info {
+      background: #7aa2f733;
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── Dirty indicator ─────────────────────────────── */
+    .dirty-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--amber);
+      margin-left: 0.5rem;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .dirty-dot.visible { opacity: 1; }
+
+    /* ── Suggestions ─────────────────────────────────── */
+    .suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      margin-top: 0.25rem;
+    }
+    .suggestion {
+      font-family: inherit;
+      font-size: 10px;
+      padding: 0.15rem 0.5rem;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.1s;
+    }
+    .suggestion:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>rclaude config<span class="dirty-dot" id="dirty"></span></h1>
+    <div class="meta">
+      <span>project</span> <span class="path" id="project-path">...</span><br>
+      <span>config</span> <span class="path" id="config-path">...</span>
+    </div>
+  </div>
+
+  <div class="presets">
+    <div class="presets-label">Presets</div>
+    <div class="presets-grid">
+      <button class="preset-btn hero" onclick="applyPreset('always-allow-claude')">
+        Always allow .claude/
+      </button>
+      <button class="preset-btn" onclick="applyPreset('docs-notes')">
+        Docs &amp; notes
+      </button>
+      <button class="preset-btn" onclick="applyPreset('claude-md-only')">
+        CLAUDE.md only
+      </button>
+      <button class="preset-btn" onclick="applyPreset('rclaude-full')">
+        Full .rclaude/
+      </button>
+      <button class="preset-btn danger" onclick="applyPreset('reset')">
+        Reset
+      </button>
+    </div>
+  </div>
+
+  <div class="link-row">
+    <input type="checkbox" id="link-toggle" checked onchange="state.linked = this.checked">
+    <label for="link-toggle">Sync Write &amp; Edit rules (changes to one apply to both)</label>
+  </div>
+
+  <div class="main">
+    <div class="editor-col">
+      <!-- Write -->
+      <div class="section" id="section-Write">
+        <div class="section-header">
+          <span class="section-title">Write permissions</span>
+          <span class="section-line"></span>
+          <span class="section-count" id="count-Write">0</span>
+        </div>
+        <ul class="glob-list" id="list-Write"></ul>
+        <div class="add-row">
+          <input class="add-input" id="input-Write" placeholder=".claude/settings/**"
+                 onkeydown="if(event.key==='Enter')addGlob('Write')">
+          <button class="add-btn" onclick="addGlob('Write')">+</button>
+        </div>
+        <div class="suggestions" id="suggest-Write"></div>
+      </div>
+
+      <!-- Edit -->
+      <div class="section" id="section-Edit">
+        <div class="section-header">
+          <span class="section-title">Edit permissions</span>
+          <span class="section-line"></span>
+          <span class="section-count" id="count-Edit">0</span>
+        </div>
+        <ul class="glob-list" id="list-Edit"></ul>
+        <div class="add-row">
+          <input class="add-input" id="input-Edit" placeholder=".claude/settings/**"
+                 onkeydown="if(event.key==='Enter')addGlob('Edit')">
+          <button class="add-btn" onclick="addGlob('Edit')">+</button>
+        </div>
+        <div class="suggestions" id="suggest-Edit"></div>
+      </div>
+
+      <!-- Read -->
+      <div class="section" id="section-Read">
+        <div class="section-header">
+          <span class="section-title">Read permissions</span>
+          <span class="section-line"></span>
+          <span class="section-count" id="count-Read">0</span>
+        </div>
+        <ul class="glob-list" id="list-Read"></ul>
+        <div class="add-row">
+          <input class="add-input" id="input-Read" placeholder=".secret/**"
+                 onkeydown="if(event.key==='Enter')addGlob('Read')">
+          <button class="add-btn" onclick="addGlob('Read')">+</button>
+        </div>
+        <div class="suggestions" id="suggest-Read"></div>
+      </div>
+
+      <!-- Options -->
+      <div class="section">
+        <div class="section-header">
+          <span class="section-title">Options</span>
+          <span class="section-line"></span>
+        </div>
+        <div class="option-row">
+          <input type="checkbox" id="opt-planmode" checked onchange="state.allowPlanMode = this.checked; markDirty(); render()">
+          <label for="opt-planmode">Allow plan mode</label>
+        </div>
+        <div class="option-desc">
+          When disabled, sessions in this project cannot enter plan mode.
+          Override per-session with RCLAUDE_NO_PLAN_MODE=1.
+        </div>
+      </div>
+    </div>
+
+    <div class="preview-col">
+      <div class="preview-panel">
+        <div class="preview-header">
+          <span class="preview-title">rclaude.json</span>
+        </div>
+        <div class="preview-code" id="preview"></div>
+        <div class="actions">
+          <button class="action-btn primary" id="save-btn" onclick="saveConfig()">Save</button>
+          <button class="action-btn" onclick="copyJson()">Copy JSON</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const BUILTINS = ['.rclaude/project/**', '.rclaude/docs/**']
+const COMMON_GLOBS = [
+  '.claude/**',
+  '.claude/docs/**',
+  '.claude/notes/**',
+  '.claude/lessons-learned/**',
+  '.claude/CLAUDE.md',
+  '.claude/settings.json',
+  '.claude/settings.local.json',
+  'CHANGELOG.md',
+  'docs/**',
+  '*.md',
+]
+
+const PRESETS = {
+  'always-allow-claude': {
+    Write: ['.claude/**'],
+    Edit: ['.claude/**'],
+    Read: ['.claude/**'],
+  },
+  'docs-notes': {
+    Write: ['.claude/docs/**', '.claude/notes/**', '.claude/lessons-learned/**'],
+    Edit: ['.claude/docs/**', '.claude/notes/**', '.claude/lessons-learned/**'],
+    Read: [],
+  },
+  'claude-md-only': {
+    Write: ['.claude/CLAUDE.md'],
+    Edit: ['.claude/CLAUDE.md'],
+    Read: [],
+  },
+  'rclaude-full': {
+    Write: ['.rclaude/**'],
+    Edit: ['.rclaude/**'],
+    Read: ['.rclaude/**'],
+  },
+  reset: {
+    Write: [],
+    Edit: [],
+    Read: [],
+  },
+}
+
+const state = {
+  Write: [],
+  Edit: [],
+  Read: [],
+  allowPlanMode: true,
+  linked: true,
+  dirty: false,
+  original: null,
+}
+
+function markDirty() {
+  state.dirty = true
+  document.getElementById('dirty').classList.add('visible')
+}
+
+function markClean() {
+  state.dirty = false
+  document.getElementById('dirty').classList.remove('visible')
+}
+
+function showToast(msg, type = 'info') {
+  const el = document.getElementById('toast')
+  el.textContent = msg
+  el.className = `toast ${type} visible`
+  clearTimeout(el._timer)
+  el._timer = setTimeout(() => el.classList.remove('visible'), 2500)
+}
+
+function buildConfig() {
+  const config = {
+    $schema: 'https://raw.githubusercontent.com/claudification/remote-claude/main/schemas/rclaude.schema.json',
+  }
+  const perms = {}
+  for (const tool of ['Write', 'Edit', 'Read']) {
+    if (state[tool].length > 0) {
+      perms[tool] = { allow: [...state[tool]] }
+    }
+  }
+  if (Object.keys(perms).length > 0) config.permissions = perms
+  if (state.allowPlanMode === false) config.allowPlanMode = false
+  return config
+}
+
+function render() {
+  for (const tool of ['Write', 'Edit', 'Read']) {
+    const list = document.getElementById(`list-${tool}`)
+    const count = document.getElementById(`count-${tool}`)
+    const suggestEl = document.getElementById(`suggest-${tool}`)
+
+    // render glob items
+    let html = ''
+    for (const pattern of BUILTINS) {
+      html += `<li class="glob-item builtin">
+        <span class="pattern">${esc(pattern)}</span>
+        <span class="badge">built-in</span>
+      </li>`
+    }
+    for (const pattern of state[tool]) {
+      html += `<li class="glob-item">
+        <span class="pattern">${esc(pattern)}</span>
+        <button class="remove-btn" onclick="removeGlob('${tool}', '${esc(pattern)}')" title="Remove">x</button>
+      </li>`
+    }
+    if (state[tool].length === 0) {
+      html += '<li class="empty-state">no custom rules</li>'
+    }
+    list.innerHTML = html
+    count.textContent = state[tool].length
+
+    // render suggestions (globs not already in the list)
+    const existing = new Set([...BUILTINS, ...state[tool]])
+    const suggestions = COMMON_GLOBS.filter(g => !existing.has(g))
+    suggestEl.innerHTML = suggestions.slice(0, 5).map(g =>
+      `<button class="suggestion" onclick="addGlobDirect('${tool}', '${esc(g)}')">${esc(g)}</button>`
+    ).join('')
+  }
+
+  // plan mode checkbox
+  document.getElementById('opt-planmode').checked = state.allowPlanMode !== false
+
+  // preview
+  const config = buildConfig()
+  document.getElementById('preview').textContent = JSON.stringify(config, null, 2)
+}
+
+function esc(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
+function addGlob(tool) {
+  const input = document.getElementById(`input-${tool}`)
+  const pattern = input.value.trim()
+  if (!pattern) return
+  addGlobDirect(tool, pattern)
+  input.value = ''
+  input.focus()
+}
+
+function addGlobDirect(tool, pattern) {
+  if (state[tool].includes(pattern)) return
+
+  state[tool].push(pattern)
+
+  // sync linked tool
+  if (state.linked && (tool === 'Write' || tool === 'Edit')) {
+    const other = tool === 'Write' ? 'Edit' : 'Write'
+    if (!state[other].includes(pattern)) {
+      state[other].push(pattern)
+    }
+  }
+
+  markDirty()
+  render()
+}
+
+function removeGlob(tool, pattern) {
+  state[tool] = state[tool].filter(g => g !== pattern)
+
+  if (state.linked && (tool === 'Write' || tool === 'Edit')) {
+    const other = tool === 'Write' ? 'Edit' : 'Write'
+    state[other] = state[other].filter(g => g !== pattern)
+  }
+
+  markDirty()
+  render()
+}
+
+function applyPreset(name) {
+  const preset = PRESETS[name]
+  if (!preset) return
+  state.Write = [...preset.Write]
+  state.Edit = [...preset.Edit]
+  state.Read = [...preset.Read]
+  markDirty()
+  render()
+  showToast(`Applied preset: ${name}`, 'info')
+}
+
+async function saveConfig() {
+  const config = buildConfig()
+  try {
+    const res = await fetch('/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    if (data.error) throw new Error(data.error)
+    markClean()
+    showToast('Saved. New sessions will pick up these rules.', 'success')
+  } catch (err) {
+    showToast(`Save failed: ${err.message}`, 'error')
+  }
+}
+
+async function copyJson() {
+  const json = JSON.stringify(buildConfig(), null, 2)
+  try {
+    await navigator.clipboard.writeText(json)
+    showToast('Copied to clipboard', 'info')
+  } catch {
+    // fallback
+    const ta = document.createElement('textarea')
+    ta.value = json
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    ta.remove()
+    showToast('Copied to clipboard', 'info')
+  }
+}
+
+async function loadConfig() {
+  try {
+    const res = await fetch('/api/config')
+    const data = await res.json()
+
+    document.getElementById('project-path').textContent = data.project
+    document.getElementById('config-path').textContent = data.path
+
+    if (data.config) {
+      const perms = data.config.permissions || {}
+      state.Write = perms.Write?.allow ? [...perms.Write.allow] : []
+      state.Edit = perms.Edit?.allow ? [...perms.Edit.allow] : []
+      state.Read = perms.Read?.allow ? [...perms.Read.allow] : []
+      state.allowPlanMode = data.config.allowPlanMode !== false
+
+      // detect if Write and Edit are already synced
+      const writeSet = new Set(state.Write)
+      const editSet = new Set(state.Edit)
+      state.linked = state.Write.length === state.Edit.length &&
+        state.Write.every(g => editSet.has(g))
+      document.getElementById('link-toggle').checked = state.linked
+    }
+
+    state.original = JSON.stringify(buildConfig())
+    render()
+  } catch (err) {
+    showToast(`Load failed: ${err.message}`, 'error')
+  }
+}
+
+// keyboard shortcut: Cmd+S / Ctrl+S to save
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+    e.preventDefault()
+    saveConfig()
+  }
+})
+
+loadConfig()
+</script>
+</body>
+</html>

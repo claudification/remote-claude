@@ -6,6 +6,7 @@
     "dev:wrapper": "bun run src/wrapper/index.ts",
     "dev:concentrator": "bun run src/concentrator/index.ts",
     "dev:web": "cd web && bun run dev",
+    "config": "bun run scripts/rclaude-config.ts",
     "build": "bun run gen-version && bun run build:server && bun run build:client",
     "build:server": "bun run build:web && bun run build:concentrator && bun run build:cli",
     "build:client": "bun run build:wrapper && bun run build:agent",
