@@ -228,6 +228,14 @@ const sessionInfo: MessageHandler = (ctx, data) => {
   }
   ;(session as unknown as Record<string, unknown>).sessionInfo = nextSnapshot
 
+  // CC's stream-json init reports the full model ID including [1m] suffix,
+  // but assistant message `model` fields strip it. Use init as the
+  // authoritative source for configuredModel (context window detection).
+  const initModel = data.model as string | undefined
+  if (initModel && !session.configuredModel) {
+    session.configuredModel = initModel
+  }
+
   // Diff against the previous snapshot (if any) and emit one transcript entry
   // per meaningful change. Only on subsequent snapshots -- the first
   // session_info is the initial state captured already by launch_event init_received,
