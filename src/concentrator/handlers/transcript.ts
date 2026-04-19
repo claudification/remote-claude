@@ -232,7 +232,7 @@ const sessionInfo: MessageHandler = (ctx, data) => {
   // but assistant message `model` fields strip it. Use init as the
   // authoritative source for configuredModel (context window detection).
   const initModel = data.model as string | undefined
-  if (initModel && !session.configuredModel) {
+  if (initModel) {
     session.configuredModel = initModel
   }
 
