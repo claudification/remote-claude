@@ -23,8 +23,6 @@ import type {
   ConcentratorAgentMessage,
   ExtraUsage,
   ListDirsResult,
-  RclaudeConfigGet,
-  RclaudeConfigSet,
   ReviveResult,
   SpawnFailed,
   SpawnResult,
@@ -1426,62 +1424,6 @@ function connect(
             error: dirResult.error,
           }
           ws.send(JSON.stringify(dirResponse))
-          break
-        }
-
-        case 'rclaude_config_get': {
-          const cfgMsg = msg as unknown as RclaudeConfigGet
-          const cfgPath = join(cfgMsg.cwd, '.rclaude', 'rclaude.json')
-          debug(`Config read: ${cfgPath}`, verbose)
-          try {
-            const raw = existsSync(cfgPath) ? readFileSync(cfgPath, 'utf-8') : null
-            ws.send(
-              JSON.stringify({
-                type: 'rclaude_config_data',
-                requestId: cfgMsg.requestId,
-                config: raw ? JSON.parse(raw) : null,
-                path: cfgPath,
-                cwd: cfgMsg.cwd,
-              }),
-            )
-          } catch (err) {
-            ws.send(
-              JSON.stringify({
-                type: 'rclaude_config_data',
-                requestId: cfgMsg.requestId,
-                config: null,
-                path: cfgPath,
-                cwd: cfgMsg.cwd,
-              }),
-            )
-          }
-          break
-        }
-
-        case 'rclaude_config_set': {
-          const setMsg = msg as unknown as RclaudeConfigSet
-          const setCfgPath = join(setMsg.cwd, '.rclaude', 'rclaude.json')
-          debug(`Config write: ${setCfgPath}`, verbose)
-          try {
-            const dir = join(setMsg.cwd, '.rclaude')
-            if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-            const configWithSchema = {
-              $schema:
-                'https://raw.githubusercontent.com/claudification/remote-claude/main/schemas/rclaude.schema.json',
-              ...setMsg.config,
-            }
-            writeFileSync(setCfgPath, `${JSON.stringify(configWithSchema, null, 2)}\n`)
-            ws.send(JSON.stringify({ type: 'rclaude_config_ok', requestId: setMsg.requestId, ok: true }))
-          } catch (err) {
-            ws.send(
-              JSON.stringify({
-                type: 'rclaude_config_ok',
-                requestId: setMsg.requestId,
-                ok: false,
-                error: err instanceof Error ? err.message : String(err),
-              }),
-            )
-          }
           break
         }
       }

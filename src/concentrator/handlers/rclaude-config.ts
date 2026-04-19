@@ -1,76 +1,84 @@
 /**
- * Handlers for .rclaude/rclaude.json config read/write via the host agent.
+ * Handlers for .rclaude/rclaude.json config read/write via the wrapper.
  *
- * Dashboard -> concentrator -> agent -> filesystem.
+ * Follows the same pattern as file_request/file_save:
+ *   dashboard -> concentrator -> wrapper (by CWD) -> filesystem
+ *   wrapper response -> concentrator -> broadcastScoped to dashboard
+ *
  * After a successful save, broadcasts notify_config_updated to all
  * wrappers at the target CWD so they hot-reload permission rules.
  */
 
-import { randomUUID } from 'node:crypto'
-import type { RclaudeConfigData, RclaudeConfigOk } from '../../shared/protocol'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
-const CONFIG_TIMEOUT_MS = 5000
-
-const rclaudeConfigGet: MessageHandler = async (ctx, data) => {
-  ctx.requirePermission('settings', data.cwd as string)
-  const agent = ctx.requireAgent()
-  const cwd = data.cwd as string
-  const requestId = randomUUID()
-
-  const result = await new Promise<RclaudeConfigData>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      ctx.sessions.removeConfigListener(requestId)
-      reject(new Error('Config read timed out'))
-    }, CONFIG_TIMEOUT_MS)
-
-    ctx.sessions.addConfigListener(requestId, msg => {
-      clearTimeout(timeout)
-      resolve(msg as RclaudeConfigData)
-    })
-
-    agent.send(JSON.stringify({ type: 'rclaude_config_get', requestId, cwd }))
-  })
-
-  ctx.reply(result as unknown as Record<string, unknown>)
+function findWrapperSocketByCwd(ctx: Parameters<MessageHandler>[0], cwd: string) {
+  for (const session of ctx.sessions.getAllSessions()) {
+    if (session.cwd !== cwd) continue
+    const socket = ctx.sessions.getSessionSocket(session.id)
+    if (socket) return { socket, session }
+  }
+  return undefined
 }
 
-const rclaudeConfigSet: MessageHandler = async (ctx, data) => {
-  ctx.requirePermission('settings', data.cwd as string)
-  const agent = ctx.requireAgent()
+const rclaudeConfigGet: MessageHandler = (ctx, data) => {
   const cwd = data.cwd as string
-  const config = data.config
-  const requestId = randomUUID()
+  if (!cwd) return
+  ctx.requirePermission('settings', cwd)
 
-  const result = await new Promise<RclaudeConfigOk>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      ctx.sessions.removeConfigListener(requestId)
-      reject(new Error('Config save timed out'))
-    }, CONFIG_TIMEOUT_MS)
-
-    ctx.sessions.addConfigListener(requestId, msg => {
-      clearTimeout(timeout)
-      resolve(msg as RclaudeConfigOk)
+  const target = findWrapperSocketByCwd(ctx, cwd)
+  if (target) {
+    target.socket.send(JSON.stringify(data))
+  } else {
+    ctx.reply({
+      type: 'rclaude_config_data',
+      requestId: data.requestId,
+      config: null,
+      cwd,
+      error: 'No session connected at this CWD',
     })
-
-    agent.send(JSON.stringify({ type: 'rclaude_config_set', requestId, cwd, config }))
-  })
-
-  if (result.ok) {
-    const notified = ctx.sessions.broadcastToWrappersAtCwd(cwd, { type: 'notify_config_updated' })
-    ctx.log.info(`Config saved for ${cwd} -- notified ${notified} wrapper(s)`)
   }
+}
 
-  ctx.reply(result as unknown as Record<string, unknown>)
+const rclaudeConfigSet: MessageHandler = (ctx, data) => {
+  const cwd = data.cwd as string
+  if (!cwd) return
+  ctx.requirePermission('settings', cwd)
+
+  const target = findWrapperSocketByCwd(ctx, cwd)
+  if (target) {
+    target.socket.send(JSON.stringify(data))
+  } else {
+    ctx.reply({
+      type: 'rclaude_config_ok',
+      requestId: data.requestId,
+      ok: false,
+      error: 'No session connected at this CWD',
+    })
+  }
 }
 
 const rclaudeConfigData: MessageHandler = (ctx, data) => {
-  ctx.sessions.resolveConfig(data.requestId as string, data)
+  const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
+  const session = sessionId ? ctx.sessions.getSession(sessionId) : undefined
+  if (session?.cwd) ctx.broadcastScoped(data, session.cwd)
+  else ctx.broadcast(data)
 }
 
 const rclaudeConfigOk: MessageHandler = (ctx, data) => {
-  ctx.sessions.resolveConfig(data.requestId as string, data)
+  const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
+  const session = sessionId ? ctx.sessions.getSession(sessionId) : undefined
+  const cwd = session?.cwd
+
+  if (cwd) {
+    ctx.broadcastScoped(data, cwd)
+    if (data.ok) {
+      const notified = ctx.sessions.broadcastToWrappersAtCwd(cwd, { type: 'notify_config_updated' })
+      ctx.log.info(`Config saved for ${cwd} -- notified ${notified} wrapper(s)`)
+    }
+  } else {
+    ctx.broadcast(data)
+  }
 }
 
 export function registerRclaudeConfigHandlers(): void {

@@ -1060,6 +1060,47 @@ async function main() {
         permissionRules.reload()
         diag('info', 'Permission rules reloaded (notify_config_updated)')
       },
+      onConfigGet(requestId: string) {
+        const cfgPath = join(cwd, '.rclaude', 'rclaude.json')
+        try {
+          const raw = existsSync(cfgPath) ? readFileSync(cfgPath, 'utf-8') : null
+          ctx.wsClient?.send({
+            type: 'rclaude_config_data',
+            requestId,
+            config: raw ? JSON.parse(raw) : null,
+            path: cfgPath,
+            cwd,
+          } as unknown as WrapperMessage)
+        } catch {
+          ctx.wsClient?.send({
+            type: 'rclaude_config_data',
+            requestId,
+            config: null,
+            path: cfgPath,
+            cwd,
+          } as unknown as WrapperMessage)
+        }
+      },
+      onConfigSet(requestId: string, config: import('../shared/protocol').RclaudePermissionConfig) {
+        const cfgPath = join(cwd, '.rclaude', 'rclaude.json')
+        try {
+          const dir = join(cwd, '.rclaude')
+          if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+          const withSchema = {
+            $schema: 'https://raw.githubusercontent.com/claudification/remote-claude/main/schemas/rclaude.schema.json',
+            ...config,
+          }
+          writeFileSync(cfgPath, `${JSON.stringify(withSchema, null, 2)}\n`)
+          ctx.wsClient?.send({ type: 'rclaude_config_ok', requestId, ok: true } as unknown as WrapperMessage)
+        } catch (err) {
+          ctx.wsClient?.send({
+            type: 'rclaude_config_ok',
+            requestId,
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          } as unknown as WrapperMessage)
+        }
+      },
       onTranscriptKick() {
         // Concentrator detected we have events but no transcript - retry the watcher
         if (!ctx.transcriptWatcher && ctx.parentTranscriptPath) {

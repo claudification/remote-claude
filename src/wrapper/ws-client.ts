@@ -121,6 +121,8 @@ export interface WsClientOptions {
   onQuitSession?: () => void
   onInterrupt?: () => void
   onConfigUpdated?: () => void
+  onConfigGet?: (requestId: string) => void
+  onConfigSet?: (requestId: string, config: import('../shared/protocol').RclaudePermissionConfig) => void
   /**
    * Control verb delivered by concentrator (dashboard self-control or inter-session MCP).
    * Backend-specific dispatch lives in the wrapper -- this callback is just the entry point.
@@ -215,6 +217,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onQuitSession,
     onInterrupt,
     onConfigUpdated,
+    onConfigGet,
+    onConfigSet,
     onControl,
     onDiag,
   } = options
@@ -404,6 +408,12 @@ export function createWsClient(options: WsClientOptions): WsClient {
               break
             case 'notify_config_updated':
               onConfigUpdated?.()
+              break
+            case 'rclaude_config_get':
+              onConfigGet?.(message.requestId)
+              break
+            case 'rclaude_config_set':
+              onConfigSet?.(message.requestId, message.config)
               break
             case 'channel_sessions_list':
               onChannelSessionsList?.(message.sessions)

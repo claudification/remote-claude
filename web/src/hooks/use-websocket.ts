@@ -485,7 +485,7 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'agent_status': {
       if (msg.connected !== undefined) {
-        useSessionsStore.getState().setAgentConnected(msg.connected, msg.capabilities as string[] | undefined)
+        useSessionsStore.getState().setAgentConnected(msg.connected)
       }
       break
     }

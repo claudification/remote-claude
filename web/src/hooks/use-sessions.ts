@@ -106,7 +106,6 @@ interface SessionsState {
   syncEpoch: string // server epoch (changes on server restart)
   syncSeq: number // last received sequence number
   agentConnected: boolean
-  agentCapabilities: string[]
   planUsage: UsageUpdate | null
   error: string | null
   authExpired: boolean
@@ -203,7 +202,7 @@ interface SessionsState {
   setProjectSettings: (settings: ProjectSettingsMap) => void
   setProjectOrder: (order: ProjectOrder) => void
   setConnected: (connected: boolean) => void
-  setAgentConnected: (connected: boolean, capabilities?: string[]) => void
+  setAgentConnected: (connected: boolean) => void
   setPlanUsage: (usage: UsageUpdate) => void
   setError: (error: string | null) => void
   setAuthExpired: (expired: boolean) => void
@@ -379,7 +378,6 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   syncEpoch: '',
   syncSeq: 0,
   agentConnected: false,
-  agentCapabilities: [],
   planUsage: null,
   error: null,
   authExpired: false,
@@ -707,8 +705,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       isConnected: connected,
       ...(connected && { connectSeq: state.connectSeq + 1 }),
     })),
-  setAgentConnected: (connected, capabilities) =>
-    set({ agentConnected: connected, agentCapabilities: connected ? capabilities || [] : [] }),
+  setAgentConnected: connected => set({ agentConnected: connected }),
   setPlanUsage: usage => set({ planUsage: usage }),
   setError: error => set({ error }),
   setAuthExpired: authExpired => set({ authExpired }),

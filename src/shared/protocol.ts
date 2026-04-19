@@ -760,6 +760,8 @@ export type ConcentratorMessage =
   | DialogResultMessage
   | PlanApprovalResponse
   | NotifyConfigUpdated
+  | RclaudeConfigGet
+  | RclaudeConfigSet
 
 export interface NotifyConfigUpdated {
   type: 'notify_config_updated'
@@ -1400,22 +1402,12 @@ export interface AgentReject {
   reason: string
 }
 
-export type ConcentratorAgentMessage =
-  | ReviveSession
-  | SpawnSession
-  | ListDirs
-  | RclaudeConfigGet
-  | RclaudeConfigSet
-  | AgentQuit
-  | AgentReject
+export type ConcentratorAgentMessage = ReviveSession | SpawnSession | ListDirs | AgentQuit | AgentReject
 
 // Dashboard broadcast: agent status
-export type AgentCapability = 'config_rw'
-
 export interface AgentStatus {
   type: 'agent_status'
   connected: boolean
-  capabilities?: AgentCapability[]
 }
 
 // Session summary: concentrator -> dashboard wire format
