@@ -95,8 +95,8 @@ export function PermissionRulesEditor({ cwd }: PermissionRulesEditorProps) {
   }, [cwd])
 
   useEffect(() => {
-    loadConfig()
-  }, [loadConfig])
+    if (hasConfigRw) loadConfig()
+  }, [loadConfig, hasConfigRw])
 
   function showToast(msg: string) {
     setToast(msg)
