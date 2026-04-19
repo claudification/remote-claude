@@ -600,6 +600,30 @@ function Dashboard() {
   )
 
   useCommand(
+    'switch-session',
+    () => {
+      const { sessionMru, sessions, selectSession } = useSessionsStore.getState()
+      const prev = sessionMru.slice(1).find(id => sessions.some(s => s.id === id))
+      if (prev) selectSession(prev, 'ctrl-tab')
+    },
+    { label: 'Switch to previous session', shortcut: 'ctrl+Tab', group: 'Navigation' },
+  )
+
+  const keepMicOpen = useSessionsStore(s => s.dashboardPrefs.keepMicOpen)
+  useCommand(
+    'toggle-keep-mic-open',
+    () => {
+      const store = useSessionsStore.getState()
+      const next = !store.dashboardPrefs.keepMicOpen
+      store.updateDashboardPrefs({ keepMicOpen: next })
+      if (next) {
+        import('@/hooks/use-voice-recording').then(m => m.prewarmMicStream())
+      }
+    },
+    { label: keepMicOpen ? 'Keep mic open: ON (disable)' : 'Keep mic open: OFF (enable)', group: 'Voice' },
+  )
+
+  useCommand(
     'clear-reload',
     async () => {
       const { clearCacheAndReload } = await import('@/lib/utils')

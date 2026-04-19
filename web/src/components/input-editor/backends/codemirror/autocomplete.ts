@@ -282,7 +282,10 @@ function sessionArgCompletion(text: string, pos: number): CompletionResult | nul
   return {
     from: hit.start, // replace the leading `:` too — inserted text is the bare slug
     to: pos,
-    options,
+    options: options.map(o => ({
+      ...o,
+      apply: `\`${o.label}\``,
+    })),
     filter: false,
   }
 }
@@ -370,7 +373,7 @@ const tabAcceptKeymap = Prec.highest(
   ]),
 )
 
-export interface AutocompleteOptions {
+interface AutocompleteOptions {
   /**
    * Read sub-command context (project tasks, selectedSessionId) at completion
    * time. Called per completion request so callers can back this with a ref

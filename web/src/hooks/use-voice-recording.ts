@@ -5,15 +5,16 @@
  * transcript parsing, and refinement flow. Used by voice-fab (mobile),
  * voice-key (desktop push-to-talk), and voice-overlay (input bar mic button).
  *
- * Based on the voice-fab implementation (gold standard with yellow uncertain words).
+ * Mic stream is pre-warmed and cached between recordings (30s TTL) to
+ * eliminate getUserMedia() latency on macOS (~2-3s cold, 0ms warm).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSessionsStore } from '@/hooks/use-sessions'
 
-export type VoiceState = 'idle' | 'connecting' | 'recording' | 'refining' | 'submitting' | 'error'
+type VoiceState = 'idle' | 'connecting' | 'recording' | 'refining' | 'submitting' | 'error'
 
-export interface UseVoiceRecordingResult {
+interface UseVoiceRecordingResult {
   state: VoiceState
   interimText: string
   finalText: string
@@ -29,6 +30,87 @@ export interface UseVoiceRecordingResult {
   reset: () => void
 }
 
+// ── Warm mic stream cache ────────────────────────────────────────────
+// Survives across recording cycles. First start() acquires it (cold);
+// subsequent starts reuse it instantly.
+// - Normal mode: released after 30s of inactivity
+// - keepMicOpen mode: released after 30min of inactivity + banner shown
+
+const WARM_STREAM_TTL = 30_000
+const KEEP_MIC_IDLE_TTL = 30 * 60_000
+let warmStream: MediaStream | null = null
+let warmStreamTimer: ReturnType<typeof setTimeout> | null = null
+let micExpiredFlag = false
+const micExpiredListeners = new Set<() => void>()
+
+function isStreamLive(stream: MediaStream | null): stream is MediaStream {
+  if (!stream) return false
+  const track = stream.getAudioTracks()[0]
+  return !!track && track.readyState === 'live'
+}
+
+function setMicExpired(expired: boolean) {
+  if (micExpiredFlag === expired) return
+  micExpiredFlag = expired
+  for (const fn of micExpiredListeners) fn()
+}
+
+export function subscribeMicExpired(fn: () => void): () => void {
+  micExpiredListeners.add(fn)
+  return () => micExpiredListeners.delete(fn)
+}
+
+export function getMicExpired() {
+  return micExpiredFlag
+}
+
+function releaseWarmStream() {
+  const wasKeepOpen = useSessionsStore.getState().dashboardPrefs.keepMicOpen
+  if (warmStream) {
+    for (const t of warmStream.getTracks()) t.stop()
+    warmStream = null
+    console.log(`[voice] warm stream released (${wasKeepOpen ? '30min' : '30s'} idle timeout)`)
+  }
+  warmStreamTimer = null
+  if (wasKeepOpen) setMicExpired(true)
+}
+
+function scheduleStreamRelease() {
+  if (warmStreamTimer) clearTimeout(warmStreamTimer)
+  const keepOpen = useSessionsStore.getState().dashboardPrefs.keepMicOpen
+  const ttl = keepOpen ? KEEP_MIC_IDLE_TTL : WARM_STREAM_TTL
+  warmStreamTimer = setTimeout(releaseWarmStream, ttl)
+  if (keepOpen) console.log('[voice] keepMicOpen: mic idle timer set (30min)')
+}
+
+const MIC_CONSTRAINTS: MediaStreamConstraints = {
+  audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true },
+}
+
+/** Pre-warm the mic stream (fire-and-forget). Call on mount when keepMicOpen is enabled. */
+export function prewarmMicStream() {
+  setMicExpired(false)
+  if (isStreamLive(warmStream)) return
+  acquireMicStream().catch(err => console.warn('[voice] prewarm failed:', err))
+}
+
+async function acquireMicStream(): Promise<MediaStream> {
+  if (warmStreamTimer) {
+    clearTimeout(warmStreamTimer)
+    warmStreamTimer = null
+  }
+  if (isStreamLive(warmStream)) {
+    console.log('[voice] reusing warm stream (0ms)')
+    return warmStream
+  }
+  const t0 = performance.now()
+  const stream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS)
+  const elapsed = performance.now() - t0
+  console.log(`[voice] mic acquired in ${elapsed.toFixed(0)}ms (cold start)`)
+  warmStream = stream
+  return stream
+}
+
 export function useVoiceRecording(): UseVoiceRecordingResult {
   const [state, setState] = useState<VoiceState>('idle')
   const [interimText, setInterimText] = useState('')
@@ -41,21 +123,26 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
   const streamRef = useRef<MediaStream | null>(null)
   const wsListenerRef = useRef<((event: MessageEvent) => void) | null>(null)
   const cancelledRef = useRef(false)
-  const pendingStopRef = useRef(false) // user released key while still connecting
+  const pendingStopRef = useRef(false)
   const utteranceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingDataRef = useRef<Promise<void>>(Promise.resolve()) // tracks last ondataavailable
+  const pendingDataRef = useRef<Promise<void>>(Promise.resolve())
+  const startTsRef = useRef(0)
 
   stateRef.current = state
+
+  function elapsed() {
+    return `+${(performance.now() - startTsRef.current).toFixed(0)}ms`
+  }
 
   const sendWs = useCallback((msg: Record<string, unknown>) => {
     useSessionsStore.getState().sendWsMessage(msg)
   }, [])
 
-  // Clean up on unmount
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - cleanup is a stable function defined in this scope, runs once on unmount
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cleanup is a stable function defined in this scope, runs once on unmount
   useEffect(() => {
     return () => {
       cleanup()
+      releaseWarmStream()
     }
   }, [])
 
@@ -64,10 +151,8 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
       mediaRecorderRef.current.stop()
     }
     mediaRecorderRef.current = null
-    if (streamRef.current) {
-      for (const t of streamRef.current.getTracks()) t.stop()
-      streamRef.current = null
-    }
+    streamRef.current = null
+    scheduleStreamRelease()
     if (utteranceTimerRef.current) {
       clearTimeout(utteranceTimerRef.current)
       utteranceTimerRef.current = null
@@ -98,6 +183,9 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
 
         switch (msg.type) {
           case 'voice_ready':
+            console.log(
+              `[voice] ${elapsed()} voice_ready (Deepgram connected, flushed ${msg.flushedChunks ?? '?'} chunks / ${msg.flushedBytes ?? '?'}B)`,
+            )
             setState('recording')
             break
           case 'voice_transcript':
@@ -110,12 +198,13 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
             if (utteranceTimerRef.current) clearTimeout(utteranceTimerRef.current)
             break
           case 'voice_utterance_end':
-            // Caller decides whether to auto-stop on utterance end
             break
           case 'voice_refining':
+            console.log(`[voice] ${elapsed()} refining...`)
             setState('refining')
             break
           case 'voice_done': {
+            console.log(`[voice] ${elapsed()} done`)
             const text = msg.refined || msg.raw || ''
             setRefinedText(text)
             setState('submitting')
@@ -151,6 +240,10 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
   const start = useCallback(async () => {
     if (stateRef.current !== 'idle') return
 
+    startTsRef.current = performance.now()
+    setMicExpired(false)
+    console.log('[voice] start()')
+
     cancelledRef.current = false
     pendingStopRef.current = false
     setInterimText('')
@@ -162,12 +255,12 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
     attachWsListener()
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true },
-      })
+      const stream = await acquireMicStream()
+      console.log(`[voice] ${elapsed()} stream ready`)
 
       if (cancelledRef.current) {
-        for (const t of stream.getTracks()) t.stop()
+        console.log(`[voice] ${elapsed()} cancelled during mic acquire`)
+        scheduleStreamRelease()
         return
       }
 
@@ -175,13 +268,13 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
 
       const sessionId = useSessionsStore.getState().selectedSessionId
       sendWs({ type: 'voice_start', sessionId })
+      console.log(`[voice] ${elapsed()} voice_start sent`)
 
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4'
       const recorder = new MediaRecorder(stream, { mimeType })
 
       recorder.ondataavailable = ev => {
         if (ev.data.size > 0) {
-          // Track the async work so stop() can wait for the last chunk
           pendingDataRef.current = (async () => {
             const buffer = await ev.data.arrayBuffer()
             const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
@@ -190,27 +283,26 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
         }
       }
 
-      recorder.start(100) // 100ms chunks for lower STT latency
+      recorder.start(100)
       mediaRecorderRef.current = recorder
+      console.log(`[voice] ${elapsed()} recorder started (${mimeType})`)
       setState('recording')
 
-      // User released key during getUserMedia -- capture a brief moment then stop
       if (pendingStopRef.current) {
         pendingStopRef.current = false
-        // Give recorder 300ms to capture at least one chunk before stopping
         setTimeout(() => stop(), 300)
       }
     } catch (err) {
-      console.error('[voice] Recording failed:', err)
+      console.error(`[voice] ${elapsed()} recording failed:`, err)
       setErrorMsg(err instanceof Error ? err.message : 'Mic access denied')
       setState('error')
     }
   }, [sendWs])
 
   const stop = useCallback(() => {
+    console.log(`[voice] ${elapsed()} stop() (state=${stateRef.current})`)
+
     if (stateRef.current === 'connecting') {
-      // getUserMedia hasn't resolved yet. Set a flag so start() will
-      // auto-stop after capturing whatever audio it can.
       pendingStopRef.current = true
       return
     }
@@ -219,31 +311,22 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
 
     const recorder = mediaRecorderRef.current
     if (recorder?.state === 'recording') {
-      // MediaRecorder.stop() fires ondataavailable (final chunk) then onstop.
-      // But ondataavailable is async (arrayBuffer + base64), so onstop fires
-      // before the last chunk is actually sent. We await the pending data
-      // promise to ensure voice_stop goes AFTER the final audio chunk.
       recorder.onstop = async () => {
         await pendingDataRef.current
         mediaRecorderRef.current = null
-        if (streamRef.current) {
-          for (const t of streamRef.current.getTracks()) t.stop()
-          streamRef.current = null
-        }
+        streamRef.current = null
+        scheduleStreamRelease()
         sendWs({ type: 'voice_stop' })
+        console.log(`[voice] ${elapsed()} voice_stop sent`)
       }
       recorder.stop()
     } else {
-      if (streamRef.current) {
-        for (const t of streamRef.current.getTracks()) t.stop()
-        streamRef.current = null
-      }
+      streamRef.current = null
+      scheduleStreamRelease()
       sendWs({ type: 'voice_stop' })
     }
     setState('refining')
 
-    // Safety timeout: if stuck in refining for >10s, reset to idle
-    // (handles cases where voice_done is lost, WS disconnects, etc.)
     setTimeout(() => {
       if (stateRef.current === 'refining') {
         console.warn('[voice] Stuck in refining for 10s, resetting')
@@ -253,6 +336,7 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
   }, [sendWs, reset])
 
   const cancel = useCallback(() => {
+    console.log(`[voice] ${elapsed()} cancel()`)
     cancelledRef.current = true
     sendWs({ type: 'voice_stop' })
     reset()

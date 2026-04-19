@@ -99,14 +99,11 @@ export function handleVoiceStart(
   voiceSessions.set(ws, voiceSession)
 
   dgWs.onopen = () => {
-    voiceDataCount = 0
-    voiceDataBytes = 0
     // Flush any audio buffered during connection
-    if (voiceSession.audioBuffer.length > 0) {
-      const bufferedBytes = voiceSession.audioBuffer.reduce((sum, b) => sum + b.length, 0)
-      console.log(
-        `[voice-stream] Deepgram WS connected, flushing ${voiceSession.audioBuffer.length} buffered chunks (${bufferedBytes}B)`,
-      )
+    const flushedChunks = voiceSession.audioBuffer.length
+    const flushedBytes = voiceSession.audioBuffer.reduce((sum, b) => sum + b.length, 0)
+    if (flushedChunks > 0) {
+      console.log(`[voice-stream] Deepgram WS connected, flushing ${flushedChunks} buffered chunks (${flushedBytes}B)`)
       for (const chunk of voiceSession.audioBuffer) {
         dgWs.send(chunk)
       }
@@ -114,7 +111,9 @@ export function handleVoiceStart(
     } else {
       console.log('[voice-stream] Deepgram WS connected, waiting for audio...')
     }
-    ws.send(JSON.stringify({ type: 'voice_ready' }))
+    voiceDataCount = 0
+    voiceDataBytes = 0
+    ws.send(JSON.stringify({ type: 'voice_ready', flushedChunks, flushedBytes }))
   }
 
   dgWs.onmessage = (event: MessageEvent) => {

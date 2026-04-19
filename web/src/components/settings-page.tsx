@@ -1,7 +1,5 @@
 import { Save } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSessionsStore, wsSend } from '@/hooks/use-sessions'
 import { resolveToolDisplay, type SettingsTab, TOOL_DISPLAY_KEYS } from '@/lib/dashboard-prefs'
 import { clearCacheAndReload } from '@/lib/utils'
@@ -17,6 +15,7 @@ import {
   SettingRow,
   SizePicker,
 } from './settings/settings-inputs'
+import { SettingsShell, type SettingsShellTab } from './settings/settings-shell'
 
 // --- Default session picker ---
 function DefaultSessionPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -74,14 +73,13 @@ interface SettingItem {
   render: (ctx: SettingsContext) => React.ReactNode
 }
 
-const TAB_ORDER: SettingsTab[] = ['general', 'display', 'input', 'sessions', 'system']
-const TAB_LABELS: Record<SettingsTab, string> = {
-  general: 'General',
-  display: 'Display',
-  input: 'Input',
-  sessions: 'Sessions',
-  system: 'System',
-}
+const DASHBOARD_TABS: SettingsShellTab[] = [
+  { id: 'general', label: 'General' },
+  { id: 'display', label: 'Display' },
+  { id: 'input', label: 'Input' },
+  { id: 'sessions', label: 'Sessions' },
+  { id: 'system', label: 'System' },
+]
 
 interface SettingsContext {
   // Server settings (local draft state)
@@ -290,6 +288,21 @@ const SETTINGS: SettingItem[] = [
     keywords: 'voice key hotkey ptt mic keyboard',
     render: ctx => (
       <KeyCapture value={ctx.prefs.voiceHoldKey} onChange={code => ctx.updatePrefs({ voiceHoldKey: code })} />
+    ),
+  },
+  {
+    tab: 'input',
+    group: 'Input',
+    label: 'Keep mic open',
+    description: 'Keep microphone stream alive permanently to eliminate cold-start latency',
+    keywords: 'voice mic latency warm always connected',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.keepMicOpen}
+        onChange={e => ctx.updatePrefs({ keepMicOpen: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
     ),
   },
   // --- Voice ---
@@ -727,240 +740,26 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     : 'unknown'
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg p-0 gap-0 max-h-[85vh] overflow-hidden flex flex-col">
-        <DialogTitle className="uppercase tracking-wider px-6 pt-6 pb-0">Settings</DialogTitle>
-
-        {/* Filter input */}
-        <div className="px-6 pt-4 pb-2">
-          <input
-            ref={filterRef}
-            type="text"
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            placeholder="Filter settings..."
-            className="w-full px-3 py-1.5 text-xs font-mono bg-muted border border-border text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-ring"
-          />
-        </div>
-
-        {/* Tabs bar -- hidden when filtering (filter flattens view) */}
-        {!isFiltering && (
-          <div className="px-6 pb-2">
-            <Tabs
-              value={activeTab}
-              onValueChange={v => updatePrefs({ settingsTab: v as SettingsTab })}
-              className="gap-0"
-            >
-              <TabsList
-                variant="line"
-                className="h-8 w-full gap-0 justify-start border-b border-border rounded-none px-0"
-              >
-                {TAB_ORDER.map(t => (
-                  <TabsTrigger
-                    key={t}
-                    value={t}
-                    className="text-[11px] font-mono uppercase tracking-wider px-3 py-1 flex-none"
-                  >
-                    {TAB_LABELS[t]}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              {/* Radix requires at least one TabsContent; we render the list manually below */}
-              {TAB_ORDER.map(t => (
-                <TabsContent key={t} value={t} className="hidden" />
-              ))}
-            </Tabs>
-          </div>
-        )}
-
-        {/* Scrollable settings list */}
-        <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-3">
-          {Array.from(groups.entries()).map(([group, items]) => (
-            <div key={group}>
-              <GroupHeader label={group} />
-              <div className="space-y-3">
-                {items.map(item => {
-                  const rendered = item.render(ctx)
-                  // Full-width items (color pickers, textareas) get stacked layout
-                  const isFullWidth =
-                    item.label.includes('color') || item.label.includes('Color') || item.label === 'Refinement prompt'
-                  if (isFullWidth) {
-                    return (
-                      <div key={item.label}>
-                        <div className="flex items-start gap-1.5 mb-1">
-                          {item.server && <ServerIcon />}
-                          <div>
-                            <div className="text-sm text-foreground">{item.label}</div>
-                            <div className="text-[10px] text-muted-foreground">{item.description}</div>
-                          </div>
-                        </div>
-                        {rendered}
-                      </div>
-                    )
-                  }
-                  return (
-                    <SettingRow key={item.label} label={item.label} description={item.description} server={item.server}>
-                      {rendered}
-                    </SettingRow>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-
-          {/* Tool output -- pinned to Sessions tab; filter-matches override */}
-          {(isFiltering
-            ? 'tool output verbose'.includes(lowerFilter) ||
-              TOOL_DISPLAY_KEYS.some(t => t.toLowerCase().includes(lowerFilter))
-            : activeTab === 'sessions') && (
-            <div>
-              <GroupHeader label="Tool output" />
-              <div className="space-y-1">
-                {TOOL_DISPLAY_KEYS.filter(
-                  t =>
-                    !lowerFilter ||
-                    t.toLowerCase().includes(lowerFilter) ||
-                    'tool output verbose'.includes(lowerFilter),
-                ).map(tool => {
-                  const effective = resolveToolDisplay(prefs, tool)
-                  const custom = prefs.toolDisplay?.[tool]
-                  return (
-                    <div key={tool} className="flex items-center gap-2 text-xs font-mono">
-                      <span className="w-20 text-muted-foreground truncate">{tool}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const td = { ...prefs.toolDisplay }
-                          td[tool] = { ...td[tool], defaultOpen: !effective.defaultOpen }
-                          updatePrefs({ toolDisplay: td })
-                        }}
-                        className={`px-1.5 py-0.5 text-[9px] border transition-colors ${
-                          effective.defaultOpen
-                            ? 'border-active/50 text-active bg-active/10'
-                            : 'border-border text-muted-foreground'
-                        }`}
-                        title="Default expanded in verbose mode"
-                      >
-                        {effective.defaultOpen ? 'open' : 'closed'}
-                      </button>
-                      <select
-                        value={effective.lineLimit}
-                        onChange={e => {
-                          const td = { ...prefs.toolDisplay }
-                          td[tool] = { ...td[tool], lineLimit: Number(e.target.value) }
-                          updatePrefs({ toolDisplay: td })
-                        }}
-                        className="bg-card border border-border text-foreground text-[10px] px-1 py-0.5"
-                        title="Line truncation limit (0 = no limit)"
-                      >
-                        {[0, 5, 10, 15, 20, 30, 50, 100].map(n => (
-                          <option key={n} value={n}>
-                            {n === 0 ? 'all' : `${n}L`}
-                          </option>
-                        ))}
-                      </select>
-                      {custom && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const td = { ...prefs.toolDisplay }
-                            delete td[tool]
-                            updatePrefs({ toolDisplay: td })
-                          }}
-                          className="text-[8px] text-muted-foreground hover:text-foreground"
-                          title="Reset to default"
-                        >
-                          x
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Project Links -- pinned to System tab */}
-          {(isFiltering ? 'links project connect persist'.includes(lowerFilter) : activeTab === 'system') && (
-            <div>
-              <GroupHeader label="Project Links" />
-              <ProjectLinksSection />
-            </div>
-          )}
-
-          {/* Notifications -- pinned to System tab */}
-          {(isFiltering ? 'notifications push notify bell'.includes(lowerFilter) : activeTab === 'system') && (
-            <div>
-              <GroupHeader label="Notifications" />
-              <NotificationsSection />
-            </div>
-          )}
-
-          {/* Shortcuts -- pinned to System tab */}
-          {(isFiltering
-            ? 'shortcuts keyboard keys hotkey'.includes(lowerFilter) ||
-              SHORTCUTS.some(([n, k]) => n.toLowerCase().includes(lowerFilter) || k.toLowerCase().includes(lowerFilter))
-            : activeTab === 'system') && (
-            <div>
-              <GroupHeader label="Shortcuts" />
-              <div className="space-y-1.5">
-                {SHORTCUTS.filter(
-                  ([n, k]) =>
-                    !lowerFilter ||
-                    n.toLowerCase().includes(lowerFilter) ||
-                    k.toLowerCase().includes(lowerFilter) ||
-                    'shortcuts keyboard keys hotkey'.includes(lowerFilter),
-                ).map(([name, key]) => (
-                  <div key={name} className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">{name}</span>
-                    <kbd className="px-1.5 py-0.5 bg-muted text-muted-foreground border border-border text-[10px] font-mono">
-                      {key}
-                    </kbd>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Version -- pinned to System tab */}
-          {(isFiltering ? 'version build commit'.includes(lowerFilter) : activeTab === 'system') && (
-            <div>
-              <GroupHeader label="Version" />
-              <div className="space-y-2 font-mono text-xs">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">commit</span>
-                  <span className="text-active">{BUILD_VERSION.gitHashShort}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">built</span>
-                  <span>{buildDate}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">dirty</span>
-                  <span>{BUILD_VERSION.dirty ? 'yes' : 'no'}</span>
-                </div>
-                {BUILD_VERSION.recentCommits?.length > 0 && (
-                  <div className="border-t border-border pt-2">
-                    <div className="text-muted-foreground mb-1.5 uppercase tracking-wider text-[10px]">
-                      Recent commits
-                    </div>
-                    <div className="space-y-1">
-                      {BUILD_VERSION.recentCommits.map(c => (
-                        <div key={c.hash} className="flex gap-2">
-                          <span className="text-active shrink-0">{c.hash}</span>
-                          <span className="text-foreground/70 truncate">{c.message}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Sticky save button at bottom */}
-        <div className="px-6 py-3 border-t border-border flex justify-end">
+    <SettingsShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Settings"
+      tabs={DASHBOARD_TABS}
+      activeTab={activeTab}
+      onTabChange={v => updatePrefs({ settingsTab: v as SettingsTab })}
+      showTabs={!isFiltering}
+      headerContent={
+        <input
+          ref={filterRef}
+          type="text"
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          placeholder="Filter settings..."
+          className="w-full px-3 py-1.5 text-xs font-mono bg-muted border border-border text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-ring"
+        />
+      }
+      footer={
+        <div className="flex justify-end">
           <button
             type="button"
             onClick={handleSave}
@@ -975,7 +774,185 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
-      </DialogContent>
-    </Dialog>
+      }
+    >
+      {Array.from(groups.entries()).map(([group, items]) => (
+        <div key={group}>
+          <GroupHeader label={group} />
+          <div className="space-y-3">
+            {items.map(item => {
+              const rendered = item.render(ctx)
+              // Full-width items (color pickers, textareas) get stacked layout
+              const isFullWidth =
+                item.label.includes('color') || item.label.includes('Color') || item.label === 'Refinement prompt'
+              if (isFullWidth) {
+                return (
+                  <div key={item.label}>
+                    <div className="flex items-start gap-1.5 mb-1">
+                      {item.server && <ServerIcon />}
+                      <div>
+                        <div className="text-sm text-foreground">{item.label}</div>
+                        <div className="text-[10px] text-muted-foreground">{item.description}</div>
+                      </div>
+                    </div>
+                    {rendered}
+                  </div>
+                )
+              }
+              return (
+                <SettingRow key={item.label} label={item.label} description={item.description} server={item.server}>
+                  {rendered}
+                </SettingRow>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+
+      {/* Tool output -- pinned to Sessions tab; filter-matches override */}
+      {(isFiltering
+        ? 'tool output verbose'.includes(lowerFilter) ||
+          TOOL_DISPLAY_KEYS.some(t => t.toLowerCase().includes(lowerFilter))
+        : activeTab === 'sessions') && (
+        <div>
+          <GroupHeader label="Tool output" />
+          <div className="space-y-1">
+            {TOOL_DISPLAY_KEYS.filter(
+              t => !lowerFilter || t.toLowerCase().includes(lowerFilter) || 'tool output verbose'.includes(lowerFilter),
+            ).map(tool => {
+              const effective = resolveToolDisplay(prefs, tool)
+              const custom = prefs.toolDisplay?.[tool]
+              return (
+                <div key={tool} className="flex items-center gap-2 text-xs font-mono">
+                  <span className="w-20 text-muted-foreground truncate">{tool}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const td = { ...prefs.toolDisplay }
+                      td[tool] = { ...td[tool], defaultOpen: !effective.defaultOpen }
+                      updatePrefs({ toolDisplay: td })
+                    }}
+                    className={`px-1.5 py-0.5 text-[9px] border transition-colors ${
+                      effective.defaultOpen
+                        ? 'border-active/50 text-active bg-active/10'
+                        : 'border-border text-muted-foreground'
+                    }`}
+                    title="Default expanded in verbose mode"
+                  >
+                    {effective.defaultOpen ? 'open' : 'closed'}
+                  </button>
+                  <select
+                    value={effective.lineLimit}
+                    onChange={e => {
+                      const td = { ...prefs.toolDisplay }
+                      td[tool] = { ...td[tool], lineLimit: Number(e.target.value) }
+                      updatePrefs({ toolDisplay: td })
+                    }}
+                    className="bg-card border border-border text-foreground text-[10px] px-1 py-0.5"
+                    title="Line truncation limit (0 = no limit)"
+                  >
+                    {[0, 5, 10, 15, 20, 30, 50, 100].map(n => (
+                      <option key={n} value={n}>
+                        {n === 0 ? 'all' : `${n}L`}
+                      </option>
+                    ))}
+                  </select>
+                  {custom && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const td = { ...prefs.toolDisplay }
+                        delete td[tool]
+                        updatePrefs({ toolDisplay: td })
+                      }}
+                      className="text-[8px] text-muted-foreground hover:text-foreground"
+                      title="Reset to default"
+                    >
+                      x
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Project Links -- pinned to System tab */}
+      {(isFiltering ? 'links project connect persist'.includes(lowerFilter) : activeTab === 'system') && (
+        <div>
+          <GroupHeader label="Project Links" />
+          <ProjectLinksSection />
+        </div>
+      )}
+
+      {/* Notifications -- pinned to System tab */}
+      {(isFiltering ? 'notifications push notify bell'.includes(lowerFilter) : activeTab === 'system') && (
+        <div>
+          <GroupHeader label="Notifications" />
+          <NotificationsSection />
+        </div>
+      )}
+
+      {/* Shortcuts -- pinned to System tab */}
+      {(isFiltering
+        ? 'shortcuts keyboard keys hotkey'.includes(lowerFilter) ||
+          SHORTCUTS.some(([n, k]) => n.toLowerCase().includes(lowerFilter) || k.toLowerCase().includes(lowerFilter))
+        : activeTab === 'system') && (
+        <div>
+          <GroupHeader label="Shortcuts" />
+          <div className="space-y-1.5">
+            {SHORTCUTS.filter(
+              ([n, k]) =>
+                !lowerFilter ||
+                n.toLowerCase().includes(lowerFilter) ||
+                k.toLowerCase().includes(lowerFilter) ||
+                'shortcuts keyboard keys hotkey'.includes(lowerFilter),
+            ).map(([name, key]) => (
+              <div key={name} className="flex justify-between text-xs">
+                <span className="text-muted-foreground">{name}</span>
+                <kbd className="px-1.5 py-0.5 bg-muted text-muted-foreground border border-border text-[10px] font-mono">
+                  {key}
+                </kbd>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Version -- pinned to System tab */}
+      {(isFiltering ? 'version build commit'.includes(lowerFilter) : activeTab === 'system') && (
+        <div>
+          <GroupHeader label="Version" />
+          <div className="space-y-2 font-mono text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">commit</span>
+              <span className="text-active">{BUILD_VERSION.gitHashShort}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">built</span>
+              <span>{buildDate}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">dirty</span>
+              <span>{BUILD_VERSION.dirty ? 'yes' : 'no'}</span>
+            </div>
+            {BUILD_VERSION.recentCommits?.length > 0 && (
+              <div className="border-t border-border pt-2">
+                <div className="text-muted-foreground mb-1.5 uppercase tracking-wider text-[10px]">Recent commits</div>
+                <div className="space-y-1">
+                  {BUILD_VERSION.recentCommits.map(c => (
+                    <div key={c.hash} className="flex gap-2">
+                      <span className="text-active shrink-0">{c.hash}</span>
+                      <span className="text-foreground/70 truncate">{c.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </SettingsShell>
   )
 }

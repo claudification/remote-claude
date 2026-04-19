@@ -19,7 +19,7 @@ export const TOOL_DISPLAY_KEYS = [
 ] as const
 export type ToolDisplayKey = (typeof TOOL_DISPLAY_KEYS)[number]
 
-export const DEFAULT_TOOL_DISPLAY: Record<ToolDisplayKey, ToolDisplayPrefs> = {
+const DEFAULT_TOOL_DISPLAY: Record<ToolDisplayKey, ToolDisplayPrefs> = {
   Bash: { defaultOpen: false, lineLimit: 10 },
   Read: { defaultOpen: false, lineLimit: 10 },
   Write: { defaultOpen: true, lineLimit: 10 },
@@ -48,6 +48,7 @@ export interface DashboardPrefs {
   sessionCacheTimeout: number // minutes before cached non-selected sessions are evicted (0 = never)
   defaultView: 'transcript' | 'tty'
   voiceHoldKey: string | null // KeyboardEvent.code for push-to-talk (e.g. 'F13', 'ScrollLock')
+  keepMicOpen: boolean // keep mic stream alive permanently (eliminates cold-start latency)
   chatBubbleColor: string // tailwind color class prefix (e.g. 'blue', 'teal', 'purple')
   defaultSessionCwd: string // auto-select this project on dashboard load (per-device)
   showDiag: boolean
@@ -62,7 +63,7 @@ export interface DashboardPrefs {
 
 export type SettingsTab = 'general' | 'display' | 'input' | 'sessions' | 'system'
 
-export const defaultPrefs: DashboardPrefs = {
+const defaultPrefs: DashboardPrefs = {
   showEndedSessions: true,
   showInactiveByDefault: false,
   compactMode: false,
@@ -77,6 +78,7 @@ export const defaultPrefs: DashboardPrefs = {
   sessionCacheTimeout: 10,
   defaultView: 'transcript',
   voiceHoldKey: null,
+  keepMicOpen: false,
   chatBubbleColor: 'blue',
   showDiag: false,
   showStreaming: true,
