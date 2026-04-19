@@ -1332,7 +1332,7 @@ async function main() {
       },
       onControl(action, args) {
         const source = args.fromSession ? `inter-session:${args.fromSession.slice(0, 8)}` : 'control-channel'
-        const ok = executeControl(action, { model: args.model, source })
+        const ok = executeControl(action, { model: args.model, effort: args.effort, source })
         if (!ok) diag('session', `Control ignored: ${action} (backend not ready or missing args)`)
       },
       onDiag(type, msg, args) {
