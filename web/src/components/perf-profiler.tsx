@@ -68,26 +68,3 @@ function CommitPaintTracker({ id, children }: { id: string; children: ReactNode 
   useCommitToPaintTimer(id)
   return <Fragment>{children}</Fragment>
 }
-
-/**
- * Variant for callers that already have the boolean and want the extra
- * detail string in the perf log (e.g. transcript view's visible-item count).
- */
-export function MaybeProfilerWithCallback({
-  enabled,
-  id,
-  onRender,
-  children,
-}: {
-  enabled: boolean
-  id: string
-  onRender: ProfilerOnRenderCallback
-  children: ReactNode
-}) {
-  if (!enabled) return <Fragment>{children}</Fragment>
-  return (
-    <Profiler id={id} onRender={onRender}>
-      {children}
-    </Profiler>
-  )
-}

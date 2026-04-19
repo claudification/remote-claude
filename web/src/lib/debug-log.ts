@@ -4,7 +4,7 @@
  * Import this module once (e.g. in main.tsx) to start capturing.
  */
 
-export type LogLevel = 'log' | 'warn' | 'error' | 'debug'
+type LogLevel = 'log' | 'warn' | 'error' | 'debug'
 
 export interface LogEntry {
   t: number

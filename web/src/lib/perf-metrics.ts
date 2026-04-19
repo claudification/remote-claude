@@ -37,15 +37,6 @@ export function record(category: PerfCategory, label: string, durationMs: number
   notify()
 }
 
-/** Start a timer, returns a function that records the elapsed time when called. */
-export function startTimer(category: PerfCategory, label: string): (detail?: string) => void {
-  if (!enabled) return () => {}
-  const t0 = performance.now()
-  return (detail?: string) => {
-    record(category, label, performance.now() - t0, detail)
-  }
-}
-
 export function getEntries(): readonly PerfEntry[] {
   return buffer
 }

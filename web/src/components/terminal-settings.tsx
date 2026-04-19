@@ -2,7 +2,7 @@ import { X } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
-export interface TerminalTheme {
+interface TerminalTheme {
   name: string
   background: string
   foreground: string
@@ -28,7 +28,7 @@ export interface TerminalTheme {
   brightWhite: string
 }
 
-export const THEMES: Record<string, TerminalTheme> = {
+const THEMES: Record<string, TerminalTheme> = {
   'tokyo-night': {
     name: 'Tokyo Night',
     background: '#1a1b26',
@@ -251,7 +251,7 @@ export const THEMES: Record<string, TerminalTheme> = {
 // Nerd Font fallback for special glyphs (status bar icons, powerline, etc.)
 const NF = ', "Symbols Nerd Font Mono", "Symbols Nerd Font", monospace'
 
-export const FONTS = [
+const FONTS = [
   { id: 'geist-mono', name: 'Geist Mono', family: `"Geist Mono"${NF}` },
   { id: 'jetbrains', name: 'JetBrains Mono', family: `"JetBrains Mono"${NF}` },
   { id: 'fira-code', name: 'Fira Code', family: `"Fira Code"${NF}` },
@@ -263,7 +263,7 @@ export const FONTS = [
   { id: 'system', name: 'System Mono', family: `ui-monospace${NF}` },
 ]
 
-export const FONT_SIZES = [10, 11, 12, 13, 14, 15, 16, 18, 20]
+const FONT_SIZES = [10, 11, 12, 13, 14, 15, 16, 18, 20]
 
 const STORAGE_KEY = 'rclaude-terminal-settings'
 

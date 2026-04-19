@@ -21,7 +21,7 @@ import { cn, haptic } from '@/lib/utils'
 import { LaunchConfigFields, type LaunchFieldsValue } from './launch-config-fields'
 import { LaunchErrorBanner, LaunchFooterActions, LaunchStepList } from './launch-monitor'
 
-export interface ReviveDialogOptions {
+interface ReviveDialogOptions {
   sessionId: string
 }
 

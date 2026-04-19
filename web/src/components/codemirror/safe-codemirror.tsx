@@ -32,7 +32,7 @@
 import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import { forwardRef, useCallback, useRef } from 'react'
 
-export type SafeCodeMirrorProps = ReactCodeMirrorProps
+type SafeCodeMirrorProps = ReactCodeMirrorProps
 
 /**
  * Wraps <CodeMirror /> and pins `onChange` + `onUpdate` identity.

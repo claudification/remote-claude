@@ -134,7 +134,7 @@ export interface ProjectOrderGroup {
   isOpen?: boolean
 }
 
-export interface ProjectOrderProject {
+interface ProjectOrderProject {
   id: string // "cwd:<path>" today; opaque project identity going forward
   type: 'project'
 }
@@ -207,15 +207,4 @@ export interface TranscriptToolUseResult {
   structuredPatch?: Array<{ oldStart: number; oldLines: number; newStart: number; newLines: number; lines: string[] }>
 }
 
-// Augmented entry with rendering data (images, toolUseResult) added by the dashboard
-export interface RenderableEntry {
-  images?: TranscriptImage[]
-  toolUseResult?: TranscriptToolUseResult
-}
-
 export type ProjectSettingsMap = Record<string, ProjectSettings>
-
-export type WSMessage =
-  | { type: 'sessions'; data: Session[] }
-  | { type: 'session_update'; data: Session }
-  | { type: 'event'; data: import('@shared/protocol').HookEvent }

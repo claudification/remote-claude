@@ -14,7 +14,7 @@ import { TileToggleRow } from '@/components/ui/tile-toggle-row'
 import { TogglePill } from '@/components/ui/toggle-pill'
 import { parseEnvText } from '@/lib/env-parse'
 
-export type LaunchFieldKey =
+type LaunchFieldKey =
   | 'model'
   | 'effort'
   | 'permissionMode'
@@ -49,7 +49,7 @@ export type LaunchFieldsValue = {
   timeout?: string
 }
 
-export type LaunchFieldsProps = {
+type LaunchFieldsProps = {
   value: LaunchFieldsValue
   onChange: (patch: Partial<LaunchFieldsValue>) => void
   show?: Partial<Record<LaunchFieldKey, boolean>>

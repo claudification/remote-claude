@@ -22,16 +22,6 @@ export function detectShareMode(): string | null {
   return shareToken
 }
 
-/** Get the current share token (null if not in share mode). */
-export function getShareToken(): string | null {
-  return shareToken
-}
-
-/** Whether we're in share mode. */
-export function isShareMode(): boolean {
-  return shareToken !== null
-}
-
 /** Build the WS URL with share token appended if in share mode. */
 export function buildWsUrl(): string {
   const base = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
-export type Density = 'compact' | 'normal' | 'roomy'
-export type TitleSize = 'xs' | 'sm'
+type Density = 'compact' | 'normal' | 'roomy'
+type TitleSize = 'xs' | 'sm'
 
 export type BoardViewConfig = {
   columnWidth: number
@@ -10,7 +10,7 @@ export type BoardViewConfig = {
   titleSize: TitleSize
 }
 
-export const BOARD_VIEW_DEFAULTS: BoardViewConfig = {
+const BOARD_VIEW_DEFAULTS: BoardViewConfig = {
   columnWidth: 400,
   bodyLines: 6,
   density: 'roomy',

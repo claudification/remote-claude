@@ -7,7 +7,7 @@ import { cn, haptic } from '@/lib/utils'
 
 export type Tab = 'transcript' | 'tty' | 'events' | 'agents' | 'tasks' | 'files' | 'shared' | 'project' | 'diag'
 
-export interface SessionTabsProps {
+interface SessionTabsProps {
   session: Session
   activeTab: Tab
   onSetActiveTab: (tab: Tab) => void

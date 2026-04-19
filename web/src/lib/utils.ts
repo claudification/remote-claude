@@ -6,7 +6,7 @@ import { BUILD_VERSION } from '../../../src/shared/version'
 export const PRE_RELOAD_KEY = 'rclaude-pre-reload'
 
 /** Tailwind `sm` breakpoint - below this is mobile */
-export const MOBILE_BREAKPOINT = 640
+const MOBILE_BREAKPOINT = 640
 
 export function isMobileViewport() {
   return window.innerWidth < MOBILE_BREAKPOINT
@@ -41,11 +41,6 @@ export function formatDurationMs(ms: number): string {
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
-}
-
-export function truncatePath(path: string, maxLen = 40): string {
-  if (path.length <= maxLen) return path
-  return `...${path.slice(-maxLen + 3)}`
 }
 
 export function lastPathSegments(path: string, n = 3): string {

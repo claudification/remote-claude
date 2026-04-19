@@ -107,7 +107,15 @@ function GroupingMenuItems({ cwd }: { cwd: string }) {
   )
 }
 
-export function SessionContextMenu({ session, children }: { session: Session; children: ReactNode }) {
+export function SessionContextMenu({
+  session,
+  onOpenSettings,
+  children,
+}: {
+  session: Session
+  onOpenSettings?: () => void
+  children: ReactNode
+}) {
   const dismissSession = useSessionsStore(s => s.dismissSession)
   const selectSession = useSessionsStore(s => s.selectSession)
 
@@ -126,6 +134,17 @@ export function SessionContextMenu({ session, children }: { session: Session; ch
           >
             Rename...
           </ContextMenu.Item>
+          {onOpenSettings && (
+            <ContextMenu.Item
+              className={menuItemClass}
+              onSelect={() => {
+                haptic('tap')
+                onOpenSettings()
+              }}
+            >
+              Configuration...
+            </ContextMenu.Item>
+          )}
           <ContextMenu.Item
             className={cn(menuItemClass, 'text-cyan-400')}
             onSelect={() => {

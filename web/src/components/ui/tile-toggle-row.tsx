@@ -10,7 +10,7 @@ import type React from 'react'
 import { ToggleSwitch } from '@/components/ui/toggle-switch'
 import { cn, haptic } from '@/lib/utils'
 
-export interface TileToggleRowProps {
+interface TileToggleRowProps {
   title: string
   subtitle?: string
   checked: boolean

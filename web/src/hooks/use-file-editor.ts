@@ -9,7 +9,7 @@ import { useSessionsStore } from './use-sessions'
 
 export type { FileInfo } from '@shared/protocol'
 
-export interface VersionInfo {
+interface VersionInfo {
   version: number
   timestamp: number
   size: number

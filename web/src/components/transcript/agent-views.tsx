@@ -58,7 +58,7 @@ export function AgentTranscriptInline({ agentId, toolId }: { agentId: string; to
 }
 
 // Render agent transcript entries in a compact format
-export function AgentTranscriptEntries({ entries }: { entries: TranscriptEntry[] }) {
+function AgentTranscriptEntries({ entries }: { entries: TranscriptEntry[] }) {
   const resultMap = useMemo(() => buildResultMap(entries), [entries])
   const groups = useMemo(() => groupEntries(entries), [entries])
 

@@ -15,7 +15,7 @@ interface ConversationTarget {
   nameB: string
 }
 
-export interface SessionHeaderProps {
+interface SessionHeaderProps {
   session: Session
   projectSettings: ProjectSettings | undefined
   model: string | undefined

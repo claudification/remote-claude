@@ -3,7 +3,7 @@ import { useKeyLayer } from './key-layers'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export type CommandAction = (...args: string[]) => void
+type CommandAction = (...args: string[]) => void
 
 export interface Command {
   id: string
@@ -26,7 +26,7 @@ interface UseCommandOptions {
 const commands = new Map<string, Command>()
 let generation = 0
 
-export function registerCommand(cmd: Command): () => void {
+function registerCommand(cmd: Command): () => void {
   commands.set(cmd.id, cmd)
   generation++
   return () => {
@@ -119,7 +119,7 @@ export function useChordCommand(id: string, action: CommandAction, options: UseC
 
 // ── Chord validation ───────────────────────────────────────────────────
 
-export interface ChordConflict {
+interface ChordConflict {
   /** The binding that's both a command AND a prefix of a longer chord */
   binding: string
   bindingLabel: string

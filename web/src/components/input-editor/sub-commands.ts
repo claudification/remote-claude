@@ -18,7 +18,7 @@ import { buildTaskPrompt, scoreAndSortTasks } from '@/lib/task-scoring'
 import { haptic } from '@/lib/utils'
 import { completeModelArg } from './autocomplete-shared'
 
-export interface SubCommandItem {
+interface SubCommandItem {
   value: string
   label?: string
   builtin?: boolean

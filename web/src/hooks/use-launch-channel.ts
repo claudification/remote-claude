@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { wsSend } from './use-sessions'
 
-export interface LaunchEvent {
+interface LaunchEvent {
   step: string
   status: 'info' | 'ok' | 'error'
   detail?: string

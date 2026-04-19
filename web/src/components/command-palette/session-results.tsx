@@ -89,32 +89,3 @@ export function SessionRow({
     </button>
   )
 }
-
-export function SessionResults({
-  sessions,
-  selectedSessionId,
-  projectSettings,
-  activeIndex,
-  setActiveIndex,
-  onSelect,
-}: SessionResultsProps) {
-  if (sessions.length === 0) {
-    return <div className="px-3 py-4 text-center text-[10px] text-[#565f89]">No sessions</div>
-  }
-
-  return (
-    <>
-      {sessions.map((session, i) => (
-        <SessionRow
-          key={session.id}
-          session={session}
-          selectedSessionId={selectedSessionId}
-          projectSettings={projectSettings}
-          active={i === activeIndex}
-          onSelect={() => onSelect(session.id)}
-          onMouseEnter={() => setActiveIndex(i)}
-        />
-      ))}
-    </>
-  )
-}

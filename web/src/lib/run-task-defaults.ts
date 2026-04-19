@@ -6,7 +6,7 @@
  * on load; missing keys fall back to hardcoded defaults below.
  */
 
-export type RunTaskDefaults = {
+type RunTaskDefaults = {
   model: string
   effort: string
   useWorktree: boolean
@@ -16,7 +16,7 @@ export type RunTaskDefaults = {
   timeout: string
 }
 
-export const RUN_TASK_DEFAULTS: RunTaskDefaults = {
+const RUN_TASK_DEFAULTS: RunTaskDefaults = {
   model: '',
   effort: 'default',
   useWorktree: false,

@@ -7,9 +7,6 @@
 
 import { useSessionsStore } from '@/hooks/use-sessions'
 
-/** Names listed in the autocomplete popup. Kept in sync with the switch below. */
-export const CLIENT_COMMAND_NAMES = ['config', 'settings', 'project', 'session'] as const
-
 /**
  * Returns true if the input is a client command and was handled (caller
  * must then clear the input). Returns false for anything else, including

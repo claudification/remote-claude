@@ -22,7 +22,7 @@ import { cn, haptic } from '@/lib/utils'
 import { LaunchConfigFields, type LaunchFieldsValue } from './launch-config-fields'
 import { LaunchErrorBanner, LaunchFooterActions, LaunchStepList } from './launch-monitor'
 
-export interface SpawnDialogOptions {
+interface SpawnDialogOptions {
   cwd: string
   mkdir?: boolean
 }

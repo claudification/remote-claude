@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-export type BannerAccent = 'teal' | 'amber' | 'cyan' | 'violet' | 'emerald' | 'red' | 'blue' | 'muted'
+type BannerAccent = 'teal' | 'amber' | 'cyan' | 'violet' | 'emerald' | 'red' | 'blue' | 'muted'
 
 const ACCENT_CARD: Record<BannerAccent, string> = {
   teal: 'bg-teal-500/10 border-teal-500/30',

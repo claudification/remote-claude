@@ -132,7 +132,7 @@ function CwdSessionGroup({ sessions, cwd }: { sessions: Session[]; cwd: string }
         </ProjectContextMenu>
         <div className="space-y-0.5 pb-1">
           {normal.map(session => (
-            <SessionContextMenu key={session.id} session={session}>
+            <SessionContextMenu key={session.id} session={session} onOpenSettings={() => setShowSettings(true)}>
               <div>
                 <SessionItemCompact session={session} />
               </div>
@@ -146,7 +146,7 @@ function CwdSessionGroup({ sessions, cwd }: { sessions: Session[]; cwd: string }
             </div>
           )}
           {adhoc.map(session => (
-            <SessionContextMenu key={session.id} session={session}>
+            <SessionContextMenu key={session.id} session={session} onOpenSettings={() => setShowSettings(true)}>
               <div>
                 <SessionItemCompact session={session} />
               </div>

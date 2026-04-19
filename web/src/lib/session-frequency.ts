@@ -46,12 +46,6 @@ export function recordSwitch(cwd: string) {
   save(map)
 }
 
-/** Get the frequency count for a CWD. */
-export function getFrequency(cwd: string): number {
-  const map = load()
-  return map[cwd]?.count || 0
-}
-
 /** Get all frequency data (for sorting). Cached per call to avoid repeated localStorage reads. */
 export function getFrequencyMap(): FrequencyMap {
   return load()

@@ -306,7 +306,7 @@ export function AskQuestionBanners() {
   )
 }
 
-export function AskQuestionCard({
+function AskQuestionCard({
   request,
   onRespond,
 }: {

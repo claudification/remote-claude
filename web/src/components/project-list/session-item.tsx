@@ -732,7 +732,7 @@ function SessionItemTasksBlock({
 
 // ─── Full-size session card ───────────────────────────────────────
 
-export const SessionItemFull = memo(function SessionItemFull({ session }: { session: Session }) {
+const SessionItemFull = memo(function SessionItemFull({ session }: { session: Session }) {
   const isSelected = useSessionsStore(s => s.selectedSessionId === session.id)
   const selectedSubagentId = useSessionsStore(s => (s.selectedSessionId === session.id ? s.selectedSubagentId : null))
   const selectSession = useSessionsStore(s => s.selectSession)
@@ -1058,7 +1058,7 @@ export function SessionCard({ session }: { session: Session }) {
   const [showSettings, setShowSettings] = useState(false)
   const isSelected = useSessionsStore(s => s.selectedSessionId === session.id)
   return (
-    <SessionContextMenu session={session}>
+    <SessionContextMenu session={session} onOpenSettings={() => setShowSettings(true)}>
       <div>
         <div className="relative group/card">
           <SessionItemFull session={session} />
@@ -1085,6 +1085,7 @@ export function SessionCard({ session }: { session: Session }) {
 // ─── Inactive project item ────────────────────────────────────────
 
 export function InactiveProjectItem({ sessions }: { sessions: Session[] }) {
+  const [showSettings, setShowSettings] = useState(false)
   const selectSession = useSessionsStore(s => s.selectSession)
   const projectSettings = useSessionsStore(s => s.projectSettings)
   const latest = sessions.reduce((a, b) => (a.lastActivity > b.lastActivity ? a : b))
@@ -1093,41 +1094,44 @@ export function InactiveProjectItem({ sessions }: { sessions: Session[] }) {
   const displayColor = ps?.color
 
   return (
-    <SessionContextMenu session={latest}>
-      <div
-        data-session-id={latest.id}
-        role="button"
-        tabIndex={0}
-        onClick={() => {
-          haptic('tap')
-          selectSession(latest.id)
-        }}
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === ' ') {
+    <SessionContextMenu session={latest} onOpenSettings={() => setShowSettings(true)}>
+      <div>
+        <div
+          data-session-id={latest.id}
+          role="button"
+          tabIndex={0}
+          onClick={() => {
             haptic('tap')
             selectSession(latest.id)
-          }
-        }}
-        className="w-full text-left border border-border hover:border-primary p-2 pl-3 transition-colors cursor-pointer"
-        style={displayColor ? { borderLeftColor: displayColor, borderLeftWidth: '3px' } : undefined}
-        title={`${sessions.length} session${sessions.length > 1 ? 's' : ''}\n${latest.cwd}`}
-      >
-        <div className="flex items-center gap-1.5">
-          {ps?.icon && (
-            <span className="text-muted-foreground" style={displayColor ? { color: displayColor } : undefined}>
-              {renderProjectIcon(ps.icon)}
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              haptic('tap')
+              selectSession(latest.id)
+            }
+          }}
+          className="w-full text-left border border-border hover:border-primary p-2 pl-3 transition-colors cursor-pointer"
+          style={displayColor ? { borderLeftColor: displayColor, borderLeftWidth: '3px' } : undefined}
+          title={`${sessions.length} session${sessions.length > 1 ? 's' : ''}\n${latest.cwd}`}
+        >
+          <div className="flex items-center gap-1.5">
+            {ps?.icon && (
+              <span className="text-muted-foreground" style={displayColor ? { color: displayColor } : undefined}>
+                {renderProjectIcon(ps.icon)}
+              </span>
+            )}
+            <span
+              className="font-mono text-xs text-muted-foreground truncate flex-1"
+              style={displayColor ? { color: `${displayColor}99` } : undefined}
+            >
+              {displayName}
             </span>
-          )}
-          <span
-            className="font-mono text-xs text-muted-foreground truncate flex-1"
-            style={displayColor ? { color: `${displayColor}99` } : undefined}
-          >
-            {displayName}
-          </span>
-          <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
-            {formatAge(latest.lastActivity)}
-          </span>
+            <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
+              {formatAge(latest.lastActivity)}
+            </span>
+          </div>
         </div>
+        {showSettings && <ProjectSettingsEditor cwd={latest.cwd} onClose={() => setShowSettings(false)} />}
       </div>
     </SessionContextMenu>
   )

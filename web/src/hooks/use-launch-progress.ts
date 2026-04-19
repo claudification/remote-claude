@@ -19,7 +19,7 @@ export type LaunchStep = {
   ts?: number
 }
 
-export interface UseLaunchProgressOptions {
+interface UseLaunchProgressOptions {
   /** Job ID for launch channel subscription */
   jobId: string | null
   /** Wrapper ID for session detection in store */

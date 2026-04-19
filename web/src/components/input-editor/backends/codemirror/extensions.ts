@@ -234,7 +234,7 @@ function inputTheme(fontSize: number, minHeight: string, maxHeight: string): Ext
 // Public composer
 // ---------------------------------------------------------------------------
 
-export interface InputExtensionOptions {
+interface InputExtensionOptions {
   onSubmit: () => void
   fontSize?: number
   minHeight?: string

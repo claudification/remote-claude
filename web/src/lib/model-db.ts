@@ -9,7 +9,7 @@
 import { resolveContextWindow } from '@shared/context-window'
 import { appendShareParam } from './share-mode'
 
-export interface ModelInfo {
+interface ModelInfo {
   maxInputTokens: number
   maxOutputTokens: number
   inputCostPerToken: number
@@ -19,7 +19,6 @@ export interface ModelInfo {
 }
 
 let models: Record<string, ModelInfo> = {}
-let loaded = false
 
 export async function fetchModelDb(): Promise<void> {
   try {
@@ -28,15 +27,10 @@ export async function fetchModelDb(): Promise<void> {
     const data = await res.json()
     if (data.models) {
       models = data.models
-      loaded = true
     }
   } catch {
     // Silent fail -- fallback to hardcoded values
   }
-}
-
-export function isModelDbLoaded(): boolean {
-  return loaded
 }
 
 /** Resolve model name to ModelInfo with fuzzy matching */

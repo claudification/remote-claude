@@ -256,7 +256,8 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { PermissionRulesEditor } from '@/components/settings/permission-rules-editor'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { GroupHeader, SettingRow } from '@/components/settings/settings-inputs'
+import { SettingsShell, type SettingsShellTab } from '@/components/settings/settings-shell'
 import {
   deleteProjectSettings,
   generateProjectKeyterms,
@@ -570,11 +571,18 @@ interface ProjectSettingsEditorProps {
   onClose: () => void
 }
 
+const PROJECT_TABS: SettingsShellTab[] = [
+  { id: 'general', label: 'General' },
+  { id: 'launch', label: 'Launch' },
+  { id: 'security', label: 'Security' },
+]
+
 export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorProps) {
   const projectSettings = useSessionsStore(s => s.projectSettings)
   const setProjectSettings = useSessionsStore(s => s.setProjectSettings)
   const current = projectSettings[cwd] || {}
 
+  const [activeTab, setActiveTab] = useState('general')
   const [label, setLabel] = useState(current.label || '')
   const [icon, setIcon] = useState(current.icon || '')
   const [color, setColor] = useState(current.color || '')
@@ -610,7 +618,6 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
 
   async function handleSave() {
     setSaving(true)
-    // Send empty string for cleared fields - server strips them on merge
     const settings: ProjectSettings = {
       label: label.trim() || '',
       icon: icon || '',
@@ -622,9 +629,7 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
       defaultEffort: effort === 'default' ? undefined : (effort as 'low' | 'medium' | 'high' | 'xhigh' | 'max'),
       defaultModel: model.trim() || undefined,
     }
-
     updateProjectSettings(cwd, settings)
-    // Server broadcasts updated settings via WS (project_settings_updated)
     setSaving(false)
     onClose()
   }
@@ -659,7 +664,6 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
   function handleClear() {
     setSaving(true)
     deleteProjectSettings(cwd)
-    // Server broadcasts updated settings via WS (project_settings_updated)
     setSaving(false)
     onClose()
   }
@@ -684,336 +688,18 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
     current.trustLevel
 
   return (
-    <Dialog
+    <SettingsShell
       open
       onOpenChange={v => {
         if (!v) onClose()
       }}
-    >
-      <DialogContent className="max-w-md p-0 overflow-hidden">
-        <div className="px-4 pt-4 pb-2 shrink-0">
-          <DialogTitle className="text-accent font-bold uppercase tracking-wider text-[10px]">
-            Project Settings
-          </DialogTitle>
-        </div>
-
-        <div className="px-4 space-y-3 text-xs overflow-y-auto flex-1 min-h-0">
-          {/* Label */}
-          <div>
-            <label htmlFor="ps-label" className="text-muted-foreground text-[10px] uppercase tracking-wider block mb-1">
-              Label
-            </label>
-            <input
-              id="ps-label"
-              type="text"
-              value={label}
-              onChange={e => setLabel(e.target.value)}
-              placeholder={cwd.split('/').pop() || 'project name'}
-              className="w-full bg-background border border-border px-2 py-1.5 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50"
-              style={{ fontSize: '16px' }}
-            />
-          </div>
-
-          {/* Icon picker with search */}
-          <div>
-            <label
-              htmlFor="ps-icon-search"
-              className="text-muted-foreground text-[10px] uppercase tracking-wider block mb-1"
-            >
-              Icon
-            </label>
-            <div className="relative mb-1.5">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
-              <input
-                type="text"
-                id="ps-icon-search"
-                value={iconSearch}
-                onChange={e => setIconSearch(e.target.value)}
-                placeholder="Search icons... (rocket, cloud, database...)"
-                className="w-full bg-background border border-border pl-6 pr-2 py-1 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50"
-                style={{ fontSize: '16px' }}
-              />
-            </div>
-            <div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto">
-              {/* None/clear option */}
-              <button
-                type="button"
-                onClick={() => setIcon('')}
-                className={cn(
-                  'w-8 h-8 flex items-center justify-center border transition-colors',
-                  icon === ''
-                    ? 'border-accent bg-accent/20 text-accent'
-                    : 'border-border hover:border-primary hover:bg-muted/30 text-muted-foreground',
-                )}
-              >
-                <span className="text-[10px]">--</span>
-              </button>
-              {filteredIcons.map(entry => {
-                const Icon = entry.icon
-                return (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    onClick={() => setIcon(entry.id)}
-                    title={entry.id}
-                    className={cn(
-                      'w-8 h-8 flex items-center justify-center border transition-colors',
-                      icon === entry.id
-                        ? 'border-accent bg-accent/20 text-accent'
-                        : 'border-border hover:border-primary hover:bg-muted/30 text-muted-foreground',
-                    )}
-                  >
-                    <Icon className="w-4 h-4" />
-                  </button>
-                )
-              })}
-              {filteredIcons.length === 0 && (
-                <span className="text-muted-foreground text-[10px] py-2 px-1">No icons match "{iconSearch}"</span>
-              )}
-            </div>
-            {icon && (
-              <div className="mt-1 text-[10px] text-muted-foreground">
-                Selected: <span className="text-accent">{icon}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Color picker */}
-          <div>
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider block mb-1">Color</span>
-            <div className="flex flex-wrap gap-1">
-              {COLOR_OPTIONS.map(c => (
-                <button
-                  key={c || '__none__'}
-                  type="button"
-                  onClick={() => setColor(c)}
-                  className={cn(
-                    'w-8 h-8 border transition-colors',
-                    color === c ? 'border-accent ring-1 ring-accent' : 'border-border hover:border-primary',
-                  )}
-                  style={c ? { backgroundColor: c } : undefined}
-                >
-                  {!c && (
-                    <span className="text-muted-foreground text-[10px] flex items-center justify-center h-full">
-                      --
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Voice Keyterms */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Voice Keyterms</span>
-              <button
-                type="button"
-                onClick={handleGenerateKeyterms}
-                disabled={generating}
-                className="text-[10px] text-accent hover:text-accent/80 disabled:text-muted-foreground transition-colors"
-              >
-                {generating ? 'Generating...' : 'Auto-generate'}
-              </button>
-            </div>
-            {generateError && <div className="text-[10px] text-red-400 mb-1">{generateError}</div>}
-            <div className="flex flex-wrap gap-1 mb-1.5">
-              {keyterms.map(term => (
-                <span
-                  key={term}
-                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-accent/10 border border-accent/30 text-accent text-[10px] font-mono"
-                >
-                  {term}
-                  <button type="button" onClick={() => removeKeyterm(term)} className="hover:text-red-400 ml-0.5">
-                    <X className="w-2.5 h-2.5" />
-                  </button>
-                </span>
-              ))}
-              {keyterms.length === 0 && (
-                <span className="text-muted-foreground text-[10px]">
-                  No keyterms - voice transcription uses defaults
-                </span>
-              )}
-            </div>
-            <div className="flex gap-1">
-              <input
-                type="text"
-                value={keytermInput}
-                onChange={e => setKeytermInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    addKeyterm()
-                  }
-                }}
-                placeholder="Add term..."
-                className="flex-1 bg-background border border-border px-2 py-1 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50"
-                style={{ fontSize: '16px' }}
-              />
-              <button
-                type="button"
-                onClick={addKeyterm}
-                disabled={!keytermInput.trim()}
-                className="px-2 py-1 text-[10px] font-bold border border-border text-muted-foreground hover:text-accent hover:border-accent disabled:opacity-30 transition-colors"
-              >
-                +
-              </button>
-            </div>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label htmlFor="ps-desc" className="text-muted-foreground text-[10px] uppercase tracking-wider block mb-1">
-              Description
-            </label>
-            <textarea
-              id="ps-desc"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="e.g. Send all music generation requests here"
-              rows={2}
-              className="w-full bg-background border border-border px-2 py-1.5 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50 resize-none"
-              style={{ fontSize: '16px' }}
-            />
-            <div className="text-[9px] text-muted-foreground mt-0.5">Visible to other sessions via list_sessions</div>
-          </div>
-
-          {/* Trust level */}
-          <div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Trust Level</div>
-            <div className="flex gap-1.5">
-              {[
-                { value: 'default', label: 'Default', desc: 'Requires approval' },
-                { value: 'open', label: 'Open', desc: 'Anyone can message' },
-                { value: 'benevolent', label: 'Benevolent', desc: 'Can message anyone' },
-              ].map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setTrustLevel(opt.value)}
-                  className={cn(
-                    'px-2 py-1 text-[10px] font-mono border rounded transition-colors',
-                    trustLevel === opt.value
-                      ? opt.value === 'open'
-                        ? 'border-green-500 bg-green-500/20 text-green-400'
-                        : opt.value === 'benevolent'
-                          ? 'border-amber-500 bg-amber-500/20 text-amber-400'
-                          : 'border-border bg-muted text-foreground'
-                      : 'border-border/50 text-muted-foreground hover:text-foreground',
-                  )}
-                  title={opt.desc}
-                >
-                  {opt.value === 'open' && '🔓 '}
-                  {opt.value === 'benevolent' && '🤝 '}
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Default launch mode */}
-          <div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Default Launch Mode</div>
-            <div className="flex gap-1.5">
-              {[
-                { value: 'headless', label: 'Headless', desc: 'No terminal, structured I/O' },
-                { value: 'pty', label: 'PTY', desc: 'Full terminal access' },
-              ].map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setLaunchMode(opt.value)}
-                  className={cn(
-                    'px-2 py-1 text-[10px] font-mono border rounded transition-colors',
-                    launchMode === opt.value
-                      ? opt.value === 'headless'
-                        ? 'border-cyan-500 bg-cyan-500/20 text-cyan-400'
-                        : 'border-purple-500 bg-purple-500/20 text-purple-400'
-                      : 'border-border/50 text-muted-foreground hover:text-foreground',
-                  )}
-                  title={opt.desc}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <div className="text-[9px] text-muted-foreground mt-0.5">
-              Used when spawning/reviving sessions for this project
-            </div>
-          </div>
-
-          {/* Default effort level */}
-          <div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Default Effort</div>
-            <div className="flex gap-1.5">
-              {[
-                { value: 'default', label: 'Default', desc: "Don't pass --effort flag" },
-                { value: 'low', label: 'Low', desc: 'Minimal thinking' },
-                { value: 'medium', label: 'Medium', desc: 'Standard thinking' },
-                { value: 'high', label: 'High', desc: 'Extended thinking' },
-                { value: 'xhigh', label: 'XHigh', desc: 'Opus 4.7 only, between high and max' },
-                { value: 'max', label: 'Max', desc: 'Maximum thinking budget' },
-              ].map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setEffort(opt.value)}
-                  className={cn(
-                    'px-2 py-1 text-[10px] font-mono border rounded transition-colors',
-                    effort === opt.value
-                      ? opt.value === 'default'
-                        ? 'border-border bg-muted text-foreground'
-                        : opt.value === 'low'
-                          ? 'border-blue-500 bg-blue-500/20 text-blue-400'
-                          : opt.value === 'medium'
-                            ? 'border-green-500 bg-green-500/20 text-green-400'
-                            : opt.value === 'high'
-                              ? 'border-orange-500 bg-orange-500/20 text-orange-400'
-                              : 'border-red-500 bg-red-500/20 text-red-400'
-                      : 'border-border/50 text-muted-foreground hover:text-foreground',
-                  )}
-                  title={opt.desc}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <div className="text-[9px] text-muted-foreground mt-0.5">
-              Passed as --effort flag when launching sessions
-            </div>
-          </div>
-
-          {/* Default model */}
-          <div>
-            <label htmlFor="ps-model" className="text-muted-foreground text-[10px] uppercase tracking-wider block mb-1">
-              Default Model
-            </label>
-            <input
-              id="ps-model"
-              type="text"
-              value={model}
-              onChange={e => setModel(e.target.value)}
-              placeholder="e.g. sonnet, opus, claude-sonnet-4-6"
-              className="w-full bg-background border border-border px-2 py-1.5 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50"
-              style={{ fontSize: '16px' }}
-            />
-            <div className="text-[9px] text-muted-foreground mt-0.5">
-              Passed as --model flag when launching sessions
-            </div>
-          </div>
-
-          {/* Permission rules (rclaude.json) */}
-          <div className="border-t border-border pt-3">
-            <div className="text-accent text-[10px] font-bold uppercase tracking-wider mb-2">Permission Rules</div>
-            <div className="text-[9px] text-muted-foreground mb-2">
-              Auto-approve Write/Edit/Read on protected paths (.claude/, .git/). Stored in .rclaude/rclaude.json.
-            </div>
-            <PermissionRulesEditor cwd={cwd} />
-          </div>
-        </div>
-
-        {/* Actions - pinned at bottom */}
-        <div className="flex items-center gap-2 px-4 py-3 border-t border-border shrink-0">
+      title="Project Configuration"
+      tabs={PROJECT_TABS}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      maxWidth="md"
+      footer={
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={handleSave}
@@ -1040,8 +726,304 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
             </button>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      }
+    >
+      <div className="text-xs space-y-3">
+        {/* ── General tab ──────────────────────────────────────────── */}
+        {activeTab === 'general' && (
+          <>
+            <GroupHeader label="Identity" />
+            <SettingRow label="Label" description="Display name for this project">
+              <input
+                type="text"
+                value={label}
+                onChange={e => setLabel(e.target.value)}
+                placeholder={cwd.split('/').pop() || 'project name'}
+                className="w-40 bg-background border border-border px-2 py-1.5 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50"
+                style={{ fontSize: '16px' }}
+              />
+            </SettingRow>
+
+            <div>
+              <SettingRow label="Description" description="Visible to other sessions via list_sessions">
+                <span />
+              </SettingRow>
+              <textarea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="e.g. Send all music generation requests here"
+                rows={2}
+                className="w-full bg-background border border-border px-2 py-1.5 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50 resize-none mt-1"
+                style={{ fontSize: '16px' }}
+              />
+            </div>
+
+            <GroupHeader label="Appearance" />
+
+            {/* Icon picker */}
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Icon</div>
+              <div className="relative mb-1.5">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  value={iconSearch}
+                  onChange={e => setIconSearch(e.target.value)}
+                  placeholder="Search icons..."
+                  className="w-full bg-background border border-border pl-6 pr-2 py-1 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50"
+                  style={{ fontSize: '16px' }}
+                />
+              </div>
+              <div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto">
+                <button
+                  type="button"
+                  onClick={() => setIcon('')}
+                  className={cn(
+                    'w-8 h-8 flex items-center justify-center border transition-colors',
+                    icon === ''
+                      ? 'border-accent bg-accent/20 text-accent'
+                      : 'border-border hover:border-primary hover:bg-muted/30 text-muted-foreground',
+                  )}
+                >
+                  <span className="text-[10px]">--</span>
+                </button>
+                {filteredIcons.map(entry => {
+                  const IconComp = entry.icon
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      onClick={() => setIcon(entry.id)}
+                      title={entry.id}
+                      className={cn(
+                        'w-8 h-8 flex items-center justify-center border transition-colors',
+                        icon === entry.id
+                          ? 'border-accent bg-accent/20 text-accent'
+                          : 'border-border hover:border-primary hover:bg-muted/30 text-muted-foreground',
+                      )}
+                    >
+                      <IconComp className="w-4 h-4" />
+                    </button>
+                  )
+                })}
+                {filteredIcons.length === 0 && (
+                  <span className="text-muted-foreground text-[10px] py-2 px-1">No icons match "{iconSearch}"</span>
+                )}
+              </div>
+              {icon && (
+                <div className="mt-1 text-[10px] text-muted-foreground">
+                  Selected: <span className="text-accent">{icon}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Color picker */}
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Color</div>
+              <div className="flex flex-wrap gap-1">
+                {COLOR_OPTIONS.map(c => (
+                  <button
+                    key={c || '__none__'}
+                    type="button"
+                    onClick={() => setColor(c)}
+                    className={cn(
+                      'w-8 h-8 border transition-colors',
+                      color === c ? 'border-accent ring-1 ring-accent' : 'border-border hover:border-primary',
+                    )}
+                    style={c ? { backgroundColor: c } : undefined}
+                  >
+                    {!c && (
+                      <span className="text-muted-foreground text-[10px] flex items-center justify-center h-full">
+                        --
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <GroupHeader label="Voice" />
+
+            {/* Keyterms */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Keyterms</span>
+                <button
+                  type="button"
+                  onClick={handleGenerateKeyterms}
+                  disabled={generating}
+                  className="text-[10px] text-accent hover:text-accent/80 disabled:text-muted-foreground transition-colors"
+                >
+                  {generating ? 'Generating...' : 'Auto-generate'}
+                </button>
+              </div>
+              {generateError && <div className="text-[10px] text-red-400 mb-1">{generateError}</div>}
+              <div className="flex flex-wrap gap-1 mb-1.5">
+                {keyterms.map(term => (
+                  <span
+                    key={term}
+                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-accent/10 border border-accent/30 text-accent text-[10px] font-mono"
+                  >
+                    {term}
+                    <button type="button" onClick={() => removeKeyterm(term)} className="hover:text-red-400 ml-0.5">
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </span>
+                ))}
+                {keyterms.length === 0 && (
+                  <span className="text-muted-foreground text-[10px]">
+                    No keyterms -- voice transcription uses defaults
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-1">
+                <input
+                  type="text"
+                  value={keytermInput}
+                  onChange={e => setKeytermInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addKeyterm()
+                    }
+                  }}
+                  placeholder="Add term..."
+                  className="flex-1 bg-background border border-border px-2 py-1 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50"
+                  style={{ fontSize: '16px' }}
+                />
+                <button
+                  type="button"
+                  onClick={addKeyterm}
+                  disabled={!keytermInput.trim()}
+                  className="px-2 py-1 text-[10px] font-bold border border-border text-muted-foreground hover:text-accent hover:border-accent disabled:opacity-30 transition-colors"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── Launch tab ───────────────────────────────────────────── */}
+        {activeTab === 'launch' && (
+          <>
+            <GroupHeader label="Session Defaults" />
+
+            <SettingRow label="Launch mode" description="Used when spawning/reviving sessions for this project">
+              <div className="flex gap-1">
+                {[
+                  { value: 'headless', label: 'Headless' },
+                  { value: 'pty', label: 'PTY' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setLaunchMode(opt.value)}
+                    className={cn(
+                      'px-2 py-1 text-[10px] font-mono border rounded transition-colors',
+                      launchMode === opt.value
+                        ? opt.value === 'headless'
+                          ? 'border-cyan-500 bg-cyan-500/20 text-cyan-400'
+                          : 'border-purple-500 bg-purple-500/20 text-purple-400'
+                        : 'border-border/50 text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
+
+            <SettingRow label="Effort" description="Passed as --effort flag when launching sessions">
+              <div className="flex gap-1 flex-wrap">
+                {[
+                  { value: 'default', label: 'Default' },
+                  { value: 'low', label: 'Low' },
+                  { value: 'medium', label: 'Med' },
+                  { value: 'high', label: 'High' },
+                  { value: 'xhigh', label: 'XH' },
+                  { value: 'max', label: 'Max' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setEffort(opt.value)}
+                    className={cn(
+                      'px-1.5 py-0.5 text-[10px] font-mono border rounded transition-colors',
+                      effort === opt.value
+                        ? opt.value === 'default'
+                          ? 'border-border bg-muted text-foreground'
+                          : opt.value === 'low'
+                            ? 'border-blue-500 bg-blue-500/20 text-blue-400'
+                            : opt.value === 'medium'
+                              ? 'border-green-500 bg-green-500/20 text-green-400'
+                              : opt.value === 'high'
+                                ? 'border-orange-500 bg-orange-500/20 text-orange-400'
+                                : 'border-red-500 bg-red-500/20 text-red-400'
+                        : 'border-border/50 text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
+
+            <SettingRow label="Model" description="Passed as --model flag when launching sessions">
+              <input
+                type="text"
+                value={model}
+                onChange={e => setModel(e.target.value)}
+                placeholder="e.g. sonnet, opus"
+                className="w-36 bg-background border border-border px-2 py-1.5 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50"
+                style={{ fontSize: '16px' }}
+              />
+            </SettingRow>
+          </>
+        )}
+
+        {/* ── Security tab ─────────────────────────────────────────── */}
+        {activeTab === 'security' && (
+          <>
+            <GroupHeader label="Trust" />
+
+            <SettingRow label="Trust level" description="Controls inter-session messaging approval">
+              <div className="flex gap-1">
+                {[
+                  { value: 'default', label: 'Default' },
+                  { value: 'open', label: 'Open' },
+                  { value: 'benevolent', label: 'Benevolent' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setTrustLevel(opt.value)}
+                    className={cn(
+                      'px-2 py-1 text-[10px] font-mono border rounded transition-colors',
+                      trustLevel === opt.value
+                        ? opt.value === 'open'
+                          ? 'border-green-500 bg-green-500/20 text-green-400'
+                          : opt.value === 'benevolent'
+                            ? 'border-amber-500 bg-amber-500/20 text-amber-400'
+                            : 'border-border bg-muted text-foreground'
+                        : 'border-border/50 text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </SettingRow>
+
+            <GroupHeader label="Permission Rules" />
+            <div className="text-[9px] text-muted-foreground mb-2">
+              Auto-approve Write/Edit/Read on protected paths (.claude/, .git/). Stored in .rclaude/rclaude.json.
+            </div>
+            <PermissionRulesEditor cwd={cwd} />
+          </>
+        )}
+      </div>
+    </SettingsShell>
   )
 }
 

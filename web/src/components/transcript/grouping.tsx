@@ -58,7 +58,7 @@ export function buildResultMap(entries: TranscriptEntry[]) {
 }
 
 // Parse <task-notification> XML into structured data using DOMParser
-export function parseTaskNotifications(text: string): TaskNotification[] {
+function parseTaskNotifications(text: string): TaskNotification[] {
   const results: TaskNotification[] = []
   const blockRegex = /<task-notification>([\s\S]*?)(?:<\/task-notification>|$)/g
   let blockMatch: RegExpExecArray | null = blockRegex.exec(text)

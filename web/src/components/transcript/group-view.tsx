@@ -210,7 +210,7 @@ type SubagentRef = Array<{
   tokenUsage?: { totalInput: number; totalOutput: number; cacheCreation: number; cacheRead: number }
 }>
 
-export interface TranscriptSettings {
+interface TranscriptSettings {
   expandAll: boolean
   userLabel: string
   agentLabel: string

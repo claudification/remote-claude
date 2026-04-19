@@ -9,7 +9,7 @@
 import { Kbd } from '@/components/ui/kbd'
 import { cn } from '@/lib/utils'
 
-export interface TogglePillProps {
+interface TogglePillProps {
   active: boolean
   onClick: () => void
   label: string

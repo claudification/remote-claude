@@ -10,7 +10,7 @@ const FLUSH_DELAY_MS = 2000
 const MAX_TAB_ENTRIES = 100
 const PRUNE_TO = 50
 
-export interface UIState {
+interface UIState {
   /** Last selected session ID (supplements URL hash for reload resilience) */
   lastSessionId: string | null
   /** Remembered tab per session */
@@ -46,7 +46,7 @@ function scheduleFlush() {
 }
 
 /** Flush pending state to localStorage immediately. Safe to call any time. */
-export function flush() {
+function flush() {
   if (flushTimer) {
     clearTimeout(flushTimer)
     flushTimer = null

@@ -22,7 +22,7 @@ export interface CommandPaletteProps {
   onClose: () => void
 }
 
-export interface ResultListProps {
+interface ResultListProps {
   activeIndex: number
   setActiveIndex: (i: number) => void
 }

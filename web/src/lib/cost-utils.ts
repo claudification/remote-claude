@@ -43,7 +43,7 @@ function getPricing(model?: string): ModelPricing {
 }
 
 /** Estimate cost from token counts when exact cost isn't available */
-export function estimateCost(
+function estimateCost(
   stats: {
     totalInputTokens: number
     totalOutputTokens: number

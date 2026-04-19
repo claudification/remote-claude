@@ -17,7 +17,7 @@ function slugify(s: string) {
 }
 
 /** Find a session matching an address book slug (best-effort client-side match). */
-export function findSessionBySlug(slug: string) {
+function findSessionBySlug(slug: string) {
   const { sessions, projectSettings } = useSessionsStore.getState()
   const normalizedSlug = slug.toLowerCase()
   for (const s of sessions) {
@@ -31,7 +31,7 @@ export function findSessionBySlug(slug: string) {
 }
 
 /** Resolve a session by ID or slug and compute the display name. */
-export function resolveSessionDisplay(idOrSlug: string) {
+function resolveSessionDisplay(idOrSlug: string) {
   const { sessionsById, projectSettings } = useSessionsStore.getState()
   const session = sessionsById[idOrSlug] || findSessionBySlug(idOrSlug)
   const projLabel = session?.cwd ? projectSettings[session.cwd]?.label : undefined

@@ -408,13 +408,6 @@ export function useKeyLayer(bindings: KeyBindings, options: KeyLayerOptions = {}
   }, [Object.keys(bindings).sort().join(',')])
 }
 
-// ── Debug hook ─────────────────────────────────────────────────────────────
-
-export function useKeyLayerDebug(): readonly Layer[] {
-  // Returns a snapshot -- not reactive (the debug console can poll on render)
-  return layers
-}
-
 // ── Test helpers (tree-shaken in prod) ────────────────────────────────────
 
 export const _test = {

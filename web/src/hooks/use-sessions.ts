@@ -815,7 +815,7 @@ export async function fetchSubagentTranscript(sessionId: string, agentId: string
   return res.json()
 }
 
-export interface ReviveSessionOptions {
+interface ReviveSessionOptions {
   headless?: boolean
   jobId?: string
   model?: string
@@ -855,7 +855,7 @@ function detectControlCommand(input: string): {
   return null
 }
 
-export function sendSessionControl(
+function sendSessionControl(
   sessionId: string,
   action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort',
   opts: { model?: string; effort?: string } = {},
