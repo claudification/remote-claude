@@ -9,16 +9,13 @@
  */
 
 import { z } from 'zod'
+import { DROPDOWN_MODEL_ENTRIES, KNOWN_MODEL_IDS } from './models'
 
 export const DEFAULT_SENTINEL = '__default__'
 
 export const MODEL_OPTIONS = [
   { value: DEFAULT_SENTINEL, label: 'Default', info: 'Use project / global default' },
-  { value: 'opus', label: 'Opus (latest)', info: 'Most capable, best for complex reasoning' },
-  { value: 'claude-opus-4-7', label: 'Opus 4.7', info: 'Opus 4.7 pinned (1M context)' },
-  { value: 'claude-opus-4-6', label: 'Opus 4.6', info: 'Opus 4.6 pinned (1M context)' },
-  { value: 'sonnet', label: 'Sonnet (latest)', info: 'Balanced speed and capability' },
-  { value: 'haiku', label: 'Haiku (latest)', info: 'Fastest, lowest cost' },
+  ...DROPDOWN_MODEL_ENTRIES.map(m => ({ value: m.id, label: m.label, info: m.info })),
 ] as const
 
 export const EFFORT_OPTIONS = [
@@ -47,7 +44,10 @@ export const TIMEOUT_OPTIONS = [
   { value: '0', label: 'No timeout' },
 ] as const
 
-export const modelEnum = z.enum(['opus', 'sonnet', 'haiku', 'claude-opus-4-7', 'claude-opus-4-6'])
+// Accept anything in the catalog; `KNOWN_MODEL_IDS` is the single source of truth
+// (see `src/shared/models.ts`). When Anthropic ships a new pinned id, add it
+// to the catalog and validation picks it up for free.
+export const modelEnum = z.enum(KNOWN_MODEL_IDS as unknown as [string, ...string[]])
 export const effortEnum = z.enum(['low', 'medium', 'high', 'xhigh', 'max'])
 export const permissionModeEnum = z.enum(['plan', 'acceptEdits', 'auto', 'bypassPermissions'])
 export const spawnModeEnum = z.enum(['fresh', 'resume'])
