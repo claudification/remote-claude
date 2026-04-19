@@ -6,7 +6,14 @@
  * mount/unmount, value sync, focus, and StrictMode.
  */
 
-import { defaultKeymap, deleteToLineStart, emacsStyleKeymap, history, historyKeymap } from '@codemirror/commands'
+import {
+  defaultKeymap,
+  deleteGroupBackward,
+  deleteToLineStart,
+  emacsStyleKeymap,
+  history,
+  historyKeymap,
+} from '@codemirror/commands'
 import { type Extension, RangeSetBuilder } from '@codemirror/state'
 import {
   Decoration,
@@ -315,7 +322,11 @@ export function buildInputExtensions(opts: InputExtensionOptions): Extension[] {
   // CM6 ships emacsStyleKeymap but defaultKeymap only enables it on macOS via
   // the `mac:` field. We register it cross-platform for parity with terminals
   // and shells. Ctrl-U is NOT in emacsStyleKeymap, so we add it manually.
-  const emacsKeymap = keymap.of([...emacsStyleKeymap, { key: 'Ctrl-u', run: deleteToLineStart, preventDefault: true }])
+  const emacsKeymap = keymap.of([
+    ...emacsStyleKeymap,
+    { key: 'Ctrl-u', run: deleteToLineStart, preventDefault: true },
+    { key: 'Ctrl-w', run: deleteGroupBackward, preventDefault: true },
+  ])
 
   const extensions: Extension[] = [
     drawSelection(),
