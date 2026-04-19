@@ -7,8 +7,6 @@
  */
 
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { markdown } from '@codemirror/lang-markdown'
-import { bracketMatching, HighlightStyle, syntaxTree } from '@codemirror/language'
 import { type Extension, RangeSetBuilder } from '@codemirror/state'
 import {
   Decoration,
@@ -20,68 +18,110 @@ import {
   ViewPlugin,
   type ViewUpdate,
 } from '@codemirror/view'
-import { highlightTree, tags } from '@lezer/highlight'
+import { record } from '@/lib/perf-metrics'
 import type { SubCommandContext } from '../../sub-commands'
 import { autocompleteExtension } from './autocomplete'
 
 // ---------------------------------------------------------------------------
-// Tokyo Night highlight (markdown subset)
+// Lightweight markdown decorator
 // ---------------------------------------------------------------------------
+// PERF NOTE (2026-04-19): the previous implementation pulled in @codemirror/lang-markdown
+// + a tree-walking highlight plugin (`makeDirectHighlightPlugin`) that ran the full
+// lezer markdown parser on every keystroke. That was the smoking gun for the
+// "INSANE sluggishness" report -- React renders measured 1ms per commit, but typing
+// felt awful because the parser + tree walk happened between dispatch and paint.
+// The chat input doesn't need GFM-correct grammar; regex marks for the common
+// inline syntax (`**bold**`, `*italic*`, `~~strike~~`, `code`, links, headings,
+// blockquotes, lists) are visually identical for compose-time feedback and orders
+// of magnitude cheaper.
 
-const tokyoNightHighlight = HighlightStyle.define([
-  { tag: tags.heading1, color: '#7aa2f7', fontWeight: 'bold' },
-  { tag: tags.heading2, color: '#7aa2f7', fontWeight: 'bold' },
-  { tag: [tags.heading3, tags.heading4, tags.heading5, tags.heading6], color: '#7aa2f7', fontWeight: 'bold' },
-  { tag: tags.strong, color: '#c0caf5', fontWeight: 'bold' },
-  { tag: tags.emphasis, color: '#c0caf5', fontStyle: 'italic' },
-  { tag: tags.strikethrough, textDecoration: 'line-through', color: '#565f89' },
-  { tag: tags.link, color: '#73daca', textDecoration: 'underline' },
-  { tag: tags.url, color: '#73daca' },
-  { tag: tags.monospace, color: '#89ddff' },
-  { tag: tags.processingInstruction, color: '#565f89' },
-  { tag: tags.quote, color: '#9ece6a' },
-  { tag: tags.list, color: '#e0af68' },
-  { tag: tags.contentSeparator, color: '#565f89' },
-])
+const markdownClasses = {
+  heading: 'cm-md-heading',
+  strong: 'cm-md-strong',
+  emphasis: 'cm-md-emphasis',
+  strikethrough: 'cm-md-strikethrough',
+  monospace: 'cm-md-monospace',
+  link: 'cm-md-link',
+  quote: 'cm-md-quote',
+  list: 'cm-md-list',
+} as const
 
-// ---------------------------------------------------------------------------
-// Direct highlight plugin (bypasses CM6's syntaxHighlighting facet quirks)
-// ---------------------------------------------------------------------------
-
-function makeDirectHighlightPlugin() {
-  const markCache: Record<string, Decoration> = Object.create(null)
-  return ViewPlugin.fromClass(
-    class {
-      decorations: DecorationSet
-      constructor(view: EditorView) {
-        this.decorations = this.build(view)
-      }
-      build(view: EditorView): DecorationSet {
-        const builder = new RangeSetBuilder<Decoration>()
-        const tree = syntaxTree(view.state)
-        for (const { from, to } of view.visibleRanges) {
-          highlightTree(
-            tree,
-            tokyoNightHighlight,
-            (hFrom, hTo, cls) => {
-              if (!markCache[cls]) markCache[cls] = Decoration.mark({ class: cls })
-              builder.add(hFrom, hTo, markCache[cls])
-            },
-            from,
-            to,
-          )
-        }
-        return builder.finish()
-      }
-      update(u: ViewUpdate) {
-        if (u.docChanged || u.viewportChanged || syntaxTree(u.state) !== syntaxTree(u.startState)) {
-          this.decorations = this.build(u.view)
-        }
-      }
-    },
-    { decorations: v => v.decorations },
-  )
+const markCache: Record<string, Decoration> = Object.create(null)
+function mark(cls: string): Decoration {
+  if (!markCache[cls]) markCache[cls] = Decoration.mark({ class: cls })
+  return markCache[cls]
 }
+
+interface MarkRule {
+  re: RegExp
+  cls: string
+}
+
+const markRules: MarkRule[] = [
+  { re: /^(#{1,6})\s.+$/gm, cls: markdownClasses.heading },
+  { re: /^>\s.+$/gm, cls: markdownClasses.quote },
+  { re: /^[*\-+]\s.+$/gm, cls: markdownClasses.list },
+  { re: /^\d+\.\s.+$/gm, cls: markdownClasses.list },
+  { re: /\*\*[^*\n]+\*\*/g, cls: markdownClasses.strong },
+  { re: /(?<!\*)\*[^*\n]+\*(?!\*)/g, cls: markdownClasses.emphasis },
+  { re: /~~[^~\n]+~~/g, cls: markdownClasses.strikethrough },
+  { re: /`[^`\n]+`/g, cls: markdownClasses.monospace },
+  { re: /\[[^\]\n]+\]\([^)\n]+\)/g, cls: markdownClasses.link },
+]
+
+function buildMarkdownDecorations(view: EditorView): DecorationSet {
+  // Collect all matches into one array, sort by [from, to], then add to builder
+  // in order -- RangeSetBuilder requires monotonic from; collisions across rules
+  // are fine (multiple decorations can stack at the same range, but the builder
+  // needs them ordered).
+  type Hit = { from: number; to: number; cls: string }
+  const hits: Hit[] = []
+  for (const { from, to } of view.visibleRanges) {
+    const text = view.state.doc.sliceString(from, to)
+    for (const rule of markRules) {
+      rule.re.lastIndex = 0
+      let m: RegExpExecArray | null
+      // biome-ignore lint/suspicious/noAssignInExpressions: idiomatic regex iteration
+      while ((m = rule.re.exec(text))) {
+        hits.push({ from: from + m.index, to: from + m.index + m[0].length, cls: rule.cls })
+      }
+    }
+  }
+  hits.sort((a, b) => a.from - b.from || a.to - b.to)
+  const builder = new RangeSetBuilder<Decoration>()
+  for (const h of hits) builder.add(h.from, h.to, mark(h.cls))
+  return builder.finish()
+}
+
+const markdownDecoratorPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet
+    constructor(view: EditorView) {
+      this.decorations = buildMarkdownDecorations(view)
+    }
+    update(u: ViewUpdate) {
+      if (u.docChanged || u.viewportChanged) this.decorations = buildMarkdownDecorations(u.view)
+    }
+  },
+  { decorations: v => v.decorations },
+)
+
+// ---------------------------------------------------------------------------
+// CM update timer -- records doc-change update -> next paint as 'cm.update'
+// ---------------------------------------------------------------------------
+// React's <Profiler> only times React commits. CM does its own work between
+// our setLocalInput call and the next browser paint (transactions, decoration
+// rebuild, layout for line wrapping, autocomplete source, etc). This plugin
+// surfaces that hidden cost so the perf HUD can attribute slow keystrokes
+// to CM internals vs React.
+
+const cmUpdateTimer = EditorView.updateListener.of(u => {
+  if (!u.docChanged) return
+  const t0 = performance.now()
+  requestAnimationFrame(() => {
+    record('render', 'cm.update->paint', performance.now() - t0, `docLen=${u.state.doc.length}`)
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Effort keyword highlighter (ultrathink)
@@ -147,6 +187,15 @@ function inputTheme(fontSize: number, minHeight: string, maxHeight: string): Ext
         textDecorationColor: 'rgba(255, 158, 100, 0.4)',
         textUnderlineOffset: '2px',
       },
+      // Lightweight markdown decorator classes (regex-based, see markdownDecoratorPlugin)
+      '.cm-md-heading': { color: '#7aa2f7', fontWeight: 'bold' },
+      '.cm-md-strong': { color: '#c0caf5', fontWeight: 'bold' },
+      '.cm-md-emphasis': { color: '#c0caf5', fontStyle: 'italic' },
+      '.cm-md-strikethrough': { textDecoration: 'line-through', color: '#565f89' },
+      '.cm-md-monospace': { color: '#89ddff' },
+      '.cm-md-link': { color: '#73daca', textDecoration: 'underline' },
+      '.cm-md-quote': { color: '#9ece6a' },
+      '.cm-md-list': { color: '#e0af68' },
       '.cm-tooltip.cm-tooltip-autocomplete': {
         backgroundColor: '#1a1b26',
         border: '1px solid #33467c',
@@ -262,19 +311,18 @@ export function buildInputExtensions(opts: InputExtensionOptions): Extension[] {
 
   const extensions: Extension[] = [
     drawSelection(),
-    bracketMatching(),
     history(),
     submitKeymap, // before defaultKeymap so our Enter wins (autocomplete still wins over us when popup is open)
     escapeBlurKeymap,
     keymap.of([...defaultKeymap, ...historyKeymap]),
-    markdown(),
     // Portal tooltips (autocomplete popup, etc.) to <body> so the input
     // wrapper's overflow:hidden / rounded corners don't clip them.
     tooltips({ parent: document.body }),
     inputTheme(fontSize, minHeight, maxHeight),
-    makeDirectHighlightPlugin(),
-    // biome-ignore lint/style/noNonNullAssertion: HighlightStyle.module is always defined after define()
-    EditorView.styleModule.of(tokyoNightHighlight.module!),
+    // Lightweight regex-based markdown decorator (replaces the heavy
+    // lang-markdown + tree-walk highlight plugin -- see PERF NOTE above).
+    markdownDecoratorPlugin,
+    cmUpdateTimer,
     EditorView.lineWrapping,
   ]
 
