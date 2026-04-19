@@ -28,9 +28,10 @@ import {
   type CompletionContext,
   type CompletionResult,
   completionStatus,
+  startCompletion,
 } from '@codemirror/autocomplete'
 import { type Extension, Prec } from '@codemirror/state'
-import { type EditorView, keymap } from '@codemirror/view'
+import { type EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import { lastPathSegments, projectDisplayName, sessionAddressableSlug } from '@/lib/utils'
 import { BUILTIN_COMMAND_NAMES, BUILTIN_SCORE_BOOST, fuzzyScore } from '../../autocomplete-shared'
@@ -165,6 +166,9 @@ function applySubCommandSelection(
  * Scan backwards for a `:` session trigger. Uses a stricter char class than
  * the /-and-@ scanner (no `:`, no `.`) so that `::` and `foo:bar` don't
  * accidentally activate the session popup — only `:slug` does.
+ *
+ * First char after `:` must be alphanumeric — blocks emoticons like `:-)`,
+ * `:_)`, and other punctuation-led prose from triggering the popup.
  */
 function scanColonTrigger(text: string, pos: number): { start: number; query: string } | null {
   let start = pos - 1
@@ -175,8 +179,43 @@ function scanColonTrigger(text: string, pos: number): { start: number; query: st
   if (start > 0 && !/\s/.test(text[start - 1])) return null
   const query = text.slice(start + 1, pos)
   if (query.includes(' ') || query.includes('\n')) return null
+  // Block non-alphanumeric first char (emoticons, punctuation): `:-)`, `:_x`, etc.
+  if (query.length > 0 && !/^[a-zA-Z0-9]/.test(query)) return null
   return { start, query }
 }
+
+/**
+ * Bare `:` debounce. When the user just typed `:` and nothing follows, hold
+ * off showing the popup for a short window so emoticons like `:-)` don't
+ * flash the session list between keystrokes. If no follow-up char arrives
+ * within the window, a view plugin re-triggers completion so the popup
+ * still appears for a genuine bare-colon mention.
+ */
+const COLON_DELAY_MS = 100
+let lastColonInsertAt = 0
+
+const colonDelayTracker = ViewPlugin.fromClass(
+  class {
+    timer: ReturnType<typeof setTimeout> | null = null
+    update(u: ViewUpdate) {
+      if (!u.docChanged) return
+      let hasColon = false
+      u.changes.iterChanges((_fA, _tA, _fB, _tB, inserted) => {
+        if (inserted.toString().includes(':')) hasColon = true
+      })
+      if (!hasColon) return
+      lastColonInsertAt = Date.now()
+      if (this.timer) clearTimeout(this.timer)
+      this.timer = setTimeout(() => {
+        this.timer = null
+        startCompletion(u.view)
+      }, COLON_DELAY_MS)
+    }
+    destroy() {
+      if (this.timer) clearTimeout(this.timer)
+    }
+  },
+)
 
 interface SessionCompletion {
   label: string // what gets inserted (the session id)
@@ -233,6 +272,11 @@ function sessionArgCompletion(text: string, pos: number): CompletionResult | nul
   const hit = scanColonTrigger(text, pos)
   if (!hit) return null
   if (isInsideCodeFence(text.slice(0, hit.start))) return null
+  // On a bare `:` we defer briefly so `:-)` and similar emoticons don't flash
+  // the popup. Once a follow-up alphanumeric char arrives the query is no
+  // longer empty and this gate is skipped; if nothing arrives, the view
+  // plugin's timer re-triggers completion after the window.
+  if (hit.query.length === 0 && Date.now() - lastColonInsertAt < COLON_DELAY_MS) return null
   const options = sessionCompletions(hit.query)
   if (options.length === 0) return null
   return {
@@ -338,6 +382,7 @@ export interface AutocompleteOptions {
 export function autocompleteExtension(opts: AutocompleteOptions): Extension {
   return [
     tabAcceptKeymap,
+    colonDelayTracker,
     autocompletion({
       override: [makeCompletionSource(opts.getSubCommandContext)],
       activateOnTyping: true,
