@@ -158,6 +158,7 @@ export function createAdminRouter(
       for (const ws of sessionStore.getSubscribers()) {
         if ((ws.data as { userName?: string }).userName === name) {
           sessionStore.removeTerminalViewerBySocket(ws)
+          sessionStore.removeJsonStreamViewerBySocket(ws)
           sessionStore.removeSubscriber(ws)
           try {
             ws.close(4401, 'User revoked')

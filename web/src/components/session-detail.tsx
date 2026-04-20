@@ -5,7 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { Button } from '@/components/ui/button'
 import { type TaskStatus, useProject } from '@/hooks/use-project'
 import { fetchSubagentTranscript, useSessionsStore } from '@/hooks/use-sessions'
-import { canTerminal, type TranscriptEntry } from '@/lib/types'
+import { canJsonStream, canTerminal, type TranscriptEntry } from '@/lib/types'
 import { setSessionTab } from '@/lib/ui-state'
 import { cn, haptic } from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
@@ -14,6 +14,7 @@ import { DiagView } from './diag-view'
 import { EventsView } from './events-view'
 import { FileEditor } from './file-editor'
 import { InlineTerminal } from './inline-terminal'
+import { JsonStreamPanel } from './json-stream-panel'
 import { ProjectBoard, RunTaskDialog, TaskEditor } from './project-board'
 import { openReviveDialog } from './revive-dialog'
 import { AskQuestionBanners, ClipboardBanners } from './session-detail/session-banners'
@@ -201,6 +202,7 @@ export const SessionDetail = memo(function SessionDetail() {
 
   const canSendInput = session != null && session.status !== 'ended' && canChat
   const hasTerminal = session ? canTerminal(session) : false
+  const hasJsonStream = session ? canJsonStream(session) : false
   const canRevive = session?.status === 'ended' && agentConnected && canSpawn
 
   function handleRevive() {
@@ -325,6 +327,7 @@ export const SessionDetail = memo(function SessionDetail() {
             activeTab={activeTab}
             onSetActiveTab={setActiveTab}
             hasTerminal={hasTerminal}
+            hasJsonStream={hasJsonStream}
             canAdmin={canAdmin}
             canReadTerminal={canReadTerminal}
             canReadFiles={canReadFiles}
@@ -372,6 +375,11 @@ export const SessionDetail = memo(function SessionDetail() {
           {activeTab === 'tty' && hasTerminal && !showTerminal && session.wrapperIds?.[0] && (
             <div className="flex-1 min-h-0 overflow-hidden">
               <InlineTerminal wrapperId={session.wrapperIds[0]} />
+            </div>
+          )}
+          {activeTab === 'json_stream' && hasJsonStream && session.wrapperIds?.[0] && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <JsonStreamPanel wrapperId={session.wrapperIds[0]} />
             </div>
           )}
           {!conversationTarget && activeTab === 'events' && (

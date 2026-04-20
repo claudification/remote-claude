@@ -52,6 +52,8 @@ export interface WrapperContext {
    *  Re-sent on WS reconnect so the dashboard catches up. */
   readonly launchEvents: Array<import('../shared/protocol').WrapperLaunchEvent>
   terminalAttached: boolean
+  jsonStreamAttached: boolean
+  readonly jsonStreamBuffer: string[]
   parentTranscriptPath: string | null
   lastTasksJson: string
 

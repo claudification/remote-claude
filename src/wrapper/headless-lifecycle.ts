@@ -216,8 +216,16 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       }
     },
 
+    onJsonStreamLine(line) {
+      const buf = ctx.jsonStreamBuffer
+      buf.push(line)
+      if (buf.length > 200) buf.splice(0, buf.length - 200)
+      if (ctx.jsonStreamAttached && ctx.wsClient?.isConnected()) {
+        ctx.wsClient.sendJsonStreamData([line], false)
+      }
+    },
+
     onStreamEvent(event) {
-      // Forward raw API SSE deltas to concentrator for real-time streaming
       if (ctx.wsClient?.isConnected()) {
         ctx.wsClient.sendStreamDelta(event)
       }

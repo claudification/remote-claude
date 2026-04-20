@@ -984,6 +984,18 @@ export function useWebSocket() {
             return
           }
 
+          // JSON stream data -> direct handler callback (raw NDJSON for headless sessions)
+          if (msg.type === 'json_stream_data') {
+            const handler = useSessionsStore.getState().jsonStreamHandler
+            handler?.({
+              type: 'json_stream_data',
+              wrapperId: (msg as DashboardMessage & { wrapperId?: string }).wrapperId || '',
+              lines: (msg as DashboardMessage & { lines?: string[] }).lines || [],
+              isBackfill: !!(msg as DashboardMessage & { isBackfill?: boolean }).isBackfill,
+            })
+            return
+          }
+
           // Background task output -> direct handler
           if (msg.type === 'bg_task_output') {
             if (msg.taskId) {

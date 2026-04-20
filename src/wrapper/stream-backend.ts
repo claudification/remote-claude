@@ -91,6 +91,7 @@ export interface StreamBackendOptions {
   onScheduledTaskFire?: (content: string) => void
   onPlanModeChanged?: (planMode: boolean) => void
   onApiStatus?: (status: string) => void
+  onJsonStreamLine?: (line: string) => void
   onExit?: (code: number | null) => void
 }
 
@@ -167,6 +168,7 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
     onScheduledTaskFire,
     onPlanModeChanged,
     onApiStatus,
+    onJsonStreamLine,
     onExit,
   } = options
 
@@ -314,6 +316,7 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
   function processLine(line: string) {
     if (!line.trim()) return
     diagLog('>>>', line)
+    onJsonStreamLine?.(line)
     try {
       const msg = JSON.parse(line) as Record<string, unknown>
       transcriptLog('>>>', msg)

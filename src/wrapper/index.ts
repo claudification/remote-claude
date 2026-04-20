@@ -448,6 +448,8 @@ async function main() {
     currentLaunchPhase: 'initial',
     launchEvents: [],
     terminalAttached: false,
+    jsonStreamAttached: false,
+    jsonStreamBuffer: [],
     parentTranscriptPath: null,
     lastTasksJson: '',
 
@@ -1022,6 +1024,17 @@ async function main() {
         } else {
           debug('Terminal detached')
         }
+      },
+      onJsonStreamAttach() {
+        ctx.jsonStreamAttached = true
+        debug(`JSON stream attached, sending ${ctx.jsonStreamBuffer.length} backfill lines`)
+        if (ctx.wsClient?.isConnected() && ctx.jsonStreamBuffer.length > 0) {
+          ctx.wsClient.sendJsonStreamData(ctx.jsonStreamBuffer.slice(-100), true)
+        }
+      },
+      onJsonStreamDetach() {
+        ctx.jsonStreamAttached = false
+        debug('JSON stream detached')
       },
       onTerminalResize(cols, rows) {
         if (ctx.ptyProcess) {

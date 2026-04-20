@@ -10,6 +10,7 @@ import { registerDashboardActionHandlers } from './dashboard-actions'
 import { registerDialogHandlers } from './dialog'
 import { registerFileHandlers } from './files'
 import { registerInterSessionHandlers } from './inter-session'
+import { registerJsonStreamHandlers } from './json-stream'
 import { registerPermissionHandlers } from './permissions'
 import { registerPlanApprovalHandlers } from './plan-approval'
 import { registerRclaudeConfigHandlers } from './rclaude-config'
@@ -27,6 +28,7 @@ export function registerAllHandlers(): void {
   registerDialogHandlers()
   registerFileHandlers()
   registerInterSessionHandlers()
+  registerJsonStreamHandlers()
   registerPermissionHandlers()
   registerPlanApprovalHandlers()
   registerRclaudeConfigHandlers()

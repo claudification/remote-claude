@@ -67,6 +67,8 @@ export interface WsClientOptions {
   onTerminalDetach?: () => void
   onTerminalInput?: (data: string) => void
   onTerminalResize?: (cols: number, rows: number) => void
+  onJsonStreamAttach?: () => void
+  onJsonStreamDetach?: () => void
   onTranscriptRequest?: (limit?: number) => void
   onSubagentTranscriptRequest?: (agentId: string, limit?: number) => void
   onFileRequest?: (requestId: string, path: string) => void
@@ -147,6 +149,7 @@ export interface WsClient {
   sendSubagentTranscript: (agentId: string, entries: TranscriptEntry[], isInitial: boolean) => void
   sendFileResponse: (requestId: string, data?: string, mediaType?: string, error?: string) => void
   sendBgTaskOutput: (taskId: string, data: string, done: boolean) => void
+  sendJsonStreamData: (lines: string[], isBackfill: boolean) => void
   sendStreamDelta: (event: Record<string, unknown>) => void
   sendRateLimit: (retryAfterMs: number, message: string) => void
   sendSessionStatus: (status: 'active' | 'idle') => void
@@ -189,6 +192,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onTerminalDetach,
     onTerminalInput,
     onTerminalResize,
+    onJsonStreamAttach,
+    onJsonStreamDetach,
     onTranscriptRequest,
     onSubagentTranscriptRequest,
     onFileRequest,
@@ -383,6 +388,12 @@ export function createWsClient(options: WsClientOptions): WsClient {
               break
             case 'terminal_detach':
               onTerminalDetach?.()
+              break
+            case 'json_stream_attach':
+              onJsonStreamAttach?.()
+              break
+            case 'json_stream_detach':
+              onJsonStreamDetach?.()
               break
             case 'terminal_data':
               // Raw terminal input from browser (keystrokes, no mangling)
@@ -765,6 +776,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
     sendSubagentTranscript,
     sendFileResponse,
     sendBgTaskOutput,
+    sendJsonStreamData(lines: string[], isBackfill: boolean) {
+      send({ type: 'json_stream_data', wrapperId, lines, isBackfill } as WrapperMessage)
+    },
     sendStreamDelta(event: Record<string, unknown>) {
       send({ type: 'stream_delta', sessionId: routeId(), event } as WrapperMessage)
     },

@@ -330,6 +330,7 @@ async function main() {
         if (!user || user.revoked) {
           console.log(`[auth] Terminating WS for revoked user: ${userName}`)
           sessionStore.removeTerminalViewerBySocket(ws)
+          sessionStore.removeJsonStreamViewerBySocket(ws)
           sessionStore.removeSubscriber(ws)
           try {
             ws.close(4401, 'User revoked')
@@ -352,6 +353,7 @@ async function main() {
       if (!session) {
         console.log(`[auth] Closing expired WS for user: ${data.userName || 'unknown'}`)
         sessionStore.removeTerminalViewerBySocket(ws)
+        sessionStore.removeJsonStreamViewerBySocket(ws)
         sessionStore.removeSubscriber(ws)
         try {
           ws.close(4401, 'Session expired')
@@ -369,6 +371,7 @@ async function main() {
       if (allGrantsExpired(data.grants)) {
         console.log(`[auth] All grants expired for user: ${data.userName || 'unknown'} -- disconnecting`)
         sessionStore.removeTerminalViewerBySocket(ws)
+        sessionStore.removeJsonStreamViewerBySocket(ws)
         sessionStore.removeSubscriber(ws)
         try {
           ws.close(4403, 'Grants expired')
@@ -595,8 +598,9 @@ async function main() {
           if (ws.data.isDashboard) {
             // Clean up any active voice streaming session
             cleanupVoiceForWs(ws)
-            // If this dashboard was viewing a terminal, remove from viewers
+            // If this dashboard was viewing a terminal or json stream, remove from viewers
             sessionStore.removeTerminalViewerBySocket(ws)
+            sessionStore.removeJsonStreamViewerBySocket(ws)
             // Clean up launch job subscriptions
             sessionStore.cleanupJobSubscriber(ws)
             sessionStore.removeSubscriber(ws)
@@ -625,6 +629,25 @@ async function main() {
               }
               for (const viewer of viewers) {
                 sessionStore.removeTerminalViewer(closeWrapperId, viewer)
+              }
+            }
+
+            // Notify json-stream viewers attached to this wrapper
+            const jsViewers = sessionStore.getJsonStreamViewers(closeWrapperId)
+            if (jsViewers.size > 0) {
+              const msg = JSON.stringify({
+                type: 'json_stream_data',
+                wrapperId: closeWrapperId,
+                lines: [],
+                isBackfill: false,
+              })
+              for (const viewer of jsViewers) {
+                try {
+                  viewer.send(msg)
+                } catch {}
+              }
+              for (const viewer of jsViewers) {
+                sessionStore.removeJsonStreamViewer(closeWrapperId, viewer)
               }
             }
 

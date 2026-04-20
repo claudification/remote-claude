@@ -1,17 +1,28 @@
-import { Terminal } from 'lucide-react'
+import { Braces, Terminal } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useSessionsStore } from '@/hooks/use-sessions'
 import type { Session } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 
-export type Tab = 'transcript' | 'tty' | 'events' | 'agents' | 'tasks' | 'files' | 'shared' | 'project' | 'diag'
+export type Tab =
+  | 'transcript'
+  | 'tty'
+  | 'json_stream'
+  | 'events'
+  | 'agents'
+  | 'tasks'
+  | 'files'
+  | 'shared'
+  | 'project'
+  | 'diag'
 
 interface SessionTabsProps {
   session: Session
   activeTab: Tab
   onSetActiveTab: (tab: Tab) => void
   hasTerminal: boolean
+  hasJsonStream: boolean
   canAdmin: boolean
   canReadTerminal: boolean
   canReadFiles: boolean
@@ -58,6 +69,7 @@ export function SessionTabs({
   activeTab,
   onSetActiveTab,
   hasTerminal,
+  hasJsonStream,
   canAdmin,
   canReadTerminal,
   canReadFiles,
@@ -87,6 +99,20 @@ export function SessionTabs({
         >
           <Terminal className="w-3 h-3" />
           TTY
+        </TabButton>
+      )}
+
+      {hasJsonStream && canReadTerminal && (
+        <TabButton
+          active={activeTab === 'json_stream'}
+          className="flex items-center gap-1"
+          onClick={() => {
+            haptic('tick')
+            onSetActiveTab(activeTab === 'json_stream' ? 'transcript' : 'json_stream')
+          }}
+        >
+          <Braces className="w-3 h-3" />
+          JSON
         </TabButton>
       )}
 

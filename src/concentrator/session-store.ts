@@ -33,6 +33,7 @@ import { appendSharedFile } from './routes'
 import { createChannelRegistry } from './session-store/channel-registry'
 import { detectClipboardMime, detectContextModeFromStdout, isReadableText } from './session-store/parsers'
 import { createTerminalRegistry } from './session-store/terminal-registry'
+import { createViewerRegistry } from './session-store/viewer-registry'
 import { listShares } from './shares'
 
 export type { SessionSummary }
@@ -121,6 +122,12 @@ export interface SessionStore {
   removeTerminalViewer: (wrapperId: string, ws: ServerWebSocket<unknown>) => void
   removeTerminalViewerBySocket: (ws: ServerWebSocket<unknown>) => void
   hasTerminalViewers: (wrapperId: string) => boolean
+  // JSON stream viewer methods (raw NDJSON tail for headless sessions)
+  addJsonStreamViewer: (wrapperId: string, ws: ServerWebSocket<unknown>) => void
+  getJsonStreamViewers: (wrapperId: string) => Set<ServerWebSocket<unknown>>
+  removeJsonStreamViewer: (wrapperId: string, ws: ServerWebSocket<unknown>) => void
+  removeJsonStreamViewerBySocket: (ws: ServerWebSocket<unknown>) => void
+  hasJsonStreamViewers: (wrapperId: string) => boolean
   // Dashboard subscriber methods
   addSubscriber: (ws: ServerWebSocket<unknown>, protocolVersion?: number) => void
   sendSessionsList: (ws: ServerWebSocket<unknown>) => void
@@ -273,6 +280,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   const sessionSockets = new Map<string, Map<string, ServerWebSocket<unknown>>>()
   // Terminal viewers keyed by wrapperId (each PTY is on a specific wrapper)
   const terminalRegistry = createTerminalRegistry()
+  // JSON stream viewers keyed by wrapperId (raw NDJSON tail for headless sessions)
+  const jsonStreamRegistry = createViewerRegistry()
   const dashboardSubscribers = new Set<ServerWebSocket<unknown>>()
   let agentSocket: ServerWebSocket<unknown> | undefined
   let agentInfo: { machineId?: string; hostname?: string } | undefined
@@ -1829,6 +1838,12 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     hasTerminalViewers,
   } = terminalRegistry
 
+  const addJsonStreamViewer = jsonStreamRegistry.add
+  const getJsonStreamViewers = jsonStreamRegistry.get
+  const removeJsonStreamViewer = jsonStreamRegistry.remove
+  const removeJsonStreamViewerBySocket = jsonStreamRegistry.removeBySocket
+  const hasJsonStreamViewers = jsonStreamRegistry.has
+
   // Dashboard subscriber management
   function addSubscriber(ws: ServerWebSocket<unknown>, protocolVersion = 1): void {
     dashboardSubscribers.add(ws)
@@ -3048,6 +3063,11 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     removeTerminalViewer,
     removeTerminalViewerBySocket,
     hasTerminalViewers,
+    addJsonStreamViewer,
+    getJsonStreamViewers,
+    removeJsonStreamViewer,
+    removeJsonStreamViewerBySocket,
+    hasJsonStreamViewers,
     addSubscriber,
     sendSessionsList,
     handleSyncCheck,

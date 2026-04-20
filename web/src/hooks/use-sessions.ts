@@ -68,6 +68,13 @@ export interface TerminalMessage {
   error?: string
 }
 
+export interface JsonStreamMessage {
+  type: 'json_stream_data'
+  wrapperId: string
+  lines: string[]
+  isBackfill: boolean
+}
+
 interface SessionsState {
   sessions: Session[]
   /** O(1) lookup index maintained alongside sessions[] */
@@ -111,6 +118,7 @@ interface SessionsState {
   authExpired: boolean
   ws: WebSocket | null
   terminalHandler: ((msg: TerminalMessage) => void) | null
+  jsonStreamHandler: ((msg: JsonStreamMessage) => void) | null
   showTerminal: boolean
   terminalWrapperId: string | null
   showSwitcher: boolean
@@ -217,6 +225,7 @@ interface SessionsState {
   setAuthExpired: (expired: boolean) => void
   setWs: (ws: WebSocket | null) => void
   setTerminalHandler: (handler: ((msg: TerminalMessage) => void) | null) => void
+  setJsonStreamHandler: (handler: ((msg: JsonStreamMessage) => void) | null) => void
   fileHandler: ((msg: Record<string, unknown>) => void) | null
   setFileHandler: (handler: ((msg: Record<string, unknown>) => void) | null) => void
   projectHandler: ((msg: Record<string, unknown>) => void) | null
@@ -392,6 +401,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   authExpired: false,
   ws: null,
   terminalHandler: null,
+  jsonStreamHandler: null,
   fileHandler: null,
   projectHandler: null,
   showTerminal: false,
@@ -730,6 +740,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   setAuthExpired: authExpired => set({ authExpired }),
   setWs: ws => set({ ws }),
   setTerminalHandler: handler => set({ terminalHandler: handler }),
+  setJsonStreamHandler: handler => set({ jsonStreamHandler: handler }),
   setFileHandler: handler => set({ fileHandler: handler }),
   setPendingFilePath: path => set({ pendingFilePath: path }),
   sendWsMessage: msg => {

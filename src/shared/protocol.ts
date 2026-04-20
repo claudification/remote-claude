@@ -469,6 +469,7 @@ export type WrapperMessage =
   | MonitorUpdate
   | ScheduledTaskFire
   | SessionStatusSignal
+  | JsonStreamData
 
 export interface SessionNameUpdate {
   type: 'session_name'
@@ -506,6 +507,25 @@ export interface StreamDelta {
   type: 'stream_delta'
   sessionId: string
   event: Record<string, unknown> // raw Anthropic API SSE event
+}
+
+// Raw NDJSON stream (headless sessions only -- dashboard tails raw CC output)
+// Mirrors terminal_attach/detach pattern: wrapper only sends when viewers are attached.
+export interface JsonStreamAttach {
+  type: 'json_stream_attach'
+  wrapperId: string
+}
+
+export interface JsonStreamDetach {
+  type: 'json_stream_detach'
+  wrapperId: string
+}
+
+export interface JsonStreamData {
+  type: 'json_stream_data'
+  wrapperId: string
+  lines: string[] // raw NDJSON lines from CC stdout
+  isBackfill: boolean // true for initial batch on attach
 }
 
 // Rate limit notification from headless stream-json backend
@@ -762,6 +782,8 @@ export type ConcentratorMessage =
   | NotifyConfigUpdated
   | RclaudeConfigGet
   | RclaudeConfigSet
+  | JsonStreamAttach
+  | JsonStreamDetach
 
 export interface NotifyConfigUpdated {
   type: 'notify_config_updated'
