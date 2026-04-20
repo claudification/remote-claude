@@ -3,7 +3,7 @@
  * Exits with a clear error if the running Bun is too old.
  */
 
-const MIN_BUN_VERSION = '1.3.12'
+const MIN_BUN_VERSION = '1.3.13'
 
 function compareVersions(a: string, b: string): number {
   const pa = a.split('.').map(Number)
