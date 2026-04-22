@@ -20,17 +20,9 @@ import { GroupNode, NewGroupDropTarget, SortableNode } from './project-list/sess
 // ─── Main ProjectList ──────────────────────────────────────────────
 
 export function ProjectList() {
-  const allSessions = useSessionsStore(s => s.sessions)
-  const canAdmin = useSessionsStore(s => s.permissions.canAdmin)
-  const sessionPermissions = useSessionsStore(s => s.sessionPermissions)
-  // Non-admin users only see sessions they have read access to
-  const sessions = useMemo(() => {
-    if (canAdmin) return allSessions
-    return allSessions.filter(s => {
-      const perms = sessionPermissions[s.id]
-      return perms ? perms.canReadChat : false
-    })
-  }, [allSessions, canAdmin, sessionPermissions])
+  // Server already filters sessions_list by grants (filterSessionsByGrants) --
+  // if a session made it here, the user has chat:read for its cwd.
+  const sessions = useSessionsStore(s => s.sessions)
   const sessionsById = useSessionsStore(s => s.sessionsById)
   const selectedSessionId = useSessionsStore(s => s.selectedSessionId)
   const rawProjectOrder = useSessionsStore(s => s.projectOrder)
