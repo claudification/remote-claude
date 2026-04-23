@@ -6,6 +6,7 @@
 
 import { Database, type Statement } from 'bun:sqlite'
 import { resolve } from 'node:path'
+import { cwdToProjectUri } from '../shared/project-uri'
 
 // bun:sqlite's query().all/get() accept named param objects but the TS types are narrow.
 // These wrappers handle the cast for dynamic query building.
@@ -27,6 +28,7 @@ export interface TurnRecord {
   timestamp: number
   sessionId: string
   cwd: string
+  projectUri: string
   account: string
   orgId: string
   model: string
@@ -43,6 +45,7 @@ export interface HourlyRow {
   account: string
   model: string
   cwd: string
+  projectUri: string
   turnCount: number
   inputTokens: number
   outputTokens: number
@@ -59,7 +62,7 @@ export interface CostSummary {
   totalOutputTokens: number
   totalCacheReadTokens: number
   totalCacheWriteTokens: number
-  topProjects: Array<{ cwd: string; costUsd: number; turns: number }>
+  topProjects: Array<{ cwd: string; projectUri: string; costUsd: number; turns: number }>
   topModels: Array<{ model: string; costUsd: number; turns: number }>
 }
 
@@ -92,6 +95,7 @@ export function initCostStore(cacheDir: string): void {
       timestamp INTEGER NOT NULL,
       session_id TEXT NOT NULL,
       cwd TEXT NOT NULL,
+      project_uri TEXT NOT NULL DEFAULT '',
       account TEXT NOT NULL DEFAULT '',
       org_id TEXT NOT NULL DEFAULT '',
       model TEXT NOT NULL DEFAULT '',
@@ -110,6 +114,7 @@ export function initCostStore(cacheDir: string): void {
       account TEXT NOT NULL DEFAULT '',
       model TEXT NOT NULL DEFAULT '',
       cwd TEXT NOT NULL DEFAULT '',
+      project_uri TEXT NOT NULL DEFAULT '',
       turn_count INTEGER NOT NULL DEFAULT 0,
       input_tokens INTEGER NOT NULL DEFAULT 0,
       output_tokens INTEGER NOT NULL DEFAULT 0,
@@ -126,12 +131,31 @@ export function initCostStore(cacheDir: string): void {
   db.run('CREATE INDEX IF NOT EXISTS idx_turns_account ON turns(account)')
   db.run('CREATE INDEX IF NOT EXISTS idx_hourly_hour ON hourly_stats(hour)')
 
+  // Migration: add project_uri columns to existing tables
+  const turnCols = db.query("PRAGMA table_info('turns')").all() as Array<{ name: string }>
+  if (!turnCols.some(c => c.name === 'project_uri')) {
+    db.run('ALTER TABLE turns ADD COLUMN project_uri TEXT')
+    db.run("UPDATE turns SET project_uri = 'claude:///' || cwd WHERE project_uri IS NULL AND cwd != ''")
+    db.run('CREATE INDEX IF NOT EXISTS idx_turns_project_uri ON turns(project_uri)')
+    console.log('[cost] Migrated turns: added project_uri column')
+  }
+  db.run('CREATE INDEX IF NOT EXISTS idx_turns_project_uri ON turns(project_uri)')
+
+  const hourlyCols = db.query("PRAGMA table_info('hourly_stats')").all() as Array<{ name: string }>
+  if (!hourlyCols.some(c => c.name === 'project_uri')) {
+    db.run('ALTER TABLE hourly_stats ADD COLUMN project_uri TEXT')
+    db.run("UPDATE hourly_stats SET project_uri = 'claude:///' || cwd WHERE project_uri IS NULL AND cwd != ''")
+    db.run('CREATE INDEX IF NOT EXISTS idx_hourly_project_uri ON hourly_stats(project_uri)')
+    console.log('[cost] Migrated hourly_stats: added project_uri column')
+  }
+  db.run('CREATE INDEX IF NOT EXISTS idx_hourly_project_uri ON hourly_stats(project_uri)')
+
   // Prepare insert statement (reused on every turn)
   stmtInsertTurn = db.prepare(`
-    INSERT INTO turns (timestamp, session_id, cwd, account, org_id, model,
+    INSERT INTO turns (timestamp, session_id, cwd, project_uri, account, org_id, model,
       input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
       cost_usd, exact_cost)
-    VALUES ($timestamp, $sessionId, $cwd, $account, $orgId, $model,
+    VALUES ($timestamp, $sessionId, $cwd, $projectUri, $account, $orgId, $model,
       $inputTokens, $outputTokens, $cacheReadTokens, $cacheWriteTokens,
       $costUsd, $exactCost)
   `)
@@ -165,6 +189,7 @@ export function recordTurn(record: TurnRecord): void {
     timestamp: record.timestamp,
     sessionId: record.sessionId,
     cwd: record.cwd,
+    projectUri: record.projectUri,
     account: record.account,
     orgId: record.orgId,
     model: record.model,
@@ -219,6 +244,7 @@ export function recordTurnFromCumulatives(params: {
     timestamp: params.timestamp,
     sessionId: params.sessionId,
     cwd: params.cwd,
+    projectUri: cwdToProjectUri(params.cwd),
     account: params.account,
     orgId: params.orgId,
     model: params.model,
@@ -285,7 +311,8 @@ export function queryTurns(params: TurnQueryParams): { rows: TurnRecord[]; total
   const countRow = queryGet(db, `SELECT COUNT(*) as n FROM turns ${where}`, binds) as { n: number }
   const rows = queryAll(
     db,
-    `SELECT timestamp, session_id, cwd, account, org_id, model,
+    `SELECT timestamp, session_id, cwd, COALESCE(project_uri, '') as project_uri,
+    account, org_id, model,
     input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
     cost_usd, exact_cost
     FROM turns ${where} ORDER BY timestamp DESC LIMIT ${limit} OFFSET ${offset}`,
@@ -298,6 +325,7 @@ export function queryTurns(params: TurnQueryParams): { rows: TurnRecord[]; total
       timestamp: r.timestamp as number,
       sessionId: r.session_id as string,
       cwd: r.cwd as string,
+      projectUri: (r.project_uri as string) || '',
       account: r.account as string,
       orgId: r.org_id as string,
       model: r.model as string,
@@ -359,6 +387,7 @@ export function queryHourly(params: HourlyQueryParams): HourlyRow[] {
     const rows = queryAll(
       db,
       `SELECT substr(hour, 1, 10) as hour, account, model, cwd,
+      MIN(project_uri) as project_uri,
       SUM(turn_count) as turn_count, SUM(input_tokens) as input_tokens,
       SUM(output_tokens) as output_tokens, SUM(cache_read_tokens) as cache_read_tokens,
       SUM(cache_write_tokens) as cache_write_tokens, SUM(cost_usd) as cost_usd
@@ -410,11 +439,11 @@ export function querySummary(period: '24h' | '7d' | '30d'): CostSummary {
 
   const topProjects = queryAll(
     db,
-    `SELECT cwd, SUM(cost_usd) as cost, COUNT(*) as turns
+    `SELECT project_uri, MIN(cwd) as cwd, SUM(cost_usd) as cost, COUNT(*) as turns
     FROM turns WHERE timestamp >= $cutoff
-    GROUP BY cwd ORDER BY cost DESC LIMIT 10`,
+    GROUP BY project_uri ORDER BY cost DESC LIMIT 10`,
     b,
-  ) as Array<{ cwd: string; cost: number; turns: number }>
+  ) as Array<{ project_uri: string; cwd: string; cost: number; turns: number }>
 
   const topModels = queryAll(
     db,
@@ -432,7 +461,12 @@ export function querySummary(period: '24h' | '7d' | '30d'): CostSummary {
     totalOutputTokens: totals.output_t,
     totalCacheReadTokens: totals.cache_r,
     totalCacheWriteTokens: totals.cache_w,
-    topProjects: topProjects.map(p => ({ cwd: p.cwd, costUsd: p.cost, turns: p.turns })),
+    topProjects: topProjects.map(p => ({
+      cwd: p.cwd,
+      projectUri: p.project_uri || '',
+      costUsd: p.cost,
+      turns: p.turns,
+    })),
     topModels: topModels.map(m => ({ model: m.model, costUsd: m.cost, turns: m.turns })),
   }
 }
@@ -455,12 +489,12 @@ function materializeHourly(from?: number, to?: number): void {
 
   // Upsert hourly rollups from turns that are newer than latest materialized
   db.prepare(
-    `INSERT OR REPLACE INTO hourly_stats (hour, account, model, cwd,
+    `INSERT OR REPLACE INTO hourly_stats (hour, account, model, cwd, project_uri,
       turn_count, input_tokens, output_tokens, cache_read_tokens,
       cache_write_tokens, cost_usd)
     SELECT
       strftime('%Y-%m-%dT%H:00:00Z', timestamp / 1000, 'unixepoch') as hour,
-      account, model, cwd,
+      account, model, cwd, COALESCE(project_uri, '') as project_uri,
       COUNT(*) as turn_count,
       SUM(input_tokens), SUM(output_tokens),
       SUM(cache_read_tokens), SUM(cache_write_tokens),
@@ -468,7 +502,7 @@ function materializeHourly(from?: number, to?: number): void {
     FROM turns
     WHERE timestamp >= $start AND timestamp <= $end
       AND strftime('%Y-%m-%dT%H:00:00Z', timestamp / 1000, 'unixepoch') != $currentHour
-    GROUP BY hour, account, model, cwd`,
+    GROUP BY hour, account, model, cwd, project_uri`,
   ).run({ start: startMs, end: cutoffTo, currentHour })
 }
 
@@ -526,6 +560,7 @@ function mapHourlyRow(r: Record<string, unknown>): HourlyRow {
     account: r.account as string,
     model: r.model as string,
     cwd: r.cwd as string,
+    projectUri: (r.project_uri as string) || '',
     turnCount: r.turn_count as number,
     inputTokens: r.input_tokens as number,
     outputTokens: r.output_tokens as number,

@@ -13,6 +13,7 @@
 
 import { Database, type Statement } from 'bun:sqlite'
 import { resolve } from 'node:path'
+import { cwdToProjectUri } from '../shared/project-uri'
 import { getOrCreateProject, getProjectById, getProjectBySlug } from './project-store'
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -47,6 +48,8 @@ export interface TurnAnalytics {
   sessionId: string
   timestamp: number
   cwd: string
+  /** Canonical project identity URI (e.g. claude:///Users/jonas/projects/foo) */
+  projectUri: string
   /** Integer FK to projects.id (from project-store) */
   projectId: number
   model: string
@@ -174,6 +177,7 @@ function flushBatch(): void {
           timestamp: turn.timestamp,
           sessionId: turn.sessionId,
           cwd: turn.cwd,
+          projectUri: turn.projectUri,
           projectId: turn.projectId,
           model: turn.model,
           account: turn.account,
@@ -249,6 +253,19 @@ function migrate(d: Database): void {
   } catch (err) {
     console.error('[analytics] Migration failed:', err)
   }
+
+  // project_uri migration
+  try {
+    const uriCols = d.query("PRAGMA table_info('turns')").all() as Array<{ name: string }>
+    if (!uriCols.some(c => c.name === 'project_uri')) {
+      d.run('ALTER TABLE turns ADD COLUMN project_uri TEXT')
+      d.run("UPDATE turns SET project_uri = 'claude:///' || cwd WHERE project_uri IS NULL AND cwd != ''")
+      d.run('CREATE INDEX IF NOT EXISTS idx_analytics_project_uri ON turns(project_uri)')
+      console.log('[analytics] Migrated: added project_uri column')
+    }
+  } catch (err) {
+    console.error('[analytics] project_uri migration failed:', err)
+  }
 }
 
 /** Backfill project_id from cwd via project-store */
@@ -280,6 +297,7 @@ export function initAnalyticsStore(cacheDir: string): void {
         timestamp INTEGER NOT NULL,
         session_id TEXT NOT NULL,
         cwd TEXT NOT NULL DEFAULT '',
+        project_uri TEXT NOT NULL DEFAULT '',
         project_id INTEGER NOT NULL DEFAULT 0,
         model TEXT NOT NULL DEFAULT '',
         account TEXT NOT NULL DEFAULT '',
@@ -309,16 +327,17 @@ export function initAnalyticsStore(cacheDir: string): void {
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_timestamp ON turns(timestamp)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_session ON turns(session_id)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_cwd ON turns(cwd)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_analytics_project_uri ON turns(project_uri)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_project ON turns(project_id)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_category ON turns(task_category)')
     db.run('CREATE INDEX IF NOT EXISTS idx_tool_uses_timestamp ON tool_uses(timestamp)')
     db.run('CREATE INDEX IF NOT EXISTS idx_tool_uses_name ON tool_uses(tool_name)')
 
     stmtInsertTurn = db.prepare(`
-      INSERT INTO turns (timestamp, session_id, cwd, project_id, model, account,
+      INSERT INTO turns (timestamp, session_id, cwd, project_uri, project_id, model, account,
         tool_sequence, tool_call_count, task_category, retry_count,
         one_shot, had_error, prompt_snippet)
-      VALUES ($timestamp, $sessionId, $cwd, $projectId, $model, $account,
+      VALUES ($timestamp, $sessionId, $cwd, $projectUri, $projectId, $model, $account,
         $toolSequence, $toolCallCount, $taskCategory, $retryCount,
         $oneShot, $hadError, $promptSnippet)
     `)
@@ -418,6 +437,7 @@ export function recordHookEvent(
         sessionId,
         timestamp: Date.now(),
         cwd: sessionMeta.cwd,
+        projectUri: cwdToProjectUri(sessionMeta.cwd),
         projectId: getOrCreateProject(sessionMeta.cwd, sessionMeta.projectLabel).id,
         model: sessionMeta.model,
         account: sessionMeta.account,
@@ -470,7 +490,14 @@ export interface AnalyticsSummary {
   avgRetries: number
   taskBreakdown: Array<{ category: TaskCategory; count: number; oneShotRate: number }>
   topTools: Array<{ toolName: string; count: number }>
-  topProjects: Array<{ projectId: number; slug: string; label: string | null; turns: number; oneShotRate: number }>
+  topProjects: Array<{
+    projectId: number
+    projectUri: string
+    slug: string
+    label: string | null
+    turns: number
+    oneShotRate: number
+  }>
 }
 
 export function querySummary(period: '24h' | '7d' | '30d' | '90d', project?: string): AnalyticsSummary {
@@ -507,13 +534,13 @@ export function querySummary(period: '24h' | '7d' | '30d' | '90d', project?: str
   ) as Array<{ toolName: string; count: number }>
 
   const topProjects = queryAll(
-    `SELECT project_id, COUNT(*) as turns,
+    `SELECT project_uri, MAX(project_id) as project_id, COUNT(*) as turns,
       COALESCE(AVG(CASE WHEN one_shot = 1 THEN 1.0
                        WHEN one_shot = 0 AND tool_call_count > 0 THEN 0.0 END), 0) as one_shot_rate
     FROM turns ${where}
-    GROUP BY project_id ORDER BY turns DESC LIMIT 10`,
+    GROUP BY project_uri ORDER BY turns DESC LIMIT 10`,
     binds,
-  ) as Array<{ project_id: number; turns: number; one_shot_rate: number }>
+  ) as Array<{ project_uri: string; project_id: number; turns: number; one_shot_rate: number }>
 
   return {
     period,
@@ -528,9 +555,10 @@ export function querySummary(period: '24h' | '7d' | '30d' | '90d', project?: str
     })),
     topTools,
     topProjects: topProjects.map(r => {
-      const p = getProjectById(r.project_id)
+      const p = r.project_id ? getProjectById(r.project_id) : null
       return {
         projectId: r.project_id,
+        projectUri: r.project_uri || '',
         slug: p?.slug || 'unknown',
         label: p?.label || null,
         turns: r.turns,
@@ -643,14 +671,19 @@ export function flush(): void {
  */
 function buildFilter(cutoff: number, project?: string): { where: string; binds: Binds } {
   if (project) {
-    // Resolve slug to integer ID if not already a number
+    if (project.includes('://')) {
+      return {
+        where: 'WHERE timestamp >= $cutoff AND project_uri = $projectUri',
+        binds: { cutoff, projectUri: project },
+      }
+    }
     let projectId: number
     const parsed = Number(project)
     if (!Number.isNaN(parsed)) {
       projectId = parsed
     } else {
       const p = getProjectBySlug(project)
-      if (!p) return { where: 'WHERE timestamp >= $cutoff AND 0', binds: { cutoff } } // no match
+      if (!p) return { where: 'WHERE timestamp >= $cutoff AND 0', binds: { cutoff } }
       projectId = p.id
     }
     return {
