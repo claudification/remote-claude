@@ -575,10 +575,10 @@ const channelUnlink: MessageHandler = (ctx, data) => {
   if (projectA && projectB) {
     ctx.requirePermission('settings', projectA)
     ctx.requirePermission('settings', projectB)
-    ctx.sessions.unlinkProjectsByCwd(projectA, projectB)
+    ctx.sessions.unlinkProjects(projectA, projectB)
     ctx.links.remove(projectA, projectB)
-    ctx.sessions.broadcastForProjectCwd(projectA)
-    ctx.sessions.broadcastForProjectCwd(projectB)
+    ctx.sessions.broadcastForProject(projectA)
+    ctx.sessions.broadcastForProject(projectB)
     ctx.log.debug(`Link severed: ${extractProjectLabel(projectA)} X ${extractProjectLabel(projectB)}`)
     return
   }

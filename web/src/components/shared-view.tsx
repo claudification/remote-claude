@@ -53,7 +53,7 @@ function copyText(text: string) {
   document.body.removeChild(ta)
 }
 
-export function SharedView({ projectPath: cwdPath }: { projectPath: string }) {
+export function SharedView({ projectPath }: { projectPath: string }) {
   const [files, setFiles] = useState<SharedFileEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [seq, setSeq] = useState(0) // bump to re-fetch after delete
@@ -61,12 +61,12 @@ export function SharedView({ projectPath: cwdPath }: { projectPath: string }) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: seq is a counter dep key used to trigger re-fetch after delete; not accessed in the body
   useEffect(() => {
     setLoading(true)
-    fetch(`${API_BASE}/api/shared-files?cwd=${encodeURIComponent(cwdPath)}`)
+    fetch(`${API_BASE}/api/shared-files?project=${encodeURIComponent(projectPath)}`)
       .then(r => r.json())
       .then((data: { files: SharedFileEntry[] }) => setFiles(data.files || []))
       .catch(() => setFiles([]))
       .finally(() => setLoading(false))
-  }, [cwdPath, seq])
+  }, [projectPath, seq])
 
   function handleDelete(hash: string) {
     haptic('tick')

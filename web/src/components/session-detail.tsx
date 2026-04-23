@@ -40,8 +40,8 @@ export const SessionDetail = memo(function SessionDetail() {
   const showThinking = useSessionsStore(s => s.dashboardPrefs.showThinking)
   const showDiag = useSessionsStore(s => s.dashboardPrefs.showDiag)
   const [conversationTarget, setConversationTarget] = useState<{
-    cwdA: string
-    cwdB: string
+    projectA: string
+    projectB: string
     nameA: string
     nameB: string
   } | null>(null)
@@ -341,8 +341,8 @@ export const SessionDetail = memo(function SessionDetail() {
           {conversationTarget && (
             <div className="flex-1 min-h-0 overflow-hidden">
               <ConversationView
-                cwdA={conversationTarget.cwdA}
-                cwdB={conversationTarget.cwdB}
+                projectA={conversationTarget.projectA}
+                projectB={conversationTarget.projectB}
                 nameA={conversationTarget.nameA}
                 nameB={conversationTarget.nameB}
                 onBack={() => setConversationTarget(null)}

@@ -350,7 +350,7 @@ export function createAdminRouter(
     const removed = removePersistedLink(body.projectA, body.projectB)
 
     // Sever the in-memory project link
-    sessionStore.unlinkProjectsByCwd(body.projectA, body.projectB)
+    sessionStore.unlinkProjects(body.projectA, body.projectB)
 
     let purged = 0
     if (body.purgeHistory) {

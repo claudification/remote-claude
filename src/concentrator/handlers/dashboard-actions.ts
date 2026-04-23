@@ -163,7 +163,7 @@ const updateProjectOrder: MessageHandler = (ctx, data) => {
           const result: ProjectOrder['tree'] = []
           for (const node of nodes) {
             if (node.type === 'project') {
-              const projectUri = node.id.startsWith('cwd:') ? node.id.slice(4) : node.id
+              const projectUri = node.id
               const { permissions } = resolvePermissions(grants, projectUri)
               if (permissions.has('chat:read')) result.push(node)
             } else if (node.type === 'group') {

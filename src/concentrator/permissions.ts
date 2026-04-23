@@ -78,11 +78,11 @@ function grantScope(grant: UserGrant): string {
   return '*'
 }
 
-/** Normalize a bare CWD or project URI into a project URI for matching. */
-function normalizeTarget(cwdOrUri: string): string {
-  if (cwdOrUri === '*') return '*'
-  if (cwdOrUri.includes('://')) return cwdOrUri
-  return cwdToProjectUri(cwdOrUri)
+/** Normalize a project URI (or legacy bare CWD) into a project URI for matching. */
+function normalizeTarget(project: string): string {
+  if (project === '*') return '*'
+  if (project.includes('://')) return project
+  return cwdToProjectUri(project)
 }
 
 function matchGrant(grant: UserGrant, targetUri: string): boolean {
@@ -98,17 +98,17 @@ function isGrantActive(grant: UserGrant, now = Date.now()): boolean {
 // ─── Resolution ───────────────────────────────────────────────────
 
 /**
- * Resolve effective permissions for grants against a CWD or project URI.
- * Accepts bare CWD paths (auto-upgraded to project URI) or project URIs directly.
+ * Resolve effective permissions for grants against a project URI.
+ * Accepts legacy bare CWD paths (auto-upgraded) or project URIs directly.
  */
 export function resolvePermissions(
   grants: UserGrant[],
-  cwdOrProject: string,
+  project: string,
 ): { permissions: Set<Permission>; isAdmin: boolean } {
   const result = new Set<Permission>()
   let admin = false
   const now = Date.now()
-  const targetUri = normalizeTarget(cwdOrProject)
+  const targetUri = normalizeTarget(project)
 
   for (const grant of grants) {
     if (!isGrantActive(grant, now)) continue
@@ -156,10 +156,10 @@ export interface ResolvedPermissions {
 
 export function resolvePermissionFlags(
   grants: UserGrant[],
-  cwdOrProject = '*',
+  project = '*',
   serverRoles?: string[],
 ): ResolvedPermissions {
-  const { permissions, isAdmin } = resolvePermissions(grants, cwdOrProject)
+  const { permissions, isAdmin } = resolvePermissions(grants, project)
   return {
     canAdmin: isAdmin,
     canEditUsers: serverRoles?.includes('user-editor') ?? false,
@@ -203,9 +203,9 @@ export function hasPermissionAnyCwd(grants: UserGrant[], permission: Permission)
   return false
 }
 
-export function hasAnyProjectAccess(grants: UserGrant[], cwdOrProject: string): boolean {
+export function hasAnyProjectAccess(grants: UserGrant[], project: string): boolean {
   const now = Date.now()
-  const targetUri = normalizeTarget(cwdOrProject)
+  const targetUri = normalizeTarget(project)
   return grants.some(g => isGrantActive(g, now) && matchGrant(g, targetUri))
 }
 

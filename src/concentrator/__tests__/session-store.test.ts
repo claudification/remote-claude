@@ -645,14 +645,14 @@ describe('project link management (project URI)', () => {
     expect(store.checkProjectLink('unlink-a', 'unlink-b')).toBe('unknown')
   })
 
-  it('unlinkProjectsByCwd accepts bare CWD and normalizes to project URI', () => {
-    store.createSession('cwd-unlink-a', '/projects/p')
-    store.createSession('cwd-unlink-b', '/projects/q')
+  it('unlinkProjects by session ID severs project link', () => {
+    store.createSession('cwd-unlink-a', 'claude:///projects/p')
+    store.createSession('cwd-unlink-b', 'claude:///projects/q')
 
     store.linkProjects('cwd-unlink-a', 'cwd-unlink-b')
     expect(store.checkProjectLink('cwd-unlink-a', 'cwd-unlink-b')).toBe('linked')
 
-    store.unlinkProjectsByCwd('/projects/p', '/projects/q')
+    store.unlinkProjects('cwd-unlink-a', 'cwd-unlink-b')
     expect(store.checkProjectLink('cwd-unlink-a', 'cwd-unlink-b')).toBe('unknown')
   })
 
@@ -714,10 +714,9 @@ describe('project message queue (project URI)', () => {
 })
 
 describe('broadcast scoping (project URI)', () => {
-  it('broadcastForProjectCwd accepts bare CWD (backward compat)', () => {
+  it('broadcastForProject accepts bare CWD (backward compat)', () => {
     store.createSession('bc-1', '/projects/target')
-    // Should not throw -- normalizes CWD to project URI internally
-    expect(() => store.broadcastForProjectCwd('/projects/target')).not.toThrow()
+    expect(() => store.broadcastForProject('/projects/target')).not.toThrow()
   })
 
   it('broadcastForProject accepts project URI', () => {

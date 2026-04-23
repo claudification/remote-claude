@@ -4,8 +4,8 @@ import { cn } from '@/lib/utils'
 const LINKS_API = `${window.location.protocol}//${window.location.host}/api/links`
 
 interface LinkItem {
-  cwdA: string
-  cwdB: string
+  projectA: string
+  projectB: string
   nameA: string
   nameB: string
   createdAt: number
@@ -44,11 +44,11 @@ export function ProjectLinksSection() {
     fetchLinks()
   }, [fetchLinks])
 
-  async function removeLink(cwdA: string, cwdB: string) {
+  async function removeLink(projectA: string, projectB: string) {
     await fetch(LINKS_API, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cwdA, cwdB }),
+      body: JSON.stringify({ projectA, projectB }),
     })
     fetchLinks()
   }
@@ -66,15 +66,15 @@ export function ProjectLinksSection() {
   return (
     <div className="space-y-2">
       {links.map(link => (
-        <div key={`${link.cwdA}:${link.cwdB}`} className="flex items-center gap-2 text-xs">
+        <div key={`${link.projectA}:${link.projectB}`} className="flex items-center gap-2 text-xs">
           <span className={cn('w-2 h-2 rounded-full shrink-0', link.online ? 'bg-green-400' : 'bg-zinc-600')} />
           <span className="text-teal-400 font-mono truncate">{link.nameA}</span>
-          <span className="text-muted-foreground">↔</span>
+          <span className="text-muted-foreground">-</span>
           <span className="text-sky-400 font-mono truncate">{link.nameB}</span>
           <span className="text-[9px] text-muted-foreground/50 ml-auto shrink-0">{formatAge(link.lastUsed)}</span>
           <button
             type="button"
-            onClick={() => removeLink(link.cwdA, link.cwdB)}
+            onClick={() => removeLink(link.projectA, link.projectB)}
             className="text-[9px] text-muted-foreground hover:text-destructive shrink-0"
           >
             x

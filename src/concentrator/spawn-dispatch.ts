@@ -51,7 +51,7 @@ export type SpawnDispatchDeps = {
   sessions: SessionStore
   getProjectSettings: (project: string) => ProjectSettings | null
   getGlobalSettings: () => GlobalSettings
-  setProjectSettings?: (cwd: string, update: Partial<ProjectSettings>) => void
+  setProjectSettings?: (project: string, update: Partial<ProjectSettings>) => void
   /** Caller context for the unified permission gate. */
   callerContext: SpawnCallerContext
   /** If set, register a rendezvous so the caller session is notified when the spawned wrapper connects. */

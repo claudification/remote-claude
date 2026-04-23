@@ -2028,7 +2028,7 @@ async function main() {
             ctx.wsClient?.send({
               type: 'spawn_failed',
               conversationId: conversationId,
-              cwd,
+              project: cwdToProjectUri(cwd),
               exitCode: code,
               elapsedMs,
               error: `Claude process exited in ${elapsedMs}ms (exit ${code}) - likely hook, config, or binary failure`,
@@ -2048,7 +2048,7 @@ async function main() {
       ctx.wsClient?.send({
         type: 'spawn_failed',
         conversationId: conversationId,
-        cwd,
+        project: cwdToProjectUri(cwd),
         error: `PTY spawn failed: ${msg}`,
       })
       // Give WS a moment to flush the message before exiting

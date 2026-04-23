@@ -666,8 +666,8 @@ export function UserAdminDialog({ open, onOpenChange }: { open: boolean; onOpenC
                         {user.grants
                           .map(g => {
                             const parts = [...(g.roles || []), ...(g.permissions || [])]
-                            const cwdLabel = g.project === '*' ? 'all' : extractProjectLabel(g.project)
-                            return `${cwdLabel}: ${parts.join(', ')}`
+                            const projectLabel = g.project === '*' ? 'all' : extractProjectLabel(g.project)
+                            return `${projectLabel}: ${parts.join(', ')}`
                           })
                           .join(' / ')}
                       </div>

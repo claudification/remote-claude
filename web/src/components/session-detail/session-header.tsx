@@ -19,8 +19,8 @@ import {
 } from '@/lib/utils'
 
 interface ConversationTarget {
-  cwdA: string
-  cwdB: string
+  projectA: string
+  projectB: string
   nameA: string
   nameB: string
 }
@@ -555,8 +555,8 @@ export function SessionHeader({
                             projectPath(session.project).split('/').pop() ||
                             session.id.slice(0, 8)
                           onSetConversationTarget({
-                            cwdA: session.project,
-                            cwdB: lp.project,
+                            projectA: session.project,
+                            projectB: lp.project,
                             nameA: myName,
                             nameB: lp.name,
                           })
@@ -569,7 +569,7 @@ export function SessionHeader({
                         type="button"
                         onClick={() => {
                           haptic('error')
-                          wsSend('channel_unlink', { cwdA: session.project, cwdB: lp.project })
+                          wsSend('channel_unlink', { projectA: session.project, projectB: lp.project })
                         }}
                         className="text-red-400/40 hover:text-red-400 transition-colors"
                         title={`Sever link to ${lp.name}`}

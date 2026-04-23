@@ -1339,7 +1339,7 @@ export interface ListDirsResult {
 export interface SpawnFailed {
   type: 'spawn_failed'
   conversationId: string
-  cwd?: string
+  project?: string
   pid?: number
   exitCode?: number | null
   error?: string

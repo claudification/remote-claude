@@ -16,9 +16,9 @@ type SettingsMap = Record<string, ProjectSettings>
 let settingsPath = ''
 let settings: SettingsMap = {}
 
-function normalizeKey(cwdOrUri: string): string {
-  if (cwdOrUri.startsWith('/')) return cwdToProjectUri(cwdOrUri)
-  return cwdOrUri
+function normalizeKey(project: string): string {
+  if (project.startsWith('/')) return cwdToProjectUri(project)
+  return project
 }
 
 export function initProjectSettings(cacheDir: string): void {
@@ -55,12 +55,12 @@ export function getAllProjectSettings(): SettingsMap {
   return settings
 }
 
-export function getProjectSettings(cwdOrUri: string): ProjectSettings | null {
-  return settings[normalizeKey(cwdOrUri)] || null
+export function getProjectSettings(project: string): ProjectSettings | null {
+  return settings[normalizeKey(project)] || null
 }
 
-export function setProjectSettings(cwdOrUri: string, update: ProjectSettings): void {
-  const key = normalizeKey(cwdOrUri)
+export function setProjectSettings(project: string, update: ProjectSettings): void {
+  const key = normalizeKey(project)
   const existing = settings[key] || {}
   settings[key] = { ...existing, ...update }
   // Remove empty string values
@@ -76,7 +76,7 @@ export function setProjectSettings(cwdOrUri: string, update: ProjectSettings): v
   save()
 }
 
-export function deleteProjectSettings(cwdOrUri: string): void {
-  delete settings[normalizeKey(cwdOrUri)]
+export function deleteProjectSettings(project: string): void {
+  delete settings[normalizeKey(project)]
   save()
 }

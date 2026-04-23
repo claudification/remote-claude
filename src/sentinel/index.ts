@@ -159,7 +159,7 @@ function reportDeadPids(ws: WebSocket) {
     const msg: SpawnFailed = {
       type: 'spawn_failed',
       conversationId: entry.conversationId,
-      cwd: entry.cwd,
+      project: cwdToProjectUri(entry.cwd),
       pid: entry.pid,
       error: 'Process died during sentinel restart (discovered from PID registry)',
     }
@@ -390,7 +390,7 @@ function spawnHeadlessDirect(
         const msg: SpawnFailed = {
           type: 'spawn_failed',
           conversationId,
-          cwd,
+          project: cwdToProjectUri(cwd),
           pid,
           exitCode,
           elapsedMs,
@@ -1277,7 +1277,7 @@ function connect(
                   const msg: SpawnFailed = {
                     type: 'spawn_failed',
                     conversationId: wid,
-                    cwd: reviveCwd,
+                    project: cwdToProjectUri(reviveCwd),
                     error: 'rclaude process died within 5s of tmux launch - check shell environment, PATH, and hooks',
                   }
                   try {
@@ -1402,7 +1402,7 @@ function connect(
                   const failMsg: SpawnFailed = {
                     type: 'spawn_failed',
                     conversationId: wid,
-                    cwd: spawnCwd,
+                    project: cwdToProjectUri(spawnCwd),
                     error: 'rclaude process died within 5s of tmux launch - check shell environment, PATH, and hooks',
                   }
                   try {

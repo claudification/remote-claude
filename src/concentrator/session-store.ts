@@ -252,12 +252,10 @@ export interface SessionStore {
   getLinkedProjects: (sessionId: string) => Array<{ project: string; name: string }>
   linkProjects: (a: string, b: string) => void
   unlinkProjects: (a: string, b: string) => void
-  unlinkProjectsByCwd: (projectA: string, projectB: string) => void
   blockProject: (blocker: string, blocked: string) => void
   queueProjectMessage: (from: string, to: string, message: Record<string, unknown>) => void
   drainProjectMessages: (from: string, to: string) => Array<Record<string, unknown>>
   broadcastForProject: (project: string) => void
-  broadcastForProjectCwd: (project: string) => void
   broadcastSessionScoped: (message: Record<string, unknown>, project: string) => void
   broadcastSharesUpdate: () => void
   recordTraffic: (direction: 'in' | 'out', bytes: number) => void
@@ -3112,10 +3110,6 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     if (projA && projB) projectLinks.delete(projectLinkKey(projA, projB))
   }
 
-  function unlinkProjectsByCwd(projectA: string, projectB: string): void {
-    projectLinks.delete(projectLinkKey(toProjectUri(projectA), toProjectUri(projectB)))
-  }
-
   function checkProjectLink(from: string, to: string): 'linked' | 'blocked' | 'unknown' {
     const projFrom = sessionToProject(from)
     const projTo = sessionToProject(to)
@@ -3264,12 +3258,10 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     getLinkedProjects,
     linkProjects,
     unlinkProjects,
-    unlinkProjectsByCwd,
     blockProject,
     queueProjectMessage,
     drainProjectMessages,
     broadcastForProject,
-    broadcastForProjectCwd: broadcastForProject,
     addPendingRestart,
     consumePendingRestart,
     addRendezvous,

@@ -45,12 +45,11 @@ const meta: MessageHandler = (ctx, data) => {
   } else {
     const newSession = ctx.sessions.createSession(
       sessionId,
-      data.cwd as string,
+      project,
       data.model as string,
       data.args,
       data.capabilities,
     )
-    newSession.project = project
     if (data.version) newSession.version = data.version as string
     if (data.buildTime) newSession.buildTime = data.buildTime as string
     if (data.claudeVersion) newSession.claudeVersion = data.claudeVersion as string
@@ -156,17 +155,15 @@ const sessionClear: MessageHandler = (ctx, data) => {
 
   const clearProject = (data.project as string) ?? cwdToProjectUri(data.cwd as string)
 
-  const session = ctx.sessions.rekeySession(oldId, newId, clearWrapperId, data.cwd as string, data.model as string)
+  const session = ctx.sessions.rekeySession(oldId, newId, clearWrapperId, clearProject, data.model as string)
   if (session) {
-    session.project = clearProject
     ctx.ws.data.sessionId = newId
     ctx.log.debug(
-      `Session re-keyed: ${oldId.slice(0, 8)} -> ${newId.slice(0, 8)} conv=${clearWrapperId.slice(0, 8)} (${data.cwd})`,
+      `Session re-keyed: ${oldId.slice(0, 8)} -> ${newId.slice(0, 8)} conv=${clearWrapperId.slice(0, 8)} (${extractProjectLabel(clearProject)})`,
     )
   } else {
     ctx.log.debug(`session_clear: old session ${oldId.slice(0, 8)} not found, creating new`)
-    const created = ctx.sessions.createSession(newId, data.cwd as string, data.model as string)
-    created.project = clearProject
+    ctx.sessions.createSession(newId, clearProject, data.model as string)
     ctx.ws.data.sessionId = newId
     ctx.sessions.setSessionSocket(newId, clearWrapperId, ctx.ws)
   }

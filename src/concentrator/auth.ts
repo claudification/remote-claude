@@ -374,11 +374,11 @@ export function addUserGrant(name: string, grant: UserGrant): boolean {
   return true
 }
 
-export function removeUserGrant(name: string, cwdOrScope: string): boolean {
+export function removeUserGrant(name: string, scope: string): boolean {
   const user = state.users.find(u => u.name === name)
   if (!user) return false
   const before = user.grants.length
-  user.grants = user.grants.filter(g => g.legacyCwd !== cwdOrScope && g.scope !== cwdOrScope)
+  user.grants = user.grants.filter(g => g.legacyCwd !== scope && g.scope !== scope)
   if (user.grants.length === before) return false
   save()
   return true

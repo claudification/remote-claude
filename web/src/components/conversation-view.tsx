@@ -27,14 +27,14 @@ const INTENT_STYLES: Record<string, string> = {
 const API_BASE = `${window.location.protocol}//${window.location.host}`
 
 export function ConversationView({
-  cwdA,
-  cwdB,
+  projectA,
+  projectB,
   nameA,
   nameB,
   onBack,
 }: {
-  cwdA: string
-  cwdB: string
+  projectA: string
+  projectB: string
   nameA: string
   nameB: string
   onBack: () => void
@@ -47,7 +47,7 @@ export function ConversationView({
   const fetchMessages = useCallback(
     async (before?: number) => {
       try {
-        const params = new URLSearchParams({ cwdA, cwdB, limit: '50' })
+        const params = new URLSearchParams({ projectA, projectB, limit: '50' })
         if (before) params.set('before', String(before))
         const res = await fetch(`${API_BASE}/api/links/messages?${params}`)
         if (!res.ok) return
@@ -64,7 +64,7 @@ export function ConversationView({
         setLoading(false)
       }
     },
-    [cwdA, cwdB],
+    [projectA, projectB],
   )
 
   useEffect(() => {
@@ -93,7 +93,7 @@ export function ConversationView({
         </button>
         <div className="flex items-center gap-2 text-xs font-mono">
           <span className="text-teal-400 font-bold">{nameA}</span>
-          <span className="text-muted-foreground">↔</span>
+          <span className="text-muted-foreground">-</span>
           <span className="text-sky-400 font-bold">{nameB}</span>
         </div>
         <span className="text-[10px] text-muted-foreground ml-auto">{messages.length} messages</span>
@@ -122,7 +122,7 @@ export function ConversationView({
         )}
 
         {messages.map((msg, i) => {
-          const isFromA = msg.from.project === cwdA
+          const isFromA = msg.from.project === projectA
           const bubbleColor = isFromA ? 'bg-teal-600/20 border-teal-600/30' : 'bg-sky-600/20 border-sky-600/30'
           const align = isFromA ? 'items-start' : 'items-end'
           const intentStyle = INTENT_STYLES[msg.intent] || INTENT_STYLES.notify

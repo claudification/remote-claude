@@ -237,7 +237,7 @@ export function PermissionRulesEditor({ project }: PermissionRulesEditorProps) {
   const [inputValues, setInputValues] = useState<Record<Tool, string>>({ Write: '', Edit: '', Read: '' })
 
   const resolvedPath = projectPath(project)
-  const cwdInsideDotClaude = /[/\\]\.claude([/\\]|$)/.test(resolvedPath)
+  const pathInsideDotClaude = /[/\\]\.claude([/\\]|$)/.test(resolvedPath)
 
   const loadConfig = useCallback(async () => {
     setLoading(true)
@@ -251,9 +251,9 @@ export function PermissionRulesEditor({ project }: PermissionRulesEditorProps) {
         Read: perms?.Read?.allow ? [...perms.Read.allow] : [],
       })
       const explicitAllowAll = data.config?.allowAll
-      const effective = explicitAllowAll ?? cwdInsideDotClaude
+      const effective = explicitAllowAll ?? pathInsideDotClaude
       setAllowAll(effective)
-      setAllowAllAutoDetected(explicitAllowAll === undefined && cwdInsideDotClaude)
+      setAllowAllAutoDetected(explicitAllowAll === undefined && pathInsideDotClaude)
       setAllowPlanMode(data.config?.allowPlanMode !== false)
 
       const w = new Set(perms?.Write?.allow || [])
@@ -264,7 +264,7 @@ export function PermissionRulesEditor({ project }: PermissionRulesEditorProps) {
       setError(err instanceof Error ? err.message : 'Failed to load config')
     }
     setLoading(false)
-  }, [project, cwdInsideDotClaude])
+  }, [project, pathInsideDotClaude])
 
   useEffect(() => {
     if (hasConfigRw) loadConfig()
