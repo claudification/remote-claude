@@ -15,6 +15,7 @@ import xml from 'highlight.js/lib/languages/xml'
 import yaml from 'highlight.js/lib/languages/yaml'
 import { Marked } from 'marked'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef } from 'react'
+import { CopyMenu } from './copy-menu'
 import { filenameFromUrl, type MediaKind, openMediaLightbox } from './media-lightbox'
 
 // Register languages
@@ -371,9 +372,11 @@ const runIdle: (fn: () => void) => void =
 interface MarkdownProps {
   children: string
   inline?: boolean
+  /** Show a hover-reveal CopyMenu button for the raw markdown source */
+  copyable?: boolean
 }
 
-export function Markdown({ children, inline }: MarkdownProps) {
+export function Markdown({ children, inline, copyable }: MarkdownProps) {
   // Defer the content used for parsing so rapid stream-delta updates (headless
   // streaming text, long assistant turns) can be coalesced by React. During the
   // stall window the previous HTML stays mounted -- no main-thread parse work.
@@ -429,7 +432,7 @@ export function Markdown({ children, inline }: MarkdownProps) {
     })
   }, [])
 
-  return (
+  const inner = (
     <div
       ref={ref}
       role="document"
@@ -440,5 +443,17 @@ export function Markdown({ children, inline }: MarkdownProps) {
         if (e.key === 'Enter') handleClick(e as unknown as React.MouseEvent)
       }}
     />
+  )
+
+  if (!copyable) return inner
+
+  return (
+    <div className="relative group/md">
+      {inner}
+      <CopyMenu
+        text={children}
+        className="absolute top-0 right-0 opacity-60 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/md:opacity-60 hover:!opacity-100 transition-opacity"
+      />
+    </div>
   )
 }

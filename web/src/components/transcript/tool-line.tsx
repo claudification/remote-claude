@@ -818,7 +818,7 @@ export function ToolLine({
         details = (
           <div className="rounded-lg border border-teal-500/20 bg-teal-500/5 px-3 py-2 my-1">
             <div className="text-sm prose-sm">
-              <Markdown>{msg}</Markdown>
+              <Markdown copyable>{msg}</Markdown>
             </div>
           </div>
         )

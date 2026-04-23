@@ -701,7 +701,7 @@ export function GroupView({
                       )}
                     </div>
                     <div className="text-sm">
-                      <Markdown>{item.text}</Markdown>
+                      <Markdown copyable>{item.text}</Markdown>
                     </div>
                   </div>
                 )
