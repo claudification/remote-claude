@@ -899,6 +899,24 @@ export function useWebSocket() {
             })
           }
         }
+
+        // Sync check after re-subscribing: detect transcript entries missed during
+        // the disconnect gap (between subscribe and channel_subscribe, or entries
+        // that arrived while WS was down). Small delay lets server process the
+        // channel subscriptions first so the sync_check response is accurate.
+        setTimeout(() => {
+          const { syncEpoch, syncSeq, transcripts: currentTranscripts } = useSessionsStore.getState()
+          const transcriptCounts: Record<string, number> = {}
+          for (const [sid, entries] of Object.entries(currentTranscripts)) {
+            if (entries && entries.length > 0) transcriptCounts[sid] = entries.length
+          }
+          if (Object.keys(transcriptCounts).length > 0) {
+            console.log(
+              `[sync] reconnect sync_check: epoch=${syncEpoch.slice(0, 8)} seq=${syncSeq} transcripts=${Object.keys(transcriptCounts).length}`,
+            )
+            send({ type: 'sync_check', epoch: syncEpoch, lastSeq: syncSeq, transcripts: transcriptCounts })
+          }
+        }, 500)
       }
 
       ws.onclose = e => {
@@ -1131,9 +1149,25 @@ export function useWebSocket() {
       }
     })
 
+    // Periodic sync check: detect silently dropped transcript entries.
+    // Runs every 60s while connected, compares local transcript counts
+    // with the server and triggers refetch for any stale transcripts.
+    const syncInterval = setInterval(() => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+      const { syncEpoch, syncSeq, transcripts: currentTranscripts } = useSessionsStore.getState()
+      const transcriptCounts: Record<string, number> = {}
+      for (const [sid, entries] of Object.entries(currentTranscripts)) {
+        if (entries && entries.length > 0) transcriptCounts[sid] = entries.length
+      }
+      if (Object.keys(transcriptCounts).length > 0) {
+        send({ type: 'sync_check', epoch: syncEpoch, lastSeq: syncSeq, transcripts: transcriptCounts })
+      }
+    }, 60_000)
+
     return () => {
       unsubSessionion()
       unsubAgent()
+      clearInterval(syncInterval)
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }

@@ -207,7 +207,13 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
             }
             continue
           }
-          ws.send(json)
+          const sent_ = ws.send(json)
+          if (sent_ < 0) {
+            const subInfo = subscriberRegistry.get(ws)
+            console.warn(
+              `[broadcast] backpressure drop: ${subInfo?.id || 'unknown'} channel=${channel}:${sessionId.slice(0, 8)} bytes=${bytes}`,
+            )
+          }
           sent.add(ws)
           recordTraffic('out', bytes)
           const entry = subscriberRegistry.get(ws)
