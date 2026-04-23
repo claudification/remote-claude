@@ -4,16 +4,39 @@
  * (attached files, notifications, MCP tools, channel, headless instructions).
  */
 
+export interface PromptIdentity {
+  sessionId: string
+  wrapperId: string
+  cwd: string
+  configuredModel?: string
+  headless: boolean
+}
+
 export interface PromptOptions {
   localServerPort: number
   channelEnabled: boolean
   headless: boolean
+  identity?: PromptIdentity
 }
 
 export function buildSystemPrompt(opts: PromptOptions): string {
-  const { localServerPort, channelEnabled, headless } = opts
+  const { localServerPort, channelEnabled, headless, identity } = opts
 
   return [
+    ...(identity
+      ? [
+          '# Session Identity (rclaude)',
+          '',
+          `- **Session ID:** \`${identity.sessionId}\``,
+          `- **Wrapper ID:** \`${identity.wrapperId}\``,
+          `- **CWD:** \`${identity.cwd}\``,
+          ...(identity.configuredModel ? [`- **Model:** \`${identity.configuredModel}\``] : []),
+          `- **Backend:** ${identity.headless ? 'headless' : 'PTY'}`,
+          '',
+          'Use `mcp__rclaude__whoami` for full identity details including versions and git info.',
+          '',
+        ]
+      : []),
     '# Attached Files (rclaude)',
     '',
     'When the user sends a message containing markdown image or file links like `![filename](https://...)` or `[filename](https://...)`,',

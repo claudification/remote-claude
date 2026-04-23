@@ -662,6 +662,17 @@ export interface InterSessionListResponse {
     title?: string
     summary?: string
   }>
+  self?: {
+    id: string
+    project: string
+    session_id: string
+    name: string
+    cwd: string
+    model?: string
+    permissionMode?: string
+    effortLevel?: string
+    status: 'live'
+  }
 }
 
 // AskUserQuestion relay (CC 2.1.85+ PreToolUse hook -> dashboard -> hook response)

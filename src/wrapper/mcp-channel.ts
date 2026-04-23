@@ -25,6 +25,7 @@ import { isPathWithinCwd } from '../shared/path-guard'
 import { spawnRequestSchema } from '../shared/spawn-schema'
 import { DEFAULT_VISIBLE_STATUSES, TASK_STATUSES, type TaskStatus } from '../shared/task-statuses'
 import { checkForUpdate, formatUpdateResult } from '../shared/update-check'
+import { BUILD_VERSION } from '../shared/version'
 import { debug } from './debug'
 import { moveProjectTask } from './project-tasks'
 
@@ -61,6 +62,16 @@ export interface SessionInfo {
   summary?: string
 }
 
+export interface WrapperIdentity {
+  sessionId: string
+  wrapperId: string
+  cwd: string
+  configuredModel?: string
+  headless: boolean
+  claudeVersion?: string
+  claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
+}
+
 export interface PermissionRequestData {
   requestId: string
   toolName: string
@@ -71,7 +82,10 @@ export interface PermissionRequestData {
 export interface McpChannelCallbacks {
   onNotify?: (message: string, title?: string) => void
   onShareFile?: (filePath: string) => Promise<string | null>
-  onListSessions?: (status?: string, showMetadata?: boolean) => Promise<SessionInfo[]>
+  onListSessions?: (
+    status?: string,
+    showMetadata?: boolean,
+  ) => Promise<{ sessions: SessionInfo[]; self?: Record<string, unknown> }>
   onSendMessage?: (
     to: string,
     intent: string,
@@ -148,6 +162,7 @@ interface McpChannelState {
 
 let state: McpChannelState | null = null
 let callbacks: McpChannelCallbacks = {}
+let identity: WrapperIdentity | null = null
 let keepaliveTimer: ReturnType<typeof setInterval> | null = null
 let claudeCodeVersion: string | undefined
 
@@ -322,8 +337,9 @@ export function keepaliveDialog(dialogId: string): boolean {
  * Initialize the MCP channel server.
  * Call once on startup. The transport handles HTTP requests via handleMcpRequest().
  */
-export function initMcpChannel(cb: McpChannelCallbacks): void {
+export function initMcpChannel(cb: McpChannelCallbacks, id?: WrapperIdentity): void {
   callbacks = cb
+  if (id) identity = id
 
   const mcpServer = new McpServer(
     { name: 'rclaude', version: '1.0.0' },
@@ -424,6 +440,45 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
       },
     },
 
+    whoami: {
+      description:
+        'Returns extensive identity and environment information about the current session: session IDs, project, CWD, model, Claude Code version, rclaude version/git info, backend mode (headless/PTY), and auth context. Use this to understand your own identity within the rclaude ecosystem.',
+      inputSchema: { type: 'object' as const, properties: {} },
+      async handle() {
+        const gitInfo = {
+          hash: BUILD_VERSION.gitHash,
+          hashShort: BUILD_VERSION.gitHashShort,
+          branch: BUILD_VERSION.branch,
+          buildTime: BUILD_VERSION.buildTime,
+          dirty: BUILD_VERSION.dirty,
+          repo: BUILD_VERSION.githubRepo,
+          recentCommits: BUILD_VERSION.recentCommits,
+        }
+
+        const info: Record<string, unknown> = {
+          sessionId: identity?.sessionId,
+          wrapperId: identity?.wrapperId,
+          cwd: identity?.cwd,
+          model: identity?.configuredModel,
+          backend: identity?.headless ? 'headless' : 'pty',
+          claudeCodeVersion: identity?.claudeVersion || claudeCodeVersion,
+          auth: identity?.claudeAuth,
+          rclaude: {
+            version: `rclaude/${BUILD_VERSION.gitHashShort}`,
+            git: gitInfo,
+          },
+          platform: {
+            os: process.platform,
+            arch: process.arch,
+            bun: Bun.version,
+            pid: process.pid,
+          },
+        }
+
+        return { content: [{ type: 'text', text: JSON.stringify(info, null, 2) }] }
+      },
+    },
+
     list_sessions: {
       description:
         'List other Claude Code sessions. Returns a stable addressable ID per session in the compound format "project:session-name" (e.g. "rclaude:fuzzy-rabbit"). The ID is always compound -- it does NOT change shape when the number of sessions at a cwd grows or shrinks. Each entry also has a "project" field showing the project-level grouping (the bare project slug, useful for grouping but only safe to use as a `to` target when exactly one session lives at that cwd). Use the returned `id` for send_message, control_session, configure_session. Messages to offline sessions are queued for delivery on reconnect. Ad-hoc sessions are hidden unless they have an established link. HINT: When the user says "tell X to Y", "ask X to Y", or "use X to Y", consider that X may be a session name -- call list_sessions to check.',
@@ -449,7 +504,9 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
       },
       async handle(params) {
         const showMeta = String(params.show_metadata) === 'true'
-        let sessions = (await callbacks.onListSessions?.(params.status, showMeta)) || []
+        const result = (await callbacks.onListSessions?.(params.status, showMeta)) || { sessions: [] }
+        let { sessions } = result
+        const { self } = result
         if (params.filter) {
           const pattern = String(params.filter)
           const regex = new RegExp(
@@ -469,7 +526,8 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
         debug(
           `[channel] list_sessions: ${sessions.length} results (metadata=${showMeta}, filter=${params.filter ?? 'none'})`,
         )
-        return { content: [{ type: 'text', text: JSON.stringify(sessions, null, 2) }] }
+        const output = self ? { self, sessions } : sessions
+        return { content: [{ type: 'text', text: JSON.stringify(output, null, 2) }] }
       },
     },
 

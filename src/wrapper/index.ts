@@ -1160,8 +1160,8 @@ async function main() {
           debug('Transcript kick received but no transcript path known')
         }
       },
-      onChannelSessionsList(sessions) {
-        pendingListSessions?.(sessions)
+      onChannelSessionsList(sessions, self) {
+        pendingListSessions?.(sessions, self)
       },
       onChannelSendResult(result) {
         pendingSendResult?.(result as { ok: boolean; error?: string; conversationId?: string })
@@ -1379,364 +1379,378 @@ async function main() {
   let devChannelConfirmed = false
   const osc52Parser = new Osc52Parser()
   diag('channel', `MCP enabled (channel input: ${channelEnabled})`)
-  initMcpChannel({
-    onNotify(message, title) {
-      diag('channel', `Notify: ${title ? `[${title}] ` : ''}${message.slice(0, 80)}`)
-      if (ctx.wsClient?.isConnected()) {
-        ctx.wsClient.send({ type: 'notify', sessionId: ctx.claudeSessionId || internalId, message, title })
-      }
-    },
-    async onShareFile(filePath) {
-      // Upload file to concentrator blob store, get public URL back
-      // SECURITY: restrict to files within the session CWD
-      if (!isPathWithinCwd(filePath, cwd)) {
-        debug(`[channel] share_file: path outside CWD: ${filePath}`)
-        return null
-      }
-      const httpUrl = noConcentrator ? null : wsToHttpUrl(concentratorUrl)
-      if (!httpUrl) return null
-      try {
-        const file = Bun.file(filePath)
-        if (!(await file.exists())) {
-          debug(`[channel] share_file: file not found: ${filePath}`)
-          return null
-        }
-        // Stream the file -- Bun handles BunFile (Blob) as fetch body natively
-        const contentType = file.type || 'application/octet-stream'
-        const res = await fetch(`${httpUrl}/api/files`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': contentType,
-            'X-Session-Id': ctx.claudeSessionId || internalId,
-            ...(concentratorSecret ? { Authorization: `Bearer ${concentratorSecret}` } : {}),
-          },
-          body: file,
-        })
-        if (!res.ok) {
-          debug(`[channel] share_file: upload failed: ${res.status}`)
-          return null
-        }
-        const data = (await res.json()) as { url?: string }
-        diag('channel', `Shared: ${filePath} -> ${data.url}`)
-        return data.url || null
-      } catch (err) {
-        debug(`[channel] share_file error: ${err instanceof Error ? err.message : err}`)
-        return null
-      }
-    },
-    async onListSessions(status, showMetadata) {
-      if (!ctx.wsClient?.isConnected()) return []
-      return new Promise(resolve => {
-        const timeout = setTimeout(() => resolve([]), 5000)
-        pendingListSessions = sessions => {
-          clearTimeout(timeout)
-          pendingListSessions = null
-          resolve(sessions)
-        }
-        ctx.wsClient?.send({
-          type: 'channel_list_sessions',
-          status,
-          show_metadata: showMetadata,
-        } as unknown as WrapperMessage)
-      })
-    },
-    async onSendMessage(to, intent, message, context, conversationId) {
-      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected' }
-      return new Promise(resolve => {
-        const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
-        pendingSendResult = result => {
-          clearTimeout(timeout)
-          pendingSendResult = null
-          resolve(result)
-        }
-        ctx.wsClient?.send({
-          type: 'channel_send',
-          fromSession: ctx.claudeSessionId || internalId,
-          toSession: to,
-          intent,
-          message,
-          context,
-          conversationId,
-        } as unknown as WrapperMessage)
-      })
-    },
-    onPermissionRequest(data) {
-      // Check auto-approve rules before forwarding to dashboard
-      if (permissionRules.shouldAutoApprove(data.toolName, data.inputPreview)) {
-        if (headless && ctx.streamProc) {
-          ctx.streamProc.sendPermissionResponse(data.requestId, true)
-        } else {
-          sendPermissionResponse(data.requestId, 'allow').catch(err => {
-            debug(`sendPermissionResponse (auto) error: ${err instanceof Error ? err.message : err}`)
-          })
-        }
-        diag(headless ? 'headless' : 'channel', `Permission auto-approved: ${data.requestId} ${data.toolName}`)
-        // Notify dashboard for visibility (not for approval)
+  initMcpChannel(
+    {
+      onNotify(message, title) {
+        diag('channel', `Notify: ${title ? `[${title}] ` : ''}${message.slice(0, 80)}`)
         if (ctx.wsClient?.isConnected()) {
-          ctx.wsClient.send({
-            type: 'permission_auto_approved',
-            sessionId: ctx.claudeSessionId || internalId,
-            requestId: data.requestId,
-            toolName: data.toolName,
-            description: data.description,
-          } as unknown as WrapperMessage)
+          ctx.wsClient.send({ type: 'notify', sessionId: ctx.claudeSessionId || internalId, message, title })
         }
-        return
-      }
-
-      diag('channel', `Permission request: ${data.requestId} ${data.toolName}`)
-      sendInteraction(ctx, 'permission_request', data.requestId, {
-        type: 'permission_request',
-        sessionId: ctx.claudeSessionId || internalId,
-        requestId: data.requestId,
-        toolName: data.toolName,
-        description: data.description,
-        inputPreview: data.inputPreview,
-      })
-    },
-    onDialogShow(dialogId, layout) {
-      diag('dialog', `Show: "${layout.title}" (${dialogId.slice(0, 8)})`)
-      sendInteraction(ctx, 'dialog_show', dialogId, {
-        type: 'dialog_show',
-        sessionId: ctx.claudeSessionId || internalId,
-        dialogId,
-        layout,
-      } as unknown as WrapperMessage)
-    },
-    onDialogDismiss(dialogId) {
-      diag('dialog', `Dismiss: ${dialogId.slice(0, 8)}`)
-      clearInteraction(ctx, dialogId)
-      ctx.wsClient?.send({
-        type: 'dialog_dismiss',
-        sessionId: ctx.claudeSessionId || internalId,
-        dialogId,
-      } as unknown as WrapperMessage)
-    },
-    onDeliverMessage(content, meta) {
-      if (headless && ctx.streamProc) {
-        // Headless: deliver as <channel> tag on stdin
-        const attrs = Object.entries(meta)
-          .map(([k, v]) => `${k}="${v}"`)
-          .join(' ')
-        const wrapped = `<channel ${attrs}>\n${content}\n</channel>`
-        ctx.streamProc.sendUserMessage(wrapped)
-        diag('headless', `Delivered message: ${meta.sender} ${content.slice(0, 60)}`)
-      } else {
-        // PTY+channel: deliver as MCP channel notification
-        pushChannelMessage(content, meta)
-        diag('channel', `Delivered message: ${meta.sender} ${content.slice(0, 60)}`)
-      }
-    },
-    onDisconnect() {
-      diag('channel', 'Channel disconnected')
-    },
-    onTogglePlanMode() {
-      if (headless) {
-        if (ctx.streamProc) {
-          diag('channel', 'toggle_plan_mode: sending set_permission_mode via control_request')
-          ctx.streamProc.sendSetPermissionMode('plan')
+      },
+      async onShareFile(filePath) {
+        // Upload file to concentrator blob store, get public URL back
+        // SECURITY: restrict to files within the session CWD
+        if (!isPathWithinCwd(filePath, cwd)) {
+          debug(`[channel] share_file: path outside CWD: ${filePath}`)
+          return null
         }
-      } else {
-        diag('channel', 'toggle_plan_mode: injecting /plan via PTY')
-        if (ctx.ptyProcess) ctx.ptyProcess.write('/plan\r')
-      }
-    },
-    async onReviveSession(sessionId) {
-      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
-      return new Promise(resolve => {
-        const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
-        pendingReviveResult = result => {
-          clearTimeout(timeout)
-          pendingReviveResult = null
-          resolve(result)
+        const httpUrl = noConcentrator ? null : wsToHttpUrl(concentratorUrl)
+        if (!httpUrl) return null
+        try {
+          const file = Bun.file(filePath)
+          if (!(await file.exists())) {
+            debug(`[channel] share_file: file not found: ${filePath}`)
+            return null
+          }
+          // Stream the file -- Bun handles BunFile (Blob) as fetch body natively
+          const contentType = file.type || 'application/octet-stream'
+          const res = await fetch(`${httpUrl}/api/files`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': contentType,
+              'X-Session-Id': ctx.claudeSessionId || internalId,
+              ...(concentratorSecret ? { Authorization: `Bearer ${concentratorSecret}` } : {}),
+            },
+            body: file,
+          })
+          if (!res.ok) {
+            debug(`[channel] share_file: upload failed: ${res.status}`)
+            return null
+          }
+          const data = (await res.json()) as { url?: string }
+          diag('channel', `Shared: ${filePath} -> ${data.url}`)
+          return data.url || null
+        } catch (err) {
+          debug(`[channel] share_file error: ${err instanceof Error ? err.message : err}`)
+          return null
         }
-        ctx.wsClient?.send({
-          type: 'channel_revive',
-          sessionId,
-        } as unknown as WrapperMessage)
-      })
-    },
-    async onSpawnSession({ cwd, mode, resumeId, mkdir, headless: spawnHeadless, jobId, onProgress }) {
-      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
-
-      // If the MCP caller wants progress, subscribe to the job BEFORE sending
-      // channel_spawn so the first launch_progress events are not missed.
-      if (jobId && onProgress) {
-        launchJobListeners.set(jobId, onProgress)
-        ctx.wsClient?.send({ type: 'subscribe_job', jobId } as unknown as WrapperMessage)
-      }
-
-      // Step 1: Send spawn request via WS, get immediate ack with wrapperId
-      const spawnResult = await new Promise<{ ok: boolean; error?: string; wrapperId?: string; jobId?: string }>(
-        resolve => {
-          const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 15000)
-          pendingSpawnResult = result => {
+      },
+      async onListSessions(status, showMetadata) {
+        if (!ctx.wsClient?.isConnected()) return { sessions: [] }
+        return new Promise(resolve => {
+          const timeout = setTimeout(() => resolve({ sessions: [] }), 5000)
+          pendingListSessions = (sessions, self) => {
             clearTimeout(timeout)
-            pendingSpawnResult = null
+            pendingListSessions = null
+            resolve({ sessions, self })
+          }
+          ctx.wsClient?.send({
+            type: 'channel_list_sessions',
+            status,
+            show_metadata: showMetadata,
+          } as unknown as WrapperMessage)
+        })
+      },
+      async onSendMessage(to, intent, message, context, conversationId) {
+        if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected' }
+        return new Promise(resolve => {
+          const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
+          pendingSendResult = result => {
+            clearTimeout(timeout)
+            pendingSendResult = null
             resolve(result)
           }
           ctx.wsClient?.send({
-            type: 'channel_spawn',
-            cwd,
-            mode,
-            resumeId,
-            mkdir,
-            headless: spawnHeadless,
-            jobId,
+            type: 'channel_send',
+            fromSession: ctx.claudeSessionId || internalId,
+            toSession: to,
+            intent,
+            message,
+            context,
+            conversationId,
           } as unknown as WrapperMessage)
-        },
-      )
+        })
+      },
+      onPermissionRequest(data) {
+        // Check auto-approve rules before forwarding to dashboard
+        if (permissionRules.shouldAutoApprove(data.toolName, data.inputPreview)) {
+          if (headless && ctx.streamProc) {
+            ctx.streamProc.sendPermissionResponse(data.requestId, true)
+          } else {
+            sendPermissionResponse(data.requestId, 'allow').catch(err => {
+              debug(`sendPermissionResponse (auto) error: ${err instanceof Error ? err.message : err}`)
+            })
+          }
+          diag(headless ? 'headless' : 'channel', `Permission auto-approved: ${data.requestId} ${data.toolName}`)
+          // Notify dashboard for visibility (not for approval)
+          if (ctx.wsClient?.isConnected()) {
+            ctx.wsClient.send({
+              type: 'permission_auto_approved',
+              sessionId: ctx.claudeSessionId || internalId,
+              requestId: data.requestId,
+              toolName: data.toolName,
+              description: data.description,
+            } as unknown as WrapperMessage)
+          }
+          return
+        }
 
-      if (!spawnResult.ok) {
-        if (jobId) {
+        diag('channel', `Permission request: ${data.requestId} ${data.toolName}`)
+        sendInteraction(ctx, 'permission_request', data.requestId, {
+          type: 'permission_request',
+          sessionId: ctx.claudeSessionId || internalId,
+          requestId: data.requestId,
+          toolName: data.toolName,
+          description: data.description,
+          inputPreview: data.inputPreview,
+        })
+      },
+      onDialogShow(dialogId, layout) {
+        diag('dialog', `Show: "${layout.title}" (${dialogId.slice(0, 8)})`)
+        sendInteraction(ctx, 'dialog_show', dialogId, {
+          type: 'dialog_show',
+          sessionId: ctx.claudeSessionId || internalId,
+          dialogId,
+          layout,
+        } as unknown as WrapperMessage)
+      },
+      onDialogDismiss(dialogId) {
+        diag('dialog', `Dismiss: ${dialogId.slice(0, 8)}`)
+        clearInteraction(ctx, dialogId)
+        ctx.wsClient?.send({
+          type: 'dialog_dismiss',
+          sessionId: ctx.claudeSessionId || internalId,
+          dialogId,
+        } as unknown as WrapperMessage)
+      },
+      onDeliverMessage(content, meta) {
+        if (headless && ctx.streamProc) {
+          // Headless: deliver as <channel> tag on stdin
+          const attrs = Object.entries(meta)
+            .map(([k, v]) => `${k}="${v}"`)
+            .join(' ')
+          const wrapped = `<channel ${attrs}>\n${content}\n</channel>`
+          ctx.streamProc.sendUserMessage(wrapped)
+          diag('headless', `Delivered message: ${meta.sender} ${content.slice(0, 60)}`)
+        } else {
+          // PTY+channel: deliver as MCP channel notification
+          pushChannelMessage(content, meta)
+          diag('channel', `Delivered message: ${meta.sender} ${content.slice(0, 60)}`)
+        }
+      },
+      onDisconnect() {
+        diag('channel', 'Channel disconnected')
+      },
+      onTogglePlanMode() {
+        if (headless) {
+          if (ctx.streamProc) {
+            diag('channel', 'toggle_plan_mode: sending set_permission_mode via control_request')
+            ctx.streamProc.sendSetPermissionMode('plan')
+          }
+        } else {
+          diag('channel', 'toggle_plan_mode: injecting /plan via PTY')
+          if (ctx.ptyProcess) ctx.ptyProcess.write('/plan\r')
+        }
+      },
+      async onReviveSession(sessionId) {
+        if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+        return new Promise(resolve => {
+          const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
+          pendingReviveResult = result => {
+            clearTimeout(timeout)
+            pendingReviveResult = null
+            resolve(result)
+          }
+          ctx.wsClient?.send({
+            type: 'channel_revive',
+            sessionId,
+          } as unknown as WrapperMessage)
+        })
+      },
+      async onSpawnSession({ cwd, mode, resumeId, mkdir, headless: spawnHeadless, jobId, onProgress }) {
+        if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+
+        // If the MCP caller wants progress, subscribe to the job BEFORE sending
+        // channel_spawn so the first launch_progress events are not missed.
+        if (jobId && onProgress) {
+          launchJobListeners.set(jobId, onProgress)
+          ctx.wsClient?.send({ type: 'subscribe_job', jobId } as unknown as WrapperMessage)
+        }
+
+        // Step 1: Send spawn request via WS, get immediate ack with wrapperId
+        const spawnResult = await new Promise<{ ok: boolean; error?: string; wrapperId?: string; jobId?: string }>(
+          resolve => {
+            const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 15000)
+            pendingSpawnResult = result => {
+              clearTimeout(timeout)
+              pendingSpawnResult = null
+              resolve(result)
+            }
+            ctx.wsClient?.send({
+              type: 'channel_spawn',
+              cwd,
+              mode,
+              resumeId,
+              mkdir,
+              headless: spawnHeadless,
+              jobId,
+            } as unknown as WrapperMessage)
+          },
+        )
+
+        if (!spawnResult.ok) {
+          if (jobId) {
+            launchJobListeners.delete(jobId)
+            ctx.wsClient?.send({ type: 'unsubscribe_job', jobId } as unknown as WrapperMessage)
+          }
+          return spawnResult
+        }
+        diag(
+          'channel',
+          `spawn_session: ${cwd} mode=${mode || 'default'} wrapperId=${spawnResult.wrapperId?.slice(0, 8)}`,
+        )
+
+        const cleanupJob = () => {
+          if (!jobId) return
           launchJobListeners.delete(jobId)
           ctx.wsClient?.send({ type: 'unsubscribe_job', jobId } as unknown as WrapperMessage)
         }
-        return spawnResult
-      }
-      diag('channel', `spawn_session: ${cwd} mode=${mode || 'default'} wrapperId=${spawnResult.wrapperId?.slice(0, 8)}`)
 
-      const cleanupJob = () => {
-        if (!jobId) return
-        launchJobListeners.delete(jobId)
-        ctx.wsClient?.send({ type: 'unsubscribe_job', jobId } as unknown as WrapperMessage)
-      }
-
-      // Step 2: Await rendezvous (concentrator sends spawn_ready/spawn_timeout when session connects)
-      if (spawnResult.wrapperId) {
-        try {
-          const wid = spawnResult.wrapperId
-          const result = await new Promise<Record<string, unknown>>((resolve, reject) => {
-            const timer = setTimeout(() => {
-              pendingRendezvous.delete(wid)
-              reject(new Error('Rendezvous timeout (45s)'))
-            }, 45_000)
-            pendingRendezvous.set(wid, {
-              resolve: msg => {
-                clearTimeout(timer)
-                resolve(msg)
-              },
-              reject: (e: string) => {
-                clearTimeout(timer)
-                reject(new Error(e))
-              },
+        // Step 2: Await rendezvous (concentrator sends spawn_ready/spawn_timeout when session connects)
+        if (spawnResult.wrapperId) {
+          try {
+            const wid = spawnResult.wrapperId
+            const result = await new Promise<Record<string, unknown>>((resolve, reject) => {
+              const timer = setTimeout(() => {
+                pendingRendezvous.delete(wid)
+                reject(new Error('Rendezvous timeout (45s)'))
+              }, 45_000)
+              pendingRendezvous.set(wid, {
+                resolve: msg => {
+                  clearTimeout(timer)
+                  resolve(msg)
+                },
+                reject: (e: string) => {
+                  clearTimeout(timer)
+                  reject(new Error(e))
+                },
+              })
             })
-          })
-          const session = result.session as Record<string, unknown> | undefined
-          diag('channel', `spawn_session: rendezvous resolved session=${(result.sessionId as string)?.slice(0, 8)}`)
-          cleanupJob()
-          return { ok: true, wrapperId: spawnResult.wrapperId, jobId, session }
-        } catch (err) {
-          diag('channel', `spawn_session: rendezvous failed: ${err instanceof Error ? err.message : err}`)
-          cleanupJob()
-          return { ok: true, wrapperId: spawnResult.wrapperId, jobId, timedOut: true }
+            const session = result.session as Record<string, unknown> | undefined
+            diag('channel', `spawn_session: rendezvous resolved session=${(result.sessionId as string)?.slice(0, 8)}`)
+            cleanupJob()
+            return { ok: true, wrapperId: spawnResult.wrapperId, jobId, session }
+          } catch (err) {
+            diag('channel', `spawn_session: rendezvous failed: ${err instanceof Error ? err.message : err}`)
+            cleanupJob()
+            return { ok: true, wrapperId: spawnResult.wrapperId, jobId, timedOut: true }
+          }
         }
-      }
 
-      cleanupJob()
-      return { ok: true, wrapperId: spawnResult.wrapperId, jobId }
-    },
-    async onGetSpawnDiagnostics(jobId) {
-      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
-      return new Promise(resolve => {
-        const timeout = setTimeout(() => {
-          pendingSpawnDiagnostics.delete(jobId)
-          resolve({ ok: false, error: 'Timeout waiting for diagnostics' })
-        }, 10_000)
-        pendingSpawnDiagnostics.set(jobId, result => {
-          clearTimeout(timeout)
-          resolve(result)
+        cleanupJob()
+        return { ok: true, wrapperId: spawnResult.wrapperId, jobId }
+      },
+      async onGetSpawnDiagnostics(jobId) {
+        if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+        return new Promise(resolve => {
+          const timeout = setTimeout(() => {
+            pendingSpawnDiagnostics.delete(jobId)
+            resolve({ ok: false, error: 'Timeout waiting for diagnostics' })
+          }, 10_000)
+          pendingSpawnDiagnostics.set(jobId, result => {
+            clearTimeout(timeout)
+            resolve(result)
+          })
+          ctx.wsClient?.send({
+            type: 'get_spawn_diagnostics',
+            jobId,
+          } as unknown as WrapperMessage)
         })
-        ctx.wsClient?.send({
-          type: 'get_spawn_diagnostics',
-          jobId,
-        } as unknown as WrapperMessage)
-      })
+      },
+      async onRestartSession(sessionId) {
+        if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+        return new Promise(resolve => {
+          const timeout = setTimeout(
+            () => resolve({ ok: false, error: 'Timeout waiting for restart confirmation' }),
+            10000,
+          )
+          pendingRestartResult = result => {
+            clearTimeout(timeout)
+            pendingRestartResult = null
+            resolve(result)
+          }
+          ctx.wsClient?.send({
+            type: 'channel_restart',
+            sessionId,
+          } as unknown as WrapperMessage)
+        })
+      },
+      async onControlSession({ sessionId, action, model, effort }) {
+        if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+        return new Promise(resolve => {
+          const timeout = setTimeout(
+            () => resolve({ ok: false, error: 'Timeout waiting for control confirmation' }),
+            10000,
+          )
+          pendingControlResult = result => {
+            clearTimeout(timeout)
+            pendingControlResult = null
+            resolve(result)
+          }
+          ctx.wsClient?.send({
+            type: 'session_control',
+            targetSession: sessionId,
+            action,
+            ...(model && { model }),
+            ...(effort && { effort }),
+            fromSession: ctx.claudeSessionId || internalId,
+          } as unknown as WrapperMessage)
+        })
+      },
+      async onConfigureSession({ sessionId, label, icon, color, description, keyterms }) {
+        if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+        return new Promise(resolve => {
+          const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
+          pendingConfigureResult = result => {
+            clearTimeout(timeout)
+            pendingConfigureResult = null
+            resolve(result)
+          }
+          ctx.wsClient?.send({
+            type: 'channel_configure',
+            sessionId,
+            label,
+            icon,
+            color,
+            description,
+            keyterms,
+          } as unknown as WrapperMessage)
+        })
+      },
+      async onRenameSession(name) {
+        if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
+        const sessionId = ctx.claudeSessionId || ctx.internalId
+        return new Promise(resolve => {
+          const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
+          pendingRenameResult = result => {
+            clearTimeout(timeout)
+            pendingRenameResult = null
+            resolve(result)
+          }
+          ctx.wsClient?.send({
+            type: 'rename_session',
+            sessionId,
+            name,
+          } as unknown as WrapperMessage)
+        })
+      },
+      onProjectChanged() {
+        sendProjectChanged()
+      },
     },
-    async onRestartSession(sessionId) {
-      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
-      return new Promise(resolve => {
-        const timeout = setTimeout(
-          () => resolve({ ok: false, error: 'Timeout waiting for restart confirmation' }),
-          10000,
-        )
-        pendingRestartResult = result => {
-          clearTimeout(timeout)
-          pendingRestartResult = null
-          resolve(result)
-        }
-        ctx.wsClient?.send({
-          type: 'channel_restart',
-          sessionId,
-        } as unknown as WrapperMessage)
-      })
+    {
+      sessionId,
+      wrapperId: internalId,
+      cwd,
+      configuredModel,
+      headless,
+      claudeVersion,
+      claudeAuth,
     },
-    async onControlSession({ sessionId, action, model, effort }) {
-      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
-      return new Promise(resolve => {
-        const timeout = setTimeout(
-          () => resolve({ ok: false, error: 'Timeout waiting for control confirmation' }),
-          10000,
-        )
-        pendingControlResult = result => {
-          clearTimeout(timeout)
-          pendingControlResult = null
-          resolve(result)
-        }
-        ctx.wsClient?.send({
-          type: 'session_control',
-          targetSession: sessionId,
-          action,
-          ...(model && { model }),
-          ...(effort && { effort }),
-          fromSession: ctx.claudeSessionId || internalId,
-        } as unknown as WrapperMessage)
-      })
-    },
-    async onConfigureSession({ sessionId, label, icon, color, description, keyterms }) {
-      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
-      return new Promise(resolve => {
-        const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
-        pendingConfigureResult = result => {
-          clearTimeout(timeout)
-          pendingConfigureResult = null
-          resolve(result)
-        }
-        ctx.wsClient?.send({
-          type: 'channel_configure',
-          sessionId,
-          label,
-          icon,
-          color,
-          description,
-          keyterms,
-        } as unknown as WrapperMessage)
-      })
-    },
-    async onRenameSession(name) {
-      if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
-      const sessionId = ctx.claudeSessionId || ctx.internalId
-      return new Promise(resolve => {
-        const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
-        pendingRenameResult = result => {
-          clearTimeout(timeout)
-          pendingRenameResult = null
-          resolve(result)
-        }
-        ctx.wsClient?.send({
-          type: 'rename_session',
-          sessionId,
-          name,
-        } as unknown as WrapperMessage)
-      })
-    },
-    onProjectChanged() {
-      sendProjectChanged()
-    },
-  })
+  )
 
   // Pending callbacks for inter-session request/response
-  let pendingListSessions: ((sessions: SessionInfo[]) => void) | null = null
+  let pendingListSessions: ((sessions: SessionInfo[], self?: Record<string, unknown>) => void) | null = null
   let pendingSendResult: ((result: { ok: boolean; error?: string; conversationId?: string }) => void) | null = null
   let pendingReviveResult: ((result: { ok: boolean; error?: string; name?: string }) => void) | null = null
   let pendingRestartResult:
@@ -1814,7 +1828,15 @@ async function main() {
 
   // Write system prompt additions for rclaude-specific behavior
   const promptFile = join(rclaudeDir, 'settings', `prompt-${internalId}.txt`)
-  writeFileSync(promptFile, buildSystemPrompt({ localServerPort, channelEnabled, headless }))
+  writeFileSync(
+    promptFile,
+    buildSystemPrompt({
+      localServerPort,
+      channelEnabled,
+      headless,
+      identity: { sessionId, wrapperId: internalId, cwd, configuredModel, headless },
+    }),
+  )
   claudeArgs.push('--append-system-prompt', readFileSync(promptFile, 'utf-8'))
 
   // Spawn claude with PTY

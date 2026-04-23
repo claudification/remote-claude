@@ -75,7 +75,10 @@ export interface WsClientOptions {
   onFileEditorMessage?: (message: Record<string, unknown>) => void
   onAck?: (origins: string[]) => void
   onTranscriptKick?: () => void
-  onChannelSessionsList?: (sessions: InterSessionListResponse['sessions']) => void
+  onChannelSessionsList?: (
+    sessions: InterSessionListResponse['sessions'],
+    self?: InterSessionListResponse['self'],
+  ) => void
   onChannelSendResult?: (result: unknown) => void
   onChannelDeliver?: (delivery: InterSessionDelivery) => void
   onChannelLinkRequest?: (request: ProjectLinkRequest) => void
@@ -427,7 +430,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
               onConfigSet?.(message.requestId, message.config)
               break
             case 'channel_sessions_list':
-              onChannelSessionsList?.(message.sessions)
+              onChannelSessionsList?.(message.sessions, message.self)
               break
             case 'channel_deliver':
               onChannelDeliver?.(message)

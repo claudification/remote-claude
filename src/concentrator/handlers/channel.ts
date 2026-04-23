@@ -216,7 +216,31 @@ const channelListSessions: MessageHandler = (ctx, data) => {
         : {}),
     }
   })
-  ctx.reply({ type: 'channel_sessions_list', sessions: result })
+  // Build self identity from caller's session
+  let self: Record<string, unknown> | undefined
+  if (callerSession) {
+    const s = ctx.sessions.getSession(callerSession)
+    if (s) {
+      const projSettings = ctx.getProjectSettings(s.cwd)
+      const projectName = projSettings?.label || s.cwd.split('/').pop() || s.cwd
+      const projectSlug = callerCwd ? ctx.addressBook.getOrAssign(callerCwd, s.cwd, projectName) : slugify(projectName)
+      const allAtCwd = all.filter(x => x.cwd === s.cwd)
+      const localId = computeLocalId(s, projectSlug, allAtCwd)
+      self = {
+        id: localId,
+        project: projectSlug,
+        session_id: s.id,
+        name: s.title || projSettings?.label || s.cwd.split('/').pop() || s.cwd,
+        cwd: s.cwd,
+        model: s.configuredModel || s.model,
+        permissionMode: s.permissionMode,
+        effortLevel: s.effortLevel,
+        status: 'live' as const,
+      }
+    }
+  }
+
+  ctx.reply({ type: 'channel_sessions_list', sessions: result, self })
 }
 
 // ─── Inter-session messaging (channel_send) ────────────────────────
