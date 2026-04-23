@@ -113,22 +113,15 @@ const handleChannelSpawn: MessageHandler = (ctx, data) => {
   // Build a SpawnRequest from the narrower channel_spawn payload.
   // Inter-session callers today only pass cwd/mkdir/mode/resumeId/headless.
   // `effort` is resolved from project/global settings inside dispatchSpawn.
-  //
-  // jobId flows through when the caller wants to track the spawn: the MCP
-  // wrapper subscribes before sending channel_spawn so it can receive
-  // launch_progress events and forward them as notifications/progress.
+  // jobId is always generated server-side by dispatchSpawn.
   const req: SpawnRequest = {
     cwd,
     mkdir: !!data.mkdir,
     mode: (data.mode as SpawnRequest['mode']) || 'fresh',
     resumeId: typeof data.resumeId === 'string' ? data.resumeId : undefined,
     headless: data.headless !== false,
-    jobId: typeof data.jobId === 'string' ? data.jobId : undefined,
   }
 
-  // Inter-session callers are always another session acting MCP-style --
-  // `requireBenevolent()` above already enforces the trust floor, but
-  // dispatchSpawn re-validates via assertSpawnAllowed for belt-and-braces.
   const callerCwd = ctx.caller?.cwd ?? null
   const callerTrust = callerCwd ? mapProjectTrust(getProjectSettings(callerCwd)?.trustLevel) : 'trusted'
   const callerContext: SpawnCallerContext = {
@@ -147,10 +140,10 @@ const handleChannelSpawn: MessageHandler = (ctx, data) => {
   })
     .then(result => {
       if (result.ok) {
-        ctx.reply({ type: 'channel_spawn_result', ok: true, wrapperId: result.wrapperId, jobId: req.jobId })
+        ctx.reply({ type: 'channel_spawn_result', ok: true, wrapperId: result.wrapperId, jobId: result.jobId })
         ctx.log.debug(`Benevolent spawn: -> ${cwd}`)
       } else {
-        ctx.reply({ type: 'channel_spawn_result', ok: false, error: result.error, jobId: req.jobId })
+        ctx.reply({ type: 'channel_spawn_result', ok: false, error: result.error })
       }
     })
     .catch((err: unknown) => {

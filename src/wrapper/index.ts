@@ -1557,17 +1557,10 @@ async function main() {
           } as unknown as WrapperMessage)
         })
       },
-      async onSpawnSession({ cwd, mode, resumeId, mkdir, headless: spawnHeadless, jobId, onProgress }) {
+      async onSpawnSession({ cwd, mode, resumeId, mkdir, headless: spawnHeadless, onProgress }) {
         if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to concentrator' }
 
-        // If the MCP caller wants progress, subscribe to the job BEFORE sending
-        // channel_spawn so the first launch_progress events are not missed.
-        if (jobId && onProgress) {
-          launchJobListeners.set(jobId, onProgress)
-          ctx.wsClient?.send({ type: 'subscribe_job', jobId } as unknown as WrapperMessage)
-        }
-
-        // Step 1: Send spawn request via WS, get immediate ack with wrapperId
+        // Step 1: Send spawn request via WS, get immediate ack with wrapperId + jobId
         const spawnResult = await new Promise<{ ok: boolean; error?: string; wrapperId?: string; jobId?: string }>(
           resolve => {
             const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 15000)
@@ -1583,22 +1576,26 @@ async function main() {
               resumeId,
               mkdir,
               headless: spawnHeadless,
-              jobId,
             } as unknown as WrapperMessage)
           },
         )
 
-        if (!spawnResult.ok) {
-          if (jobId) {
-            launchJobListeners.delete(jobId)
-            ctx.wsClient?.send({ type: 'unsubscribe_job', jobId } as unknown as WrapperMessage)
-          }
-          return spawnResult
-        }
+        if (!spawnResult.ok) return spawnResult
+
+        const jobId = spawnResult.jobId
         diag(
           'channel',
-          `spawn_session: ${cwd} mode=${mode || 'default'} wrapperId=${spawnResult.wrapperId?.slice(0, 8)}`,
+          `spawn_session: ${cwd} mode=${mode || 'default'} wrapperId=${spawnResult.wrapperId?.slice(0, 8)} job=${jobId?.slice(0, 8)}`,
         )
+
+        // Subscribe to job progress now that we have the server-generated jobId.
+        // Early events (job_created, spawn_sent) are buffered on the job and
+        // available via get_spawn_diagnostics -- the progress pump here is
+        // best-effort for live MCP notifications.
+        if (jobId && onProgress) {
+          launchJobListeners.set(jobId, onProgress)
+          ctx.wsClient?.send({ type: 'subscribe_job', jobId } as unknown as WrapperMessage)
+        }
 
         const cleanupJob = () => {
           if (!jobId) return

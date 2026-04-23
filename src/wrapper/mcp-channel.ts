@@ -123,14 +123,6 @@ export interface McpChannelCallbacks {
     resumeId?: string
     mkdir?: boolean
     headless?: boolean
-    /**
-     * If set, the callback should create a tracked job with this ID and call
-     * onProgress on each launch_progress event so the MCP tool can forward
-     * them as notifications/progress. Implementation detail: the wrapper
-     * subscribes on this WS before dispatching channel_spawn so no events are
-     * missed.
-     */
-    jobId?: string
     onProgress?: (event: Record<string, unknown>) => void
   }) => Promise<{ ok: boolean; error?: string; wrapperId?: string; jobId?: string }>
   onGetSpawnDiagnostics?: (
@@ -359,6 +351,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: WrapperIdentity): v
   // spawn_session input schema: shared spawn fields + MCP-specific (action, session_id, resume_id alias).
   // cwd is only required for action=spawn; make it optional at schema level and validate in handler.
   const spawnToolSchema = spawnRequestSchema
+    .omit({ jobId: true })
     .extend({
       action: z
         .enum(['spawn', 'revive', 'restart'])
@@ -777,18 +770,15 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: WrapperIdentity): v
         const spawnHeadless = params.headless !== undefined ? String(params.headless) !== 'false' : true
 
         // Wire progress streaming if the caller supplied a progressToken.
-        // We build a local jobId and a pump that forwards launch_progress
-        // events as notifications/progress with a rough phase -> percent
-        // mapping so MCP clients can render a progress bar instead of
-        // staring at silence while tmux spins up.
+        // dispatchSpawn always creates a job server-side; we just need a pump
+        // to forward launch_progress events as MCP notifications/progress so
+        // clients can render a progress bar instead of staring at silence.
         const { progressToken } = ctx
         const extra = ctx.extra as {
           sendNotification?: (n: { method: string; params: Record<string, unknown> }) => Promise<void>
         }
-        let jobId: string | undefined
         let onProgress: ((event: Record<string, unknown>) => void) | undefined
         if (progressToken !== undefined) {
-          jobId = randomUUID()
           const stepToPercent: Record<string, number> = {
             job_created: 5,
             spawn_sent: 15,
@@ -838,7 +828,6 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: WrapperIdentity): v
           resumeId,
           mkdir,
           headless: spawnHeadless,
-          jobId,
           onProgress,
         })) as
           | {
@@ -857,7 +846,6 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: WrapperIdentity): v
         const modeDesc = mode === 'resume' ? `resuming ${resumeId}` : 'fresh start'
         debug(`[channel] spawn_session: ${cwd} (${modeDesc}) session=${result.session ? 'ready' : 'pending'}`)
 
-        const responseJobId = result.jobId ?? jobId
         if (result.session) {
           return {
             content: [
@@ -869,7 +857,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: WrapperIdentity): v
                     message: `Session spawned and connected at ${cwd} (${modeDesc})`,
                     session_id: (result.session as Record<string, unknown>)?.id,
                     session: result.session,
-                    jobId: responseJobId,
+                    jobId: result.jobId,
                     wrapperId: result.wrapperId,
                   },
                   null,
@@ -885,8 +873,8 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: WrapperIdentity): v
             {
               type: 'text',
               text: result.timedOut
-                ? `Session spawn sent to ${cwd} (${modeDesc}) but session did not connect within 2 minutes. It may still be booting - use list_sessions to check.${responseJobId ? ` jobId=${responseJobId}` : ''}`
-                : `Session spawning at ${cwd} (${modeDesc}). Use list_sessions to check when ready.${responseJobId ? ` jobId=${responseJobId}` : ''}`,
+                ? `Session spawn sent to ${cwd} (${modeDesc}) but session did not connect within 2 minutes. It may still be booting - use list_sessions to check.${result.jobId ? ` jobId=${result.jobId}` : ''}`
+                : `Session spawning at ${cwd} (${modeDesc}). Use list_sessions to check when ready.${result.jobId ? ` jobId=${result.jobId}` : ''}`,
             },
           ],
         }
@@ -895,7 +883,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: WrapperIdentity): v
 
     get_spawn_diagnostics: {
       description:
-        'Fetch a diagnostic snapshot for a spawn job by jobId. Returns the resolved config, the full event timeline (job_created, spawn_sent, agent_acked, wrapper_booted, session_connected, job_complete/job_failed), and any error. Use this to debug spawn failures after spawn_session returned a wrapperId but the session never connected. Jobs expire ~5 minutes after creation. The jobId comes from the spawn_session response (pass `jobId` to spawn_session to track it).',
+        'Fetch a diagnostic snapshot for a spawn job by jobId. Returns the resolved config, the full event timeline (job_created, spawn_sent, agent_acked, wrapper_booted, session_connected, job_complete/job_failed), and any error. Use this to debug spawn failures after spawn_session returned a wrapperId but the session never connected. Jobs expire ~5 minutes after creation. The jobId is returned in every spawn_session response.',
       inputSchema: {
         type: 'object' as const,
         properties: {

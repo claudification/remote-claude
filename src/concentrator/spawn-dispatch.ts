@@ -57,7 +57,7 @@ export type SpawnDispatchDeps = {
 }
 
 export type SpawnDispatchResult =
-  | { ok: true; wrapperId: string; jobId?: string; tmuxSession?: string }
+  | { ok: true; wrapperId: string; jobId: string; tmuxSession?: string }
   | { ok: false; error: string; statusCode?: number }
 
 /**
@@ -87,12 +87,10 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
 
   const requestId = randomUUID()
   const wrapperId = randomUUID()
-  const jobId = req.jobId
+  const jobId = req.jobId ?? randomUUID()
 
-  if (jobId) {
-    deps.sessions.createJob(jobId, wrapperId)
-    emitProgress(deps.sessions, jobId, 'job_created', 'done', { wrapperId })
-  }
+  deps.sessions.createJob(jobId, wrapperId)
+  emitProgress(deps.sessions, jobId, 'job_created', 'done', { wrapperId })
 
   const cwdLabel = req.cwd.split('/').pop() || req.cwd
   if (req.adHoc) {
@@ -123,26 +121,24 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
     // return it later -- we intentionally drop the prompt (can be large / PII)
     // and the env map (sensitive values live there; diagnostics builder
     // redacts known-secret keys).
-    if (jobId) {
-      deps.sessions.recordJobConfig(jobId, {
-        cwd: req.cwd,
-        adHoc: req.adHoc,
-        adHocTaskId: req.adHocTaskId,
-        worktree: req.worktree,
-        mkdir: req.mkdir,
-        mode: req.adHoc ? 'fresh' : req.mode || 'fresh',
-        headless,
-        model,
-        effort,
-        bare,
-        repl,
-        permissionMode,
-        autocompactPct,
-        maxBudgetUsd,
-        leaveRunning: req.leaveRunning,
-        name: req.name,
-      })
-    }
+    deps.sessions.recordJobConfig(jobId, {
+      cwd: req.cwd,
+      adHoc: req.adHoc,
+      adHocTaskId: req.adHocTaskId,
+      worktree: req.worktree,
+      mkdir: req.mkdir,
+      mode: req.adHoc ? 'fresh' : req.mode || 'fresh',
+      headless,
+      model,
+      effort,
+      bare,
+      repl,
+      permissionMode,
+      autocompactPct,
+      maxBudgetUsd,
+      leaveRunning: req.leaveRunning,
+      name: req.name,
+    })
 
     deps.sessions.setPendingLaunchConfig(wrapperId, {
       headless,
