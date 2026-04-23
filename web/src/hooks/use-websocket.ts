@@ -358,10 +358,35 @@ function processMessage(msg: DashboardMessage) {
         const initial = msg.isInitial
         useSessionsStore.setState(state => {
           const existing = state.transcripts[sid] || []
-          const result = initial ? newEntries : [...existing, ...newEntries]
+          // isInitial=true REPLACES the cache. The wrapper fires this on WS
+          // reconnect (resendTranscriptFromFile in headless) and on PTY
+          // truncation. If the snapshot is SMALLER than what we already have
+          // AND the first entry matches, the snapshot was taken before CC
+          // flushed the newest entries -- swallowing the replace would wipe
+          // live entries the client already displayed. Skip in that case
+          // (mirrors setTranscript's guard). When first entries differ
+          // (e.g. /clear created a new conversation, or compaction rewrote
+          // the prefix) the replace is legitimate -- proceed.
+          let result: TranscriptEntry[]
+          let skipped = false
+          if (initial && existing.length > newEntries.length && existing.length > 0 && newEntries.length > 0) {
+            const fp = (e: TranscriptEntry) => {
+              const m = (e as { message?: { content?: unknown } }).message
+              const c = m?.content
+              return JSON.stringify(c ?? e.type)?.slice(0, 100)
+            }
+            if (fp(existing[0]) === fp(newEntries[0])) {
+              result = existing
+              skipped = true
+            } else {
+              result = newEntries
+            }
+          } else {
+            result = initial ? newEntries : [...existing, ...newEntries]
+          }
           if (initial || newEntries.length > 2) {
             console.log(
-              `[ws] transcript ${sid.slice(0, 8)}: +${newEntries.length} ${initial ? 'INITIAL' : 'incremental'} (total=${result.length})`,
+              `[ws] transcript ${sid.slice(0, 8)}: +${newEntries.length} ${initial ? (skipped ? 'INITIAL-SKIP' : 'INITIAL') : 'incremental'} (total=${result.length})`,
             )
           }
           // Clear streaming text when an assistant entry arrives (defensive cleanup

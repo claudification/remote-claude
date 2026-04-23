@@ -537,8 +537,13 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
         } as TranscriptEntry
         if (parentToolUseId && onSubagentEntry) {
           onSubagentEntry(parentToolUseId, entry)
-        } else if (!replayDone && msg.isReplay) {
-          replayBuffer.push(entry)
+        } else if (msg.isReplay) {
+          // Replayed assistant entry. Buffer during the initial --resume replay
+          // phase (flushed as isInitial=true). After replayDone, CC still emits
+          // isReplay:true echoes (e.g. when mirroring a stdin write back, or
+          // at internal context boundaries) -- those are duplicates of entries
+          // already in the live transcript, so skip them.
+          if (!replayDone) replayBuffer.push(entry)
         } else {
           if (!replayDone) flushReplayBuffer()
           onTranscriptEntries?.([entry], false)
@@ -628,8 +633,14 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
         }
         if (parentToolUseId && onSubagentEntry) {
           onSubagentEntry(parentToolUseId, entry)
-        } else if (!replayDone && msg.isReplay) {
-          replayBuffer.push(entry)
+        } else if (msg.isReplay) {
+          // Replayed user message. Buffer during the initial --resume replay
+          // phase (flushed as isInitial=true). After replayDone, CC still emits
+          // isReplay:true echoes of the user's stdin input; those are
+          // duplicates of the live optimistic entry the dashboard already
+          // rendered, so skip them. (Tool results arrive as type=user WITHOUT
+          // isReplay and fall through to the live branch below.)
+          if (!replayDone) replayBuffer.push(entry)
         } else {
           if (!replayDone) flushReplayBuffer()
           onTranscriptEntries?.([entry], false)
