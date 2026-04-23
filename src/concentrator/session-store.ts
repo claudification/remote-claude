@@ -8,7 +8,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerWebSocket } from 'bun'
 import { resolveContextWindow } from '../shared/context-window'
-import { cwdToProjectUri } from '../shared/project-uri'
+import { cwdToProjectUri, normalizeProjectUri } from '../shared/project-uri'
 import type {
   HookEvent,
   LaunchConfig,
@@ -184,6 +184,7 @@ export interface SessionStore {
   addDirListener: (requestId: string, cb: (result: unknown) => void) => void
   removeDirListener: (requestId: string) => void
   resolveDir: (requestId: string, result: unknown) => void
+  broadcastToWrappersForProject: (project: string, message: Record<string, unknown>) => number
   broadcastToWrappersAtCwd: (cwd: string, message: Record<string, unknown>) => number
   addFileListener: (requestId: string, cb: (result: unknown) => void) => void
   removeFileListener: (requestId: string) => void
@@ -249,6 +250,7 @@ export interface SessionStore {
   blockProject: (blocker: string, blocked: string) => void
   queueProjectMessage: (from: string, to: string, message: Record<string, unknown>) => void
   drainProjectMessages: (from: string, to: string) => Array<Record<string, unknown>>
+  broadcastForProject: (project: string) => void
   broadcastForProjectCwd: (cwd: string) => void
   broadcastSessionScoped: (message: Record<string, unknown>, cwd: string) => void
   broadcastSharesUpdate: () => void
@@ -2688,11 +2690,12 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
   }
 
-  function broadcastToWrappersAtCwd(cwd: string, message: Record<string, unknown>): number {
+  function broadcastToWrappersForProject(projectOrCwd: string, message: Record<string, unknown>): number {
+    const project = toProjectUri(projectOrCwd)
     const json = JSON.stringify(message)
     let count = 0
     for (const [sessionId, session] of sessions) {
-      if (session.cwd !== cwd) continue
+      if (session.project !== project) continue
       const wrappers = sessionSockets.get(sessionId)
       if (!wrappers) continue
       for (const ws of wrappers.values()) {
@@ -3062,96 +3065,106 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 
   // ─── Inter-project link registry ────────────────────────────────────
   // Links are bidirectional. If A->B is approved, B->A is also approved.
-  // Links are stored by CWD pair (project identity), not session ID.
-  // Public functions accept session IDs and resolve to CWDs internally.
-  const cwdLinks = new Set<string>() // "cwdA:cwdB" format (sorted)
-  const cwdBlocks = new Map<string, number>() // "cwdA:cwdB" -> block timestamp
-  const messageQueue = new Map<string, Array<Record<string, unknown>>>() // "cwdA:cwdB" -> queued messages
+  // Links are stored by project URI pair, not session ID.
+  // Public functions accept session IDs and resolve to project URIs internally.
 
-  function cwdLinkKey(cwdA: string, cwdB: string): string {
-    return [cwdA, cwdB].sort().join(':')
+  function toProjectUri(cwdOrUri: string): string {
+    if (cwdOrUri.startsWith('/')) return cwdToProjectUri(cwdOrUri)
+    return normalizeProjectUri(cwdOrUri)
   }
 
-  function sessionToCwd(sessionId: string): string | undefined {
-    return sessions.get(sessionId)?.cwd
+  const projectLinks = new Set<string>() // "uriA|uriB" format (sorted, normalized)
+  const projectBlocks = new Map<string, number>() // "uriA|uriB" -> block timestamp
+  const messageQueue = new Map<string, Array<Record<string, unknown>>>() // "uriA|uriB" -> queued messages
+
+  function projectLinkKey(a: string, b: string): string {
+    return [normalizeProjectUri(a), normalizeProjectUri(b)].sort().join('|')
+  }
+
+  function sessionToProject(sessionId: string): string | undefined {
+    return sessions.get(sessionId)?.project
   }
 
   function getLinkedProjects(sessionId: string): Array<{ cwd: string; name: string }> {
-    const cwd = sessionToCwd(sessionId)
-    if (!cwd) return []
+    const project = sessionToProject(sessionId)
+    if (!project) return []
     const result: Array<{ cwd: string; name: string }> = []
-    for (const key of cwdLinks) {
-      const [a, b] = key.split(':')
-      const otherCwd = a === cwd ? b : b === cwd ? a : null
-      if (!otherCwd) continue
-      const name = getProjectSettings(otherCwd)?.label || otherCwd.split('/').pop() || otherCwd.slice(0, 8)
-      result.push({ cwd: otherCwd, name })
+    for (const key of projectLinks) {
+      const [a, b] = key.split('|')
+      const other = a === normalizeProjectUri(project) ? b : b === normalizeProjectUri(project) ? a : null
+      if (!other) continue
+      const session = Array.from(sessions.values()).find(s => normalizeProjectUri(s.project) === other)
+      const cwd = session?.cwd || other
+      const name = getProjectSettings(cwd)?.label || cwd.split('/').pop() || other.slice(0, 8)
+      result.push({ cwd, name })
     }
     return result
   }
 
   function unlinkProjects(a: string, b: string): void {
-    const cwdA = sessionToCwd(a)
-    const cwdB = sessionToCwd(b)
-    if (cwdA && cwdB) cwdLinks.delete(cwdLinkKey(cwdA, cwdB))
+    const projA = sessionToProject(a)
+    const projB = sessionToProject(b)
+    if (projA && projB) projectLinks.delete(projectLinkKey(projA, projB))
   }
 
   function unlinkProjectsByCwd(cwdA: string, cwdB: string): void {
-    cwdLinks.delete(cwdLinkKey(cwdA, cwdB))
+    projectLinks.delete(projectLinkKey(toProjectUri(cwdA), toProjectUri(cwdB)))
   }
 
   function checkProjectLink(from: string, to: string): 'linked' | 'blocked' | 'unknown' {
-    const cwdFrom = sessionToCwd(from)
-    const cwdTo = sessionToCwd(to)
-    if (!cwdFrom || !cwdTo) return 'unknown'
-    const key = cwdLinkKey(cwdFrom, cwdTo)
-    if (cwdLinks.has(key)) return 'linked'
-    const blockTs = cwdBlocks.get(key)
-    if (blockTs && Date.now() - blockTs < 60_000) return 'blocked' // 1 min debounce
-    if (blockTs) cwdBlocks.delete(key) // expired
+    const projFrom = sessionToProject(from)
+    const projTo = sessionToProject(to)
+    if (!projFrom || !projTo) return 'unknown'
+    const key = projectLinkKey(projFrom, projTo)
+    if (projectLinks.has(key)) return 'linked'
+    const blockTs = projectBlocks.get(key)
+    if (blockTs && Date.now() - blockTs < 60_000) return 'blocked'
+    if (blockTs) projectBlocks.delete(key)
     return 'unknown'
   }
 
   function linkProjects(a: string, b: string): void {
-    const cwdA = sessionToCwd(a)
-    const cwdB = sessionToCwd(b)
-    if (!cwdA || !cwdB) return
-    cwdLinks.add(cwdLinkKey(cwdA, cwdB))
-    cwdBlocks.delete(cwdLinkKey(cwdA, cwdB))
+    const projA = sessionToProject(a)
+    const projB = sessionToProject(b)
+    if (!projA || !projB) return
+    const key = projectLinkKey(projA, projB)
+    projectLinks.add(key)
+    projectBlocks.delete(key)
   }
 
   function blockProject(blocker: string, blocked: string): void {
-    const cwdA = sessionToCwd(blocker)
-    const cwdB = sessionToCwd(blocked)
-    if (!cwdA || !cwdB) return
-    const key = cwdLinkKey(cwdA, cwdB)
-    cwdLinks.delete(key)
-    cwdBlocks.set(key, Date.now())
+    const projA = sessionToProject(blocker)
+    const projB = sessionToProject(blocked)
+    if (!projA || !projB) return
+    const key = projectLinkKey(projA, projB)
+    projectLinks.delete(key)
+    projectBlocks.set(key, Date.now())
   }
 
   function queueProjectMessage(from: string, to: string, message: Record<string, unknown>): void {
-    const cwdFrom = sessionToCwd(from)
-    const cwdTo = sessionToCwd(to)
-    if (!cwdFrom || !cwdTo) return
-    const key = cwdLinkKey(cwdFrom, cwdTo)
+    const projFrom = sessionToProject(from)
+    const projTo = sessionToProject(to)
+    if (!projFrom || !projTo) return
+    const key = projectLinkKey(projFrom, projTo)
     const queue = messageQueue.get(key) || []
     queue.push(message)
     messageQueue.set(key, queue)
   }
 
   function drainProjectMessages(from: string, to: string): Array<Record<string, unknown>> {
-    const cwdFrom = sessionToCwd(from)
-    const cwdTo = sessionToCwd(to)
-    if (!cwdFrom || !cwdTo) return []
-    const key = cwdLinkKey(cwdFrom, cwdTo)
+    const projFrom = sessionToProject(from)
+    const projTo = sessionToProject(to)
+    if (!projFrom || !projTo) return []
+    const key = projectLinkKey(projFrom, projTo)
     const msgs = messageQueue.get(key) || []
     messageQueue.delete(key)
     return msgs
   }
 
-  function broadcastForProjectCwd(cwd: string): void {
+  function broadcastForProject(projectOrCwd: string): void {
+    const project = toProjectUri(projectOrCwd)
     for (const [id, s] of sessions) {
-      if (s.cwd === cwd) scheduleSessionUpdate(id)
+      if (s.project === project) scheduleSessionUpdate(id)
     }
   }
 
@@ -3237,7 +3250,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     addDirListener,
     removeDirListener,
     resolveDir,
-    broadcastToWrappersAtCwd,
+    broadcastToWrappersForProject,
+    broadcastToWrappersAtCwd: broadcastToWrappersForProject,
     addFileListener,
     removeFileListener,
     resolveFile,
@@ -3249,7 +3263,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     blockProject,
     queueProjectMessage,
     drainProjectMessages,
-    broadcastForProjectCwd,
+    broadcastForProject,
+    broadcastForProjectCwd: broadcastForProject,
     addPendingRestart,
     consumePendingRestart,
     addRendezvous,

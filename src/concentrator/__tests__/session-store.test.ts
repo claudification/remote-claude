@@ -596,3 +596,146 @@ describe('project URI field', () => {
     expect(session.project).toBe('claude:///Users/jonas/projects/bar')
   })
 })
+
+// ---------------------------------------------------------------------------
+// 9. Project URI-based lookups (Phase 1b)
+// ---------------------------------------------------------------------------
+
+describe('project link management (project URI)', () => {
+  it('linkProjects + checkProjectLink uses project URI internally', () => {
+    store.createSession('link-a', '/projects/alpha')
+    store.createSession('link-b', '/projects/beta')
+    store.linkProjects('link-a', 'link-b')
+
+    expect(store.checkProjectLink('link-a', 'link-b')).toBe('linked')
+    expect(store.checkProjectLink('link-b', 'link-a')).toBe('linked')
+  })
+
+  it('checkProjectLink returns unknown for unlinked sessions', () => {
+    store.createSession('unknown-a', '/projects/one')
+    store.createSession('unknown-b', '/projects/two')
+
+    expect(store.checkProjectLink('unknown-a', 'unknown-b')).toBe('unknown')
+  })
+
+  it('checkProjectLink returns unknown for missing sessions', () => {
+    store.createSession('exists', '/projects/real')
+    expect(store.checkProjectLink('exists', 'ghost')).toBe('unknown')
+    expect(store.checkProjectLink('ghost', 'exists')).toBe('unknown')
+  })
+
+  it('blockProject marks pair as blocked', () => {
+    store.createSession('block-a', '/projects/x')
+    store.createSession('block-b', '/projects/y')
+
+    store.linkProjects('block-a', 'block-b')
+    expect(store.checkProjectLink('block-a', 'block-b')).toBe('linked')
+
+    store.blockProject('block-a', 'block-b')
+    expect(store.checkProjectLink('block-a', 'block-b')).toBe('blocked')
+  })
+
+  it('unlinkProjects removes link by session ID', () => {
+    store.createSession('unlink-a', '/projects/m')
+    store.createSession('unlink-b', '/projects/n')
+
+    store.linkProjects('unlink-a', 'unlink-b')
+    expect(store.checkProjectLink('unlink-a', 'unlink-b')).toBe('linked')
+
+    store.unlinkProjects('unlink-a', 'unlink-b')
+    expect(store.checkProjectLink('unlink-a', 'unlink-b')).toBe('unknown')
+  })
+
+  it('unlinkProjectsByCwd accepts bare CWD and normalizes to project URI', () => {
+    store.createSession('cwd-unlink-a', '/projects/p')
+    store.createSession('cwd-unlink-b', '/projects/q')
+
+    store.linkProjects('cwd-unlink-a', 'cwd-unlink-b')
+    expect(store.checkProjectLink('cwd-unlink-a', 'cwd-unlink-b')).toBe('linked')
+
+    store.unlinkProjectsByCwd('/projects/p', '/projects/q')
+    expect(store.checkProjectLink('cwd-unlink-a', 'cwd-unlink-b')).toBe('unknown')
+  })
+
+  it('getLinkedProjects returns linked project CWDs for a session', () => {
+    store.createSession('gp-a', '/projects/foo')
+    store.createSession('gp-b', '/projects/bar')
+    store.linkProjects('gp-a', 'gp-b')
+
+    const linked = store.getLinkedProjects('gp-a')
+    expect(linked).toHaveLength(1)
+    expect(linked[0].cwd).toBe('/projects/bar')
+  })
+
+  it('getLinkedProjects returns empty for session with no links', () => {
+    store.createSession('gp-solo', '/projects/solo')
+    expect(store.getLinkedProjects('gp-solo')).toEqual([])
+  })
+
+  it('link key normalization: same project URI = same key', () => {
+    store.createSession('norm-a', '/projects/same')
+    store.createSession('norm-b', '/projects/other')
+
+    store.linkProjects('norm-a', 'norm-b')
+    expect(store.checkProjectLink('norm-a', 'norm-b')).toBe('linked')
+    expect(store.checkProjectLink('norm-b', 'norm-a')).toBe('linked')
+  })
+})
+
+describe('project message queue (project URI)', () => {
+  it('queueProjectMessage + drainProjectMessages uses project URI keys', () => {
+    store.createSession('mq-a', '/projects/sender')
+    store.createSession('mq-b', '/projects/receiver')
+
+    const msg1 = { type: 'test', content: 'hello' }
+    const msg2 = { type: 'test', content: 'world' }
+    store.queueProjectMessage('mq-a', 'mq-b', msg1)
+    store.queueProjectMessage('mq-a', 'mq-b', msg2)
+
+    const drained = store.drainProjectMessages('mq-a', 'mq-b')
+    expect(drained).toHaveLength(2)
+    expect(drained[0]).toEqual(msg1)
+    expect(drained[1]).toEqual(msg2)
+  })
+
+  it('drainProjectMessages empties the queue', () => {
+    store.createSession('drain-a', '/projects/s')
+    store.createSession('drain-b', '/projects/r')
+
+    store.queueProjectMessage('drain-a', 'drain-b', { type: 'x' })
+    store.drainProjectMessages('drain-a', 'drain-b')
+
+    const second = store.drainProjectMessages('drain-a', 'drain-b')
+    expect(second).toHaveLength(0)
+  })
+
+  it('drainProjectMessages returns empty for missing sessions', () => {
+    expect(store.drainProjectMessages('ghost-a', 'ghost-b')).toEqual([])
+  })
+})
+
+describe('broadcast scoping (project URI)', () => {
+  it('broadcastForProjectCwd accepts bare CWD (backward compat)', () => {
+    store.createSession('bc-1', '/projects/target')
+    // Should not throw -- normalizes CWD to project URI internally
+    expect(() => store.broadcastForProjectCwd('/projects/target')).not.toThrow()
+  })
+
+  it('broadcastForProject accepts project URI', () => {
+    store.createSession('bc-2', '/projects/target2')
+    expect(() => store.broadcastForProject('claude:///projects/target2')).not.toThrow()
+  })
+
+  it('broadcastToWrappersAtCwd accepts bare CWD (backward compat)', () => {
+    store.createSession('bw-1', '/projects/wrap')
+    const count = store.broadcastToWrappersAtCwd('/projects/wrap', { type: 'test' })
+    // No wrappers registered, so count is 0 but shouldn't throw
+    expect(count).toBe(0)
+  })
+
+  it('broadcastToWrappersForProject accepts project URI', () => {
+    store.createSession('bw-2', '/projects/wrap2')
+    const count = store.broadcastToWrappersForProject('claude:///projects/wrap2', { type: 'test' })
+    expect(count).toBe(0)
+  })
+})
