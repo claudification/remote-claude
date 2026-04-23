@@ -4,11 +4,11 @@
  * Each leaf node represents a project keyed by its project URI
  * (e.g. `claude:///Users/jonas/projects/remote-claude`).
  * Legacy `cwd:<path>` node IDs are migrated on load.
+ * Backed by StoreDriver KVStore (replaces JSON file persistence).
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
 import { cwdToProjectUri } from '../shared/project-uri'
+import type { KVStore } from './store/types'
 
 export interface ProjectOrderGroup {
   id: string
@@ -29,7 +29,9 @@ export interface ProjectOrder {
   tree: ProjectOrderNode[]
 }
 
-let orderPath = ''
+const KV_KEY = 'project-order'
+
+let kv: KVStore | null = null
 let order: ProjectOrder = { tree: [] }
 
 /** Migrate a node ID from legacy `cwd:<path>` format to project URI. */
@@ -80,29 +82,14 @@ function normalize(raw: unknown): { order: ProjectOrder; migrated: boolean } {
   return { order: { tree: walk(obj.tree) }, migrated }
 }
 
-export function initProjectOrder(cacheDir: string): void {
-  orderPath = join(cacheDir, 'project-order.json')
-  mkdirSync(dirname(orderPath), { recursive: true })
+export function initProjectOrder(store: KVStore): void {
+  kv = store
 
-  // One-shot migration from the legacy filename.
-  if (!existsSync(orderPath)) {
-    const legacyPath = join(cacheDir, 'session-order.json')
-    if (existsSync(legacyPath)) {
-      try {
-        renameSync(legacyPath, orderPath)
-        console.log('[project-order] Migrated session-order.json -> project-order.json')
-      } catch (err) {
-        console.warn('[project-order] Legacy rename failed:', err)
-      }
-    }
-  }
-
-  if (existsSync(orderPath)) {
+  const raw = kv.get<Record<string, unknown>>(KV_KEY)
+  if (raw) {
     try {
-      const raw = JSON.parse(readFileSync(orderPath, 'utf-8'))
       const wasLegacyFormat =
-        (raw && typeof raw === 'object' && 'version' in raw) ||
-        JSON.stringify(raw?.tree ?? []).includes('"type":"session"')
+        'version' in raw || JSON.stringify((raw as { tree?: unknown }).tree ?? []).includes('"type":"session"')
 
       const { order: normalized, migrated: hadCwdIds } = normalize(raw)
       order = normalized
@@ -115,8 +102,8 @@ export function initProjectOrder(cacheDir: string): void {
 }
 
 function save(): void {
-  if (!orderPath) return
-  writeFileSync(orderPath, JSON.stringify(order, null, 2))
+  if (!kv) return
+  kv.set(KV_KEY, order)
 }
 
 export function getProjectOrder(): ProjectOrder {

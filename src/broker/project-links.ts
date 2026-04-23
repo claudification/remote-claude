@@ -1,12 +1,11 @@
 /**
  * Project Links - persistent project-pair links for inter-project communication.
  * Links are keyed by project URI (stable across restarts/rekeys).
- * Storage: {cacheDir}/project-links.json
+ * Backed by StoreDriver KVStore (replaces JSON file persistence).
  */
 
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
 import { cwdToProjectUri } from '../shared/project-uri'
+import type { KVStore } from './store/types'
 
 export interface PersistedLink {
   projectA: string // alphabetically first project URI
@@ -15,12 +14,9 @@ export interface PersistedLink {
   lastUsed: number
 }
 
-interface LinksFile {
-  version: 1
-  links: PersistedLink[]
-}
+const KV_KEY = 'project-links'
 
-let linksPath = ''
+let kv: KVStore | null = null
 let links: PersistedLink[] = []
 
 function toUri(value: string): string {
@@ -37,9 +33,8 @@ function sortedPair(a: string, b: string): [string, string] {
 }
 
 function save(): void {
-  if (!linksPath) return
-  const data: LinksFile = { version: 1, links }
-  writeFileSync(linksPath, JSON.stringify(data, null, 2))
+  if (!kv) return
+  kv.set(KV_KEY, links)
 }
 
 function migrateLink(link: PersistedLink): boolean {
@@ -78,42 +73,24 @@ function migrateLink(link: PersistedLink): boolean {
   return changed
 }
 
-export function initProjectLinks(cacheDir: string): void {
-  linksPath = join(cacheDir, 'project-links.json')
-  mkdirSync(dirname(linksPath), { recursive: true })
+export function initProjectLinks(store: KVStore): void {
+  kv = store
 
-  // Migrate from legacy session-links.json if needed
-  const legacyPath = join(cacheDir, 'session-links.json')
-  if (!existsSync(linksPath) && existsSync(legacyPath)) {
-    try {
-      const raw = JSON.parse(readFileSync(legacyPath, 'utf-8')) as LinksFile
-      links = raw.links || []
-      for (const link of links) migrateLink(link)
-      save()
-      unlinkSync(legacyPath)
-      console.log(`[links] Migrated ${links.length} links from session-links.json -> project-links.json`)
-    } catch {
-      links = []
+  const raw = kv.get<PersistedLink[]>(KV_KEY)
+  if (raw && Array.isArray(raw)) {
+    links = raw
+    let migrated = false
+    for (const link of links) {
+      if (migrateLink(link)) migrated = true
     }
-  }
-
-  if (existsSync(linksPath)) {
-    try {
-      const raw = JSON.parse(readFileSync(linksPath, 'utf-8')) as LinksFile
-      links = raw.links || []
-      let migrated = false
-      for (const link of links) {
-        if (migrateLink(link)) migrated = true
-      }
-      // Evict links not used in 90 days
-      const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000
-      const before = links.length
-      links = links.filter(l => l.lastUsed > cutoff)
-      if (migrated || links.length < before) save()
-      console.log(`[links] Loaded ${links.length} persisted project links (evicted ${before - links.length} stale)`)
-    } catch {
-      links = []
-    }
+    // Evict links not used in 90 days
+    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000
+    const before = links.length
+    links = links.filter(l => l.lastUsed > cutoff)
+    if (migrated || links.length < before) save()
+    console.log(`[links] Loaded ${links.length} persisted project links (evicted ${before - links.length} stale)`)
+  } else {
+    links = []
   }
 }
 

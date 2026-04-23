@@ -3,13 +3,12 @@
  *
  * Generates tokens that grant limited permissions to a specific session CWD.
  * No user registration needed - the token IS the auth.
- * Persisted to {cacheDir}/shares.json.
+ * Backed by StoreDriver KVStore (replaces JSON file persistence).
  */
 
 import { randomBytes } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
 import type { UserGrant } from './permissions'
+import type { KVStore } from './store/types'
 
 export interface SessionShare {
   token: string
@@ -27,39 +26,27 @@ export interface SessionShare {
 // Default permissions for shared sessions
 const DEFAULT_SHARE_PERMISSIONS = ['chat', 'chat:read', 'files:read', 'terminal:read']
 
+const KV_KEY = 'shares'
+
 let shares: SessionShare[] = []
-let sharesFilePath = ''
+let kv: KVStore | null = null
 let expiryTimer: ReturnType<typeof setInterval> | null = null
 
-// Debounced save
-let saveTimer: ReturnType<typeof setTimeout> | null = null
-function scheduleSave() {
-  if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(save, 500)
-}
-
 function save() {
-  if (!sharesFilePath) return
-  try {
-    writeFileSync(sharesFilePath, JSON.stringify(shares, null, 2), { mode: 0o600 })
-  } catch (err) {
-    console.error('[shares] Failed to save:', err)
-  }
+  if (!kv) return
+  kv.set(KV_KEY, shares)
 }
 
-export function initShares(opts: { cacheDir: string; skipTimers?: boolean }) {
-  sharesFilePath = join(opts.cacheDir, 'shares.json')
+export function initShares(opts: { kv: KVStore; skipTimers?: boolean }) {
+  kv = opts.kv
 
   // Load existing shares
-  try {
-    if (existsSync(sharesFilePath)) {
-      shares = JSON.parse(readFileSync(sharesFilePath, 'utf-8'))
-      // Clean up expired + revoked on load
-      const before = shares.length
-      shares = shares.filter(s => !s.revoked && s.expiresAt > Date.now())
-      if (shares.length !== before) save()
-    }
-  } catch {
+  const raw = kv.get<SessionShare[]>(KV_KEY)
+  if (raw && Array.isArray(raw)) {
+    // Clean up expired + revoked on load
+    shares = raw.filter(s => !s.revoked && s.expiresAt > Date.now())
+    if (shares.length !== raw.length) save()
+  } else {
     shares = []
   }
 
@@ -103,7 +90,7 @@ export function createShare(opts: {
   }
 
   shares.push(share)
-  scheduleSave()
+  save()
   console.log(
     `[shares] Created share for ${opts.sessionCwd} by ${opts.createdBy} (expires ${new Date(opts.expiresAt).toISOString()})`,
   )
@@ -124,7 +111,7 @@ export function revokeShare(token: string): boolean {
   const share = shares.find(s => s.token === token)
   if (!share) return false
   share.revoked = true
-  scheduleSave()
+  save()
   console.log(`[shares] Revoked share for ${share.sessionCwd}`)
   return true
 }
@@ -165,16 +152,15 @@ export function cleanExpired(): string[] {
       console.log(`[shares] Share expired for ${share.sessionCwd} (created by ${share.createdBy})`)
     }
   }
-  if (expired.length > 0) scheduleSave()
+  if (expired.length > 0) save()
   return expired
 }
 
-/** Reload shares from disk (for SIGHUP handler). */
+/** Reload shares from store (for SIGHUP handler). */
 export function reloadShares() {
-  if (!sharesFilePath) return
-  try {
-    if (existsSync(sharesFilePath)) {
-      shares = JSON.parse(readFileSync(sharesFilePath, 'utf-8'))
-    }
-  } catch {}
+  if (!kv) return
+  const raw = kv.get<SessionShare[]>(KV_KEY)
+  if (raw && Array.isArray(raw)) {
+    shares = raw
+  }
 }

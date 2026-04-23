@@ -1,12 +1,13 @@
 /**
  * Global Settings - shared config between backend and frontend
- * Stored as JSON in the broker cache dir.
+ * Backed by StoreDriver KVStore (replaces JSON file persistence).
  * Uses Zod for validation with soft-fail (strips unknown/invalid fields).
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
 import { z } from 'zod/v4'
+import type { KVStore } from './store/types'
+
+const KV_KEY = 'global-settings'
 
 export const GlobalSettingsSchema = z.object({
   userLabel: z.string().max(20).default(''),
@@ -33,16 +34,15 @@ export const GlobalSettingsSchema = z.object({
 
 export type GlobalSettings = z.infer<typeof GlobalSettingsSchema>
 
-let settingsPath = ''
+let kv: KVStore | null = null
 let settings: GlobalSettings = GlobalSettingsSchema.parse({})
 
-export function initGlobalSettings(cacheDir: string): void {
-  settingsPath = join(cacheDir, 'global-settings.json')
-  mkdirSync(dirname(settingsPath), { recursive: true })
+export function initGlobalSettings(store: KVStore): void {
+  kv = store
 
-  if (existsSync(settingsPath)) {
+  const raw = kv.get<Record<string, unknown>>(KV_KEY)
+  if (raw) {
     try {
-      const raw = JSON.parse(readFileSync(settingsPath, 'utf-8'))
       settings = GlobalSettingsSchema.parse(raw)
     } catch {
       // Soft fail - use defaults
@@ -52,8 +52,8 @@ export function initGlobalSettings(cacheDir: string): void {
 }
 
 function save(): void {
-  if (!settingsPath) return
-  writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+  if (!kv) return
+  kv.set(KV_KEY, settings)
 }
 
 export function getGlobalSettings(): GlobalSettings {

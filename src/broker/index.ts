@@ -47,6 +47,7 @@ import {
   shareToGrants as shareToGrantList,
   validateShare as validateShareToken,
 } from './shares'
+import { createStore } from './store'
 import { cleanupVoiceForWs } from './voice-stream'
 import { createWsServer } from './ws-server'
 
@@ -267,15 +268,19 @@ async function main() {
   // Initialize analytics store (SQLite, non-critical)
   initAnalyticsStore(authCacheDir)
 
-  // Initialize settings
-  initProjectSettings(authCacheDir)
-  initGlobalSettings(authCacheDir)
-  initProjectOrder(authCacheDir)
-  initProjectLinks(authCacheDir)
-  initInterSessionLog(authCacheDir)
-  initAddressBook(authCacheDir)
-  initMessageQueue(authCacheDir)
-  initShares({ cacheDir: authCacheDir })
+  // Initialize unified store (SQLite-backed)
+  const store = createStore({ type: 'sqlite', dataDir: authCacheDir })
+  store.init()
+
+  // Initialize settings (backed by store.kv)
+  initProjectSettings(store.kv)
+  initGlobalSettings(store.kv)
+  initProjectOrder(store.kv)
+  initProjectLinks(store.kv)
+  initInterSessionLog(store.kv)
+  initAddressBook(store.kv)
+  initMessageQueue(store.kv)
+  initShares({ kv: store.kv })
   setShareValidator(token => validateShareToken(token) !== null)
 
   // Initialize web push (optional - needs VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY env vars)
@@ -309,6 +314,7 @@ async function main() {
     closeCostStore()
     closeProjectStore()
     await Promise.all([sessionStore.saveState(), sessionStore.flushTranscripts()])
+    store.close()
     process.exit(0)
   })
   process.on('SIGTERM', async () => {
@@ -316,6 +322,7 @@ async function main() {
     closeCostStore()
     closeProjectStore()
     await Promise.all([sessionStore.saveState(), sessionStore.flushTranscripts()])
+    store.close()
     process.exit(0)
   })
   process.on('SIGHUP', () => {

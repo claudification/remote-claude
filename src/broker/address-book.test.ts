@@ -1,18 +1,31 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { getBook, getOrAssign, initAddressBook, resolve, slugify } from './address-book'
+import type { KVStore } from './store/types'
 
-let tmp: string
+function createTestKV(): KVStore {
+  const data = new Map<string, unknown>()
+  return {
+    get<T = unknown>(key: string): T | null {
+      return (data.get(key) as T) ?? null
+    },
+    set<T = unknown>(key: string, value: T): void {
+      data.set(key, JSON.parse(JSON.stringify(value)))
+    },
+    delete(key: string): boolean {
+      return data.delete(key)
+    },
+    keys(prefix?: string): string[] {
+      const all = [...data.keys()]
+      return prefix ? all.filter(k => k.startsWith(prefix)) : all
+    },
+  }
+}
+
+let testKV: KVStore
 
 beforeEach(() => {
-  tmp = mkdtempSync(join(tmpdir(), 'rclaude-address-book-'))
-  initAddressBook(tmp)
-})
-
-afterEach(() => {
-  rmSync(tmp, { recursive: true, force: true })
+  testKV = createTestKV()
+  initAddressBook(testKV)
 })
 
 describe('address book', () => {
@@ -56,30 +69,28 @@ describe('address book', () => {
     expect(slugify('')).toBe('project')
   })
 
-  it('wipes a legacy (unversioned) file on init', () => {
-    const file = join(tmp, 'address-books.json')
+  it('wipes legacy (unversioned) data on init', () => {
     // Pre-v2 format: bare map, no _version marker -- slugs may be poisoned by
     // the old rule that keyed project slugs off session titles.
-    writeFileSync(file, JSON.stringify({ '/caller': { 'blazing-igloo': '/projects/arr' } }))
-    initAddressBook(tmp)
+    const kvWithLegacy = createTestKV()
+    kvWithLegacy.set('address-books', { '/caller': { 'blazing-igloo': '/projects/arr' } })
+    initAddressBook(kvWithLegacy)
     expect(getBook('/caller')).toEqual({})
   })
 
-  it('preserves entries from a same-version file on init', () => {
-    const file = join(tmp, 'address-books.json')
-    writeFileSync(file, JSON.stringify({ _version: 2, books: { '/caller': { arr: '/projects/arr' } } }))
-    initAddressBook(tmp)
+  it('preserves entries from same-version data on init', () => {
+    const kvWithData = createTestKV()
+    kvWithData.set('address-books', { _version: 2, books: { '/caller': { arr: '/projects/arr' } } })
+    initAddressBook(kvWithData)
     expect(resolve('/caller', 'arr')).toBe('/projects/arr')
   })
 
-  it('persists with the current version marker when scheduled save fires', async () => {
+  it('persists with the current version marker on save', () => {
     getOrAssign('/caller', '/projects/arr', 'Arr')
-    // scheduleSave debounces 1s; wait slightly longer.
-    await new Promise(r => setTimeout(r, 1200))
-    const file = join(tmp, 'address-books.json')
-    expect(existsSync(file)).toBe(true)
-    const parsed = JSON.parse(readFileSync(file, 'utf-8'))
-    expect(parsed._version).toBe(2)
-    expect(parsed.books['/caller'].arr).toBe('/projects/arr')
+    // KV writes are synchronous now (no debounce)
+    const stored = testKV.get<{ _version: number; books: Record<string, Record<string, string>> }>('address-books')
+    expect(stored).not.toBeNull()
+    expect(stored!._version).toBe(2)
+    expect(stored!.books['/caller'].arr).toBe('/projects/arr')
   })
 })

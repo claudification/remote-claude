@@ -5,10 +5,10 @@
  * to target projects. IDs are auto-assigned from project name/label and
  * persisted across restarts. An ID is only meaningful to its owner --
  * leaked IDs are useless to other sessions.
+ * Backed by StoreDriver KVStore (replaces JSON file persistence).
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import type { KVStore } from './store/types'
 
 // callerProject -> { localId -> targetProject }
 type BookMap = Record<string, Record<string, string>>
@@ -17,45 +17,35 @@ type BookMap = Record<string, Record<string, string>>
 // v2: project slugs are derived from project label/dirname, not session titles.
 const CURRENT_VERSION = 2
 
-type BookFile = { _version: number; books: BookMap }
+const KV_KEY = 'address-books'
 
-let filePath = ''
+interface BookData {
+  _version: number
+  books: BookMap
+}
+
+let kv: KVStore | null = null
 let books: BookMap = {}
-let dirty = false
-let saveTimer: ReturnType<typeof setTimeout> | null = null
 
-export function initAddressBook(cacheDir: string): void {
-  filePath = join(cacheDir, 'address-books.json')
-  mkdirSync(dirname(filePath), { recursive: true })
-  if (existsSync(filePath)) {
-    try {
-      const parsed = JSON.parse(readFileSync(filePath, 'utf-8'))
-      if (parsed && typeof parsed === 'object' && parsed._version === CURRENT_VERSION) {
-        books = (parsed as BookFile).books || {}
-      } else {
-        // Legacy (unversioned) or older-version file: slugs may be poisoned by the
-        // pre-v2 rule that used session titles as project slugs. Rebuilds lazily
-        // on next list_sessions / send_message.
-        books = {}
-        dirty = true
-      }
-    } catch {
-      books = {}
-    }
+export function initAddressBook(store: KVStore): void {
+  kv = store
+  const parsed = kv.get<BookData>(KV_KEY)
+  if (parsed && typeof parsed === 'object' && parsed._version === CURRENT_VERSION) {
+    books = parsed.books || {}
+  } else if (parsed) {
+    // Legacy (unversioned) or older-version data: slugs may be poisoned by the
+    // pre-v2 rule that used session titles as project slugs. Rebuild lazily.
+    books = {}
+    save()
+  } else {
+    books = {}
   }
 }
 
-function scheduleSave(): void {
-  if (saveTimer) return
-  dirty = true
-  saveTimer = setTimeout(() => {
-    saveTimer = null
-    if (dirty && filePath) {
-      const payload: BookFile = { _version: CURRENT_VERSION, books }
-      writeFileSync(filePath, JSON.stringify(payload, null, 2))
-      dirty = false
-    }
-  }, 1000) // debounce 1s
+function save(): void {
+  if (!kv) return
+  const payload: BookData = { _version: CURRENT_VERSION, books }
+  kv.set(KV_KEY, payload)
 }
 
 /** Generate a slug from a name. Lowercase, alphanumeric + hyphens. */
@@ -89,7 +79,7 @@ export function getOrAssign(callerProject: string, targetProject: string, target
   }
 
   book[slug] = targetProject
-  scheduleSave()
+  save()
   return slug
 }
 
@@ -110,7 +100,7 @@ export function removeEntry(callerProject: string, localId: string): void {
     if (Object.keys(books[callerProject]).length === 0) {
       delete books[callerProject]
     }
-    scheduleSave()
+    save()
   }
 }
 
@@ -126,6 +116,6 @@ export function pruneStale(activeProjects: Set<string>): number {
     }
     if (Object.keys(book).length === 0) delete books[callerProject]
   }
-  if (removed > 0) scheduleSave()
+  if (removed > 0) save()
   return removed
 }

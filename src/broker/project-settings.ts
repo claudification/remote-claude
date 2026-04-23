@@ -1,19 +1,20 @@
 /**
  * Project Settings - persistent label/icon/color per project.
- * Stored as a JSON file in the broker cache dir.
+ * Backed by StoreDriver KVStore (replaces JSON file persistence).
  * Keys are project URIs (claude:///path). Bare CWD inputs are transparently upgraded.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
 import { cwdToProjectUri } from '../shared/project-uri'
 import type { ProjectSettings } from '../shared/protocol'
+import type { KVStore } from './store/types'
 
 export type { ProjectSettings } from '../shared/protocol'
 
+const KV_KEY = 'project-settings'
+
 type SettingsMap = Record<string, ProjectSettings>
 
-let settingsPath = ''
+let kv: KVStore | null = null
 let settings: SettingsMap = {}
 
 function normalizeKey(project: string): string {
@@ -21,13 +22,12 @@ function normalizeKey(project: string): string {
   return project
 }
 
-export function initProjectSettings(cacheDir: string): void {
-  settingsPath = join(cacheDir, 'project-settings.json')
-  mkdirSync(dirname(settingsPath), { recursive: true })
+export function initProjectSettings(store: KVStore): void {
+  kv = store
 
-  if (existsSync(settingsPath)) {
+  const raw = kv.get<SettingsMap>(KV_KEY)
+  if (raw) {
     try {
-      const raw: SettingsMap = JSON.parse(readFileSync(settingsPath, 'utf-8'))
       // Migrate legacy CWD keys to project URIs
       let migrated = false
       for (const [key, value] of Object.entries(raw)) {
@@ -47,8 +47,8 @@ export function initProjectSettings(cacheDir: string): void {
 }
 
 function save(): void {
-  if (!settingsPath) return
-  writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+  if (!kv) return
+  kv.set(KV_KEY, settings)
 }
 
 export function getAllProjectSettings(): SettingsMap {

@@ -2,11 +2,10 @@
  * Persistent message queue: stores messages for offline/disconnected sessions.
  *
  * Keyed by target project (not session/wrapper ID) so messages survive
- * session restarts. Persisted to disk. Auto-purges expired messages.
+ * session restarts. Backed by StoreDriver KVStore (replaces JSON file persistence).
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import type { KVStore } from './store/types'
 
 interface QueuedMessage {
   ts: number
@@ -22,49 +21,40 @@ type QueueMap = Record<string, QueuedMessage[]>
 const MESSAGE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 const MAX_QUEUE_PER_TARGET = 100
 
-let filePath = ''
-let queues: QueueMap = {}
-let dirty = false
-let saveTimer: ReturnType<typeof setTimeout> | null = null
+const KV_KEY = 'message-queue'
 
-export function initMessageQueue(cacheDir: string): void {
-  filePath = join(cacheDir, 'message-queue.json')
-  mkdirSync(dirname(filePath), { recursive: true })
-  if (existsSync(filePath)) {
-    try {
-      queues = JSON.parse(readFileSync(filePath, 'utf-8'))
-      // Backward compat: migrate legacy fromCwd/fromProject -> senderProject/senderName
-      for (const msgs of Object.values(queues)) {
-        for (const m of msgs) {
-          const legacy = m as unknown as Record<string, unknown>
-          if ('fromCwd' in legacy && !('senderProject' in legacy)) {
-            legacy.senderProject = legacy.fromCwd
-            delete legacy.fromCwd
-          }
-          if ('fromProject' in legacy && !('senderName' in legacy)) {
-            legacy.senderName = legacy.fromProject
-            delete legacy.fromProject
-          }
+let kv: KVStore | null = null
+let queues: QueueMap = {}
+
+export function initMessageQueue(store: KVStore): void {
+  kv = store
+  const raw = kv.get<QueueMap>(KV_KEY)
+  if (raw && typeof raw === 'object') {
+    queues = raw
+    // Backward compat: migrate legacy fromCwd/fromProject -> senderProject/senderName
+    for (const msgs of Object.values(queues)) {
+      for (const m of msgs) {
+        const legacy = m as unknown as Record<string, unknown>
+        if ('fromCwd' in legacy && !('senderProject' in legacy)) {
+          legacy.senderProject = legacy.fromCwd
+          delete legacy.fromCwd
+        }
+        if ('fromProject' in legacy && !('senderName' in legacy)) {
+          legacy.senderName = legacy.fromProject
+          delete legacy.fromProject
         }
       }
-      // Purge expired on load
-      purgeExpired()
-    } catch {
-      queues = {}
     }
+    // Purge expired on load
+    purgeExpired()
+  } else {
+    queues = {}
   }
 }
 
-function scheduleSave(): void {
-  if (saveTimer) return
-  dirty = true
-  saveTimer = setTimeout(() => {
-    saveTimer = null
-    if (dirty && filePath) {
-      writeFileSync(filePath, JSON.stringify(queues))
-      dirty = false
-    }
-  }, 1000)
+function save(): void {
+  if (!kv) return
+  kv.set(KV_KEY, queues)
 }
 
 function purgeExpired(): void {
@@ -80,7 +70,7 @@ function purgeExpired(): void {
       changed = true
     }
   }
-  if (changed) scheduleSave()
+  if (changed) save()
 }
 
 /** Queue a message for delivery when the target project's session connects. */
@@ -100,7 +90,7 @@ export function enqueue(
   }
 
   queue.push({ ts: Date.now(), senderProject, senderName, message, ...(targetName ? { targetName } : {}) })
-  scheduleSave()
+  save()
 }
 
 /**
@@ -119,7 +109,7 @@ export function drain(targetProject: string, sessionName?: string): QueuedMessag
   if (!sessionName) {
     // No session name filter -- drain everything (backward compat)
     delete queues[targetProject]
-    scheduleSave()
+    save()
     return valid
   }
 
@@ -139,7 +129,7 @@ export function drain(targetProject: string, sessionName?: string): QueuedMessag
   } else {
     queues[targetProject] = forOthers
   }
-  scheduleSave()
+  save()
   return forMe
 }
 
