@@ -396,8 +396,9 @@ export function useIncrementalGroups(entries: TranscriptEntry[]) {
 
   const entriesRef = useRef(entries)
   const groups = useMemo(() => {
-    const t0 = performance.now()
     const cache = cacheRef.current
+    if (!Array.isArray(entries)) return cache.groups
+    const t0 = performance.now()
 
     // Full reset if entries shrunk OR array was replaced entirely (HTTP refetch)
     const isReset = entries.length < cache.len || (entries !== entriesRef.current && entries.length <= cache.len)
