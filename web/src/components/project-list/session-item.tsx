@@ -636,11 +636,9 @@ function SessionItemShell({
 function SessionItemTasksBlock({
   session,
   selectedSubagentId,
-  onSelectSubagent,
 }: {
   session: Session
   selectedSubagentId: string | null
-  onSelectSubagent: (sessionId: string, agentId: string) => void
 }) {
   const hasContent =
     session.activeTasks.length > 0 ||
@@ -672,22 +670,10 @@ function SessionItemTasksBlock({
         .map(a => (
           <div
             key={a.agentId}
-            role="button"
-            tabIndex={0}
             className={cn(
-              'text-[11px] text-pink-400/80 font-mono truncate pl-1 cursor-pointer hover:text-pink-300',
+              'text-[11px] text-pink-400/80 font-mono truncate pl-1',
               selectedSubagentId === a.agentId && 'text-pink-300 font-bold',
             )}
-            onClick={e => {
-              e.stopPropagation()
-              onSelectSubagent(session.id, a.agentId)
-            }}
-            onKeyDown={e => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.stopPropagation()
-                onSelectSubagent(session.id, a.agentId)
-              }
-            }}
           >
             <span className="text-pink-400 mr-1">{'\u25CF'}</span>
             {a.description || a.agentType} <span className="text-pink-400/50">{a.agentId.slice(0, 6)}</span>
@@ -698,22 +684,10 @@ function SessionItemTasksBlock({
         .map(a => (
           <div
             key={a.agentId}
-            role="button"
-            tabIndex={0}
             className={cn(
-              'text-[11px] text-pink-400/40 font-mono truncate pl-1 cursor-pointer hover:text-pink-400/70',
+              'text-[11px] text-pink-400/40 font-mono truncate pl-1',
               selectedSubagentId === a.agentId && 'text-pink-400/80 font-bold',
             )}
-            onClick={e => {
-              e.stopPropagation()
-              onSelectSubagent(session.id, a.agentId)
-            }}
-            onKeyDown={e => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.stopPropagation()
-                onSelectSubagent(session.id, a.agentId)
-              }
-            }}
           >
             <span className="mr-1">{'\u25CB'}</span>
             {a.description || a.agentType} <span className="text-pink-400/30">{a.agentId.slice(0, 6)}</span>
@@ -738,7 +712,7 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
   const isSelected = useSessionsStore(s => s.selectedSessionId === session.id)
   const selectedSubagentId = useSessionsStore(s => (s.selectedSessionId === session.id ? s.selectedSubagentId : null))
   const selectSession = useSessionsStore(s => s.selectSession)
-  const selectSubagent = useSessionsStore(s => s.selectSubagent)
+
   const openTab = useSessionsStore(s => s.openTab)
   const ps = useSessionsStore(s => s.projectSettings[session.project])
   const showContextBar = useSessionsStore(s => s.dashboardPrefs.showContextInList)
@@ -753,11 +727,6 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
   function handleClick() {
     haptic('tap')
     selectSession(session.id)
-  }
-
-  function handleSubagentSelect(sessionId: string, agentId: string) {
-    selectSession(sessionId)
-    selectSubagent(agentId)
   }
 
   return (
@@ -851,11 +820,7 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
           </span>
         </div>
       )}
-      <SessionItemTasksBlock
-        session={session}
-        selectedSubagentId={selectedSubagentId}
-        onSelectSubagent={handleSubagentSelect}
-      />
+      <SessionItemTasksBlock session={session} selectedSubagentId={selectedSubagentId} />
       {(session.runningBgTaskCount > 0 || session.team) && (
         <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
           {session.runningBgTaskCount > 0 && (
@@ -974,7 +939,7 @@ export const SessionItemCompact = memo(function SessionItemCompact({ session }: 
   const isSelected = useSessionsStore(s => s.selectedSessionId === session.id)
   const selectedSubagentId = useSessionsStore(s => (s.selectedSessionId === session.id ? s.selectedSubagentId : null))
   const selectSession = useSessionsStore(s => s.selectSession)
-  const selectSubagent = useSessionsStore(s => s.selectSubagent)
+
   const ps = useSessionsStore(s => s.projectSettings[session.project])
   const showCost = useSessionsStore(s => s.dashboardPrefs.showCostInList)
   const showContextBar = useSessionsStore(s => s.dashboardPrefs.showContextInList)
@@ -986,11 +951,6 @@ export const SessionItemCompact = memo(function SessionItemCompact({ session }: 
   function handleClick() {
     haptic('tap')
     selectSession(session.id)
-  }
-
-  function handleSubagentSelect(sessionId: string, agentId: string) {
-    selectSession(sessionId)
-    selectSubagent(agentId)
   }
 
   return (
@@ -1103,11 +1063,7 @@ export const SessionItemCompact = memo(function SessionItemCompact({ session }: 
             </div>
           )
         })()}
-      <SessionItemTasksBlock
-        session={session}
-        selectedSubagentId={selectedSubagentId}
-        onSelectSubagent={handleSubagentSelect}
-      />
+      <SessionItemTasksBlock session={session} selectedSubagentId={selectedSubagentId} />
     </SessionItemShell>
   )
 })
