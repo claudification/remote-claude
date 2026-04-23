@@ -139,7 +139,7 @@ export function ReviveDialog() {
             ? { ...s, status: 'done' as const, detail: detail.name ? `${detail.name}` : `wrapper=${wid?.slice(0, 8)}` }
             : s,
         ),
-        { label: 'Agent processing...', status: 'active', ts: Date.now() },
+        { label: 'Sentinel processing...', status: 'active', ts: Date.now() },
       ])
     }
     window.addEventListener('revive-session-result', handleAck)
