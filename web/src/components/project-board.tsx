@@ -568,6 +568,7 @@ export function RunTaskDialog({
   const [autoCommit, setAutoCommit] = useState(savedDefaults.autoCommit)
   const [leaveRunning, setLeaveRunning] = useState(savedDefaults.leaveRunning)
   const [maxBudgetUsd, setMaxBudgetUsd] = useState(savedDefaults.maxBudgetUsd)
+  const [includePartialMessages, setIncludePartialMessages] = useState(savedDefaults.includePartialMessages)
   const [timeout, setTimeout_] = useState(savedDefaults.timeout)
 
   // Launch state
@@ -675,7 +676,16 @@ export function RunTaskDialog({
 
   async function handleRun() {
     if (phase !== 'config' || !cwd) return
-    saveRunTaskDefaults({ model, effort, useWorktree, autoCommit, leaveRunning, maxBudgetUsd, timeout })
+    saveRunTaskDefaults({
+      model,
+      effort,
+      useWorktree,
+      autoCommit,
+      leaveRunning,
+      includePartialMessages,
+      maxBudgetUsd,
+      timeout,
+    })
     setPhase('launching')
     sessionAtLaunchRef.current = useSessionsStore.getState().selectedSessionId
     haptic('tap')
@@ -705,6 +715,7 @@ export function RunTaskDialog({
           {},
           { slug: task.slug, title: task.title, status: task.status, priority: task.priority, tags: task.tags },
         ) ?? undefined,
+      includePartialMessages: includePartialMessages || undefined,
       maxBudgetUsd: maxBudgetUsd ? Number(maxBudgetUsd) : undefined,
       jobId: newJobId,
     }
@@ -808,6 +819,7 @@ export function RunTaskDialog({
                 value={{
                   model,
                   effort: effort === 'default' ? '' : effort,
+                  includePartialMessages,
                   useWorktree,
                   worktreeName: branchName,
                   autoCommit,
@@ -823,11 +835,13 @@ export function RunTaskDialog({
                   if ('autoCommit' in patch) setAutoCommit(!!patch.autoCommit)
                   if ('leaveRunning' in patch) setLeaveRunning(!!patch.leaveRunning)
                   if ('maxBudgetUsd' in patch) setMaxBudgetUsd(patch.maxBudgetUsd ?? '')
+                  if ('includePartialMessages' in patch) setIncludePartialMessages(!!patch.includePartialMessages)
                   if ('timeout' in patch) setTimeout_(patch.timeout ?? '30')
                 }}
                 show={{
                   model: true,
                   effort: true,
+                  includePartialMessages: true,
                   worktree: true,
                   autoCommit: true,
                   leaveRunning: true,

@@ -103,7 +103,8 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
   const projSettings = deps.getProjectSettings(req.cwd)
   const globalSettings = deps.getGlobalSettings()
   const resolved = resolveSpawnConfig(req, projSettings, globalSettings)
-  const { headless, model, effort, permissionMode, autocompactPct, maxBudgetUsd, bare, repl } = resolved
+  const { headless, model, effort, permissionMode, autocompactPct, maxBudgetUsd, bare, repl, includePartialMessages } =
+    resolved
 
   if (model) {
     const validation = validateModel(model)
@@ -157,6 +158,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
       repl: repl || false,
       permissionMode,
       autocompactPct,
+      includePartialMessages,
       maxBudgetUsd,
       env: req.env || undefined,
     })
@@ -192,6 +194,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
         prompt: req.prompt || undefined,
         adHoc: req.adHoc || undefined,
         adHocTaskId: req.adHocTaskId || undefined,
+        includePartialMessages,
         leaveRunning: req.leaveRunning || undefined,
         worktree: req.worktree || undefined,
         env: req.env || undefined,

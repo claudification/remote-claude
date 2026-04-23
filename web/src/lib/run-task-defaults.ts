@@ -12,6 +12,7 @@ type RunTaskDefaults = {
   useWorktree: boolean
   autoCommit: boolean
   leaveRunning: boolean
+  includePartialMessages: boolean
   maxBudgetUsd: string
   timeout: string
 }
@@ -22,6 +23,7 @@ const RUN_TASK_DEFAULTS: RunTaskDefaults = {
   useWorktree: false,
   autoCommit: true,
   leaveRunning: true,
+  includePartialMessages: false,
   maxBudgetUsd: '',
   timeout: '30',
 }

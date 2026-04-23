@@ -225,6 +225,7 @@ const RCLAUDE_SESSION_VARS = new Set([
   'RCLAUDE_MAX_BUDGET_USD',
   'RCLAUDE_PORT',
   'RCLAUDE_CUSTOM_ENV',
+  'RCLAUDE_INCLUDE_PARTIAL_MESSAGES',
 ])
 
 /**
@@ -264,6 +265,7 @@ function buildHeadlessEnv(opts: {
   model?: string
   bare?: boolean
   repl?: boolean
+  includePartialMessages?: boolean
   env?: Record<string, string>
 }): Record<string, string | undefined> {
   // Start from sanitized agent env (PATH, API keys, etc. but no session-scoped vars)
@@ -289,6 +291,7 @@ function buildHeadlessEnv(opts: {
   if (opts.leaveRunning) env.RCLAUDE_LEAVE_RUNNING = '1'
   if (opts.promptFile) env.RCLAUDE_INITIAL_PROMPT_FILE = opts.promptFile
   if (opts.worktree) env.RCLAUDE_WORKTREE = opts.worktree
+  if (opts.includePartialMessages === false) env.RCLAUDE_INCLUDE_PARTIAL_MESSAGES = '0'
   if (opts.env && Object.keys(opts.env).length) env.RCLAUDE_CUSTOM_ENV = JSON.stringify(opts.env)
 
   return env
@@ -769,6 +772,7 @@ async function spawnSession(
   worktree?: string,
   jobId?: string,
   leaveRunning = false,
+  includePartialMessages?: boolean,
   env?: Record<string, string>,
 ): Promise<{ success: boolean; error?: string; tmuxSession?: string; tmuxPaneId?: string }> {
   launchLog(jobId, 'Validating directory', 'info', cwd)
@@ -862,6 +866,7 @@ async function spawnSession(
       model,
       bare,
       repl,
+      includePartialMessages,
       env,
     })
 
@@ -902,6 +907,7 @@ async function spawnSession(
     ...(adHocTaskId ? { RCLAUDE_ADHOC_TASK_ID: adHocTaskId } : {}),
     ...(leaveRunning ? { RCLAUDE_LEAVE_RUNNING: '1' } : {}),
     ...(promptFile ? { RCLAUDE_INITIAL_PROMPT_FILE: promptFile } : {}),
+    ...(includePartialMessages === false ? { RCLAUDE_INCLUDE_PARTIAL_MESSAGES: '0' } : {}),
     ...(worktree ? { RCLAUDE_WORKTREE: shellSafe(worktree) } : {}),
     ...(env && Object.keys(env).length ? { RCLAUDE_CUSTOM_ENV: JSON.stringify(env) } : {}),
   }
@@ -1307,6 +1313,7 @@ function connect(
             adHoc?: boolean
             adHocTaskId?: string
             leaveRunning?: boolean
+            includePartialMessages?: boolean
             worktree?: string
             jobId?: string
             env?: Record<string, string>
@@ -1360,6 +1367,7 @@ function connect(
             spawnMsg.worktree,
             spawnMsg.jobId,
             spawnMsg.leaveRunning || false,
+            spawnMsg.includePartialMessages,
             spawnMsg.env,
           )
           const response: SpawnResult = {

@@ -69,6 +69,7 @@ export interface StreamBackendOptions {
   concentratorSecret?: string
   cwd?: string
   env?: Record<string, string>
+  includePartialMessages?: boolean
   onTranscriptEntries?: (entries: TranscriptEntry[], isInitial: boolean) => void
   onInit?: (init: StreamInitMessage) => void
   onResult?: (result: StreamResultMessage) => void
@@ -189,7 +190,7 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
     'stream-json',
     '--input-format',
     'stream-json',
-    '--include-partial-messages',
+    ...(options.includePartialMessages !== false ? ['--include-partial-messages'] : []),
     '--replay-user-messages',
     '--permission-prompt-tool',
     'stdio',

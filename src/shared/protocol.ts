@@ -1091,6 +1091,7 @@ export interface ProjectSettings {
   defaultPermissionMode?: 'default' | 'plan' | 'acceptEdits' | 'auto' | 'bypassPermissions'
   defaultAutocompactPct?: number // 0 = use CC default
   defaultMaxBudgetUsd?: number // 0 = no limit
+  defaultIncludePartialMessages?: boolean // default: true. Set false to disable token streaming
   defaultEnvText?: string
   allowPlanMode?: boolean // default: true. Set false to auto-deny EnterPlanMode
   verbs?: string[] // custom spinner verbs (merged with defaults)
@@ -1231,6 +1232,7 @@ export interface LaunchConfig {
   permissionMode?: string
   autocompactPct?: number
   maxBudgetUsd?: number
+  includePartialMessages?: boolean
   env?: Record<string, string>
 }
 

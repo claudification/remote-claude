@@ -93,14 +93,12 @@ const refreshSessions: MessageHandler = ctx => {
 }
 
 const syncCheck: MessageHandler = (ctx, data) => {
+  // handleSyncCheck logs request + response in one line
   ctx.sessions.handleSyncCheck(
     ctx.ws,
     (data.epoch as string) || '',
     (data.lastSeq as number) || 0,
     data.transcripts as Record<string, number> | undefined,
-  )
-  ctx.log.debug(
-    `sync check: epoch=${((data.epoch as string) || '').slice(0, 8)} seq=${data.lastSeq || 0} transcripts=${data.transcripts ? Object.keys(data.transcripts as object).length : 0}`,
   )
 }
 

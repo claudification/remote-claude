@@ -331,8 +331,15 @@ function Dashboard() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected and fetchSessionData intentionally omitted - only re-run on session switch
   useEffect(() => {
     if (!selectedSessionId || !isConnected) return
-    const cached = (useSessionsStore.getState().transcripts[selectedSessionId]?.length ?? 0) > 0
-    if (!cached) {
+    const { transcripts, events } = useSessionsStore.getState()
+    const cachedTranscript = transcripts[selectedSessionId]?.length ?? 0
+    const cachedEvents = events[selectedSessionId]?.length ?? 0
+    if (cachedTranscript > 0) {
+      console.log(
+        `[sync] HIT ${selectedSessionId.slice(0, 8)}: transcript=${cachedTranscript} events=${cachedEvents} (no fetch, WS sub alive)`,
+      )
+    } else {
+      console.log(`[sync] MISS ${selectedSessionId.slice(0, 8)}: no cached transcript, fetching full`)
       fetchSessionData(selectedSessionId, 'session-switch-empty')
     }
   }, [selectedSessionId]) // eslint-disable-line react-hooks/exhaustive-deps

@@ -342,42 +342,60 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     clientSeq: number,
     clientTranscripts?: Record<string, number>,
   ): void {
+    const wsData = ws.data as { userName?: string } | undefined
+    const who = wsData?.userName ? `dash:${wsData.userName}` : 'dash'
     // Compare client transcript counts with server cache.
     // Returns session IDs where server has more entries than client.
     const staleTranscripts: Record<string, number> = {}
+    const staleDetails: string[] = []
     if (clientTranscripts) {
       for (const [sid, clientCount] of Object.entries(clientTranscripts)) {
         const serverCount = transcriptCache.get(sid)?.length ?? 0
         if (serverCount > clientCount) {
           staleTranscripts[sid] = serverCount
+          staleDetails.push(`${sid.slice(0, 8)} server=${serverCount} client=${clientCount}`)
         }
       }
     }
-    const transcriptExtra = Object.keys(staleTranscripts).length > 0 ? { staleTranscripts } : undefined
+    const staleCount = Object.keys(staleTranscripts).length
+    const transcriptExtra = staleCount > 0 ? { staleTranscripts } : undefined
+
+    function logResponse(responseType: string, extra?: string): void {
+      const stalePart = staleCount > 0 ? ` stale=[${staleDetails.join(' ')}]` : ''
+      const extraPart = extra ? ` ${extra}` : ''
+      console.log(
+        `[${who}] sync_check clientEpoch=${clientEpoch.slice(0, 8)} clientSeq=${clientSeq} transcripts=${clientTranscripts ? Object.keys(clientTranscripts).length : 0} -> ${responseType}${extraPart}${stalePart}`,
+      )
+    }
 
     if (clientEpoch !== SYNC_EPOCH) {
       sendSyncResponse(ws, 'sync_stale', { reason: 'epoch_changed', ...transcriptExtra })
+      logResponse('sync_stale', `reason=epoch_changed serverEpoch=${SYNC_EPOCH.slice(0, 8)}`)
       return
     }
     if (clientSeq >= syncSeq) {
       sendSyncResponse(ws, 'sync_ok', transcriptExtra)
+      logResponse('sync_ok')
       return
     }
     // Find oldest buffered seq
     if (syncBufferCount === 0) {
       sendSyncResponse(ws, 'sync_ok', transcriptExtra)
+      logResponse('sync_ok', 'empty-buffer')
       return
     }
     const oldestIdx = (syncBufferHead - syncBufferCount + SYNC_BUFFER_SIZE) % SYNC_BUFFER_SIZE
     const oldestSeq = syncBuffer[oldestIdx].seq
     if (clientSeq < oldestSeq) {
       sendSyncResponse(ws, 'sync_stale', { reason: 'gap_too_large', missed: syncSeq - clientSeq, ...transcriptExtra })
+      logResponse('sync_stale', `reason=gap_too_large missed=${syncSeq - clientSeq}`)
       return
     }
     // Direct index arithmetic: seqs are monotonic, offset = clientSeq - oldestSeq + 1
     const startOffset = clientSeq - oldestSeq + 1
     const count = syncBufferCount - startOffset
     sendSyncResponse(ws, 'sync_catchup', { count, ...transcriptExtra })
+    logResponse('sync_catchup', `replaying=${count}`)
     for (let i = 0; i < count; i++) {
       const idx = (oldestIdx + startOffset + i) % SYNC_BUFFER_SIZE
       try {

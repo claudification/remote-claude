@@ -27,6 +27,7 @@ export const GlobalSettingsSchema = z.object({
   defaultPermissionMode: z.enum(['default', 'plan', 'acceptEdits', 'auto', 'bypassPermissions']).default('default'),
   defaultAutocompactPct: z.number().min(0).max(99).default(0), // 0 = use CC default
   defaultMaxBudgetUsd: z.number().min(0).default(0), // 0 = no limit
+  defaultIncludePartialMessages: z.boolean().default(true),
   defaultEnvText: z.string().max(5000).default(''),
 })
 

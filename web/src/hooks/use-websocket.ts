@@ -168,7 +168,7 @@ function refetchStaleTranscripts(staleTranscripts?: Record<string, number>): voi
     return server > local
   })
   if (actuallyStale.length === 0) {
-    console.log('[sync] transcript counts: all in sync')
+    console.log(`[sync] staleTranscripts=${sids.length} all-in-sync (no refetch)`)
     return
   }
   console.log(
@@ -179,6 +179,8 @@ function refetchStaleTranscripts(staleTranscripts?: Record<string, number>): voi
       if (transcript) {
         console.log(`[sync] REFETCH transcript ${sid.slice(0, 8)}: ${transcript.length} entries`)
         setTranscript(sid, transcript)
+      } else {
+        console.log(`[sync] REFETCH transcript ${sid.slice(0, 8)}: FAILED (null response)`)
       }
     })
   }
@@ -193,17 +195,25 @@ function processMessage(msg: DashboardMessage) {
     // Sync protocol responses
     case 'sync_ok': {
       const ok = msg as DashboardMessage & { epoch?: string; seq?: number }
-      console.log(`[sync] ok (epoch=${ok.epoch?.slice(0, 8)} seq=${ok.seq})`)
+      const stale = syncMsg.staleTranscripts
+      const staleInfo = stale ? ` staleTranscripts=${Object.keys(stale).length}` : ''
+      console.log(`[sync] <- sync_ok (epoch=${ok.epoch?.slice(0, 8)} seq=${ok.seq})${staleInfo}`)
       break
     }
     case 'sync_catchup': {
       const cu = msg as DashboardMessage & { count?: number; epoch?: string; seq?: number }
-      console.log(`[sync] catchup: ${cu.count} missed messages (epoch=${cu.epoch?.slice(0, 8)} seq=${cu.seq})`)
+      const stale = syncMsg.staleTranscripts
+      const staleInfo = stale ? ` staleTranscripts=${Object.keys(stale).length}` : ''
+      console.log(
+        `[sync] <- sync_catchup: ${cu.count} missed (epoch=${cu.epoch?.slice(0, 8)} seq=${cu.seq})${staleInfo}`,
+      )
       break
     }
     case 'sync_stale': {
       const stale = msg as DashboardMessage & { reason?: string; missed?: number; epoch?: string; seq?: number }
-      console.log(`[sync] stale: ${stale.reason || 'unknown'} (missed=${stale.missed || '?'})`)
+      const staleTranscripts = syncMsg.staleTranscripts
+      const staleInfo = staleTranscripts ? ` staleTranscripts=${Object.keys(staleTranscripts).length}` : ''
+      console.log(`[sync] <- sync_stale: ${stale.reason || 'unknown'} missed=${stale.missed || '?'}${staleInfo}`)
       // Full resync needed - bump connectSeq (triggers LIFO eviction + re-fetch in onopen)
       useSessionsStore.setState(s => ({
         connectSeq: s.connectSeq + 1,
@@ -936,10 +946,15 @@ export function useWebSocket() {
             if (entries && entries.length > 0) transcriptCounts[sid] = entries.length
           }
           if (Object.keys(transcriptCounts).length > 0) {
+            const summary = Object.entries(transcriptCounts)
+              .map(([sid, n]) => `${sid.slice(0, 8)}=${n}`)
+              .join(' ')
             console.log(
-              `[sync] reconnect sync_check: epoch=${syncEpoch.slice(0, 8)} seq=${syncSeq} transcripts=${Object.keys(transcriptCounts).length}`,
+              `[sync] -> sync_check (reconnect) epoch=${syncEpoch.slice(0, 8)} seq=${syncSeq} transcripts=[${summary}]`,
             )
             send({ type: 'sync_check', epoch: syncEpoch, lastSeq: syncSeq, transcripts: transcriptCounts })
+          } else {
+            console.log(`[sync] -> sync_check SKIP (reconnect): no cached transcripts to compare`)
           }
         }, 500)
       }
@@ -1185,6 +1200,12 @@ export function useWebSocket() {
         if (entries && entries.length > 0) transcriptCounts[sid] = entries.length
       }
       if (Object.keys(transcriptCounts).length > 0) {
+        const summary = Object.entries(transcriptCounts)
+          .map(([sid, n]) => `${sid.slice(0, 8)}=${n}`)
+          .join(' ')
+        console.log(
+          `[sync] -> sync_check (periodic) epoch=${syncEpoch.slice(0, 8)} seq=${syncSeq} transcripts=[${summary}]`,
+        )
         send({ type: 'sync_check', epoch: syncEpoch, lastSeq: syncSeq, transcripts: transcriptCounts })
       }
     }, 60_000)

@@ -28,6 +28,7 @@ type LaunchFieldKey =
   | 'effort'
   | 'permissionMode'
   | 'autocompactPct'
+  | 'includePartialMessages'
   | 'worktree'
   | 'autoCommit'
   | 'leaveRunning'
@@ -49,6 +50,9 @@ export type LaunchFieldsValue = {
   // Worktree: split into enable flag + branch name
   useWorktree?: boolean
   worktreeName?: string
+
+  // Streaming
+  includePartialMessages?: boolean
 
   // Prompt-suffix flags (not part of SpawnRequest)
   autoCommit?: boolean
@@ -265,6 +269,15 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
             className="flex-1 max-w-[220px] text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
           />
         </Row>
+      )}
+      {show.includePartialMessages && (
+        <TileToggleRow
+          title="Partial messages"
+          subtitle="Stream token-by-token output (increases data volume)"
+          checked={value.includePartialMessages ?? true}
+          onToggle={() => onChange({ includePartialMessages: !(value.includePartialMessages ?? true) })}
+          disabled={disabled.includePartialMessages}
+        />
       )}
       {show.worktree && (
         <div className="space-y-1.5">

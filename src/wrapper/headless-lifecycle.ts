@@ -37,6 +37,7 @@ export interface HeadlessCallbackDeps {
   spawnStreamClaude: (opts: StreamBackendOptions) => StreamProcess
   cleanup: () => void
   env?: Record<string, string>
+  includePartialMessages?: boolean
 }
 
 /**
@@ -57,6 +58,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
     settingsPath: deps.settingsPath,
     sessionId: ctx.internalId,
     localServerPort: deps.localServerPort,
+    includePartialMessages: deps.includePartialMessages,
     env: deps.env,
     concentratorUrl: deps.concentratorUrl,
     concentratorSecret: deps.concentratorSecret,

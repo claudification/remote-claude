@@ -95,6 +95,10 @@ export const spawnRequestSchema = z.object({
   permissionMode: permissionModeEnum.optional().describe('CC permission prompting mode'),
   autocompactPct: z.number().min(0).max(100).optional().describe('Auto-compact threshold (%)'),
   maxBudgetUsd: z.number().positive().optional().describe('Max spend in USD before auto-stop'),
+  includePartialMessages: z
+    .boolean()
+    .optional()
+    .describe('Include partial message chunks (token streaming). Default: true for normal, false for ad-hoc'),
   worktree: z.string().optional().describe('Branch name - creates isolated git worktree'),
   env: z.record(z.string(), z.string()).optional().describe('Env var overrides'),
   prompt: z.string().optional().describe('Initial prompt (headless only)'),

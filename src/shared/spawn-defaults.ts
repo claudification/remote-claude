@@ -22,6 +22,7 @@ export type DefaultsSource = {
   defaultLaunchMode?: 'headless' | 'pty'
   defaultBare?: boolean
   defaultRepl?: boolean
+  defaultIncludePartialMessages?: boolean
 }
 
 /** Shape returned by resolveSpawnConfig -- `headless` is always concrete. */
@@ -62,6 +63,14 @@ export function resolveSpawnConfig(
   const bare = partial.bare ?? project?.defaultBare ?? global?.defaultBare ?? undefined
   const repl = partial.repl ?? project?.defaultRepl ?? global?.defaultRepl ?? undefined
 
+  // includePartialMessages: ad-hoc defaults to false, otherwise explicit > project > global > true
+  const includePartialMessages = partial.adHoc
+    ? (partial.includePartialMessages ?? false)
+    : (partial.includePartialMessages ??
+      project?.defaultIncludePartialMessages ??
+      global?.defaultIncludePartialMessages ??
+      true)
+
   return {
     ...partial,
     model,
@@ -72,6 +81,7 @@ export function resolveSpawnConfig(
     maxBudgetUsd,
     bare,
     repl,
+    includePartialMessages,
   }
 }
 

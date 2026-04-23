@@ -319,6 +319,7 @@ async function main() {
   const isAdHoc = process.env.RCLAUDE_ADHOC === '1'
   const adHocTaskId = process.env.RCLAUDE_ADHOC_TASK_ID
   const adHocWorktree = process.env.RCLAUDE_WORKTREE
+  const includePartialMessages = process.env.RCLAUDE_INCLUDE_PARTIAL_MESSAGES !== '0'
   const customEnv: Record<string, string> = process.env.RCLAUDE_CUSTOM_ENV
     ? (() => {
         try {
@@ -1927,6 +1928,7 @@ async function main() {
       spawnStreamClaude,
       cleanup,
       env: Object.keys(customEnv).length ? customEnv : undefined,
+      includePartialMessages,
     })
 
     ctx.wsClient?.sendBootEvent('claude_spawning', `headless ${finalClaudeArgs.length} args`)

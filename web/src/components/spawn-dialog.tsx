@@ -53,6 +53,7 @@ export function SpawnDialog() {
   const [permissionMode, setPermissionMode] = useState('')
   const [autocompactPct, setAutocompactPct] = useState<number | ''>('')
   const [maxBudgetUsd, setMaxBudgetUsd] = useState('')
+  const [includePartialMessages, setIncludePartialMessages] = useState(true)
   const [configTab, setConfigTab] = useState<'basic' | 'advanced'>('basic')
   const [envText, setEnvText] = useState('')
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
@@ -98,6 +99,9 @@ export function SpawnDialog() {
       setMaxBudgetUsd(budget > 0 ? String(budget) : '')
       const envDefault = ps?.defaultEnvText || (gs.defaultEnvText as string) || ''
       setEnvText(envDefault)
+      setIncludePartialMessages(
+        ps?.defaultIncludePartialMessages ?? (gs.defaultIncludePartialMessages as boolean) ?? true,
+      )
       setConfigTab('basic')
       setSavedFeedback(null)
       setPhase('config')
@@ -199,6 +203,7 @@ export function SpawnDialog() {
       autocompactPct: autocompactPct === '' ? undefined : autocompactPct,
       maxBudgetUsd: maxBudgetUsd ? Number(maxBudgetUsd) : undefined,
       worktree: useWorktree && worktreeName.trim() ? worktreeName.trim() : undefined,
+      includePartialMessages: includePartialMessages || undefined,
       env: parsedEnv || undefined,
       jobId: newJobId,
     }
@@ -230,6 +235,7 @@ export function SpawnDialog() {
     permissionMode,
     autocompactPct,
     maxBudgetUsd,
+    includePartialMessages,
     useWorktree,
     worktreeName,
     envText,
@@ -282,6 +288,7 @@ export function SpawnDialog() {
         : ('default' as const),
       defaultAutocompactPct: autocompactPct ? Number(autocompactPct) : 0,
       defaultMaxBudgetUsd: maxBudgetUsd ? Number(maxBudgetUsd) : 0,
+      defaultIncludePartialMessages: includePartialMessages,
       defaultEnvText: envText.trim(),
     }
   }
@@ -312,6 +319,7 @@ export function SpawnDialog() {
     setPermissionMode('')
     setAutocompactPct('')
     setMaxBudgetUsd('')
+    setIncludePartialMessages(true)
     setEnvText('')
     haptic('tap')
   }
@@ -365,6 +373,7 @@ export function SpawnDialog() {
     if ('worktreeName' in patch) setWorktreeName(patch.worktreeName ?? '')
     if ('envText' in patch) setEnvText(patch.envText ?? '')
     if ('name' in patch) setName(patch.name ?? '')
+    if ('includePartialMessages' in patch) setIncludePartialMessages(patch.includePartialMessages ?? true)
   }
 
   const fieldsValue: LaunchFieldsValue = {
@@ -373,6 +382,7 @@ export function SpawnDialog() {
     permissionMode,
     autocompactPct,
     maxBudgetUsd,
+    includePartialMessages,
     useWorktree,
     worktreeName,
     envText,
@@ -492,6 +502,7 @@ export function SpawnDialog() {
                         permissionMode: true,
                         autocompactPct: true,
                         maxBudgetUsd: headless,
+                        includePartialMessages: headless,
                         worktree: true,
                       }}
                     />

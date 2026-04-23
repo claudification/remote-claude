@@ -60,9 +60,11 @@ export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteH
     const limit = parseInt(c.req.query('limit') || '20', 10)
     const filter = c.req.query('filter')
     if (!sessionStore.hasTranscriptCache(sessionId)) {
+      console.log(`[${sessionId.slice(0, 8)}] GET transcript limit=${limit} filter=${filter || 'none'} -> 404 no-cache`)
       return c.json({ error: 'No transcript in cache (rclaude not streaming yet?)' }, 404)
     }
 
+    const cacheSize = sessionStore.getTranscriptEntries(sessionId).length
     let entries =
       filter === 'display'
         ? filterDisplayEntries(sessionStore.getTranscriptEntries(sessionId), limit)
@@ -77,6 +79,9 @@ export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteH
       }
     }
 
+    console.log(
+      `[${sessionId.slice(0, 8)}] GET transcript limit=${limit} filter=${filter || 'none'} -> ${entries.length}/${cacheSize} entries`,
+    )
     return c.json(entries.map(e => processImagesInEntry(e as Record<string, unknown>)))
   })
 
