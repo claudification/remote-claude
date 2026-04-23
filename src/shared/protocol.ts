@@ -411,6 +411,7 @@ export type WrapperLaunchStep =
   | 'skills_changed' // detail: "+N / -N". raw: { added, removed, count }
   | 'agents_changed' // detail: "+N / -N". raw: { added, removed, count }
   | 'plugins_changed' // detail: "+N / -N". raw: { added, removed, count }
+  | 'session_exit' // self-termination via exit_session MCP tool. raw: { status, message }
 
 /**
  * Wrapper -> concentrator -> dashboard: CC process launch lifecycle event.

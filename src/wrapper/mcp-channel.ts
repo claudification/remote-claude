@@ -144,6 +144,8 @@ export interface McpChannelCallbacks {
   onRenameSession?: (name: string) => Promise<{ ok: boolean; error?: string }>
   /** Notify that project tasks changed (triggers project_changed broadcast to dashboard) */
   onProjectChanged?: () => void
+  /** Self-terminate this session */
+  onExitSession?: (status: 'success' | 'error', message?: string) => void
 }
 
 interface McpChannelState {
@@ -925,6 +927,32 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: WrapperIdentity): v
             },
           ],
         }
+      },
+    },
+
+    exit_session: {
+      description:
+        'Terminate the current session. Emits a lifecycle event, sends session end to the concentrator, and exits the process. Use when your work is done and you want to clean up. The MCP response may not arrive back (the process exits immediately after).',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          status: {
+            type: 'string',
+            enum: ['success', 'error'],
+            description: 'Exit status (default: success)',
+          },
+          message: {
+            type: 'string',
+            description: 'Reason for exiting (shown in transcript timeline)',
+          },
+        },
+      },
+      async handle(params) {
+        const status = (params.status as 'success' | 'error') || 'success'
+        const message = typeof params.message === 'string' ? params.message : undefined
+        debug(`[channel] exit_session: status=${status} message=${message || '(none)'}`)
+        callbacks.onExitSession?.(status, message)
+        return { content: [{ type: 'text', text: `Session exiting (${status})` }] }
       },
     },
 

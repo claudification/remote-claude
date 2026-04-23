@@ -1734,6 +1734,22 @@ async function main() {
       onProjectChanged() {
         sendProjectChanged()
       },
+      onExitSession(status, message) {
+        const detail = message ? `${status}: ${message}` : status
+        beginLaunch(ctx, 'live')
+        emitLaunchEvent(ctx, 'session_exit', {
+          detail,
+          raw: { status, message },
+        })
+        const endReason = status === 'error' ? `self_exit_error: ${message || 'unknown'}` : 'self_exit'
+        if (ctx.claudeSessionId) {
+          ctx.wsClient?.sendSessionEnd(endReason)
+        }
+        setTimeout(() => {
+          cleanup()
+          process.exit(status === 'error' ? 1 : 0)
+        }, 500)
+      },
     },
     {
       sessionId,

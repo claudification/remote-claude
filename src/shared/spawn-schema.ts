@@ -79,7 +79,10 @@ export const spawnRequestSchema = z.object({
   prompt: z.string().optional().describe('Initial prompt (headless only)'),
   adHoc: z.boolean().optional().describe('Mark as ad-hoc task runner session'),
   adHocTaskId: z.string().optional().describe('Project task slug when adHoc=true'),
-  leaveRunning: z.boolean().optional().describe('Keep session running after prompt completes'),
+  leaveRunning: z
+    .boolean()
+    .optional()
+    .describe('Keep session running after prompt completes (only applies when adHoc=true, ignored otherwise)'),
   jobId: z.string().uuid().optional().describe('Caller-supplied job id for progress correlation'),
 })
 export type SpawnRequest = z.infer<typeof spawnRequestSchema>
