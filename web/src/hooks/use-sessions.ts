@@ -851,9 +851,10 @@ export function reviveSession(sessionId: string, options: ReviveSessionOptions =
  * text reach the model. Returns the verb + args when matched, null otherwise.
  */
 function detectControlCommand(input: string): {
-  action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort'
+  action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode'
   model?: string
   effort?: string
+  permissionMode?: string
 } | null {
   const trimmed = input.trim()
   if (!trimmed || trimmed.includes('\n')) return null
@@ -863,19 +864,23 @@ function detectControlCommand(input: string): {
   if (modelMatch) return { action: 'set_model', model: modelMatch[1] }
   const effortMatch = trimmed.match(/^\/effort\s+(\S+)$/)
   if (effortMatch) return { action: 'set_effort', effort: effortMatch[1] }
+  const modeMatch = trimmed.match(/^\/mode\s+(\S+)$/)
+  if (modeMatch) return { action: 'set_permission_mode', permissionMode: modeMatch[1] }
+  if (trimmed === '/plan') return { action: 'set_permission_mode', permissionMode: 'plan' }
   return null
 }
 
 function sendSessionControl(
   sessionId: string,
-  action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort',
-  opts: { model?: string; effort?: string } = {},
+  action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode',
+  opts: { model?: string; effort?: string; permissionMode?: string } = {},
 ): boolean {
   return wsSend('session_control', {
     targetSession: sessionId,
     action,
     ...(opts.model && { model: opts.model }),
     ...(opts.effort && { effort: opts.effort }),
+    ...(opts.permissionMode && { permissionMode: opts.permissionMode }),
   })
 }
 
@@ -885,7 +890,11 @@ export function sendInput(sessionId: string, input: string): boolean {
   // flows through send_input as before.
   const control = detectControlCommand(input)
   if (control) {
-    return sendSessionControl(sessionId, control.action, { model: control.model, effort: control.effort })
+    return sendSessionControl(sessionId, control.action, {
+      model: control.model,
+      effort: control.effort,
+      permissionMode: control.permissionMode,
+    })
   }
   const crDelay = (useSessionsStore.getState().globalSettings.carriageReturnDelay as number) || 0
   const ok = wsSend('send_input', { sessionId, input, ...(crDelay > 0 && { crDelay }) })
@@ -1063,6 +1072,7 @@ export interface RclaudePermissionConfig {
     Edit?: { allow?: string[] }
     Read?: { allow?: string[] }
   }
+  allowAll?: boolean
   allowPlanMode?: boolean
 }
 

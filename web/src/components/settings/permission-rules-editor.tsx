@@ -1,4 +1,4 @@
-import { Plus, Shield, X } from 'lucide-react'
+import { Plus, Shield, ShieldCheck, ShieldOff, X, Zap } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import {
   type RclaudePermissionConfig,
@@ -59,11 +59,173 @@ interface PermissionRulesEditorProps {
   cwd: string
 }
 
+function AllowAllBanner({
+  allowAll,
+  autoDetected,
+  onToggle,
+}: {
+  allowAll: boolean
+  autoDetected: boolean
+  onToggle: (v: boolean) => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(!allowAll)}
+      className={cn(
+        'w-full flex items-center gap-2.5 px-3 py-2.5 border transition-all text-left group',
+        allowAll
+          ? 'border-green-500/50 bg-green-500/10 hover:bg-green-500/15'
+          : 'border-border hover:border-amber-500/50 hover:bg-amber-500/5',
+      )}
+    >
+      {allowAll ? (
+        <ShieldCheck className="w-4 h-4 text-green-400 shrink-0" />
+      ) : (
+        <ShieldOff className="w-4 h-4 text-muted-foreground/50 shrink-0 group-hover:text-amber-400" />
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className={cn('text-[11px] font-bold', allowAll ? 'text-green-400' : 'text-foreground/70')}>
+            Allow All
+          </span>
+          {allowAll && autoDetected && (
+            <span className="text-[8px] text-green-400/60 border border-green-500/30 px-1 uppercase">auto</span>
+          )}
+        </div>
+        <span className="text-[9px] text-muted-foreground/60">
+          {allowAll
+            ? 'Auto-approving all permission requests for this project'
+            : 'Click to auto-approve all tool permissions'}
+        </span>
+      </div>
+      <div
+        className={cn(
+          'w-8 h-4 rounded-full relative transition-colors shrink-0',
+          allowAll ? 'bg-green-500/60' : 'bg-muted-foreground/20',
+        )}
+      >
+        <div
+          className={cn(
+            'absolute top-0.5 w-3 h-3 rounded-full transition-all',
+            allowAll ? 'left-4 bg-green-300' : 'left-0.5 bg-muted-foreground/50',
+          )}
+        />
+      </div>
+    </button>
+  )
+}
+
+function ToolSection({
+  tool,
+  rules,
+  linked,
+  inputValue,
+  onAdd,
+  onRemove,
+  onInputChange,
+}: {
+  tool: Tool
+  rules: Record<Tool, string[]>
+  linked: boolean
+  inputValue: string
+  onAdd: (tool: Tool, pattern: string) => void
+  onRemove: (tool: Tool, pattern: string) => void
+  onInputChange: (tool: Tool, value: string) => void
+}) {
+  const existing = new Set([...BUILTINS, ...rules[tool]])
+  const suggestions = COMMON_GLOBS.filter(g => !existing.has(g)).slice(0, 4)
+  const isLinkedSecondary = linked && tool === 'Edit'
+
+  return (
+    <div className={cn(isLinkedSecondary && 'opacity-50 pointer-events-none')}>
+      <div className="flex items-center gap-1.5 mb-1">
+        <span className="text-muted-foreground text-[10px] uppercase tracking-wider font-bold">{tool}</span>
+        {isLinkedSecondary && (
+          <span className="text-[8px] text-muted-foreground/40 border border-border/50 px-1">synced</span>
+        )}
+        <span className="flex-1 h-px bg-border" />
+        <span className="text-[10px] text-muted-foreground/50 tabular-nums">
+          {BUILTINS.length + rules[tool].length}
+        </span>
+      </div>
+
+      {/* Built-in rules */}
+      {BUILTINS.map(pattern => (
+        <div key={pattern} className="flex items-center gap-1 px-1.5 py-0.5">
+          <Shield className="w-3 h-3 text-muted-foreground/20 shrink-0" />
+          <span className="text-[10px] font-mono text-muted-foreground/40 flex-1">{pattern}</span>
+          <span className="text-[8px] text-muted-foreground/30 border border-border/50 px-1 uppercase">built-in</span>
+        </div>
+      ))}
+
+      {/* Custom rules */}
+      {rules[tool].map(pattern => (
+        <div key={pattern} className="flex items-center gap-1 px-1.5 py-0.5 group">
+          <Zap className="w-3 h-3 text-accent/40 shrink-0" />
+          <span className="text-[10px] font-mono text-foreground flex-1">{pattern}</span>
+          <button
+            type="button"
+            onClick={() => onRemove(tool, pattern)}
+            className="text-muted-foreground/30 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      ))}
+
+      {rules[tool].length === 0 && (
+        <div className="text-[10px] text-muted-foreground/30 italic px-1.5 py-0.5 pl-6">no custom rules</div>
+      )}
+
+      {/* Add input */}
+      <div className="flex gap-1 mt-1">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={e => onInputChange(tool, e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') onAdd(tool, inputValue)
+          }}
+          placeholder={tool === 'Read' ? '.secret/**' : '.claude/settings/**'}
+          className="flex-1 bg-background border border-border px-1.5 py-0.5 text-foreground text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/30"
+        />
+        <button
+          type="button"
+          onClick={() => onAdd(tool, inputValue)}
+          disabled={!inputValue.trim()}
+          className="px-1.5 py-0.5 text-[10px] font-bold border border-border text-muted-foreground hover:text-accent hover:border-accent disabled:opacity-20 transition-colors"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+      </div>
+
+      {/* Suggestions */}
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-0.5 mt-1">
+          {suggestions.map(g => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => onAdd(tool, g)}
+              className="text-[9px] font-mono px-1 py-px border border-border/50 text-muted-foreground/40 hover:text-accent hover:border-accent/50 transition-colors"
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function PermissionRulesEditor({ cwd }: PermissionRulesEditorProps) {
   const hasConfigRw = useSessionsStore(s =>
     s.sessions.some(sess => sess.cwd === cwd && sess.capabilities?.includes('config_rw')),
   )
   const [rules, setRules] = useState<Record<Tool, string[]>>({ Write: [], Edit: [], Read: [] })
+  const [allowAll, setAllowAll] = useState(false)
+  const [allowAllAutoDetected, setAllowAllAutoDetected] = useState(false)
   const [allowPlanMode, setAllowPlanMode] = useState(true)
   const [linked, setLinked] = useState(true)
   const [loading, setLoading] = useState(true)
@@ -72,6 +234,8 @@ export function PermissionRulesEditor({ cwd }: PermissionRulesEditorProps) {
   const [toast, setToast] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [inputValues, setInputValues] = useState<Record<Tool, string>>({ Write: '', Edit: '', Read: '' })
+
+  const cwdInsideDotClaude = /[/\\]\.claude([/\\]|$)/.test(cwd)
 
   const loadConfig = useCallback(async () => {
     setLoading(true)
@@ -84,6 +248,10 @@ export function PermissionRulesEditor({ cwd }: PermissionRulesEditorProps) {
         Edit: perms?.Edit?.allow ? [...perms.Edit.allow] : [],
         Read: perms?.Read?.allow ? [...perms.Read.allow] : [],
       })
+      const explicitAllowAll = data.config?.allowAll
+      const effective = explicitAllowAll ?? cwdInsideDotClaude
+      setAllowAll(effective)
+      setAllowAllAutoDetected(explicitAllowAll === undefined && cwdInsideDotClaude)
       setAllowPlanMode(data.config?.allowPlanMode !== false)
 
       const w = new Set(perms?.Write?.allow || [])
@@ -94,7 +262,7 @@ export function PermissionRulesEditor({ cwd }: PermissionRulesEditorProps) {
       setError(err instanceof Error ? err.message : 'Failed to load config')
     }
     setLoading(false)
-  }, [cwd])
+  }, [cwd, cwdInsideDotClaude])
 
   useEffect(() => {
     if (hasConfigRw) loadConfig()
@@ -142,6 +310,14 @@ export function PermissionRulesEditor({ cwd }: PermissionRulesEditorProps) {
 
   function resetAll() {
     setRules({ Write: [], Edit: [], Read: [] })
+    setAllowAll(false)
+    setAllowAllAutoDetected(false)
+    setDirty(true)
+  }
+
+  function handleAllowAllToggle(v: boolean) {
+    setAllowAll(v)
+    setAllowAllAutoDetected(false)
     setDirty(true)
   }
 
@@ -157,6 +333,7 @@ export function PermissionRulesEditor({ cwd }: PermissionRulesEditorProps) {
         }
       }
       if (Object.keys(perms).length > 0) config.permissions = perms
+      if (allowAll) config.allowAll = true
       if (!allowPlanMode) config.allowPlanMode = false
 
       const result = await saveRclaudeConfig(cwd, config)
@@ -201,125 +378,68 @@ export function PermissionRulesEditor({ cwd }: PermissionRulesEditorProps) {
 
   return (
     <div className="space-y-3">
-      {/* Presets */}
-      <div>
-        <div className="text-muted-foreground text-[10px] uppercase tracking-wider mb-1.5">Presets</div>
-        <div className="flex flex-wrap gap-1">
-          {PRESETS.map(preset => (
-            <button
-              key={preset.label}
-              type="button"
-              onClick={() => applyPreset(preset)}
-              className={cn(
-                'px-2 py-1 text-[10px] font-mono border transition-colors',
-                preset.accent === 'green'
-                  ? 'border-green-500/50 text-green-400 hover:bg-green-500/20'
-                  : 'border-border text-muted-foreground hover:text-accent hover:border-accent',
-              )}
-            >
-              {preset.accent === 'green' && <Shield className="w-3 h-3 inline mr-1 -mt-0.5" />}
-              {preset.label}
-            </button>
-          ))}
-          {hasRules && (
-            <button
-              type="button"
-              onClick={resetAll}
-              className="px-2 py-1 text-[10px] font-mono border border-red-500/30 text-red-400/70 hover:text-red-400 hover:border-red-500/50 transition-colors"
-            >
-              Reset
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Allow All toggle */}
+      <AllowAllBanner allowAll={allowAll} autoDetected={allowAllAutoDetected} onToggle={handleAllowAllToggle} />
 
-      {/* Sync toggle */}
-      <label className="flex items-center gap-1.5 cursor-pointer">
-        <input type="checkbox" checked={linked} onChange={e => setLinked(e.target.checked)} className="accent-accent" />
-        <span className="text-[10px] text-muted-foreground">Sync Write &amp; Edit rules</span>
-      </label>
-
-      {/* Tool sections */}
-      {TOOLS.map(tool => {
-        const existing = new Set([...BUILTINS, ...rules[tool]])
-        const suggestions = COMMON_GLOBS.filter(g => !existing.has(g)).slice(0, 4)
-
-        return (
-          <div key={tool}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="text-muted-foreground text-[10px] uppercase tracking-wider">{tool}</span>
-              <span className="flex-1 h-px bg-border" />
-              <span className="text-[10px] text-muted-foreground/50">{rules[tool].length}</span>
-            </div>
-
-            {/* Built-in rules */}
-            {BUILTINS.map(pattern => (
-              <div key={pattern} className="flex items-center gap-1 px-1.5 py-0.5">
-                <span className="text-[10px] font-mono text-muted-foreground/40 flex-1">{pattern}</span>
-                <span className="text-[8px] text-muted-foreground/30 border border-border/50 px-1 uppercase">
-                  built-in
-                </span>
-              </div>
+      {/* File-level rules (dimmed when allowAll is on) */}
+      <div className={cn('space-y-3 transition-opacity', allowAll && 'opacity-40')}>
+        {/* Presets */}
+        <div>
+          <div className="text-muted-foreground text-[10px] uppercase tracking-wider mb-1.5 font-bold">Presets</div>
+          <div className="flex flex-wrap gap-1">
+            {PRESETS.map(preset => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => applyPreset(preset)}
+                className={cn(
+                  'px-2 py-1 text-[10px] font-mono border transition-colors',
+                  preset.accent === 'green'
+                    ? 'border-green-500/50 text-green-400 hover:bg-green-500/20'
+                    : 'border-border text-muted-foreground hover:text-accent hover:border-accent',
+                )}
+              >
+                {preset.accent === 'green' && <Shield className="w-3 h-3 inline mr-1 -mt-0.5" />}
+                {preset.label}
+              </button>
             ))}
-
-            {/* Custom rules */}
-            {rules[tool].map(pattern => (
-              <div key={pattern} className="flex items-center gap-1 px-1.5 py-0.5 group">
-                <span className="text-[10px] font-mono text-foreground flex-1">{pattern}</span>
-                <button
-                  type="button"
-                  onClick={() => removeGlob(tool, pattern)}
-                  className="text-muted-foreground/30 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-
-            {rules[tool].length === 0 && (
-              <div className="text-[10px] text-muted-foreground/30 italic px-1.5 py-0.5">no custom rules</div>
-            )}
-
-            {/* Add input */}
-            <div className="flex gap-1 mt-1">
-              <input
-                type="text"
-                value={inputValues[tool]}
-                onChange={e => setInputValues(prev => ({ ...prev, [tool]: e.target.value }))}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') addGlob(tool, inputValues[tool])
-                }}
-                placeholder={tool === 'Read' ? '.secret/**' : '.claude/settings/**'}
-                className="flex-1 bg-background border border-border px-1.5 py-0.5 text-foreground text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/30"
-              />
+            {hasRules && (
               <button
                 type="button"
-                onClick={() => addGlob(tool, inputValues[tool])}
-                disabled={!inputValues[tool].trim()}
-                className="px-1.5 py-0.5 text-[10px] font-bold border border-border text-muted-foreground hover:text-accent hover:border-accent disabled:opacity-20 transition-colors"
+                onClick={resetAll}
+                className="px-2 py-1 text-[10px] font-mono border border-red-500/30 text-red-400/70 hover:text-red-400 hover:border-red-500/50 transition-colors"
               >
-                <Plus className="w-3 h-3" />
+                Reset
               </button>
-            </div>
-
-            {/* Suggestions */}
-            {suggestions.length > 0 && (
-              <div className="flex flex-wrap gap-0.5 mt-1">
-                {suggestions.map(g => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => addGlob(tool, g)}
-                    className="text-[9px] font-mono px-1 py-px border border-border/50 text-muted-foreground/40 hover:text-accent hover:border-accent/50 transition-colors"
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
             )}
           </div>
-        )
-      })}
+        </div>
+
+        {/* Sync toggle */}
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={linked}
+            onChange={e => setLinked(e.target.checked)}
+            className="accent-accent"
+          />
+          <span className="text-[10px] text-muted-foreground">Sync Write &amp; Edit rules</span>
+        </label>
+
+        {/* Tool sections */}
+        {TOOLS.map(tool => (
+          <ToolSection
+            key={tool}
+            tool={tool}
+            rules={rules}
+            linked={linked}
+            inputValue={inputValues[tool]}
+            onAdd={addGlob}
+            onRemove={removeGlob}
+            onInputChange={(t, v) => setInputValues(prev => ({ ...prev, [t]: v }))}
+          />
+        ))}
+      </div>
 
       {/* Plan mode */}
       <label className="flex items-center gap-1.5 cursor-pointer">
@@ -342,9 +462,16 @@ export function PermissionRulesEditor({ cwd }: PermissionRulesEditorProps) {
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wider border border-accent bg-accent/20 text-accent hover:bg-accent/30 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border border-accent bg-accent/20 text-accent hover:bg-accent/30 disabled:opacity-50 transition-colors"
           >
             {saving ? 'Saving...' : 'Save permissions'}
+          </button>
+          <button
+            type="button"
+            onClick={loadConfig}
+            className="px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground border border-border transition-colors"
+          >
+            Discard
           </button>
           {error && <span className="text-[10px] text-red-400">{error}</span>}
         </div>

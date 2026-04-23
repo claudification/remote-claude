@@ -91,9 +91,10 @@ export interface McpChannelCallbacks {
    */
   onControlSession?: (params: {
     sessionId: string
-    action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort'
+    action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode'
     model?: string
     effort?: string
+    permissionMode?: string
   }) => Promise<{ ok: boolean; error?: string; name?: string }>
   onRestartSession?: (sessionId: string) => Promise<{
     ok: boolean
@@ -532,14 +533,14 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
 
     control_session: {
       description:
-        "Send a high-level control verb to another session's wrapper. Unlike send_message (which delivers text to the model's context), control_session bypasses the model and tells the wrapper itself what to do. Requires benevolent trust. Actions:\n- clear: reset context (headless respawns CC fresh; PTY runs /clear in CC's CLI)\n- quit: graceful shutdown (headless closes stdin; PTY sends SIGTERM)\n- interrupt: cancel the current turn (Ctrl+C equivalent)\n- set_model: switch model (requires `model`, e.g. 'sonnet', 'opus')\n- set_effort: switch thinking-effort level (requires `effort`: low | medium | high | xhigh | max | auto). Headless mutates CLAUDE_CODE_EFFORT_LEVEL via update_environment_variables so the next turn picks it up without respawn; PTY runs /effort in CC's CLI.",
+        "Send a high-level control verb to another session's wrapper. Unlike send_message (which delivers text to the model's context), control_session bypasses the model and tells the wrapper itself what to do. Requires benevolent trust. Actions:\n- clear: reset context (headless respawns CC fresh; PTY runs /clear in CC's CLI)\n- quit: graceful shutdown (headless closes stdin; PTY sends SIGTERM)\n- interrupt: cancel the current turn (Ctrl+C equivalent)\n- set_model: switch model (requires `model`, e.g. 'sonnet', 'opus')\n- set_effort: switch thinking-effort level (requires `effort`: low | medium | high | xhigh | max | auto)\n- set_permission_mode: switch permission mode (requires `permissionMode`: plan | acceptEdits | auto | bypassPermissions | default). Headless only -- sends set_permission_mode control_request to CC.",
       inputSchema: {
         type: 'object' as const,
         properties: {
           session_id: { type: 'string', description: 'Target ID from list_sessions' },
           action: {
             type: 'string',
-            enum: ['clear', 'quit', 'interrupt', 'set_model', 'set_effort'],
+            enum: ['clear', 'quit', 'interrupt', 'set_model', 'set_effort', 'set_permission_mode'],
             description: 'Control verb to execute on the target session',
           },
           model: {
@@ -551,19 +552,37 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             enum: ['low', 'medium', 'high', 'xhigh', 'max', 'auto'],
             description: 'Effort level. Required when action is "set_effort". `auto` resets to model default.',
           },
+          permissionMode: {
+            type: 'string',
+            enum: ['default', 'plan', 'acceptEdits', 'auto', 'bypassPermissions'],
+            description: 'Permission mode. Required when action is "set_permission_mode". Headless sessions only.',
+          },
         },
         required: ['session_id', 'action'],
       },
       async handle(params) {
         const sessionId = params.session_id
-        const action = params.action as 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort'
+        const action = params.action as
+          | 'clear'
+          | 'quit'
+          | 'interrupt'
+          | 'set_model'
+          | 'set_effort'
+          | 'set_permission_mode'
         const model = typeof params.model === 'string' ? params.model : undefined
         const effort = typeof params.effort === 'string' ? params.effort : undefined
+        const permissionMode = typeof params.permissionMode === 'string' ? params.permissionMode : undefined
         if (!sessionId) return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
-        if (!action || !['clear', 'quit', 'interrupt', 'set_model', 'set_effort'].includes(action)) {
+        if (
+          !action ||
+          !['clear', 'quit', 'interrupt', 'set_model', 'set_effort', 'set_permission_mode'].includes(action)
+        ) {
           return {
             content: [
-              { type: 'text', text: 'Error: action must be one of clear | quit | interrupt | set_model | set_effort' },
+              {
+                type: 'text',
+                text: 'Error: action must be one of clear | quit | interrupt | set_model | set_effort | set_permission_mode',
+              },
             ],
             isError: true,
           }
@@ -580,7 +599,13 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
             isError: true,
           }
         }
-        const result = await callbacks.onControlSession?.({ sessionId, action, model, effort })
+        if (action === 'set_permission_mode' && !permissionMode) {
+          return {
+            content: [{ type: 'text', text: 'Error: permissionMode is required when action is "set_permission_mode"' }],
+            isError: true,
+          }
+        }
+        const result = await callbacks.onControlSession?.({ sessionId, action, model, effort, permissionMode })
         if (!result?.ok) {
           debug(`[channel] control_session(${action}) failed: ${result?.error}`)
           return {
@@ -589,7 +614,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
           }
         }
         debug(
-          `[channel] control_session(${action}): ${sessionId.slice(0, 8)}${model ? ` model=${model}` : ''}${effort ? ` effort=${effort}` : ''}`,
+          `[channel] control_session(${action}): ${sessionId.slice(0, 8)}${model ? ` model=${model}` : ''}${effort ? ` effort=${effort}` : ''}${permissionMode ? ` mode=${permissionMode}` : ''}`,
         )
         const label = result.name || sessionId.slice(0, 8)
         const verbText =
@@ -601,7 +626,9 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
                 ? `Interrupt sent to ${label}. Current turn will stop.`
                 : action === 'set_model'
                   ? `Model switch requested on ${label} -> ${model}.`
-                  : `Effort level switch requested on ${label} -> ${effort}.`
+                  : action === 'set_effort'
+                    ? `Effort level switch requested on ${label} -> ${effort}.`
+                    : `Permission mode switch requested on ${label} -> ${permissionMode}.`
         return { content: [{ type: 'text', text: verbText }] }
       },
     },
@@ -782,6 +809,7 @@ export function initMcpChannel(cb: McpChannelCallbacks): void {
                   {
                     status: 'ready',
                     message: `Session spawned and connected at ${cwd} (${modeDesc})`,
+                    session_id: (result.session as Record<string, unknown>)?.id,
                     session: result.session,
                     jobId: responseJobId,
                     wrapperId: result.wrapperId,

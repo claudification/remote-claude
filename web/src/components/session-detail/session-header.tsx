@@ -6,7 +6,16 @@ import { renderProjectIcon } from '@/components/project-settings-editor'
 import { wsSend } from '@/hooks/use-sessions'
 import { formatCost, getBurnRate, getCacheEfficiency, getCostColor, getSessionCost } from '@/lib/cost-utils'
 import type { Session } from '@/lib/types'
-import { cn, contextWindowSize, formatAge, formatEffort, formatModel, formatTime, haptic } from '@/lib/utils'
+import {
+  cn,
+  contextWindowSize,
+  formatAge,
+  formatEffort,
+  formatModel,
+  formatPermissionMode,
+  formatTime,
+  haptic,
+} from '@/lib/utils'
 
 interface ConversationTarget {
   cwdA: string
@@ -75,11 +84,24 @@ export function SessionHeader({
                       ) : null
                     })()}
                 </span>
-                {inPlanMode && (
-                  <span className="text-[10px] text-blue-400 font-bold ml-1 px-1 py-0.5 bg-blue-500/10 rounded">
-                    PLAN
-                  </span>
-                )}
+                {(() => {
+                  const pm = formatPermissionMode(session.permissionMode)
+                  if (!pm && inPlanMode)
+                    return (
+                      <span className="text-[10px] text-blue-400 font-bold ml-1 px-1 py-0.5 bg-blue-500/10 rounded">
+                        PLAN
+                      </span>
+                    )
+                  if (!pm) return null
+                  return (
+                    <span
+                      className={cn('text-[10px] font-bold ml-1 px-1 py-0.5 rounded', pm.color, pm.bgColor)}
+                      title={`Permission mode: ${session.permissionMode}`}
+                    >
+                      {pm.label}
+                    </span>
+                  )
+                })()}
                 {session.capabilities?.includes('ad-hoc') && (
                   <span
                     role="button"
@@ -223,6 +245,18 @@ export function SessionHeader({
                       ) : null
                     })()}
                 </span>
+                {(() => {
+                  const pm = formatPermissionMode(session.permissionMode)
+                  if (!pm) return null
+                  return (
+                    <span
+                      className={cn('px-1.5 py-0.5 text-[9px] font-bold uppercase', pm.color, pm.bgColor)}
+                      title={`Permission mode: ${session.permissionMode}`}
+                    >
+                      {pm.label}
+                    </span>
+                  )
+                })()}
                 {session.claudeVersion && (
                   <span className="text-muted-foreground text-[10px]">cc/{session.claudeVersion}</span>
                 )}

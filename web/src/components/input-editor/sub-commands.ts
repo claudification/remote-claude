@@ -86,6 +86,24 @@ export const SUB_COMMANDS: SubCommandDef[] = [
       return levels.filter(l => !ql || l.includes(ql)).map(l => ({ value: l, builtin: true }))
     },
   },
+  {
+    name: 'mode',
+    enterBehavior: 'select-or-submit',
+    completer: q => {
+      const modes = [
+        { value: 'default', label: 'Default - CC default prompting' },
+        { value: 'plan', label: 'Plan - plan-first mode' },
+        { value: 'acceptEdits', label: 'Accept Edits - auto-accept file edits' },
+        { value: 'auto', label: 'Auto - auto-approve most tools' },
+        { value: 'bypassPermissions', label: 'Bypass - skip permission prompts' },
+      ]
+      const ql = q.toLowerCase()
+      return modes
+        .filter(m => !ql || m.value.toLowerCase().includes(ql) || m.label.toLowerCase().includes(ql))
+        .map(m => ({ value: m.value, label: m.label, builtin: true }))
+    },
+  },
+  { name: 'plan', noArg: true },
   { name: 'clear', noArg: true },
   { name: 'exit', noArg: true },
   { name: 'compact', noArg: true },

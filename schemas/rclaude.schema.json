@@ -9,6 +9,10 @@
       "type": "string",
       "description": "JSON Schema reference (IDE autocompletion)"
     },
+    "allowAll": {
+      "type": "boolean",
+      "description": "Auto-approve ALL permission requests (any tool, any path). Auto-enabled when the project CWD is inside a .claude/ directory. Set explicitly to false to disable auto-detection."
+    },
     "permissions": {
       "type": "object",
       "description": "Auto-approve rules for Write/Edit/Read permission requests on protected directories (.claude/, .git/, etc). All other tool permissions are handled by Claude Code's own permission system.",

@@ -4,6 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import type { SessionControlAction } from '../../shared/protocol'
 import { resolveSpawnConfig } from '../../shared/spawn-defaults'
 import { mapProjectTrust, type SpawnCallerContext } from '../../shared/spawn-permissions'
 import type { SpawnRequest } from '../../shared/spawn-schema'
@@ -289,15 +290,16 @@ const handleChannelConfigure: MessageHandler = (ctx, data) => {
   ctx.log.debug(`Configure: -> ${target.id.slice(0, 8)} ${Object.keys(update).join(',')}`)
 }
 
-// ─── Unified session control (clear / quit / interrupt / set_model / set_effort) ───
+// ─── Unified session control ───
 
-const VALID_CONTROL_ACTIONS = new Set(['clear', 'quit', 'interrupt', 'set_model', 'set_effort'])
+const VALID_CONTROL_ACTIONS = new Set(['clear', 'quit', 'interrupt', 'set_model', 'set_effort', 'set_permission_mode'])
 
 const handleSessionControl: MessageHandler = (ctx, data) => {
   const targetId = data.targetSession as string
   const action = data.action as string
   const model = typeof data.model === 'string' ? data.model : undefined
   const effort = typeof data.effort === 'string' ? data.effort : undefined
+  const permissionMode = typeof data.permissionMode === 'string' ? data.permissionMode : undefined
   const fromSession = (data.fromSession as string) || ctx.ws.data.sessionId
 
   if (!targetId) {
@@ -314,6 +316,15 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
   }
   if (action === 'set_effort' && !effort) {
     ctx.reply({ type: 'session_control_result', ok: false, action, error: 'effort is required for set_effort' })
+    return
+  }
+  if (action === 'set_permission_mode' && !permissionMode) {
+    ctx.reply({
+      type: 'session_control_result',
+      ok: false,
+      action,
+      error: 'permissionMode is required for set_permission_mode',
+    })
     return
   }
 
@@ -350,6 +361,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
       action,
       ...(model && { model }),
       ...(effort && { effort }),
+      ...(permissionMode && { permissionMode }),
       ...(fromSession && { fromSession }),
     }),
   )
@@ -363,11 +375,11 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
   ctx.reply({
     type: 'session_control_result',
     ok: true,
-    action: action as 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort',
+    action: action as SessionControlAction,
     name: targetSess.title || targetSess.cwd?.split('/').pop(),
   })
   ctx.log.debug(
-    `session_control: ${fromSession?.slice(0, 8) ?? 'dashboard'} -> ${targetSess.id.slice(0, 8)} action=${action}${model ? ` model=${model}` : ''}${effort ? ` effort=${effort}` : ''}`,
+    `session_control: ${fromSession?.slice(0, 8) ?? 'dashboard'} -> ${targetSess.id.slice(0, 8)} action=${action}${model ? ` model=${model}` : ''}${effort ? ` effort=${effort}` : ''}${permissionMode ? ` mode=${permissionMode}` : ''}`,
   )
 }
 

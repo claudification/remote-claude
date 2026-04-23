@@ -133,6 +133,7 @@ export interface StreamProcess {
     toolUseId?: string,
   ) => void
   sendSetModel: (model: string) => void
+  sendSetPermissionMode: (mode: string) => void
   sendUpdateEnv: (variables: Record<string, string>) => void
   sendSetEffort: (level: string) => void
   sendInterrupt: () => void
@@ -785,6 +786,14 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
       writeStdin({
         type: 'control_request',
         request: { subtype: 'set_model', model },
+      })
+    },
+
+    sendSetPermissionMode(mode: string) {
+      debug(`Setting permission mode: ${mode}`)
+      writeStdin({
+        type: 'control_request',
+        request: { subtype: 'set_permission_mode', mode },
       })
     },
 

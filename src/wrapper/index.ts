@@ -740,8 +740,8 @@ async function main() {
      * closeStdin), PTY writes the raw slash command into CC's CLI input layer.
      */
     function executeControl(
-      action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort',
-      args: { model?: string; effort?: string; source?: string } = {},
+      action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode',
+      args: { model?: string; effort?: string; permissionMode?: string; source?: string } = {},
     ): boolean {
       const source = args.source || 'unknown'
       if (headless) {
@@ -789,6 +789,11 @@ async function main() {
             diag('session', `Set effort requested (${source}): ${args.effort}`)
             ctx.streamProc.sendSetEffort(args.effort)
             return true
+          case 'set_permission_mode':
+            if (!args.permissionMode) return false
+            diag('session', `Set permission mode requested (${source}): ${args.permissionMode}`)
+            ctx.streamProc.sendSetPermissionMode(args.permissionMode)
+            return true
         }
       }
 
@@ -823,6 +828,10 @@ async function main() {
           diag('session', `Set effort requested (${source}): ${args.effort}`)
           ctx.ptyProcess.write(`/effort ${args.effort}\r`)
           return true
+        case 'set_permission_mode':
+          if (!args.permissionMode) return false
+          diag('session', `Set permission mode not supported in PTY mode (${source}): ${args.permissionMode}`)
+          return false
       }
     }
 
@@ -912,6 +921,11 @@ async function main() {
           } else if (trimmed.startsWith('/effort ')) {
             const effort = trimmed.slice(8).trim()
             if (effort) executeControl('set_effort', { effort, source: 'headless-input' })
+          } else if (trimmed.startsWith('/mode ')) {
+            const mode = trimmed.slice(6).trim()
+            if (mode) executeControl('set_permission_mode', { permissionMode: mode, source: 'headless-input' })
+          } else if (trimmed === '/plan') {
+            executeControl('set_permission_mode', { permissionMode: 'plan', source: 'headless-input' })
           } else {
             ctx.streamProc.sendUserMessage(input)
           }
@@ -1345,7 +1359,12 @@ async function main() {
       },
       onControl(action, args) {
         const source = args.fromSession ? `inter-session:${args.fromSession.slice(0, 8)}` : 'control-channel'
-        const ok = executeControl(action, { model: args.model, effort: args.effort, source })
+        const ok = executeControl(action, {
+          model: args.model,
+          effort: args.effort,
+          permissionMode: args.permissionMode,
+          source,
+        })
         if (!ok) diag('session', `Control ignored: ${action} (backend not ready or missing args)`)
       },
       onDiag(type, msg, args) {
@@ -1513,7 +1532,10 @@ async function main() {
     },
     onTogglePlanMode() {
       if (headless) {
-        diag('channel', 'toggle_plan_mode: not supported in headless mode')
+        if (ctx.streamProc) {
+          diag('channel', 'toggle_plan_mode: sending set_permission_mode via control_request')
+          ctx.streamProc.sendSetPermissionMode('plan')
+        }
       } else {
         diag('channel', 'toggle_plan_mode: injecting /plan via PTY')
         if (ctx.ptyProcess) ctx.ptyProcess.write('/plan\r')

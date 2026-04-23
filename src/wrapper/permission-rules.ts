@@ -23,6 +23,7 @@ interface PermissionConfig {
     Edit?: FileRule
     Read?: FileRule
   }
+  allowAll?: boolean // auto-approve ALL permission requests (any tool)
   allowPlanMode?: boolean // default: true
 }
 
@@ -67,6 +68,12 @@ export function createRulesEngine(cwd: string): RulesEngine {
 
   const sessionRules = new Set<string>()
 
+  // Auto-detect: projects inside a .claude/ directory get allowAll by default
+  const cwdInsideDotClaude = /[/\\]\.claude([/\\]|$)/.test(cwd)
+  function isAllowAll(): boolean {
+    return projectRules.allowAll ?? cwdInsideDotClaude
+  }
+
   // Built-in rules: always auto-approve rclaude's own managed paths
   const BUILTIN_PATTERNS = ['.rclaude/project/**', '.rclaude/docs/**']
 
@@ -103,6 +110,7 @@ export function createRulesEngine(cwd: string): RulesEngine {
 
   return {
     shouldAutoApprove(toolName: string, inputPreview: string): boolean {
+      if (isAllowAll()) return true
       if (checkBuiltinRules(toolName, inputPreview)) return true
       if (checkProjectRules(toolName, inputPreview)) return true
       if (sessionRules.has(toolName)) return true

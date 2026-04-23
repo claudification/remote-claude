@@ -69,6 +69,7 @@ Dashboard sends `{ type, ...data }`, handler replies `{ type: '{type}_result', o
 
 **Auth (must stay HTTP):**
 - `GET /auth/status`, `POST /auth/login/*`, `POST /auth/register/*`, `POST /auth/logout`
+- `POST /api/admin/impersonate` - create auth token for another user (admin only, debugging)
 
 **Deprecated (WS equivalents exist):**
 - `POST /sessions/:id/input` -> `send_input` WS

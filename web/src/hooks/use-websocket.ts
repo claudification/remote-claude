@@ -97,6 +97,7 @@ function toSession(summary: SessionSummary): Session {
     teammates: summary.teammates ?? [],
     team: summary.team,
     effortLevel: summary.effortLevel,
+    permissionMode: summary.permissionMode,
     lastError: summary.lastError,
     rateLimit: summary.rateLimit,
     planMode: summary.planMode,

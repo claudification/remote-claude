@@ -236,6 +236,11 @@ const sessionInfo: MessageHandler = (ctx, data) => {
     session.configuredModel = initModel
   }
 
+  const initPermMode = data.permissionMode as string | undefined
+  if (initPermMode) {
+    session.permissionMode = initPermMode
+  }
+
   // Diff against the previous snapshot (if any) and emit one transcript entry
   // per meaningful change. Only on subsequent snapshots -- the first
   // session_info is the initial state captured already by launch_event init_received,

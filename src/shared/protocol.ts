@@ -814,7 +814,7 @@ export interface QuitSession {
  *   - dashboard input: when user types a bare `/clear`, `/quit`, `:q`, etc.
  *   - inter-session MCP `control_session` tool
  */
-export type SessionControlAction = 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort'
+export type SessionControlAction = 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode'
 
 export interface SessionControl {
   type: 'session_control'
@@ -823,6 +823,7 @@ export interface SessionControl {
   fromSession?: string
   model?: string // required when action === 'set_model'
   effort?: string // required when action === 'set_effort' (low|medium|high|xhigh|max|auto)
+  permissionMode?: string // required when action === 'set_permission_mode'
 }
 
 export interface SessionControlResult {
@@ -839,6 +840,7 @@ export interface ControlDeliver {
   action: SessionControlAction
   model?: string
   effort?: string
+  permissionMode?: string
   fromSession?: string
 }
 
@@ -1135,6 +1137,7 @@ export interface Session {
   team?: TeamInfo
   diagLog: Array<{ t: number; type: string; msg: string; args?: unknown }>
   effortLevel?: string // 'speed' field from API usage: e.g. 'standard', maps to low/medium/high
+  permissionMode?: string // current CC permission mode (default/plan/acceptEdits/auto/bypassPermissions)
   lastError?: { stopReason?: string; errorType?: string; errorMessage?: string; timestamp: number }
   rateLimit?: { retryAfterMs: number; message: string; timestamp: number }
   pendingAttention?: {
@@ -1404,6 +1407,7 @@ export interface RclaudePermissionConfig {
     Edit?: { allow?: string[] }
     Read?: { allow?: string[] }
   }
+  allowAll?: boolean
   allowPlanMode?: boolean
 }
 
@@ -1494,6 +1498,7 @@ export interface SessionSummary {
   }>
   team?: TeamInfo
   effortLevel?: string
+  permissionMode?: string
   lastError?: Session['lastError']
   rateLimit?: Session['rateLimit']
   planMode?: boolean

@@ -4,6 +4,7 @@
 
 import { Hono } from 'hono'
 import {
+  createAuthToken,
   createInvite,
   getAllUsers,
   getUser,
@@ -209,7 +210,20 @@ export function createAdminRouter(
     }
   })
 
-  // ─── Session Shares ────────────────────────────────────────────────
+  // ─── Admin impersonation (debugging) ────────────────────────────────
+
+  app.post('/api/admin/impersonate', async c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
+    const body = await c.req.json<{ user: string }>()
+    if (!body.user) return c.json({ error: 'user is required' }, 400)
+    const user = getUser(body.user)
+    if (!user) return c.json({ error: 'User not found' }, 404)
+    if (user.revoked) return c.json({ error: 'User is revoked' }, 400)
+    const token = createAuthToken(body.user)
+    return c.json({ ok: true, user: body.user, token, grants: user.grants })
+  })
+
+  // ─── Session Shares ────────────────────────────────────────────────────
 
   app.post('/api/shares', async c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)

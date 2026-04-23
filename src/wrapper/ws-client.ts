@@ -130,8 +130,8 @@ export interface WsClientOptions {
    * Backend-specific dispatch lives in the wrapper -- this callback is just the entry point.
    */
   onControl?: (
-    action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort',
-    args: { model?: string; effort?: string; fromSession?: string },
+    action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode',
+    args: { model?: string; effort?: string; permissionMode?: string; fromSession?: string },
   ) => void
   /** Optional sink for structured diagnostics from inside the ws client.
    *  Wired to ctx.diag by index.ts so the dashboard's diag endpoint can
@@ -460,11 +460,13 @@ export function createWsClient(options: WsClientOptions): WsClient {
                 action === 'quit' ||
                 action === 'interrupt' ||
                 action === 'set_model' ||
-                action === 'set_effort'
+                action === 'set_effort' ||
+                action === 'set_permission_mode'
               ) {
                 onControl?.(action, {
                   model: typeof message.model === 'string' ? message.model : undefined,
                   effort: typeof message.effort === 'string' ? message.effort : undefined,
+                  permissionMode: typeof message.permissionMode === 'string' ? message.permissionMode : undefined,
                   fromSession: typeof message.fromSession === 'string' ? message.fromSession : undefined,
                 })
               } else {

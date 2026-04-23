@@ -75,6 +75,8 @@ export const BUILTIN_COMMAND_NAMES = [
   'model',
   'workon',
   'effort',
+  'mode',
+  'plan',
   'clear',
   'exit',
   'compact',

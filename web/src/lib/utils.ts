@@ -140,6 +140,24 @@ export function formatEffort(effort: string | undefined): { label: string; symbo
   }
 }
 
+export function formatPermissionMode(
+  mode: string | undefined,
+): { label: string; color: string; bgColor: string } | null {
+  if (!mode || mode === 'default') return null
+  switch (mode) {
+    case 'plan':
+      return { label: 'PLAN', color: 'text-blue-400', bgColor: 'bg-blue-500/10' }
+    case 'acceptEdits':
+      return { label: 'EDITS', color: 'text-cyan-400', bgColor: 'bg-cyan-500/10' }
+    case 'auto':
+      return { label: 'AUTO', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10' }
+    case 'bypassPermissions':
+      return { label: 'BYPASS', color: 'text-red-400', bgColor: 'bg-red-500/10' }
+    default:
+      return { label: mode.toUpperCase(), color: 'text-muted-foreground', bgColor: 'bg-muted/30' }
+  }
+}
+
 /**
  * Haptic feedback via web-haptics (works on iOS + Android).
  * Uses hidden <input type="checkbox" switch> trick for iOS Safari Taptic Engine.

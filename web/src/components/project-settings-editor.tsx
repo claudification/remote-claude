@@ -1017,7 +1017,8 @@ export function ProjectSettingsEditor({ cwd, onClose }: ProjectSettingsEditorPro
 
             <GroupHeader label="Permission Rules" />
             <div className="text-[9px] text-muted-foreground mb-2">
-              Auto-approve Write/Edit/Read on protected paths (.claude/, .git/). Stored in .rclaude/rclaude.json.
+              Auto-approve permission requests. Use Allow All for full trust, or fine-tune per tool. Stored in
+              .rclaude/rclaude.json.
             </div>
             <PermissionRulesEditor cwd={cwd} />
           </>

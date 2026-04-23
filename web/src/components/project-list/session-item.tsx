@@ -17,6 +17,7 @@ import {
   formatDurationMs,
   formatEffort,
   formatModel,
+  formatPermissionMode,
   haptic,
   projectDisplayName,
   truncate,
@@ -742,6 +743,7 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
   const showContextBar = useSessionsStore(s => s.dashboardPrefs.showContextInList)
   const showCost = useSessionsStore(s => s.dashboardPrefs.showCostInList)
   const isRenaming = useSessionsStore(s => s.renamingSessionId === session.id)
+  const hasPendingPermission = useSessionsStore(s => s.pendingPermissions.some(p => p.sessionId === session.id))
 
   const projectName = projectDisplayName(session.cwd, ps?.label)
   const sessionName = session.title || session.agentName
@@ -799,6 +801,9 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
             throttled
           </span>
         )}
+        {hasPendingPermission && <span className="text-[9px] text-amber-400 font-bold animate-pulse">PERM</span>}
+        {session.pendingAttention && <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>}
+        {session.hasNotification && <span className="text-[9px] text-teal-400 font-bold">NOTIFY</span>}
         <SessionInfoButton session={session} visible={isSelected} />
         <ShareIndicator sessionCwd={session.cwd} />
         {session.resultText && session.capabilities?.includes('ad-hoc') && <ResultTextModal session={session} />}
@@ -1012,7 +1017,12 @@ export const SessionItemCompact = memo(function SessionItemCompact({ session }: 
         {session.rateLimit && !session.lastError && (
           <span className="text-[9px] text-amber-400 font-bold">THROTTLED</span>
         )}
-        {session.planMode && <span className="text-[9px] text-blue-400 font-bold">PLAN</span>}
+        {(() => {
+          const pm = formatPermissionMode(session.permissionMode)
+          if (!pm && session.planMode) return <span className="text-[9px] text-blue-400 font-bold">PLAN</span>
+          if (!pm) return null
+          return <span className={cn('text-[9px] font-bold', pm.color)}>{pm.label}</span>
+        })()}
         {session.status === 'idle' &&
           (() => {
             const ci = getCacheTimerInfo(session.lastTurnEndedAt, session.tokenUsage, session.model, session.cacheTtl)

@@ -36,6 +36,7 @@ import { useSessionsStore } from '@/hooks/use-sessions'
 import { lastPathSegments, projectDisplayName, sessionAddressableSlug } from '@/lib/utils'
 import { BUILTIN_COMMAND_NAMES, BUILTIN_SCORE_BOOST, fuzzyScore } from '../../autocomplete-shared'
 import { getSubCommand, type SubCommandContext, type SubCommandDef } from '../../sub-commands'
+import { composingField } from './composition'
 
 interface SourceInfo {
   slashCommands: string[]
@@ -292,6 +293,8 @@ function sessionArgCompletion(text: string, pos: number): CompletionResult | nul
 
 function makeCompletionSource(getCtx: () => SubCommandContext) {
   return function completionSource(context: CompletionContext): CompletionResult | null {
+    if (context.state.field(composingField, false)) return null
+
     const pos = context.pos
     const doc = context.state.doc
     const text = doc.toString()

@@ -1,4 +1,4 @@
-import { ChevronRight, Filter, WifiOff } from 'lucide-react'
+import { Check, ChevronRight, Copy, EyeOff, Filter, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { type JsonStreamMessage, useSessionsStore } from '@/hooks/use-sessions'
 import { cn } from '@/lib/utils'
@@ -14,8 +14,20 @@ interface ParsedLine {
 }
 
 const MAX_LINES = 2000
-const FILTER_TYPES = ['all', 'assistant', 'user', 'tool_use', 'tool_result', 'system', 'result'] as const
+const FILTER_TYPES = [
+  'all',
+  'assistant',
+  'user',
+  'tool_use',
+  'tool_result',
+  'system',
+  'result',
+  'stream_event',
+  'rate_limit_event',
+] as const
 type FilterType = (typeof FILTER_TYPES)[number]
+
+const NOISE_TYPES = new Set(['stream_event', 'rate_limit_event'])
 
 function parseLine(raw: string): ParsedLine {
   try {
@@ -41,42 +53,77 @@ function typeColor(type: string | null): string {
       return 'text-violet-400'
     case 'system':
       return 'text-rose-400'
+    case 'stream_event':
+      return 'text-muted-foreground/60'
+    case 'rate_limit_event':
+      return 'text-muted-foreground/60'
     default:
       return 'text-muted-foreground'
   }
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+
+  function handleCopy(e: React.MouseEvent) {
+    e.stopPropagation()
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className={cn(
+        'shrink-0 p-0.5 rounded transition-all',
+        copied
+          ? 'text-emerald-400'
+          : 'text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-foreground',
+      )}
+      title="Copy JSON"
+    >
+      {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+    </button>
+  )
+}
+
 function StreamLine({ line, index }: { line: ParsedLine; index: number }) {
   const [expanded, setExpanded] = useState(false)
+  const jsonText = line.parsed ? JSON.stringify(line.parsed, null, 2) : line.raw
 
   return (
     <div className="group border-b border-border/30 hover:bg-muted/30">
-      <button
-        type="button"
-        className="w-full text-left flex items-start gap-2 px-3 py-1 font-mono text-[11px]"
-        onClick={() => line.parsed && setExpanded(!expanded)}
-      >
-        <span className="shrink-0 text-muted-foreground/50 w-8 text-right tabular-nums select-none">{index + 1}</span>
-        {line.parsed ? (
-          <ChevronRight
-            className={cn(
-              'shrink-0 w-3 h-3 mt-0.5 transition-transform text-muted-foreground/50',
-              expanded && 'rotate-90',
-            )}
-          />
-        ) : (
-          <span className="shrink-0 w-3" />
-        )}
-        <span className={cn('shrink-0', typeColor(line.type))}>{line.type || 'raw'}</span>
-        {!expanded && (
-          <span className="truncate text-muted-foreground/70">
-            {line.parsed ? summarizeLine(line.parsed) : line.raw}
-          </span>
-        )}
-      </button>
+      <div className="flex items-start gap-2 px-3 py-1 font-mono text-[11px]">
+        <button
+          type="button"
+          className="flex-1 min-w-0 text-left flex items-start gap-2"
+          onClick={() => line.parsed && setExpanded(!expanded)}
+        >
+          <span className="shrink-0 text-muted-foreground/50 w-8 text-right tabular-nums select-none">{index + 1}</span>
+          {line.parsed ? (
+            <ChevronRight
+              className={cn(
+                'shrink-0 w-3 h-3 mt-0.5 transition-transform text-muted-foreground/50',
+                expanded && 'rotate-90',
+              )}
+            />
+          ) : (
+            <span className="shrink-0 w-3" />
+          )}
+          <span className={cn('shrink-0', typeColor(line.type))}>{line.type || 'raw'}</span>
+          {!expanded && (
+            <span className="truncate text-muted-foreground/70">
+              {line.parsed ? summarizeLine(line.parsed) : line.raw}
+            </span>
+          )}
+        </button>
+        <CopyButton text={jsonText} />
+      </div>
       {expanded && line.parsed && (
-        <pre className="pl-16 pr-3 pb-2 text-[10px] text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all">
-          {JSON.stringify(line.parsed, null, 2)}
+        <pre className="pl-16 pr-3 pb-2 text-[10px] text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all select-text">
+          {jsonText}
         </pre>
       )}
     </div>
@@ -99,6 +146,21 @@ function summarizeLine(obj: Record<string, unknown>): string {
     const result = obj.result as Record<string, unknown> | undefined
     if (result?.type) return `type=${result.type}`
   }
+  if (obj.type === 'stream_event') {
+    const event = obj.event as Record<string, unknown> | undefined
+    if (!event) return ''
+    const eventType = event.type as string
+    if (eventType === 'content_block_delta') {
+      const delta = event.delta as Record<string, unknown> | undefined
+      if (delta?.type === 'text_delta') return truncate(delta.text as string, 100)
+      return `delta: ${delta?.type || 'unknown'}`
+    }
+    return eventType
+  }
+  if (obj.type === 'rate_limit_event') {
+    const info = obj.rate_limit_info as Record<string, unknown> | undefined
+    return info ? `${info.status} (${info.rateLimitType})` : ''
+  }
   const keys = Object.keys(obj).filter(k => k !== 'type')
   return keys.slice(0, 4).join(', ')
 }
@@ -115,6 +177,7 @@ export function JsonStreamPanel({ wrapperId }: JsonStreamPanelProps) {
   const [lines, setLines] = useState<ParsedLine[]>([])
   const [filter, setFilter] = useState<FilterType>('all')
   const [showFilter, setShowFilter] = useState(false)
+  const [hideNoise, setHideNoise] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef(true)
   const attachedRef = useRef(false)
@@ -168,7 +231,11 @@ export function JsonStreamPanel({ wrapperId }: JsonStreamPanelProps) {
     autoScrollRef.current = atBottom
   }
 
-  const filtered = filter === 'all' ? lines : lines.filter(l => l.type === filter)
+  const filtered = lines.filter(l => {
+    if (filter !== 'all' && l.type !== filter) return false
+    if (hideNoise && filter === 'all' && l.type && NOISE_TYPES.has(l.type)) return false
+    return true
+  })
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -177,6 +244,18 @@ export function JsonStreamPanel({ wrapperId }: JsonStreamPanelProps) {
         <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Raw JSON Stream</span>
         <span className="text-[10px] text-muted-foreground/60 tabular-nums">{lines.length} lines</span>
         <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setHideNoise(!hideNoise)}
+            className={cn(
+              'flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors text-[10px] font-mono',
+              hideNoise ? 'bg-muted text-foreground' : 'text-muted-foreground/50 hover:text-muted-foreground',
+            )}
+            title="Hide stream_event and rate_limit_event noise"
+          >
+            <EyeOff className="w-3 h-3" />
+            noise
+          </button>
           <button
             type="button"
             onClick={() => setShowFilter(!showFilter)}
@@ -220,7 +299,7 @@ export function JsonStreamPanel({ wrapperId }: JsonStreamPanelProps) {
               {t}
             </button>
           ))}
-          {filter !== 'all' && (
+          {(filter !== 'all' || (hideNoise && filtered.length !== lines.length)) && (
             <span className="text-[10px] text-muted-foreground/50 ml-1">
               {filtered.length}/{lines.length}
             </span>

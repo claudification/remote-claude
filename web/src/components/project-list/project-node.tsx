@@ -89,11 +89,13 @@ function CwdSessionGroup({ sessions, cwd }: { sessions: Session[]; cwd: string }
   const displayName = projectDisplayName(cwd, ps?.label)
   const displayColor = ps?.color
   const { adhoc, normal, ended } = partitionSessions(sessions)
-  // Project-level rollup: any session in this CWD with a pending permission?
+  // Project-level rollups: any session in this CWD needing attention?
   const hasPendingPermission = useSessionsStore(s => {
     const ids = new Set(sessions.map(x => x.id))
     return s.pendingPermissions.some(p => ids.has(p.sessionId))
   })
+  const hasPendingAttention = sessions.some(s => s.pendingAttention)
+  const hasNotification = sessions.some(s => s.hasNotification)
 
   return (
     <div>
@@ -121,6 +123,10 @@ function CwdSessionGroup({ sessions, cwd }: { sessions: Session[]; cwd: string }
                 PERM
               </span>
             )}
+            {hasPendingAttention && !hasPendingPermission && (
+              <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>
+            )}
+            {hasNotification && <span className="text-[9px] text-teal-400 font-bold">NOTIFY</span>}
             {ended.length > 0 && <DismissAllEndedButton ended={ended} />}
             <ProjectSettingsButton
               onClick={e => {
