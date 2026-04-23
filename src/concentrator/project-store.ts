@@ -146,6 +146,15 @@ export function initProjectStore(cacheDir: string): void {
   // Migration: drop cwd column (project_uri is now the canonical identity)
   const cwdCols = db.query("PRAGMA table_info('projects')").all() as Array<{ name: string }>
   if (cwdCols.some(c => c.name === 'cwd')) {
+    // Drop any indexes on cwd first (SQLite won't drop a UNIQUE-constrained column)
+    const indexes = db.prepare("PRAGMA index_list('projects')").all() as Array<{ name: string }>
+    for (const idx of indexes) {
+      const cols = db.prepare(`PRAGMA index_info('${idx.name}')`).all() as Array<{ name: string }>
+      if (cols.some(c => c.name === 'cwd')) {
+        db.run(`DROP INDEX IF EXISTS "${idx.name}"`)
+        console.log(`[projects] Dropped index ${idx.name} on cwd`)
+      }
+    }
     db.run('ALTER TABLE projects DROP COLUMN cwd')
     console.log('[projects] Migrated: dropped cwd column')
   }
