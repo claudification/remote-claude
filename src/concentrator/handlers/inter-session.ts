@@ -53,7 +53,7 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
     JSON.stringify({
       type: 'revive',
       sessionId: targetSessionId,
-      cwd: parseProjectUri(target.project).path,
+      project: target.project,
       conversationId,
       mode: 'resume',
       effort: resolveEffort(target.project, ctx.getProjectSettings),
@@ -186,7 +186,7 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
       JSON.stringify({
         type: 'revive',
         sessionId: target.id,
-        cwd: parseProjectUri(target.project).path,
+        project: target.project,
         conversationId,
         mode: 'resume',
         effort: resolveEffort(target.project, ctx.getProjectSettings),

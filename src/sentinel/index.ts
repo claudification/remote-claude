@@ -1438,7 +1438,7 @@ function connect(
         }
       }
     } catch (err) {
-      debug(`Failed to parse message: ${err}`, verbose)
+      log(`Failed to handle message: ${err}`)
     }
   }
 

@@ -263,7 +263,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
     JSON.stringify({
       type: 'revive',
       sessionId,
-      cwd: parseProjectUri(session.project).path,
+      project: session.project,
       conversationId,
       jobId,
       mode: 'resume',

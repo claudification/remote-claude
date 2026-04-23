@@ -253,7 +253,7 @@ export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteH
       JSON.stringify({
         type: 'revive',
         sessionId,
-        cwd: sessionPath,
+        project: session.project,
         conversationId,
         mode: 'resume',
         headless,
