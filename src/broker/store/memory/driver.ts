@@ -147,6 +147,7 @@ function createTranscriptStore(): TranscriptStore {
     append(sessionId, syncEpoch, inputEntries) {
       const arr = getEntries(sessionId)
       for (const e of inputEntries) {
+        if (arr.some(x => x.uuid === e.uuid)) continue
         arr.push({
           id: nextId(),
           sessionId,
