@@ -58,6 +58,7 @@ export interface SessionMeta {
   sessionId: string
   wrapperId: string // unique per rclaude instance (multiple wrappers can share a sessionId via --resume)
   cwd: string
+  project?: string
   startedAt: number
   model?: string
   configuredModel?: string // the --model value passed to CC (CC strips [1m] from API responses)
@@ -94,6 +95,7 @@ export interface SessionClear {
   newSessionId: string
   wrapperId: string
   cwd: string
+  project?: string
   model?: string
 }
 
@@ -359,6 +361,7 @@ export interface WrapperBoot {
   type: 'wrapper_boot'
   wrapperId: string
   cwd: string
+  project?: string
   capabilities: WrapperCapability[]
   claudeArgs: string[]
   claudeVersion?: string
@@ -611,6 +614,8 @@ export interface TranscriptKick {
 export interface LinkSummary {
   cwdA: string
   cwdB: string
+  projectA?: string
+  projectB?: string
   nameA: string
   nameB: string
   createdAt: number
@@ -1132,6 +1137,7 @@ export interface ArchivedTaskGroup {
 export interface Session {
   id: string
   cwd: string // project root (where rclaude launched -- session identity)
+  project: string // project URI identity (e.g. "claude:///Users/jonas/projects/foo")
   currentCwd?: string // where Claude is currently working (CwdChanged hook)
   model?: string
   configuredModel?: string // the --model value passed to CC (preserves [1m] suffix that CC strips)
@@ -1470,6 +1476,7 @@ export interface AgentStatus {
 export interface SessionSummary {
   id: string
   cwd: string
+  project: string
   model?: string
   capabilities?: WrapperCapability[]
   version?: string

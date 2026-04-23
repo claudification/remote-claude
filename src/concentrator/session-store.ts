@@ -8,6 +8,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { ServerWebSocket } from 'bun'
 import { resolveContextWindow } from '../shared/context-window'
+import { cwdToProjectUri } from '../shared/project-uri'
 import type {
   HookEvent,
   LaunchConfig,
@@ -538,6 +539,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     return {
       id: session.id,
       cwd: session.cwd,
+      project: session.project,
       model: session.configuredModel || session.model,
       capabilities: session.capabilities,
       version: session.version,
@@ -828,6 +830,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           diagLog: sessionData.diagLog || [],
           // Mark restored sessions as ended unless they reconnect
           status: 'ended',
+          project: sessionData.project || cwdToProjectUri(sessionData.cwd),
         }
         sessions.set(session.id, session)
       }
@@ -851,6 +854,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       const sessionsToSave = Array.from(sessions.values()).map(s => ({
         id: s.id,
         cwd: s.cwd,
+        project: s.project,
         model: s.model,
         configuredModel: s.configuredModel,
         permissionMode: s.permissionMode,
@@ -1063,6 +1067,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     const session: Session = {
       id,
       cwd,
+      project: cwdToProjectUri(cwd),
       model,
       args,
       capabilities,
@@ -1171,6 +1176,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     // Same-ID rekey: just update metadata, skip the destructive migration
     if (oldId === newId) {
       session.cwd = newCwd
+      session.project = cwdToProjectUri(newCwd)
       if (newModel) session.model = newModel
       session.lastActivity = Date.now()
       broadcastSessionScoped(
@@ -1184,6 +1190,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     sessions.delete(oldId)
     session.id = newId
     session.cwd = newCwd
+    session.project = cwdToProjectUri(newCwd)
     if (newModel) session.model = newModel
     session.status = 'idle'
     session.lastActivity = Date.now()

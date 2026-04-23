@@ -557,3 +557,42 @@ describe('session.model derivation', () => {
     expect(store.getSession('model-6')!.model).toBeUndefined()
   })
 })
+
+// ---------------------------------------------------------------------------
+// 8. Project URI field
+// ---------------------------------------------------------------------------
+
+describe('project URI field', () => {
+  it('createSession auto-populates project from cwd', () => {
+    store.createSession('proj-1', '/Users/jonas/projects/foo')
+    const session = store.getSession('proj-1')!
+    expect(session.project).toBe('claude:///Users/jonas/projects/foo')
+  })
+
+  it('project uses claude:// scheme by default', () => {
+    store.createSession('proj-2', '/tmp/test')
+    expect(store.getSession('proj-2')!.project).toBe('claude:///tmp/test')
+  })
+
+  it('rekey (different ID) recomputes project from new cwd', () => {
+    store.createSession('proj-old', '/old/path')
+    store.rekeySession('proj-old', 'proj-new', 'w1', '/new/path')
+    const session = store.getSession('proj-new')!
+    expect(session.project).toBe('claude:///new/path')
+    expect(session.cwd).toBe('/new/path')
+  })
+
+  it('same-ID rekey updates project from new cwd', () => {
+    store.createSession('proj-same', '/original/path')
+    store.rekeySession('proj-same', 'proj-same', 'w1', '/updated/path')
+    const session = store.getSession('proj-same')!
+    expect(session.project).toBe('claude:///updated/path')
+  })
+
+  it('project field survives session resume', () => {
+    store.createSession('proj-resume', '/Users/jonas/projects/bar')
+    store.resumeSession('proj-resume')
+    const session = store.getSession('proj-resume')!
+    expect(session.project).toBe('claude:///Users/jonas/projects/bar')
+  })
+})
