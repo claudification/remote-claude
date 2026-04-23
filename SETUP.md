@@ -192,7 +192,7 @@ This creates symlinks in `~/.local/bin/`:
 | `rclaude` | `bin/rclaude` | Main wrapper (replaces `claude`) |
 | `concentrator` | `bin/concentrator` | Server binary |
 | `concentrator-cli` | `bin/concentrator-cli` | Auth management CLI |
-| `rclaude-sentinel` | `bin/rclaude-sentinel` | Session revival sentinel |
+| `sentinel` | `bin/sentinel` | Session revival sentinel |
 | `revive-session.sh` | `scripts/revive-session.sh` | tmux spawn script |
 
 > **These are symlinks, not copies.** Rebuilding (`bun run build`) updates
@@ -321,11 +321,11 @@ scripts/start-sentinel.sh \
   --concentrator wss://concentrator.example.com
 
 # Or directly
-rclaude-sentinel \
+sentinel \
   --concentrator wss://concentrator.example.com
 
 # With custom spawn root (default: $HOME)
-rclaude-sentinel --spawn-root ~/projects
+sentinel --spawn-root ~/projects
 ```
 
 The sentinel:
@@ -349,7 +349,7 @@ The sentinel:
   <string>com.rclaude.sentinel</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/YOU/.local/bin/rclaude-sentinel</string>
+    <string>/Users/YOU/.local/bin/sentinel</string>
     <string>--concentrator</string>
     <string>wss://concentrator.example.com</string>
   </array>
@@ -372,12 +372,12 @@ launchctl load ~/Library/LaunchAgents/com.rclaude.sentinel.plist
 
 **Linux systemd:**
 ```ini
-# ~/.config/systemd/user/rclaude-sentinel.service
+# ~/.config/systemd/user/sentinel.service
 [Unit]
 Description=rclaude Session Revival Sentinel
 
 [Service]
-ExecStart=%h/.local/bin/rclaude-sentinel --concentrator wss://concentrator.example.com
+ExecStart=%h/.local/bin/sentinel --concentrator wss://concentrator.example.com
 Restart=always
 RestartSec=10
 Environment=RCLAUDE_SECRET=YOUR_SECRET_HERE
@@ -387,7 +387,7 @@ WantedBy=default.target
 ```
 
 ```bash
-systemctl --user enable --now rclaude-sentinel
+systemctl --user enable --now sentinel
 ```
 
 ---
@@ -567,7 +567,7 @@ bun run build           # All binaries + frontend
 | `bun run build:wrapper` | `bin/rclaude` | rclaude CLI wrapper |
 | `bun run build:concentrator` | `bin/concentrator` | Server binary |
 | `bun run build:cli` | `bin/concentrator-cli` | Auth CLI |
-| `bun run build:sentinel` | `bin/rclaude-sentinel` | Revival agent |
+| `bun run build:sentinel` | `bin/sentinel` | Host sentinel |
 | `bun run gen-version` | `src/shared/version.ts` | Git hash + timestamp |
 
 ### Dev servers
@@ -755,7 +755,7 @@ graph TB
     subgraph Host["Host Machine(s)"]
         RC[rclaude wrapper]
         CC[Claude Code CLI]
-        AG[rclaude-sentinel]
+        AG[sentinel]
         TM[tmux sessions]
 
         RC -->|spawns with hooks| CC

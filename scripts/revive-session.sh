@@ -2,7 +2,7 @@
 #
 # revive-session.sh - Revive/spawn a Claude Code session in tmux
 #
-# Called by rclaude-sentinel when the dashboard requests a session revival or spawn.
+# Called by sentinel when the dashboard requests a session revival or spawn.
 # Customize this script to change tmux behavior, rclaude flags, etc.
 #
 # Usage: revive-session.sh <session-id> <cwd> [--mode fresh|resume] [--resume-id <claude-session-id>] [--resume-name <session-name>]

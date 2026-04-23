@@ -1,6 +1,6 @@
 # Multi-Sentinel Architecture
 
-Design doc for supporting multiple rclaude-sentinel instances (one per host/machine).
+Design doc for supporting multiple sentinel instances (one per host/machine).
 
 ## Current Architecture (Single Sentinel)
 
@@ -95,7 +95,7 @@ instead. `RCLAUDE_SECRET` remains for wrapper auth and API bearer tokens.
 RCLAUDE_SENTINEL_KEY=snt_a1b2c3d4e5f6...
 
 # Or CLI flag
-rclaude-sentinel --key snt_a1b2c3d4e5f6...
+sentinel --key snt_a1b2c3d4e5f6...
 
 # Backward compat: if RCLAUDE_SENTINEL_KEY is not set, fall back to
 # RCLAUDE_SECRET (single-sentinel legacy mode). Log a deprecation warning.

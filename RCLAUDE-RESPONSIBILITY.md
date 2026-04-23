@@ -239,7 +239,7 @@ This endpoint calls external APIs (OpenRouter Whisper + Haiku). It has zero file
 
 ### 9. Session Revive
 
-Currently `POST /sessions/:id/revive` sends a message to the sentinel (rclaude-sentinel). In a multi-host world, the revive command needs to go to the right host's agent. The agent socket is already tracked per connection, but there's only one agent slot. This needs to become per-host or the revive feature needs to route through the session's rclaude connection.
+Currently `POST /sessions/:id/revive` sends a message to the sentinel (sentinel). In a multi-host world, the revive command needs to go to the right host's agent. The agent socket is already tracked per connection, but there's only one agent slot. This needs to become per-host or the revive feature needs to route through the session's rclaude connection.
 
 ---
 

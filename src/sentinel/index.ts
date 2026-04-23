@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * rclaude-sentinel - Host-side sentinel for session revival and spawning
+ * sentinel - Host-side sentinel for session revival and spawning
  *
  * Connects to concentrator via WebSocket, listens for revive/spawn commands.
  * Headless sessions are spawned directly via Bun.spawn() with PID tracking.
@@ -491,14 +491,14 @@ function parseArgs() {
 
 function printHelp() {
   console.log(`
-rclaude-sentinel - Host-side sentinel for session revival and spawning
+sentinel - Host-side sentinel for session revival and spawning
 
 Connects to concentrator and listens for revive/spawn commands.
 Headless sessions are spawned directly (Bun.spawn + PID tracking).
 PTY/interactive sessions use tmux via revive-session.sh.
 
 USAGE:
-  rclaude-sentinel [OPTIONS]
+  sentinel [OPTIONS]
 
 OPTIONS:
   --concentrator <url>   Concentrator WebSocket URL (default: ${DEFAULT_CONCENTRATOR_URL})
@@ -517,11 +517,11 @@ the target path to allow spawning. Only one sentinel can be connected at a time.
 let activeWs: WebSocket | null = null
 
 function log(msg: string) {
-  console.log(`[rclaude-sentinel] ${msg}`)
+  console.log(`[sentinel] ${msg}`)
 }
 
 function debug(msg: string, verbose: boolean) {
-  if (verbose) console.log(`[rclaude-sentinel] ${msg}`)
+  if (verbose) console.log(`[sentinel] ${msg}`)
 }
 
 function diag(type: string, msg: string, args?: unknown) {

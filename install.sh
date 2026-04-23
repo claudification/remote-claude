@@ -85,11 +85,11 @@ info "Building binaries..."
 mkdir -p "$BIN_DIR"
 bun run build:wrapper
 bun run build:sentinel
-ok "Built rclaude and rclaude-sentinel"
+ok "Built rclaude and sentinel"
 
 # ─── Create symlinks ────────────────────────────────────────────
 mkdir -p "$INSTALL_DIR"
-for bin in rclaude rclaude-sentinel; do
+for bin in rclaude sentinel; do
   target="${BIN_DIR}/${bin}"
   link="${INSTALL_DIR}/${bin}"
   if [ -L "$link" ]; then

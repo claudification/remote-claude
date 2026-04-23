@@ -251,7 +251,7 @@ means your most-used sessions are always within easy reach.
 ### Session Revival
 
 Session went idle? Revive it from the dashboard or via MCP tool. The sentinel
-(`rclaude-sentinel`) listens for revive commands and spawns a new tmux session with
+(`sentinel`) listens for revive commands and spawns a new tmux session with
 `rclaude --resume`, reconnecting your Claude session without touching the host machine.
 
 ### Inter-Session Communication
@@ -372,7 +372,7 @@ sharing between host and Docker.
 | **rclaude** | CLI wrapper. Spawns claude with PTY, injects hooks, MCP channel server, streams to concentrator |
 | **concentrator** | Central server. Hono HTTP + WS + WebAuthn + inter-session routing + voice relay. Runs in Docker |
 | **dashboard** | React SPA. Vite + Tailwind + Zustand. Voice, terminal, transcript, DnD, chat. Served by concentrator |
-| **rclaude-sentinel** | Host-side sentinel. Listens for revive/spawn commands, manages tmux sessions |
+| **sentinel** | Host-side sentinel. Listens for revive/spawn commands, manages tmux sessions |
 | **concentrator-cli** | CLI for auth management. Create invites, list/revoke users |
 
 ---
@@ -398,7 +398,7 @@ cd remote-claude
 The installer will:
 1. Install [Bun](https://bun.sh) automatically if not found
 2. Install all dependencies (root + web frontend)
-3. Build all binaries (`rclaude`, `rclaude-sentinel`, `concentrator`, `concentrator-cli`)
+3. Build all binaries (`rclaude`, `sentinel`, `concentrator`, `concentrator-cli`)
 4. Symlink them to `~/.local/bin/`
 5. Ask about concentrator setup (local Docker, remote, or skip)
 6. Configure your shell (`~/.zshrc` or `~/.bashrc`)
@@ -420,15 +420,15 @@ bun run build
 # Symlink binaries
 mkdir -p ~/.local/bin
 ln -sf "$(pwd)/bin/rclaude" ~/.local/bin/rclaude
-ln -sf "$(pwd)/bin/rclaude-sentinel" ~/.local/bin/rclaude-sentinel
+ln -sf "$(pwd)/bin/sentinel" ~/.local/bin/sentinel
 
 # Add to PATH (if not already)
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 ```
 
-### Running rclaude-sentinel as a service (macOS)
+### Running sentinel as a service (macOS)
 
-To keep `rclaude-sentinel` running in the background and auto-start on login, create a launchd plist:
+To keep `sentinel` running in the background and auto-start on login, create a launchd plist:
 
 ```bash
 cat > ~/Library/LaunchAgents/com.rclaude.agent.plist << 'EOF'
@@ -440,16 +440,16 @@ cat > ~/Library/LaunchAgents/com.rclaude.agent.plist << 'EOF'
     <string>com.rclaude.agent</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/YOU/.local/bin/rclaude-sentinel</string>
+        <string>/Users/YOU/.local/bin/sentinel</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/tmp/rclaude-sentinel.log</string>
+    <string>/tmp/sentinel.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/rclaude-sentinel.err</string>
+    <string>/tmp/sentinel.err</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
@@ -477,7 +477,7 @@ launchctl list | grep rclaude
 launchctl unload ~/Library/LaunchAgents/com.rclaude.agent.plist
 
 # View logs
-tail -f /tmp/rclaude-sentinel.log
+tail -f /tmp/sentinel.log
 ```
 
 > **Note:** launchd does not inherit your shell environment. All required env vars must be specified in the plist's `EnvironmentVariables` dict.
@@ -1043,7 +1043,7 @@ data fields, firing order, and known quirks.
 remote-claude/
 ├── bin/                          # Built binaries (gitignored)
 │   ├── rclaude                   # Wrapper CLI
-│   ├── rclaude-sentinel             # Sentinel for session revival
+│   ├── sentinel             # Sentinel for session revival
 │   ├── concentrator              # Aggregation server
 │   └── concentrator-cli          # Passkey management CLI
 ├── src/
@@ -1208,7 +1208,7 @@ bun run build:web                # Web -> web/dist/
 bun run build:wrapper            # rclaude -> bin/rclaude
 bun run build:concentrator       # concentrator -> bin/concentrator
 bun run build:cli                # concentrator-cli -> bin/concentrator-cli
-bun run build:sentinel              # rclaude-sentinel -> bin/rclaude-sentinel
+bun run build:sentinel              # sentinel -> bin/sentinel
 ```
 
 ## Security

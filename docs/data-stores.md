@@ -111,7 +111,7 @@ Files: `model-pricing.ts`, `web/src/lib/model-db.ts`, `web/src/lib/cost-utils.ts
 
 ## Plan Usage Tracking
 
-rclaude-sentinel polls `api.anthropic.com/api/oauth/usage` every 10 minutes using
+sentinel polls `api.anthropic.com/api/oauth/usage` every 10 minutes using
 OAuth token from macOS Keychain or `~/.claude/.credentials.json`. Only utilization
 percentages forwarded -- credentials never leave host.
 

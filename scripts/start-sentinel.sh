@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# start-sentinel.sh - Start rclaude-sentinel with validation
+# start-sentinel.sh - Start sentinel with validation
 #
 # Validates config, starts sentinel as background process, writes PID.
 #
@@ -11,7 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-SENTINEL_BIN="$PROJECT_DIR/bin/rclaude-sentinel"
+SENTINEL_BIN="$PROJECT_DIR/bin/sentinel"
 ENV_FILE="$PROJECT_DIR/.env"
 PID_FILE="$PROJECT_DIR/.sentinel.pid"
 LOG_FILE="$PROJECT_DIR/.sentinel.log"
@@ -50,7 +50,7 @@ while [[ $# -gt 0 ]]; do
     --help|-h)
       echo "Usage: start-sentinel.sh [--concentrator <url>] [--spawn-root <path>] [--no-spawn] [--kill-if-running] [-v|--verbose]"
       echo ""
-      echo "Validates config and starts rclaude-sentinel in the background."
+      echo "Validates config and starts sentinel in the background."
       echo "Reads RCLAUDE_SECRET and RCLAUDE_SPAWN_ROOT from .env or environment."
       echo ""
       echo "Spawn root priority: --spawn-root flag > \$RCLAUDE_SPAWN_ROOT > \$HOME"
