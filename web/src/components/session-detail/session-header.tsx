@@ -188,12 +188,12 @@ export function SessionHeader({
             )
           })()}
       </button>
-      {!infoExpanded && session.recap && (
+      {!infoExpanded && (session.recap || projectSettings?.description) && (
         <div
           className="px-3 pb-1.5 -mt-0.5 text-[10px] text-muted-foreground/40 italic truncate"
-          title={session.recap.content}
+          title={session.recap?.content || projectSettings?.description}
         >
-          {session.recap.content}
+          {session.recap?.content || projectSettings?.description}
         </div>
       )}
       <CacheExpiredBanner
@@ -495,6 +495,11 @@ export function SessionHeader({
                   <Copy className="w-3 h-3" />
                 </button>
               </div>
+              {projectSettings?.description && (
+                <div className="text-[10px] text-muted-foreground/60 italic" title={projectSettings.description}>
+                  {projectSettings.description}
+                </div>
+              )}
               {session.summary && (
                 <div className="text-[10px] text-muted-foreground/70 truncate" title={session.summary}>
                   {session.summary}

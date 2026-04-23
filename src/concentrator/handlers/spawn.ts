@@ -13,7 +13,7 @@ import { spawnRequestSchema } from '../../shared/spawn-schema'
 import { getGlobalSettings } from '../global-settings'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
-import { getProjectSettings } from '../project-settings'
+import { getProjectSettings, setProjectSettings } from '../project-settings'
 import { dispatchSpawn } from '../spawn-dispatch'
 
 const handleSpawnRequest: MessageHandler = (ctx, data) => {
@@ -50,9 +50,8 @@ const handleSpawnRequest: MessageHandler = (ctx, data) => {
     sessions: ctx.sessions,
     getProjectSettings,
     getGlobalSettings,
+    setProjectSettings,
     callerContext,
-    // Dashboard-initiated spawns do not participate in the inter-session
-    // rendezvous channel -- the dashboard already gets launch events via jobId.
     rendezvousCallerSessionId: null,
   })
     .then(result => {

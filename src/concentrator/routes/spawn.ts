@@ -8,7 +8,7 @@ import type { ListDirsResult } from '../../shared/protocol'
 import { mapProjectTrust, type SpawnCallerContext } from '../../shared/spawn-permissions'
 import { spawnRequestSchema } from '../../shared/spawn-schema'
 import { getGlobalSettings } from '../global-settings'
-import { getProjectSettings } from '../project-settings'
+import { getProjectSettings, setProjectSettings } from '../project-settings'
 import type { SessionStore } from '../session-store'
 import { dispatchSpawn } from '../spawn-dispatch'
 import type { RouteHelpers } from './shared'
@@ -45,6 +45,7 @@ export function createSpawnRouter(sessionStore: SessionStore, helpers: RouteHelp
       sessions: sessionStore,
       getProjectSettings,
       getGlobalSettings,
+      setProjectSettings,
       callerContext,
       rendezvousCallerSessionId: callerSessionId ?? null,
     })

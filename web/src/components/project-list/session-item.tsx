@@ -832,6 +832,11 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
           {isRenaming ? <InlineRename session={session} /> : sessionName}
         </div>
       )}
+      {ps?.description && (
+        <div className="mt-0.5 text-[10px] text-muted-foreground/60 truncate pl-1 italic" title={ps.description}>
+          {ps.description}
+        </div>
+      )}
       {session.gitBranch && session.gitBranch !== 'main' && session.gitBranch !== 'master' && (
         <div className="mt-0.5 pl-1 flex items-center gap-1">
           <span

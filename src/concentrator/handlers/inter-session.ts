@@ -11,7 +11,7 @@ import { type SpawnRequest, spawnRequestSchema } from '../../shared/spawn-schema
 import { getGlobalSettings } from '../global-settings'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
-import { getProjectSettings } from '../project-settings'
+import { getProjectSettings, setProjectSettings } from '../project-settings'
 import { dispatchSpawn } from '../spawn-dispatch'
 
 /** Resolve effective effort level from project + global settings */
@@ -132,6 +132,7 @@ const handleChannelSpawn: MessageHandler = (ctx, data) => {
     sessions: ctx.sessions,
     getProjectSettings,
     getGlobalSettings,
+    setProjectSettings,
     callerContext,
     rendezvousCallerSessionId: callerSession,
   })

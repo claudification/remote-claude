@@ -90,6 +90,10 @@ export const spawnRequestSchema = z.object({
   bare: z.boolean().optional().describe('Launch without injecting hooks'),
   repl: z.boolean().optional().describe('Launch CC in REPL mode'),
   name: z.string().optional().describe('Display label in sidebar'),
+  description: z
+    .string()
+    .optional()
+    .describe('Short description of what this session is about. Shown in dashboard and list_sessions.'),
   model: modelEnum.optional().describe('Model preset or pinned version'),
   effort: effortEnum.optional().describe('Thinking effort budget'),
   permissionMode: permissionModeEnum.optional().describe('CC permission prompting mode'),
