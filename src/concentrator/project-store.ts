@@ -144,19 +144,26 @@ export function initProjectStore(cacheDir: string): void {
   db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_project_uri ON projects(project_uri)')
 
   // Migration: drop cwd column (project_uri is now the canonical identity)
+  // SQLite can't DROP COLUMN on a column with an inline UNIQUE constraint, so recreate the table.
   const cwdCols = db.query("PRAGMA table_info('projects')").all() as Array<{ name: string }>
   if (cwdCols.some(c => c.name === 'cwd')) {
-    // Drop any indexes on cwd first (SQLite won't drop a UNIQUE-constrained column)
-    const indexes = db.prepare("PRAGMA index_list('projects')").all() as Array<{ name: string }>
-    for (const idx of indexes) {
-      const cols = db.prepare(`PRAGMA index_info('${idx.name}')`).all() as Array<{ name: string }>
-      if (cols.some(c => c.name === 'cwd')) {
-        db.run(`DROP INDEX IF EXISTS "${idx.name}"`)
-        console.log(`[projects] Dropped index ${idx.name} on cwd`)
-      }
-    }
-    db.run('ALTER TABLE projects DROP COLUMN cwd')
-    console.log('[projects] Migrated: dropped cwd column')
+    db.run('BEGIN TRANSACTION')
+    db.run(`CREATE TABLE projects_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      scope TEXT NOT NULL UNIQUE,
+      slug TEXT NOT NULL,
+      label TEXT,
+      project_uri TEXT
+    )`)
+    db.run(
+      'INSERT INTO projects_new (id, scope, slug, label, project_uri) SELECT id, scope, slug, label, project_uri FROM projects',
+    )
+    db.run('DROP TABLE projects')
+    db.run('ALTER TABLE projects_new RENAME TO projects')
+    db.run('CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug)')
+    db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_project_uri ON projects(project_uri)')
+    db.run('COMMIT')
+    console.log('[projects] Migrated: recreated table without cwd column')
   }
 
   stmtInsert = db.prepare(`
