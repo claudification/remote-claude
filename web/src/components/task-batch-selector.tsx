@@ -12,15 +12,16 @@
  */
 
 import { Fzf } from 'fzf'
-import { CheckSquare, Copy, ListChecks, Search, Send, X } from 'lucide-react'
+import { CheckSquare, Copy, Info, ListChecks, Search, Send, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
-import type { ProjectTaskMeta, TaskStatus } from '@/hooks/use-project'
+import type { ProjectTask, ProjectTaskMeta, TaskStatus } from '@/hooks/use-project'
 import { useProject } from '@/hooks/use-project'
 import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
 import { useKeyLayer } from '@/lib/key-layers'
 import { cn, haptic } from '@/lib/utils'
+import { Markdown } from './markdown'
 
 // --- Constants ---
 
@@ -213,6 +214,73 @@ function buildBatchPrompt(instructions: string, tasks: ProjectTaskMeta[]): strin
   return `${instructions}\n\nTasks:\n${taskList}`
 }
 
+// --- Hover Preview ---
+
+const HOVER_DELAY_MS = 4000
+
+function TaskPreviewPopover({ task, anchorRect }: { task: ProjectTask; anchorRect: DOMRect }) {
+  const style: React.CSSProperties = {
+    position: 'fixed',
+    left: anchorRect.right + 8,
+    top: anchorRect.top,
+    maxWidth: 380,
+    maxHeight: 400,
+    zIndex: 9999,
+  }
+
+  // If popover would overflow right edge, show on the left instead
+  if (anchorRect.right + 388 > window.innerWidth) {
+    style.left = anchorRect.left - 388
+  }
+
+  // Clamp top so it doesn't overflow bottom
+  if (anchorRect.top + 400 > window.innerHeight) {
+    style.top = Math.max(8, window.innerHeight - 408)
+  }
+
+  return (
+    <div
+      style={style}
+      className="bg-[#1a1b26] border border-[#33467c]/60 rounded-lg shadow-xl overflow-hidden animate-in fade-in duration-150"
+    >
+      {/* Header */}
+      <div className="px-3 py-2 border-b border-[#33467c]/30">
+        <div className="text-xs font-mono text-foreground font-bold">{task.title}</div>
+        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+          <span className="text-[9px] font-mono text-muted-foreground/50">{task.status}</span>
+          {task.priority && (
+            <span
+              className={cn(
+                'text-[9px] px-1 py-0.5 border font-mono',
+                task.priority === 'high' && 'border-red-400/40 text-red-400',
+                task.priority === 'medium' && 'border-amber-400/40 text-amber-400',
+                task.priority === 'low' && 'border-blue-400/40 text-blue-400',
+              )}
+            >
+              {task.priority}
+            </span>
+          )}
+          {task.tags.map(tag => (
+            <span key={tag} className={cn('px-1 py-px text-[9px] font-mono border rounded', tagColor(tag))}>
+              {tag}
+            </span>
+          ))}
+        </div>
+      </div>
+      {/* Body */}
+      <div className="px-3 py-2 overflow-y-auto max-h-[320px]">
+        {task.body.trim() ? (
+          <div className="text-xs text-foreground/80 prose prose-invert prose-xs max-w-none">
+            <Markdown>{task.body}</Markdown>
+          </div>
+        ) : (
+          <div className="text-[10px] text-muted-foreground/30 font-mono italic">No content</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // --- Component ---
 
 export const TaskBatchSelector = memo(function TaskBatchSelector() {
@@ -241,7 +309,59 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
     return sessions.find(s => s.status !== 'ended')?.id ?? null
   }, [selectedSessionId, sessions])
 
-  const { tasks } = useProject(relaySessionId)
+  const { tasks, readTask } = useProject(relaySessionId)
+
+  // Hover preview state
+  const [previewTask, setPreviewTask] = useState<ProjectTask | null>(null)
+  const [previewRect, setPreviewRect] = useState<DOMRect | null>(null)
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hoverSlugRef = useRef<string | null>(null)
+
+  function clearHoverPreview() {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+    hoverTimerRef.current = null
+    hoverSlugRef.current = null
+    setPreviewTask(null)
+    setPreviewRect(null)
+  }
+
+  function handleTaskMouseEnter(task: ProjectTaskMeta, el: HTMLElement) {
+    clearHoverPreview()
+    hoverSlugRef.current = task.slug
+    hoverTimerRef.current = setTimeout(async () => {
+      if (hoverSlugRef.current !== task.slug) return
+      const full = await readTask(task.slug, task.status)
+      if (full && hoverSlugRef.current === task.slug) {
+        setPreviewTask(full)
+        setPreviewRect(el.getBoundingClientRect())
+      }
+    }, HOVER_DELAY_MS)
+  }
+
+  function handleTaskMouseLeave() {
+    clearHoverPreview()
+  }
+
+  async function handleInfoClick(task: ProjectTaskMeta, el: HTMLElement) {
+    haptic('tap')
+    // Toggle off if already showing this task
+    if (previewTask?.slug === task.slug) {
+      clearHoverPreview()
+      return
+    }
+    clearHoverPreview()
+    hoverSlugRef.current = task.slug
+    const full = await readTask(task.slug, task.status)
+    if (full && hoverSlugRef.current === task.slug) {
+      setPreviewTask(full)
+      setPreviewRect(el.getBoundingClientRect())
+    }
+  }
+
+  // Clean up hover timer on unmount or close
+  useEffect(() => {
+    if (!open) clearHoverPreview()
+  }, [open])
 
   // Listen for open event
   useEffect(() => {
@@ -422,46 +542,66 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
             visibleTasks.map(task => {
               const isSelected = selected.has(task.slug)
               return (
-                <button
+                <div
                   key={task.slug}
-                  type="button"
-                  onClick={() => toggleTask(task.slug)}
                   className={cn(
-                    'w-full flex items-start gap-2.5 px-4 py-2 text-left transition-colors border-b border-border/20',
+                    'flex items-start border-b border-border/20 transition-colors',
                     'hover:bg-accent/5',
                     isSelected && 'bg-accent/10',
                   )}
+                  onMouseEnter={e => handleTaskMouseEnter(task, e.currentTarget)}
+                  onMouseLeave={handleTaskMouseLeave}
                 >
-                  {/* Checkbox */}
-                  <div
-                    className={cn(
-                      'w-4 h-4 rounded border flex items-center justify-center shrink-0 mt-0.5 transition-colors',
-                      isSelected ? 'border-accent bg-accent/20 text-accent' : 'border-border/50 text-transparent',
-                    )}
+                  <button
+                    type="button"
+                    onClick={() => toggleTask(task.slug)}
+                    className="flex-1 flex items-start gap-2.5 px-4 py-2 text-left min-w-0"
                   >
-                    {isSelected && <CheckSquare className="w-3 h-3" />}
-                  </div>
-
-                  {/* Task info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      {/* Priority dot */}
-                      {task.priority && (
-                        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', PRIORITY_DOT[task.priority] || '')} />
+                    {/* Checkbox */}
+                    <div
+                      className={cn(
+                        'w-4 h-4 rounded border flex items-center justify-center shrink-0 mt-0.5 transition-colors',
+                        isSelected ? 'border-accent bg-accent/20 text-accent' : 'border-border/50 text-transparent',
                       )}
-                      <span className="text-xs font-mono text-foreground truncate">{task.title}</span>
+                    >
+                      {isSelected && <CheckSquare className="w-3 h-3" />}
                     </div>
-                    {/* Tags + status */}
-                    <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                      <span className="text-[9px] font-mono text-muted-foreground/40">{task.status}</span>
-                      {task.tags.map(tag => (
-                        <span key={tag} className={cn('px-1 py-px text-[9px] font-mono border rounded', tagColor(tag))}>
-                          {tag}
-                        </span>
-                      ))}
+
+                    {/* Task info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        {task.priority && (
+                          <span
+                            className={cn('w-1.5 h-1.5 rounded-full shrink-0', PRIORITY_DOT[task.priority] || '')}
+                          />
+                        )}
+                        <span className="text-xs font-mono text-foreground truncate">{task.title}</span>
+                      </div>
+                      <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                        <span className="text-[9px] font-mono text-muted-foreground/40">{task.status}</span>
+                        {task.tags.map(tag => (
+                          <span
+                            key={tag}
+                            className={cn('px-1 py-px text-[9px] font-mono border rounded', tagColor(tag))}
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation()
+                      handleInfoClick(task, e.currentTarget)
+                    }}
+                    className="shrink-0 px-2 py-2.5 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+                    title="Preview task"
+                  >
+                    <Info className="w-3 h-3" />
+                  </button>
+                </div>
               )
             })
           )}
@@ -600,6 +740,7 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
           </div>
         </div>
       </DialogContent>
+      {previewTask && previewRect && <TaskPreviewPopover task={previewTask} anchorRect={previewRect} />}
     </Dialog>
   )
 })
