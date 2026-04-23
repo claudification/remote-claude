@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Claude Code Session Concentrator
+ * Claudwerk Broker
  * Aggregates sessions from multiple rclaude instances
  */
 
@@ -11,7 +11,7 @@ checkBunVersion()
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { extractProjectLabel } from '../shared/project-uri'
-import { DEFAULT_CONCENTRATOR_PORT } from '../shared/protocol'
+import { DEFAULT_BROKER_PORT } from '../shared/protocol'
 import { getOrAssign, initAddressBook, resolve } from './address-book'
 import { closeAnalyticsStore, initAnalyticsStore } from './analytics-store'
 import { getUser, initAuth, reloadState, validateSession } from './auth'
@@ -69,7 +69,7 @@ interface Args {
 
 function parseArgs(): Args {
   const args = process.argv.slice(2)
-  let port = DEFAULT_CONCENTRATOR_PORT
+  let port = DEFAULT_BROKER_PORT
   let apiPort: number | undefined
   let verbose = false
   let cacheDir: string | undefined
@@ -145,19 +145,19 @@ function parseArgs(): Args {
 
 function printHelp() {
   console.log(`
-concentrator - Claude Code Session Aggregator
+broker - Claudwerk Broker
 
 Receives session events from rclaude instances and provides a unified view.
 
 USAGE:
-  concentrator [OPTIONS]
+  broker [OPTIONS]
 
 OPTIONS:
-  -p, --port <port>      WebSocket port (default: ${DEFAULT_CONCENTRATOR_PORT})
+  -p, --port <port>      WebSocket port (default: ${DEFAULT_BROKER_PORT})
   --api-port <port>      REST API port (default: same as WebSocket)
   -v, --verbose          Enable verbose logging
   -w, --web-dir <dir>    Serve web dashboard from directory
-  --cache-dir <dir>      Session cache directory (default: ~/.cache/concentrator)
+  --cache-dir <dir>      Session cache directory (default: ~/.cache/broker)
   --clear-cache          Clear session cache and exit
   --no-persistence       Disable session persistence
   --allow-root <dir>     Add allowed filesystem root (repeatable)
@@ -168,7 +168,7 @@ OPTIONS:
 
 ENDPOINTS:
   WebSocket:
-    ws://localhost:${DEFAULT_CONCENTRATOR_PORT}/      Connect session
+    ws://localhost:${DEFAULT_BROKER_PORT}/      Connect session
 
   REST API:
     GET  /sessions                List all sessions
@@ -179,10 +179,10 @@ ENDPOINTS:
     GET  /health                  Health check
 
 EXAMPLES:
-  concentrator                   # Start on default port
-  concentrator -p 8080           # Start on port 8080
-  concentrator -v                # Start with verbose logging
-  concentrator --clear-cache     # Clear cached sessions
+  broker                   # Start on default port
+  broker -p 8080           # Start on port 8080
+  broker -v                # Start with verbose logging
+  broker --clear-cache     # Clear cached sessions
 `)
 }
 
@@ -247,7 +247,7 @@ async function main() {
   }
 
   // Initialize passkey auth
-  const authCacheDir = cacheDir || `${homeDir}/.cache/concentrator`
+  const authCacheDir = cacheDir || `${homeDir}/.cache/broker`
   const defaultOrigins = [`http://localhost:${port}`]
   initAuth({
     cacheDir: authCacheDir,
@@ -402,7 +402,7 @@ async function main() {
 
   // Write PID file so CLI can send signals
   if (cacheDir) {
-    const pidFile = join(cacheDir, 'concentrator.pid')
+    const pidFile = join(cacheDir, 'broker.pid')
     writeFileSync(pidFile, String(process.pid))
   }
 
@@ -539,7 +539,7 @@ async function main() {
           const wsUserName = getAuthenticatedUser(req) ?? undefined
           // Extract auth token for periodic expiry checks on the WS connection
           const cookieHeader = req.headers.get('cookie')
-          const tokenMatch = cookieHeader?.match(/concentrator-session=([^;]+)/)
+          const tokenMatch = cookieHeader?.match(/broker-session=([^;]+)/)
           const authToken = tokenMatch?.[1]
           // Load grants for permission enforcement on WS messages
           const wsUser = wsUserName ? getUser(wsUserName) : undefined

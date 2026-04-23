@@ -1,5 +1,5 @@
 /**
- * Voice streaming handlers: browser <-> Deepgram via concentrator relay.
+ * Voice streaming handlers: browser <-> Deepgram via broker relay.
  * Delegates to voice-stream.ts which manages the Deepgram WebSocket connection.
  */
 

@@ -15,7 +15,7 @@ const STEP_LABEL: Record<BootStep, string> = {
   wrapper_started: 'wrapper started',
   settings_merged: 'settings merged',
   mcp_prepared: 'mcp config prepared',
-  concentrator_connected: 'concentrator connected',
+  broker_connected: 'broker connected',
   claude_spawning: 'spawning claude',
   claude_started: 'claude started',
   awaiting_init: 'awaiting init',

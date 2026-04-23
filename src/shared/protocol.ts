@@ -1,14 +1,14 @@
 /**
  * WebSocket Protocol Types
- * Defines the message format between wrapper and concentrator
+ * Defines the message format between wrapper and broker
  */
 
 import type { SpawnRequest } from './spawn-schema'
 
-// Dashboard -> Concentrator: spawn request (WS equivalent of POST /api/spawn)
+// Dashboard -> Broker: spawn request (WS equivalent of POST /api/spawn)
 export type SpawnRequestMessage = { type: 'spawn_request' } & SpawnRequest
 
-// Concentrator -> Dashboard: ack for spawn_request (correlated by jobId)
+// Broker -> Dashboard: ack for spawn_request (correlated by jobId)
 export interface SpawnRequestAck {
   type: 'spawn_request_ack'
   ok: boolean
@@ -18,7 +18,7 @@ export interface SpawnRequestAck {
   error?: string
 }
 
-// Wrapper -> Concentrator messages
+// Wrapper -> Broker messages
 export interface HookEvent {
   type: 'hook'
   sessionId: string
@@ -44,7 +44,7 @@ export type BootStep =
   | 'wrapper_started'
   | 'settings_merged'
   | 'mcp_prepared'
-  | 'concentrator_connected'
+  | 'broker_connected'
   | 'claude_spawning'
   | 'claude_started'
   | 'awaiting_init'
@@ -86,7 +86,7 @@ export interface SessionEnd {
   endedAt: number
 }
 
-// Wrapper tells concentrator the Claude session ID changed (e.g. /clear)
+// Wrapper tells broker the Claude session ID changed (e.g. /clear)
 // Same wrapper, same PTY, just a new Claude session -- re-key without ending
 export interface SessionClear {
   type: 'session_clear'
@@ -103,7 +103,7 @@ export interface Heartbeat {
   timestamp: number
 }
 
-// Terminal streaming messages (browser <-> concentrator <-> rclaude)
+// Terminal streaming messages (browser <-> broker <-> rclaude)
 // All terminal messages route by conversationId (stable conversation identity)
 export interface TerminalAttach {
   type: 'terminal_attach'
@@ -148,7 +148,7 @@ export interface TasksUpdate {
   tasks: TaskInfo[]
 }
 
-// Transcript streaming: rclaude -> concentrator
+// Transcript streaming: rclaude -> broker
 export interface TranscriptEntries {
   type: 'transcript_entries'
   sessionId: string
@@ -369,7 +369,7 @@ export interface WrapperBoot {
   configuredModel?: string // the --model value passed to CC (CC strips [1m] from API responses)
 }
 
-/** Structured wrapper-side boot progress. Concentrator appends each one as a
+/** Structured wrapper-side boot progress. Broker appends each one as a
  *  TranscriptBootEntry and broadcasts it as a transcript update, so the user
  *  sees the boot timeline live. `raw` is optional -- present for events with
  *  a rich payload (init message, exit info). */
@@ -406,7 +406,7 @@ export type WrapperLaunchStep =
   | 'init_received' // CC reported a session id. raw: { session_id, model, tools, slash_commands, skills, agents, mcp_servers, plugins, ... }
   | 'rekeyed' // observeClaudeSessionId completed the rekey. detail: from -> to
   | 'ready' // launch settled; session usable
-  // Mid-session state changes -- concentrator emits these by diffing session_info
+  // Mid-session state changes -- broker emits these by diffing session_info
   // across turns. Phase is 'live' (not initial/reboot). Each gets its own launchId
   // so they render as separate cards in the transcript.
   | 'model_changed' // detail: "old -> new". raw: { from, to }
@@ -421,8 +421,8 @@ export type WrapperLaunchStep =
   | 'session_exit' // self-termination via exit_session MCP tool. raw: { status, message }
 
 /**
- * Wrapper -> concentrator -> dashboard: CC process launch lifecycle event.
- * Separate from `LaunchProgressEvent` (concentrator-initiated spawn jobs):
+ * Wrapper -> broker -> dashboard: CC process launch lifecycle event.
+ * Separate from `LaunchProgressEvent` (broker-initiated spawn jobs):
  * WrapperLaunchEvent is emitted by the wrapper itself and covers its local
  * CC process launching, re-launching on /clear, and settling on a session id.
  */
@@ -509,7 +509,7 @@ export interface SessionInfoUpdate {
   fastModeState: string
 }
 
-// Backend-agnostic session status signal (wrapper -> concentrator)
+// Backend-agnostic session status signal (wrapper -> broker)
 // Works for any backend (headless stream-json, PTY, future transports).
 // Fired when the wrapper detects work starting/stopping, independent of CC hooks.
 export interface SessionStatusSignal {
@@ -563,14 +563,14 @@ export interface ClipboardCapture {
   timestamp: number
 }
 
-// Concentrator -> Wrapper messages
+// Broker -> Wrapper messages
 export interface Ack {
   type: 'ack'
   eventId: string
   origins?: string[]
 }
 
-export interface ConcentratorError {
+export interface BrokerError {
   type: 'error'
   message: string
 }
@@ -582,7 +582,7 @@ export interface SendInput {
   crDelay?: number // carriage return delay in ms (dashboard setting, optional)
 }
 
-// Transcript streaming: concentrator -> rclaude
+// Transcript streaming: broker -> rclaude
 export interface TranscriptRequest {
   type: 'transcript_request'
   sessionId: string
@@ -736,7 +736,7 @@ export interface DialogDismissMessage {
   dialogId: string
 }
 
-// Plan approval relay (headless: ExitPlanMode -> wrapper -> concentrator -> dashboard -> back)
+// Plan approval relay (headless: ExitPlanMode -> wrapper -> broker -> dashboard -> back)
 export interface PlanApprovalRequest {
   type: 'plan_approval'
   sessionId: string
@@ -782,9 +782,9 @@ export interface PermissionResponse {
   toolUseId?: string
 }
 
-export type ConcentratorMessage =
+export type BrokerMessage =
   | Ack
-  | ConcentratorError
+  | BrokerError
   | SendInput
   | TerminalAttach
   | TerminalDetach
@@ -852,7 +852,7 @@ export interface SessionControlResult {
   error?: string
 }
 
-/** Concentrator -> wrapper: execute a control verb against the local CC. */
+/** Broker -> wrapper: execute a control verb against the local CC. */
 export interface ControlDeliver {
   type: 'control'
   action: SessionControlAction
@@ -1065,14 +1065,14 @@ export interface MonitorInfo {
   eventCount: number
 }
 
-// Monitor lifecycle events (wrapper -> concentrator)
+// Monitor lifecycle events (wrapper -> broker)
 export interface MonitorUpdate {
   type: 'monitor_update'
   sessionId: string
   monitor: MonitorInfo
 }
 
-// Scheduled task fire event (wrapper -> concentrator, distinct from transcript entry)
+// Scheduled task fire event (wrapper -> broker, distinct from transcript entry)
 export interface ScheduledTaskFire {
   type: 'scheduled_task_fire'
   sessionId: string
@@ -1111,7 +1111,7 @@ export interface FileInfo {
   modifiedAt: number
 }
 
-// Session state in concentrator
+// Session state in broker
 export interface TaskInfo {
   id: string
   subject: string
@@ -1244,7 +1244,7 @@ export interface LaunchConfig {
 
 // ─── Launch Jobs (request-scoped event channels for spawn/revive) ────
 
-/** Agent -> Concentrator: progress event during spawn/revive, tagged with jobId */
+/** Agent -> Broker: progress event during spawn/revive, tagged with jobId */
 export interface LaunchLog {
   type: 'launch_log'
   jobId: string
@@ -1254,7 +1254,7 @@ export interface LaunchLog {
   t: number
 }
 
-/** Structured launch lifecycle step (concentrator -> dashboard, first-class) */
+/** Structured launch lifecycle step (broker -> dashboard, first-class) */
 export type LaunchStep =
   | 'job_created'
   | 'spawn_sent'
@@ -1267,7 +1267,7 @@ export type LaunchStep =
   | 'failed'
 
 /**
- * Concentrator -> Dashboard: first-class launch progress event.
+ * Broker -> Dashboard: first-class launch progress event.
  * Emitted at each lifecycle step of a spawn/revive job so clients (dashboard,
  * MCP callers) see real progress instead of silence.
  */
@@ -1284,7 +1284,7 @@ export interface LaunchProgressEvent {
   error?: string
 }
 
-/** Concentrator -> Dashboard: launch job completed (session connected) */
+/** Broker -> Dashboard: launch job completed (session connected) */
 export interface JobComplete {
   type: 'job_complete'
   jobId: string
@@ -1292,14 +1292,14 @@ export interface JobComplete {
   conversationId: string
 }
 
-/** Concentrator -> Dashboard: launch job failed */
+/** Broker -> Dashboard: launch job failed */
 export interface JobFailed {
   type: 'job_failed'
   jobId: string
   error: string
 }
 
-// Sentinel -> Concentrator messages
+// Sentinel -> Broker messages
 export interface SentinelIdentify {
   type: 'sentinel_identify'
   machineId?: string // short fingerprint (truncated SHA-256 of platform UUID/machine-id)
@@ -1378,12 +1378,12 @@ export type SentinelMessage =
   | UsageUpdate
   | LaunchLog
 
-// Concentrator -> Sentinel messages
+// Broker -> Sentinel messages
 export interface ReviveSession {
   type: 'revive'
   sessionId: string
   project: string
-  conversationId: string // pre-assigned conversationId so concentrator can correlate the incoming connection
+  conversationId: string // pre-assigned conversationId so broker can correlate the incoming connection
   jobId?: string // launch job correlation ID for progress events
   adHocWorktree?: string // restore worktree context on revive (RCLAUDE_WORKTREE env)
   env?: Record<string, string> // custom env vars forwarded to claude process
@@ -1466,7 +1466,7 @@ export interface SentinelStatus {
   connected: boolean
 }
 
-// Session summary: concentrator -> dashboard wire format
+// Session summary: broker -> dashboard wire format
 export interface SessionSummary {
   id: string
   project: string
@@ -1548,7 +1548,7 @@ export interface SessionSummary {
   recap?: Session['recap']
 }
 
-// Subscription channels (dashboard <-> concentrator pub/sub)
+// Subscription channels (dashboard <-> broker pub/sub)
 export type SubscriptionChannel =
   | 'session:events'
   | 'session:transcript'
@@ -1556,7 +1556,7 @@ export type SubscriptionChannel =
   | 'session:bg_output'
   | 'session:subagent_transcript'
 
-// Dashboard -> Concentrator: channel subscription management
+// Dashboard -> Broker: channel subscription management
 export interface ChannelSubscribe {
   type: 'channel_subscribe'
   channel: SubscriptionChannel
@@ -1575,7 +1575,7 @@ export interface ChannelUnsubscribeAll {
   type: 'channel_unsubscribe_all'
 }
 
-// Concentrator -> Dashboard: subscription acknowledgment
+// Broker -> Dashboard: subscription acknowledgment
 export interface ChannelAck {
   type: 'channel_ack'
   channel: SubscriptionChannel
@@ -1626,7 +1626,7 @@ export interface SubscriptionsDiag {
 
 // Configuration
 export const DEFAULT_BROKER_URL = 'ws://localhost:9999'
-export const DEFAULT_CONCENTRATOR_PORT = 9999
+export const DEFAULT_BROKER_PORT = 9999
 export const HEARTBEAT_INTERVAL_MS = 30000
 // Session status is driven by hooks (active/idle/ended), no configurable timeout
 // Server evaluates idle status - clients trust session.status

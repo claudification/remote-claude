@@ -135,7 +135,7 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
           return new Response('ok', { status: 200 })
         }
 
-        // Notify endpoint: POST /notify - send push notification via concentrator
+        // Notify endpoint: POST /notify - send push notification via broker
         if (req.method === 'POST' && url.pathname === '/notify') {
           try {
             const body = (await req.json()) as Record<string, unknown>

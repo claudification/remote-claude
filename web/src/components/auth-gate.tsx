@@ -273,7 +273,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <div className="space-y-4 text-xs text-muted-foreground">
             <p>No passkeys registered. Create an invite via CLI:</p>
             <pre className="bg-muted/30 p-3 text-foreground overflow-x-auto">
-              {'concentrator-cli create-invite --name yourname'}
+              {'broker-cli create-invite --name yourname'}
             </pre>
             <p>Then open the invite link, or paste it below:</p>
           </div>

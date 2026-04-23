@@ -467,7 +467,7 @@ function parseArgs() {
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
-    if (arg === '--concentrator') {
+    if (arg === '--broker') {
       brokerUrl = args[++i] || DEFAULT_BROKER_URL
     } else if (arg === '--secret') {
       secret = args[++i]
@@ -502,7 +502,7 @@ USAGE:
   sentinel [OPTIONS]
 
 OPTIONS:
-  --concentrator <url>   Concentrator WebSocket URL (default: ${DEFAULT_BROKER_URL})
+  --broker <url>   Broker WebSocket URL (default: ${DEFAULT_BROKER_URL})
   --secret <s>           Shared secret (or RCLAUDE_SECRET env)
   --revive-script <path> Path to revive-session.sh (default: auto-detected)
   --spawn-root <path>    Root directory for relative spawn paths (default: $HOME)

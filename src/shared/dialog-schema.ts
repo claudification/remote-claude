@@ -186,7 +186,7 @@ export interface DialogResult {
 
 // ─── WS Message Types ──────────────────────────────────────────────
 
-/** Wrapper -> Concentrator: show dialog to dashboard */
+/** Wrapper -> Broker: show dialog to dashboard */
 export interface DialogShow {
   type: 'dialog_show'
   sessionId: string
@@ -194,7 +194,7 @@ export interface DialogShow {
   layout: DialogLayout
 }
 
-/** Dashboard -> Concentrator -> Wrapper: user submitted/cancelled/timed out */
+/** Dashboard -> Broker -> Wrapper: user submitted/cancelled/timed out */
 export interface DialogResponse {
   type: 'dialog_result'
   sessionId: string
@@ -202,7 +202,7 @@ export interface DialogResponse {
   result: DialogResult
 }
 
-/** Wrapper -> Concentrator -> Dashboard: dismiss active dialog */
+/** Wrapper -> Broker -> Dashboard: dismiss active dialog */
 export interface DialogDismiss {
   type: 'dialog_dismiss'
   sessionId: string

@@ -10,7 +10,7 @@ import type {
   BgTaskOutput,
   BootEvent,
   BootStep,
-  ConcentratorMessage,
+  BrokerMessage,
   FileResponse,
   Heartbeat,
   HookEvent,
@@ -130,7 +130,7 @@ export interface WsClientOptions {
   onConfigGet?: (requestId: string) => void
   onConfigSet?: (requestId: string, config: import('../shared/protocol').RclaudePermissionConfig) => void
   /**
-   * Control verb delivered by concentrator (dashboard self-control or inter-session MCP).
+   * Control verb delivered by broker (dashboard self-control or inter-session MCP).
    * Backend-specific dispatch lives in the wrapper -- this callback is just the entry point.
    */
   onControl?: (
@@ -160,7 +160,7 @@ export interface WsClient {
   /** Emit a structured boot-phase event. Queued if not yet connected. */
   sendBootEvent: (step: BootStep, detail?: string, raw?: unknown) => void
   /** Called once the real CC session id is known. Sends `meta` (so the
-   *  concentrator can resume/create the real session) and `session_promote`
+   *  broker can resume/create the real session) and `session_promote`
    *  so the booting entry gets merged into the real session. */
   setSessionId: (sessionId: string, source: 'stream_json' | 'hook') => void
   close: () => void
@@ -374,7 +374,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
 
       ws.onmessage = event => {
         try {
-          const message = JSON.parse(event.data as string) as ConcentratorMessage
+          const message = JSON.parse(event.data as string) as BrokerMessage
           if (process.env.RCLAUDE_SHOW_WEBSOCKET_MESSAGES) {
             const m = message as unknown as Record<string, unknown>
             const summary = message.type === 'input' ? `input: "${m.input}"` : message.type
@@ -492,7 +492,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
                 onDialogKeepalive?.(m.dialogId as string)
                 break
               }
-              // Inter-session send result (not in formal ConcentratorMessage type)
+              // Inter-session send result (not in formal BrokerMessage type)
               if (msgType === 'channel_send_result') {
                 onChannelSendResult?.(message)
                 break

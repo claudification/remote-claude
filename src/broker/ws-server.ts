@@ -5,7 +5,7 @@
 
 import type { Server, ServerWebSocket } from 'bun'
 import { parseProjectUri } from '../shared/project-uri'
-import type { Ack, AgentHostMessage, ConcentratorError, HookEvent, SessionEnd, SessionMeta } from '../shared/protocol'
+import type { Ack, AgentHostMessage, BrokerError, HookEvent, SessionEnd, SessionMeta } from '../shared/protocol'
 import type { SessionStore } from './session-store'
 
 interface WsData {
@@ -23,7 +23,7 @@ export interface WsServerOptions {
 type WsServer = Server<WsData>
 
 /**
- * Create WebSocket server for concentrator
+ * Create WebSocket server for broker
  */
 export function createWsServer(options: WsServerOptions): WsServer {
   const { port, sessionStore, onSessionStart, onSessionEnd, onHookEvent } = options
@@ -116,7 +116,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
             }
           }
         } catch (error) {
-          const errorMsg: ConcentratorError = {
+          const errorMsg: BrokerError = {
             type: 'error',
             message: `Failed to process message: ${error}`,
           }

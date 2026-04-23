@@ -388,7 +388,7 @@ export function scanForBgTasks(ctx: AgentHostContext, entries: TranscriptEntry[]
  * Re-send the entire transcript from the JSONL file.
  * Used on (re)connect to repopulate the broker's in-memory cache
  * after a restart. Headless mode doesn't use the file watcher, so this
- * is the only way to recover transcript after concentrator restarts.
+ * is the only way to recover transcript after broker restarts.
  */
 export function resendTranscriptFromFile(ctx: AgentHostContext) {
   const path = ctx.parentTranscriptPath

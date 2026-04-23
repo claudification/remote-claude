@@ -2,8 +2,8 @@
  * Handlers for .rclaude/rclaude.json config read/write via the wrapper.
  *
  * Follows the same pattern as file_request/file_save:
- *   dashboard -> concentrator -> wrapper (by project) -> filesystem
- *   wrapper response -> concentrator -> broadcastScoped to dashboard
+ *   dashboard -> broker -> wrapper (by project) -> filesystem
+ *   wrapper response -> broker -> broadcastScoped to dashboard
  *
  * After a successful save, broadcasts notify_config_updated to all
  * wrappers at the target project so they hot-reload permission rules.

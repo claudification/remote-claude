@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * rclaude - Claude Code Session Wrapper
- * Wraps claude CLI with hook injection and concentrator forwarding
+ * Wraps claude CLI with hook injection and broker forwarding
  */
 
 import { checkBunVersion } from '../shared/bun-version'
@@ -140,9 +140,9 @@ function wsToHttpUrl(url: string): string {
 }
 
 /**
- * Check if concentrator is running
+ * Check if broker is running
  */
-async function isConcentratorReady(url: string): Promise<boolean> {
+async function isBrokerReady(url: string): Promise<boolean> {
   try {
     const httpUrl = wsToHttpUrl(url)
     const healthUrl = `${httpUrl}/health`
@@ -199,15 +199,15 @@ function printHelp() {
   console.log(`
 rclaude - Claude Code Session Wrapper
 
-Wraps the claude CLI with hook injection and session forwarding to a concentrator server.
+Wraps the claude CLI with hook injection and session forwarding to a broker server.
 
 USAGE:
   rclaude [OPTIONS] [CLAUDE_ARGS...]
 
 OPTIONS:
-  --concentrator <url>   Concentrator WebSocket URL (default: ${DEFAULT_BROKER_URL})
-  --rclaude-secret <s>   Shared secret for concentrator auth (or RCLAUDE_SECRET env)
-  --no-concentrator      Run without forwarding to broker
+  --broker <url>   Broker WebSocket URL (default: ${DEFAULT_BROKER_URL})
+  --rclaude-secret <s>   Shared secret for broker auth (or RCLAUDE_SECRET env)
+  --no-broker      Run without forwarding to broker
   --headless             Use stream-json backend (default, no terminal, structured I/O)
   --no-headless / --pty  Use PTY backend (interactive terminal mode)
   --no-terminal          Disable remote terminal capability
@@ -218,8 +218,8 @@ OPTIONS:
   --rclaude-help         Show this help message
 
 ENVIRONMENT:
-  RCLAUDE_SECRET         Shared secret for concentrator auth
-  RCLAUDE_BROKER   Concentrator WebSocket URL
+  RCLAUDE_SECRET         Shared secret for broker auth
+  RCLAUDE_BROKER   Broker WebSocket URL
   RCLAUDE_CHANNELS=0     Disable MCP channel (enabled by default)
   RCLAUDE_DEBUG=1        Enable debug logging to /tmp/rclaude-debug.log
 
@@ -230,8 +230,8 @@ EXAMPLES:
   rclaude --resume                  # Resume previous session
   rclaude -p "build X"              # Non-interactive prompt
   rclaude --help                    # Show claude's help
-  rclaude --no-concentrator         # Run without concentrator
-  rclaude --concentrator ws://myserver:9999
+  rclaude --no-broker         # Run without broker
+  rclaude --broker ws://myserver:9999
 `)
 }
 
@@ -297,7 +297,7 @@ async function main() {
   const args = process.argv.slice(2)
 
   // Detect Claude CLI subcommands and pass them through directly — these are
-  // management commands that don't need the rclaude wrapper (concentrator, MCP,
+  // management commands that don't need the rclaude wrapper (broker, MCP,
   // system prompt, PTY, etc.). Passing them through the wrapper causes spurious
   // errors like "unknown option '--append-system-prompt-file'".
   const firstNonFlag = args.find(a => !a.startsWith('-'))
@@ -314,7 +314,7 @@ async function main() {
   let brokerUrl =
     process.env.CLAUDWERK_BROKER ?? process.env.RCLAUDE_BROKER ?? process.env.RCLAUDE_CONCENTRATOR ?? DEFAULT_BROKER_URL
   let brokerSecret = process.env.CLAUDWERK_SECRET ?? process.env.RCLAUDE_SECRET
-  let noConcentrator = false
+  let noBroker = false
   let noTerminal = false
   let headless = process.env.RCLAUDE_HEADLESS === '1' // opt-in until input routing is solid
   let channelEnabled = process.env.RCLAUDE_CHANNELS !== '0'
@@ -335,8 +335,8 @@ async function main() {
   const claudeArgs: string[] = []
   let configuredModel: string | undefined
 
-  debug(`Concentrator URL: ${brokerUrl} (source: ${process.env.RCLAUDE_BROKER ? 'env' : 'default'})`)
-  debug(`Concentrator secret: ${brokerSecret ? 'set' : 'NOT SET'}`)
+  debug(`Broker URL: ${brokerUrl} (source: ${process.env.RCLAUDE_BROKER ? 'env' : 'default'})`)
+  debug(`Broker secret: ${brokerSecret ? 'set' : 'NOT SET'}`)
   if (isAdHoc) {
     debug(
       `[ad-hoc] Mode: taskId=${adHocTaskId || 'none'} worktree=${adHocWorktree || 'none'} promptFile=${process.env.RCLAUDE_INITIAL_PROMPT_FILE || 'none'} channels=${channelEnabled}`,
@@ -356,12 +356,12 @@ async function main() {
       const result = await checkForUpdate()
       console.log(formatUpdateResult(result, detectClaudeVersion()))
       process.exit(0)
-    } else if (arg === '--concentrator') {
+    } else if (arg === '--broker') {
       brokerUrl = args[++i] || DEFAULT_BROKER_URL
     } else if (arg === '--rclaude-secret') {
       brokerSecret = args[++i]
-    } else if (arg === '--no-concentrator') {
-      noConcentrator = true
+    } else if (arg === '--no-broker') {
+      noBroker = true
     } else if (arg === '--no-terminal') {
       noTerminal = true
     } else if (arg === '--headless') {
@@ -411,12 +411,12 @@ async function main() {
     setDebugStderr(true) // no PTY to corrupt, stderr is safe
   }
 
-  // Check if concentrator is reachable (unless --no-concentrator)
-  if (!noConcentrator && !(await isConcentratorReady(brokerUrl))) {
-    debug('Concentrator not reachable - running without it')
-    noConcentrator = true
+  // Check if broker is reachable (unless --no-broker)
+  if (!noBroker && !(await isBrokerReady(brokerUrl))) {
+    debug('Broker not reachable - running without it')
+    noBroker = true
   }
-  debug(`Concentrator: ${noConcentrator ? 'DISABLED' : 'ENABLED'} (url: ${brokerUrl})`)
+  debug(`Broker: ${noBroker ? 'DISABLED' : 'ENABLED'} (url: ${brokerUrl})`)
 
   const sessionId =
     process.env.RCLAUDE_SESSION_ID ||
@@ -428,7 +428,7 @@ async function main() {
   const rclaudeDir = ensureRclaudeDir(cwd)
   const permissionRules = createRulesEngine(cwd)
 
-  // Detect Claude Code version and auth info early - needed for settings merge and concentrator
+  // Detect Claude Code version and auth info early - needed for settings merge and broker
   const claudeVersion = detectClaudeVersion()
   setClaudeCodeVersion(claudeVersion)
   setDialogCwd(cwd)
@@ -443,7 +443,7 @@ async function main() {
     cwd,
     headless,
     channelEnabled,
-    noConcentrator,
+    noBroker,
 
     // Mutable session state
     claudeSessionId: null,
@@ -493,7 +493,7 @@ async function main() {
     flushDiag: null!,
     debug,
     // biome-ignore lint/style/noNonNullAssertion: deferred init, assigned immediately after ctx is created
-    connectToConcentrator: null!,
+    connectToBroker: null!,
     // biome-ignore lint/style/noNonNullAssertion: deferred init, assigned immediately after ctx is created
     startTaskWatching: null!,
     // biome-ignore lint/style/noNonNullAssertion: deferred init, assigned immediately after ctx is created
@@ -510,7 +510,7 @@ async function main() {
       sendTranscriptEntriesChunked(ctx, entries, isInitial, agentId),
 
     // Upload blob to broker blob store, returns URL or null
-    uploadBlob: noConcentrator
+    uploadBlob: noBroker
       ? null
       : async (data: Uint8Array, mediaType: string) => {
           const httpUrl = wsToHttpUrl(brokerUrl)
@@ -548,7 +548,7 @@ async function main() {
   function diag(type: string, msg: string, args?: unknown) {
     debug(`[diag] ${type}: ${msg}${args ? ` ${JSON.stringify(args)}` : ''}`)
     if (ctx.diagBuffer.length >= MAX_DIAG_BUFFER) {
-      // Drop oldest entries when buffer is full (concentrator unreachable)
+      // Drop oldest entries when buffer is full (broker unreachable)
       ctx.diagBuffer.splice(0, Math.floor(MAX_DIAG_BUFFER / 4))
       debug(`[diag] Buffer full, dropped ${Math.floor(MAX_DIAG_BUFFER / 4)} oldest entries`)
     }
@@ -719,8 +719,8 @@ async function main() {
   ctx.startProjectWatching = startProjectWatching
   ctx.sendProjectChanged = sendProjectChanged
 
-  function connectToConcentrator(sessionId: string | null) {
-    if (noConcentrator || ctx.wsClient) return
+  function connectToBroker(sessionId: string | null) {
+    if (noBroker || ctx.wsClient) return
 
     // Build capabilities list -- boot_stream advertises that we send early
     // boot events before the CC session id is known.
@@ -889,12 +889,12 @@ async function main() {
           } as AgentHostMessage)
           ctx.pendingSessionName = undefined
         }
-        // Re-send transcript from JSONL file (repopulates concentrator cache after restart)
+        // Re-send transcript from JSONL file (repopulates broker cache after restart)
         if (headless) resendTranscriptFromFile(ctx)
         // Replay buffered launch events so late subscribers see the full timeline.
         replayLaunchEvents(ctx)
         // Replay every outstanding user interaction (permission / ask / dialog / plan).
-        // Concentrator in-memory pending* state is lost on restart; the wrapper is
+        // Broker in-memory pending* state is lost on restart; the wrapper is
         // the authoritative holder, so a reconnect rehydrates the broker.
         replayInteractions(ctx)
         // Start polling task files + watching task notes
@@ -905,7 +905,7 @@ async function main() {
         debug('Disconnected from broker')
       },
       onError(error) {
-        debug(`Concentrator error: ${error.message}`)
+        debug(`Broker error: ${error.message}`)
       },
       onInput(input, crDelay) {
         // Headless mode: typed methods, no PTY handler
@@ -1079,7 +1079,7 @@ async function main() {
         handleFileEditorMessage(ctx, msg)
       },
       onAck() {
-        // Concentrator has processed our meta message and registered the socket.
+        // Broker has processed our meta message and registered the socket.
         // This is the correct signal to resend state (not an arbitrary timeout).
         if (ctx.transcriptWatcher) {
           debug('Ack received, re-sending transcript')
@@ -1134,7 +1134,7 @@ async function main() {
         }
       },
       onTranscriptKick() {
-        // Concentrator detected we have events but no transcript - retry the watcher
+        // Broker detected we have events but no transcript - retry the watcher
         if (!ctx.transcriptWatcher && ctx.parentTranscriptPath) {
           debug(`Transcript kick received - retrying watcher for: ${ctx.parentTranscriptPath}`)
           diag('info', 'Transcript kick - retrying watcher', { path: ctx.parentTranscriptPath })
@@ -1380,8 +1380,8 @@ async function main() {
     })
   }
 
-  // Wire up connectToConcentrator on context
-  ctx.connectToConcentrator = connectToConcentrator
+  // Wire up connectToBroker on context
+  ctx.connectToBroker = connectToBroker
 
   let devChannelConfirmed = false
   const osc52Parser = new Osc52Parser()
@@ -1401,7 +1401,7 @@ async function main() {
           debug(`[channel] share_file: path outside CWD: ${filePath}`)
           return null
         }
-        const httpUrl = noConcentrator ? null : wsToHttpUrl(brokerUrl)
+        const httpUrl = noBroker ? null : wsToHttpUrl(brokerUrl)
         if (!httpUrl) return null
         try {
           const file = Bun.file(filePath)
@@ -1606,7 +1606,7 @@ async function main() {
           ctx.wsClient?.send({ type: 'unsubscribe_job', jobId } as unknown as AgentHostMessage)
         }
 
-        // Step 2: Await rendezvous (concentrator sends spawn_ready/spawn_timeout when session connects)
+        // Step 2: Await rendezvous (broker sends spawn_ready/spawn_timeout when session connects)
         if (spawnResult.conversationId) {
           try {
             const wid = spawnResult.conversationId
@@ -1776,7 +1776,7 @@ async function main() {
     | null = null
   let pendingSpawnResult: ((result: { ok: boolean; error?: string; conversationId?: string }) => void) | null = null
   // Keyed by jobId so concurrent get_spawn_diagnostics calls don't trample each
-  // other. Concentrator replies include the jobId so we can route back.
+  // other. Broker replies include the jobId so we can route back.
   const pendingSpawnDiagnostics = new Map<
     string,
     (result: { ok: boolean; jobId?: string; error?: string; diagnostics?: Record<string, unknown> }) => void
@@ -1834,7 +1834,7 @@ async function main() {
   // attached later via ctx.wsClient.setSessionId(). Launched under a
   // try/catch so a flaky WS never blocks the CC spawn.
   try {
-    ctx.connectToConcentrator(null)
+    ctx.connectToBroker(null)
     ctx.wsClient?.sendBootEvent('wrapper_started', `cwd=${cwd} headless=${headless}`)
     ctx.wsClient?.sendBootEvent('settings_merged', settingsPath)
   } catch (err) {
@@ -1858,7 +1858,7 @@ async function main() {
 
   // Spawn claude with PTY
   // Convert WS URL to HTTP for tools/scripts that need to call the broker REST API
-  const concentratorHttpUrl = noConcentrator ? undefined : wsToHttpUrl(brokerUrl)
+  const brokerHttpUrl = noBroker ? undefined : wsToHttpUrl(brokerUrl)
 
   // Always inject MCP config (tools: notify, share_file, list_sessions, send_message, toggle_plan_mode)
   // Channel input (--dangerously-load-development-channels) only when channels enabled
@@ -1927,7 +1927,7 @@ async function main() {
       rclaudeDir,
       claudeVersion,
       mcpConfigPath,
-      brokerUrl: concentratorHttpUrl,
+      brokerUrl: brokerHttpUrl,
       brokerSecret,
       spawnStreamClaude,
       cleanup,
@@ -1979,7 +1979,7 @@ async function main() {
         settingsPath,
         sessionId: conversationId,
         localServerPort,
-        brokerUrl: concentratorHttpUrl,
+        brokerUrl: brokerHttpUrl,
         brokerSecret,
         env: Object.keys(customEnv).length ? customEnv : undefined,
         onData(data) {

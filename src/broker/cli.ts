@@ -5,7 +5,7 @@ import { checkBunVersion } from '../shared/bun-version'
 checkBunVersion()
 
 /**
- * Concentrator CLI - Passkey management
+ * Broker CLI - Passkey management
  *
  * Commands:
  *   create-invite --name <name>   Create a one-time passkey invite link
@@ -34,7 +34,7 @@ import type { UserGrant } from './permissions'
 
 /** Send SIGHUP to running server so it reloads auth state from disk */
 function notifyServer(cacheDir: string): void {
-  const pidFile = join(cacheDir, 'concentrator.pid')
+  const pidFile = join(cacheDir, 'broker.pid')
   try {
     if (!existsSync(pidFile)) {
       console.log('Note: No running server found - changes saved to disk.')
@@ -51,11 +51,11 @@ function notifyServer(cacheDir: string): void {
 // Docker container uses /data/cache; detect it automatically
 const DEFAULT_CACHE_DIR = existsSync('/data/cache')
   ? '/data/cache'
-  : join(process.env.HOME || process.env.USERPROFILE || '/root', '.cache', 'concentrator')
+  : join(process.env.HOME || process.env.USERPROFILE || '/root', '.cache', 'broker')
 
 function printUsage(): void {
   console.log(`
-concentrator-cli - User & passkey management for Claude Concentrator
+broker-cli - User & passkey management for Claudwerk Broker
 
 COMMANDS:
   create-invite --name <name> [--grant "scope:perm,perm"]  Create invite with grants
@@ -89,8 +89,8 @@ SERVER ROLES:
   user-editor                              Can manage users via API/dashboard
 
 OPTIONS:
-  --cache-dir <dir>    Auth storage directory (default: ~/.cache/concentrator)
-  --url <url>          Concentrator URL for invite links (default: http://localhost:9999)
+  --cache-dir <dir>    Auth storage directory (default: ~/.cache/broker)
+  --url <url>          Broker URL for invite links (default: http://localhost:9999)
   -h, --help           Show this help
 `)
 }

@@ -367,7 +367,7 @@ export function initAnalyticsStore(cacheDir: string): void {
     console.log(`[analytics] Store initialized: ${dbPath} (${count} turns)`)
   } catch (err) {
     console.error('[analytics] Failed to initialize store:', err)
-    // Analytics failure is non-fatal -- concentrator continues without it
+    // Analytics failure is non-fatal -- broker continues without it
     db = null
   }
 }

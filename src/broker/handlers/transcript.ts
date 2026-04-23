@@ -1,7 +1,7 @@
 /**
  * Transcript and data streaming handlers.
  * Handles transcript entries, subagent transcripts, tasks, bg task output,
- * and diagnostic entries from rclaude -> concentrator cache -> dashboard.
+ * and diagnostic entries from rclaude -> broker cache -> dashboard.
  */
 
 import { randomUUID } from 'node:crypto'
@@ -51,7 +51,7 @@ function setDiff(prev: string[], next: string[]): { added: string[]; removed: st
 /**
  * Compare two session_info snapshots and return structured launch entries for
  * every meaningful change. The wrapper sends raw session_info every turn; the
- * concentrator is the single brain that decides "something changed, notify
+ * broker is the single brain that decides "something changed, notify
  * the user." Each change becomes its own TranscriptLaunchEntry (phase: 'live',
  * fresh launchId) so they render as separate cards.
  */

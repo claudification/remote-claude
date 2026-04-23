@@ -1,7 +1,7 @@
 /**
  * useVoiceRecording - Shared voice recording hook.
  *
- * Handles mic access, MediaRecorder, WS streaming to Deepgram via concentrator,
+ * Handles mic access, MediaRecorder, WS streaming to Deepgram via broker,
  * transcript parsing, and refinement flow. Used by voice-fab (mobile),
  * voice-key (desktop push-to-talk), and voice-overlay (input bar mic button).
  *

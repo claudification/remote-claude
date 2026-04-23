@@ -95,7 +95,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
           })
         }
         // Single entry point: observeClaudeSessionId classifies this as
-        // boot / rekey / confirm and performs the right concentrator action.
+        // boot / rekey / confirm and performs the right broker action.
         // Safe to call redundantly -- same-id calls return 'confirm' with no
         // side effects. The SessionStart hook calls it too in non-bare
         // headless mode; whoever fires first does the work.
@@ -368,7 +368,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
 
         // Register in the outstandingInteractions registry. wsClient.send()
         // handles offline queuing, and onConnected replays the registry so a
-        // concentrator restart between now and the user's response is harmless.
+        // broker restart between now and the user's response is harmless.
         sendInteraction(ctx, 'plan_approval', request.requestId, {
           type: 'plan_approval',
           sessionId,
@@ -416,7 +416,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       }
 
       // Forward to broker for dashboard handling. Registry holds the
-      // payload so onConnected can replay after a concentrator restart.
+      // payload so onConnected can replay after a broker restart.
       sendInteraction(ctx, 'permission_request', request.requestId, {
         type: 'permission_request',
         sessionId: ctx.claudeSessionId || ctx.conversationId,

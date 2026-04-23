@@ -94,7 +94,7 @@ interface SessionsState {
    *  Reset semantics:
    *    - `sync_stale` from server -> full clear via connectSeq bump, then the
    *      initial transcript_entries (isInitial=true) reseeds from max(seqs).
-   *    - Server concentrator restart -> SYNC_EPOCH changes -> `sync_stale`
+   *    - Server broker restart -> SYNC_EPOCH changes -> `sync_stale`
    *      path above handles it.
    *    - Rekey on server -> sessionId changes -> old lastAppliedSeq[oldId]
    *      goes stale harmlessly (new sessionId entry in this map starts fresh). */

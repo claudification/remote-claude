@@ -2,7 +2,7 @@
  * Path Guard - Validates file paths against a session's CWD before forwarding to wrappers.
  *
  * Uses path.resolve for normalization (handles ../, ./, etc) without filesystem access.
- * The concentrator doesn't have the wrapper's filesystem - this is pure string validation.
+ * The broker doesn't have the wrapper's filesystem - this is pure string validation.
  */
 
 import { resolve } from 'node:path'

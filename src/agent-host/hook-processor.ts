@@ -1,7 +1,7 @@
 /**
  * Hook Processor
  * Handles all hook events from Claude Code (SessionStart, SubagentStart/Stop, etc.)
- * and dispatches to the appropriate state updates, watchers, and concentrator forwarding.
+ * and dispatches to the appropriate state updates, watchers, and broker forwarding.
  */
 
 import { existsSync } from 'node:fs'
@@ -57,7 +57,7 @@ export function processHookEvent(ctx: AgentHostContext, event: HookEvent) {
       }
 
       // Single entry point: observeClaudeSessionId classifies this as
-      // boot / rekey / confirm and performs the right concentrator action.
+      // boot / rekey / confirm and performs the right broker action.
       // Safe to call redundantly -- stream-json onInit calls it too; whoever
       // fires first does the work.
       const transition = observeClaudeSessionId(ctx, newSessionId, 'hook', newModel)

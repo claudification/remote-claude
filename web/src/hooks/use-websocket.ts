@@ -364,7 +364,7 @@ function processMessage(msg: DashboardMessage) {
           console.log(
             `[sync] session_update: REKEY ${prevId.slice(0, 8)} -> ${sessionId.slice(0, 8)} status=${session.status}`,
           )
-          // Delay: concentrator processes rekey and re-receives transcript from rclaude.
+          // Delay: broker processes rekey and re-receives transcript from rclaude.
           // 500ms gives the transcript watcher time to stream initial entries to the new ID.
           setTimeout(() => {
             fetchTranscript(sessionId).then(transcript => {
@@ -905,7 +905,7 @@ function processMessage(msg: DashboardMessage) {
     }
 
     case 'revive_result': {
-      // Agent's revive result -- forwarded by concentrator for pipeline tracking
+      // Agent's revive result -- forwarded by broker for pipeline tracking
       window.dispatchEvent(new CustomEvent('revive-agent-result', { detail: msg }))
       break
     }

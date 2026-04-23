@@ -67,7 +67,7 @@ let state: AuthState = { users: [], invites: [], sessions: {} }
 let authFilePath = ''
 let hmacSecret = ''
 let rpId = 'localhost'
-let rpName = 'Claude Concentrator'
+let rpName = 'Claudwerk Broker'
 let expectedOrigins: string[] = ['http://localhost:9999']
 
 // In-memory challenge store (short-lived, no need to persist)

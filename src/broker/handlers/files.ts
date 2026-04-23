@@ -1,8 +1,8 @@
 /**
  * File editor relay handlers.
  * Bidirectional proxy between dashboard and rclaude for file operations.
- * Dashboard sends requests (with sessionId), concentrator forwards to wrapper.
- * Wrapper sends responses (with requestId), concentrator forwards to subscribers.
+ * Dashboard sends requests (with sessionId), broker forwards to wrapper.
+ * Wrapper sends responses (with requestId), broker forwards to subscribers.
  */
 
 import type { MessageHandler } from '../handler-context'

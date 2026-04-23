@@ -177,7 +177,7 @@ export const SessionDetail = memo(function SessionDetail() {
 
   // HOOKS MUST BE BEFORE EARLY RETURNS - React rules!
 
-  // Plan mode: trust concentrator state (set by session_update from wrapper).
+  // Plan mode: trust broker state (set by session_update from wrapper).
   // Previous implementation scanned the entire transcript on every length change -- expensive for large transcripts.
   const inPlanMode = session?.planMode ?? false
 

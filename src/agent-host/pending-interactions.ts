@@ -1,8 +1,8 @@
 /**
  * Thin helpers over ctx.outstandingInteractions -- the registry of user-facing
  * interactions (permission_request / ask_question / dialog_show / plan_approval)
- * whose response is held in concentrator memory. The wrapper keeps the
- * authoritative copy so a concentrator restart can't strand CC/MCP.
+ * whose response is held in broker memory. The wrapper keeps the
+ * authoritative copy so a broker restart can't strand CC/MCP.
  *
  * Usage:
  *   sendInteraction(ctx, 'plan_approval', requestId, payload)     // store + send
@@ -34,8 +34,8 @@ export function clearInteraction(ctx: AgentHostContext, id: string): void {
 
 /**
  * Re-send every outstanding interaction. Called from onConnected so that a
- * concentrator restart between request and response is a non-event.
- * Concentrator handlers are idempotent (keyed by sessionId + requestId/toolUseId),
+ * broker restart between request and response is a non-event.
+ * Broker handlers are idempotent (keyed by sessionId + requestId/toolUseId),
  * so a spurious replay after a dashboard-only reconnect is harmless.
  */
 export function replayInteractions(ctx: AgentHostContext): void {

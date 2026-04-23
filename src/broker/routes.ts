@@ -1,5 +1,5 @@
 /**
- * Hono HTTP Routes for Concentrator
+ * Hono HTTP Routes for Broker
  * Composition root -- mounts sub-routers, serves static files.
  */
 

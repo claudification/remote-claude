@@ -64,7 +64,7 @@ function makeCtx(init: { claudeSessionId?: string | null; pendingClearFromId?: s
     launchEvents: [],
     diag: (type: string, msg: string, args?: unknown) => diagCalls.push({ type, msg, args }),
     debug: () => {},
-    connectToConcentrator: (id: string | null) => connectCalls.push(id),
+    connectToBroker: (id: string | null) => connectCalls.push(id),
     startTaskWatching: () => {},
     startProjectWatching: () => {},
   } as unknown as AgentHostContext

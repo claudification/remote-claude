@@ -55,7 +55,7 @@ function safeStringEqual(a: string, b: string): boolean {
   return timingSafeEqual(Buffer.from(a), Buffer.from(b))
 }
 
-const SESSION_COOKIE_NAME = 'concentrator-session'
+const SESSION_COOKIE_NAME = 'broker-session'
 const SESSION_MAX_AGE_S = SESSION_MAX_AGE_MS / 1000
 
 function jsonResponse(data: unknown, status = 200, headers: Record<string, string> = {}): Response {

@@ -13,9 +13,9 @@ import type { TranscriptWatcher } from './transcript-watcher'
 import type { WsClient } from './ws-client'
 
 /**
- * An outstanding user-facing interaction whose response is held in concentrator
+ * An outstanding user-facing interaction whose response is held in broker
  * memory. Stored on the wrapper so we can re-send on every (re)connect — a
- * concentrator restart mid-interaction would otherwise strand CC/MCP forever.
+ * broker restart mid-interaction would otherwise strand CC/MCP forever.
  * Kinds: permission_request, ask_question, dialog_show, plan_approval.
  */
 export interface OutstandingInteraction {
@@ -33,7 +33,7 @@ export interface AgentHostContext {
   // Mode flags (immutable after startup)
   readonly headless: boolean
   readonly channelEnabled: boolean
-  readonly noConcentrator: boolean
+  readonly noBroker: boolean
 
   // Mutable session state
   claudeSessionId: string | null
@@ -44,7 +44,7 @@ export interface AgentHostContext {
   currentLaunchId: string
   /** Phase of the current launch. 'initial' on first spawn, flips to 'reboot'
    *  when a /clear starts a new launch. The 'live' phase is never used by
-   *  the wrapper itself -- it's reserved for concentrator-synthesized
+   *  the wrapper itself -- it's reserved for broker-synthesized
    *  change events (model_changed, mcp_servers_changed, etc.) that are
    *  appended directly to the transcript server-side. */
   currentLaunchPhase: import('../shared/protocol').WrapperLaunchPhase
@@ -85,7 +85,7 @@ export interface AgentHostContext {
 
   // Outstanding user interactions (permission_request / ask_question /
   // dialog_show / plan_approval) keyed by their id. Full payload is kept
-  // verbatim; re-sent on every (re)connect so a concentrator restart
+  // verbatim; re-sent on every (re)connect so a broker restart
   // mid-interaction doesn't strand CC/MCP waiting for a user response.
   readonly outstandingInteractions: Map<string, OutstandingInteraction>
 
@@ -97,7 +97,7 @@ export interface AgentHostContext {
   diag: (type: string, msg: string, args?: unknown) => void
   flushDiag: () => void
   debug: (msg: string) => void
-  connectToConcentrator: (sessionId: string | null) => void
+  connectToBroker: (sessionId: string | null) => void
   startTaskWatching: () => void
   readTasks: () => void
   startProjectWatching: () => void

@@ -39,7 +39,7 @@ import { listShares } from './shares'
 
 export type { SessionSummary }
 
-// Dashboard broadcast message (concentrator -> browser)
+// Dashboard broadcast message (broker -> browser)
 export interface DashboardMessage {
   type:
     | 'session_update'
@@ -66,7 +66,7 @@ export interface DashboardMessage {
   settings?: unknown
 }
 
-const DEFAULT_CACHE_DIR = join(homedir(), '.cache', 'concentrator')
+const DEFAULT_CACHE_DIR = join(homedir(), '.cache', 'broker')
 const CACHE_FILENAME = 'sessions.json'
 
 export interface SessionStoreOptions {
@@ -469,7 +469,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
    *  server and client, or when entries are edited in place).
    *
    *  In-memory only; not persisted. Rationale:
-   *    - SYNC_EPOCH regenerates on concentrator restart, forcing clients to
+   *    - SYNC_EPOCH regenerates on broker restart, forcing clients to
    *      drop lastAppliedSeq and full-resync (see sync_stale path below).
    *    - Hydration from JSONL re-stamps 1..N on boot (see loadTranscripts), so
    *      seqs match cache state exactly without round-tripping through disk.
@@ -1028,7 +1028,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           }
           if (entries.length > 0) {
             // Stamp seqs during hydration. Seqs are in-memory only, never
-            // persisted to JSONL -- on every concentrator boot we restamp from
+            // persisted to JSONL -- on every broker boot we restamp from
             // whatever file state survived. SYNC_EPOCH regenerates on boot,
             // so any client that was mid-conversation will full-resync via
             // sync_stale and adopt the new seqs.
@@ -1814,7 +1814,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
 
       // Persist immediately so ended sessions survive restarts
       scheduleSave(1000)
-      // Flush transcript to disk so it survives concentrator restart
+      // Flush transcript to disk so it survives broker restart
       dirtyTranscripts.add(sessionId)
       flushTranscripts().catch(() => {})
     }
@@ -2728,7 +2728,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   // ─── Launch Jobs (request-scoped event channels) ────────────────────
   // Dashboard subscribes to a jobId before spawning/reviving.
   // Agent sends launch_log events tagged with jobId.
-  // Concentrator forwards to subscribers. Completes when session connects.
+  // Broker forwards to subscribers. Completes when session connects.
   //
   // We also accumulate events/state on the job so MCP callers (or any other
   // late subscriber) can fetch a full diagnostic snapshot via getJobDiagnostics

@@ -2,15 +2,15 @@
  * Dialog handlers: rich UI dialog relay between wrapper and dashboard.
  *
  * Flow:
- *   Claude -> mcp__rclaude__dialog(layout) -> wrapper -> dialog_show -> concentrator
+ *   Claude -> mcp__rclaude__dialog(layout) -> wrapper -> dialog_show -> broker
  *   -> broadcast to dashboard subscribers -> user interacts -> dialog_result
- *   -> concentrator -> forward to wrapper -> resolve MCP tool call
+ *   -> broker -> forward to wrapper -> resolve MCP tool call
  */
 
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
-// Dialog show: wrapper -> concentrator -> dashboard (broadcast)
+// Dialog show: wrapper -> broker -> dashboard (broadcast)
 const dialogShow: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return
@@ -48,7 +48,7 @@ const dialogShow: MessageHandler = (ctx, data) => {
   ctx.log.info(`[dialog] Show: "${layout.title}" (${dialogId.toString().slice(0, 8)}) session=${sessionId.slice(0, 8)}`)
 }
 
-// Dialog result: dashboard -> concentrator -> wrapper (forward)
+// Dialog result: dashboard -> broker -> wrapper (forward)
 const dialogResult: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   const dialogId = data.dialogId as string
@@ -91,7 +91,7 @@ const dialogResult: MessageHandler = (ctx, data) => {
   else ctx.broadcast(dismissMsg)
 }
 
-// Dialog dismiss: wrapper -> concentrator -> dashboard
+// Dialog dismiss: wrapper -> broker -> dashboard
 // (e.g. timeout on wrapper side, session ended)
 const dialogDismiss: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
@@ -115,7 +115,7 @@ const dialogDismiss: MessageHandler = (ctx, data) => {
   ctx.log.debug(`[dialog] Dismiss: ${dialogId.slice(0, 8)} session=${sessionId.slice(0, 8)}`)
 }
 
-// Dialog keepalive: dashboard -> concentrator -> wrapper (extend timeout)
+// Dialog keepalive: dashboard -> broker -> wrapper (extend timeout)
 const dialogKeepalive: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   const dialogId = data.dialogId as string

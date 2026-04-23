@@ -7,7 +7,7 @@
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
-// Plan approval request: wrapper -> concentrator -> dashboard
+// Plan approval request: wrapper -> broker -> dashboard
 const planApproval: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return
@@ -46,7 +46,7 @@ const planApproval: MessageHandler = (ctx, data) => {
   ctx.log.info(`[plan] Approval request: ${(data.requestId as string)?.slice(0, 8)} session=${sessionId.slice(0, 8)}`)
 }
 
-// Plan approval response: dashboard -> concentrator -> wrapper
+// Plan approval response: dashboard -> broker -> wrapper
 const planApprovalResponse: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   if (!sessionId) return
@@ -85,7 +85,7 @@ const planApprovalResponse: MessageHandler = (ctx, data) => {
   }
 }
 
-// Plan mode state change: wrapper -> concentrator -> dashboard
+// Plan mode state change: wrapper -> broker -> dashboard
 const planModeChanged: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return

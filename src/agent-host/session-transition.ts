@@ -14,7 +14,7 @@
  * where the first observer promoted a post-/clear respawn as a boot, silently
  * advancing wsClient.sessionId, and the second observer's rekey was then
  * eaten by the "same-ID" guard in sendSessionClear -- leaving the
- * concentrator pinned to the old session id. See diag log 2026-04-17
+ * broker pinned to the old session id. See diag log 2026-04-17
  * for the incident.
  *
  * The rule now: both observers delegate to `observeClaudeSessionId`, which
@@ -47,7 +47,7 @@ export interface SessionTransition {
 
 /**
  * Observe that Claude Code has reported a session id. Classify the transition
- * (boot/rekey/confirm) and perform the right concentrator-facing action.
+ * (boot/rekey/confirm) and perform the right broker-facing action.
  *
  * MUST be called by both SessionStart hook handler and stream-json onInit.
  * Safe to call redundantly: subsequent calls with the same id no-op.
@@ -58,8 +58,8 @@ export interface SessionTransition {
  *   - On rekey: stops all subagent watchers + restarts task/project watchers
  *   - On boot: may create wsClient (if none yet) or promote existing booting ws
  *
- * Concentrator messages sent:
- *   - boot + no wsClient     -> connectToConcentrator opens a fresh socket
+ * Broker messages sent:
+ *   - boot + no wsClient     -> connectToBroker opens a fresh socket
  *   - boot + booting wsClient -> session_promote + meta (via setSessionId)
  *                                + session_ready boot_event
  *   - rekey                  -> session_clear (oldId, newId) on same socket
@@ -129,9 +129,9 @@ export function observeClaudeSessionId(
 }
 
 function handleBoot(ctx: AgentHostContext, newId: string, source: SessionTransitionSource, model?: string): void {
-  // If we never connected (concentrator unreachable at startup), connect now.
+  // If we never connected (broker unreachable at startup), connect now.
   if (!ctx.wsClient) {
-    ctx.connectToConcentrator(newId)
+    ctx.connectToBroker(newId)
     return
   }
 
@@ -142,7 +142,7 @@ function handleBoot(ctx: AgentHostContext, newId: string, source: SessionTransit
 }
 
 function handleRekey(ctx: AgentHostContext, fromId: string, newId: string, model?: string): void {
-  // Tell concentrator to migrate session from old id to new id.
+  // Tell broker to migrate session from old id to new id.
   // If wsClient is disconnected, the message drops on the floor -- acceptable
   // since a reconnect will send fresh meta with the new id anyway.
   if (ctx.wsClient?.isConnected()) {

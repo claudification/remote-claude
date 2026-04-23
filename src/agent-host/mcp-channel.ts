@@ -9,7 +9,7 @@
  *   Dashboard -> broker WS -> rclaude -> mcp.notification()
  *   -> SSE stream -> Claude Code sees <channel source="rclaude">message</channel>
  *
- * Two-way: Claude calls mcp tools (reply, notify) -> rclaude -> concentrator -> dashboard
+ * Two-way: Claude calls mcp tools (reply, notify) -> rclaude -> broker -> dashboard
  */
 
 import { randomUUID } from 'node:crypto'
@@ -413,7 +413,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
 
     share_file: {
       description:
-        'Upload a local file to the rclaude concentrator and get a public URL back. For images use ![description](url), for other files use [filename](url). Works for images, screenshots, build artifacts, logs, or any file.',
+        'Upload a local file to the rclaude broker and get a public URL back. For images use ![description](url), for other files use [filename](url). Works for images, screenshots, build artifacts, logs, or any file.',
       inputSchema: {
         type: 'object' as const,
         properties: {
