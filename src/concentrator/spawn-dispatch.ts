@@ -19,7 +19,7 @@ import { validateModel } from '../shared/models'
 import type { LaunchProgressEvent, LaunchStep, ProjectSettings, Session, SpawnResult } from '../shared/protocol'
 import { generateSessionName } from '../shared/session-names'
 import { resolveSpawnConfig } from '../shared/spawn-defaults'
-import { deriveSessionName } from '../shared/spawn-naming'
+import { deriveSessionName, validateSessionName } from '../shared/spawn-naming'
 import { assertSpawnAllowed, type SpawnCallerContext, SpawnPermissionError } from '../shared/spawn-permissions'
 import type { SpawnRequest } from '../shared/spawn-schema'
 import type { GlobalSettings } from './global-settings'
@@ -84,6 +84,17 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
 
   if (req.mode === 'resume' && !req.resumeId) {
     return { ok: false, error: 'resumeId required for resume mode', statusCode: 400 }
+  }
+
+  if (req.name) {
+    const usedNames = new Set(
+      deps.sessions
+        .getAllSessions()
+        .map((s: Session) => s.title)
+        .filter(Boolean) as string[],
+    )
+    const nameErr = validateSessionName(req.name, usedNames)
+    if (nameErr) return { ok: false, error: nameErr, statusCode: 400 }
   }
 
   const requestId = randomUUID()

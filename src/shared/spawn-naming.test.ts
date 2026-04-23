@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveSessionName, sanitizeSessionName } from './spawn-naming'
+import { deriveSessionName, sanitizeSessionName, validateSessionName } from './spawn-naming'
 import type { TaskMeta } from './spawn-prompt'
 
 const task: TaskMeta = {
@@ -61,5 +61,23 @@ describe('deriveSessionName', () => {
 
   it('ignores empty explicit name and advances to next hint', () => {
     expect(deriveSessionName({ name: '   ' }, task)).toBe('Build the rocket')
+  })
+})
+
+describe('validateSessionName', () => {
+  it('returns null for a valid unique name', () => {
+    expect(validateSessionName('fresh-name', new Set(['other']))).toBeNull()
+  })
+
+  it('rejects names that collide with existing sessions', () => {
+    expect(validateSessionName('taken', new Set(['taken']))).toContain('already in use')
+  })
+
+  it('rejects empty-after-sanitization names', () => {
+    expect(validateSessionName('   ', new Set())).toContain('empty')
+  })
+
+  it('detects collision after sanitization (quotes stripped)', () => {
+    expect(validateSessionName('"my session"', new Set(['my session']))).toContain('already in use')
   })
 })

@@ -20,6 +20,14 @@ export function sanitizeSessionName(raw: string): string {
   return raw.replace(/['"]/g, '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LEN)
 }
 
+/** Validate an explicit session name. Returns an error string or null if valid. */
+export function validateSessionName(name: string, existingNames: Set<string>): string | null {
+  const sanitized = sanitizeSessionName(name)
+  if (!sanitized) return 'Session name is empty after sanitization'
+  if (existingNames.has(sanitized)) return `Session name "${sanitized}" is already in use`
+  return null
+}
+
 export function deriveSessionName(req: Partial<SpawnRequest>, task?: TaskMeta): string | null {
   if (req.name) {
     const n = sanitizeSessionName(req.name)
