@@ -9,7 +9,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AuthenticatorTransportFuture } from '@simplewebauthn/server'
-import type { UserGrant } from './permissions'
+import { cwdToScope, type UserGrant } from './permissions'
 
 // --- Types ---
 
@@ -104,20 +104,25 @@ export function initAuth(opts: {
   if (existsSync(authFilePath)) {
     try {
       state = JSON.parse(readFileSync(authFilePath, 'utf-8'))
-      // Migrate grants: no grants -> admin, permissions:['admin'] -> roles:['admin']
+      // Migrate grants: no grants -> admin, permissions:['admin'] -> roles:['admin'], backfill scope
       let migrated = false
       for (const user of state.users) {
         if (!user.grants) {
-          user.grants = [{ cwd: '*', roles: ['admin'] }]
+          user.grants = [{ cwd: '*', scope: '*', roles: ['admin'] }]
           migrated = true
         } else {
-          // Migrate old permissions:['admin'] to roles:['admin']
           for (const grant of user.grants) {
+            // Migrate old permissions:['admin'] to roles:['admin']
             if ((grant.permissions as string[] | undefined)?.includes('admin')) {
               grant.roles = grant.roles || []
               if (!grant.roles.includes('admin')) grant.roles.push('admin')
               grant.permissions = (grant.permissions ?? []).filter((p: string) => p !== 'admin')
               if ((grant.permissions ?? []).length === 0) delete grant.permissions
+              migrated = true
+            }
+            // Backfill scope from cwd
+            if (!grant.scope && grant.cwd) {
+              grant.scope = cwdToScope(grant.cwd)
               migrated = true
             }
           }
@@ -136,7 +141,7 @@ export function initAuth(opts: {
       }
       if (migrated) {
         writeFileSync(authFilePath, JSON.stringify(state, null, 2), { mode: 0o600 })
-        console.log('[auth] Migrated user data (grants + serverRoles)')
+        console.log('[auth] Migrated user data (grants + serverRoles + scope backfill)')
       }
       // Clean expired sessions on load
       const now = Date.now()
@@ -235,7 +240,7 @@ export function createUser(name: string, grants?: UserGrant[]): PasskeyUser {
     credentials: [],
     createdAt: Date.now(),
     revoked: false,
-    grants: grants || [{ cwd: '*', roles: ['admin'] }],
+    grants: grants || [{ cwd: '*', scope: '*', roles: ['admin'] }],
   }
   state.users.push(user)
   save()
@@ -363,11 +368,11 @@ export function addUserGrant(name: string, grant: UserGrant): boolean {
   return true
 }
 
-export function removeUserGrant(name: string, cwd: string): boolean {
+export function removeUserGrant(name: string, cwdOrScope: string): boolean {
   const user = state.users.find(u => u.name === name)
   if (!user) return false
   const before = user.grants.length
-  user.grants = user.grants.filter(g => g.cwd !== cwd)
+  user.grants = user.grants.filter(g => g.cwd !== cwdOrScope && g.scope !== cwdOrScope)
   if (user.grants.length === before) return false
   save()
   return true

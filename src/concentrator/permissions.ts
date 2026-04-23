@@ -1,10 +1,15 @@
 /**
- * Permission system: grant-based, CWD-scoped, with roles + permissions.
+ * Permission system: grant-based, project-URI-scoped, with roles + permissions.
  *
  * Roles are shorthand for permission bundles (admin -> all permissions).
  * Permissions are granular capabilities (chat, terminal:read, etc.).
  * Grants combine both: roles expand first, then explicit permissions merge in.
+ *
+ * Grants use `scope` (project URI pattern) for matching. Legacy `cwd` field
+ * is auto-upgraded to a scope on evaluation.
  */
+
+import { cwdToProjectUri, matchProjectUri } from '../shared/project-uri'
 
 // ─── Roles (expand into permission sets) ──────────────────────────
 
@@ -43,8 +48,10 @@ export type Permission =
 // ─── Grants ───────────────────────────────────────────────────────
 
 export interface UserGrant {
-  /** CWD glob pattern. '*' = all projects. */
-  cwd: string
+  /** @deprecated Use `scope` instead. Bare CWD glob pattern. */
+  cwd?: string
+  /** Project URI pattern for scope matching. '*' = all projects. */
+  scope?: string
   /** Roles that expand into permission sets */
   roles?: Role[]
   /** Granular permissions (combined with role-expanded permissions) */
@@ -57,14 +64,29 @@ export interface UserGrant {
 
 // ─── Internal helpers ─────────────────────────────────────────────
 
-function matchCwdGlob(pattern: string, cwd: string): boolean {
-  if (pattern === '*') return true
-  if (pattern === cwd) return true
-  if (pattern.endsWith('/*')) {
-    const prefix = pattern.slice(0, -1)
-    return cwd.startsWith(prefix) || cwd === pattern.slice(0, -2)
-  }
-  return false
+/** Auto-upgrade a legacy CWD glob to a project URI pattern. */
+export function cwdToScope(cwd: string): string {
+  if (cwd === '*') return '*'
+  if (cwd.endsWith('/*')) return `${cwdToProjectUri(cwd.slice(0, -2))}/*`
+  return cwdToProjectUri(cwd)
+}
+
+/** Get the effective scope for a grant (prefer scope, fall back to auto-upgraded cwd). */
+function grantScope(grant: UserGrant): string {
+  if (grant.scope) return grant.scope
+  if (grant.cwd) return cwdToScope(grant.cwd)
+  return '*'
+}
+
+/** Normalize a bare CWD or project URI into a project URI for matching. */
+function normalizeTarget(cwdOrUri: string): string {
+  if (cwdOrUri === '*') return '*'
+  if (cwdOrUri.includes('://')) return cwdOrUri
+  return cwdToProjectUri(cwdOrUri)
+}
+
+function matchGrant(grant: UserGrant, targetUri: string): boolean {
+  return matchProjectUri(grantScope(grant), targetUri)
 }
 
 function isGrantActive(grant: UserGrant, now = Date.now()): boolean {
@@ -76,20 +98,21 @@ function isGrantActive(grant: UserGrant, now = Date.now()): boolean {
 // ─── Resolution ───────────────────────────────────────────────────
 
 /**
- * Resolve effective permissions for grants against a specific CWD.
- * Expands roles into permissions, merges explicit permissions, applies hierarchy.
+ * Resolve effective permissions for grants against a CWD or project URI.
+ * Accepts bare CWD paths (auto-upgraded to project URI) or project URIs directly.
  */
 export function resolvePermissions(
   grants: UserGrant[],
-  cwd: string,
+  cwdOrProject: string,
 ): { permissions: Set<Permission>; isAdmin: boolean } {
   const result = new Set<Permission>()
   let admin = false
   const now = Date.now()
+  const targetUri = normalizeTarget(cwdOrProject)
 
   for (const grant of grants) {
     if (!isGrantActive(grant, now)) continue
-    if (!matchCwdGlob(grant.cwd, cwd)) continue
+    if (!matchGrant(grant, targetUri)) continue
 
     // Expand roles into permissions
     if (grant.roles) {
@@ -131,8 +154,12 @@ export interface ResolvedPermissions {
   canNotifications: boolean
 }
 
-export function resolvePermissionFlags(grants: UserGrant[], cwd = '*', serverRoles?: string[]): ResolvedPermissions {
-  const { permissions, isAdmin } = resolvePermissions(grants, cwd)
+export function resolvePermissionFlags(
+  grants: UserGrant[],
+  cwdOrProject = '*',
+  serverRoles?: string[],
+): ResolvedPermissions {
+  const { permissions, isAdmin } = resolvePermissions(grants, cwdOrProject)
   return {
     canAdmin: isAdmin,
     canEditUsers: serverRoles?.includes('user-editor') ?? false,
@@ -152,8 +179,8 @@ export function resolvePermissionFlags(grants: UserGrant[], cwd = '*', serverRol
 // ─── Grant queries ────────────────────────────────────────────────
 
 /**
- * Check if any active grant provides a permission, regardless of CWD.
- * Used for CWD-agnostic actions (e.g. file upload to global blob store).
+ * Check if any active grant provides a permission, regardless of project scope.
+ * Used for scope-agnostic actions (e.g. file upload to global blob store).
  */
 export function hasPermissionAnyCwd(grants: UserGrant[], permission: Permission): boolean {
   const now = Date.now()
@@ -176,10 +203,14 @@ export function hasPermissionAnyCwd(grants: UserGrant[], permission: Permission)
   return false
 }
 
-export function hasAnyCwdAccess(grants: UserGrant[], cwd: string): boolean {
+export function hasAnyProjectAccess(grants: UserGrant[], cwdOrProject: string): boolean {
   const now = Date.now()
-  return grants.some(g => isGrantActive(g, now) && matchCwdGlob(g.cwd, cwd))
+  const targetUri = normalizeTarget(cwdOrProject)
+  return grants.some(g => isGrantActive(g, now) && matchGrant(g, targetUri))
 }
+
+/** @deprecated Use hasAnyProjectAccess */
+export const hasAnyCwdAccess = hasAnyProjectAccess
 
 export function allGrantsExpired(grants: UserGrant[]): boolean {
   if (grants.length === 0) return true
