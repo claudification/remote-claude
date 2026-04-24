@@ -15,7 +15,14 @@ import { DEFAULT_BROKER_PORT } from '../shared/protocol'
 import { getOrAssign, initAddressBook, resolve } from './address-book'
 import { closeAnalyticsStore, initAnalyticsStore } from './analytics-store'
 import { getUser, initAuth, reloadState, validateSession } from './auth'
-import { getAuthenticatedUser, requireAuth, setRclaudeSecret, setShareValidator } from './auth-routes'
+import {
+  getAuthenticatedUser,
+  requireAuth,
+  resolveAuth,
+  setRclaudeSecret,
+  setSentinelRegistry,
+  setShareValidator,
+} from './auth-routes'
 import { type ContextDeps, createContext } from './create-context'
 import { initGlobalSettings } from './global-settings'
 import type { WsData } from './handler-context'
@@ -353,6 +360,7 @@ async function main() {
 
   // Initialize sentinel registry (persisted sentinel host records)
   const sentinelRegistry = authCacheDir ? createSentinelRegistry(authCacheDir) : undefined
+  if (sentinelRegistry) setSentinelRegistry(sentinelRegistry)
 
   const sessionStore = createSessionStore({
     cacheDir,
@@ -535,6 +543,7 @@ async function main() {
     cacheDir: authCacheDir,
     serverStartTime,
     publicOrigin: origins[0],
+    sentinelRegistry,
   })
 
   if (apiPort && apiPort !== port) {
@@ -604,6 +613,10 @@ async function main() {
           const authBlock = requireAuth(req)
           if (authBlock) return authBlock
 
+          // Resolve auth identity for WS data tagging
+          const wsSecret = url.searchParams.get('secret')
+          const authResult = wsSecret ? resolveAuth(wsSecret) : null
+
           const wsUserName = getAuthenticatedUser(req) ?? undefined
           // Extract auth token for periodic expiry checks on the WS connection
           const cookieHeader = req.headers.get('cookie')
@@ -611,9 +624,12 @@ async function main() {
           const authToken = tokenMatch?.[1]
           // Load grants for permission enforcement on WS messages
           const wsUser = wsUserName ? getUser(wsUserName) : undefined
-          const success = server.upgrade(req, {
-            data: { userName: wsUserName, authToken, grants: wsUser?.grants } as WsData,
-          })
+          const wsData: WsData = { userName: wsUserName, authToken, grants: wsUser?.grants }
+          if (authResult?.role === 'sentinel') {
+            wsData.sentinelId = authResult.sentinelId
+            wsData.sentinelAlias = authResult.alias
+          }
+          const success = server.upgrade(req, { data: wsData })
           if (success) return undefined
           return new Response('WebSocket upgrade failed', { status: 500 })
         }

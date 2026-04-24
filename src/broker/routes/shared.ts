@@ -5,7 +5,7 @@
 
 import type { Session, TeamInfo } from '../../shared/protocol'
 import { getUser } from '../auth'
-import { getAuthenticatedUser } from '../auth-routes'
+import { getAuthenticatedUser, resolveAuth } from '../auth-routes'
 import { type Permission, resolvePermissions, type UserGrant } from '../permissions'
 import type { SessionStore } from '../session-store'
 import { shareToGrants, validateShare } from '../shares'
@@ -19,12 +19,15 @@ export interface RouteHelpers {
   filterSessionsByHttpGrants<T extends { project: string }>(req: Request, sessions: T[]): T[]
 }
 
-export function createRouteHelpers(rclaudeSecret: string | undefined): RouteHelpers {
+export function createRouteHelpers(_rclaudeSecret?: string): RouteHelpers {
   function resolveHttpGrants(req: Request): UserGrant[] | null {
-    // Bearer token with shared secret = admin, no restrictions
+    // Bearer token with admin or sentinel secret = admin-level access
     const authHeader = req.headers.get('authorization')
     const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-    if (rclaudeSecret && bearer && bearer === rclaudeSecret) return null
+    if (bearer) {
+      const auth = resolveAuth(bearer)
+      if (auth.role !== 'none') return null
+    }
 
     // Cookie auth = user grants
     const userName = getAuthenticatedUser(req)

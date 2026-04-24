@@ -39,8 +39,12 @@ import {
   validateSession,
 } from './auth'
 
+import type { SentinelRegistry } from './sentinel-registry'
+import { isSentinelSecret } from './sentinel-registry'
+
 let rclaudeSecret: string | undefined
 let validateShareFn: ((token: string) => boolean) | undefined
+let sentinelRegistryRef: SentinelRegistry | undefined
 
 export function setRclaudeSecret(secret: string): void {
   rclaudeSecret = secret
@@ -48,6 +52,25 @@ export function setRclaudeSecret(secret: string): void {
 
 export function setShareValidator(fn: (token: string) => boolean): void {
   validateShareFn = fn
+}
+
+export function setSentinelRegistry(registry: SentinelRegistry): void {
+  sentinelRegistryRef = registry
+}
+
+export type AuthResult = { role: 'admin' } | { role: 'sentinel'; sentinelId: string; alias: string } | { role: 'none' }
+
+export function resolveAuth(secret: string): AuthResult {
+  if (rclaudeSecret && safeStringEqual(secret, rclaudeSecret)) {
+    return { role: 'admin' }
+  }
+  if (sentinelRegistryRef && isSentinelSecret(secret)) {
+    const sentinel = sentinelRegistryRef.findBySecret(secret)
+    if (sentinel) {
+      return { role: 'sentinel', sentinelId: sentinel.sentinelId, alias: sentinel.aliases[0] }
+    }
+  }
+  return { role: 'none' }
 }
 
 function safeStringEqual(a: string, b: string): boolean {
@@ -140,10 +163,13 @@ export function requireAuth(req: Request): Response | null {
   // Specific auth routes needed for login/registration flow (no cookie yet)
   if (PUBLIC_AUTH_ROUTES.has(url.pathname)) return null
 
-  // WebSocket: rclaude authenticates with shared secret, dashboard with session cookie/token
+  // WebSocket: rclaude authenticates with shared secret or per-sentinel secret, dashboard with session cookie/token
   if (req.headers.get('upgrade')?.toLowerCase() === 'websocket') {
     const secret = url.searchParams.get('secret')
-    if (rclaudeSecret && secret && safeStringEqual(secret, rclaudeSecret)) return null
+    if (secret) {
+      const auth = resolveAuth(secret)
+      if (auth.role !== 'none') return null
+    }
     if (getAuthenticatedUser(req)) return null
     const token = url.searchParams.get('token')
     if (token && validateSession(token)) return null
@@ -154,10 +180,13 @@ export function requireAuth(req: Request): Response | null {
   const isAuthenticated = getAuthenticatedUser(req)
   if (isAuthenticated) return null
 
-  // Allow Bearer token auth with rclaude secret (for API calls from scripts)
+  // Allow Bearer token auth with admin secret or sentinel secret (for API calls from scripts)
   const authHeader = req.headers.get('authorization')
   const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (rclaudeSecret && bearerToken && safeStringEqual(bearerToken, rclaudeSecret)) return null
+  if (bearerToken) {
+    const auth = resolveAuth(bearerToken)
+    if (auth.role !== 'none') return null
+  }
 
   // Share token auth (guest access via link)
   const shareToken = url.searchParams.get('share')

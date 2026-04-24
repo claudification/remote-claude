@@ -464,7 +464,11 @@ function parseArgs() {
   const args = process.argv.slice(2)
   let brokerUrl =
     process.env.CLAUDWERK_BROKER ?? process.env.RCLAUDE_BROKER ?? process.env.RCLAUDE_CONCENTRATOR ?? DEFAULT_BROKER_URL
-  let secret = process.env.CLAUDWERK_SECRET ?? process.env.RCLAUDE_SECRET
+  let secret =
+    process.env.CLAUDWERK_SENTINEL_SECRET ??
+    process.env.RCLAUDE_SENTINEL_SECRET ??
+    process.env.CLAUDWERK_SECRET ??
+    process.env.RCLAUDE_SECRET
   let verbose = false
   let reviveScript = DEFAULT_REVIVE_SCRIPT
   let spawnRoot = process.env.HOME || '/root'
@@ -490,7 +494,13 @@ function parseArgs() {
     }
   }
 
-  if (!secret) secret = process.env.CLAUDWERK_SECRET ?? process.env.RCLAUDE_SECRET
+  if (!secret) {
+    secret =
+      process.env.CLAUDWERK_SENTINEL_SECRET ??
+      process.env.RCLAUDE_SENTINEL_SECRET ??
+      process.env.CLAUDWERK_SECRET ??
+      process.env.RCLAUDE_SECRET
+  }
 
   return { brokerUrl, secret, verbose, reviveScript, spawnRoot, noSpawn }
 }
@@ -508,7 +518,7 @@ USAGE:
 
 OPTIONS:
   --broker <url>   Broker WebSocket URL (default: ${DEFAULT_BROKER_URL})
-  --secret <s>           Shared secret (or RCLAUDE_SECRET env)
+  --secret <s>           Secret (CLAUDWERK_SENTINEL_SECRET or RCLAUDE_SECRET env)
   --revive-script <path> Path to revive-session.sh (default: auto-detected)
   --spawn-root <path>    Root directory for relative spawn paths (default: $HOME)
   -v, --verbose          Enable verbose logging
@@ -1500,7 +1510,7 @@ function connect(
 const { brokerUrl, secret, verbose, reviveScript, spawnRoot, noSpawn } = parseArgs()
 
 if (!secret) {
-  console.error('ERROR: --secret or RCLAUDE_SECRET is required')
+  console.error('ERROR: --secret or CLAUDWERK_SENTINEL_SECRET / RCLAUDE_SECRET is required')
   process.exit(1)
 }
 

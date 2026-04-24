@@ -5,9 +5,25 @@
  * Phase 0: single auto-registered sentinel. Phase 1+: per-sentinel secrets + multi-sentinel.
  */
 
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+
+const SENTINEL_SECRET_PREFIX = 'snt_'
+
+export function generateSentinelSecret(): string {
+  return SENTINEL_SECRET_PREFIX + randomBytes(32).toString('base64url')
+}
+
+export function isSentinelSecret(secret: string): boolean {
+  return secret.startsWith(SENTINEL_SECRET_PREFIX)
+}
+
+const ALIAS_PATTERN = /^[a-z][a-z0-9-]{0,62}$/
+
+export function isValidSentinelAlias(alias: string): boolean {
+  return ALIAS_PATTERN.test(alias)
+}
 
 export interface SentinelRecord {
   aliases: string[] // first is the display alias; findByAlias matches any
@@ -33,7 +49,12 @@ export interface SentinelRegistry {
     isDefault?: boolean
     color?: string
     secret?: string
-  }): SentinelRecordWithId
+    generateSecret?: boolean
+  }): SentinelRecordWithId & { rawSecret?: string }
+  update(
+    sentinelId: string,
+    opts: { alias?: string; color?: string; isDefault?: boolean },
+  ): SentinelRecordWithId | undefined
   get(sentinelId: string): SentinelRecord | undefined
   findBySecret(secret: string): SentinelRecordWithId | undefined
   findByAlias(alias: string): SentinelRecordWithId | undefined
@@ -94,7 +115,8 @@ export function createSentinelRegistry(cacheDir: string): SentinelRegistry {
     isDefault?: boolean
     color?: string
     secret?: string
-  }): SentinelRecordWithId {
+    generateSecret?: boolean
+  }): SentinelRecordWithId & { rawSecret?: string } {
     const sentinelId = randomUUID()
     const aliases = opts.aliases || (opts.alias ? [opts.alias] : ['default'])
     const isDefault = opts.isDefault ?? Object.keys(data.sentinels).length === 0
@@ -104,7 +126,12 @@ export function createSentinelRegistry(cacheDir: string): SentinelRegistry {
       color: opts.color,
       createdAt: Date.now(),
     }
-    if (opts.secret) {
+    let rawSecret: string | undefined
+    if (opts.generateSecret) {
+      rawSecret = generateSentinelSecret()
+      record.secret = rawSecret
+      secretIndex.set(rawSecret, sentinelId)
+    } else if (opts.secret) {
       record.secret = opts.secret
       secretIndex.set(opts.secret, sentinelId)
     }
@@ -112,6 +139,26 @@ export function createSentinelRegistry(cacheDir: string): SentinelRegistry {
     if (isDefault) {
       for (const [id, r] of Object.entries(data.sentinels)) {
         if (id !== sentinelId) r.isDefault = false
+      }
+      data.defaultSentinelId = sentinelId
+    }
+    save()
+    return { sentinelId, ...record, rawSecret }
+  }
+
+  function update(
+    sentinelId: string,
+    opts: { alias?: string; color?: string; isDefault?: boolean },
+  ): SentinelRecordWithId | undefined {
+    const record = data.sentinels[sentinelId]
+    if (!record) return undefined
+    if (opts.alias !== undefined) {
+      record.aliases = [opts.alias, ...record.aliases.filter(a => a !== opts.alias)]
+    }
+    if (opts.color !== undefined) record.color = opts.color
+    if (opts.isDefault === true) {
+      for (const [id, r] of Object.entries(data.sentinels)) {
+        r.isDefault = id === sentinelId
       }
       data.defaultSentinelId = sentinelId
     }
@@ -185,6 +232,7 @@ export function createSentinelRegistry(cacheDir: string): SentinelRegistry {
     load,
     save,
     create,
+    update,
     get,
     findBySecret,
     findByAlias,

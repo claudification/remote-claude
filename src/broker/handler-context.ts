@@ -14,6 +14,8 @@ export interface WsData {
   conversationId?: string
   isControlPanel?: boolean
   isSentinel?: boolean
+  sentinelId?: string
+  sentinelAlias?: string
   userName?: string
   authToken?: string
   grants?: UserGrant[]

@@ -31,6 +31,7 @@ import {
 } from './auth'
 import { addAllowedRoot, addPathMapping, resolveInJail } from './path-jail'
 import type { UserGrant } from './permissions'
+import { createSentinelRegistry, isValidSentinelAlias } from './sentinel-registry'
 import { runMigrateCli } from './store/migrate-cli'
 import { parseDbName, runQueryCli } from './store/query-cli'
 
@@ -74,6 +75,12 @@ COMMANDS:
   query [--db <name>] [--json] "SQL"                        Read-only SQL against store/analytics/projects
   resolve-path <path>                                       Debug: test path jail resolution
 
+SENTINEL COMMANDS:
+  sentinel create --alias <alias> [--color <hex>]          Create sentinel with per-host secret
+  sentinel list                                             List all registered sentinels
+  sentinel set-default --alias <alias>                      Set default sentinel
+  sentinel revoke --alias <alias>                           Revoke sentinel secret
+
 GRANT FORMAT:
   --grant "scope:permission,permission"   (repeatable)
   --grant "/Users/jonas/projects/foo:chat"
@@ -111,6 +118,9 @@ function main(): void {
   let baseUrl = 'http://localhost:9999'
   let name = ''
   let command = ''
+  let subCommand = ''
+  let aliasArg = ''
+  let colorArg = ''
   let cwdArg = ''
   let permissionsArg = ''
   let roleArg = ''
@@ -146,6 +156,10 @@ function main(): void {
       permissionsArg = args[++i]
     } else if (arg === '--role') {
       roleArg = args[++i]
+    } else if (arg === '--alias') {
+      aliasArg = args[++i]
+    } else if (arg === '--color') {
+      colorArg = args[++i]
     } else if (arg === '--credential-id') {
       credentialIdArg = args[++i]
     } else if (arg === '--not-before') {
@@ -169,6 +183,8 @@ function main(): void {
         testPath = arg
       } else if (command === 'query' && !queryArg) {
         queryArg = arg
+      } else if (command === 'sentinel' && !subCommand) {
+        subCommand = arg
       } else {
         command = arg
       }
@@ -488,6 +504,102 @@ function main(): void {
         console.log(`Passkey deleted for "${name}". All active sessions terminated.`)
       }
       notifyServer(cacheDir)
+      break
+    }
+
+    case 'sentinel': {
+      const registry = createSentinelRegistry(cacheDir)
+
+      switch (subCommand) {
+        case 'create': {
+          if (!aliasArg) {
+            console.error('ERROR: --alias is required')
+            process.exit(1)
+          }
+          const alias = aliasArg.trim().toLowerCase()
+          if (!isValidSentinelAlias(alias)) {
+            console.error('ERROR: Invalid alias (lowercase alphanumeric + hyphens, 1-63 chars)')
+            process.exit(1)
+          }
+          const existing = registry.findByAlias(alias)
+          if (existing) {
+            console.error(`ERROR: Alias "${alias}" already exists`)
+            process.exit(1)
+          }
+          const record = registry.create({ alias, color: colorArg || undefined, generateSecret: true })
+          console.log(`
+  SENTINEL CREATED
+
+  ID:      ${record.sentinelId}
+  Alias:   ${record.aliases[0]}
+  Default: ${record.isDefault}
+  Secret:  ${record.rawSecret}
+
+  Configure the sentinel with:
+    export CLAUDWERK_SENTINEL_SECRET=${record.rawSecret}
+    export CLAUDWERK_BROKER=wss://<your-broker-host>
+
+  Or pass via CLI flag:
+    sentinel --secret ${record.rawSecret}
+`)
+          notifyServer(cacheDir)
+          break
+        }
+
+        case 'list': {
+          const all = registry.getAll()
+          if (all.size === 0) {
+            console.log('No registered sentinels.')
+            break
+          }
+          console.log(`\n  Sentinels (${all.size}):`)
+          for (const [id, record] of all) {
+            const def = record.isDefault ? ' DEFAULT' : ''
+            const color = record.color ? ` color=${record.color}` : ''
+            console.log(`  ${record.aliases[0]} (${id.slice(0, 8)}...)${def}${color}`)
+            console.log(`    created: ${new Date(record.createdAt).toLocaleString()}`)
+          }
+          console.log()
+          break
+        }
+
+        case 'set-default': {
+          if (!aliasArg) {
+            console.error('ERROR: --alias is required')
+            process.exit(1)
+          }
+          const found = registry.findByAlias(aliasArg)
+          if (!found) {
+            console.error(`ERROR: Sentinel "${aliasArg}" not found`)
+            process.exit(1)
+          }
+          registry.setDefault(found.sentinelId)
+          console.log(`Default sentinel set to "${aliasArg}"`)
+          notifyServer(cacheDir)
+          break
+        }
+
+        case 'revoke': {
+          if (!aliasArg) {
+            console.error('ERROR: --alias is required')
+            process.exit(1)
+          }
+          const found = registry.findByAlias(aliasArg)
+          if (!found) {
+            console.error(`ERROR: Sentinel "${aliasArg}" not found`)
+            process.exit(1)
+          }
+          registry.remove(found.sentinelId)
+          console.log(`Sentinel "${aliasArg}" revoked. Secret invalidated.`)
+          notifyServer(cacheDir)
+          break
+        }
+
+        default:
+          console.error(`Unknown sentinel subcommand: ${subCommand || '(none)'}`)
+          console.error('Available: create, list, set-default, revoke')
+          process.exit(1)
+      }
       break
     }
 

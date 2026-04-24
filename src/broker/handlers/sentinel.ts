@@ -7,21 +7,28 @@ import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
 const sentinelIdentify: MessageHandler = (ctx, data) => {
+  // Prefer auth-derived sentinel identity from WS upgrade (per-sentinel secret)
+  // over self-reported values from the identify message
+  const authSentinelId = ctx.ws.data.sentinelId
+  const authAlias = ctx.ws.data.sentinelAlias
+
   const sentinelMeta = {
     machineId: typeof data.machineId === 'string' ? data.machineId : undefined,
     hostname: typeof data.hostname === 'string' ? data.hostname : undefined,
-    alias: typeof data.alias === 'string' ? data.alias : undefined,
+    alias: authAlias || (typeof data.alias === 'string' ? data.alias : undefined),
     spawnRoot: typeof data.spawnRoot === 'string' ? data.spawnRoot : undefined,
+    sentinelId: authSentinelId,
   }
   const accepted = ctx.sessions.setSentinel(ctx.ws, sentinelMeta)
   if (accepted) {
     ctx.ws.data.isSentinel = true
     ctx.reply({ type: 'ack', eventId: 'sentinel' })
     const label = sentinelMeta.hostname ? ` (${sentinelMeta.hostname} / ${sentinelMeta.machineId})` : ''
-    ctx.log.info(`Sentinel connected${label}`)
+    const aliasLabel = sentinelMeta.alias ? ` alias=${sentinelMeta.alias}` : ''
+    ctx.log.info(`Sentinel connected${label}${aliasLabel}`)
   } else {
-    ctx.reply({ type: 'sentinel_reject', reason: 'Another sentinel is already connected' })
-    ctx.ws.close(4409, 'Sentinel already connected')
+    ctx.reply({ type: 'sentinel_reject', reason: 'Sentinel rejected' })
+    ctx.ws.close(4409, 'Sentinel rejected')
   }
 }
 

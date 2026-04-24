@@ -5,7 +5,13 @@
 
 import type { ServerWebSocket } from 'bun'
 import { resolveContextWindow } from '../shared/context-window'
-import { DEFAULT_SENTINEL_NAME, buildProjectUri, cwdToProjectUri, extractProjectLabel, parseProjectUri } from '../shared/project-uri'
+import {
+  buildProjectUri,
+  cwdToProjectUri,
+  DEFAULT_SENTINEL_NAME,
+  extractProjectLabel,
+  parseProjectUri,
+} from '../shared/project-uri'
 import type {
   AgentHostCapability,
   HookEvent,
@@ -161,12 +167,15 @@ export interface SessionStore {
   broadcastToChannel: (channel: SubscriptionChannel, sessionId: string, message: unknown, agentId?: string) => void
   isV2Subscriber: (ws: ServerWebSocket<unknown>) => boolean
   getSubscriptionsDiag: () => SubscriptionsDiag
-  // Sentinel methods (exclusive single sentinel connection; sentinels Map internally)
+  // Sentinel methods (sentinels Map internally)
   setSentinel: (ws: ServerWebSocket<unknown>, info?: SentinelIdentifyInfo) => boolean
   getSentinel: () => ServerWebSocket<unknown> | undefined
+  getSentinelByAlias: (alias: string) => ServerWebSocket<unknown> | undefined
+  getSentinelConnection: (sentinelId: string) => import('./session-store/sentinel').SentinelConnection | undefined
   getSentinelInfo: () => { machineId?: string; hostname?: string } | undefined
   getDefaultSentinelId: () => string | undefined
   getDefaultSentinelAlias: () => string | undefined
+  getConnectedSentinels: () => Array<{ sentinelId: string; alias: string; hostname?: string; connectedAt: number }>
   removeSentinel: (ws: ServerWebSocket<unknown>) => void
   hasSentinel: () => boolean
   // Sentinel diagnostics (structured log entries from sentinel)
@@ -816,7 +825,12 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
     const parsed = parseProjectUri(projectOrCwd)
     if (parsed.scheme === 'claude' && (!parsed.authority || parsed.authority === DEFAULT_SENTINEL_NAME)) {
-      return buildProjectUri({ scheme: parsed.scheme, authority: sentinelAlias, path: parsed.path, fragment: parsed.fragment })
+      return buildProjectUri({
+        scheme: parsed.scheme,
+        authority: sentinelAlias,
+        path: parsed.path,
+        fragment: parsed.fragment,
+      })
     }
     return projectOrCwd
   }
@@ -1855,6 +1869,16 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     return first.done ? undefined : first.value.ws
   }
 
+  function getSentinelByAlias(alias: string): ServerWebSocket<unknown> | undefined {
+    const id = sentinelState.sentinelsByAlias.get(alias)
+    if (!id) return undefined
+    return sentinelState.sentinels.get(id)?.ws
+  }
+
+  function getSentinelConnection(sentinelId: string) {
+    return sentinelState.sentinels.get(sentinelId)
+  }
+
   function getSentinelInfo(): { machineId?: string; hostname?: string } | undefined {
     const defaultId = sentinelRegistry?.getDefaultId()
     const conn = defaultId ? sentinelState.sentinels.get(defaultId) : sentinelState.sentinels.values().next().value
@@ -1874,6 +1898,19 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
     const first = sentinelState.sentinels.values().next()
     return first.done ? undefined : first.value.alias
+  }
+
+  function getConnectedSentinels() {
+    const result: Array<{ sentinelId: string; alias: string; hostname?: string; connectedAt: number }> = []
+    for (const conn of sentinelState.sentinels.values()) {
+      result.push({
+        sentinelId: conn.sentinelId,
+        alias: conn.alias,
+        hostname: conn.hostname,
+        connectedAt: conn.connectedAt,
+      })
+    }
+    return result
   }
 
   function removeSentinel(ws: ServerWebSocket<unknown>): void {
@@ -2597,9 +2634,12 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     getSubscriptionsDiag,
     setSentinel,
     getSentinel,
+    getSentinelByAlias,
+    getSentinelConnection,
     getSentinelInfo,
     getDefaultSentinelId,
     getDefaultSentinelAlias,
+    getConnectedSentinels,
     removeSentinel,
     hasSentinel,
     pushSentinelDiag,

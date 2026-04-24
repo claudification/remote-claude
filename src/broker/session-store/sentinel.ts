@@ -24,6 +24,7 @@ export interface SentinelIdentifyInfo {
 
 export interface SentinelState {
   sentinels: Map<string, SentinelConnection> // sentinelId -> live connection
+  sentinelsByAlias: Map<string, string> // alias -> sentinelId (O(1) alias lookup)
   diagLog: Array<{ t: number; type: string; msg: string; args?: unknown }>
   usage: UsageUpdate | undefined
 }
@@ -31,6 +32,7 @@ export interface SentinelState {
 export function createSentinelState(): SentinelState {
   return {
     sentinels: new Map(),
+    sentinelsByAlias: new Map(),
     diagLog: [],
     usage: undefined,
   }
@@ -42,11 +44,17 @@ export function setSentinel(
   broadcast: (msg: DashboardMessage) => void,
   info?: SentinelIdentifyInfo,
 ): boolean {
-  // Phase 0: accept only one sentinel at a time
-  if (state.sentinels.size > 0) return false
-
   const sentinelId = info?.sentinelId || 'default'
   const alias = info?.alias || 'default'
+
+  // Replace existing connection for this sentinel (reconnect case)
+  const existing = state.sentinels.get(sentinelId)
+  if (existing) {
+    try {
+      existing.ws.close(4409, 'Replaced by new connection')
+    } catch {}
+  }
+
   const conn: SentinelConnection = {
     ws,
     sentinelId,
@@ -57,6 +65,7 @@ export function setSentinel(
     connectedAt: Date.now(),
   }
   state.sentinels.set(sentinelId, conn)
+  state.sentinelsByAlias.set(alias, sentinelId)
   broadcast({ type: 'sentinel_status', connected: true, machineId: info?.machineId, hostname: info?.hostname })
   return true
 }
@@ -69,6 +78,7 @@ export function removeSentinel(
   for (const [id, conn] of state.sentinels) {
     if (conn.ws === ws) {
       state.sentinels.delete(id)
+      state.sentinelsByAlias.delete(conn.alias)
       broadcast({ type: 'sentinel_status', connected: false })
       return
     }

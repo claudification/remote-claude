@@ -12,6 +12,7 @@ import { resolveInJail } from './path-jail'
 import { createAdminRouter } from './routes/admin'
 import { createApiRouter } from './routes/api'
 import { blobDir, initBlobStore, initSharedFilesLog } from './routes/blob-store'
+import { createSentinelRouter } from './routes/sentinels'
 import { createSessionsRouter } from './routes/sessions'
 import { createRouteHelpers } from './routes/shared'
 import { createSpawnRouter } from './routes/spawn'
@@ -85,6 +86,7 @@ export interface RouteOptions {
   cacheDir?: string
   serverStartTime?: number
   publicOrigin?: string // public base URL from --origin (e.g. "https://your-host.example.com")
+  sentinelRegistry?: import('./sentinel-registry').SentinelRegistry
 }
 
 export function createRouter(options: RouteOptions): Hono {
@@ -97,6 +99,7 @@ export function createRouter(options: RouteOptions): Hono {
     cacheDir,
     serverStartTime = Date.now(),
     publicOrigin,
+    sentinelRegistry,
   } = options
 
   // Initialize disk-backed blob store + shared files log
@@ -220,6 +223,9 @@ export function createRouter(options: RouteOptions): Hono {
   app.route('/', createApiRouter(sessionStore, helpers, rclaudeSecret, cacheDir, blobDir, publicOrigin, vapidPublicKey))
   app.route('/', createStatsRouter(sessionStore, store, helpers, serverStartTime))
   app.route('/', createAdminRouter(sessionStore, helpers, rclaudeSecret))
+  if (sentinelRegistry) {
+    app.route('/', createSentinelRouter(sentinelRegistry, sessionStore, helpers))
+  }
 
   // ─── Static file serving ───────────────────────────────────────────
 
