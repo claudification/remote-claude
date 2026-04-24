@@ -1,0 +1,66 @@
+name: Build & Push claude-runner
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag (default: git sha short)'
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Cross-compile binaries for linux-x64
+        run: bun run build:linux
+
+      - name: Resolve image tags
+        id: meta
+        run: |
+          REPO="ghcr.io/${{ github.repository_owner }}/claude-runner"
+          REPO=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
+
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+            echo "tags=${REPO}:${VERSION},${REPO}:latest" >> "$GITHUB_OUTPUT"
+          elif [[ -n "${{ inputs.tag }}" ]]; then
+            echo "tags=${REPO}:${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            SHA=$(echo "${{ github.sha }}" | head -c 7)
+            echo "tags=${REPO}:sha-${SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.runner
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
