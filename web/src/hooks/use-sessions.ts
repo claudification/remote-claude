@@ -77,6 +77,15 @@ export interface JsonStreamMessage {
   isBackfill: boolean
 }
 
+export interface SentinelStatusInfo {
+  sentinelId: string
+  alias: string
+  hostname?: string
+  connected: boolean
+  isDefault?: boolean
+  color?: string
+}
+
 interface SessionsState {
   sessions: Session[]
   /** O(1) lookup index maintained alongside sessions[] */
@@ -128,6 +137,7 @@ interface SessionsState {
   syncEpoch: string // server epoch (changes on server restart)
   syncSeq: number // last received sequence number
   sentinelConnected: boolean
+  sentinels: SentinelStatusInfo[]
   planUsage: UsageUpdate | null
   error: string | null
   authExpired: boolean
@@ -234,7 +244,7 @@ interface SessionsState {
   setProjectSettings: (settings: ProjectSettingsMap) => void
   setProjectOrder: (order: ProjectOrder) => void
   setConnected: (connected: boolean) => void
-  setSentinelConnected: (connected: boolean) => void
+  setSentinelConnected: (connected: boolean, sentinels?: SentinelStatusInfo[]) => void
   setPlanUsage: (usage: UsageUpdate) => void
   setError: (error: string | null) => void
   setAuthExpired: (expired: boolean) => void
@@ -412,6 +422,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   syncEpoch: '',
   syncSeq: 0,
   sentinelConnected: false,
+  sentinels: [],
   planUsage: null,
   error: null,
   authExpired: false,
@@ -766,7 +777,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       isConnected: connected,
       ...(connected && { connectSeq: state.connectSeq + 1 }),
     })),
-  setSentinelConnected: connected => set({ sentinelConnected: connected }),
+  setSentinelConnected: (connected, sentinels) =>
+    set({ sentinelConnected: connected, ...(sentinels !== undefined && { sentinels }) }),
   setPlanUsage: usage => set({ planUsage: usage }),
   setError: error => set({ error }),
   setAuthExpired: authExpired => set({ authExpired }),

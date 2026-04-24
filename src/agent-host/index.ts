@@ -1647,6 +1647,29 @@ async function main() {
         cleanupJob()
         return { ok: true, conversationId: spawnResult.conversationId, jobId }
       },
+      async onListHosts() {
+        if (!ctx.wsClient?.isConnected()) return []
+        try {
+          const httpUrl = wsToHttpUrl(brokerUrl)
+          const resp = await fetch(`${httpUrl}/api/sentinels`, {
+            headers: { Authorization: `Bearer ${brokerSecret}` },
+          })
+          if (!resp.ok) return []
+          const data = (await resp.json()) as Array<{
+            alias: string
+            hostname?: string
+            connected: boolean
+          }>
+          return data.map(s => ({
+            alias: s.alias,
+            hostname: s.hostname,
+            connected: s.connected,
+            sessionCount: 0,
+          }))
+        } catch {
+          return []
+        }
+      },
       async onGetSpawnDiagnostics(jobId) {
         if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to broker' }
         return new Promise(resolve => {

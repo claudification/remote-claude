@@ -26,6 +26,7 @@ import { LaunchErrorBanner, LaunchFooterActions, LaunchStepList } from './launch
 interface SpawnDialogOptions {
   cwd: string
   mkdir?: boolean
+  sentinel?: string
 }
 
 interface SpawnDialogState {
@@ -208,6 +209,7 @@ export function SpawnDialog() {
       maxBudgetUsd: maxBudgetUsd ? Number(maxBudgetUsd) : undefined,
       worktree: useWorktree && worktreeName.trim() ? worktreeName.trim() : undefined,
       includePartialMessages: includePartialMessages || undefined,
+      sentinel: state.options.sentinel || undefined,
       env: parsedEnv || undefined,
       jobId: newJobId,
     }

@@ -15,9 +15,12 @@ function formatBytes(bps: number): string {
   return `${(bps / 1024).toFixed(1)}K`
 }
 
+const EMPTY_SENTINELS: { sentinelId: string; alias: string; hostname?: string; connected: boolean }[] = []
+
 function StatusIndicator() {
   const isConnected = useSessionsStore(s => s.isConnected)
   const sentinelConnected = useSessionsStore(s => s.sentinelConnected)
+  const sentinels = useSessionsStore(s => s.sentinels) || EMPTY_SENTINELS
   const error = useSessionsStore(s => s.error)
   const showStats = useSessionsStore(s => s.controlPanelPrefs.showWsStats)
   const rates = useSyncExternalStore(subscribeStats, getRates)
@@ -85,15 +88,32 @@ function StatusIndicator() {
               <div className="text-[10px] text-destructive/70 pl-5 -mt-1 break-all">{error}</div>
             )}
 
-            <div className="flex items-center gap-2">
-              <span className={`text-xs ${sentinelConnected ? 'text-active' : 'text-muted-foreground'}`}>
-                {sentinelConnected ? '●' : '○'}
-              </span>
-              <span className="text-[11px] text-muted-foreground">Sentinel</span>
-              <span className={`text-[10px] ml-auto ${sentinelConnected ? 'text-active' : 'text-muted-foreground/50'}`}>
-                {sentinelConnected ? 'connected' : 'offline'}
-              </span>
-            </div>
+            {sentinels.length > 0 ? (
+              sentinels.map(s => (
+                <div key={s.sentinelId} className="flex items-center gap-2">
+                  <span className={`text-xs ${s.connected ? 'text-active' : 'text-muted-foreground'}`}>
+                    {s.connected ? '●' : '○'}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">{s.alias}</span>
+                  {s.hostname && <span className="text-[10px] text-muted-foreground/40">{s.hostname}</span>}
+                  <span className={`text-[10px] ml-auto ${s.connected ? 'text-active' : 'text-muted-foreground/50'}`}>
+                    {s.connected ? 'connected' : 'offline'}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className={`text-xs ${sentinelConnected ? 'text-active' : 'text-muted-foreground'}`}>
+                  {sentinelConnected ? '●' : '○'}
+                </span>
+                <span className="text-[11px] text-muted-foreground">Sentinel</span>
+                <span
+                  className={`text-[10px] ml-auto ${sentinelConnected ? 'text-active' : 'text-muted-foreground/50'}`}
+                >
+                  {sentinelConnected ? 'connected' : 'offline'}
+                </span>
+              </div>
+            )}
 
             {showStats && isConnected && (
               <>

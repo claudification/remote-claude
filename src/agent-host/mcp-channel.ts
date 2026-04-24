@@ -121,6 +121,7 @@ export interface McpChannelCallbacks {
       onProgress?: (event: Record<string, unknown>) => void
     },
   ) => Promise<{ ok: boolean; error?: string; conversationId?: string; jobId?: string }>
+  onListHosts?: () => Promise<Array<{ alias: string; hostname?: string; connected: boolean; sessionCount: number }>>
   onGetSpawnDiagnostics?: (
     jobId: string,
   ) => Promise<{ ok: boolean; error?: string; diagnostics?: Record<string, unknown> }>
@@ -362,6 +363,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
         .optional()
         .describe('Target session ID from list_sessions. Required for revive and restart actions.'),
       resume_id: z.string().optional().describe('Claude Code session ID to resume (alias for resumeId).'),
+      host: z.string().optional().describe('Target sentinel alias (from list_hosts). Maps to sentinel field.'),
     })
     .partial({ cwd: true })
   const spawnToolInputSchema = z.toJSONSchema(spawnToolSchema) as {
@@ -824,10 +826,12 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
           }
         }
 
-        const { jobId: _jobId, cwd: _cwd, ...spawnRest } = params as SpawnRequest & Record<string, unknown>
+        const { jobId: _jobId, cwd: _cwd, host: _host, ...spawnRest } = params as SpawnRequest & Record<string, unknown>
+        const sentinel = (params.host as string) || (params.sentinel as string) || undefined
         const result = (await callbacks.onSpawnSession?.({
           ...spawnRest,
           cwd,
+          sentinel,
           mode,
           resumeId,
           mkdir,
@@ -882,6 +886,17 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
             },
           ],
         }
+      },
+    },
+
+    list_hosts: {
+      description:
+        'List connected sentinel hosts. Each sentinel is a machine that can spawn sessions. Use the alias as the `host` parameter in spawn_session to target a specific machine.',
+      inputSchema: { type: 'object' as const, properties: {} },
+      async handle() {
+        const result = (await callbacks.onListHosts?.()) || []
+        debug(`[channel] list_hosts: ${result.length} hosts`)
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
       },
     },
 

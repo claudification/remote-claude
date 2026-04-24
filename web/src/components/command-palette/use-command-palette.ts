@@ -250,12 +250,34 @@ export function useCommandPalette(onClose: () => void) {
   }, [isFileMode])
 
   // --- Spawn mode ---
-  const spawnPath = isSpawnMode ? filter.slice(2).trim() : ''
+  const spawnRawInput = isSpawnMode ? filter.slice(2).trim() : ''
   const [spawnDirs, setSpawnDirs] = useState<string[]>([])
   const [spawnLoading, setSpawnLoading] = useState(false)
   const [spawnError, setSpawnError] = useState<string | null>(null)
   const spawning = false // spawn now handled by SpawnDialog
   const spawnFetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Parse @alias prefix from spawn input
+  const spawnParsed = useMemo(() => {
+    const input = spawnRawInput
+    if (input.startsWith('claude://')) {
+      try {
+        const url = new URL(input)
+        return { sentinel: url.hostname || undefined, path: url.pathname }
+      } catch {
+        return { path: input }
+      }
+    }
+    if (input.startsWith('@')) {
+      const spaceIdx = input.indexOf(' ')
+      if (spaceIdx === -1) return { sentinel: input.slice(1), path: '' }
+      return { sentinel: input.slice(1, spaceIdx), path: input.slice(spaceIdx + 1) }
+    }
+    return { path: input }
+  }, [spawnRawInput])
+
+  const spawnPath = spawnParsed.path
+  const spawnSentinel = spawnParsed.sentinel
 
   const spawnParentDir = spawnPath.includes('/') ? spawnPath.slice(0, spawnPath.lastIndexOf('/') + 1) : '/'
   const spawnPartial = spawnPath.includes('/')
@@ -263,11 +285,13 @@ export function useCommandPalette(onClose: () => void) {
     : spawnPath.toLowerCase()
 
   const fetchDirs = useCallback(
-    (dirPath: string) => {
+    (dirPath: string, sentinel?: string) => {
       if (!sentinelConnected) return
       setSpawnLoading(true)
       setSpawnError(null)
-      fetch(`/api/dirs?path=${encodeURIComponent(dirPath)}`)
+      const params = new URLSearchParams({ path: dirPath })
+      if (sentinel) params.set('sentinel', sentinel)
+      fetch(`/api/dirs?${params}`)
         .then(r => r.json())
         .then(data => {
           setSpawnDirs(data.dirs || [])
@@ -289,11 +313,11 @@ export function useCommandPalette(onClose: () => void) {
       return
     }
     if (spawnFetchTimer.current) clearTimeout(spawnFetchTimer.current)
-    spawnFetchTimer.current = setTimeout(() => fetchDirs(spawnParentDir), 200)
+    spawnFetchTimer.current = setTimeout(() => fetchDirs(spawnParentDir, spawnSentinel), 200)
     return () => {
       if (spawnFetchTimer.current) clearTimeout(spawnFetchTimer.current)
     }
-  }, [isSpawnMode, spawnParentDir, fetchDirs])
+  }, [isSpawnMode, spawnParentDir, spawnSentinel, fetchDirs])
 
   const filteredSpawnDirs = spawnPartial ? spawnDirs.filter(d => d.toLowerCase().startsWith(spawnPartial)) : spawnDirs
   // Show "create & spawn" when the typed path doesn't match any existing directory
@@ -302,7 +326,7 @@ export function useCommandPalette(onClose: () => void) {
   function handleSpawn(path: string, mkdir = false) {
     if (spawning || !path) return
     onClose()
-    openSpawnDialog({ cwd: path, mkdir })
+    openSpawnDialog({ cwd: path, mkdir, sentinel: spawnSentinel })
   }
 
   // --- Task mode ---
