@@ -29,5 +29,8 @@ if [ "${ENABLE_SUDO}" != "1" ]; then
   rm -f /etc/sudoers.d/claude
 fi
 
+# --- Default broker URL for Docker networking ---
+export CLAUDWERK_BROKER="${CLAUDWERK_BROKER:-ws://broker:9999}"
+
 # --- Drop to target user and exec ---
 exec gosu "$TARGET_USER" "$@"

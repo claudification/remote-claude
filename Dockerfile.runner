@@ -1,7 +1,7 @@
 # claudewerk/claude-runner
 #
 # Sandboxed Docker image for running Claude Code with the claudwerk agent host.
-# Includes: CC (native installer), rclaude (agent host), sentinel, tmux.
+# Includes: CC, rclaude, sentinel, bun, python3, gh, ripgrep, build-essential, neovim.
 #
 # Build:
 #   bun run build:linux
@@ -27,6 +27,20 @@ ARG USER_GID=1000
 # System deps (CC brings its own Node via native installer)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates git jq procps tmux openssh-client sudo \
+    python3 python3-pip python3-venv \
+    build-essential \
+    ripgrep fd-find \
+    wget unzip zip \
+    less tree sqlite3 neovim \
+    && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
+    && rm -rf /var/lib/apt/lists/*
+
+# GitHub CLI
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
 # gosu for dynamic UID/GID drop in entrypoint (pre-built, no compiler needed)
@@ -46,10 +60,17 @@ RUN groupadd -g ${USER_GID} claude \
 # Git safe.directory for mounted workspaces
 RUN git config --system --add safe.directory '*'
 
+# Bun (JS/TS runtime)
+USER claude
+RUN curl -fsSL https://bun.sh/install | bash
+USER root
+ENV PATH="/home/claude/.bun/bin:${PATH}"
+
 # Claude Code via native installer
 USER claude
 RUN curl -fsSL https://claude.ai/install.sh | bash
 USER root
+ENV PATH="/home/claude/.local/bin:${PATH}"
 
 # claudwerk binaries (cross-compiled for linux-x64)
 COPY bin/rclaude-linux-x64 /usr/local/bin/rclaude
@@ -62,4 +83,4 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["rclaude", "--headless"]
+CMD ["sentinel"]
