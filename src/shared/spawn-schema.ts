@@ -103,6 +103,7 @@ export const spawnRequestSchema = z.object({
     .boolean()
     .optional()
     .describe('Include partial message chunks (token streaming). Default: true for normal, false for ad-hoc'),
+  agent: z.string().optional().describe('Agent name (passed as --agent to claude CLI)'),
   worktree: z.string().optional().describe('Branch name - creates isolated git worktree'),
   env: z.record(z.string(), z.string()).optional().describe('Env var overrides'),
   prompt: z.string().optional().describe('Initial prompt (headless only)'),

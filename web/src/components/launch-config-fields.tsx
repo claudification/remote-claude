@@ -26,6 +26,7 @@ import { parseEnvText } from '@/lib/env-parse'
 type LaunchFieldKey =
   | 'model'
   | 'effort'
+  | 'agent'
   | 'permissionMode'
   | 'autocompactPct'
   | 'includePartialMessages'
@@ -41,6 +42,7 @@ export type LaunchFieldsValue = {
   // Subset of SpawnRequest -- parent owns canonical state
   model?: string
   effort?: string
+  agent?: string
   permissionMode?: string
   autocompactPct?: number | ''
   maxBudgetUsd?: string
@@ -156,6 +158,19 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
               </SelectContent>
             </Select>
           </div>
+        </Row>
+      )}
+      {show.agent && (
+        <Row label="Agent" subtitle="Named agent from agents.md or --agents config" htmlFor="lcf-agent">
+          <input
+            id="lcf-agent"
+            type="text"
+            value={value.agent ?? ''}
+            onChange={e => onChange({ agent: e.target.value })}
+            disabled={disabled.agent}
+            placeholder="(none)"
+            className="flex-1 max-w-[220px] text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
+          />
         </Row>
       )}
       {show.permissionMode && (

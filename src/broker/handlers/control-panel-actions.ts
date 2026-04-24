@@ -271,6 +271,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
       effort,
       model,
       sessionName,
+      agent: lc?.agent || undefined,
       bare: lc?.bare || undefined,
       repl: lc?.repl || undefined,
       permissionMode: lc?.permissionMode || undefined,

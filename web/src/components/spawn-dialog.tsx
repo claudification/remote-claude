@@ -46,6 +46,7 @@ export function SpawnDialog() {
   const [headless, setHeadless] = useState(true)
   const [model, setModel] = useState('')
   const [effort, setEffort] = useState('')
+  const [agent, setAgent] = useState('')
   const [bare, setBare] = useState(false)
   const [repl, setRepl] = useState(false)
   const [useWorktree, setUseWorktree] = useState(false)
@@ -87,6 +88,7 @@ export function SpawnDialog() {
       setHeadless(defaultMode !== 'pty')
       setModel('')
       setEffort('')
+      setAgent('')
       setBare(ps?.defaultBare ?? (gs.defaultBare as boolean) ?? false)
       setRepl(ps?.defaultRepl ?? (gs.defaultRepl as boolean) ?? false)
       setUseWorktree(false)
@@ -200,6 +202,7 @@ export function SpawnDialog() {
       name: name.trim() || undefined,
       model: (model || undefined) as SpawnRequest['model'],
       effort: (effort || undefined) as SpawnRequest['effort'],
+      agent: agent.trim() || undefined,
       permissionMode: (permissionMode || undefined) as SpawnRequest['permissionMode'],
       autocompactPct: autocompactPct === '' ? undefined : autocompactPct,
       maxBudgetUsd: maxBudgetUsd ? Number(maxBudgetUsd) : undefined,
@@ -233,6 +236,7 @@ export function SpawnDialog() {
     name,
     model,
     effort,
+    agent,
     permissionMode,
     autocompactPct,
     maxBudgetUsd,
@@ -315,6 +319,7 @@ export function SpawnDialog() {
     setHeadless(true)
     setModel('')
     setEffort('')
+    setAgent('')
     setBare(false)
     setRepl(false)
     setPermissionMode('')
@@ -367,6 +372,7 @@ export function SpawnDialog() {
   function applyFieldsPatch(patch: Partial<LaunchFieldsValue>) {
     if ('model' in patch) setModel(patch.model ?? '')
     if ('effort' in patch) setEffort(patch.effort ?? '')
+    if ('agent' in patch) setAgent(patch.agent ?? '')
     if ('permissionMode' in patch) setPermissionMode(patch.permissionMode ?? '')
     if ('autocompactPct' in patch) setAutocompactPct(patch.autocompactPct ?? '')
     if ('maxBudgetUsd' in patch) setMaxBudgetUsd(patch.maxBudgetUsd ?? '')
@@ -380,6 +386,7 @@ export function SpawnDialog() {
   const fieldsValue: LaunchFieldsValue = {
     model,
     effort,
+    agent,
     permissionMode,
     autocompactPct,
     maxBudgetUsd,
@@ -500,6 +507,7 @@ export function SpawnDialog() {
                       value={fieldsValue}
                       onChange={applyFieldsPatch}
                       show={{
+                        agent: true,
                         permissionMode: true,
                         autocompactPct: true,
                         maxBudgetUsd: headless,

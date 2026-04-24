@@ -133,6 +133,12 @@ if [[ -n "${RCLAUDE_MODEL:-}" ]]; then
   MODEL_FLAG=" --model $RCLAUDE_MODEL"
 fi
 
+# Append --agent flag if set (passed through to claude CLI)
+AGENT_FLAG=""
+if [[ -n "${RCLAUDE_AGENT:-}" ]]; then
+  AGENT_FLAG=" --agent $RCLAUDE_AGENT"
+fi
+
 # Append --worktree flag if set (passed through to claude CLI for ad-hoc isolation)
 WORKTREE_FLAG=""
 if [[ -n "${RCLAUDE_WORKTREE:-}" ]]; then
@@ -145,7 +151,7 @@ if [[ -n "${RCLAUDE_MAX_BUDGET_USD:-}" ]]; then
   MAX_BUDGET_FLAG=" --max-budget-usd $RCLAUDE_MAX_BUDGET_USD"
 fi
 
-SPAWN_CMD="${CMD_PREFIX}${BASE_CMD}${EFFORT_FLAG}${MODEL_FLAG}${WORKTREE_FLAG}${MAX_BUDGET_FLAG}"
+SPAWN_CMD="${CMD_PREFIX}${BASE_CMD}${EFFORT_FLAG}${MODEL_FLAG}${AGENT_FLAG}${WORKTREE_FLAG}${MAX_BUDGET_FLAG}"
 
 # Debug log for launch diagnostics
 if [[ "${RCLAUDE_ADHOC:-}" == "1" ]]; then

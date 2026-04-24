@@ -404,6 +404,11 @@ async function main() {
     claudeArgs.push('--permission-mode', process.env.RCLAUDE_PERMISSION_MODE)
   }
 
+  // Agent: pass --agent to Claude CLI
+  if (process.env.RCLAUDE_AGENT && !claudeArgs.includes('--agent')) {
+    claudeArgs.push('--agent', process.env.RCLAUDE_AGENT)
+  }
+
   // Headless mode implications
   if (headless) {
     noTerminal = true

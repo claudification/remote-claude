@@ -38,6 +38,7 @@ const meta: MessageHandler = (ctx, data) => {
     if (pendingLaunchConfig && !existingSession.launchConfig) {
       existingSession.launchConfig = pendingLaunchConfig
       if (pendingLaunchConfig.effort) existingSession.effortLevel = pendingLaunchConfig.effort
+      if (pendingLaunchConfig.agent) existingSession.agentName = pendingLaunchConfig.agent
     }
     ctx.log.debug(
       `Session resumed: ${sessionId.slice(0, 8)}... conv=${conversationId.slice(0, 8)} (${data.cwd}) [${ctx.sessions.getActiveConversationCount(sessionId) + 1} conversation(s)]${data.version ? ` [${data.version}]` : ''}`,
@@ -61,6 +62,7 @@ const meta: MessageHandler = (ctx, data) => {
     if (pendingLaunchConfig) {
       newSession.launchConfig = pendingLaunchConfig
       if (pendingLaunchConfig.effort) newSession.effortLevel = pendingLaunchConfig.effort
+      if (pendingLaunchConfig.agent) newSession.agentName = pendingLaunchConfig.agent
     }
     const isAdHoc = (data.capabilities as string[] | undefined)?.includes('ad-hoc')
     ctx.log.debug(

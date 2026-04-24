@@ -115,8 +115,18 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
   const projSettings = deps.getProjectSettings(req.cwd)
   const globalSettings = deps.getGlobalSettings()
   const resolved = resolveSpawnConfig(req, projSettings, globalSettings)
-  const { headless, model, effort, permissionMode, autocompactPct, maxBudgetUsd, bare, repl, includePartialMessages } =
-    resolved
+  const {
+    headless,
+    model,
+    effort,
+    agent,
+    permissionMode,
+    autocompactPct,
+    maxBudgetUsd,
+    bare,
+    repl,
+    includePartialMessages,
+  } = resolved
 
   if (model) {
     const validation = validateModel(model)
@@ -170,6 +180,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
       headless,
       model,
       effort,
+      agent,
       bare: bare || false,
       repl: repl || false,
       permissionMode,
@@ -205,6 +216,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
             ),
           ),
         sessionDescription: req.description || undefined,
+        agent,
         permissionMode,
         autocompactPct,
         maxBudgetUsd,

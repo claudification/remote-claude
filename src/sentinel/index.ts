@@ -259,6 +259,7 @@ function buildHeadlessEnv(opts: {
   permissionMode?: string
   autocompactPct?: number
   maxBudgetUsd?: number
+  agent?: string
   adHoc?: boolean
   adHocTaskId?: string
   leaveRunning?: boolean
@@ -295,6 +296,7 @@ function buildHeadlessEnv(opts: {
   if (opts.leaveRunning) env.RCLAUDE_LEAVE_RUNNING = '1'
   if (opts.promptFile) env.RCLAUDE_INITIAL_PROMPT_FILE = opts.promptFile
   if (opts.worktree) env.RCLAUDE_WORKTREE = opts.worktree
+  if (opts.agent) env.RCLAUDE_AGENT = opts.agent
   if (opts.includePartialMessages === false) env.RCLAUDE_INCLUDE_PARTIAL_MESSAGES = '0'
   if (opts.env && Object.keys(opts.env).length) env.RCLAUDE_CUSTOM_ENV = JSON.stringify(opts.env)
 
@@ -310,18 +312,18 @@ function buildHeadlessArgs(opts: {
   resumeName?: string
   effort?: string
   model?: string
+  agent?: string
   worktree?: string
   maxBudgetUsd?: number
 }): string[] {
   const args = ['--dangerously-skip-permissions']
   if (opts.mode === 'resume') {
-    // Use CC session ID for --resume, not rclaude session name.
-    // rclaude names (e.g. "raging-walrus") are unknown to CC and cause interactive picker hang.
     const resumeKey = opts.resumeId || opts.resumeName
     if (resumeKey) args.push('--resume', resumeKey)
   }
   if (opts.effort) args.push('--effort', opts.effort)
   if (opts.model) args.push('--model', opts.model)
+  if (opts.agent) args.push('--agent', opts.agent)
   if (opts.worktree) args.push('--worktree', opts.worktree)
   if (opts.maxBudgetUsd) args.push('--max-budget-usd', String(opts.maxBudgetUsd))
   return args
@@ -577,6 +579,7 @@ async function reviveSession(
   jobId?: string,
   adHocWorktree?: string,
   env?: Record<string, string>,
+  agent?: string,
 ): Promise<ReviveResult & { tmuxPaneId?: string }> {
   const result: ReviveResult = {
     type: 'revive_result',
@@ -617,6 +620,7 @@ async function reviveSession(
       resumeName: sessionName,
       effort,
       model,
+      agent,
       maxBudgetUsd,
     })
     const spawnEnv = buildHeadlessEnv({
@@ -626,6 +630,7 @@ async function reviveSession(
       sessionName,
       autocompactPct,
       maxBudgetUsd,
+      agent,
       effort,
       model,
       worktree: adHocWorktree,
@@ -675,6 +680,7 @@ async function reviveSession(
       ...(autocompactPct ? { RCLAUDE_AUTOCOMPACT_PCT: String(autocompactPct) } : {}),
       ...(maxBudgetUsd ? { RCLAUDE_MAX_BUDGET_USD: String(maxBudgetUsd) } : {}),
       ...(adHocWorktree ? { RCLAUDE_WORKTREE: adHocWorktree } : {}),
+      ...(agent ? { RCLAUDE_AGENT: agent } : {}),
       ...(env && Object.keys(env).length ? { RCLAUDE_CUSTOM_ENV: JSON.stringify(env) } : {}),
     },
   })
@@ -780,6 +786,7 @@ async function spawnSession(
   leaveRunning = false,
   includePartialMessages?: boolean,
   env?: Record<string, string>,
+  agent?: string,
 ): Promise<{ success: boolean; error?: string; tmuxSession?: string; tmuxPaneId?: string }> {
   launchLog(jobId, 'Validating directory', 'info', cwd)
 
@@ -855,7 +862,16 @@ async function spawnSession(
       return { success: false, error: err }
     }
 
-    const args = buildHeadlessArgs({ mode, resumeId, resumeName: sessionName, effort, model, worktree, maxBudgetUsd })
+    const args = buildHeadlessArgs({
+      mode,
+      resumeId,
+      resumeName: sessionName,
+      effort,
+      model,
+      agent,
+      worktree,
+      maxBudgetUsd,
+    })
     const spawnEnv = buildHeadlessEnv({
       secret,
       conversationId,
@@ -864,6 +880,7 @@ async function spawnSession(
       permissionMode,
       autocompactPct,
       maxBudgetUsd,
+      agent,
       adHoc,
       adHocTaskId,
       leaveRunning,
@@ -917,6 +934,7 @@ async function spawnSession(
     ...(promptFile ? { RCLAUDE_INITIAL_PROMPT_FILE: promptFile } : {}),
     ...(includePartialMessages === false ? { RCLAUDE_INCLUDE_PARTIAL_MESSAGES: '0' } : {}),
     ...(worktree ? { RCLAUDE_WORKTREE: shellSafe(worktree) } : {}),
+    ...(agent ? { RCLAUDE_AGENT: shellSafe(agent) } : {}),
     ...(env && Object.keys(env).length ? { RCLAUDE_CUSTOM_ENV: JSON.stringify(env) } : {}),
   }
 
@@ -1221,6 +1239,7 @@ function connect(
             headless?: boolean
             effort?: string
             model?: string
+            agent?: string
             sessionName?: string
             autocompactPct?: number
             maxBudgetUsd?: number
@@ -1250,6 +1269,7 @@ function connect(
             reviveMsg.jobId,
             reviveMsg.adHocWorktree,
             reviveMsg.env,
+            reviveMsg.agent,
           )
           // Strip sentinel-internal tmuxPaneId before sending over WS
           const { tmuxPaneId, ...reviveResult } = result
@@ -1312,6 +1332,7 @@ function connect(
             headless?: boolean
             effort?: string
             model?: string
+            agent?: string
             bare?: boolean
             repl?: boolean
             sessionName?: string
@@ -1380,6 +1401,7 @@ function connect(
             spawnMsg.leaveRunning || false,
             spawnMsg.includePartialMessages,
             spawnMsg.env,
+            spawnMsg.agent,
           )
           const response: SpawnResult = {
             type: 'spawn_result',

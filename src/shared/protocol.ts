@@ -1237,6 +1237,7 @@ export interface LaunchConfig {
   headless: boolean
   model?: string
   effort?: string
+  agent?: string
   bare?: boolean
   repl?: boolean
   permissionMode?: string
