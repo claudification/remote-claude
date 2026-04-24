@@ -129,6 +129,8 @@ export interface Session {
     hookEvent: string
     timestamp: number
   }
+  hostSentinelId?: string
+  hostSentinelAlias?: string
 }
 
 // Project order tree types -- each leaf is a project keyed by project URI

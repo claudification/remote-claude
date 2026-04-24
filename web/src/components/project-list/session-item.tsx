@@ -774,6 +774,11 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
         {hasPendingPermission && <span className="text-[9px] text-amber-400 font-bold animate-pulse">PERM</span>}
         {session.pendingAttention && <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>}
         {session.hasNotification && <span className="text-[9px] text-teal-400 font-bold">NOTIFY</span>}
+        {session.hostSentinelAlias && session.hostSentinelAlias !== 'default' && (
+          <span className="px-1 py-0.5 text-[8px] rounded bg-muted text-muted-foreground font-medium">
+            {session.hostSentinelAlias}
+          </span>
+        )}
         <SessionInfoButton session={session} visible={isSelected} />
         <ShareIndicator sessionProject={projectPath(session.project)} />
         {session.resultText && session.capabilities?.includes('ad-hoc') && <ResultTextModal session={session} />}
@@ -1018,6 +1023,11 @@ export const SessionItemCompact = memo(function SessionItemCompact({ session }: 
         {hasPendingPermission && <span className="text-[9px] text-amber-400 font-bold animate-pulse">PERM</span>}
         {session.pendingAttention && <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>}
         {session.hasNotification && <span className="text-[9px] text-teal-400 font-bold">NOTIFY</span>}
+        {session.hostSentinelAlias && session.hostSentinelAlias !== 'default' && (
+          <span className="px-1 py-0.5 text-[8px] rounded bg-muted text-muted-foreground font-medium">
+            {session.hostSentinelAlias}
+          </span>
+        )}
         <SessionInfoButton session={session} visible={isSelected} />
         {session.status === 'ended' && <DismissButton sessionId={session.id} />}
       </div>
