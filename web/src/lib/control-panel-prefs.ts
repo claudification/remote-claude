@@ -61,7 +61,7 @@ export interface ControlPanelPrefs {
   settingsTab: SettingsTab // last active settings tab (per-device)
 }
 
-export type SettingsTab = 'general' | 'display' | 'input' | 'sessions' | 'system'
+export type SettingsTab = 'general' | 'display' | 'input' | 'sessions' | 'sentinels' | 'system'
 
 const defaultPrefs: ControlPanelPrefs = {
   showEndedSessions: true,
