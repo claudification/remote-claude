@@ -515,10 +515,17 @@ function migrateCostData(store: StoreDriver, cacheDir: string, result: Migration
     }
 
     // Prefer project_uri (post-migration DBs have already dropped the cwd column);
-    // fall back to synthesizing a URI from cwd for pre-migration DBs
+    // fall back to synthesizing a canonical URI from cwd for pre-migration DBs.
+    // Emits `claude://default/{abs}` directly -- canonicalizeUris() will upgrade
+    // any legacy `claude:///` or `claude:////` rows on the target side anyway,
+    // but producing canonical form here saves a second pass.
     const selectExpr = hasProjectUri
       ? "COALESCE(project_uri, '')"
-      : "CASE WHEN cwd IS NOT NULL AND cwd != '' THEN 'claude:///' || cwd ELSE '' END"
+      : `CASE
+           WHEN cwd IS NOT NULL AND cwd != ''
+             THEN 'claude://default' || CASE WHEN substr(cwd, 1, 1) = '/' THEN cwd ELSE '/' || cwd END
+           ELSE ''
+         END`
 
     const rows = legacy
       .query(
@@ -574,6 +581,157 @@ export function migrateFromLegacy(store: StoreDriver, cacheDir: string): Migrati
   migrateCostData(store, cacheDir, result)
 
   return result
+}
+
+/**
+ * Canonicalize every project URI in the store to `claude://default/{path}`.
+ *
+ * Handles two legacy forms produced by pre-2026-04-25 code:
+ *   1. `claude:////path` -- quad-slash scar from `'claude:///' || cwd` concat
+ *      where cwd was already absolute.
+ *   2. `claude:///path`  -- empty-authority form, written before the scheme
+ *      gained a mandatory authority.
+ *
+ * Both collapse to `claude://default/path`. Applied as two SQL UPDATE passes
+ * per affected column so we can drive it with pure REPLACE (no per-row JS).
+ *
+ * Covered columns:
+ *   - store.db  turns.project_uri        (quad-slash scar present)
+ *   - store.db  hourly_stats.project_uri (PK -- malformed rows deleted, rebuilt on next query)
+ *   - store.db  sessions.scope           (clean on entry but we still canonicalize for consistency)
+ *   - store.db  scope_links.scope_a/b    (clean on entry; future-proof)
+ *   - store.db  address_book.owner_scope/target_scope (ditto)
+ *   - analytics.db turns.project_uri     (quad-slash scar present, BIG)
+ *
+ * Idempotent: running twice is a no-op.
+ */
+export interface CanonicalizeResult {
+  storeTurns: number
+  storeHourlyDeleted: number
+  storeSessions: number
+  storeScopeLinks: number
+  storeAddressBook: number
+  analyticsTurns: number
+}
+
+function canonicalizeColumn(db: Database, table: string, column: string): number {
+  // Two-pass: quad-slash -> triple-slash -> default-authority. The order
+  // matters so a single REPLACE doesn't introduce a double slash on quad input.
+  db.prepare(
+    `UPDATE ${table} SET ${column} = REPLACE(${column}, 'claude:////', 'claude:///')
+       WHERE ${column} LIKE 'claude:////%'`,
+  ).run()
+  const r = db
+    .prepare(
+      `UPDATE ${table} SET ${column} = REPLACE(${column}, 'claude:///', 'claude://default/')
+         WHERE ${column} LIKE 'claude:///%' AND ${column} NOT LIKE 'claude://default/%'`,
+    )
+    .run()
+  return r.changes ?? 0
+}
+
+export function canonicalizeUris(cacheDir: string): CanonicalizeResult {
+  const result: CanonicalizeResult = {
+    storeTurns: 0,
+    storeHourlyDeleted: 0,
+    storeSessions: 0,
+    storeScopeLinks: 0,
+    storeAddressBook: 0,
+    analyticsTurns: 0,
+  }
+
+  const storeDbPath = join(cacheDir, 'store.db')
+  if (existsSync(storeDbPath)) {
+    const db = new Database(storeDbPath)
+    try {
+      result.storeTurns = canonicalizeColumn(db, 'turns', 'project_uri')
+
+      // hourly_stats has project_uri in the PK; REPLACE could produce collisions
+      // against existing canonical rows. Delete malformed rows and let
+      // materializeHourly() rebuild from the now-clean turns table on next query.
+      const r = db
+        .prepare(
+          "DELETE FROM hourly_stats WHERE project_uri LIKE 'claude:///%' AND project_uri NOT LIKE 'claude://default/%'",
+        )
+        .run()
+      result.storeHourlyDeleted = r.changes ?? 0
+
+      result.storeSessions = canonicalizeColumn(db, 'sessions', 'scope')
+      // scope_links: both columns, plus dedup on collision (PK is (scope_a, scope_b))
+      const sl1 = canonicalizeColumn(db, 'scope_links', 'scope_a')
+      const sl2 = canonicalizeColumn(db, 'scope_links', 'scope_b')
+      result.storeScopeLinks = sl1 + sl2
+
+      const ab1 = canonicalizeColumn(db, 'address_book', 'owner_scope')
+      const ab2 = canonicalizeColumn(db, 'address_book', 'target_scope')
+      result.storeAddressBook = ab1 + ab2
+    } finally {
+      db.close()
+    }
+  }
+
+  const analyticsDbPath = join(cacheDir, 'analytics.db')
+  if (existsSync(analyticsDbPath)) {
+    const db = new Database(analyticsDbPath)
+    try {
+      result.analyticsTurns = canonicalizeColumn(db, 'turns', 'project_uri')
+    } finally {
+      db.close()
+    }
+  }
+
+  return result
+}
+
+/**
+ * Current schema version. Bumped whenever a startup-time migration step is added.
+ * - 1: Phase 4 complete (legacy JSON/JSONL/cost-data.db absorbed into store.db)
+ * - 2: all project URIs canonicalized to `claude://default/{path}` form
+ *      (collapses claude:////path scar AND upgrades claude:///path to include
+ *      the default sentinel authority)
+ */
+export const SCHEMA_VERSION = 2
+
+const SCHEMA_VERSION_KEY = 'schema-version'
+
+export interface StartupMigrationResult {
+  fromVersion: number
+  toVersion: number
+  migrated?: MigrationResult
+  canonicalized?: CanonicalizeResult
+  skipped: boolean
+}
+
+/**
+ * Idempotent startup hook -- runs any migration steps whose version is higher
+ * than the currently-stamped schema version, then updates the stamp.
+ *
+ * Designed to be called once on broker startup after store.init(). Fast path
+ * (stamp already current) is a single KV read.
+ */
+export function runStartupMigration(store: StoreDriver, cacheDir: string): StartupMigrationResult {
+  const current = (store.kv.get<number>(SCHEMA_VERSION_KEY) as number | null) ?? 0
+
+  if (current >= SCHEMA_VERSION) {
+    return { fromVersion: current, toVersion: SCHEMA_VERSION, skipped: true }
+  }
+
+  const out: StartupMigrationResult = { fromVersion: current, toVersion: SCHEMA_VERSION, skipped: false }
+
+  // v1: absorb legacy JSON/JSONL/cost-data.db. Each sub-migrate is idempotent
+  // (skips if the target table is already populated), so this is safe to call
+  // regardless of current version.
+  if (current < 1) {
+    out.migrated = migrateFromLegacy(store, cacheDir)
+  }
+
+  // v2: canonicalize all project URIs to `claude://default/{path}` form
+  if (current < 2) {
+    out.canonicalized = canonicalizeUris(cacheDir)
+  }
+
+  store.kv.set(SCHEMA_VERSION_KEY, SCHEMA_VERSION)
+  return out
 }
 
 export function dryRunScan(cacheDir: string): { files: Record<string, { exists: boolean; entries?: number }> } {

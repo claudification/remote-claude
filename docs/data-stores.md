@@ -10,14 +10,28 @@ authoritative config, not disposable time-series data)
 
 **Table:** `projects` (id INTEGER PK, cwd TEXT UNIQUE, scope TEXT UNIQUE, slug TEXT, label TEXT)
 
-**Scope URI scheme** (future-facing):
+**Scope URI scheme** (canonical form, stable):
 ```
-{provider}://{address}#{session}
-claude://my-machine/Users/jonas/projects/remote-claude#a1b2c3d4
-claude:///Users/jonas/projects/remote-claude          (local, no host)
+{provider}://{sentinel}/{path}#{session}
+
+claude://default/Users/jonas/projects/remote-claude            (local install -- default sentinel)
+claude://default/Users/jonas/projects/remote-claude#a1b2c3d4   (specific session inside it)
+claude://laptop/Users/jonas/projects/foo                       (future: multi-sentinel)
 fabric://pipeline/data-etl-nightly
 agent://openai/asst_abc123
 ```
+
+The **authority slot is the sentinel name**. `default` means "the single-host
+local install"; when multi-sentinel support lands, each host registers with
+its own authority. See `src/shared/project-uri.ts` for the `DEFAULT_SENTINEL_NAME`
+constant + the parse/normalize/match/compare helpers.
+
+**Legacy URI forms** (still accepted on input, canonicalized on read):
+- `claude:///path`  -- authority-empty form, upgraded to `default` by `normalizeProjectUri()`
+- `claude:////path` -- pre-2026-04-25 quad-slash concat scar, collapsed then upgraded
+
+One-shot backfill `canonicalizeUris()` rewrites any surviving legacy forms
+in `store.db` and `analytics.db` on broker startup when `kv['schema-version'] < 2`.
 
 **API:**
 - `GET /api/projects` -- list all projects (admin only)

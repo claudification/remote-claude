@@ -761,7 +761,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         return {
           timestamp: Date.now(),
           sessionId: 's1',
-          projectUri: 'claude:///proj-a',
+          projectUri: 'claude://default/proj-a',
           account: 'alice@example.com',
           orgId: 'org-1',
           model: 'claude-opus-4',
@@ -780,7 +780,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         const { rows, total } = store.costs.queryTurns({})
         expect(total).toBe(1)
         expect(rows[0].sessionId).toBe('s1')
-        expect(rows[0].projectUri).toBe('claude:///proj-a')
+        expect(rows[0].projectUri).toBe('claude://default/proj-a')
         expect(rows[0].inputTokens).toBe(100)
         expect(rows[0].exactCost).toBe(true)
       })

@@ -32,6 +32,7 @@ import {
 import { addAllowedRoot, addPathMapping, resolveInJail } from './path-jail'
 import type { UserGrant } from './permissions'
 import { runMigrateCli } from './store/migrate-cli'
+import { parseDbName, runQueryCli } from './store/query-cli'
 
 /** Send SIGHUP to running server so it reloads auth state from disk */
 function notifyServer(cacheDir: string): void {
@@ -70,6 +71,7 @@ COMMANDS:
   list-passkeys --name <name>                               List passkeys for a user
   delete-passkey --name <name> --credential-id <id>        Delete a passkey (kills sessions)
   migrate [--cache-dir <dir>] [--data-dir <dir>] [--dry-run]  Migrate legacy JSON to SQLite
+  query [--db <name>] [--json] "SQL"                        Read-only SQL against store/analytics/projects
   resolve-path <path>                                       Debug: test path jail resolution
 
 GRANT FORMAT:
@@ -116,6 +118,9 @@ function main(): void {
   let notBeforeArg = ''
   let notAfterArg = ''
   let dryRun = false
+  let dbArg = ''
+  let jsonFlag = false
+  let queryArg = ''
   const grantArgs: string[] = []
   const allowRoots: string[] = []
   const pathMapArgs: Array<{ from: string; to: string }> = []
@@ -155,9 +160,15 @@ function main(): void {
       if (sep > 0) {
         pathMapArgs.push({ from: mapping.slice(0, sep), to: mapping.slice(sep + 1) })
       }
+    } else if (arg === '--db') {
+      dbArg = args[++i]
+    } else if (arg === '--json') {
+      jsonFlag = true
     } else if (!arg.startsWith('-')) {
       if (command === 'resolve-path' && !testPath) {
         testPath = arg
+      } else if (command === 'query' && !queryArg) {
+        queryArg = arg
       } else {
         command = arg
       }
@@ -194,6 +205,16 @@ function main(): void {
   // migrate doesn't need auth
   if (command === 'migrate') {
     runMigrateCli({ cacheDir, dataDir: dataDir || undefined, dryRun })
+    process.exit(0)
+  }
+
+  // query doesn't need auth (readonly SQL)
+  if (command === 'query') {
+    if (!queryArg) {
+      console.error('ERROR: provide a SQL string, e.g. broker-cli query "SELECT COUNT(*) FROM turns"')
+      process.exit(1)
+    }
+    runQueryCli({ cacheDir, dbName: parseDbName(dbArg || undefined), sql: queryArg, json: jsonFlag })
     process.exit(0)
   }
 

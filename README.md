@@ -620,13 +620,59 @@ COMMANDS:
   remove-role --name <name> --role <role>               Remove a server role
   list-passkeys --name <name>                           List passkeys for a user
   delete-passkey --name <name> --credential-id <id>     Delete a passkey
+  migrate [--dry-run]                                   Absorb legacy JSON/JSONL into store.db
+  query [--db <name>] [--json] "SQL"                    Read-only SQL inspection
 
 OPTIONS:
   --cache-dir <dir>    Storage directory (default: ~/.cache/concentrator)
   --url <url>          Base URL for invite links (default: http://localhost:9999)
   --not-before <date>  Grant valid from (ISO 8601)
   --not-after <date>   Grant valid until (ISO 8601)
+  --db <name>          Database name for `query`: store (default) | analytics | projects
+  --json               JSON output (otherwise tab-separated rows with header)
 ```
+
+#### Read-only SQL inspection (`broker-cli query`)
+
+Opens any of the broker's SQLite databases in readonly mode and runs the given SQL.
+Safe to run against a live broker: readonly open, no locking beyond WAL readers.
+
+```bash
+# Top 10 projects by turn count (against the unified store.db, default)
+broker-cli query "SELECT project_uri, COUNT(*) as turns FROM turns
+                   GROUP BY 1 ORDER BY turns DESC LIMIT 10"
+
+# Active sessions via JSON
+broker-cli query --json "SELECT id, scope, status FROM sessions WHERE status = 'active'"
+
+# Inside the Docker container
+docker exec broker broker-cli query --cache-dir /data/cache \
+  "SELECT COUNT(*) FROM turns"
+
+# Aligned columns
+broker-cli query "SELECT * FROM kv LIMIT 5" | column -t -s $'\t'
+
+# Analytics DB (separate file, also queryable)
+broker-cli query --db analytics "SELECT model, COUNT(*) FROM turns GROUP BY 1"
+
+# Project registry
+broker-cli query --db projects "SELECT id, scope, label FROM projects"
+```
+
+### Auto-migration on startup
+
+On every broker boot, `runStartupMigration()` checks the schema-version stamp
+in `store.kv` and runs any missing steps idempotently:
+
+- **v1:** absorb legacy `sessions.json`, `transcripts/*.jsonl`, `cost-data.db`,
+  and all the other small JSON files into the unified `store.db`.
+- **v2:** canonicalize every project URI in `store.db` + `analytics.db` to
+  `claude://default/{path}` (collapses pre-2026-04-25 `claude:////path` scars
+  and upgrades authority-less `claude:///path` forms).
+
+When the stamp is current, startup is a single KV read -- no scanning, no
+migration noise. Use `broker-cli migrate --dry-run --cache-dir /data/cache`
+to preview what legacy files a fresh install would absorb.
 
 ---
 

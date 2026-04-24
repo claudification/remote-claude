@@ -268,6 +268,44 @@ async function main() {
   const store = createStore({ type: 'sqlite', dataDir: authCacheDir })
   store.init()
 
+  // Auto-migrate: absorb legacy JSON/JSONL/cost-data.db and canonicalize URIs
+  // on every boot. Idempotent -- schema-version stamp in store.kv makes the
+  // common case a single read. See src/broker/store/migrate.ts.
+  {
+    const { runStartupMigration, SCHEMA_VERSION } = await import('./store/migrate')
+    const result = runStartupMigration(store, authCacheDir)
+    if (result.skipped) {
+      console.log(`[store] Schema version ${SCHEMA_VERSION} (up to date)`)
+    } else {
+      const summary: string[] = []
+      if (result.migrated) {
+        const c = result.migrated.counts
+        const parts: string[] = []
+        if (c.sessions) parts.push(`${c.sessions} sessions`)
+        if (c.transcriptEntries) parts.push(`${c.transcriptEntries} transcript entries`)
+        if (c.shares) parts.push(`${c.shares} shares`)
+        if (c.addressBook) parts.push(`${c.addressBook} address-book entries`)
+        if (c.costTurns) parts.push(`${c.costTurns} cost turns`)
+        if (parts.length) summary.push(`legacy: ${parts.join(', ')}`)
+      }
+      if (result.canonicalized) {
+        const c = result.canonicalized
+        const parts: string[] = []
+        if (c.storeTurns) parts.push(`${c.storeTurns} turns`)
+        if (c.storeHourlyDeleted) parts.push(`${c.storeHourlyDeleted} stale hourly_stats deleted`)
+        if (c.storeSessions) parts.push(`${c.storeSessions} sessions`)
+        if (c.analyticsTurns) parts.push(`${c.analyticsTurns} analytics turns`)
+        if (c.storeScopeLinks) parts.push(`${c.storeScopeLinks} scope links`)
+        if (c.storeAddressBook) parts.push(`${c.storeAddressBook} address book`)
+        if (parts.length) summary.push(`canonicalized URIs: ${parts.join(', ')}`)
+      }
+      console.log(
+        `[store] Migrated schema v${result.fromVersion} -> v${result.toVersion}` +
+          (summary.length ? ` (${summary.join('; ')})` : ''),
+      )
+    }
+  }
+
   // Schedule cost data cleanup (30-day retention, runs daily)
   const COST_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
   const costCleanupTimer = setInterval(

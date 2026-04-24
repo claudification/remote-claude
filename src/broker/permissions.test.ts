@@ -16,11 +16,11 @@ describe('pathToScope', () => {
   })
 
   test('bare path becomes claude:// URI', () => {
-    expect(pathToScope('/Users/jonas/projects/foo')).toBe('claude:///Users/jonas/projects/foo')
+    expect(pathToScope('/Users/jonas/projects/foo')).toBe('claude://default/Users/jonas/projects/foo')
   })
 
   test('glob path becomes claude:// URI with glob', () => {
-    expect(pathToScope('/Users/jonas/projects/*')).toBe('claude:///Users/jonas/projects/*')
+    expect(pathToScope('/Users/jonas/projects/*')).toBe('claude://default/Users/jonas/projects/*')
   })
 })
 
@@ -33,27 +33,27 @@ describe('resolvePermissions with scope-based grants', () => {
 
   test('scope: "claude:*" matches all claude:// URIs', () => {
     const grants: UserGrant[] = [{ scope: 'claude:*', permissions: ['chat'] }]
-    const { permissions } = resolvePermissions(grants, 'claude:///Users/jonas/projects/foo')
+    const { permissions } = resolvePermissions(grants, 'claude://default/Users/jonas/projects/foo')
     expect(permissions.has('chat')).toBe(true)
   })
 
-  test('scope: "claude:///path/*" matches sub-paths', () => {
-    const grants: UserGrant[] = [{ scope: 'claude:///Users/jonas/projects/*', permissions: ['chat'] }]
+  test('scope: "claude://default/path/*" matches sub-paths', () => {
+    const grants: UserGrant[] = [{ scope: 'claude://default/Users/jonas/projects/*', permissions: ['chat'] }]
 
-    const match = resolvePermissions(grants, 'claude:///Users/jonas/projects/foo')
+    const match = resolvePermissions(grants, 'claude://default/Users/jonas/projects/foo')
     expect(match.permissions.has('chat')).toBe(true)
 
-    const noMatch = resolvePermissions(grants, 'claude:///other/path')
+    const noMatch = resolvePermissions(grants, 'claude://default/other/path')
     expect(noMatch.permissions.has('chat')).toBe(false)
   })
 
   test('exact scope match', () => {
-    const grants: UserGrant[] = [{ scope: 'claude:///Users/jonas/projects/foo', permissions: ['terminal'] }]
+    const grants: UserGrant[] = [{ scope: 'claude://default/Users/jonas/projects/foo', permissions: ['terminal'] }]
 
-    const match = resolvePermissions(grants, 'claude:///Users/jonas/projects/foo')
+    const match = resolvePermissions(grants, 'claude://default/Users/jonas/projects/foo')
     expect(match.permissions.has('terminal')).toBe(true)
 
-    const noMatch = resolvePermissions(grants, 'claude:///Users/jonas/projects/bar')
+    const noMatch = resolvePermissions(grants, 'claude://default/Users/jonas/projects/bar')
     expect(noMatch.permissions.has('terminal')).toBe(false)
   })
 })
@@ -74,7 +74,7 @@ describe('resolvePermissions with legacy cwd grants', () => {
 
   test('legacyCwd: "/path" auto-upgrades and matches project URI input', () => {
     const grants: UserGrant[] = [{ legacyCwd: '/Users/jonas/projects/foo', permissions: ['chat'] }]
-    const { permissions } = resolvePermissions(grants, 'claude:///Users/jonas/projects/foo')
+    const { permissions } = resolvePermissions(grants, 'claude://default/Users/jonas/projects/foo')
     expect(permissions.has('chat')).toBe(true)
   })
 
@@ -103,7 +103,7 @@ describe('resolvePermissions with legacy cwd grants', () => {
 })
 
 describe('resolvePermissions accepts both bare CWD and project URI', () => {
-  const grants: UserGrant[] = [{ scope: 'claude:///Users/jonas/projects/foo', permissions: ['chat'] }]
+  const grants: UserGrant[] = [{ scope: 'claude://default/Users/jonas/projects/foo', permissions: ['chat'] }]
 
   test('bare CWD input matches', () => {
     const { permissions } = resolvePermissions(grants, '/Users/jonas/projects/foo')
@@ -111,7 +111,7 @@ describe('resolvePermissions accepts both bare CWD and project URI', () => {
   })
 
   test('project URI input matches', () => {
-    const { permissions } = resolvePermissions(grants, 'claude:///Users/jonas/projects/foo')
+    const { permissions } = resolvePermissions(grants, 'claude://default/Users/jonas/projects/foo')
     expect(permissions.has('chat')).toBe(true)
   })
 
@@ -124,7 +124,7 @@ describe('resolvePermissions accepts both bare CWD and project URI', () => {
 describe('scope takes precedence over legacyCwd', () => {
   test('grant with both scope and legacyCwd uses scope', () => {
     const grants: UserGrant[] = [
-      { legacyCwd: '/wrong/path', scope: 'claude:///Users/jonas/projects/foo', permissions: ['chat'] },
+      { legacyCwd: '/wrong/path', scope: 'claude://default/Users/jonas/projects/foo', permissions: ['chat'] },
     ]
     const match = resolvePermissions(grants, '/Users/jonas/projects/foo')
     expect(match.permissions.has('chat')).toBe(true)
@@ -137,7 +137,7 @@ describe('scope takes precedence over legacyCwd', () => {
 describe('resolvePermissionFlags', () => {
   test('works with project URI', () => {
     const grants: UserGrant[] = [{ scope: '*', roles: ['admin'] }]
-    const flags = resolvePermissionFlags(grants, 'claude:///Users/jonas/projects/foo')
+    const flags = resolvePermissionFlags(grants, 'claude://default/Users/jonas/projects/foo')
     expect(flags.canAdmin).toBe(true)
     expect(flags.canChat).toBe(true)
   })
@@ -145,8 +145,8 @@ describe('resolvePermissionFlags', () => {
 
 describe('hasAnyProjectAccess', () => {
   test('matches with scope grant', () => {
-    const grants: UserGrant[] = [{ scope: 'claude:///Users/jonas/projects/*', permissions: ['chat'] }]
-    expect(hasAnyProjectAccess(grants, 'claude:///Users/jonas/projects/foo')).toBe(true)
+    const grants: UserGrant[] = [{ scope: 'claude://default/Users/jonas/projects/*', permissions: ['chat'] }]
+    expect(hasAnyProjectAccess(grants, 'claude://default/Users/jonas/projects/foo')).toBe(true)
     expect(hasAnyProjectAccess(grants, '/Users/jonas/projects/foo')).toBe(true)
     expect(hasAnyProjectAccess(grants, '/other/path')).toBe(false)
   })
@@ -159,7 +159,7 @@ describe('hasAnyProjectAccess', () => {
 
 describe('hasPermissionAnyCwd with scope grants', () => {
   test('finds permission regardless of scope', () => {
-    const grants: UserGrant[] = [{ scope: 'claude:///specific/path', permissions: ['files'] }]
+    const grants: UserGrant[] = [{ scope: 'claude://default/specific/path', permissions: ['files'] }]
     expect(hasPermissionAnyCwd(grants, 'files')).toBe(true)
     expect(hasPermissionAnyCwd(grants, 'chat')).toBe(false)
   })

@@ -252,12 +252,21 @@ function migrate(d: Database): void {
     console.error('[analytics] Migration failed:', err)
   }
 
-  // project_uri migration
+  // project_uri migration.
+  // cwd values are absolute paths that start with '/', so we prepend
+  // 'claude://default' to get canonical 'claude://default/path'. (The old
+  // pattern `'claude:///' || cwd` produced 'claude:////path' -- a scar that
+  // pre-2026-04-25 data still carries; canonicalizeUris() in store/migrate.ts
+  // upgrades both to 'claude://default/path'.)
   try {
     const uriCols = d.query("PRAGMA table_info('turns')").all() as Array<{ name: string }>
     if (!uriCols.some(c => c.name === 'project_uri')) {
       d.run('ALTER TABLE turns ADD COLUMN project_uri TEXT')
-      d.run("UPDATE turns SET project_uri = 'claude:///' || cwd WHERE project_uri IS NULL AND cwd != ''")
+      d.run(
+        `UPDATE turns SET project_uri =
+           'claude://default' || CASE WHEN substr(cwd, 1, 1) = '/' THEN cwd ELSE '/' || cwd END
+         WHERE project_uri IS NULL AND cwd != ''`,
+      )
       d.run('CREATE INDEX IF NOT EXISTS idx_analytics_project_uri ON turns(project_uri)')
       console.log('[analytics] Migrated: added project_uri column')
     }

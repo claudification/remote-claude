@@ -1,4 +1,5 @@
 import type { Database } from 'bun:sqlite'
+import { normalizeProjectUri } from '../../../shared/project-uri'
 import type {
   CostPeriod,
   CostStore,
@@ -9,6 +10,15 @@ import type {
   TurnFilter,
   TurnRecord,
 } from '../types'
+
+function normalizeUri(uri: string): string {
+  if (!uri) return uri
+  try {
+    return normalizeProjectUri(uri)
+  } catch {
+    return uri
+  }
+}
 
 type Binds = Record<string, string | number | null>
 
@@ -108,7 +118,7 @@ export function createSqliteCostStore(db: Database): CostStore {
     stmtInsertTurn.run({
       timestamp: record.timestamp,
       sessionId: record.sessionId,
-      projectUri: record.projectUri,
+      projectUri: normalizeUri(record.projectUri),
       account: record.account,
       orgId: record.orgId,
       model: record.model,
@@ -141,7 +151,7 @@ export function createSqliteCostStore(db: Database): CostStore {
     recordTurn({
       timestamp: params.timestamp,
       sessionId: params.sessionId,
-      projectUri: params.projectUri,
+      projectUri: normalizeUri(params.projectUri),
       account: params.account,
       orgId: params.orgId,
       model: params.model,

@@ -72,8 +72,9 @@ export function slugFromPath(fsPath: string): string {
 
 /** Derive a scope URI from a filesystem path (Claude Code default) */
 export function scopeFromPath(fsPath: string): string {
-  if (!fsPath) return 'claude:///'
-  return `claude://${fsPath}`
+  if (!fsPath) return 'claude://default/'
+  // fsPath starts with '/', so this yields canonical `claude://default/abs/path`
+  return `claude://default${fsPath}`
 }
 
 // ─── Init ───────────────────────────────────────────────────────────

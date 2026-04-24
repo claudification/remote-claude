@@ -75,7 +75,7 @@ describe('session lifecycle', () => {
     const session = store.getSession('sess-1')
     expect(session).toBeDefined()
     expect(session!.id).toBe('sess-1')
-    expect(session!.project).toBe('claude:///home/user/project')
+    expect(session!.project).toBe('claude://default/home/user/project')
   })
 
   it('createSession makes session appear in getAllSessions', () => {
@@ -566,33 +566,33 @@ describe('project URI field', () => {
   it('createSession auto-populates project from cwd', () => {
     store.createSession('proj-1', '/Users/jonas/projects/foo')
     const session = store.getSession('proj-1')!
-    expect(session.project).toBe('claude:///Users/jonas/projects/foo')
+    expect(session.project).toBe('claude://default/Users/jonas/projects/foo')
   })
 
   it('project uses claude:// scheme by default', () => {
     store.createSession('proj-2', '/tmp/test')
-    expect(store.getSession('proj-2')!.project).toBe('claude:///tmp/test')
+    expect(store.getSession('proj-2')!.project).toBe('claude://default/tmp/test')
   })
 
   it('rekey (different ID) recomputes project from new cwd', () => {
     store.createSession('proj-old', '/old/path')
     store.rekeySession('proj-old', 'proj-new', 'w1', '/new/path')
     const session = store.getSession('proj-new')!
-    expect(session.project).toBe('claude:///new/path')
+    expect(session.project).toBe('claude://default/new/path')
   })
 
   it('same-ID rekey updates project from new cwd', () => {
     store.createSession('proj-same', '/original/path')
     store.rekeySession('proj-same', 'proj-same', 'w1', '/updated/path')
     const session = store.getSession('proj-same')!
-    expect(session.project).toBe('claude:///updated/path')
+    expect(session.project).toBe('claude://default/updated/path')
   })
 
   it('project field survives session resume', () => {
     store.createSession('proj-resume', '/Users/jonas/projects/bar')
     store.resumeSession('proj-resume')
     const session = store.getSession('proj-resume')!
-    expect(session.project).toBe('claude:///Users/jonas/projects/bar')
+    expect(session.project).toBe('claude://default/Users/jonas/projects/bar')
   })
 })
 
@@ -646,8 +646,8 @@ describe('project link management (project URI)', () => {
   })
 
   it('unlinkProjects by session ID severs project link', () => {
-    store.createSession('cwd-unlink-a', 'claude:///projects/p')
-    store.createSession('cwd-unlink-b', 'claude:///projects/q')
+    store.createSession('cwd-unlink-a', 'claude://default/projects/p')
+    store.createSession('cwd-unlink-b', 'claude://default/projects/q')
 
     store.linkProjects('cwd-unlink-a', 'cwd-unlink-b')
     expect(store.checkProjectLink('cwd-unlink-a', 'cwd-unlink-b')).toBe('linked')
@@ -663,7 +663,7 @@ describe('project link management (project URI)', () => {
 
     const linked = store.getLinkedProjects('gp-a')
     expect(linked).toHaveLength(1)
-    expect(linked[0].project).toBe('claude:///projects/bar')
+    expect(linked[0].project).toBe('claude://default/projects/bar')
   })
 
   it('getLinkedProjects returns empty for session with no links', () => {
@@ -721,7 +721,7 @@ describe('broadcast scoping (project URI)', () => {
 
   it('broadcastForProject accepts project URI', () => {
     store.createSession('bc-2', '/projects/target2')
-    expect(() => store.broadcastForProject('claude:///projects/target2')).not.toThrow()
+    expect(() => store.broadcastForProject('claude://default/projects/target2')).not.toThrow()
   })
 
   it('broadcastToConversationsAtCwd accepts bare CWD (backward compat)', () => {
@@ -733,7 +733,7 @@ describe('broadcast scoping (project URI)', () => {
 
   it('broadcastToConversationsForProject accepts project URI', () => {
     store.createSession('bw-2', '/projects/wrap2')
-    const count = store.broadcastToConversationsForProject('claude:///projects/wrap2', { type: 'test' })
+    const count = store.broadcastToConversationsForProject('claude://default/projects/wrap2', { type: 'test' })
     expect(count).toBe(0)
   })
 })

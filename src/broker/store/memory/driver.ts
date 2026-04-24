@@ -1,3 +1,4 @@
+import { normalizeProjectUri } from '../../../shared/project-uri'
 import { DuplicateEntry, SessionNotFound } from '../errors'
 import type {
   AddressBookStore,
@@ -37,6 +38,15 @@ import type {
   TurnFilter,
   TurnRecord,
 } from '../types'
+
+function normalizeUri(uri: string): string {
+  if (!uri) return uri
+  try {
+    return normalizeProjectUri(uri)
+  } catch {
+    return uri
+  }
+}
 
 let _nextId = 1
 function nextId(): number {
@@ -626,7 +636,7 @@ function createCostStore(): CostStore {
 
   return {
     recordTurn(record) {
-      turns.push({ ...record })
+      turns.push({ ...record, projectUri: normalizeUri(record.projectUri) })
     },
 
     recordTurnFromCumulatives(params: CumulativeTurnInput) {
@@ -649,7 +659,7 @@ function createCostStore(): CostStore {
       turns.push({
         timestamp: params.timestamp,
         sessionId: params.sessionId,
-        projectUri: params.projectUri,
+        projectUri: normalizeUri(params.projectUri),
         account: params.account,
         orgId: params.orgId,
         model: params.model,

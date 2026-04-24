@@ -1,3 +1,23 @@
+/**
+ * Name of the implicit local sentinel -- used as the URI authority when no
+ * explicit sentinel host is specified.
+ *
+ * Every Claude project URI has the shape `claude://{sentinel}/{absolute_path}`.
+ * The authority slot IS the sentinel name: today there's one sentinel (the
+ * local install, named `default`); when multi-sentinel lands, other hosts use
+ * their own names (e.g. `claude://laptop/...`, `claude://workstation/...`).
+ *
+ * Legacy forms still accepted on input:
+ *   - `claude:///path`       (sentinel-less -- upgraded to `default` on normalize)
+ *   - `claude:////path`      (quad-slash concat scar -- collapsed on normalize)
+ *
+ * Both forms round-trip through `normalizeProjectUri()` to the canonical
+ * `claude://default/{path}` form, and `matchProjectUri()` treats
+ * empty authority as equivalent to `default` so pre-migration grants keep
+ * matching post-migration session scopes.
+ */
+export const DEFAULT_SENTINEL_NAME = 'default'
+
 export interface ProjectUri {
   scheme: string
   authority?: string
@@ -50,13 +70,22 @@ export function parseProjectUri(uri: string): ProjectUri {
 
 export function buildProjectUri(parts: ProjectUriParts): string {
   const scheme = parts.scheme.toLowerCase()
-  const authority = parts.authority ?? ''
+  // Claude scheme defaults to DEFAULT_SENTINEL_NAME when authority is omitted.
+  // Other schemes keep the legacy empty-authority behavior.
+  const authority = parts.authority ?? (scheme === 'claude' ? DEFAULT_SENTINEL_NAME : '')
   const fragment = parts.fragment ? `#${parts.fragment}` : ''
   return `${scheme}://${authority}${parts.path}${fragment}`
 }
 
 export function cwdToProjectUri(cwd: string, scheme = 'claude', authority?: string): string {
   return buildProjectUri({ scheme, authority, path: cwd })
+}
+
+/** Authority for matching purposes: empty/undefined on the `claude` scheme is
+ *  treated as `default` so pre-canonicalization URIs still match current ones. */
+function authorityForMatch(parsed: ProjectUri): string {
+  if (parsed.authority) return parsed.authority
+  return parsed.scheme === 'claude' ? DEFAULT_SENTINEL_NAME : ''
 }
 
 export function matchProjectUri(pattern: string, uri: string): boolean {
@@ -74,7 +103,7 @@ export function matchProjectUri(pattern: string, uri: string): boolean {
     const parsedUri = parseProjectUri(uri)
 
     if (parsedPattern.scheme !== parsedUri.scheme) return false
-    if (parsedPattern.authority !== parsedUri.authority) return false
+    if (authorityForMatch(parsedPattern) !== authorityForMatch(parsedUri)) return false
 
     return parsedUri.path.startsWith(`${parsedPattern.path}/`) || parsedUri.path === parsedPattern.path
   }
@@ -90,12 +119,20 @@ export function normalizeProjectUri(uri: string): string {
 
   const parsed = parseProjectUri(uri)
   let path = parsed.path
+  // Collapse runs of leading slashes to a single slash. Pre-2026-04-25 data
+  // produced by `'claude:///' || cwd` concatenation (where cwd was already
+  // absolute) yields URIs like 'claude:////Users/...' which WHATWG URL parses
+  // as authority='' + path='//Users/...' -- canonical form is a single slash.
+  if (path.startsWith('//')) path = path.replace(/^\/+/, '/')
   if (path !== '/' && path.endsWith('/')) {
     path = path.slice(0, -1)
   }
 
   const fragment = parsed.fragment ? `#${parsed.fragment}` : ''
-  const authority = parsed.authority ?? ''
+  // Upgrade empty authority to DEFAULT_SENTINEL_NAME for the `claude` scheme,
+  // so both legacy (`claude:///path`) and current (`claude://default/path`)
+  // forms canonicalize identically. Other schemes keep their literal authority.
+  const authority = parsed.authority || (parsed.scheme === 'claude' ? DEFAULT_SENTINEL_NAME : '')
   return `${parsed.scheme}://${authority}${path}${fragment}`
 }
 
@@ -112,6 +149,47 @@ export function extractProjectLabel(uri: string): string {
   return segments.length > 0 ? segments[segments.length - 1] : parsed.path
 }
 
+function cmp(a: string, b: string): number {
+  if (a < b) return -1
+  if (a > b) return 1
+  return 0
+}
+
+/**
+ * Compare two project URIs for equality / sorting at the PROJECT level.
+ *
+ * The conversation fragment (`#conv-xyz`) is irrelevant at the project level
+ * and is stripped before comparison. Authority forms are equivalent
+ * (`claude:///x` == `claude://default/x`). Scheme case, trailing slashes,
+ * and multi-slash scars are all normalized.
+ *
+ * Returns -1 / 0 / 1 suitable for Array.sort(). Safe on both server and web.
+ *
+ * Use this when grouping / matching by project identity -- e.g. listing
+ * sessions for a project, permission scope matching, sidebar grouping.
+ */
+export function compareProjectUri(a: string, b: string): number {
+  return cmp(normalizeProjectUri(projectWithoutSession(a)), normalizeProjectUri(projectWithoutSession(b)))
+}
+
+/**
+ * Compare two project URIs at the SESSION level, including the conversation
+ * fragment. `claude://default/foo#conv-1` and `claude://default/foo#conv-2`
+ * are distinct; `claude://default/foo` (no fragment) differs from either.
+ *
+ * Otherwise same normalization rules as compareProjectUri.
+ *
+ * Use this when matching a specific session (e.g. reconnect routing, live
+ * session identity) where the conversation within a project matters.
+ */
+export function compareProjectSessionUri(a: string, b: string): number {
+  return cmp(normalizeProjectUri(a), normalizeProjectUri(b))
+}
+
 export function isSameProject(a: string, b: string): boolean {
-  return normalizeProjectUri(a) === normalizeProjectUri(b)
+  return compareProjectUri(a, b) === 0
+}
+
+export function isSameProjectSession(a: string, b: string): boolean {
+  return compareProjectSessionUri(a, b) === 0
 }

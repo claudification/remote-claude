@@ -129,7 +129,7 @@ describe('observeClaudeSessionId', () => {
     expect(ctx.claudeSessionId).toBe('sess-new')
     expect(ctx.pendingClearFromId).toBe(null)
     expect(wsCalls).toEqual([
-      { fn: 'sendSessionClear', id: 'sess-new', project: 'claude:///test/cwd', model: 'claude-opus-4-7' },
+      { fn: 'sendSessionClear', id: 'sess-new', project: 'claude://default/test/cwd', model: 'claude-opus-4-7' },
     ])
     expect(diagCalls.at(-1)).toMatchObject({ type: 'session', msg: 'transition: rekey (post-clear)' })
   })
@@ -165,7 +165,7 @@ describe('observeClaudeSessionId', () => {
     expect(t1.kind).toBe('rekey')
     expect(t1.reason).toBe('post-clear')
     expect(wsCalls).toEqual([
-      { fn: 'sendSessionClear', id: 'sess-new', project: 'claude:///test/cwd', model: undefined },
+      { fn: 'sendSessionClear', id: 'sess-new', project: 'claude://default/test/cwd', model: undefined },
     ])
 
     // Hook then fires with the same id -- must no-op.
@@ -186,7 +186,7 @@ describe('observeClaudeSessionId', () => {
       to: 'sess-new',
     })
     expect(wsCalls).toEqual([
-      { fn: 'sendSessionClear', id: 'sess-new', project: 'claude:///test/cwd', model: undefined },
+      { fn: 'sendSessionClear', id: 'sess-new', project: 'claude://default/test/cwd', model: undefined },
     ])
   })
 
