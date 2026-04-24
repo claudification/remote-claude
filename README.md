@@ -277,10 +277,38 @@ inspect any of the three SQLite databases (`store.db`, `analytics.db`,
 ### Prerequisites
 
 - [Claude Code](https://claude.ai/code) CLI installed
+- [Bun](https://bun.sh) runtime (v1.2+)
 - Docker (for broker)
-- [Bun](https://bun.sh) runtime (v1.2+) -- the installer will auto-install it if missing
 
-### Install
+### Install via npm
+
+The fastest way to get the agent host and sentinel running:
+
+```bash
+bun add -g @claudewerk/agent-host @claudewerk/sentinel
+```
+
+This gives you `rclaude` and `sentinel` commands globally. Both run under Bun.
+
+### Install via Docker
+
+Run everything in a container -- includes Claude Code, Bun, Python, gh, and the full toolkit:
+
+```bash
+docker run -it \
+  -e ANTHROPIC_API_KEY \
+  -e CLAUDWERK_SENTINEL_SECRET=your-secret \
+  -e CLAUDWERK_BROKER=wss://your-broker.example.com \
+  -v $(pwd):/workspace/project \
+  ghcr.io/claudewerk/claude-runner:latest
+```
+
+The image includes: CC, rclaude, sentinel, bun, python3, gh, ripgrep, fd, neovim,
+build-essential, sqlite3, tmux. Default CMD is `sentinel`.
+
+See [claude-runner](https://github.com/claudewerk/claude-runner) for full docs.
+
+### Install from source
 
 ```bash
 git clone https://github.com/claudification/claudwerk.git
@@ -297,7 +325,7 @@ The installer will:
 6. Configure your shell (`~/.zshrc` or `~/.bashrc`)
 7. Optionally alias `claude` to `rclaude`
 
-### Manual install
+### Manual install from source
 
 ```bash
 curl -fsSL https://bun.sh/install | bash
@@ -1058,6 +1086,56 @@ Connections without a valid secret are rejected.
 - **Broadcasts:** Session events use `broadcastSessionScoped()` -- users only receive events for sessions they have access to
 - **Share viewers:** Restricted to their specific session scope
 - **Grant expiry:** Temporal bounds enforced at check time
+
+---
+
+## Distribution
+
+### npm packages
+
+Published under the [`@claudewerk`](https://www.npmjs.com/org/claudewerk) org:
+
+| Package | Binary | Install |
+|---------|--------|---------|
+| [`@claudewerk/agent-host`](https://www.npmjs.com/package/@claudewerk/agent-host) | `rclaude` | `bun add -g @claudewerk/agent-host` |
+| [`@claudewerk/sentinel`](https://www.npmjs.com/package/@claudewerk/sentinel) | `sentinel` | `bun add -g @claudewerk/sentinel` |
+
+Both are single-file JS bundles with a `#!/usr/bin/env bun` shebang. Requires Bun.
+
+### Docker image
+
+[`ghcr.io/claudewerk/claude-runner`](https://github.com/claudewerk/claude-runner/pkgs/container/claude-runner)
+
+Pre-built image with CC, rclaude, sentinel, and a full dev toolkit.
+
+```bash
+docker pull ghcr.io/claudewerk/claude-runner:latest
+
+docker run -it \
+  -e ANTHROPIC_API_KEY \
+  -e CLAUDWERK_SENTINEL_SECRET=your-secret \
+  -e CLAUDWERK_BROKER=wss://your-broker.example.com \
+  -v $(pwd):/workspace/project \
+  ghcr.io/claudewerk/claude-runner:latest
+```
+
+**Included tools:** Claude Code, bun, python3, gh, ripgrep, fd, neovim,
+build-essential, sqlite3, tmux, git, curl, wget, jq.
+
+**UID/GID mapping:** Pass `-e USER_UID=$(id -u) -e USER_GID=$(id -g)` to avoid
+file ownership issues with mounted volumes.
+
+### Building and publishing
+
+```bash
+# Build npm packages
+bun run build:packages
+cd packages/sentinel && npm publish --access public
+cd packages/agent-host && npm publish --access public
+
+# Build and push Docker image (automated via GitHub Actions on tag push)
+git tag v0.X.Y && git push --tags
+```
 
 ---
 
