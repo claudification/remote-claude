@@ -54,6 +54,7 @@ export function runMigrateCli(args: { cacheDir?: string; dataDir?: string; dryRu
     if (counts.projectLinks > 0) console.log(`  Project links:       ${counts.projectLinks}`)
     if (counts.messageQueue > 0) console.log(`  Message queue:       ${counts.messageQueue}`)
     if (counts.interSessionLog > 0) console.log(`  Inter-session log:   ${counts.interSessionLog} entries`)
+    if (counts.costTurns > 0) console.log(`  Cost turns:          ${counts.costTurns}`)
 
     const total = Object.values(counts).reduce((a, b) => a + b, 0)
     if (total === 0) {

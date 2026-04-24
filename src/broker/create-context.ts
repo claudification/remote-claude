@@ -9,9 +9,11 @@ import { GuardError, type HandlerContext, logPrefix, type WsData } from './handl
 import type { Permission } from './permissions'
 import { resolvePermissions } from './permissions'
 import type { SessionStore } from './session-store'
+import type { StoreDriver } from './store/types'
 
 export interface ContextDeps {
   sessions: SessionStore
+  store: StoreDriver
   verbose: boolean
   origins: string[]
   getProjectSettings(project: string): ProjectSettings | null
@@ -66,6 +68,7 @@ export function createContext(ws: ServerWebSocket<WsData>, deps: ContextDeps): H
   return {
     ws,
     sessions: deps.sessions,
+    store: deps.store,
     caller,
     callerSettings,
     verbose: deps.verbose,

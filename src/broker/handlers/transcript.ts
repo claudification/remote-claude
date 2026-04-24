@@ -8,7 +8,6 @@ import { randomUUID } from 'node:crypto'
 import { resolveModelFamily } from '../../shared/models'
 import type { TranscriptLaunchEntry, WrapperLaunchStep } from '../../shared/protocol'
 import { filterDisplayEntries } from '../../shared/transcript-filter'
-import { recordTurnFromCumulatives } from '../cost-store'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
@@ -338,7 +337,7 @@ const turnCost: MessageHandler = (ctx, data) => {
 
     // Record to persistent cost store (delta computed internally)
     const now = Date.now()
-    recordTurnFromCumulatives({
+    ctx.store.costs.recordTurnFromCumulatives({
       timestamp: now,
       sessionId,
       projectUri: session.project,

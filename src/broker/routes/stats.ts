@@ -8,12 +8,17 @@ import {
   querySummary as queryAnalyticsSummary,
   queryTimeSeries as queryAnalyticsTimeSeries,
 } from '../analytics-store'
-import { queryHourly, querySummary, queryTurns } from '../cost-store'
 import { listProjects } from '../project-store'
 import type { SessionStore } from '../session-store'
+import type { StoreDriver } from '../store/types'
 import type { RouteHelpers } from './shared'
 
-export function createStatsRouter(sessionStore: SessionStore, helpers: RouteHelpers, serverStartTime: number): Hono {
+export function createStatsRouter(
+  sessionStore: SessionStore,
+  store: StoreDriver,
+  helpers: RouteHelpers,
+  serverStartTime: number,
+): Hono {
   const { httpIsAdmin } = helpers
   const app = new Hono()
 
@@ -57,7 +62,7 @@ export function createStatsRouter(sessionStore: SessionStore, helpers: RouteHelp
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const q = c.req.query()
     return c.json(
-      queryTurns({
+      store.costs.queryTurns({
         from: q.from ? Number(q.from) : undefined,
         to: q.to ? Number(q.to) : undefined,
         account: q.account || undefined,
@@ -73,7 +78,7 @@ export function createStatsRouter(sessionStore: SessionStore, helpers: RouteHelp
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const q = c.req.query()
     return c.json(
-      queryHourly({
+      store.costs.queryHourly({
         from: q.from ? Number(q.from) : undefined,
         to: q.to ? Number(q.to) : undefined,
         account: q.account || undefined,
@@ -90,7 +95,7 @@ export function createStatsRouter(sessionStore: SessionStore, helpers: RouteHelp
     if (!['24h', '7d', '30d'].includes(period)) {
       return c.json({ error: 'Invalid period. Use 24h, 7d, or 30d' }, 400)
     }
-    return c.json(querySummary(period))
+    return c.json(store.costs.querySummary(period))
   })
 
   // ─── Projects ──────────────────────────────────────────────────────

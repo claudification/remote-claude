@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite'
 import { join } from 'node:path'
 import type { StoreConfig, StoreDriver } from '../types'
 import { createSqliteAddressBookStore } from './address-book'
+import { createSqliteCostStore } from './costs'
 import { createSqliteEventStore } from './events'
 import { createSqliteKVStore } from './kv'
 import { createSqliteMessageStore } from './messages'
@@ -27,6 +28,7 @@ export function createSqliteDriver(config: StoreConfig): StoreDriver {
     addressBook: createSqliteAddressBookStore(db),
     scopeLinks: createSqliteScopeLinkStore(db),
     tasks: createSqliteTaskStore(db),
+    costs: createSqliteCostStore(db),
 
     init() {},
 

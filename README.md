@@ -799,7 +799,10 @@ claudwerk/
 │   │   ├── global-settings.ts    Server-wide settings
 │   │   ├── project-settings.ts   Per-project label/icon/color/trust
 │   │   ├── shares.ts             Session sharing
-│   │   ├── cost-store.ts         SQLite cost tracking
+│   │   ├── store/                Unified StoreDriver (SQLite + in-memory)
+│   │   │   ├── types.ts            Interface contracts (SessionStore, CostStore, ...)
+│   │   │   ├── sqlite/             SQLite implementation (all SQL lives here)
+│   │   │   └── memory/             In-memory implementation (tests + proof of contract)
 │   │   └── cli.ts                CLI tool entry point
 │   ├── sentinel/                 Host daemon
 │   │   └── index.ts              Spawn + WS listener

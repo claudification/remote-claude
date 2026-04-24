@@ -17,6 +17,7 @@ import { createRouteHelpers } from './routes/shared'
 import { createSpawnRouter } from './routes/spawn'
 import { createStatsRouter } from './routes/stats'
 import type { SessionStore } from './session-store'
+import type { StoreDriver } from './store/types'
 
 // Re-export blob/file helpers for external consumers (session-store, handlers, etc.)
 export {
@@ -77,6 +78,7 @@ if (hasEmbeddedWeb) {
 
 export interface RouteOptions {
   sessionStore: SessionStore
+  store: StoreDriver
   webDir?: string
   vapidPublicKey?: string
   rclaudeSecret?: string
@@ -88,6 +90,7 @@ export interface RouteOptions {
 export function createRouter(options: RouteOptions): Hono {
   const {
     sessionStore,
+    store,
     webDir,
     vapidPublicKey,
     rclaudeSecret,
@@ -215,7 +218,7 @@ export function createRouter(options: RouteOptions): Hono {
   app.route('/', createSessionsRouter(sessionStore, helpers))
   app.route('/', createSpawnRouter(sessionStore, helpers))
   app.route('/', createApiRouter(sessionStore, helpers, rclaudeSecret, cacheDir, blobDir, publicOrigin, vapidPublicKey))
-  app.route('/', createStatsRouter(sessionStore, helpers, serverStartTime))
+  app.route('/', createStatsRouter(sessionStore, store, helpers, serverStartTime))
   app.route('/', createAdminRouter(sessionStore, helpers, rclaudeSecret))
 
   // ─── Static file serving ───────────────────────────────────────────

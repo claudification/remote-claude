@@ -346,6 +346,102 @@ export interface TaskStore {
 }
 
 // ---------------------------------------------------------------------------
+// Cost (per-turn token/cost records + hourly rollups, replaces cost-data.db)
+// ---------------------------------------------------------------------------
+
+export interface TurnRecord {
+  timestamp: number
+  sessionId: string
+  projectUri: string
+  account: string
+  orgId: string
+  model: string
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  costUsd: number
+  exactCost: boolean
+}
+
+export interface HourlyRow {
+  hour: string
+  account: string
+  model: string
+  projectUri: string
+  turnCount: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  costUsd: number
+}
+
+export interface CostSummary {
+  period: string
+  totalCostUsd: number
+  totalTurns: number
+  totalInputTokens: number
+  totalOutputTokens: number
+  totalCacheReadTokens: number
+  totalCacheWriteTokens: number
+  topProjects: Array<{ projectUri: string; costUsd: number; turns: number }>
+  topModels: Array<{ model: string; costUsd: number; turns: number }>
+}
+
+export interface CumulativeTurnInput {
+  timestamp: number
+  sessionId: string
+  projectUri: string
+  account: string
+  orgId: string
+  model: string
+  totalInputTokens: number
+  totalOutputTokens: number
+  totalCacheRead: number
+  totalCacheWrite: number
+  totalCostUsd: number
+  exactCost: boolean
+}
+
+export interface TurnFilter {
+  from?: number
+  to?: number
+  account?: string
+  model?: string
+  projectUri?: string
+  limit?: number
+  offset?: number
+}
+
+export interface HourlyFilter {
+  from?: number
+  to?: number
+  account?: string
+  model?: string
+  projectUri?: string
+  groupBy?: 'hour' | 'day'
+}
+
+export type CostPeriod = '24h' | '7d' | '30d'
+
+export interface CostStore {
+  /** Record a turn with explicit per-turn deltas (caller computed the diff). */
+  recordTurn(record: TurnRecord): void
+  /**
+   * Record a turn from cumulative session totals. The driver tracks per-session
+   * snapshots internally and stores the delta. Returns true if a turn was
+   * recorded, false if no delta was detected (duplicate/noop).
+   */
+  recordTurnFromCumulatives(params: CumulativeTurnInput): boolean
+  queryTurns(filter: TurnFilter): { rows: TurnRecord[]; total: number }
+  queryHourly(filter: HourlyFilter): HourlyRow[]
+  querySummary(period: CostPeriod): CostSummary
+  /** Delete turns + hourly rows older than cutoffMs. Returns counts deleted. */
+  pruneOlderThan(cutoffMs: number): { turns: number; hourly: number }
+}
+
+// ---------------------------------------------------------------------------
 // StoreDriver -- top-level composition
 // ---------------------------------------------------------------------------
 
@@ -365,6 +461,7 @@ export interface StoreDriver {
   readonly addressBook: AddressBookStore
   readonly scopeLinks: ScopeLinkStore
   readonly tasks: TaskStore
+  readonly costs: CostStore
 
   init(): void
   close(): void

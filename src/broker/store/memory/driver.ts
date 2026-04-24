@@ -2,10 +2,16 @@ import { DuplicateEntry, SessionNotFound } from '../errors'
 import type {
   AddressBookStore,
   AddressEntry,
+  CostPeriod,
+  CostStore,
+  CostSummary,
+  CumulativeTurnInput,
   EnqueueMessage,
   EventInput,
   EventRecord,
   EventStore,
+  HourlyFilter,
+  HourlyRow,
   KVStore,
   MessageLogEntry,
   MessageStore,
@@ -28,6 +34,8 @@ import type {
   TaskStore,
   TranscriptEntryRecord,
   TranscriptStore,
+  TurnFilter,
+  TurnRecord,
 } from '../types'
 
 let _nextId = 1
@@ -576,6 +584,223 @@ function createTaskStore(): TaskStore {
   }
 }
 
+function hourKey(ms: number): string {
+  const d = new Date(ms)
+  d.setMinutes(0, 0, 0)
+  return d.toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
+
+function periodToMs(period: CostPeriod): number {
+  switch (period) {
+    case '24h':
+      return 24 * 60 * 60 * 1000
+    case '7d':
+      return 7 * 24 * 60 * 60 * 1000
+    case '30d':
+      return 30 * 24 * 60 * 60 * 1000
+  }
+}
+
+interface MemorySnapshot {
+  inputTokens: number
+  outputTokens: number
+  cacheRead: number
+  cacheWrite: number
+  costUsd: number
+}
+
+function createCostStore(): CostStore {
+  const turns: TurnRecord[] = []
+  const lastSnapshot = new Map<string, MemorySnapshot>()
+
+  function filterTurns(f: Pick<TurnFilter, 'from' | 'to' | 'account' | 'model' | 'projectUri'>): TurnRecord[] {
+    return turns.filter(t => {
+      if (f.from && t.timestamp < f.from) return false
+      if (f.to && t.timestamp > f.to) return false
+      if (f.account && t.account !== f.account) return false
+      if (f.model && !t.model.includes(f.model)) return false
+      if (f.projectUri && t.projectUri !== f.projectUri) return false
+      return true
+    })
+  }
+
+  return {
+    recordTurn(record) {
+      turns.push({ ...record })
+    },
+
+    recordTurnFromCumulatives(params: CumulativeTurnInput) {
+      const prev = lastSnapshot.get(params.sessionId) ?? {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        costUsd: 0,
+      }
+
+      const dIn = params.totalInputTokens - prev.inputTokens
+      const dOut = params.totalOutputTokens - prev.outputTokens
+      const dCR = params.totalCacheRead - prev.cacheRead
+      const dCW = params.totalCacheWrite - prev.cacheWrite
+      const dCost = params.totalCostUsd - prev.costUsd
+
+      if (dIn <= 0 && dOut <= 0) return false
+
+      turns.push({
+        timestamp: params.timestamp,
+        sessionId: params.sessionId,
+        projectUri: params.projectUri,
+        account: params.account,
+        orgId: params.orgId,
+        model: params.model,
+        inputTokens: dIn,
+        outputTokens: dOut,
+        cacheReadTokens: dCR,
+        cacheWriteTokens: dCW,
+        costUsd: Math.max(0, dCost),
+        exactCost: params.exactCost,
+      })
+
+      lastSnapshot.set(params.sessionId, {
+        inputTokens: params.totalInputTokens,
+        outputTokens: params.totalOutputTokens,
+        cacheRead: params.totalCacheRead,
+        cacheWrite: params.totalCacheWrite,
+        costUsd: params.totalCostUsd,
+      })
+      return true
+    },
+
+    queryTurns(filter) {
+      const matched = filterTurns(filter).sort((a, b) => b.timestamp - a.timestamp)
+      const limit = Math.min(filter.limit ?? 100, 1000)
+      const offset = filter.offset ?? 0
+      return {
+        total: matched.length,
+        rows: matched.slice(offset, offset + limit).map(t => ({ ...t })),
+      }
+    },
+
+    queryHourly(filter: HourlyFilter): HourlyRow[] {
+      const currentHour = hourKey(Date.now())
+      const relevant = filterTurns(filter).filter(t => hourKey(t.timestamp) !== currentHour)
+
+      const buckets = new Map<string, HourlyRow>()
+      for (const t of relevant) {
+        const hour = hourKey(t.timestamp)
+        const key = `${hour}\0${t.account}\0${t.model}\0${t.projectUri}`
+        const existing = buckets.get(key)
+        if (existing) {
+          existing.turnCount++
+          existing.inputTokens += t.inputTokens
+          existing.outputTokens += t.outputTokens
+          existing.cacheReadTokens += t.cacheReadTokens
+          existing.cacheWriteTokens += t.cacheWriteTokens
+          existing.costUsd += t.costUsd
+        } else {
+          buckets.set(key, {
+            hour,
+            account: t.account,
+            model: t.model,
+            projectUri: t.projectUri,
+            turnCount: 1,
+            inputTokens: t.inputTokens,
+            outputTokens: t.outputTokens,
+            cacheReadTokens: t.cacheReadTokens,
+            cacheWriteTokens: t.cacheWriteTokens,
+            costUsd: t.costUsd,
+          })
+        }
+      }
+
+      const hourly = [...buckets.values()]
+
+      if (filter.groupBy === 'day') {
+        const dayBuckets = new Map<string, HourlyRow>()
+        for (const h of hourly) {
+          const day = h.hour.slice(0, 10)
+          const key = `${day}\0${h.account}\0${h.model}`
+          const existing = dayBuckets.get(key)
+          if (existing) {
+            existing.turnCount += h.turnCount
+            existing.inputTokens += h.inputTokens
+            existing.outputTokens += h.outputTokens
+            existing.cacheReadTokens += h.cacheReadTokens
+            existing.cacheWriteTokens += h.cacheWriteTokens
+            existing.costUsd += h.costUsd
+          } else {
+            dayBuckets.set(key, { ...h, hour: day })
+          }
+        }
+        return [...dayBuckets.values()].sort((a, b) => a.hour.localeCompare(b.hour))
+      }
+
+      return hourly.sort((a, b) => a.hour.localeCompare(b.hour))
+    },
+
+    querySummary(period) {
+      const cutoff = Date.now() - periodToMs(period)
+      const recent = turns.filter(t => t.timestamp >= cutoff)
+
+      const projectAgg = new Map<string, { costUsd: number; turns: number }>()
+      const modelAgg = new Map<string, { costUsd: number; turns: number }>()
+      let totalCost = 0
+      let totalInput = 0
+      let totalOutput = 0
+      let totalCacheRead = 0
+      let totalCacheWrite = 0
+
+      for (const t of recent) {
+        totalCost += t.costUsd
+        totalInput += t.inputTokens
+        totalOutput += t.outputTokens
+        totalCacheRead += t.cacheReadTokens
+        totalCacheWrite += t.cacheWriteTokens
+
+        const p = projectAgg.get(t.projectUri) ?? { costUsd: 0, turns: 0 }
+        p.costUsd += t.costUsd
+        p.turns++
+        projectAgg.set(t.projectUri, p)
+
+        const m = modelAgg.get(t.model) ?? { costUsd: 0, turns: 0 }
+        m.costUsd += t.costUsd
+        m.turns++
+        modelAgg.set(t.model, m)
+      }
+
+      const topProjects = [...projectAgg.entries()]
+        .map(([projectUri, v]) => ({ projectUri, costUsd: v.costUsd, turns: v.turns }))
+        .sort((a, b) => b.costUsd - a.costUsd)
+        .slice(0, 10)
+
+      const topModels = [...modelAgg.entries()]
+        .map(([model, v]) => ({ model, costUsd: v.costUsd, turns: v.turns }))
+        .sort((a, b) => b.costUsd - a.costUsd)
+        .slice(0, 10)
+
+      return {
+        period,
+        totalCostUsd: totalCost,
+        totalTurns: recent.length,
+        totalInputTokens: totalInput,
+        totalOutputTokens: totalOutput,
+        totalCacheReadTokens: totalCacheRead,
+        totalCacheWriteTokens: totalCacheWrite,
+        topProjects,
+        topModels,
+      } satisfies CostSummary
+    },
+
+    pruneOlderThan(cutoffMs) {
+      const before = turns.length
+      for (let i = turns.length - 1; i >= 0; i--) {
+        if (turns[i].timestamp < cutoffMs) turns.splice(i, 1)
+      }
+      return { turns: before - turns.length, hourly: 0 }
+    },
+  }
+}
+
 export function createMemoryDriver(): StoreDriver {
   return {
     sessions: createSessionStore(),
@@ -587,6 +812,7 @@ export function createMemoryDriver(): StoreDriver {
     addressBook: createAddressBookStore(),
     scopeLinks: createScopeLinkStore(),
     tasks: createTaskStore(),
+    costs: createCostStore(),
     init() {},
     close() {},
     compact() {},

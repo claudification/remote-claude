@@ -16,7 +16,6 @@ import { getOrAssign, initAddressBook, resolve } from './address-book'
 import { closeAnalyticsStore, initAnalyticsStore } from './analytics-store'
 import { getUser, initAuth, reloadState, validateSession } from './auth'
 import { getAuthenticatedUser, requireAuth, setRclaudeSecret, setShareValidator } from './auth-routes'
-import { closeCostStore, initCostStore } from './cost-store'
 import { type ContextDeps, createContext } from './create-context'
 import { initGlobalSettings } from './global-settings'
 import type { WsData } from './handler-context'
@@ -262,15 +261,33 @@ async function main() {
   // Initialize project registry (must be before analytics -- migration depends on it)
   initProjectStore(authCacheDir)
 
-  // Initialize cost reporting store (SQLite)
-  initCostStore(authCacheDir)
-
   // Initialize analytics store (SQLite, non-critical)
   initAnalyticsStore(authCacheDir)
 
   // Initialize unified store (SQLite-backed)
   const store = createStore({ type: 'sqlite', dataDir: authCacheDir })
   store.init()
+
+  // Schedule cost data cleanup (30-day retention, runs daily)
+  const COST_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+  const costCleanupTimer = setInterval(
+    () => {
+      const cutoff = Date.now() - COST_RETENTION_MS
+      const deleted = store.costs.pruneOlderThan(cutoff)
+      if (deleted.turns > 0 || deleted.hourly > 0) {
+        console.log(`[cost] Cleanup: ${deleted.turns} turns, ${deleted.hourly} hourly rows removed (>30d)`)
+      }
+    },
+    24 * 60 * 60 * 1000,
+  )
+  // Prune once at startup too (don't block startup on it, but fire-and-forget)
+  {
+    const cutoff = Date.now() - COST_RETENTION_MS
+    const deleted = store.costs.pruneOlderThan(cutoff)
+    if (deleted.turns > 0 || deleted.hourly > 0) {
+      console.log(`[cost] Startup cleanup: ${deleted.turns} turns, ${deleted.hourly} hourly rows removed (>30d)`)
+    }
+  }
 
   // Initialize settings (backed by store.kv)
   initProjectSettings(store.kv)
@@ -311,15 +328,15 @@ async function main() {
   // Shutdown: StoreDriver writes are immediate, just close handles
   process.on('SIGINT', async () => {
     console.log('\n[shutdown] Closing stores...')
+    clearInterval(costCleanupTimer)
     closeAnalyticsStore()
-    closeCostStore()
     closeProjectStore()
     store.close()
     process.exit(0)
   })
   process.on('SIGTERM', async () => {
+    clearInterval(costCleanupTimer)
     closeAnalyticsStore()
-    closeCostStore()
     closeProjectStore()
     store.close()
     process.exit(0)
@@ -468,6 +485,7 @@ async function main() {
   const serverStartTime = Date.now()
   const router = createRouter({
     sessionStore,
+    store,
     webDir,
     vapidPublicKey,
     rclaudeSecret,
@@ -493,6 +511,7 @@ async function main() {
     // Context deps shared by all handler contexts
     const contextDeps: ContextDeps = {
       sessions: sessionStore,
+      store,
       verbose,
       origins,
       getProjectSettings,

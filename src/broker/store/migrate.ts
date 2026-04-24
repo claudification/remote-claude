@@ -1,3 +1,4 @@
+import { Database } from 'bun:sqlite'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type {
@@ -8,6 +9,7 @@ import type {
   ShareCreate,
   StoreDriver,
   TranscriptEntryInput,
+  TurnRecord,
 } from './types'
 
 export interface MigrationCounts {
@@ -22,6 +24,7 @@ export interface MigrationCounts {
   projectLinks: number
   messageQueue: number
   interSessionLog: number
+  costTurns: number
 }
 
 export interface MigrationResult {
@@ -43,6 +46,7 @@ function emptyCounts(): MigrationCounts {
     projectLinks: 0,
     messageQueue: 0,
     interSessionLog: 0,
+    costTurns: 0,
   }
 }
 
@@ -480,6 +484,75 @@ function migrateInterSessionLog(store: StoreDriver, cacheDir: string, result: Mi
   }
 }
 
+function migrateCostData(store: StoreDriver, cacheDir: string, result: MigrationResult): void {
+  const path = join(cacheDir, 'cost-data.db')
+  if (!existsSync(path)) return
+
+  let legacy: Database | null = null
+  try {
+    legacy = new Database(path, { readonly: true })
+  } catch (err) {
+    result.errors.push(`cost-data.db: failed to open: ${err instanceof Error ? err.message : String(err)}`)
+    return
+  }
+
+  try {
+    // Skip if target table already has rows -- avoids duplicating on re-run
+    const existing = store.costs.queryTurns({ limit: 1 })
+    if (existing.total > 0) {
+      result.warnings.push('cost-data.db: target turns table not empty, skipping (already migrated)')
+      return
+    }
+
+    // Verify legacy schema -- project_uri column is required (added in cost-store.ts migration)
+    const cols = legacy.query("PRAGMA table_info('turns')").all() as Array<{ name: string }>
+    const hasProjectUri = cols.some(c => c.name === 'project_uri')
+    const hasCwd = cols.some(c => c.name === 'cwd')
+
+    if (!hasProjectUri && !hasCwd) {
+      result.warnings.push('cost-data.db: no turns table found')
+      return
+    }
+
+    // Prefer project_uri; fall back to cwd (pre-migration DBs) and synthesize URI
+    const selectExpr = hasProjectUri
+      ? "COALESCE(project_uri, CASE WHEN cwd IS NOT NULL AND cwd != '' THEN 'claude:///' || cwd ELSE '' END, '')"
+      : "CASE WHEN cwd IS NOT NULL AND cwd != '' THEN 'claude:///' || cwd ELSE '' END"
+
+    const rows = legacy
+      .query(
+        `SELECT timestamp, session_id, ${selectExpr} as project_uri,
+          account, org_id, model,
+          input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+          cost_usd, exact_cost
+         FROM turns
+         ORDER BY timestamp ASC`,
+      )
+      .all() as Array<Record<string, unknown>>
+
+    for (const r of rows) {
+      const rec: TurnRecord = {
+        timestamp: (r.timestamp as number) ?? 0,
+        sessionId: (r.session_id as string) ?? '',
+        projectUri: (r.project_uri as string) || '',
+        account: (r.account as string) ?? '',
+        orgId: (r.org_id as string) ?? '',
+        model: (r.model as string) ?? '',
+        inputTokens: (r.input_tokens as number) ?? 0,
+        outputTokens: (r.output_tokens as number) ?? 0,
+        cacheReadTokens: (r.cache_read_tokens as number) ?? 0,
+        cacheWriteTokens: (r.cache_write_tokens as number) ?? 0,
+        costUsd: (r.cost_usd as number) ?? 0,
+        exactCost: !!(r.exact_cost as number),
+      }
+      store.costs.recordTurn(rec)
+      result.counts.costTurns++
+    }
+  } finally {
+    legacy.close()
+  }
+}
+
 export function migrateFromLegacy(store: StoreDriver, cacheDir: string): MigrationResult {
   const result: MigrationResult = {
     counts: emptyCounts(),
@@ -497,6 +570,7 @@ export function migrateFromLegacy(store: StoreDriver, cacheDir: string): Migrati
   migrateProjectLinks(store, cacheDir, result)
   migrateMessageQueue(store, cacheDir, result)
   migrateInterSessionLog(store, cacheDir, result)
+  migrateCostData(store, cacheDir, result)
 
   return result
 }
@@ -559,6 +633,23 @@ export function dryRunScan(cacheDir: string): { files: Record<string, { exists: 
     } else {
       files[name] = { exists: false }
     }
+  }
+
+  const costDbPath = join(cacheDir, 'cost-data.db')
+  if (existsSync(costDbPath)) {
+    let entries: number | undefined
+    try {
+      const legacy = new Database(costDbPath, { readonly: true })
+      try {
+        const row = legacy.query('SELECT COUNT(*) as n FROM turns').get() as { n: number } | null
+        entries = row?.n ?? 0
+      } finally {
+        legacy.close()
+      }
+    } catch {}
+    files['cost-data.db'] = { exists: true, entries }
+  } else {
+    files['cost-data.db'] = { exists: false }
   }
 
   return { files }

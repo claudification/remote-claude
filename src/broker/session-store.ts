@@ -22,7 +22,6 @@ import type {
 } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
 import { clearSession as clearAnalyticsSession, recordHookEvent } from './analytics-store'
-import { recordTurnFromCumulatives } from './cost-store'
 import { getModelInfo } from './model-pricing'
 import type { UserGrant } from './permissions'
 import { resolvePermissionFlags, resolvePermissions } from './permissions'
@@ -1114,8 +1113,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
                     s.totalCacheWrite1h * 30) /
                   1_000_000
               }
-              // Delta computation handled inside recordTurnFromCumulatives
-              recordTurnFromCumulatives({
+              // Delta computation handled inside store.costs.recordTurnFromCumulatives
+              store?.costs.recordTurnFromCumulatives({
                 timestamp: event.timestamp,
                 sessionId,
                 projectUri: session.project,

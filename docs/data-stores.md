@@ -65,30 +65,42 @@ Files: `analytics-store.ts`, `scripts/import-analytics.ts`
 
 ## Cost Reporting (SQLite)
 
-Per-turn cost and token storage. `bun:sqlite` WAL mode. 30-day retention.
+Per-turn cost and token storage. Lives in the unified StoreDriver (not a
+separate DB file as of Phase 4). `bun:sqlite` WAL mode. 30-day retention.
 
-**Storage:** `{cacheDir}/cost-data.db`
+**Storage:** `{cacheDir}/store.db` (tables `turns` + `hourly_stats` alongside
+the rest of the unified schema)
 
 **Tables:**
-- `turns` -- per-turn (timestamp, session, cwd, account, model, tokens, cost, exact_cost)
-- `hourly_stats` -- rollups by (hour, account, model, cwd)
+- `turns` -- per-turn (timestamp, session, project_uri, account, model, tokens, cost, exact_cost)
+- `hourly_stats` -- rollups by (hour, account, model, project_uri)
 
 **Recording:**
 - Headless: exact cost from `turn_cost` WS (`total_cost_usd`)
 - PTY: estimated from tokens + LiteLLM pricing on `Stop` hook
-- Both use `recordTurnFromCumulatives()` (per-session snapshots, computes deltas)
+- Both use `store.costs.recordTurnFromCumulatives()` (per-session snapshots,
+  computes deltas)
 
 **API** (admin auth required):
-- `GET /api/stats/turns?from=&to=&account=&model=&cwd=&limit=&offset=`
+- `GET /api/stats/turns?from=&to=&account=&model=&project=&limit=&offset=`
 - `GET /api/stats/hourly?from=&to=&groupBy=hour|day`
 - `GET /api/stats/summary?period=24h|7d|30d`
 
 `turn_recorded` WS broadcast after each insert.
 
+**Migration from legacy `cost-data.db`:** `broker-cli migrate` absorbs any
+pre-existing `cost-data.db` turns into the unified `store.db`. Idempotent:
+re-running while the unified turns table is non-empty is a no-op with a
+warning.
+
+**Retention:** A 30-day prune runs daily from the broker's startup timer
+(`index.ts`) via `store.costs.pruneOlderThan(cutoff)`.
+
 **bun:sqlite gotcha:** `$name` in SQL -> key WITHOUT `$` in JS:
 `db.prepare('WHERE x < $cutoff').run({ cutoff: 42 })`
 
-Files: `cost-store.ts`, `handlers/transcript.ts`, `session-store.ts`, `routes/stats.ts`
+Files: `store/sqlite/costs.ts`, `store/memory/driver.ts` (for tests),
+`handlers/transcript.ts`, `session-store.ts`, `routes/stats.ts`, `store/migrate.ts`
 
 ## Model Pricing (LiteLLM)
 

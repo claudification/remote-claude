@@ -154,4 +154,43 @@ export function createSchema(db: Database) {
       value TEXT NOT NULL
     )
   `)
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS turns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp INTEGER NOT NULL,
+      session_id TEXT NOT NULL,
+      project_uri TEXT NOT NULL DEFAULT '',
+      account TEXT NOT NULL DEFAULT '',
+      org_id TEXT NOT NULL DEFAULT '',
+      model TEXT NOT NULL DEFAULT '',
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+      cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+      cost_usd REAL NOT NULL DEFAULT 0,
+      exact_cost INTEGER NOT NULL DEFAULT 0
+    )
+  `)
+  db.run('CREATE INDEX IF NOT EXISTS idx_turns_timestamp ON turns(timestamp)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_turns_account ON turns(account)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_turns_project_uri ON turns(project_uri)')
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS hourly_stats (
+      hour TEXT NOT NULL,
+      account TEXT NOT NULL DEFAULT '',
+      model TEXT NOT NULL DEFAULT '',
+      project_uri TEXT NOT NULL DEFAULT '',
+      turn_count INTEGER NOT NULL DEFAULT 0,
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+      cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+      cost_usd REAL NOT NULL DEFAULT 0,
+      PRIMARY KEY (hour, account, model, project_uri)
+    )
+  `)
+  db.run('CREATE INDEX IF NOT EXISTS idx_hourly_hour ON hourly_stats(hour)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_hourly_project_uri ON hourly_stats(project_uri)')
 }

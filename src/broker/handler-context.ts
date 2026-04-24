@@ -7,6 +7,7 @@ import type { ServerWebSocket } from 'bun'
 import type { ProjectSettings } from '../shared/protocol'
 import type { Permission, UserGrant } from './permissions'
 import type { SessionStore } from './session-store'
+import type { StoreDriver } from './store/types'
 
 export interface WsData {
   sessionId?: string
@@ -35,6 +36,8 @@ export interface HandlerContext {
   ws: ServerWebSocket<WsData>
   /** Session store (read/write session state) */
   sessions: SessionStore
+  /** Unified StoreDriver (SQLite-backed domain stores: costs, kv, transcripts, etc.) */
+  store: StoreDriver
   /** Resolved caller session (from ws.data.sessionId) */
   caller?: ReturnType<SessionStore['getSession']>
   /** Caller's project settings */

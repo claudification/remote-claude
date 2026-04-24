@@ -751,6 +751,222 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         expect(store.tasks.getForSession('bulk')).toHaveLength(0)
       })
     })
+
+    // -----------------------------------------------------------------
+    // CostStore
+    // -----------------------------------------------------------------
+
+    describe('costs', () => {
+      function baseTurn(overrides: Partial<import('../types').TurnRecord> = {}): import('../types').TurnRecord {
+        return {
+          timestamp: Date.now(),
+          sessionId: 's1',
+          projectUri: 'claude:///proj-a',
+          account: 'alice@example.com',
+          orgId: 'org-1',
+          model: 'claude-opus-4',
+          inputTokens: 100,
+          outputTokens: 200,
+          cacheReadTokens: 50,
+          cacheWriteTokens: 25,
+          costUsd: 0.05,
+          exactCost: true,
+          ...overrides,
+        }
+      }
+
+      it('recordTurn + queryTurns round-trips', () => {
+        store.costs.recordTurn(baseTurn({ timestamp: 1_700_000_000_000 }))
+        const { rows, total } = store.costs.queryTurns({})
+        expect(total).toBe(1)
+        expect(rows[0].sessionId).toBe('s1')
+        expect(rows[0].projectUri).toBe('claude:///proj-a')
+        expect(rows[0].inputTokens).toBe(100)
+        expect(rows[0].exactCost).toBe(true)
+      })
+
+      it('queryTurns sorts by timestamp descending', () => {
+        store.costs.recordTurn(baseTurn({ timestamp: 1000, sessionId: 'a' }))
+        store.costs.recordTurn(baseTurn({ timestamp: 3000, sessionId: 'c' }))
+        store.costs.recordTurn(baseTurn({ timestamp: 2000, sessionId: 'b' }))
+        const { rows } = store.costs.queryTurns({})
+        expect(rows.map(r => r.sessionId)).toEqual(['c', 'b', 'a'])
+      })
+
+      it('queryTurns filters by projectUri / account / model / timestamp', () => {
+        store.costs.recordTurn(baseTurn({ timestamp: 1000, projectUri: 'p1', model: 'opus-4' }))
+        store.costs.recordTurn(baseTurn({ timestamp: 2000, projectUri: 'p2', model: 'sonnet-4' }))
+        store.costs.recordTurn(baseTurn({ timestamp: 3000, projectUri: 'p1', model: 'opus-4' }))
+
+        expect(store.costs.queryTurns({ projectUri: 'p1' }).total).toBe(2)
+        expect(store.costs.queryTurns({ model: 'sonnet' }).total).toBe(1)
+        expect(store.costs.queryTurns({ from: 1500, to: 2500 }).total).toBe(1)
+      })
+
+      it('queryTurns respects limit + offset', () => {
+        for (let i = 0; i < 5; i++) {
+          store.costs.recordTurn(baseTurn({ timestamp: 1000 + i * 100 }))
+        }
+        const page1 = store.costs.queryTurns({ limit: 2 })
+        const page2 = store.costs.queryTurns({ limit: 2, offset: 2 })
+        expect(page1.rows).toHaveLength(2)
+        expect(page2.rows).toHaveLength(2)
+        expect(page1.rows[0].timestamp).not.toBe(page2.rows[0].timestamp)
+        expect(page1.total).toBe(5)
+      })
+
+      it('recordTurnFromCumulatives records first turn as full cumulative', () => {
+        const ok = store.costs.recordTurnFromCumulatives({
+          timestamp: 1000,
+          sessionId: 'cum1',
+          projectUri: 'proj',
+          account: '',
+          orgId: '',
+          model: 'opus',
+          totalInputTokens: 500,
+          totalOutputTokens: 1000,
+          totalCacheRead: 200,
+          totalCacheWrite: 100,
+          totalCostUsd: 0.1,
+          exactCost: true,
+        })
+        expect(ok).toBe(true)
+        const { rows } = store.costs.queryTurns({})
+        expect(rows).toHaveLength(1)
+        expect(rows[0].inputTokens).toBe(500)
+        expect(rows[0].costUsd).toBeCloseTo(0.1)
+      })
+
+      it('recordTurnFromCumulatives subsequent call records delta only', () => {
+        store.costs.recordTurnFromCumulatives({
+          timestamp: 1000,
+          sessionId: 'cum2',
+          projectUri: 'p',
+          account: '',
+          orgId: '',
+          model: 'm',
+          totalInputTokens: 100,
+          totalOutputTokens: 200,
+          totalCacheRead: 0,
+          totalCacheWrite: 0,
+          totalCostUsd: 0.05,
+          exactCost: true,
+        })
+        store.costs.recordTurnFromCumulatives({
+          timestamp: 2000,
+          sessionId: 'cum2',
+          projectUri: 'p',
+          account: '',
+          orgId: '',
+          model: 'm',
+          totalInputTokens: 150,
+          totalOutputTokens: 300,
+          totalCacheRead: 0,
+          totalCacheWrite: 0,
+          totalCostUsd: 0.08,
+          exactCost: true,
+        })
+        const { rows, total } = store.costs.queryTurns({ projectUri: 'p' })
+        expect(total).toBe(2)
+        // Sorted DESC: index 0 is the delta, index 1 is the initial
+        expect(rows[0].inputTokens).toBe(50)
+        expect(rows[0].outputTokens).toBe(100)
+        expect(rows[0].costUsd).toBeCloseTo(0.03)
+      })
+
+      it('recordTurnFromCumulatives skips when no token delta', () => {
+        const args = {
+          timestamp: 1000,
+          sessionId: 'same',
+          projectUri: 'p',
+          account: '',
+          orgId: '',
+          model: 'm',
+          totalInputTokens: 100,
+          totalOutputTokens: 200,
+          totalCacheRead: 0,
+          totalCacheWrite: 0,
+          totalCostUsd: 0.05,
+          exactCost: true,
+        }
+        store.costs.recordTurnFromCumulatives(args)
+        const second = store.costs.recordTurnFromCumulatives({ ...args, timestamp: 2000 })
+        expect(second).toBe(false)
+        expect(store.costs.queryTurns({}).total).toBe(1)
+      })
+
+      it('querySummary aggregates correctly within period', () => {
+        const now = Date.now()
+        const hourAgo = now - 60 * 60 * 1000
+        store.costs.recordTurn(baseTurn({ timestamp: hourAgo, projectUri: 'px', model: 'opus', costUsd: 0.1 }))
+        store.costs.recordTurn(baseTurn({ timestamp: hourAgo, projectUri: 'py', model: 'opus', costUsd: 0.2 }))
+        store.costs.recordTurn(baseTurn({ timestamp: hourAgo, projectUri: 'px', model: 'sonnet', costUsd: 0.05 }))
+
+        const summary = store.costs.querySummary('24h')
+        expect(summary.period).toBe('24h')
+        expect(summary.totalTurns).toBe(3)
+        expect(summary.totalCostUsd).toBeCloseTo(0.35)
+        expect(summary.topProjects[0].projectUri).toBe('py')
+        expect(summary.topProjects[0].costUsd).toBeCloseTo(0.2)
+        expect(summary.topModels[0].model).toBe('opus')
+      })
+
+      it('querySummary respects period cutoff', () => {
+        const now = Date.now()
+        store.costs.recordTurn(baseTurn({ timestamp: now, costUsd: 0.1 }))
+        store.costs.recordTurn(baseTurn({ timestamp: now - 10 * 24 * 60 * 60 * 1000, costUsd: 1.0 }))
+
+        const day = store.costs.querySummary('24h')
+        const month = store.costs.querySummary('30d')
+        expect(day.totalTurns).toBe(1)
+        expect(month.totalTurns).toBe(2)
+      })
+
+      it('queryHourly excludes current hour, aggregates completed hours', () => {
+        // Anchor to top-of-hour two hours ago so adding minutes never crosses into the current hour
+        const twoHoursAgoHour = new Date(Date.now() - 2 * 60 * 60 * 1000)
+        twoHoursAgoHour.setMinutes(0, 0, 0)
+        const hourBase = twoHoursAgoHour.getTime()
+
+        store.costs.recordTurn(baseTurn({ timestamp: hourBase, model: 'opus', costUsd: 0.1 }))
+        store.costs.recordTurn(baseTurn({ timestamp: hourBase + 60_000, model: 'opus', costUsd: 0.2 }))
+        store.costs.recordTurn(baseTurn({ timestamp: hourBase + 60 * 60 * 1000, model: 'opus', costUsd: 0.3 }))
+
+        const hours = store.costs.queryHourly({})
+        expect(hours.length).toBeGreaterThanOrEqual(2)
+        const total = hours.reduce((s, h) => s + h.costUsd, 0)
+        expect(total).toBeCloseTo(0.6)
+      })
+
+      it('queryHourly groupBy=day merges hour buckets into days', () => {
+        // All within one day, one account+model combo
+        const midnight = new Date()
+        midnight.setUTCHours(0, 0, 0, 0)
+        const day = midnight.getTime()
+
+        store.costs.recordTurn(baseTurn({ timestamp: day + 1 * 60 * 60 * 1000, costUsd: 0.1 }))
+        store.costs.recordTurn(baseTurn({ timestamp: day + 3 * 60 * 60 * 1000, costUsd: 0.2 }))
+        store.costs.recordTurn(baseTurn({ timestamp: day + 5 * 60 * 60 * 1000, costUsd: 0.3 }))
+
+        const days = store.costs.queryHourly({ groupBy: 'day' })
+        const today = days.find(d => d.hour === new Date(day).toISOString().slice(0, 10))
+        expect(today).toBeDefined()
+        expect(today!.costUsd).toBeCloseTo(0.6)
+      })
+
+      it('pruneOlderThan deletes old turns + hourly rows', () => {
+        const now = Date.now()
+        store.costs.recordTurn(baseTurn({ timestamp: now - 40 * 24 * 60 * 60 * 1000 }))
+        store.costs.recordTurn(baseTurn({ timestamp: now - 1 * 24 * 60 * 60 * 1000 }))
+
+        // Materialize hourly by issuing a query
+        store.costs.queryHourly({})
+
+        const deleted = store.costs.pruneOlderThan(now - 30 * 24 * 60 * 60 * 1000)
+        expect(deleted.turns).toBe(1)
+        expect(store.costs.queryTurns({}).total).toBe(1)
+      })
+    })
   })
 }
 
