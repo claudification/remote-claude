@@ -33,8 +33,7 @@ jobs:
       - name: Resolve image tags
         id: meta
         run: |
-          REPO="ghcr.io/${{ github.repository_owner }}/claude-runner"
-          REPO=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
+          REPO="ghcr.io/claudewerk/claude-runner"
 
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
             VERSION="${{ github.ref_name }}"
