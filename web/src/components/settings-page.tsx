@@ -7,7 +7,6 @@ import { clearCacheAndReload } from '@/lib/utils'
 import { BUILD_VERSION } from '../../../src/shared/version'
 import { KeyCapture } from './settings/key-capture'
 import { NotificationsSection } from './settings/notifications-section'
-import { SentinelsSection } from './settings/sentinels-section'
 import { ProjectLinksSection } from './settings/session-links-section'
 import {
   BubbleColorPicker,
@@ -80,7 +79,6 @@ const DASHBOARD_TABS: SettingsShellTab[] = [
   { id: 'display', label: 'Display' },
   { id: 'input', label: 'Input' },
   { id: 'sessions', label: 'Sessions' },
-  { id: 'sentinels', label: 'Sentinels' },
   { id: 'system', label: 'System' },
 ]
 
@@ -878,14 +876,6 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               )
             })}
           </div>
-        </div>
-      )}
-
-      {/* Sentinel management -- pinned to Sentinels tab */}
-      {(isFiltering ? 'sentinel host machine'.includes(lowerFilter) : activeTab === 'sentinels') && (
-        <div>
-          <GroupHeader label="Sentinel Hosts" />
-          <SentinelsSection />
         </div>
       )}
 

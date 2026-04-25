@@ -27,6 +27,9 @@ import { detectShareMode } from '@/lib/share-mode'
 
 const WebTerminal = lazy(() => import('@/components/web-terminal').then(m => ({ default: m.WebTerminal })))
 const UserAdminDialog = lazy(() => import('@/components/user-admin').then(m => ({ default: m.UserAdminDialog })))
+const SentinelManagerDialog = lazy(() =>
+  import('@/components/sentinel-manager').then(m => ({ default: m.SentinelManagerDialog })),
+)
 
 import {
   fetchGlobalSettings,
@@ -85,6 +88,7 @@ function Dashboard() {
   const [sheetOpen, setSheetOpen] = useState(() => isMobileViewport() && !useSessionsStore.getState().selectedSessionId)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === 'true')
   const [showUserAdmin, setShowUserAdmin] = useState(false)
+  const [showSentinelManager, setShowSentinelManager] = useState(false)
   const [swUpdate, setSwUpdate] = useState<{ from: string | null; to: string | null } | null>(null)
 
   // Listen for service worker update notifications
@@ -209,6 +213,15 @@ function Dashboard() {
     }
     window.addEventListener('open-user-admin', handleOpen)
     return () => window.removeEventListener('open-user-admin', handleOpen)
+  }, [])
+
+  // Listen for sentinel manager open event (from command palette)
+  useEffect(() => {
+    function handleOpen() {
+      setShowSentinelManager(true)
+    }
+    window.addEventListener('open-sentinel-manager', handleOpen)
+    return () => window.removeEventListener('open-sentinel-manager', handleOpen)
   }, [])
 
   // Periodic auth status check - renews cookie silently (server extends if past halfway)
@@ -656,6 +669,12 @@ function Dashboard() {
     when: () => useSessionsStore.getState().permissions.canEditUsers,
   })
 
+  useCommand('manage-sentinels', () => window.dispatchEvent(new Event('open-sentinel-manager')), {
+    label: 'Manage sentinels',
+    group: 'System',
+    when: () => useSessionsStore.getState().permissions.canAdmin,
+  })
+
   useCommand(
     'effort',
     (level = 'medium') => {
@@ -845,6 +864,13 @@ function Dashboard() {
       {showUserAdmin && (
         <Suspense fallback={null}>
           <UserAdminDialog open={showUserAdmin} onOpenChange={setShowUserAdmin} />
+        </Suspense>
+      )}
+
+      {/* Sentinel manager modal (lazy loaded) */}
+      {showSentinelManager && (
+        <Suspense fallback={null}>
+          <SentinelManagerDialog open={showSentinelManager} onOpenChange={setShowSentinelManager} />
         </Suspense>
       )}
 
