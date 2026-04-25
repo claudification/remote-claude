@@ -901,6 +901,7 @@ export function ToolLine({
       const spawnPrompt = input.prompt as string | undefined
       const spawnEffort = input.effort as string | undefined
       const spawnAdHoc = input.adHoc as boolean | undefined
+      const spawnDescription = input.description as string | undefined
 
       const resultText = result ? extractMcpResultText(result) || result : undefined
 
@@ -952,6 +953,9 @@ export function ToolLine({
         if (spawnAdHoc)
           badges.push({ label: '', value: 'ad-hoc', cls: 'bg-orange-500/20 text-orange-400 border-orange-500/30' })
 
+        const promptCharCount = spawnPrompt ? spawnPrompt.length : 0
+        const promptLabel = `Prompt (${promptCharCount >= 1000 ? `${(promptCharCount / 1000).toFixed(1)}k` : promptCharCount} chars)`
+
         details = (
           <div className="text-[10px] font-mono bg-green-400/5 border border-green-500/20 rounded p-2.5 space-y-2">
             {badges.length > 0 && (
@@ -964,7 +968,16 @@ export function ToolLine({
                 ))}
               </div>
             )}
-            {spawnPrompt && <TruncatedPre text={spawnPrompt} />}
+            {spawnDescription && <div className="text-foreground/70 text-[11px]">{spawnDescription}</div>}
+            {spawnPrompt && (
+              <Collapsible label={promptLabel} defaultOpen={false}>
+                <div className="max-h-[400px] overflow-y-auto border-l-2 border-green-500/30 pl-2.5">
+                  <div className="text-[11px] font-sans prose-sm">
+                    <Markdown>{spawnPrompt}</Markdown>
+                  </div>
+                </div>
+              </Collapsible>
+            )}
             {resultText && <div className="text-green-400/80 pt-1 border-t border-green-500/10">{resultText}</div>}
           </div>
         )
