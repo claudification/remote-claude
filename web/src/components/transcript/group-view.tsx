@@ -319,6 +319,8 @@ export function GroupView({
         isDialog?: boolean
         dialogStatus?: string
         dialogAction?: string
+        isSystem?: boolean
+        systemKind?: string
       }
     | { kind: 'images'; images: Array<{ hash: string; ext: string; url: string; originalPath: string }> }
 
@@ -370,6 +372,11 @@ export function GroupView({
               dialogStatus: status,
               dialogAction: action || undefined,
             })
+          } else if (source === 'rclaude' && sender === 'system') {
+            // System events (spawn_result, channel disconnects, etc.) -- NOT user input.
+            // Carry whichever discriminating attr is present so the renderer can label it.
+            const systemKind = getAttr('spawn_result') || getAttr('event') || getAttr('kind') || undefined
+            items.push({ kind: 'channel', text: msg, source: 'system', isSystem: true, systemKind })
           } else if (source === 'rclaude') {
             // Our own dashboard input -- strip wrapper, check for project-task tag
             const pt = parseProjectTask(msg)
@@ -444,7 +451,9 @@ export function GroupView({
 
   // Chat bubble layout for user messages (opt-in)
   // Skip bubbles for inter-session messages and project-task cards - they use rich card renderers
-  const hasInterSessionContent = items.some(it => it.kind === 'channel' && (it.isInterSession || it.isDialog))
+  const hasInterSessionContent = items.some(
+    it => it.kind === 'channel' && (it.isInterSession || it.isDialog || it.isSystem),
+  )
   const hasProjectTask = items.some(it => it.kind === 'project-task')
   if (chatBubbles && isUser && !hasInterSessionContent && !hasProjectTask) {
     const bubbleBg = BUBBLE_COLORS[bubbleColor] || BUBBLE_COLORS.blue
@@ -786,6 +795,26 @@ export function GroupView({
                         <Markdown>{item.text}</Markdown>
                       </div>
                     )}
+                  </div>
+                )
+              }
+              if (item.isSystem) {
+                // Distinct color per known systemKind; default to amber for unknown system events.
+                const systemStyle =
+                  item.systemKind === 'timeout'
+                    ? 'border-amber-500/40 bg-amber-500/5 text-amber-300/90'
+                    : item.systemKind === 'error' || item.systemKind === 'failed'
+                      ? 'border-red-500/40 bg-red-500/5 text-red-300/90'
+                      : item.systemKind === 'ok' || item.systemKind === 'success'
+                        ? 'border-green-500/40 bg-green-500/5 text-green-300/90'
+                        : 'border-zinc-500/40 bg-zinc-500/5 text-zinc-300/90'
+                return (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
+                  <div key={i} className={cn('text-sm rounded-md border-l-2 px-3 py-2 my-1', systemStyle)}>
+                    <div className="text-[10px] uppercase font-bold tracking-wider mb-1 opacity-70">
+                      system{item.systemKind ? ` · ${item.systemKind}` : ''}
+                    </div>
+                    <Markdown>{item.text}</Markdown>
                   </div>
                 )
               }
