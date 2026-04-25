@@ -22,7 +22,7 @@
     "build:wrapper:linux-arm64": "bun run gen-version && bun build src/agent-host/index.ts --compile --minify --target=bun-linux-arm64 --outfile bin/rclaude-linux-arm64",
     "build:sentinel:linux-arm64": "bun run gen-version && bun build src/sentinel/index.ts --compile --minify --target=bun-linux-arm64 --outfile bin/sentinel-linux-arm64",
     "build:linux": "bun run build:wrapper:linux-x64 && bun run build:sentinel:linux-x64 && bun run build:wrapper:linux-arm64 && bun run build:sentinel:linux-arm64",
-    "build:packages": "bun run gen-version && mkdir -p packages/agent-host/bin packages/sentinel/bin && bun build src/agent-host/index.ts --target=bun --minify --outfile packages/agent-host/bin/rclaude && bun build src/sentinel/index.ts --target=bun --minify --outfile packages/sentinel/bin/sentinel && chmod +x packages/agent-host/bin/rclaude packages/sentinel/bin/sentinel",
+    "build:packages": "bun run gen-version && mkdir -p packages/agent-host/bin packages/sentinel/bin && bun build src/agent-host/index.ts --target=bun --minify --sourcemap=external --outdir packages/agent-host/bin --entry-naming 'rclaude' && bun build src/sentinel/index.ts --target=bun --minify --sourcemap=external --outdir packages/sentinel/bin --entry-naming 'sentinel' && bun run scripts/strip-sourcemap-content.ts packages/agent-host/bin/rclaude.map packages/sentinel/bin/sentinel.map && chmod +x packages/agent-host/bin/rclaude packages/sentinel/bin/sentinel",
     "build:broker": "bun run scripts/build-broker.ts",
     "build:concentrator": "bun run scripts/build-broker.ts",
     "codesign": "bun run scripts/codesign.ts",

@@ -1,12 +1,13 @@
 {
   "name": "@claudewerk/sentinel",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Host daemon for Claude Code session spawn and revival",
   "bin": {
     "sentinel": "bin/sentinel"
   },
   "files": [
-    "bin/sentinel"
+    "bin/sentinel",
+    "bin/sentinel.map"
   ],
   "license": "MIT",
   "repository": {
