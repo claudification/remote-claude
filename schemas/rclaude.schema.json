@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/claudification/claudwerk/main/schemas/rclaude.schema.json",
+  "$id": "https://raw.githubusercontent.com/claudification/claudewerk/main/schemas/rclaude.schema.json",
   "title": "rclaude project configuration",
   "description": "Per-project configuration for rclaude sessions. Place at .rclaude/rclaude.json in your project root.",
   "type": "object",
@@ -47,7 +47,7 @@
   },
   "examples": [
     {
-      "$schema": "https://raw.githubusercontent.com/claudification/claudwerk/main/schemas/rclaude.schema.json",
+      "$schema": "https://raw.githubusercontent.com/claudification/claudewerk/main/schemas/rclaude.schema.json",
       "permissions": {
         "Write": { "allow": [".claude/docs/**", ".claude/notes/**", "CHANGELOG.md"] },
         "Edit": { "allow": [".claude/docs/**", ".claude/notes/**", "CHANGELOG.md"] }

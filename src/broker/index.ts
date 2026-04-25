@@ -621,7 +621,7 @@ async function main() {
           const wsUserName = getAuthenticatedUser(req) ?? undefined
           // Extract auth token for periodic expiry checks on the WS connection
           const cookieHeader = req.headers.get('cookie')
-          const tokenMatch = cookieHeader?.match(/claudwerk-session=([^;]+)/)
+          const tokenMatch = cookieHeader?.match(/cw-session=([^;]+)/)
           const authToken = tokenMatch?.[1]
           // Load grants for permission enforcement on WS messages
           const wsUser = wsUserName ? getUser(wsUserName) : undefined

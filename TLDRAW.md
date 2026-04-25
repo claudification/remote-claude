@@ -1,4 +1,4 @@
-# tldraw Research - Integration into claudwerk Dashboard
+# tldraw Research - Integration into claudewerk Dashboard
 
 Research date: 2026-03-11\
 tldraw version: 4.4.1\
@@ -506,7 +506,7 @@ To customize shortcuts:
 
 ---
 
-## 9. Integration Architecture for claudwerk
+## 9. Integration Architecture for claudewerk
 
 ### Lazy Loading (Critical)
 

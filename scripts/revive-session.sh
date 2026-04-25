@@ -46,7 +46,7 @@ if [[ ! -d "$CWD" ]]; then
   exit 2
 fi
 
-TMUX_NAME="claudwerk"
+TMUX_NAME="claudewerk"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Build the launch command based on spawn mode

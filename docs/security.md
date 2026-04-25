@@ -68,7 +68,7 @@ Per-project allowlist for Write/Edit/Read auto-approval:
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/claudification/claudwerk/main/schemas/rclaude.schema.json",
+  "$schema": "https://raw.githubusercontent.com/claudification/claudewerk/main/schemas/rclaude.schema.json",
   "permissions": {
     "Write": { "allow": [".claude/docs/**", ".claude/notes/**"] },
     "Edit":  { "allow": [".claude/docs/**", ".claude/notes/**"] }

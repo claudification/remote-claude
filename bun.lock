@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "claudwerk",
+      "name": "claudewerk",
       "dependencies": {
         "@codemirror/commands": "^6.10.3",
         "@codemirror/state": "^6.6.0",

@@ -992,7 +992,7 @@ async function spawnSession(
   const exitCode = proc.exitCode
 
   // After spawn, check if the tmux session/window actually exists
-  const tmuxCheck = Bun.spawnSync([TMUX_BIN, 'list-windows', '-t', 'claudwerk'])
+  const tmuxCheck = Bun.spawnSync([TMUX_BIN, 'list-windows', '-t', 'claudewerk'])
   const tmuxWindows = tmuxCheck.stdout.toString().trim()
 
   diag('spawn', 'Script completed', {

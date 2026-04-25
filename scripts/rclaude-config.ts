@@ -13,7 +13,7 @@ import { dirname, join, resolve } from 'node:path'
 
 const projectPath = resolve(process.argv[2] || process.cwd())
 const configPath = join(projectPath, '.rclaude', 'rclaude.json')
-const schemaUrl = 'https://raw.githubusercontent.com/claudification/claudwerk/main/schemas/rclaude.schema.json'
+const schemaUrl = 'https://raw.githubusercontent.com/claudification/claudewerk/main/schemas/rclaude.schema.json'
 
 const htmlPath = join(dirname(new URL(import.meta.url).pathname), 'rclaude-config.html')
 

@@ -11,7 +11,7 @@
   └──────────────────────────────────────────────┘
 ```
 
-Full setup guide for running claudwerk: the concentrator server,
+Full setup guide for running claudewerk: the concentrator server,
 the rclaude wrapper, the dashboard, session revival sentinel, and all
 supporting infrastructure.
 
@@ -68,8 +68,8 @@ For local development with everything on one machine:
 
 ```bash
 # 1. Clone and install
-git clone <repo-url> claudwerk
-cd claudwerk
+git clone <repo-url> claudewerk
+cd claudewerk
 bun install
 cd web && bun install && cd ..
 
@@ -102,7 +102,7 @@ rclaude instances and serves the web dashboard.
 ### 1. Configure environment
 
 ```bash
-cd claudwerk
+cd claudewerk
 
 # Copy example and generate secret
 cp .env.example .env
@@ -176,7 +176,7 @@ Every machine running Claude Code needs the rclaude wrapper installed.
 ### 1. Build and install
 
 ```bash
-cd claudwerk
+cd claudewerk
 
 # Install deps
 bun install
@@ -333,7 +333,7 @@ The sentinel:
 - Listens for spawn/revive commands from the dashboard
 - Creates tmux sessions/windows with full shell environment
 - Sources `$SHELL -li -c "..."` so API keys, PATH, etc. are available
-- All spawned sessions land in the `claudwerk` tmux session
+- All spawned sessions land in the `claudewerk` tmux session
 
 ### 4. Run sentinel on boot (optional)
 
@@ -602,7 +602,7 @@ bun run build:web
 ### Updating rclaude (host machines)
 
 ```bash
-cd claudwerk
+cd claudewerk
 git pull
 bun install
 bun run build
@@ -612,7 +612,7 @@ bun run build
 ### Updating concentrator (Docker)
 
 ```bash
-cd claudwerk
+cd claudewerk
 git pull
 bun install
 

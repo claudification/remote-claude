@@ -311,8 +311,8 @@ See [claude-runner](https://github.com/claudewerk/claude-runner) for full docs.
 ### Install from source
 
 ```bash
-git clone https://github.com/claudification/claudwerk.git
-cd claudwerk
+git clone https://github.com/claudification/claudewerk.git
+cd claudewerk
 ./install.sh
 ```
 
@@ -514,13 +514,13 @@ revives ended ones, and reports status to the broker.
 ### Running as a service (macOS)
 
 ```bash
-cat > ~/Library/LaunchAgents/com.claudwerk.sentinel.plist << 'EOF'
+cat > ~/Library/LaunchAgents/com.claudewerk.sentinel.plist << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.claudwerk.sentinel</string>
+    <string>com.claudewerk.sentinel</string>
     <key>ProgramArguments</key>
     <array>
         <string>/Users/YOU/.local/bin/sentinel</string>
@@ -551,9 +551,9 @@ Replace `/Users/YOU` with your home directory and set the correct broker URL
 and secret.
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.claudwerk.sentinel.plist
-launchctl list | grep claudwerk
-launchctl unload ~/Library/LaunchAgents/com.claudwerk.sentinel.plist
+launchctl load ~/Library/LaunchAgents/com.claudewerk.sentinel.plist
+launchctl list | grep claudewerk
+launchctl unload ~/Library/LaunchAgents/com.claudewerk.sentinel.plist
 tail -f /tmp/sentinel.log
 ```
 
@@ -874,7 +874,7 @@ See [IMPORTANT-HOOKS.md](./IMPORTANT-HOOKS.md) for the complete reference.
 ## Project Structure
 
 ```
-claudwerk/
+claudewerk/
 ├── bin/                          Built binaries (gitignored)
 │   ├── rclaude                   Agent host CLI
 │   ├── sentinel                  Host daemon

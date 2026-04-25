@@ -1,4 +1,4 @@
-name: claudwerk-staging
+name: claudewerk-staging
 
 services:
   broker:

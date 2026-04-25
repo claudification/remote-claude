@@ -12,7 +12,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/claudification/claudwerk.git",
+    "url": "https://github.com/claudification/claudewerk.git",
     "directory": "packages/sentinel"
   },
   "keywords": [

@@ -1128,7 +1128,7 @@ async function main() {
           const dir = join(cwd, '.rclaude')
           if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
           const withSchema = {
-            $schema: 'https://raw.githubusercontent.com/claudification/claudwerk/main/schemas/rclaude.schema.json',
+            $schema: 'https://raw.githubusercontent.com/claudification/claudewerk/main/schemas/rclaude.schema.json',
             ...config,
           }
           writeFileSync(cfgPath, `${JSON.stringify(withSchema, null, 2)}\n`)
