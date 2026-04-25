@@ -2085,9 +2085,9 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
             session.recap = { content: content.trim(), timestamp: recapTs }
             session.recapFresh = session.lastActivity <= recapTs + 10_000
             // CC writes away_summary precisely because the session has gone idle long enough
-            // to need a "what were we doing" summary. If we still have the session as 'working'
+            // to need a "what were we doing" summary. If we still have the session as 'active'
             // from earlier activity, flip it to 'idle' -- the recap landing is itself proof.
-            if (session.status === 'working') {
+            if (session.status === 'active') {
               session.status = 'idle'
             }
             sessionChanged = true
