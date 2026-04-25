@@ -215,6 +215,19 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
     closePanel()
   }
 
+  // Listen for file-upload-request events dispatched by TranscriptDropZone.
+  // The legacy MarkdownInput wires this up itself; CM6 needs an equivalent.
+  useEffect(() => {
+    function handler(e: Event) {
+      const file = (e as CustomEvent<File>).detail
+      const view = viewRef.current
+      if (!file || !view) return
+      uploadDroppedFile(view, file, sessionIdRef.current)
+    }
+    window.addEventListener('file-upload-request', handler)
+    return () => window.removeEventListener('file-upload-request', handler)
+  }, [])
+
   // Hardware Escape closes the panel (mobile keyboards don't send Escape,
   // but desktop testing + external BT keyboards benefit).
   // biome-ignore lint/correctness/useExhaustiveDependencies: closePanel is a stable closure over refs/setters, not worth re-subscribing the global listener for
