@@ -297,17 +297,17 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Get a session ID for useProject -- use the first active session's wrapper
-  const selectedSessionId = useConversationsStore(s => s.selectedSessionId)
+  const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
   const sessions = useConversationsStore(s => s.sessions)
   // Find a connected session to relay project requests through
   const relaySessionId = useMemo(() => {
     // Prefer selected session, fall back to any active session
-    if (selectedSessionId) {
-      const sess = sessions.find(s => s.id === selectedSessionId && s.status !== 'ended')
+    if (selectedConversationId) {
+      const sess = sessions.find(s => s.id === selectedConversationId && s.status !== 'ended')
       if (sess) return sess.id
     }
     return sessions.find(s => s.status !== 'ended')?.id ?? null
-  }, [selectedSessionId, sessions])
+  }, [selectedConversationId, sessions])
 
   const { tasks, readTask } = useProject(relaySessionId)
 
@@ -437,9 +437,9 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
 
   // Actions
   function handleSubmit() {
-    if (!selectedSessionId || selectedTasks.length === 0) return
+    if (!selectedConversationId || selectedTasks.length === 0) return
     haptic('success')
-    sendInput(selectedSessionId, finalPrompt)
+    sendInput(selectedConversationId, finalPrompt)
     setOpen(false)
     setSelected(new Set())
   }
@@ -470,7 +470,8 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
     { id: 'batch-selector', enabled: open },
   )
 
-  const hasActiveSession = !!selectedSessionId && sessions.some(s => s.id === selectedSessionId && s.status !== 'ended')
+  const hasActiveSession =
+    !!selectedConversationId && sessions.some(s => s.id === selectedConversationId && s.status !== 'ended')
 
   return (
     <Dialog open={open} onOpenChange={v => !v && handleClose()}>

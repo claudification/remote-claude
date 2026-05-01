@@ -131,7 +131,7 @@ function CacheTab() {
   const sessionsById = useConversationsStore(s => s.sessionsById)
   const transcripts = useConversationsStore(s => s.transcripts)
   const events = useConversationsStore(s => s.events)
-  const selected = useConversationsStore(s => s.selectedSessionId)
+  const selected = useConversationsStore(s => s.selectedConversationId)
   const prefs = useConversationsStore(s => s.controlPanelPrefs)
 
   const cachedIds = Object.keys(transcripts).filter(id => (transcripts[id]?.length ?? 0) > 0)

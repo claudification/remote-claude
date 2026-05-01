@@ -13,7 +13,7 @@ import type { PaletteMode } from './types'
 export function useCommandPalette(onClose: () => void) {
   const sessions = useConversationsStore(state => state.sessions)
   const sessionsById = useConversationsStore(state => state.sessionsById)
-  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
+  const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
   const sessionMru = useConversationsStore(state => state.sessionMru)
   const projectSettings = useConversationsStore(state => state.projectSettings)
   const sendWsMessage = useConversationsStore(state => state.sendWsMessage)
@@ -171,7 +171,7 @@ export function useCommandPalette(onClose: () => void) {
     if (!isSessionMode) return []
     if (!filter) {
       return allSessions
-        .filter(s => s.status !== 'ended' && s.id !== selectedSessionId)
+        .filter(s => s.status !== 'ended' && s.id !== selectedConversationId)
         .map(s => ({ kind: 'session' as const, session: s, score: 0, live: true }))
     }
     const merged: MergedItem[] = [...sessionSearchResults, ...commandSearchResults]
@@ -181,7 +181,7 @@ export function useCommandPalette(onClose: () => void) {
       return b.score - a.score
     })
     return merged
-  }, [isSessionMode, filter, allSessions, selectedSessionId, sessionSearchResults, commandSearchResults])
+  }, [isSessionMode, filter, allSessions, selectedConversationId, sessionSearchResults, commandSearchResults])
 
   // Preserved for consumers that only want the session subset (footer hints etc.)
   const filteredSessions = useMemo(
@@ -207,8 +207,8 @@ export function useCommandPalette(onClose: () => void) {
   // Fetch file list when entering file mode
   useEffect(() => {
     if (!isFileMode || filesFetched.current) return
-    if (!selectedSessionId) return
-    const session = selectedSessionId ? sessionsById[selectedSessionId] : undefined
+    if (!selectedConversationId) return
+    const session = selectedConversationId ? sessionsById[selectedConversationId] : undefined
     if (!session || (session.status !== 'active' && session.status !== 'idle')) return
 
     filesFetched.current = true
@@ -228,7 +228,7 @@ export function useCommandPalette(onClose: () => void) {
     const ws = useConversationsStore.getState().ws
     if (ws) {
       ws.addEventListener('message', handler)
-      sendWsMessage({ type: 'file_list_request', sessionId: selectedSessionId, requestId })
+      sendWsMessage({ type: 'file_list_request', sessionId: selectedConversationId, requestId })
       const timeout = setTimeout(() => {
         ws.removeEventListener('message', handler)
         setFilesLoading(false)
@@ -239,7 +239,7 @@ export function useCommandPalette(onClose: () => void) {
       }
     }
     setFilesLoading(false)
-  }, [isFileMode, selectedSessionId, sessions, sendWsMessage])
+  }, [isFileMode, selectedConversationId, sessions, sendWsMessage])
 
   // Reset file state when leaving file mode
   useEffect(() => {
@@ -336,7 +336,7 @@ export function useCommandPalette(onClose: () => void) {
       ? filter.slice(1).trim().toLowerCase()
       : filter.slice(2).trim().toLowerCase()
     : ''
-  const { tasks: projectTasks, loading: tasksLoading } = useProject(isTaskMode ? selectedSessionId : null)
+  const { tasks: projectTasks, loading: tasksLoading } = useProject(isTaskMode ? selectedConversationId : null)
 
   const filteredTasks = useMemo(() => scoreAndSortTasks(projectTasks, taskFilter), [projectTasks, taskFilter])
 
@@ -363,7 +363,7 @@ export function useCommandPalette(onClose: () => void) {
   }, [])
 
   // Track frequency when selecting via switcher (keyboard or click)
-  function selectSessionWithTracking(session: Session, onSelectSession: (id: string) => void) {
+  function selectConversationWithTracking(session: Session, onSelectSession: (id: string) => void) {
     recordSwitch(session.project)
     onSelectSession(session.id)
   }
@@ -413,8 +413,8 @@ export function useCommandPalette(onClose: () => void) {
           }
         } else if (isFileMode) {
           const file = filteredFiles[activeIndex]
-          if (file && selectedSessionId) {
-            callbacks.onFileSelect(selectedSessionId, file.path)
+          if (file && selectedConversationId) {
+            callbacks.onFileSelect(selectedConversationId, file.path)
           }
         } else if (isTaskMode) {
           const task = filteredTasks[activeIndex]
@@ -425,7 +425,7 @@ export function useCommandPalette(onClose: () => void) {
         } else {
           const item = mergedItems[activeIndex]
           if (item?.kind === 'session') {
-            selectSessionWithTracking(item.session, callbacks.onSelectSession)
+            selectConversationWithTracking(item.session, callbacks.onSelectSession)
           } else if (item?.kind === 'command') {
             item.command.action()
           }
@@ -453,7 +453,7 @@ export function useCommandPalette(onClose: () => void) {
     sessions: filteredSessions,
     mergedItems,
     allSessions,
-    selectedSessionId,
+    selectedConversationId,
     projectSettings,
     sentinelConnected,
 
@@ -481,6 +481,6 @@ export function useCommandPalette(onClose: () => void) {
     handleKeyDown,
     handleSpawn,
     handleDirSelect,
-    selectSessionWithTracking,
+    selectConversationWithTracking,
   }
 }

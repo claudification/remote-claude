@@ -135,14 +135,14 @@ export function SessionTag({ idOrSlug, resolvedId, className }: SessionTagProps)
   const handleClick = () => {
     if (session) {
       haptic('tap')
-      useConversationsStore.getState().selectSession(session.id)
+      useConversationsStore.getState().selectConversation(session.id)
       return
     }
     haptic('tap')
     const bare = stripProjectPrefix(idOrSlug)
     fetchAndInjectSession(resolvedId, bare).then(id => {
       if (id) {
-        useConversationsStore.getState().selectSession(id)
+        useConversationsStore.getState().selectConversation(id)
       } else {
         haptic('error')
         showToast('Session not found', `Could not find session "${bare}" on the server.`)

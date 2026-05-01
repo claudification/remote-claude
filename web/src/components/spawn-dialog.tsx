@@ -149,14 +149,14 @@ export function SpawnDialog() {
    *  Skips navigation if the user switched sessions during the spawn countdown. */
   const handleClose = useCallback(() => {
     addedConnectedStepRef.current = false
-    const currentId = useConversationsStore.getState().selectedSessionId
+    const currentId = useConversationsStore.getState().selectedConversationId
     const userNavigatedAway = currentId !== sessionAtSpawnRef.current && currentId !== null
     const sid =
       progress.launch.sessionId ||
       (progress.spawnedSession && progress.spawnedSession.status !== 'ended' ? progress.spawnedSession.id : null)
 
     if (sid && !userNavigatedAway) {
-      useConversationsStore.getState().selectSession(sid, 'spawn-dialog-close')
+      useConversationsStore.getState().selectConversation(sid, 'spawn-dialog-close')
     } else if (sid && userNavigatedAway) {
       console.log(
         `[nav] spawn-dialog: NOT switching to ${sid.slice(0, 8)} -- user navigated to ${currentId?.slice(0, 8)} during spawn`,
@@ -169,7 +169,7 @@ export function SpawnDialog() {
   /** Explicitly navigate to the spawned session and close. */
   const handleViewSession = useCallback(() => {
     const sid = progress.launch.sessionId || progress.spawnedSession?.id
-    if (sid) useConversationsStore.getState().selectSession(sid, 'spawn-dialog-view-session')
+    if (sid) useConversationsStore.getState().selectConversation(sid, 'spawn-dialog-view-session')
     progress.setViewCountdown(null)
     setState({ open: false, options: null })
     setJobId(null)
@@ -188,7 +188,7 @@ export function SpawnDialog() {
     }
 
     setPhase('launching')
-    sessionAtSpawnRef.current = useConversationsStore.getState().selectedSessionId
+    sessionAtSpawnRef.current = useConversationsStore.getState().selectedConversationId
     haptic('tap')
 
     // Generate jobId and subscribe BEFORE making the HTTP request

@@ -20,7 +20,7 @@ interface GroupedItem {
 export function NotificationPanel({ onClose }: NotificationPanelProps) {
   const sessions = useConversationsStore(s => s.sessionsById)
   const projectSettings = useConversationsStore(s => s.projectSettings)
-  const selectSession = useConversationsStore(s => s.selectSession)
+  const selectConversation = useConversationsStore(s => s.selectConversation)
 
   const perms = useConversationsStore(s => s.pendingPermissions)
   const respondPerm = useConversationsStore(s => s.respondToPermission)
@@ -227,7 +227,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
 
   function navigate(sessionId: string) {
     haptic('tap')
-    selectSession(sessionId, 'notification-panel')
+    selectConversation(sessionId, 'notification-panel')
     onClose()
   }
 

@@ -86,7 +86,7 @@ function useSwipeToOpen(onOpen: () => void) {
 
 function Dashboard() {
   const [sheetOpen, setSheetOpen] = useState(
-    () => isMobileViewport() && !useConversationsStore.getState().selectedSessionId,
+    () => isMobileViewport() && !useConversationsStore.getState().selectedConversationId,
   )
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === 'true')
   const [showUserAdmin, setShowUserAdmin] = useState(false)
@@ -163,7 +163,7 @@ function Dashboard() {
       }
     } catch {}
   }, [])
-  const selectedSessionId = useConversationsStore(s => s.selectedSessionId)
+  const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
   const setEvents = useConversationsStore(s => s.setEvents)
   const setTranscript = useConversationsStore(s => s.setTranscript)
   const showSwitcher = useConversationsStore(s => s.showSwitcher)
@@ -329,7 +329,7 @@ function Dashboard() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected intentionally omitted - connectSeq only bumps while connected
   useEffect(() => {
     if (!isConnected) return
-    const sid = useConversationsStore.getState().selectedSessionId
+    const sid = useConversationsStore.getState().selectedConversationId
     console.log(
       `[sync] connectSeq=${connectSeq} - refresh sessions + sidebar metadata, re-fetch ${sid?.slice(0, 8) || 'none'}`,
     )
@@ -345,25 +345,25 @@ function Dashboard() {
   // even across WS reconnects (clearSubscribedSessions in onopen).
   // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected and fetchSessionData intentionally omitted - only re-run on session switch
   useEffect(() => {
-    if (!selectedSessionId || !isConnected) return
+    if (!selectedConversationId || !isConnected) return
     const { transcripts, events } = useConversationsStore.getState()
-    const cachedTranscript = transcripts[selectedSessionId]?.length ?? 0
-    const cachedEvents = events[selectedSessionId]?.length ?? 0
+    const cachedTranscript = transcripts[selectedConversationId]?.length ?? 0
+    const cachedEvents = events[selectedConversationId]?.length ?? 0
     if (cachedTranscript > 0) {
       console.log(
-        `[sync] HIT ${selectedSessionId.slice(0, 8)}: transcript=${cachedTranscript} events=${cachedEvents} (no fetch, WS sub alive)`,
+        `[sync] HIT ${selectedConversationId.slice(0, 8)}: transcript=${cachedTranscript} events=${cachedEvents} (no fetch, WS sub alive)`,
       )
     } else {
-      console.log(`[sync] MISS ${selectedSessionId.slice(0, 8)}: no cached transcript, fetching full`)
-      fetchSessionData(selectedSessionId, 'session-switch-empty')
+      console.log(`[sync] MISS ${selectedConversationId.slice(0, 8)}: no cached transcript, fetching full`)
+      fetchSessionData(selectedConversationId, 'session-switch-empty')
     }
-  }, [selectedSessionId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedConversationId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // LIFO cache timeout: evict non-selected sessions older than sessionCacheTimeout
   const cacheTimestamps = useRef<Record<string, number>>({})
   useEffect(() => {
-    if (selectedSessionId) cacheTimestamps.current[selectedSessionId] = Date.now()
-  }, [selectedSessionId])
+    if (selectedConversationId) cacheTimestamps.current[selectedConversationId] = Date.now()
+  }, [selectedConversationId])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -371,7 +371,7 @@ function Dashboard() {
       if (sessionCacheTimeout <= 0) return // 0 = never timeout
       const now = Date.now()
       const timeoutMs = sessionCacheTimeout * 60_000
-      const selected = useConversationsStore.getState().selectedSessionId
+      const selected = useConversationsStore.getState().selectedConversationId
       const transcripts = useConversationsStore.getState().transcripts
       let evicted = false
       for (const sid of Object.keys(transcripts)) {
@@ -386,7 +386,7 @@ function Dashboard() {
         // Trigger a store update to clear evicted transcripts
         useConversationsStore.setState(state => {
           const kept = new Set(state.sessionMru.slice(0, state.controlPanelPrefs.sessionCacheSize))
-          if (state.selectedSessionId) kept.add(state.selectedSessionId)
+          if (state.selectedConversationId) kept.add(state.selectedConversationId)
           // Remove timed-out entries
           const events = { ...state.events }
           const transcripts = { ...state.transcripts }
@@ -405,10 +405,10 @@ function Dashboard() {
 
   // Close sheet when a session is selected (mobile UX)
   useEffect(() => {
-    if (selectedSessionId) {
+    if (selectedConversationId) {
       setSheetOpen(false)
     }
-  }, [selectedSessionId])
+  }, [selectedConversationId])
 
   // ── Sync chord timeout from prefs ────────────────────────────────────────
   const chordTimeoutMs = useConversationsStore(s => s.controlPanelPrefs.chordTimeoutMs)
@@ -490,10 +490,10 @@ function Dashboard() {
       const store = useConversationsStore.getState()
       if (store.showTerminal) {
         store.setShowTerminal(false)
-        if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'transcript')
-      } else if (store.selectedSessionId) {
+        if (store.selectedConversationId) store.openTab(store.selectedConversationId, 'transcript')
+      } else if (store.selectedConversationId) {
         const currentTab = store.requestedTab
-        store.openTab(store.selectedSessionId, currentTab === 'tty' ? 'transcript' : 'tty')
+        store.openTab(store.selectedConversationId, currentTab === 'tty' ? 'transcript' : 'tty')
       }
     },
     { label: 'Toggle terminal tab', key: 't', group: 'Navigation' },
@@ -505,9 +505,9 @@ function Dashboard() {
       const store = useConversationsStore.getState()
       if (store.showTerminal) {
         store.setShowTerminal(false)
-        if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'transcript')
+        if (store.selectedConversationId) store.openTab(store.selectedConversationId, 'transcript')
       } else {
-        const session = store.selectedSessionId ? store.sessionsById[store.selectedSessionId] : undefined
+        const session = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
         if (session && canTerminal(session) && session.conversationIds?.[0]) {
           store.openTerminal(session.conversationIds[0])
         }
@@ -528,7 +528,7 @@ function Dashboard() {
     'launch-session',
     () => {
       const store = useConversationsStore.getState()
-      const session = store.selectedSessionId ? store.sessionsById[store.selectedSessionId] : undefined
+      const session = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
       const spawnPath = session
         ? projectPath(session.project) || store.controlPanelPrefs.defaultSessionCwd
         : store.controlPanelPrefs.defaultSessionCwd
@@ -541,7 +541,7 @@ function Dashboard() {
     'terminate-session',
     () => {
       const store = useConversationsStore.getState()
-      const sid = store.selectedSessionId
+      const sid = store.selectedConversationId
       if (!sid) return
       const session = store.sessionsById[sid]
       if (!session || session.status === 'ended') return
@@ -563,8 +563,8 @@ function Dashboard() {
     'open-notes',
     () => {
       const store = useConversationsStore.getState()
-      if (store.selectedSessionId) {
-        store.openTab(store.selectedSessionId, 'files')
+      if (store.selectedConversationId) {
+        store.openTab(store.selectedConversationId, 'files')
         store.setPendingFilePath('NOTES.md')
       }
     },
@@ -575,7 +575,7 @@ function Dashboard() {
     'open-project',
     () => {
       const store = useConversationsStore.getState()
-      const sid = store.selectedSessionId
+      const sid = store.selectedConversationId
       if (!sid) return
       const session = store.sessionsById[sid]
       if (session && session.status !== 'ended') {
@@ -589,9 +589,9 @@ function Dashboard() {
     if (isMobileViewport()) return
     const store = useConversationsStore.getState()
     if (store.showSwitcher || store.showDebugConsole || store.showTerminal) return
-    if (!store.selectedSessionId) return
+    if (!store.selectedConversationId) return
     store.selectSubagent(null)
-    store.openTab(store.selectedSessionId, 'transcript')
+    store.openTab(store.selectedConversationId, 'transcript')
     requestAnimationFrame(() => focusInputEditor())
   }, [])
 
@@ -620,7 +620,7 @@ function Dashboard() {
     'interrupt',
     () => {
       const store = useConversationsStore.getState()
-      const sid = store.selectedSessionId
+      const sid = store.selectedConversationId
       if (!sid) return
       const session = store.sessionsById[sid]
       if (session && session.status !== 'ended') {
@@ -633,9 +633,9 @@ function Dashboard() {
   useCommand(
     'switch-session',
     () => {
-      const { sessionMru, sessions, selectSession } = useConversationsStore.getState()
+      const { sessionMru, sessions, selectConversation } = useConversationsStore.getState()
       const prev = sessionMru.slice(1).find(id => sessions.some(s => s.id === id))
-      if (prev) selectSession(prev, 'ctrl-tab')
+      if (prev) selectConversation(prev, 'ctrl-tab')
     },
     { label: 'Switch to previous session', shortcut: 'ctrl+Tab', group: 'Navigation' },
   )
@@ -680,7 +680,7 @@ function Dashboard() {
   useCommand(
     'effort',
     (level = 'medium') => {
-      const sid = useConversationsStore.getState().selectedSessionId
+      const sid = useConversationsStore.getState().selectedConversationId
       if (sid) sendInput(sid, `/effort ${level}`)
     },
     { label: 'Set effort level', group: 'Session' },
@@ -708,7 +708,7 @@ function Dashboard() {
 
   function handleSwitcherSelect(id: string) {
     const store = useConversationsStore.getState()
-    store.selectSession(id)
+    store.selectConversation(id)
     store.setShowSwitcher(false)
     // Auto-focus input on desktop after session switch
     if (!isMobileViewport()) {
@@ -843,7 +843,7 @@ function Dashboard() {
           onSelect={handleSwitcherSelect}
           onFileSelect={(sessionId, path) => {
             const store = useConversationsStore.getState()
-            store.selectSession(sessionId)
+            store.selectConversation(sessionId)
             store.setShowSwitcher(false)
             store.openTab(sessionId, 'files')
             store.setPendingFilePath(path)
@@ -934,16 +934,16 @@ function AuthExpiredModal() {
 // Voice FAB gate - show on touch devices with pref enabled and active session
 function VoiceFabGate() {
   const showVoiceFab = useConversationsStore(state => state.controlPanelPrefs.showVoiceFab)
-  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
+  const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
 
-  if (!isTouchDevice() || !showVoiceFab || !selectedSessionId) return null
+  if (!isTouchDevice() || !showVoiceFab || !selectedConversationId) return null
   return <VoiceFab />
 }
 
 // Action FAB gate - show on touch devices with active session
 function ActionFabGate() {
-  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
-  if (!isTouchDevice() || !selectedSessionId) return null
+  const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
+  if (!isTouchDevice() || !selectedConversationId) return null
   return <ActionFab />
 }
 

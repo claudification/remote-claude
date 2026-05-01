@@ -90,7 +90,7 @@ interface SessionsState {
   sessions: Session[]
   /** O(1) lookup index maintained alongside sessions[] */
   sessionsById: Record<string, Session>
-  selectedSessionId: string | null
+  selectedConversationId: string | null
   selectedSubagentId: string | null
   sessionMru: string[]
   events: Record<string, HookEvent[]>
@@ -228,8 +228,8 @@ interface SessionsState {
   resolveToolDisplay: (tool: ToolDisplayKey) => ToolDisplayPrefs
 
   setSessions: (sessions: Session[]) => void
-  /** Select a session. Optional `reason` is logged to console for debugging navigation bugs. */
-  selectSession: (id: string | null, reason?: string) => void
+  /** Select a conversation. Optional `reason` is logged to console for debugging navigation bugs. */
+  selectConversation: (id: string | null, reason?: string) => void
   selectSubagent: (agentId: string | null) => void
   openTab: (sessionId: string, tab: string) => void
   setShowTerminal: (show: boolean) => void
@@ -324,7 +324,7 @@ export function applyHashRoute() {
   // Listen for postMessage from service worker (notification click deep links)
   navigator.serviceWorker?.addEventListener('message', event => {
     if (event.data?.type === 'navigate-session' && event.data.sessionId) {
-      useConversationsStore.getState().selectSession(event.data.sessionId, 'sw-navigate-session')
+      useConversationsStore.getState().selectConversation(event.data.sessionId, 'sw-navigate-session')
     }
     if (event.data?.type === 'navigate-task' && event.data.taskId) {
       window.dispatchEvent(new CustomEvent('open-project-task', { detail: { taskId: event.data.taskId } }))
@@ -349,14 +349,14 @@ function applyDefaultSession() {
   defaultApplied = true
   const store = useConversationsStore.getState()
   // Don't override if a session was already selected (hash route, deep link, etc.)
-  if (store.selectedSessionId) return
+  if (store.selectedConversationId) return
 
   // Try configured default session project
   const defaultProject = store.controlPanelPrefs.defaultSessionCwd
   if (defaultProject) {
     const best = findBestSessionForProject(store.sessions, defaultProject)
     if (best) {
-      store.selectSession(best.id, 'default-session-project')
+      store.selectConversation(best.id, 'default-session-project')
       return
     }
   }
@@ -364,14 +364,14 @@ function applyDefaultSession() {
   // Try last-viewed session from localStorage
   const lastId = getLastSessionId()
   if (lastId && store.sessionsById[lastId]) {
-    store.selectSession(lastId, 'default-session-last-viewed')
+    store.selectConversation(lastId, 'default-session-last-viewed')
     return
   }
 
   // Auto-select if only one non-ended session visible (common for restricted users)
   const activeSessions = store.sessions.filter(s => s.status !== 'ended')
   if (activeSessions.length === 1) {
-    store.selectSession(activeSessions[0].id, 'default-session-only-active')
+    store.selectConversation(activeSessions[0].id, 'default-session-only-active')
   }
 }
 
@@ -386,7 +386,7 @@ function processHash() {
   if (mode === 'terminal') {
     store.openTerminal(id) // id is conversationId
   } else if (mode === 'session') {
-    store.selectSession(id, 'hash-route')
+    store.selectConversation(id, 'hash-route')
   } else if (mode === 'task') {
     // Dispatch event for project board to open the task modal
     window.dispatchEvent(new CustomEvent('open-project-task', { detail: { taskId: id } }))
@@ -403,7 +403,7 @@ export function buildSessionsById(sessions: Session[]): Record<string, Session> 
 export const useConversationsStore = create<SessionsState>((set, get) => ({
   sessions: [],
   sessionsById: {},
-  selectedSessionId: null,
+  selectedConversationId: null,
   selectedSubagentId: null,
   sessionMru: [],
   events: {},
@@ -619,11 +619,11 @@ export const useConversationsStore = create<SessionsState>((set, get) => ({
   resolveToolDisplay: (tool: ToolDisplayKey) => resolveToolDisplay(get().controlPanelPrefs, tool),
 
   setSessions: sessions => set({ sessions, sessionsById: buildSessionsById(sessions) }),
-  selectSession: (id: string | null, reason?: string) => {
-    const prev = get().selectedSessionId
+  selectConversation: (id: string | null, reason?: string) => {
+    const prev = get().selectedConversationId
     if (id !== prev) {
       console.log(
-        `[nav] selectSession: ${prev?.slice(0, 8) || 'none'} -> ${id?.slice(0, 8) || 'none'}${reason ? ` (${reason})` : ''}`,
+        `[nav] selectConversation: ${prev?.slice(0, 8) || 'none'} -> ${id?.slice(0, 8) || 'none'}${reason ? ` (${reason})` : ''}`,
       )
     }
     clearExpandedState()
@@ -680,7 +680,7 @@ export const useConversationsStore = create<SessionsState>((set, get) => ({
       // keeping it open would stream the old session's terminal
       const closeTerminal = state.showTerminal ? { showTerminal: false, terminalWrapperId: null } : {}
       return {
-        selectedSessionId: id,
+        selectedConversationId: id,
         selectedSubagentId: null,
         requestedTab: rememberedTab || (defaultView === 'tty' ? 'tty' : 'transcript'),
         requestedTabSeq: state.requestedTabSeq + 1,
@@ -704,12 +704,12 @@ export const useConversationsStore = create<SessionsState>((set, get) => ({
     set({ selectedSubagentId: agentId })
   },
   openTab: (sessionId, tab) => {
-    const prev = get().selectedSessionId
+    const prev = get().selectedConversationId
     if (sessionId !== prev) {
       console.log(`[nav] openTab: ${prev?.slice(0, 8) || 'none'} -> ${sessionId.slice(0, 8)} tab=${tab}`)
     }
     set(state => ({
-      selectedSessionId: sessionId,
+      selectedConversationId: sessionId,
       requestedTab: tab,
       requestedTabSeq: state.requestedTabSeq + 1,
     }))
@@ -718,8 +718,8 @@ export const useConversationsStore = create<SessionsState>((set, get) => ({
   setShowTerminal: show => {
     set({ showTerminal: show, ...(!show && { terminalWrapperId: null }) })
     if (!show) {
-      const { selectedSessionId } = get()
-      updateHash(selectedSessionId ? `session/${selectedSessionId}` : '')
+      const { selectedConversationId } = get()
+      updateHash(selectedConversationId ? `session/${selectedConversationId}` : '')
     }
   },
   setShowSwitcher: show => set({ showSwitcher: show }),
@@ -729,7 +729,7 @@ export const useConversationsStore = create<SessionsState>((set, get) => ({
   openTerminal: conversationId => {
     // Find the session that owns this wrapper so we can select it in the main panel too
     const ownerSession = get().sessions.find(s => s.conversationIds?.includes(conversationId))
-    const prev = get().selectedSessionId
+    const prev = get().selectedConversationId
     const next = ownerSession?.id ?? null
     if (next !== prev) {
       console.log(
@@ -737,7 +737,7 @@ export const useConversationsStore = create<SessionsState>((set, get) => ({
       )
     }
     set({
-      selectedSessionId: next,
+      selectedConversationId: next,
       terminalWrapperId: conversationId,
       showTerminal: true,
       showSwitcher: false,
@@ -815,13 +815,13 @@ export const useConversationsStore = create<SessionsState>((set, get) => ({
     wsSend('dismiss_conversation', { sessionId })
     set(state => {
       const sessions = state.sessions.filter(s => s.id !== sessionId)
-      if (state.selectedSessionId === sessionId) {
+      if (state.selectedConversationId === sessionId) {
         console.log(`[nav] dismissSession: clearing selection (dismissed ${sessionId.slice(0, 8)})`)
       }
       return {
         sessions,
         sessionsById: buildSessionsById(sessions),
-        selectedSessionId: state.selectedSessionId === sessionId ? null : state.selectedSessionId,
+        selectedConversationId: state.selectedConversationId === sessionId ? null : state.selectedConversationId,
       }
     })
   },
@@ -830,16 +830,16 @@ export const useConversationsStore = create<SessionsState>((set, get) => ({
   },
 
   getSelectedSession: () => {
-    const { sessionsById, selectedSessionId } = get()
-    return selectedSessionId ? sessionsById[selectedSessionId] : undefined
+    const { sessionsById, selectedConversationId } = get()
+    return selectedConversationId ? sessionsById[selectedConversationId] : undefined
   },
   getSelectedEvents: () => {
-    const { events, selectedSessionId } = get()
-    return selectedSessionId ? events[selectedSessionId] || [] : []
+    const { events, selectedConversationId } = get()
+    return selectedConversationId ? events[selectedConversationId] || [] : []
   },
   getSelectedTranscript: () => {
-    const { transcripts, selectedSessionId } = get()
-    return selectedSessionId ? transcripts[selectedSessionId] || [] : []
+    const { transcripts, selectedConversationId } = get()
+    return selectedConversationId ? transcripts[selectedConversationId] || [] : []
   },
 }))
 

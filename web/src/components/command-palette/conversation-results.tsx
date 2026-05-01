@@ -3,32 +3,32 @@ import { cn, formatAge, formatModel, projectDisplayName } from '@/lib/utils'
 import { renderProjectIcon } from '../project-settings-editor'
 import type { SessionResultsProps } from './types'
 
-function statusIndicator(s: Session, selectedSessionId: string | null) {
+function statusIndicator(s: Session, selectedConversationId: string | null) {
   if (canTerminal(s)) return '\u25B6' // ▶
-  if (s.id === selectedSessionId) return '\u25C9' // ◉
+  if (s.id === selectedConversationId) return '\u25C9' // ◉
   if (s.status === 'active') return '\u25CF' // ●
   if (s.status === 'starting') return '\u25CB' // ○ (pulsing in sidebar)
   if (s.status === 'idle') return '\u25CB' // ○
   return '\u2716' // ✖
 }
 
-function statusColor(s: Session, selectedSessionId: string | null) {
+function statusColor(s: Session, selectedConversationId: string | null) {
   if (canTerminal(s)) return s.status === 'active' ? 'text-[#9ece6a]' : 'text-[#e0af68]'
-  if (s.id === selectedSessionId) return 'text-[#7aa2f7]'
+  if (s.id === selectedConversationId) return 'text-[#7aa2f7]'
   if (s.status === 'active') return 'text-[#9ece6a]'
   if (s.status === 'starting' || s.status === 'idle') return 'text-[#e0af68]'
   return 'text-[#565f89]'
 }
 
-function actionLabel(s: Session, selectedSessionId: string | null) {
-  if (canTerminal(s)) return s.id === selectedSessionId ? 'TTY (current)' : 'TTY'
+function actionLabel(s: Session, selectedConversationId: string | null) {
+  if (canTerminal(s)) return s.id === selectedConversationId ? 'TTY (current)' : 'TTY'
   if (s.status === 'ended') return 'revive'
   return ''
 }
 
 interface SessionRowProps {
   session: Session
-  selectedSessionId: string | null
+  selectedConversationId: string | null
   projectSettings: SessionResultsProps['projectSettings']
   active: boolean
   onSelect: () => void
@@ -37,7 +37,7 @@ interface SessionRowProps {
 
 export function SessionRow({
   session,
-  selectedSessionId,
+  selectedConversationId,
   projectSettings,
   active,
   onSelect,
@@ -53,8 +53,8 @@ export function SessionRow({
         active ? 'bg-[#33467c]/50' : 'hover:bg-[#33467c]/25',
       )}
     >
-      <span className={cn('text-sm', statusColor(session, selectedSessionId))}>
-        {statusIndicator(session, selectedSessionId)}
+      <span className={cn('text-sm', statusColor(session, selectedConversationId))}>
+        {statusIndicator(session, selectedConversationId)}
       </span>
       <div className="flex-1 min-w-0">
         <div className="text-xs text-[#a9b1d6] truncate flex items-center gap-1.5">
@@ -87,9 +87,9 @@ export function SessionRow({
           {session.model && <span>{formatModel(session.model)}</span>}
         </div>
       </div>
-      {actionLabel(session, selectedSessionId) && (
+      {actionLabel(session, selectedConversationId) && (
         <span className={cn('text-[10px]', canTerminal(session) ? 'text-[#9ece6a]' : 'text-[#565f89]')}>
-          {actionLabel(session, selectedSessionId)}
+          {actionLabel(session, selectedConversationId)}
         </span>
       )}
     </button>

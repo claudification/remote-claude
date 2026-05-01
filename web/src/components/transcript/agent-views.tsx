@@ -15,8 +15,8 @@ import { ToolLine } from './tool-line'
 
 // Inline expandable agent transcript - live via store subscription + HTTP seed
 export function AgentTranscriptInline({ agentId, toolId }: { agentId: string; toolId?: string }) {
-  const sessionId = useConversationsStore(state => state.selectedSessionId)
-  const storeKey = sessionId ? `${sessionId}:${agentId}` : ''
+  const conversationId = useConversationsStore(state => state.selectedConversationId)
+  const storeKey = conversationId ? `${conversationId}:${agentId}` : ''
   const liveEntries = useConversationsStore(state => (storeKey ? state.subagentTranscripts[storeKey] : undefined))
   const [fetched, setFetched] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -24,14 +24,14 @@ export function AgentTranscriptInline({ agentId, toolId }: { agentId: string; to
   const collapsibleId = toolId ? `agent-transcript-${toolId}` : `agent-transcript-${agentId}`
 
   function handleExpand() {
-    if (fetched || loading || !sessionId) return
+    if (fetched || loading || !conversationId) return
     setLoading(true)
-    fetchSubagentTranscript(sessionId, agentId)
+    fetchSubagentTranscript(conversationId, agentId)
       .then(data => {
         setFetched(true)
         setLoading(false)
         if (data.length > 0) {
-          const key = `${sessionId}:${agentId}`
+          const key = `${conversationId}:${agentId}`
           useConversationsStore.setState(state => ({
             subagentTranscripts: { ...state.subagentTranscripts, [key]: data },
           }))

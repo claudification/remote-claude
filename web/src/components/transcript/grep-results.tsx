@@ -23,7 +23,7 @@ const COUNT_BAR_DEFAULT_LIMIT = 25
 function useSessionPath(): string | undefined {
   return useConversationsStore(s => {
     if (s.controlPanelPrefs.sanitizePaths === false) return undefined
-    const sid = s.selectedSessionId
+    const sid = s.selectedConversationId
     const session = sid ? s.sessionsById[sid] : undefined
     return session ? projectPath(session.project) : undefined
   })

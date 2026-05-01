@@ -666,10 +666,10 @@ export function RunTaskDialog({
     if (progress.viewCountdown !== 0) return
     const sid = progress.launch.sessionId || progress.spawnedSession?.id
     if (!sid) return
-    const currentId = useConversationsStore.getState().selectedSessionId
+    const currentId = useConversationsStore.getState().selectedConversationId
     const userNavigatedAway = currentId !== sessionAtLaunchRef.current && currentId !== null
     if (!userNavigatedAway) {
-      useConversationsStore.getState().selectSession(sid, 'project-board-auto-redirect')
+      useConversationsStore.getState().selectConversation(sid, 'project-board-auto-redirect')
     } else {
       console.log(
         `[nav] project-board: NOT switching to ${sid.slice(0, 8)} -- user navigated to ${currentId?.slice(0, 8)} during launch`,
@@ -691,7 +691,7 @@ export function RunTaskDialog({
       timeout,
     })
     setPhase('launching')
-    sessionAtLaunchRef.current = useConversationsStore.getState().selectedSessionId
+    sessionAtLaunchRef.current = useConversationsStore.getState().selectedConversationId
     haptic('tap')
 
     const newJobId = crypto.randomUUID()
@@ -742,7 +742,7 @@ export function RunTaskDialog({
   function handleViewSession() {
     const sid = progress.launch.sessionId || progress.spawnedSession?.id
     if (sid) {
-      useConversationsStore.getState().selectSession(sid, 'project-board-view-session')
+      useConversationsStore.getState().selectConversation(sid, 'project-board-view-session')
       progress.setViewCountdown(null)
       onClose()
     }

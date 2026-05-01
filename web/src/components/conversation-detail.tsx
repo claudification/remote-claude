@@ -53,17 +53,17 @@ export const SessionDetail = memo(function SessionDetail() {
   const setShowTerminal = useConversationsStore(state => state.setShowTerminal)
   const requestedTab = useConversationsStore(state => state.requestedTab)
   const requestedTabSeq = useConversationsStore(state => state.requestedTabSeq)
-  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
+  const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
   const expandAll = useConversationsStore(state => state.expandAll)
 
   // Reset follow state on session switch
-  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedSessionId is the trigger dep, setters are stable React dispatch functions
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedConversationId is the trigger dep, setters are stable React dispatch functions
   useEffect(() => {
     setFollow(true)
     setConversationTarget(null)
-  }, [selectedSessionId])
+  }, [selectedConversationId])
 
-  // Apply requested tab - fires on selectSession (always 'transcript'), openTab, and badge clicks
+  // Apply requested tab - fires on selectConversation (always 'transcript'), openTab, and badge clicks
   // requestedTabSeq ensures re-clicks on the same session still trigger
   // biome-ignore lint/correctness/useExhaustiveDependencies: requestedTabSeq is a counter dep key to re-trigger on same-tab clicks, not accessed in the body
   useEffect(() => {
@@ -73,7 +73,7 @@ export const SessionDetail = memo(function SessionDetail() {
   }, [requestedTab, requestedTabSeq])
 
   const session = useConversationsStore(state =>
-    state.selectedSessionId ? state.sessionsById[state.selectedSessionId] : undefined,
+    state.selectedConversationId ? state.sessionsById[state.selectedConversationId] : undefined,
   )
 
   // Fall back to transcript if current tab is hidden for ended sessions
@@ -85,11 +85,11 @@ export const SessionDetail = memo(function SessionDetail() {
 
   // Persist active tab to localStorage (batched) so it survives reloads
   useEffect(() => {
-    if (selectedSessionId) setSessionTab(selectedSessionId, activeTab)
-  }, [selectedSessionId, activeTab])
+    if (selectedConversationId) setSessionTab(selectedConversationId, activeTab)
+  }, [selectedConversationId, activeTab])
   const { canAdmin, canChat, canReadTerminal, canReadFiles, canFiles, canSpawn } = useConversationsStore(
     useShallow(s => {
-      const p = (s.selectedSessionId && s.sessionPermissions[s.selectedSessionId]) || s.permissions
+      const p = (s.selectedConversationId && s.sessionPermissions[s.selectedConversationId]) || s.permissions
       return {
         canAdmin: p.canAdmin,
         canChat: p.canChat,
@@ -109,12 +109,12 @@ export const SessionDetail = memo(function SessionDetail() {
   const events = useConversationsStore(state => {
     const tab = activeTabRef.current
     if (tab !== 'events' && tab !== 'transcript' && tab !== 'tty') return EMPTY_EVENTS
-    return selectedSessionId ? state.events[selectedSessionId] || EMPTY_EVENTS : EMPTY_EVENTS
+    return selectedConversationId ? state.events[selectedConversationId] || EMPTY_EVENTS : EMPTY_EVENTS
   })
   const transcript = useConversationsStore(state => {
     const tab = activeTabRef.current
     if (tab !== 'transcript' && tab !== 'tty') return EMPTY_TRANSCRIPT
-    return selectedSessionId ? state.transcripts[selectedSessionId] || EMPTY_TRANSCRIPT : EMPTY_TRANSCRIPT
+    return selectedConversationId ? state.transcripts[selectedConversationId] || EMPTY_TRANSCRIPT : EMPTY_TRANSCRIPT
   })
   const sentinelConnected = useConversationsStore(state => state.sentinelConnected)
   const projectSettings = useConversationsStore(state =>
@@ -124,7 +124,8 @@ export const SessionDetail = memo(function SessionDetail() {
   const selectSubagent = useConversationsStore(state => state.selectSubagent)
 
   // Subagent transcript: store (live WS push) + initial HTTP fetch
-  const subagentKey = selectedSessionId && selectedSubagentId ? `${selectedSessionId}:${selectedSubagentId}` : ''
+  const subagentKey =
+    selectedConversationId && selectedSubagentId ? `${selectedConversationId}:${selectedSubagentId}` : ''
   const subagentTranscriptRaw = useConversationsStore(state =>
     subagentKey ? state.subagentTranscripts[subagentKey] : undefined,
   )
@@ -134,14 +135,14 @@ export const SessionDetail = memo(function SessionDetail() {
 
   // Fetch initial subagent transcript via HTTP, seed into store
   useEffect(() => {
-    if (!selectedSessionId || !selectedSubagentId) return
+    if (!selectedConversationId || !selectedSubagentId) return
     let cancelled = false
     setSubagentLoading(true)
-    fetchSubagentTranscript(selectedSessionId, selectedSubagentId).then(entries => {
+    fetchSubagentTranscript(selectedConversationId, selectedSubagentId).then(entries => {
       if (cancelled) return
       setSubagentLoading(false)
       if (entries.length > 0) {
-        const key = `${selectedSessionId}:${selectedSubagentId}`
+        const key = `${selectedConversationId}:${selectedSubagentId}`
         useConversationsStore.setState(state => ({
           subagentTranscripts: { ...state.subagentTranscripts, [key]: entries },
         }))
@@ -150,11 +151,11 @@ export const SessionDetail = memo(function SessionDetail() {
     return () => {
       cancelled = true
     }
-  }, [selectedSessionId, selectedSubagentId])
+  }, [selectedConversationId, selectedSubagentId])
 
   // @ / t: command palette -> task editor overlay (no tab switch, transcript stays mounted)
   const pendingTaskEdit = useConversationsStore(s => s.pendingTaskEdit)
-  const { tasks: projectTasks, readTask, updateTask, moveTask } = useProject(selectedSessionId ?? null)
+  const { tasks: projectTasks, readTask, updateTask, moveTask } = useProject(selectedConversationId ?? null)
   const [taskEditorTask, setTaskEditorTask] = useState<import('@/hooks/use-project').ProjectTask | null>(null)
   const [runTaskFromEditor, setRunTaskFromEditor] = useState<import('@/hooks/use-project').ProjectTask | null>(null)
   useEffect(() => {
@@ -208,9 +209,9 @@ export const SessionDetail = memo(function SessionDetail() {
   const canRevive = session?.status === 'ended' && sentinelConnected && canSpawn
 
   function handleRevive() {
-    if (!selectedSessionId) return
+    if (!selectedConversationId) return
     haptic('tap')
-    openReviveDialog({ sessionId: selectedSessionId })
+    openReviveDialog({ sessionId: selectedConversationId })
   }
 
   return (
@@ -224,12 +225,12 @@ export const SessionDetail = memo(function SessionDetail() {
       {/* Share banner - always visible when shares active (admin only) */}
       {canAdmin && session && <ShareBanner sessionProject={projectPath(session.project)} />}
       {/* Dialog Modal */}
-      {selectedSessionId && <DialogOverlay sessionId={selectedSessionId} />}
+      {selectedConversationId && <DialogOverlay sessionId={selectedConversationId} />}
       {/* Task Editor Modal (from @ / t: command palette, renders over any tab) */}
-      {taskEditorTask && selectedSessionId && (
+      {taskEditorTask && selectedConversationId && (
         <TaskEditor
           task={taskEditorTask}
-          sessionId={selectedSessionId}
+          sessionId={selectedConversationId}
           onSave={async (slug, status, patch) => {
             await updateTask(slug, status, patch)
           }}
@@ -246,10 +247,10 @@ export const SessionDetail = memo(function SessionDetail() {
           onClose={() => setTaskEditorTask(null)}
         />
       )}
-      {runTaskFromEditor && selectedSessionId && (
+      {runTaskFromEditor && selectedConversationId && (
         <RunTaskDialog
           task={runTaskFromEditor}
-          sessionId={selectedSessionId}
+          sessionId={selectedConversationId}
           onClose={() => setRunTaskFromEditor(null)}
         />
       )}
@@ -365,7 +366,7 @@ export const SessionDetail = memo(function SessionDetail() {
                 </div>
               )}
               <TranscriptView
-                key={selectedSessionId}
+                key={selectedConversationId}
                 entries={transcript}
                 follow={follow}
                 showThinking={showThinking}
@@ -388,7 +389,7 @@ export const SessionDetail = memo(function SessionDetail() {
           {!conversationTarget && activeTab === 'events' && (
             <div className="flex-1 min-h-0 overflow-hidden relative">
               <EventsView
-                key={selectedSessionId}
+                key={selectedConversationId}
                 events={events}
                 follow={follow}
                 onUserScroll={disableFollow}
@@ -397,9 +398,9 @@ export const SessionDetail = memo(function SessionDetail() {
               {!follow && events.length > 0 && <ScrollToBottomButton onClick={enableFollow} direction="up" />}
             </div>
           )}
-          {!conversationTarget && activeTab === 'agents' && selectedSessionId && (
+          {!conversationTarget && activeTab === 'agents' && selectedConversationId && (
             <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-4">
-              <SubagentView sessionId={selectedSessionId} />
+              <SubagentView sessionId={selectedConversationId} />
               {session.bgTasks.length > 0 && (
                 <>
                   <div className="border-t border-border pt-3">
@@ -407,31 +408,31 @@ export const SessionDetail = memo(function SessionDetail() {
                       Background Tasks
                     </h3>
                   </div>
-                  <BgTasksView sessionId={selectedSessionId} />
+                  <BgTasksView sessionId={selectedConversationId} />
                 </>
               )}
             </div>
           )}
-          {!conversationTarget && activeTab === 'tasks' && selectedSessionId && (
+          {!conversationTarget && activeTab === 'tasks' && selectedConversationId && (
             <div className="flex-1 min-h-0 overflow-hidden">
-              <TasksView sessionId={selectedSessionId} pendingCount={session.pendingTaskCount} />
+              <TasksView sessionId={selectedConversationId} pendingCount={session.pendingTaskCount} />
             </div>
           )}
-          {!conversationTarget && activeTab === 'files' && selectedSessionId && (
+          {!conversationTarget && activeTab === 'files' && selectedConversationId && (
             <div className="flex-1 min-h-0 overflow-hidden">
-              <FileEditor sessionId={selectedSessionId} />
+              <FileEditor sessionId={selectedConversationId} />
             </div>
           )}
-          {!conversationTarget && activeTab === 'project' && selectedSessionId && (
+          {!conversationTarget && activeTab === 'project' && selectedConversationId && (
             <div className="flex-1 min-h-0 overflow-hidden">
-              <ProjectBoard sessionId={selectedSessionId} />
+              <ProjectBoard sessionId={selectedConversationId} />
             </div>
           )}
           {!conversationTarget && activeTab === 'shared' && session && (
             <SharedView projectPath={projectPath(session.project)} />
           )}
-          {!conversationTarget && activeTab === 'diag' && selectedSessionId && (
-            <DiagView sessionId={selectedSessionId} />
+          {!conversationTarget && activeTab === 'diag' && selectedConversationId && (
+            <DiagView sessionId={selectedConversationId} />
           )}
         </>
       )}
@@ -441,7 +442,7 @@ export const SessionDetail = memo(function SessionDetail() {
         canSendInput &&
         (activeTab === 'transcript' || (activeTab === 'tty' && !hasTerminal)) &&
         !selectedSubagentId &&
-        selectedSessionId && <InputBar sessionId={selectedSessionId} />}
+        selectedConversationId && <InputBar sessionId={selectedConversationId} />}
 
       {/* Terminal overlay - routed by conversationId (physical PTY) */}
       {showTerminal && terminalWrapperId && (
@@ -457,7 +458,7 @@ export const SessionDetail = memo(function SessionDetail() {
             onClose={() => {
               setShowTerminal(false)
               const store = useConversationsStore.getState()
-              if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'transcript')
+              if (store.selectedConversationId) store.openTab(store.selectedConversationId, 'transcript')
             }}
           />
         </Suspense>

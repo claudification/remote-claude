@@ -36,18 +36,18 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
   const isMobile = useIsMobile()
   const expanded = isMobile && focused && !props.inline
 
-  const sessionId = useConversationsStore(s => s.selectedSessionId)
-  const sessionIdRef = useRef(sessionId)
-  sessionIdRef.current = sessionId
+  const conversationId = useConversationsStore(s => s.selectedConversationId)
+  const conversationIdRef = useRef(conversationId)
+  conversationIdRef.current = conversationId
   const viewRef = useRef<EditorView | null>(null)
 
   // Sub-command context (e.g. /workon needs project tasks). Loaded lazily --
   // useProject(null) is a no-op so we only pay for fetch when the user is
   // actually composing a /workon command.
   const wantsTasks = props.enableAutocomplete && /^\/workon\s/i.test(props.value)
-  const { tasks: projectTasks } = useProject(wantsTasks ? sessionId : null)
-  const subCmdCtxRef = useRef<SubCommandContext>({ tasks: projectTasks, sessionId })
-  subCmdCtxRef.current = { tasks: projectTasks, sessionId }
+  const { tasks: projectTasks } = useProject(wantsTasks ? conversationId : null)
+  const subCmdCtxRef = useRef<SubCommandContext>({ tasks: projectTasks, sessionId: conversationId })
+  subCmdCtxRef.current = { tasks: projectTasks, sessionId: conversationId }
 
   const onSubmitRef = useRef(props.onSubmit)
   onSubmitRef.current = props.onSubmit
@@ -89,7 +89,7 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
 
   function onCreateEditor(view: EditorView) {
     viewRef.current = view
-    attachPasteUpload(view, () => sessionIdRef.current)
+    attachPasteUpload(view, () => conversationIdRef.current)
 
     // Shift+Enter -> newline, registered directly on contentDOM in capture
     // phase. CM6's InputState.handleEvent blocks ALL keydown events during
@@ -121,7 +121,7 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
     if (!files?.length) return
     const view = viewRef.current
     if (!view) return
-    for (const file of files) uploadDroppedFile(view, file, sessionIdRef.current)
+    for (const file of files) uploadDroppedFile(view, file, conversationIdRef.current)
   }
 
   // Blur is async on iOS -- defer collapse so a tap on a toolbar button
@@ -222,7 +222,7 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
       const file = (e as CustomEvent<File>).detail
       const view = viewRef.current
       if (!file || !view) return
-      uploadDroppedFile(view, file, sessionIdRef.current)
+      uploadDroppedFile(view, file, conversationIdRef.current)
     }
     window.addEventListener('file-upload-request', handler)
     return () => window.removeEventListener('file-upload-request', handler)

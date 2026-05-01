@@ -134,17 +134,17 @@ export function MarkdownInput({
   // Session info for autocomplete data - only subscribe when we might need it
   const sessionInfoData = useConversationsStore(state => {
     if (!maybeAutocomplete) return EMPTY_INFO
-    const sid = state.selectedSessionId
+    const sid = state.selectedConversationId
     return (sid ? state.sessionInfo[sid] : null) || EMPTY_INFO
   })
 
   // Task data for sub-command completers (e.g. /workon) - only load when needed
   const hasSubCommandWithTasks = enableAutocomplete && /^\/workon\s/i.test(value)
-  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
-  const { tasks: projectTasks } = useProject(hasSubCommandWithTasks ? selectedSessionId : null)
+  const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
+  const { tasks: projectTasks } = useProject(hasSubCommandWithTasks ? selectedConversationId : null)
   const subCmdCtx = useMemo(
-    (): SubCommandContext => ({ tasks: projectTasks, sessionId: selectedSessionId }),
-    [projectTasks, selectedSessionId],
+    (): SubCommandContext => ({ tasks: projectTasks, sessionId: selectedConversationId }),
+    [projectTasks, selectedConversationId],
   )
 
   const acItems = useMemo((): Array<{ item: string; label?: string; builtin: boolean }> => {
@@ -529,7 +529,7 @@ export function MarkdownInput({
         const current = textareaRef.current?.value ?? ''
         onChange(current.replace(search, replacement))
       },
-      selectedSessionId ?? undefined,
+      selectedConversationId ?? undefined,
     )
   }
 

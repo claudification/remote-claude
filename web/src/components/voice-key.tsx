@@ -69,8 +69,8 @@ export function VoiceKey() {
     if (voice.state === 'submitting') {
       const text = voice.refinedText || voice.finalText
       if (text.trim()) {
-        const sessionId = useConversationsStore.getState().selectedSessionId
-        if (sessionId) sendInput(sessionId, text)
+        const conversationId = useConversationsStore.getState().selectedConversationId
+        if (conversationId) sendInput(conversationId, text)
         haptic('success')
       }
       setTimeout(() => voice.reset(), 300)

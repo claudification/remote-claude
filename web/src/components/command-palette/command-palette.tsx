@@ -120,7 +120,7 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
             <FileResults
               files={palette.filteredFiles}
               loading={palette.filesLoading}
-              selectedSessionId={palette.selectedSessionId}
+              selectedConversationId={palette.selectedConversationId}
               activeIndex={palette.activeIndex}
               setActiveIndex={palette.setActiveIndex}
               onFileSelect={onFileSelect}
@@ -133,12 +133,12 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
                 <SessionRow
                   key={`s:${item.session.id}`}
                   session={item.session}
-                  selectedSessionId={palette.selectedSessionId}
+                  selectedConversationId={palette.selectedConversationId}
                   projectSettings={palette.projectSettings}
                   active={i === palette.activeIndex}
                   onSelect={() => {
                     const sess = useConversationsStore.getState().sessionsById[item.session.id]
-                    if (sess) palette.selectSessionWithTracking(sess, onSelect)
+                    if (sess) palette.selectConversationWithTracking(sess, onSelect)
                     else onSelect(item.session.id)
                   }}
                   onMouseEnter={() => palette.setActiveIndex(i)}

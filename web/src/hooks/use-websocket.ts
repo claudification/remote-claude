@@ -353,11 +353,11 @@ function processMessage(msg: DashboardMessage) {
             const { [sessionId]: _, ...rest } = state.streamingText
             newState.streamingText = rest
           }
-          if (prevId && state.selectedSessionId === prevId) {
+          if (prevId && state.selectedConversationId === prevId) {
             console.log(
               `[nav] session rekey: ${prevId.slice(0, 8)} -> ${sessionId.slice(0, 8)} (selected session rekeyed)`,
             )
-            newState.selectedSessionId = sessionId
+            newState.selectedConversationId = sessionId
             const oldEvents = state.events[prevId]
             const oldTranscripts = state.transcripts[prevId]
             if (oldEvents || oldTranscripts) {
@@ -394,7 +394,7 @@ function processMessage(msg: DashboardMessage) {
         } else if (session.status === 'starting') {
           const state = useConversationsStore.getState()
           const cached = state.transcripts[sessionId]?.length ?? 0
-          const isSelected = state.selectedSessionId === sessionId
+          const isSelected = state.selectedConversationId === sessionId
           console.log(`[sync] session_update: RESUME ${sessionId.slice(0, 8)} selected=${isSelected} cached=${cached}`)
           if (isSelected) {
             // Always refetch on resume -- transcript may have been corrupted by a
@@ -882,13 +882,14 @@ function processMessage(msg: DashboardMessage) {
       if (msg.sessionId) {
         useConversationsStore.setState(state => {
           const sessions = state.sessions.filter(s => s.id !== msg.sessionId)
-          if (state.selectedSessionId === msg.sessionId) {
+          if (state.selectedConversationId === msg.sessionId) {
             console.log(`[nav] session_dismissed: clearing selection (WS dismissed ${msg.sessionId.slice(0, 8)})`)
           }
           return {
             sessions,
             sessionsById: buildSessionsById(sessions),
-            selectedSessionId: state.selectedSessionId === msg.sessionId ? null : state.selectedSessionId,
+            selectedConversationId:
+              state.selectedConversationId === msg.sessionId ? null : state.selectedConversationId,
           }
         })
       }
@@ -990,11 +991,11 @@ export function useWebSocket() {
         // Single batched setState for ALL onopen state changes.
         // Multiple separate setState calls fire Zustand subscribers individually,
         // causing useSyncExternalStore tearing detection to loop (React #310).
-        const { selectedSessionId, selectedSubagentId, transcripts, events, connectSeq } =
+        const { selectedConversationId, selectedSubagentId, transcripts, events, connectSeq } =
           useConversationsStore.getState()
 
         // Evict stale sessions from LIFO cache (non-selected sessions may have missed WS entries)
-        const evictedSids = Object.keys(transcripts).filter(sid => sid !== selectedSessionId)
+        const evictedSids = Object.keys(transcripts).filter(sid => sid !== selectedConversationId)
         let newTranscripts = transcripts
         let newEvents = events
         if (evictedSids.length > 0) {
@@ -1021,16 +1022,16 @@ export function useWebSocket() {
         clearSubscribedSessions()
 
         // Subscribe current session immediately
-        if (selectedSessionId) {
+        if (selectedConversationId) {
           for (const ch of SESSION_CHANNELS) {
-            send({ type: 'channel_subscribe', channel: ch, sessionId: selectedSessionId })
+            send({ type: 'channel_subscribe', channel: ch, sessionId: selectedConversationId })
           }
-          _subscribedSessions.add(selectedSessionId)
+          _subscribedSessions.add(selectedConversationId)
           if (selectedSubagentId) {
             send({
               type: 'channel_subscribe',
               channel: 'conversation:subagent_transcript',
-              sessionId: selectedSessionId,
+              sessionId: selectedConversationId,
               agentId: selectedSubagentId,
             })
           }
@@ -1189,7 +1190,7 @@ export function useWebSocket() {
             // Accumulate non-transient toasts into bell notifications
             if (msg.sessionId && !msg.variant) {
               const store = useConversationsStore.getState()
-              const isViewing = store.selectedSessionId === msg.sessionId
+              const isViewing = store.selectedConversationId === msg.sessionId
               if (!isViewing) {
                 useConversationsStore.setState(state => ({
                   notifications: [
@@ -1228,7 +1229,7 @@ export function useWebSocket() {
 
     // Watch for session selection changes and manage channel subscriptions
     // Diff-based: keep subscriptions alive for LIFO-cached sessions
-    // Uses selector-based subscribe to only fire when selectedSessionId or transcript keys change
+    // Uses selector-based subscribe to only fire when selectedConversationId or transcript keys change
     _subscribedSessions = new Set<string>()
     let _lastSelectedId: string | null = null
     let _lastTranscriptKeys: string = ''
@@ -1237,13 +1238,13 @@ export function useWebSocket() {
 
       // Quick check: bail if nothing subscription-relevant changed
       const transcriptKeys = Object.keys(state.transcripts).sort().join(',')
-      if (state.selectedSessionId === _lastSelectedId && transcriptKeys === _lastTranscriptKeys) return
-      _lastSelectedId = state.selectedSessionId
+      if (state.selectedConversationId === _lastSelectedId && transcriptKeys === _lastTranscriptKeys) return
+      _lastSelectedId = state.selectedConversationId
       _lastTranscriptKeys = transcriptKeys
 
       // Desired subscriptions: selected + all sessions with cached transcripts
       const desired = new Set<string>()
-      if (state.selectedSessionId) desired.add(state.selectedSessionId)
+      if (state.selectedConversationId) desired.add(state.selectedConversationId)
       for (const sid of Object.keys(state.transcripts)) {
         if (state.transcripts[sid]?.length) desired.add(sid)
       }
@@ -1271,7 +1272,7 @@ export function useWebSocket() {
     let lastSubagentKey: string | null = null
     const unsubAgent = useConversationsStore.subscribe(state => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
-      const sessionId = state.selectedSessionId
+      const sessionId = state.selectedConversationId
       const agentId = state.selectedSubagentId
       const key = sessionId && agentId ? `${sessionId}:${agentId}` : null
 

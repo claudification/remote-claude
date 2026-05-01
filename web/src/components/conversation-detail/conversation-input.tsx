@@ -135,13 +135,13 @@ export const InputBar = memo(function InputBar({ sessionId }: { sessionId: strin
           onClick={() => {
             haptic('tap')
             const store = useConversationsStore.getState()
-            if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'tty')
+            if (store.selectedConversationId) store.openTab(store.selectedConversationId, 'tty')
           }}
           onKeyDown={e => {
             if (e.key === 'Enter' || e.key === ' ') {
               haptic('tap')
               const store = useConversationsStore.getState()
-              if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'tty')
+              if (store.selectedConversationId) store.openTab(store.selectedConversationId, 'tty')
             }
           }}
         >

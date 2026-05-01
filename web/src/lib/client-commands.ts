@@ -25,7 +25,7 @@ export function tryRunClientCommand(input: string): boolean {
     case 'project':
     case 'session': {
       const state = useConversationsStore.getState()
-      const sid = state.selectedSessionId
+      const sid = state.selectedConversationId
       const project = sid ? state.sessionsById[sid]?.project : null
       if (!project) return false
       window.dispatchEvent(new CustomEvent('open-project-settings', { detail: { project } }))

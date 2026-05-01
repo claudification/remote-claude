@@ -6,7 +6,7 @@ import { formatFileSize } from './types'
 export function FileResults({
   files,
   loading,
-  selectedSessionId,
+  selectedConversationId,
   activeIndex,
   setActiveIndex,
   onFileSelect,
@@ -25,7 +25,7 @@ export function FileResults({
         <button
           key={file.path}
           type="button"
-          onClick={() => selectedSessionId && onFileSelect(selectedSessionId, file.path)}
+          onClick={() => selectedConversationId && onFileSelect(selectedConversationId, file.path)}
           onMouseEnter={() => setActiveIndex(i)}
           className={cn(
             'w-full px-3 py-2 flex items-center gap-3 text-left transition-colors',

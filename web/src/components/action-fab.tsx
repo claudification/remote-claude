@@ -27,7 +27,7 @@ interface FanAction {
   dangerous?: boolean
 }
 
-function buildActions(session: Session | undefined, selectedSessionId: string | null): FanAction[] {
+function buildActions(session: Session | undefined, selectedConversationId: string | null): FanAction[] {
   const actions: FanAction[] = [
     {
       id: 'switcher',
@@ -66,14 +66,14 @@ function buildActions(session: Session | undefined, selectedSessionId: string | 
     },
   ]
 
-  if (session && selectedSessionId) {
+  if (session && selectedConversationId) {
     if (session.status !== 'ended') {
       // Active session actions
       actions.push({
         id: 'share',
         icon: <Share2 className="w-4 h-4" />,
         label: 'Share',
-        action: () => useConversationsStore.getState().openTab(selectedSessionId, 'shared'),
+        action: () => useConversationsStore.getState().openTab(selectedConversationId, 'shared'),
         color: 'bg-[#bb9af7]',
       })
       actions.push({
@@ -96,7 +96,7 @@ function buildActions(session: Session | undefined, selectedSessionId: string | 
         icon: <RefreshCw className="w-4 h-4" />,
         label: 'Revive...',
         action: () => {
-          useConversationsStore.getState().selectSession(session.id)
+          useConversationsStore.getState().selectConversation(session.id)
           openReviveDialog({ sessionId: session.id })
         },
         color: 'bg-emerald-500',
@@ -119,12 +119,12 @@ export function ActionFab() {
   const [expanded, setExpanded] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const lastTapRef = useRef(0)
-  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
+  const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
   const session = useConversationsStore(state =>
-    state.selectedSessionId ? state.sessionsById[state.selectedSessionId] : undefined,
+    state.selectedConversationId ? state.sessionsById[state.selectedConversationId] : undefined,
   )
 
-  const actions = buildActions(session, selectedSessionId)
+  const actions = buildActions(session, selectedConversationId)
 
   // Compute cumulative Y offsets with extra gap before dangerous actions
   const offsets = actions.reduce<number[]>((acc, action, i) => {
@@ -146,9 +146,9 @@ export function ActionFab() {
       }
       haptic('double')
       setExpanded(false)
-      const { sessionMru, sessions, selectSession } = useConversationsStore.getState()
+      const { sessionMru, sessions, selectConversation } = useConversationsStore.getState()
       const prev = sessionMru.slice(1).find(id => sessions.some(s => s.id === id))
-      if (prev) selectSession(prev)
+      if (prev) selectConversation(prev)
       lastTapRef.current = 0
       return
     }

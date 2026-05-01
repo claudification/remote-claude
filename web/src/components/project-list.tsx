@@ -25,7 +25,7 @@ export function ProjectList() {
   // if a session made it here, the user has chat:read for its project.
   const sessions = useConversationsStore(s => s.sessions)
   const sessionsById = useConversationsStore(s => s.sessionsById)
-  const selectedSessionId = useConversationsStore(s => s.selectedSessionId)
+  const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
   const rawProjectOrder = useConversationsStore(s => s.projectOrder)
   const projectOrder = rawProjectOrder?.tree ? rawProjectOrder : { tree: [] }
   const showEnded = useConversationsStore(s => s.controlPanelPrefs.showEndedSessions)
@@ -142,10 +142,10 @@ export function ProjectList() {
   // Scroll into view + pulse when session is selected (e.g. via Ctrl+K)
   // Groups stay collapsed -- the selected session "peeks" below the group header
   useEffect(() => {
-    if (!selectedSessionId) return
-    setPulseSessionId(selectedSessionId)
+    if (!selectedConversationId) return
+    setPulseSessionId(selectedConversationId)
     requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-session-id="${selectedSessionId}"]`)
+      const el = document.querySelector(`[data-session-id="${selectedConversationId}"]`)
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         el.classList.add('conversation-pulse')
@@ -154,7 +154,7 @@ export function ProjectList() {
     })
     const timer = setTimeout(() => setPulseSessionId(null), 1500)
     return () => clearTimeout(timer)
-  }, [selectedSessionId])
+  }, [selectedConversationId])
 
   // Rename group
   const handleRename = useCallback(
@@ -388,8 +388,8 @@ export function ProjectList() {
                     ) : (
                       (() => {
                         // Peek: show selected session even when group is collapsed
-                        if (!selectedSessionId) return null
-                        const selectedSession = sessionsById[selectedSessionId]
+                        if (!selectedConversationId) return null
+                        const selectedSession = sessionsById[selectedConversationId]
                         if (!selectedSession) return null
                         if (!node.children.some(c => c.id === selectedSession.project)) return null
                         return (

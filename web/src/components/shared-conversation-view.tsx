@@ -15,7 +15,7 @@ import { extractProjectLabel } from '@/lib/types'
 
 export function SharedSessionView({ token: _token }: { token: string }) {
   const sessions = useConversationsStore(s => s.sessions)
-  const selectedSessionId = useConversationsStore(s => s.selectedSessionId)
+  const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
   const isConnected = useConversationsStore(s => s.isConnected)
   const [expired, setExpired] = useState(false)
   const [timeLeft, _setTimeLeft] = useState('')
@@ -25,22 +25,22 @@ export function SharedSessionView({ token: _token }: { token: string }) {
 
   // Auto-select the first (and only) session when it arrives
   useEffect(() => {
-    if (sessions.length > 0 && !selectedSessionId) {
-      useConversationsStore.getState().selectSession(sessions[0].id, 'shared-view-auto')
+    if (sessions.length > 0 && !selectedConversationId) {
+      useConversationsStore.getState().selectConversation(sessions[0].id, 'shared-view-auto')
     }
-  }, [sessions, selectedSessionId])
+  }, [sessions, selectedConversationId])
 
   // Fetch transcript for selected session
   const fetchedRef = useRef(false)
   useEffect(() => {
-    if (!selectedSessionId || !isConnected || fetchedRef.current) return
+    if (!selectedConversationId || !isConnected || fetchedRef.current) return
     fetchedRef.current = true
-    fetchSessionEvents(selectedSessionId).then(events => {
-      useConversationsStore.getState().setEvents(selectedSessionId, events)
+    fetchSessionEvents(selectedConversationId).then(events => {
+      useConversationsStore.getState().setEvents(selectedConversationId, events)
     })
-    fetchTranscript(selectedSessionId).then(transcript => {
+    fetchTranscript(selectedConversationId).then(transcript => {
       if (transcript) {
-        useConversationsStore.getState().setTranscript(selectedSessionId, transcript.entries)
+        useConversationsStore.getState().setTranscript(selectedConversationId, transcript.entries)
         // Bump newDataSeq again after a delay to trigger scroll-to-bottom
         // after the virtualizer has measured all items
         setTimeout(() => {
@@ -48,7 +48,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
         }, 200)
       }
     })
-  }, [selectedSessionId, isConnected])
+  }, [selectedConversationId, isConnected])
 
   // Listen for share_expired from server
   // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected used as trigger to re-attach listener on reconnect; ws obtained via getState() inside
@@ -151,7 +151,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
       </div>
 
       {/* Session detail (transcript + input) */}
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{selectedSessionId && <SessionDetail />}</div>
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{selectedConversationId && <SessionDetail />}</div>
 
       {/* Global media lightbox -- transcript markdown emits chips that open this */}
       <MediaLightbox />

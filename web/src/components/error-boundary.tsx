@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
   reportCrash(error: Error, errorInfo: ErrorInfo) {
     try {
       const store = useConversationsStore.getState()
-      const session = store.selectedSessionId ? store.sessionsById[store.selectedSessionId] : undefined
+      const session = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
       fetch('/api/crash', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -52,7 +52,7 @@ export class ErrorBoundary extends Component<Props, State> {
           url: window.location.href,
           viewport: `${window.innerWidth}x${window.innerHeight}`,
           touch: navigator.maxTouchPoints > 0,
-          sessionId: store.selectedSessionId,
+          sessionId: store.selectedConversationId,
           sessionStatus: session?.status,
           sessionProject: session?.project,
         }),
@@ -77,10 +77,12 @@ export class ErrorBoundary extends Component<Props, State> {
   getAppState(): string {
     try {
       const store = useConversationsStore.getState()
-      const session = store.selectedSessionId ? store.sessionsById[store.selectedSessionId] : undefined
-      const transcriptEntries = store.selectedSessionId ? store.transcripts[store.selectedSessionId] : undefined
+      const session = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
+      const transcriptEntries = store.selectedConversationId
+        ? store.transcripts[store.selectedConversationId]
+        : undefined
       const lines = [
-        `  selectedSession: ${store.selectedSessionId?.slice(0, 8) || '(none)'}`,
+        `  selectedSession: ${store.selectedConversationId?.slice(0, 8) || '(none)'}`,
         `  sessionCount: ${store.sessions.length}`,
         `  expandAll: ${store.expandAll}`,
         `  showTerminal: ${store.showTerminal}`,

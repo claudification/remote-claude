@@ -117,7 +117,7 @@ export function SessionContextMenu({
   children: ReactNode
 }) {
   const dismissSession = useConversationsStore(s => s.dismissSession)
-  const selectSession = useConversationsStore(s => s.selectSession)
+  const selectConversation = useConversationsStore(s => s.selectConversation)
 
   return (
     <ContextMenu.Root>
@@ -167,7 +167,7 @@ export function SessionContextMenu({
             className={cn(menuItemClass, 'text-[#2ac3de]')}
             onSelect={() => {
               haptic('tap')
-              selectSession(session.id)
+              selectConversation(session.id)
               window.dispatchEvent(new Event('open-batch-selector'))
             }}
           >
@@ -191,7 +191,7 @@ export function SessionContextMenu({
                 className={cn(menuItemClass, 'text-emerald-400')}
                 onSelect={() => {
                   haptic('tap')
-                  selectSession(session.id)
+                  selectConversation(session.id)
                   openReviveDialog({ sessionId: session.id })
                 }}
               >

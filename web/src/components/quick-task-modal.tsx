@@ -18,20 +18,20 @@ export function QuickTaskModal() {
   const [text, setText] = useState('')
   const [flash, setFlash] = useState(false)
 
-  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
+  const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
   const session = useConversationsStore(state =>
-    state.selectedSessionId ? state.sessionsById[state.selectedSessionId] : undefined,
+    state.selectedConversationId ? state.sessionsById[state.selectedConversationId] : undefined,
   )
   const isActive = session != null && session.status !== 'ended'
   const hasWrapper = (session?.conversationIds?.length ?? 0) > 0
 
-  const { createTask } = useProject(selectedSessionId && isActive ? selectedSessionId : null)
+  const { createTask } = useProject(selectedConversationId && isActive ? selectedConversationId : null)
 
-  // Open via command (registered here so it has access to selectedSessionId/isActive)
+  // Open via command (registered here so it has access to selectedConversationId/isActive)
   useChordCommand(
     'quick-task',
     () => {
-      if (selectedSessionId && isActive) {
+      if (selectedConversationId && isActive) {
         haptic('tap')
         setOpen(true)
       }
@@ -43,7 +43,7 @@ export function QuickTaskModal() {
   useCommand(
     'quick-task-direct',
     () => {
-      if (selectedSessionId && isActive) {
+      if (selectedConversationId && isActive) {
         haptic('tap')
         setOpen(true)
       }
@@ -54,14 +54,14 @@ export function QuickTaskModal() {
   // Also listen for window event (from action FAB + command palette)
   useEffect(() => {
     function handleOpen() {
-      if (selectedSessionId && isActive) {
+      if (selectedConversationId && isActive) {
         haptic('tap')
         setOpen(true)
       }
     }
     window.addEventListener('open-quick-task', handleOpen)
     return () => window.removeEventListener('open-quick-task', handleOpen)
-  }, [selectedSessionId, isActive])
+  }, [selectedConversationId, isActive])
 
   // Radix Dialog handles Escape natively; clear text on close via onOpenChange.
   const handleOpenChange = useCallback((next: boolean) => {
@@ -77,7 +77,7 @@ export function QuickTaskModal() {
     const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : text.trim()
 
     // Log to console for recovery in case the WS relay fails
-    console.log('[quick-task] Creating task:', JSON.stringify({ title, body, sessionId: selectedSessionId }))
+    console.log('[quick-task] Creating task:', JSON.stringify({ title, body, sessionId: selectedConversationId }))
 
     createTask({ title, body }).catch(err => {
       console.error('[quick-task] Failed to create task:', err, { title, body })
@@ -87,7 +87,7 @@ export function QuickTaskModal() {
     setOpen(false)
     setFlash(true)
     setTimeout(() => setFlash(false), 1000)
-  }, [text, createTask, hasWrapper, selectedSessionId])
+  }, [text, createTask, hasWrapper, selectedConversationId])
 
   return (
     <>

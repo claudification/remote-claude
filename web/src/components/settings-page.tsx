@@ -6,9 +6,9 @@ import { resolveToolDisplay, type SettingsTab, TOOL_DISPLAY_KEYS } from '@/lib/c
 import { extractProjectLabel } from '@/lib/types'
 import { clearCacheAndReload } from '@/lib/utils'
 import { BUILD_VERSION } from '../../../src/shared/version'
+import { ProjectLinksSection } from './settings/conversation-links-section'
 import { KeyCapture } from './settings/key-capture'
 import { NotificationsSection } from './settings/notifications-section'
-import { ProjectLinksSection } from './settings/conversation-links-section'
 import {
   BubbleColorPicker,
   ColorInput,

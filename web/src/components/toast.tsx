@@ -37,7 +37,7 @@ export function ToastContainer() {
     if (toast.taskId) {
       window.dispatchEvent(new CustomEvent('open-project-task', { detail: { taskId: toast.taskId } }))
     } else if (toast.sessionId) {
-      useConversationsStore.getState().selectSession(toast.sessionId)
+      useConversationsStore.getState().selectConversation(toast.sessionId)
     }
     dismiss(toast.id)
   }

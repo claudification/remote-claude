@@ -49,7 +49,7 @@ const EMPTY_INFO: SourceInfo = { slashCommands: [], skills: [], agents: [] }
 
 function readSourceInfo(): SourceInfo {
   const state = useConversationsStore.getState()
-  const sid = state.selectedSessionId
+  const sid = state.selectedConversationId
   return (sid ? state.sessionInfo[sid] : null) ?? EMPTY_INFO
 }
 
@@ -97,7 +97,7 @@ function buildCompletions(trigger: '/' | '@', query: string, atDocStart: boolean
  *                  enterBehavior 'select' (Enter ALWAYS picks, never falls
  *                  through to a raw submit)
  *
- * `getCtx` reads React state (project tasks, selectedSessionId) lazily at
+ * `getCtx` reads React state (project tasks, selectedConversationId) lazily at
  * completion time so the extension closure stays stable across renders.
  */
 function subCommandArgCompletion(
@@ -379,7 +379,7 @@ const tabAcceptKeymap = Prec.highest(
 
 interface AutocompleteOptions {
   /**
-   * Read sub-command context (project tasks, selectedSessionId) at completion
+   * Read sub-command context (project tasks, selectedConversationId) at completion
    * time. Called per completion request so callers can back this with a ref
    * and the extension closure stays stable across React renders.
    */

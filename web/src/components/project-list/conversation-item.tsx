@@ -755,11 +755,11 @@ function SessionItemTasksBlock({
 // ─── Full-size session card ───────────────────────────────────────
 
 const SessionItemFull = memo(function SessionItemFull({ session }: { session: Session }) {
-  const isSelected = useConversationsStore(s => s.selectedSessionId === session.id)
+  const isSelected = useConversationsStore(s => s.selectedConversationId === session.id)
   const selectedSubagentId = useConversationsStore(s =>
-    s.selectedSessionId === session.id ? s.selectedSubagentId : null,
+    s.selectedConversationId === session.id ? s.selectedSubagentId : null,
   )
-  const selectSession = useConversationsStore(s => s.selectSession)
+  const selectConversation = useConversationsStore(s => s.selectConversation)
 
   const openTab = useConversationsStore(s => s.openTab)
   const ps = useConversationsStore(s => s.projectSettings[session.project])
@@ -775,7 +775,7 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
 
   function handleClick() {
     haptic('tap')
-    selectSession(session.id)
+    selectConversation(session.id)
   }
 
   return (
@@ -1011,11 +1011,11 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
 // ─── Compact session card (used inside CWD groups) ───────────────
 
 export const SessionItemCompact = memo(function SessionItemCompact({ session }: { session: Session }) {
-  const isSelected = useConversationsStore(s => s.selectedSessionId === session.id)
+  const isSelected = useConversationsStore(s => s.selectedConversationId === session.id)
   const selectedSubagentId = useConversationsStore(s =>
-    s.selectedSessionId === session.id ? s.selectedSubagentId : null,
+    s.selectedConversationId === session.id ? s.selectedSubagentId : null,
   )
-  const selectSession = useConversationsStore(s => s.selectSession)
+  const selectConversation = useConversationsStore(s => s.selectConversation)
 
   const ps = useConversationsStore(s => s.projectSettings[session.project])
   const showCost = useConversationsStore(s => s.controlPanelPrefs.showCostInList)
@@ -1028,7 +1028,7 @@ export const SessionItemCompact = memo(function SessionItemCompact({ session }: 
 
   function handleClick() {
     haptic('tap')
-    selectSession(session.id)
+    selectConversation(session.id)
   }
 
   return (
@@ -1190,7 +1190,7 @@ export const SessionItemCompact = memo(function SessionItemCompact({ session }: 
 
 export const SessionCard = memo(function SessionCard({ session }: { session: Session }) {
   const [showSettings, setShowSettings] = useState(false)
-  const isSelected = useConversationsStore(s => s.selectedSessionId === session.id)
+  const isSelected = useConversationsStore(s => s.selectedConversationId === session.id)
   return (
     <SessionContextMenu session={session} onOpenSettings={() => setShowSettings(true)}>
       <div>
@@ -1221,7 +1221,7 @@ export const SessionCard = memo(function SessionCard({ session }: { session: Ses
 export const InactiveProjectItem = memo(
   function InactiveProjectItem({ sessions }: { sessions: Session[] }) {
     const [showSettings, setShowSettings] = useState(false)
-    const selectSession = useConversationsStore(s => s.selectSession)
+    const selectConversation = useConversationsStore(s => s.selectConversation)
     const latest = sessions.reduce((a, b) => (a.lastActivity > b.lastActivity ? a : b))
     const ps = useConversationsStore(s => s.projectSettings[latest.project])
     const displayName = projectDisplayName(projectPath(latest.project), ps?.label)
@@ -1236,12 +1236,12 @@ export const InactiveProjectItem = memo(
             tabIndex={0}
             onClick={() => {
               haptic('tap')
-              selectSession(latest.id)
+              selectConversation(latest.id)
             }}
             onKeyDown={e => {
               if (e.key === 'Enter' || e.key === ' ') {
                 haptic('tap')
-                selectSession(latest.id)
+                selectConversation(latest.id)
               }
             }}
             className="w-full text-left border border-border hover:border-primary p-2 pl-3 transition-colors cursor-pointer"

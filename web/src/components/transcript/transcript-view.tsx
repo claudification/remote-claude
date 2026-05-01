@@ -319,29 +319,33 @@ export const TranscriptView = memo(function TranscriptView({
   // Return a primitive string so Zustand's Object.is check works - avoids re-renders
   // from session_update creating new array references with identical content
   const subagentsSummary = useConversationsStore(state => {
-    const session = state.selectedSessionId ? state.sessionsById[state.selectedSessionId] : undefined
+    const session = state.selectedConversationId ? state.sessionsById[state.selectedConversationId] : undefined
     if (!session?.subagents?.length) return ''
     return session.subagents.map(a => `${a.agentId}:${a.status}:${a.description || ''}`).join('|')
   })
   // biome-ignore lint/correctness/useExhaustiveDependencies: subagentsSummary is a serialized primitive dep key that triggers recompute when subagent state changes
   const subagents = useMemo(() => {
     const state = useConversationsStore.getState()
-    return state.selectedSessionId ? state.sessionsById[state.selectedSessionId]?.subagents : undefined
+    return state.selectedConversationId ? state.sessionsById[state.selectedConversationId]?.subagents : undefined
   }, [subagentsSummary])
 
-  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
+  const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
   const perfEnabled = useConversationsStore(state => state.controlPanelPrefs.showPerfMonitor)
 
   // Count pending permissions for the selected session. Used as a scroll-to-bottom
   // trigger so a newly-arrived permission pins into view when follow is active.
   const pendingPermissionCount = useConversationsStore(state =>
-    state.selectedSessionId ? state.pendingPermissions.filter(p => p.sessionId === state.selectedSessionId).length : 0,
+    state.selectedConversationId
+      ? state.pendingPermissions.filter(p => p.sessionId === state.selectedConversationId).length
+      : 0,
   )
 
   // Same idea for pending project-link requests targeting this session -- they
   // also render inline at the transcript bottom as a blocking gate.
   const pendingLinkCount = useConversationsStore(state =>
-    state.selectedSessionId ? state.pendingProjectLinks.filter(r => r.toSession === state.selectedSessionId).length : 0,
+    state.selectedConversationId
+      ? state.pendingProjectLinks.filter(r => r.toSession === state.selectedConversationId).length
+      : 0,
   )
 
   // Cache measured sizes so estimateSize can use real heights for groups
@@ -449,8 +453,10 @@ export const TranscriptView = memo(function TranscriptView({
   const followRef = useRef(follow)
   followRef.current = follow
   useEffect(() => {
-    const getTranscriptRef = (state: { selectedSessionId: string | null; transcripts: Record<string, unknown> }) =>
-      state.selectedSessionId ? state.transcripts[state.selectedSessionId] : undefined
+    const getTranscriptRef = (state: {
+      selectedConversationId: string | null
+      transcripts: Record<string, unknown>
+    }) => (state.selectedConversationId ? state.transcripts[state.selectedConversationId] : undefined)
     let lastRef = getTranscriptRef(useConversationsStore.getState())
 
     return useConversationsStore.subscribe(state => {
@@ -574,9 +580,9 @@ export const TranscriptView = memo(function TranscriptView({
           TranscriptGroups and silently cost frames). */}
       <MaybeProfiler enabled={perfEnabled} id="TranscriptStreaming">
         {/* Headless streaming text - isolated component so token updates don't re-render the virtualizer */}
-        <StreamingBlock sessionId={selectedSessionId} />
+        <StreamingBlock sessionId={selectedConversationId} />
         {/* Fun verb spinner while session is working */}
-        <ThinkingSpinner sessionId={selectedSessionId} />
+        <ThinkingSpinner sessionId={selectedConversationId} />
         {/* Pending permission + link requests: rendered inline at the bottom as
             blocking UI gates. Both follow the same pattern -- structured wire
             message -> store -> inline banner -> user response over WS. */}

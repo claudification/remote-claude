@@ -50,8 +50,8 @@ export function VoiceFab() {
       const text = voice.refinedText || voice.finalText
       haptic('tick')
       if (text.trim()) {
-        const sessionId = useConversationsStore.getState().selectedSessionId
-        if (sessionId) sendInput(sessionId, text)
+        const conversationId = useConversationsStore.getState().selectedConversationId
+        if (conversationId) sendInput(conversationId, text)
         haptic('double')
       }
       setTimeout(() => {

@@ -302,8 +302,8 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
 
       streamRef.current = stream
 
-      const sessionId = useConversationsStore.getState().selectedSessionId
-      sendWs({ type: 'voice_start', sessionId })
+      const conversationId = useConversationsStore.getState().selectedConversationId
+      sendWs({ type: 'voice_start', sessionId: conversationId })
       console.log(`[voice] ${elapsed()} voice_start sent`)
 
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/mp4'

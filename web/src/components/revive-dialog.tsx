@@ -148,14 +148,14 @@ export function ReviveDialog() {
 
   const handleClose = useCallback(() => {
     addedConnectedStepRef.current = false
-    const currentId = useConversationsStore.getState().selectedSessionId
+    const currentId = useConversationsStore.getState().selectedConversationId
     const userNavigatedAway = currentId !== sessionAtReviveRef.current && currentId !== null
     const sid =
       progress.launch.sessionId ||
       (progress.spawnedSession && progress.spawnedSession.status !== 'ended' ? progress.spawnedSession.id : null)
 
     if (sid && !userNavigatedAway) {
-      useConversationsStore.getState().selectSession(sid, 'revive-dialog-close')
+      useConversationsStore.getState().selectConversation(sid, 'revive-dialog-close')
     }
     setState({ open: false, options: null })
     setJobId(null)
@@ -163,7 +163,7 @@ export function ReviveDialog() {
 
   const handleViewSession = useCallback(() => {
     const sid = progress.launch.sessionId || progress.spawnedSession?.id
-    if (sid) useConversationsStore.getState().selectSession(sid, 'revive-dialog-view-session')
+    if (sid) useConversationsStore.getState().selectConversation(sid, 'revive-dialog-view-session')
     progress.setViewCountdown(null)
     setState({ open: false, options: null })
     setJobId(null)
@@ -173,7 +173,7 @@ export function ReviveDialog() {
     if (!state.options || phase !== 'config' || !session) return
 
     setPhase('launching')
-    sessionAtReviveRef.current = useConversationsStore.getState().selectedSessionId
+    sessionAtReviveRef.current = useConversationsStore.getState().selectedConversationId
     haptic('tap')
 
     const newJobId = crypto.randomUUID()

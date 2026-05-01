@@ -29,7 +29,7 @@ interface ResultListProps {
 
 export interface SessionResultsProps extends ResultListProps {
   sessions: Session[]
-  selectedSessionId: string | null
+  selectedConversationId: string | null
   projectSettings: Record<string, { label?: string; icon?: string; color?: string; keyterms?: string[] }>
   onSelect: (sessionId: string) => void
 }
@@ -41,7 +41,7 @@ export interface CommandResultsProps extends ResultListProps {
 export interface FileResultsProps extends ResultListProps {
   files: FileInfo[]
   loading: boolean
-  selectedSessionId: string | null
+  selectedConversationId: string | null
   onFileSelect: (sessionId: string, path: string) => void
 }
 
