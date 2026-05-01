@@ -12,7 +12,7 @@
  * input, identical for both backends.
  */
 
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { tryRunClientCommand } from '@/lib/client-commands'
 import { MarkdownInput } from '../markdown-input'
 import { MaybeProfiler } from '../perf-profiler'

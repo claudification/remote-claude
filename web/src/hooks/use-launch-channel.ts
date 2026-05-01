@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { wsSend } from './use-sessions'
+import { wsSend } from './use-conversations'
 
 interface LaunchEvent {
   step: string

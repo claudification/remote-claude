@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import type { ArchivedTaskGroup, TaskInfo } from '@/lib/types'
 import { cn } from '@/lib/utils'
 

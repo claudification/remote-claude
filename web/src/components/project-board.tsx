@@ -49,7 +49,7 @@ import {
 import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import type { ProjectTask } from '@/hooks/use-project'
 import { type ProjectTaskMeta, type TaskStatus, useProject } from '@/hooks/use-project'
-import { sendInput, useConversationsStore } from '@/hooks/use-sessions'
+import { sendInput, useConversationsStore } from '@/hooks/use-conversations'
 import { sendSpawnRequest } from '@/hooks/use-spawn'
 import { useKeyLayer } from '@/lib/key-layers'
 import { loadRunTaskDefaults, saveRunTaskDefaults } from '@/lib/run-task-defaults'

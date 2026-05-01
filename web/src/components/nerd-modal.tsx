@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { getRates, subscribe as subscribeStats } from '@/hooks/ws-stats'
 import { clearLog, copyLogText, getLogEntries, subscribeLog } from '@/lib/debug-log'
 import {

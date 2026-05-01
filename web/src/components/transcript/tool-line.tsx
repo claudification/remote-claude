@@ -6,7 +6,7 @@
 import { structuredPatch } from 'diff'
 import { memo, type ReactNode } from 'react'
 import { Markdown } from '@/components/markdown'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/control-panel-prefs'
 import { projectPath, type TranscriptContentBlock } from '@/lib/types'
 import { cn, truncate } from '@/lib/utils'
@@ -19,7 +19,7 @@ import {
   GmailThreadView,
 } from './gmail-renderers'
 import { FileListResults, GlobSummary, GrepContentResults, GrepCountResults, GrepSummary } from './grep-results'
-import { SessionTag } from './session-tag'
+import { SessionTag } from './conversation-tag'
 import { Collapsible, cleanCdPrefix, extractMcpText, getToolStyle, shortPath, TruncatedPre } from './shared'
 import { BashOutput, DiffView, ReplResult, ReplView, ShellCommand, WritePreview } from './tool-renderers'
 

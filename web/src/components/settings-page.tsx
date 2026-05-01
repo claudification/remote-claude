@@ -1,6 +1,6 @@
 import { Save } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useConversationsStore, wsSend } from '@/hooks/use-sessions'
+import { useConversationsStore, wsSend } from '@/hooks/use-conversations'
 import { invalidateWarmStream } from '@/hooks/use-voice-recording'
 import { resolveToolDisplay, type SettingsTab, TOOL_DISPLAY_KEYS } from '@/lib/control-panel-prefs'
 import { extractProjectLabel } from '@/lib/types'
@@ -8,7 +8,7 @@ import { clearCacheAndReload } from '@/lib/utils'
 import { BUILD_VERSION } from '../../../src/shared/version'
 import { KeyCapture } from './settings/key-capture'
 import { NotificationsSection } from './settings/notifications-section'
-import { ProjectLinksSection } from './settings/session-links-section'
+import { ProjectLinksSection } from './settings/conversation-links-section'
 import {
   BubbleColorPicker,
   ColorInput,

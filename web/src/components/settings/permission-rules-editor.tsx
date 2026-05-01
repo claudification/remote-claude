@@ -5,7 +5,7 @@ import {
   requestRclaudeConfig,
   saveRclaudeConfig,
   useConversationsStore,
-} from '@/hooks/use-sessions'
+} from '@/hooks/use-conversations'
 import { projectPath } from '@/lib/types'
 import { cn } from '@/lib/utils'
 

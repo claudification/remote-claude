@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { renderProjectIcon } from '@/components/project-settings-editor'
-import { BannerButton, SessionBanner } from '@/components/ui/session-banner'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { BannerButton, SessionBanner } from '@/components/ui/conversation-banner'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { projectPath } from '@/lib/types'
 import { haptic, projectDisplayName } from '@/lib/utils'
 

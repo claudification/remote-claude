@@ -10,7 +10,7 @@
 
 import { Command, ListChecks, MessageSquarePlus, PenLine, Power, RefreshCw, Rocket, Share2, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { projectPath, type Session } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { openReviveDialog } from './revive-dialog'

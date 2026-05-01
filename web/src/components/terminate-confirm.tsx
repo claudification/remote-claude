@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { useKeyLayer } from '@/lib/key-layers'
 import { haptic } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'

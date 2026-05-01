@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useState } from 'react'
-import { BannerButton, BannerStack, SessionBanner } from '@/components/ui/session-banner'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { BannerButton, BannerStack, SessionBanner } from '@/components/ui/conversation-banner'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 

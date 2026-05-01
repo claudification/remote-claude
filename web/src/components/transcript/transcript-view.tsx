@@ -16,11 +16,11 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { record } from '@/lib/perf-metrics'
 import type { TranscriptEntry } from '@/lib/types'
 import { Markdown } from '../markdown'
-import { LinkRequestBanners, PermissionBanners } from '../session-detail/session-banners'
+import { LinkRequestBanners, PermissionBanners } from '../conversation-detail/conversation-banners'
 import { CompactedDivider, CompactingBanner, MemoizedGroupView, SkillDivider } from './group-view'
 import { type DisplayGroup, useIncrementalGroups } from './grouping'
 

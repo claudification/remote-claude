@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { haptic } from '@/lib/utils'
 
 interface SentinelEntry {

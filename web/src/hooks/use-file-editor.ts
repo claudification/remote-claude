@@ -5,7 +5,7 @@
 
 import type { FileInfo } from '@shared/protocol'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useConversationsStore } from './use-sessions'
+import { useConversationsStore } from './use-conversations'
 
 export type { FileInfo } from '@shared/protocol'
 

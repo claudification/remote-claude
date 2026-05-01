@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom'
 import { VoiceOverlay } from '@/components/voice-overlay'
 import { useProject } from '@/hooks/use-project'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { uploadFileWithPlaceholder } from '@/lib/upload'
 import { cn, haptic, isMobileViewport } from '@/lib/utils'
 import { fuzzyScore } from './input-editor/autocomplete-shared'

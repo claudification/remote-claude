@@ -1,6 +1,6 @@
 import { Check, ChevronRight, Copy, EyeOff, Filter, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { type JsonStreamMessage, useConversationsStore } from '@/hooks/use-sessions'
+import { type JsonStreamMessage, useConversationsStore } from '@/hooks/use-conversations'
 import { cn } from '@/lib/utils'
 
 interface JsonStreamPanelProps {

@@ -1,6 +1,6 @@
 import { Bell, BellOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { getPushStatus, subscribeToPush } from '@/hooks/use-sessions'
+import { getPushStatus, subscribeToPush } from '@/hooks/use-conversations'
 
 export function NotificationsSection() {
   const [pushState, setPushState] = useState<

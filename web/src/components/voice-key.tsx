@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useRef, useSyncExternalStore } from 'react'
-import { sendInput, useConversationsStore } from '@/hooks/use-sessions'
+import { sendInput, useConversationsStore } from '@/hooks/use-conversations'
 import {
   dismissMicExpired,
   getMicExpired,

@@ -263,7 +263,7 @@ import {
   generateProjectKeyterms,
   updateProjectSettings,
   useConversationsStore,
-} from '@/hooks/use-sessions'
+} from '@/hooks/use-conversations'
 import { extractProjectLabel, type ProjectSettings } from '@/lib/types'
 import { cn } from '@/lib/utils'
 

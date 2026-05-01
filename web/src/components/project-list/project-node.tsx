@@ -1,12 +1,12 @@
 import { memo, useState } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import type { Session } from '@/lib/types'
 import { extractProjectLabel, projectPath } from '@/lib/types'
 import { haptic } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from '../project-settings-editor'
 import { partitionSessions } from './partition'
-import { ProjectContextMenu, SessionContextMenu } from './session-context-menu'
-import { SessionCard, SessionItemCompact } from './session-item'
+import { ProjectContextMenu, SessionContextMenu } from './conversation-context-menu'
+import { SessionCard, SessionItemCompact } from './conversation-item'
 
 function sessionsEqual(a: Session[], b: Session[]): boolean {
   if (a.length !== b.length) return false

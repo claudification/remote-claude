@@ -3,7 +3,7 @@
  * Shared by send_message (tool-line) and received inter-session messages (group-view).
  */
 
-import { buildSessionsById, useConversationsStore } from '@/hooks/use-sessions'
+import { buildSessionsById, useConversationsStore } from '@/hooks/use-conversations'
 import type { Session } from '@/lib/types'
 import { extractProjectLabel, projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
