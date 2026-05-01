@@ -2194,7 +2194,9 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
                   text: decodedText,
                   createdAt: Date.now(),
                 })
-                console.log(`[clipboard] ${capture.contentType} from transcript (session ${conversationId.slice(0, 8)})`)
+                console.log(
+                  `[clipboard] ${capture.contentType} from transcript (session ${conversationId.slice(0, 8)})`,
+                )
               }
             }
           }

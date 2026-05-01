@@ -33,7 +33,9 @@ import type {
   BrokerSentinelMessage,
   ExtraUsage,
   ListDirsResult,
+  ReviveConversation,
   ReviveResult,
+  SpawnConversation,
   SpawnFailed,
   SpawnResult,
   UsageUpdate,
@@ -623,7 +625,7 @@ async function reviveSession(
 ): Promise<ReviveResult & { tmuxPaneId?: string }> {
   const result: ReviveResult = {
     type: 'revive_result',
-    sessionId,
+    ccSessionId: sessionId,
     conversationId,
     project: cwdToProjectUri(cwd),
     jobId,
@@ -1278,29 +1280,14 @@ function connect(
           break
 
         case 'revive': {
-          const reviveMsg = msg as {
-            sessionId: string
-            project: string
-            conversationId: string
-            mode?: 'fresh' | 'resume'
-            headless?: boolean
-            effort?: string
-            model?: string
-            agent?: string
-            sessionName?: string
-            autocompactPct?: number
-            maxBudgetUsd?: number
-            jobId?: string
-            adHocWorktree?: string
-            env?: Record<string, string>
-          }
+          const reviveMsg = msg as ReviveConversation
           const reviveCwd = parseProjectUri(reviveMsg.project).path
           log(
-            `Reviving session ${reviveMsg.sessionId.slice(0, 8)}... conv=${reviveMsg.conversationId.slice(0, 8)} mode=${reviveMsg.mode || 'default'} headless=${reviveMsg.headless !== false}${reviveMsg.effort ? ` effort=${reviveMsg.effort}` : ''}${reviveMsg.model ? ` model=${reviveMsg.model}` : ''}${reviveMsg.maxBudgetUsd ? ` maxBudget=$${reviveMsg.maxBudgetUsd}` : ''}${reviveMsg.jobId ? ` job=${reviveMsg.jobId.slice(0, 8)}` : ''} (${reviveCwd})`,
+            `Reviving ccSession=${reviveMsg.ccSessionId.slice(0, 8)} conv=${reviveMsg.conversationId.slice(0, 8)} mode=${reviveMsg.mode || 'default'} headless=${reviveMsg.headless !== false}${reviveMsg.effort ? ` effort=${reviveMsg.effort}` : ''}${reviveMsg.model ? ` model=${reviveMsg.model}` : ''}${reviveMsg.maxBudgetUsd ? ` maxBudget=$${reviveMsg.maxBudgetUsd}` : ''}${reviveMsg.jobId ? ` job=${reviveMsg.jobId.slice(0, 8)}` : ''} (${reviveCwd})`,
           )
           launchLog(reviveMsg.jobId, 'Sentinel received revive request', 'ok')
           const result = await reviveSession(
-            reviveMsg.sessionId,
+            reviveMsg.ccSessionId,
             reviveCwd,
             reviveMsg.conversationId,
             reviveScript,
@@ -1369,33 +1356,7 @@ function connect(
         }
 
         case 'spawn': {
-          const spawnMsg = msg as {
-            requestId: string
-            cwd: string
-            conversationId: string
-            mkdir?: boolean
-            mode?: 'fresh' | 'resume'
-            resumeId?: string
-            headless?: boolean
-            effort?: string
-            model?: string
-            agent?: string
-            bare?: boolean
-            repl?: boolean
-            sessionName?: string
-            sessionDescription?: string
-            permissionMode?: string
-            autocompactPct?: number
-            maxBudgetUsd?: number
-            prompt?: string
-            adHoc?: boolean
-            adHocTaskId?: string
-            leaveRunning?: boolean
-            includePartialMessages?: boolean
-            worktree?: string
-            jobId?: string
-            env?: Record<string, string>
-          }
+          const spawnMsg = msg as SpawnConversation
           if (noSpawn) {
             launchLog(spawnMsg.jobId, 'Spawning disabled', 'error', '--no-spawn flag is set')
             ws.send(

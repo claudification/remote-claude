@@ -1324,7 +1324,7 @@ export interface SentinelIdentify {
 
 export interface ReviveResult {
   type: 'revive_result'
-  sessionId: string
+  ccSessionId: string // CC session ID used for --resume
   conversationId?: string // echoes the pre-assigned conversationId
   project?: string // echoed back for scoped broadcast when session is evicted
   jobId?: string // launch job correlation ID
@@ -1395,29 +1395,68 @@ export type SentinelMessage =
   | LaunchLog
 
 // Broker -> Sentinel messages
+//
+// These carry the full conversation snapshot the sentinel needs to boot a CC
+// session. The conversation is the addressable entity; ccSessionId is metadata
+// the agent host attaches on connect.
+
 export interface ReviveConversation {
   type: 'revive'
-  sessionId: string
+  conversationId: string
   project: string
-  conversationId: string // pre-assigned conversationId so broker can correlate the incoming connection
-  jobId?: string // launch job correlation ID for progress events
-  adHocWorktree?: string // restore worktree context on revive (RCLAUDE_WORKTREE env)
-  env?: Record<string, string> // custom env vars forwarded to claude process
+  ccSessionId: string // CC session ID to resume (--resume)
+  jobId?: string
+  // Conversation metadata
+  sessionName?: string
+  // Launch config
+  mode?: 'fresh' | 'resume'
+  headless?: boolean
+  effort?: string
+  model?: string
+  agent?: string
+  bare?: boolean
+  repl?: boolean
+  permissionMode?: string
+  // Limits
+  autocompactPct?: number
+  maxBudgetUsd?: number
+  // Context
+  adHocWorktree?: string
+  env?: Record<string, string>
 }
 
 export interface SpawnConversation {
   type: 'spawn'
   requestId: string
+  conversationId: string
   cwd: string
   project?: string
-  conversationId: string
-  jobId?: string // launch job correlation ID for progress events
+  jobId?: string
+  // Conversation metadata
+  sessionName?: string
+  sessionDescription?: string
+  // Launch config
+  mkdir?: boolean
+  mode?: 'fresh' | 'resume'
+  resumeId?: string
+  headless?: boolean
+  effort?: string
+  model?: string
+  agent?: string
+  bare?: boolean
+  repl?: boolean
+  permissionMode?: string
+  // Limits
+  autocompactPct?: number
+  maxBudgetUsd?: number
   // Ad-hoc task runner fields
-  prompt?: string // initial prompt to send after session starts
-  adHoc?: boolean // fire-and-forget headless session
-  adHocTaskId?: string // project board task slug for deep linking
-  worktree?: string // git worktree branch name (passed as --worktree to claude CLI)
-  env?: Record<string, string> // custom env vars forwarded to claude process
+  prompt?: string
+  adHoc?: boolean
+  adHocTaskId?: string
+  leaveRunning?: boolean
+  includePartialMessages?: boolean
+  worktree?: string
+  env?: Record<string, string>
 }
 
 export interface ListDirs {

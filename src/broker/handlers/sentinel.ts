@@ -34,20 +34,20 @@ const sentinelIdentify: MessageHandler = (ctx, data) => {
 
 const reviveResult: MessageHandler = (ctx, data) => {
   const ok = data.success ? 'OK' : 'FAIL'
-  const sessionId = data.sessionId as string
+  const ccSessionId = data.ccSessionId as string
   const conversationId = (data.conversationId || data.wrapperId) as string | undefined
   const jobId = data.jobId as string | undefined
-  ctx.log.debug(`Revive ${sessionId?.slice(0, 8)}... ${ok}${data.error ? ` (${data.error})` : ''}`)
+  ctx.log.debug(`Revive ccSession=${ccSessionId?.slice(0, 8)} ${ok}${data.error ? ` (${data.error})` : ''}`)
 
   // Forward to dashboard so the launch monitor can show step-by-step progress.
-  // Resolve CWD from the session store for scoped broadcast.
-  const session = sessionId ? ctx.conversations.getConversation(sessionId) : null
-  const project = session?.project || (data.project as string)
+  // Resolve CWD from the conversation store for scoped broadcast.
+  const conversation = ccSessionId ? ctx.conversations.getConversation(ccSessionId) : null
+  const project = conversation?.project || (data.project as string)
   if (project) {
     ctx.broadcastScoped(
       {
         type: 'revive_result',
-        sessionId,
+        ccSessionId,
         conversationId,
         jobId,
         success: data.success,

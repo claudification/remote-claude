@@ -262,7 +262,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
   sentinel.send(
     JSON.stringify({
       type: 'revive',
-      sessionId,
+      ccSessionId: sessionId,
       project: session.project,
       conversationId,
       jobId,
