@@ -15,15 +15,15 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { generateConversationName } from '../shared/conversation-names'
 import { validateModel } from '../shared/models'
 import type { Conversation, LaunchProgressEvent, LaunchStep, ProjectSettings, SpawnResult } from '../shared/protocol'
-import { generateConversationName } from '../shared/conversation-names'
 import { resolveSpawnConfig } from '../shared/spawn-defaults'
 import { deriveConversationName, validateSessionName } from '../shared/spawn-naming'
 import { assertSpawnAllowed, type SpawnCallerContext, SpawnPermissionError } from '../shared/spawn-permissions'
 import type { SpawnRequest } from '../shared/spawn-schema'
-import type { GlobalSettings } from './global-settings'
 import type { ConversationStore } from './conversation-store'
+import type { GlobalSettings } from './global-settings'
 
 /**
  * Emit a first-class launch_progress event to all subscribers of the job.
@@ -105,7 +105,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
   if (req.name) {
     const usedNames = new Set(
       deps.sessions
-        .getAllSessions()
+        .getAllConversations()
         .map((s: Conversation) => s.title)
         .filter(Boolean) as string[],
     )
@@ -221,7 +221,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
           generateConversationName(
             new Set(
               deps.sessions
-                .getAllSessions()
+                .getAllConversations()
                 .map((s: Conversation) => s.title)
                 .filter(Boolean) as string[],
             ),
@@ -268,7 +268,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
           sessionId: session.id,
           conversationId,
         })
-        const callerWs = deps.sessions.getSessionSocket(callerSessionId)
+        const callerWs = deps.sessions.getConversationSocket(callerSessionId)
         callerWs?.send(
           JSON.stringify({
             type: 'spawn_ready',
@@ -282,7 +282,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
       .catch(err => {
         const errMsg = typeof err === 'string' ? err : 'Spawn rendezvous timed out'
         emitProgress(deps.sessions, jobId, 'failed', 'error', { error: errMsg })
-        const callerWs = deps.sessions.getSessionSocket(callerSessionId)
+        const callerWs = deps.sessions.getConversationSocket(callerSessionId)
         callerWs?.send(
           JSON.stringify({
             type: 'spawn_timeout',

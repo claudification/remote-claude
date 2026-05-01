@@ -60,14 +60,14 @@ export function createWsServer(options: WsServerOptions): WsServer {
               ws.data.sessionId = meta.sessionId
 
               // Check if session already exists (resume case)
-              const existingSession = sessionStore.getSession(meta.sessionId)
+              const existingSession = sessionStore.getConversation(meta.sessionId)
               if (existingSession) {
                 // Resume existing session
-                sessionStore.resumeSession(meta.sessionId)
+                sessionStore.resumeConversation(meta.sessionId)
                 if (meta.configuredModel) existingSession.configuredModel = meta.configuredModel
               } else {
                 // Create new session
-                const session = sessionStore.createSession(
+                const session = sessionStore.createConversation(
                   meta.sessionId,
                   parseProjectUri(meta.project).path,
                   meta.model,
@@ -77,7 +77,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
               }
 
               // Track socket for this session (for sending input)
-              sessionStore.setSessionSocket(meta.sessionId, meta.conversationId || meta.sessionId, ws)
+              sessionStore.setConversationSocket(meta.sessionId, meta.conversationId || meta.sessionId, ws)
 
               onSessionStart?.(meta.sessionId, meta)
 
@@ -109,7 +109,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
               const sessionId = ws.data.sessionId || end.sessionId
 
               if (sessionId) {
-                sessionStore.endSession(sessionId, end.reason)
+                sessionStore.endConversation(sessionId, end.reason)
                 onSessionEnd?.(sessionId, end.reason)
               }
               break
@@ -126,9 +126,9 @@ export function createWsServer(options: WsServerOptions): WsServer {
       close(ws: ServerWebSocket<WsData>) {
         const sessionId = ws.data.sessionId
         if (sessionId) {
-          const session = sessionStore.getSession(sessionId)
+          const session = sessionStore.getConversation(sessionId)
           if (session && session.status !== 'ended') {
-            sessionStore.endSession(sessionId, 'connection_closed')
+            sessionStore.endConversation(sessionId, 'connection_closed')
             onSessionEnd?.(sessionId, 'connection_closed')
           }
         }

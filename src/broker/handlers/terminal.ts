@@ -8,9 +8,9 @@ import { registerHandlers } from '../message-router'
 
 const terminalAttach: MessageHandler = (ctx, data) => {
   const wid = data.conversationId as string
-  const sess = ctx.sessions.getSessionByConversation(wid)
+  const sess = ctx.sessions.findConversationByConversationId(wid)
   if (sess) ctx.requirePermission('terminal:read', sess.project)
-  const targetSocket = ctx.sessions.getSessionSocketByConversation(wid)
+  const targetSocket = ctx.sessions.findSocketByConversationId(wid)
   if (targetSocket) {
     const isFirstViewer = !ctx.sessions.hasTerminalViewers(wid)
     ctx.sessions.addTerminalViewer(wid, ctx.ws)
@@ -29,7 +29,7 @@ const terminalDetach: MessageHandler = (ctx, data) => {
   const wid = data.conversationId as string
   ctx.sessions.removeTerminalViewer(wid, ctx.ws)
   if (!ctx.sessions.hasTerminalViewers(wid)) {
-    const detachSocket = ctx.sessions.getSessionSocketByConversation(wid)
+    const detachSocket = ctx.sessions.findSocketByConversationId(wid)
     if (detachSocket) {
       detachSocket.send(JSON.stringify(data))
     }
@@ -43,9 +43,9 @@ const terminalData: MessageHandler = (ctx, data) => {
   const wid = data.conversationId as string
   if (ctx.ws.data.isControlPanel) {
     // Dashboard -> rclaude (user keystrokes) - requires terminal write
-    const sess = ctx.sessions.getSessionByConversation(wid)
+    const sess = ctx.sessions.findConversationByConversationId(wid)
     if (sess) ctx.requirePermission('terminal', sess.project)
-    const targetSocket = ctx.sessions.getSessionSocketByConversation(wid)
+    const targetSocket = ctx.sessions.findSocketByConversationId(wid)
     if (targetSocket) {
       targetSocket.send(JSON.stringify(data))
     }
@@ -62,9 +62,9 @@ const terminalData: MessageHandler = (ctx, data) => {
 }
 
 const terminalResize: MessageHandler = (ctx, data) => {
-  const sess = ctx.sessions.getSessionByConversation(data.conversationId as string)
+  const sess = ctx.sessions.findConversationByConversationId(data.conversationId as string)
   if (sess) ctx.requirePermission('terminal', sess.project)
-  const targetSocket = ctx.sessions.getSessionSocketByConversation(data.conversationId as string)
+  const targetSocket = ctx.sessions.findSocketByConversationId(data.conversationId as string)
   if (targetSocket) {
     targetSocket.send(JSON.stringify(data))
   }

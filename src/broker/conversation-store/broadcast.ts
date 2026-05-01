@@ -4,7 +4,7 @@ import { resolvePermissions } from '../permissions'
 import type { ControlPanelMessage } from './types'
 
 export interface BroadcastDeps {
-  dashboardSubscribers: Set<ServerWebSocket<unknown>>
+  controlPanelSubscribers: Set<ServerWebSocket<unknown>>
   stampAndBuffer: (message: unknown) => string
   recordTraffic: (direction: 'in' | 'out', bytes: number) => void
   getSubscriberEntry: (ws: ServerWebSocket<unknown>) => { id: number } | undefined
@@ -12,7 +12,7 @@ export interface BroadcastDeps {
 
 export function broadcast(deps: BroadcastDeps, message: ControlPanelMessage): void {
   const json = deps.stampAndBuffer(message)
-  for (const ws of deps.dashboardSubscribers) {
+  for (const ws of deps.controlPanelSubscribers) {
     try {
       ws.send(json)
       deps.recordTraffic('out', json.length)
@@ -21,14 +21,14 @@ export function broadcast(deps: BroadcastDeps, message: ControlPanelMessage): vo
       console.error(
         `[broadcast] Send failed to ${subInfo?.id || 'unknown'}: ${err instanceof Error ? err.message : err}`,
       )
-      deps.dashboardSubscribers.delete(ws)
+      deps.controlPanelSubscribers.delete(ws)
     }
   }
 }
 
-export function broadcastSessionScoped(deps: BroadcastDeps, message: ControlPanelMessage, project: string): void {
+export function broadcastConversationScoped(deps: BroadcastDeps, message: ControlPanelMessage, project: string): void {
   const json = deps.stampAndBuffer(message)
-  for (const ws of deps.dashboardSubscribers) {
+  for (const ws of deps.controlPanelSubscribers) {
     try {
       const grants = (ws.data as { grants?: UserGrant[] }).grants
       if (grants) {
@@ -42,7 +42,7 @@ export function broadcastSessionScoped(deps: BroadcastDeps, message: ControlPane
       console.error(
         `[broadcast] Send failed to ${subInfo?.id || 'unknown'}: ${err instanceof Error ? err.message : err}`,
       )
-      deps.dashboardSubscribers.delete(ws)
+      deps.controlPanelSubscribers.delete(ws)
     }
   }
 }

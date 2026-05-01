@@ -23,6 +23,7 @@ import {
   setSentinelRegistry,
   setShareValidator,
 } from './auth-routes'
+import { createConversationStore } from './conversation-store'
 import { type ContextDeps, createContext } from './create-context'
 import { initGlobalSettings } from './global-settings'
 import type { WsData } from './handler-context'
@@ -47,7 +48,6 @@ import { closeProjectStore, initProjectStore } from './project-store'
 import { initPush, isPushConfigured, sendPushToAll } from './push'
 import { createRouter } from './routes'
 import { createSentinelRegistry } from './sentinel-registry'
-import { createConversationStore } from './conversation-store'
 import {
   cleanExpired as cleanExpiredShares,
   initShares,
@@ -504,7 +504,7 @@ async function main() {
 
       // Auto-send push notification on Notification hook events
       if (event.hookEvent === 'Notification' && isPushConfigured()) {
-        const session = sessionStore.getSession(sessionId)
+        const session = sessionStore.getConversation(sessionId)
         const label = session?.project ? extractProjectLabel(session.project) : sessionId.slice(0, 8)
         const d = event.data as Record<string, unknown>
         const message = (d?.message as string) || 'Awaiting input...'
@@ -519,7 +519,7 @@ async function main() {
 
       // Auto-send push on session Stop (Claude finished working)
       if (event.hookEvent === 'Stop' && isPushConfigured()) {
-        const session = sessionStore.getSession(sessionId)
+        const session = sessionStore.getConversation(sessionId)
         const label = session?.project ? extractProjectLabel(session.project) : sessionId.slice(0, 8)
         const d = event.data as Record<string, unknown>
         const reason = (d?.stop_hook_reason as string) || 'completed'
@@ -738,13 +738,13 @@ async function main() {
             }
 
             // Remove this wrapper's socket
-            sessionStore.removeSessionSocket(sessionId, closeWrapperId)
+            sessionStore.removeConversationSocket(sessionId, closeWrapperId)
             const remaining = sessionStore.getActiveConversationCount(sessionId)
 
-            const session = sessionStore.getSession(sessionId)
+            const session = sessionStore.getConversation(sessionId)
             if (session && session.status !== 'ended' && remaining === 0) {
               // Last wrapper disconnected - end the session
-              sessionStore.endSession(sessionId, 'connection_closed')
+              sessionStore.endConversation(sessionId, 'connection_closed')
               if (verbose) {
                 console.log(`[-] Session ended: ${sessionId.slice(0, 8)}... (connection_closed, last wrapper)`)
               }
@@ -773,7 +773,7 @@ async function main() {
                     sessionStore
                       .addRendezvous(conversationId, pendingRestart.callerSessionId, pendingRestart.project, 'restart')
                       .then(revived => {
-                        const callerWs = sessionStore.getSessionSocket(pendingRestart.callerSessionId)
+                        const callerWs = sessionStore.getConversationSocket(pendingRestart.callerSessionId)
                         callerWs?.send(
                           JSON.stringify({
                             type: 'restart_ready',
@@ -785,7 +785,7 @@ async function main() {
                         )
                       })
                       .catch(err => {
-                        const callerWs = sessionStore.getSessionSocket(pendingRestart.callerSessionId)
+                        const callerWs = sessionStore.getConversationSocket(pendingRestart.callerSessionId)
                         callerWs?.send(
                           JSON.stringify({
                             type: 'restart_timeout',
@@ -826,7 +826,7 @@ async function main() {
   // Print status periodically
   if (verbose) {
     setInterval(() => {
-      const sessions = sessionStore.getActiveSessions()
+      const sessions = sessionStore.getActiveConversations()
       if (sessions.length > 0) {
         console.log(`\n[i] Active sessions: ${sessions.length}`)
         for (const session of sessions) {

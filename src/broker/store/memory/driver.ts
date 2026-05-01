@@ -558,7 +558,7 @@ function createScopeLinkStore(): ScopeLinkStore {
 function createTaskStore(): TaskStore {
   const tasks = new Map<string, Map<string, TaskRecord>>()
 
-  function getSession(sessionId: string): Map<string, TaskRecord> {
+  function getConversation(sessionId: string): Map<string, TaskRecord> {
     let m = tasks.get(sessionId)
     if (!m) {
       m = new Map()
@@ -569,7 +569,7 @@ function createTaskStore(): TaskStore {
 
   return {
     upsert(sessionId, task) {
-      getSession(sessionId).set(task.id, { ...task, sessionId })
+      getConversation(sessionId).set(task.id, { ...task, sessionId })
     },
 
     getForSession(sessionId, kind?) {

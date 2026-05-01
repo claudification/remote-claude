@@ -8,8 +8,8 @@ import {
   querySummary as queryAnalyticsSummary,
   queryTimeSeries as queryAnalyticsTimeSeries,
 } from '../analytics-store'
-import { listProjects } from '../project-store'
 import type { ConversationStore } from '../conversation-store'
+import { listProjects } from '../project-store'
 import type { StoreDriver } from '../store/types'
 import type { RouteHelpers } from './shared'
 
@@ -25,7 +25,7 @@ export function createStatsRouter(
   // ─── Stats ─────────────────────────────────────────────────────────
   app.get('/api/stats', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
-    const allSessions = sessionStore.getAllSessions()
+    const allSessions = sessionStore.getAllConversations()
     let active = 0
     let idle = 0
     let ended = 0

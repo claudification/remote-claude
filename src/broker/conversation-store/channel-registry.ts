@@ -2,7 +2,7 @@
  * Channel pub/sub registry for session-store.
  *
  * Owns: channelSubscribers (forward index), subscriberRegistry (reverse index), v2Subscribers.
- * Deps injected: dashboardSubscribers (shared mutable ref), syncStamp, recordTraffic.
+ * Deps injected: controlPanelSubscribers (shared mutable ref), syncStamp, recordTraffic.
  */
 
 import type { ServerWebSocket } from 'bun'
@@ -32,7 +32,7 @@ export interface SubscriberEntry {
 }
 
 export interface ChannelRegistryDeps {
-  dashboardSubscribers: Set<ServerWebSocket<unknown>>
+  controlPanelSubscribers: Set<ServerWebSocket<unknown>>
   syncStamp: (msg: unknown) => string
   recordTraffic: (direction: 'in' | 'out', bytes: number) => void
 }
@@ -76,7 +76,7 @@ function channelKey(channel: SubscriptionChannel, sessionId: string, agentId?: s
 }
 
 export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistry {
-  const { dashboardSubscribers, syncStamp, recordTraffic } = deps
+  const { controlPanelSubscribers, syncStamp, recordTraffic } = deps
 
   // Forward index: channel key -> set of subscriber sockets
   const channelSubscribers = new Map<string, Set<ServerWebSocket<unknown>>>()
@@ -239,7 +239,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
     }
 
     // Also send to legacy (v1) subscribers that haven't received it
-    for (const ws of dashboardSubscribers) {
+    for (const ws of controlPanelSubscribers) {
       if (!sent.has(ws) && !v2Subscribers.has(ws)) {
         try {
           ws.send(json)
@@ -254,7 +254,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
           console.error(
             `[broadcast] Send failed to ${subInfo?.id || 'unknown'}: ${err instanceof Error ? err.message : err}`,
           )
-          dashboardSubscribers.delete(ws)
+          controlPanelSubscribers.delete(ws)
         }
       }
     }
@@ -306,8 +306,8 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
     return {
       subscribers,
       summary: {
-        totalSubscribers: dashboardSubscribers.size,
-        legacySubscribers: dashboardSubscribers.size - v2Subscribers.size,
+        totalSubscribers: controlPanelSubscribers.size,
+        legacySubscribers: controlPanelSubscribers.size - v2Subscribers.size,
         v2Subscribers: v2Subscribers.size,
         channelCounts,
         totalBytesSent,
@@ -339,7 +339,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
     return subscriberRegistry.get(ws)
   }
 
-  // Migrate channel subscriptions from oldId to newId (called by rekeySession)
+  // Migrate channel subscriptions from oldId to newId (called by rekeyConversation)
   function migrateChannels(oldId: string, newId: string): void {
     const channelTypes: SubscriptionChannel[] = [
       'conversation:events',
@@ -392,7 +392,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
     }
   }
 
-  // Clear subagent transcript subscriptions for a session (called by rekeySession)
+  // Clear subagent transcript subscriptions for a session (called by rekeyConversation)
   function clearSubagentChannels(sessionId: string): void {
     for (const key of channelSubscribers.keys()) {
       if (key.startsWith(`conversation:subagent_transcript:${sessionId}:`)) {

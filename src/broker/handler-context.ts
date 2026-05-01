@@ -5,8 +5,8 @@
 
 import type { ServerWebSocket } from 'bun'
 import type { ProjectSettings } from '../shared/protocol'
-import type { Permission, UserGrant } from './permissions'
 import type { ConversationStore } from './conversation-store'
+import type { Permission, UserGrant } from './permissions'
 import type { StoreDriver } from './store/types'
 
 export interface WsData {
@@ -41,7 +41,7 @@ export interface HandlerContext {
   /** Unified StoreDriver (SQLite-backed domain stores: costs, kv, transcripts, etc.) */
   store: StoreDriver
   /** Resolved caller session (from ws.data.sessionId) */
-  caller?: ReturnType<ConversationStore['getSession']>
+  caller?: ReturnType<ConversationStore['getConversation']>
   /** Caller's project settings */
   callerSettings?: ProjectSettings | null
   /** Verbose logging flag */
@@ -135,7 +135,7 @@ export interface HandlerContext {
   /** Guard: throws GuardError if no sentinel connected */
   requireSentinel(): ServerWebSocket<unknown>
   /** Guard: throws GuardError if caller has no session */
-  requireSession(): NonNullable<ReturnType<ConversationStore['getSession']>>
+  requireSession(): NonNullable<ReturnType<ConversationStore['getConversation']>>
   /**
    * Guard: throws GuardError if dashboard user lacks the required permission
    * for the given project. Wrappers/sentinels bypass all permission checks.

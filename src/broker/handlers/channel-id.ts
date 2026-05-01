@@ -129,9 +129,9 @@ export type ResolveSessionResult =
 
 export interface ResolveSessionDeps {
   callerSessionId: string | undefined
-  getAllSessions: () => SessionLike[]
-  getSession: (id: string) => SessionLike | undefined
-  getSessionByConversation: (id: string) => SessionLike | undefined
+  getAllConversations: () => SessionLike[]
+  getConversation: (id: string) => SessionLike | undefined
+  findConversationByConversationId: (id: string) => SessionLike | undefined
   getActiveConversationCount: (id: string) => number
   getProjectSettings: (project: string) => { label?: string } | null
   addressBook: {
@@ -158,7 +158,7 @@ export function resolveSessionTarget(targetId: string, deps: ResolveSessionDeps)
   let targetProject = deps.callerProject ? deps.addressBook.resolve(deps.callerProject, projectSlug) : undefined
 
   if (!targetProject && deps.callerProject) {
-    for (const s of deps.getAllSessions()) {
+    for (const s of deps.getAllConversations()) {
       if (s.id === deps.callerSessionId) continue
       const projSettings = deps.getProjectSettings(s.project)
       const projectName = projSettings?.label || extractProjectLabel(s.project)
@@ -168,7 +168,7 @@ export function resolveSessionTarget(targetId: string, deps: ResolveSessionDeps)
   }
 
   if (targetProject) {
-    const sessionsAtProject = deps.getAllSessions().filter(s => isSameProject(s.project, targetProject))
+    const sessionsAtProject = deps.getAllConversations().filter(s => isSameProject(s.project, targetProject))
     const projSettings = deps.getProjectSettings(targetProject)
     const canonicalProject = slugify(projSettings?.label || extractProjectLabel(targetProject))
     const resolved = resolveSendTarget({
@@ -188,7 +188,7 @@ export function resolveSessionTarget(targetId: string, deps: ResolveSessionDeps)
   }
 
   // Fallback: try raw internal ID / conversation ID
-  const fallback = deps.getSessionByConversation(targetId) || deps.getSession(targetId)
+  const fallback = deps.findConversationByConversationId(targetId) || deps.getConversation(targetId)
   if (fallback) return { kind: 'resolved', session: fallback }
   return { kind: 'not_found', error: 'Target not connected. Use list_sessions to find current sessions.' }
 }

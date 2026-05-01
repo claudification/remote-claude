@@ -21,7 +21,7 @@ import { GroupNode, NewGroupDropTarget, SortableNode } from './project-list/sess
 // ─── Main ProjectList ──────────────────────────────────────────────
 
 export function ProjectList() {
-  // Server already filters sessions_list by grants (filterSessionsByGrants) --
+  // Server already filters sessions_list by grants (filterConversationsByGrants) --
   // if a session made it here, the user has chat:read for its project.
   const sessions = useConversationsStore(s => s.sessions)
   const sessionsById = useConversationsStore(s => s.sessionsById)

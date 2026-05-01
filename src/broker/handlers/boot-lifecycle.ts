@@ -38,7 +38,7 @@ const wrapperBoot: MessageHandler = (ctx, data) => {
   // Merge any pending launch config stored at spawn time (keyed by conversationId).
   const pendingLaunchConfig = ctx.sessions.consumePendingLaunchConfig(conversationId)
 
-  const existing = ctx.sessions.getSession(conversationId)
+  const existing = ctx.sessions.getConversation(conversationId)
   const capabilities = (data.capabilities as AgentHostCapability[] | undefined) || []
   const claudeArgs = (data.claudeArgs as string[] | undefined) || []
 
@@ -56,7 +56,13 @@ const wrapperBoot: MessageHandler = (ctx, data) => {
   } else {
     // Create a placeholder session keyed by conversationId -- the real sessionId
     // replaces this once session_promote arrives.
-    const placeholder = ctx.sessions.createSession(conversationId, resolvedProject, undefined, claudeArgs, capabilities)
+    const placeholder = ctx.sessions.createConversation(
+      conversationId,
+      resolvedProject,
+      undefined,
+      claudeArgs,
+      capabilities,
+    )
     placeholder.status = 'booting'
     if (pendingLaunchConfig) {
       placeholder.launchConfig = pendingLaunchConfig
@@ -71,8 +77,8 @@ const wrapperBoot: MessageHandler = (ctx, data) => {
 
   // Register the WS as this session's socket so messages (including boot
   // events) can be tagged with it.
-  ctx.sessions.setSessionSocket(conversationId, conversationId, ctx.ws)
-  ctx.sessions.broadcastSessionUpdate(conversationId)
+  ctx.sessions.setConversationSocket(conversationId, conversationId, ctx.ws)
+  ctx.sessions.broadcastConversationUpdate(conversationId)
   ctx.log.debug(`[boot] wrapper_boot: ${conversationId.slice(0, 8)} project=${resolvedProject}`)
 }
 
@@ -81,7 +87,8 @@ const bootEvent: MessageHandler = (ctx, data) => {
   const step = data.step as BootStep
   if (!conversationId || !step) return
 
-  const session = ctx.sessions.getSession(conversationId) || ctx.sessions.getSessionByConversation(conversationId)
+  const session =
+    ctx.sessions.getConversation(conversationId) || ctx.sessions.findConversationByConversationId(conversationId)
   if (!session) {
     ctx.log.debug(`[boot] boot_event for unknown wrapper: ${conversationId.slice(0, 8)} step=${step}`)
     return
@@ -115,9 +122,9 @@ const launchEvent: MessageHandler = (ctx, data) => {
   // Route via conversationId (stable across rekeys) or the session id on the event.
   const sessionIdFromEvent = data.sessionId as string | null
   const session =
-    (sessionIdFromEvent ? ctx.sessions.getSession(sessionIdFromEvent) : undefined) ||
-    ctx.sessions.getSession(conversationId) ||
-    ctx.sessions.getSessionByConversation(conversationId)
+    (sessionIdFromEvent ? ctx.sessions.getConversation(sessionIdFromEvent) : undefined) ||
+    ctx.sessions.getConversation(conversationId) ||
+    ctx.sessions.findConversationByConversationId(conversationId)
   if (!session) {
     ctx.log.debug(`[launch] event for unknown wrapper: ${conversationId.slice(0, 8)} step=${step}`)
     return
@@ -147,7 +154,7 @@ const sessionPromote: MessageHandler = (ctx, data) => {
   const newSessionId = data.sessionId as string
   if (!conversationId || !newSessionId) return
 
-  const bootSession = ctx.sessions.getSession(conversationId)
+  const bootSession = ctx.sessions.getConversation(conversationId)
   if (!bootSession) {
     ctx.log.debug(`[boot] session_promote for unknown wrapper: ${conversationId.slice(0, 8)}`)
     return
@@ -157,14 +164,14 @@ const sessionPromote: MessageHandler = (ctx, data) => {
     // Nothing to migrate -- just flip status out of booting; meta handler
     // will take over with full metadata.
     bootSession.status = 'starting'
-    ctx.sessions.broadcastSessionUpdate(newSessionId)
+    ctx.sessions.broadcastConversationUpdate(newSessionId)
     return
   }
 
   // Re-key the booting session to the real session id. This moves the
   // transcript (including boot entries), sockets, subscriptions, etc.
   const bootProject = bootSession.project
-  const rekeyed = ctx.sessions.rekeySession(
+  const rekeyed = ctx.sessions.rekeyConversation(
     conversationId,
     newSessionId,
     conversationId,

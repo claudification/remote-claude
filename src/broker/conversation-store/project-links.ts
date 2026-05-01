@@ -24,15 +24,15 @@ export interface ProjectLinkRegistry {
 }
 
 export function createProjectLinkRegistry(
-  sessions: Map<string, Conversation>,
-  sessionSockets: Map<string, Map<string, import('bun').ServerWebSocket<unknown>>>,
+  conversations: Map<string, Conversation>,
+  conversationSockets: Map<string, Map<string, import('bun').ServerWebSocket<unknown>>>,
 ): ProjectLinkRegistry {
   const projectLinks = new Set<string>()
   const projectBlocks = new Map<string, number>()
   const messageQueue = new Map<string, Array<Record<string, unknown>>>()
 
   function sessionToProject(sessionId: string): string | undefined {
-    return sessions.get(sessionId)?.project
+    return conversations.get(sessionId)?.project
   }
 
   return {
@@ -56,7 +56,7 @@ export function createProjectLinkRegistry(
         const [a, b] = key.split('|')
         const other = a === normalizeProjectUri(thisProject) ? b : b === normalizeProjectUri(thisProject) ? a : null
         if (!other) continue
-        const session = Array.from(sessions.values()).find(s => normalizeProjectUri(s.project) === other)
+        const session = Array.from(conversations.values()).find(s => normalizeProjectUri(s.project) === other)
         const otherProject = session?.project || other
         const name = getProjectSettings(otherProject)?.label || extractProjectLabel(otherProject)
         result.push({ project: otherProject, name })
@@ -112,9 +112,9 @@ export function createProjectLinkRegistry(
       const project = toProjectUri(projectOrCwd)
       const json = JSON.stringify(message)
       let count = 0
-      for (const [sessionId, session] of sessions) {
+      for (const [sessionId, session] of conversations) {
         if (session.project !== project) continue
-        const wrappers = sessionSockets.get(sessionId)
+        const wrappers = conversationSockets.get(sessionId)
         if (!wrappers) continue
         for (const ws of wrappers.values()) {
           try {
