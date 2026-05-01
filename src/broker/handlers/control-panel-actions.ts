@@ -24,37 +24,37 @@ import {
 // ─── Send input to a session ──────────────────────────────────────
 
 const sendInput: MessageHandler = (ctx, data) => {
-  const sessionId = data.sessionId as string
+  const conversationId = (data.conversationId || data.sessionId) as string
   const input = data.input as string
-  if (!sessionId || !input || typeof input !== 'string') {
-    throw new GuardError('Missing sessionId or input')
+  if (!conversationId || !input || typeof input !== 'string') {
+    throw new GuardError('Missing conversationId or input')
   }
 
-  const session = ctx.conversations.getConversation(sessionId)
-  if (!session) throw new GuardError('Session not found')
-  if (session.status === 'ended') throw new GuardError('Session has ended')
-  ctx.requirePermission('chat', session.project)
+  const conversation = ctx.conversations.getConversation(conversationId)
+  if (!conversation) throw new GuardError('Conversation not found')
+  if (conversation.status === 'ended') throw new GuardError('Conversation has ended')
+  ctx.requirePermission('chat', conversation.project)
 
-  // Try by session ID first, then by wrapper IDs (handles ID changes from SessionStart)
-  let ws = ctx.conversations.getConversationSocket(sessionId)
+  // Try by conversation ID first, then by routing IDs (handles ID changes from SessionStart)
+  let ws = ctx.conversations.getConversationSocket(conversationId)
   if (!ws) {
-    const conversationIds = ctx.conversations.getConversationIds(sessionId)
-    for (const wid of conversationIds) {
+    const routingIds = ctx.conversations.getConversationIds(conversationId)
+    for (const wid of routingIds) {
       ws = ctx.conversations.findSocketByConversationId(wid)
       if (ws) break
     }
   }
-  if (!ws) throw new GuardError('Session not connected')
+  if (!ws) throw new GuardError('Conversation not connected')
 
   const crDelay = typeof data.crDelay === 'number' && data.crDelay > 0 ? data.crDelay : undefined
   const inputMsg: SendInput = {
     type: 'input',
-    conversationId: sessionId,
+    conversationId,
     input,
     ...(crDelay && { crDelay }),
   }
   ws.send(JSON.stringify(inputMsg))
-  ctx.log.debug(`send_input: ${sessionId.slice(0, 8)} "${input.slice(0, 50)}"`)
+  ctx.log.debug(`send_input: ${conversationId.slice(0, 8)} "${input.slice(0, 50)}"`)
   ctx.reply({ type: 'send_input_result', ok: true })
 }
 
@@ -85,17 +85,17 @@ function broadcastFilteredProjectSettings(
 // ─── Dismiss an ended session ─────────────────────────────────────
 
 const dismissSession: MessageHandler = (ctx, data) => {
-  const sessionId = data.sessionId as string
-  if (!sessionId) throw new GuardError('Missing sessionId')
+  const conversationId = (data.conversationId || data.sessionId) as string
+  if (!conversationId) throw new GuardError('Missing conversationId')
 
-  const session = ctx.conversations.getConversation(sessionId)
-  if (!session) throw new GuardError('Session not found')
-  if (session.status !== 'ended') throw new GuardError('Only ended sessions can be dismissed')
-  ctx.requirePermission('settings', session.project)
+  const conversation = ctx.conversations.getConversation(conversationId)
+  if (!conversation) throw new GuardError('Conversation not found')
+  if (conversation.status !== 'ended') throw new GuardError('Only ended conversations can be dismissed')
+  ctx.requirePermission('settings', conversation.project)
 
-  const project = session.project
-  ctx.conversations.removeConversation(sessionId)
-  ctx.broadcastScoped({ type: 'conversation_dismissed', sessionId }, project)
+  const project = conversation.project
+  ctx.conversations.removeConversation(conversationId)
+  ctx.broadcastScoped({ type: 'conversation_dismissed', sessionId: conversationId }, project)
   ctx.reply({ type: 'dismiss_conversation_result', ok: true })
 }
 
@@ -186,60 +186,61 @@ const updateProjectOrder: MessageHandler = (ctx, data) => {
 // ─── Interrupt a session (headless) ───────────────────────────────
 
 const sendInterrupt: MessageHandler = (ctx, data) => {
-  const sessionId = data.sessionId as string
-  if (!sessionId) throw new GuardError('Missing sessionId')
+  const conversationId = (data.conversationId || data.sessionId) as string
+  if (!conversationId) throw new GuardError('Missing conversationId')
 
-  const session = ctx.conversations.getConversation(sessionId)
-  if (!session) throw new GuardError('Session not found')
-  if (session.status === 'ended') throw new GuardError('Session has ended')
-  ctx.requirePermission('chat', session.project)
+  const conversation = ctx.conversations.getConversation(conversationId)
+  if (!conversation) throw new GuardError('Conversation not found')
+  if (conversation.status === 'ended') throw new GuardError('Conversation has ended')
+  ctx.requirePermission('chat', conversation.project)
 
-  let ws = ctx.conversations.getConversationSocket(sessionId)
+  let ws = ctx.conversations.getConversationSocket(conversationId)
   if (!ws) {
-    const conversationIds = ctx.conversations.getConversationIds(sessionId)
-    for (const wid of conversationIds) {
+    const routingIds = ctx.conversations.getConversationIds(conversationId)
+    for (const wid of routingIds) {
       ws = ctx.conversations.findSocketByConversationId(wid)
       if (ws) break
     }
   }
-  if (!ws) throw new GuardError('Session not connected')
+  if (!ws) throw new GuardError('Conversation not connected')
 
-  ws.send(JSON.stringify({ type: 'interrupt', sessionId }))
+  ws.send(JSON.stringify({ type: 'interrupt', sessionId: conversationId }))
   // Immediately set idle -- CC won't fire a Stop hook after interrupt
-  session.status = 'idle'
-  ctx.conversations.broadcastConversationUpdate(sessionId)
-  ctx.log.debug(`send_interrupt: ${sessionId.slice(0, 8)}`)
+  conversation.status = 'idle'
+  ctx.conversations.broadcastConversationUpdate(conversationId)
+  ctx.log.debug(`send_interrupt: ${conversationId.slice(0, 8)}`)
   ctx.reply({ type: 'send_interrupt_result', ok: true })
 }
 
 // ─── Revive a session ─────────────────────────────────────────────
 
 const reviveSession: MessageHandler = (ctx, data) => {
-  const sessionId = data.sessionId as string
-  if (!sessionId) throw new GuardError('Missing sessionId')
+  const conversationId = (data.conversationId || data.sessionId) as string
+  if (!conversationId) throw new GuardError('Missing conversationId')
 
-  const session = ctx.conversations.getConversation(sessionId)
-  if (!session) throw new GuardError('Session not found')
-  if (session.status === 'active') throw new GuardError('Session is already active')
-  ctx.requirePermission('spawn', session.project)
+  const conversation = ctx.conversations.getConversation(conversationId)
+  if (!conversation) throw new GuardError('Conversation not found')
+  if (conversation.status === 'active') throw new GuardError('Conversation is already active')
+  ctx.requirePermission('spawn', conversation.project)
 
   const sentinel = ctx.getSentinel()
   if (!sentinel) throw new GuardError('No sentinel connected')
 
-  const conversationId = crypto.randomUUID()
+  const newConversationId = crypto.randomUUID()
   const jobId = data.jobId as string | undefined
-  const projSettings = getProjectSettings(session.project)
-  const lc = session.launchConfig // stored launch config from original spawn
+  const projSettings = getProjectSettings(conversation.project)
+  const lc = conversation.launchConfig // stored launch config from original spawn
 
-  // Generate a funny session name for revived sessions that don't have one
+  // Generate a funny name for revived conversations that don't have one
   const usedNames = new Set(
     ctx.conversations
       .getAllConversations()
       .map(s => s.title)
       .filter(Boolean) as string[],
   )
-  const sessionName = session.title || generateConversationName(usedNames)
-  const name = sessionName || projSettings?.label || extractProjectLabel(session.project) || sessionId.slice(0, 8)
+  const convName = conversation.title || generateConversationName(usedNames)
+  const name =
+    convName || projSettings?.label || extractProjectLabel(conversation.project) || conversationId.slice(0, 8)
 
   // Resolve headless: explicit override > launch config > project default > global setting
   const headlessParam = data.headless as boolean | undefined
@@ -256,40 +257,40 @@ const reviveSession: MessageHandler = (ctx, data) => {
 
   // Register launch job if dashboard provided a jobId
   if (jobId) {
-    ctx.conversations.createJob(jobId, conversationId)
+    ctx.conversations.createJob(jobId, newConversationId)
   }
 
   sentinel.send(
     JSON.stringify({
       type: 'revive',
-      ccSessionId: sessionId,
-      project: session.project,
-      conversationId,
+      ccSessionId: conversationId,
+      project: conversation.project,
+      conversationId: newConversationId,
       jobId,
       mode: 'resume',
       headless,
       effort,
       model,
-      sessionName,
+      sessionName: convName,
       agent: lc?.agent || undefined,
       bare: lc?.bare || undefined,
       repl: lc?.repl || undefined,
       permissionMode: lc?.permissionMode || undefined,
-      autocompactPct: (data.autocompactPct as number | undefined) || lc?.autocompactPct || session.autocompactPct,
-      maxBudgetUsd: (data.maxBudgetUsd as number | undefined) || lc?.maxBudgetUsd || session.maxBudgetUsd,
-      adHocWorktree: session.adHocWorktree || undefined,
+      autocompactPct: (data.autocompactPct as number | undefined) || lc?.autocompactPct || conversation.autocompactPct,
+      maxBudgetUsd: (data.maxBudgetUsd as number | undefined) || lc?.maxBudgetUsd || conversation.maxBudgetUsd,
+      adHocWorktree: conversation.adHocWorktree || undefined,
       env: (data.env as Record<string, string>) || lc?.env || undefined,
     }),
   )
 
   ctx.log.info(
-    `[revive] ${name} (${sessionId.slice(0, 8)}) via WS, conversationId=${conversationId.slice(0, 8)} headless=${headless}${jobId ? ` job=${jobId.slice(0, 8)}` : ''}${lc ? ' (launch config restored)' : ''}`,
+    `[revive] ${name} (${conversationId.slice(0, 8)}) via WS, conversationId=${newConversationId.slice(0, 8)} headless=${headless}${jobId ? ` job=${jobId.slice(0, 8)}` : ''}${lc ? ' (launch config restored)' : ''}`,
   )
   ctx.reply({
     type: 'revive_conversation_result',
     ok: true,
     name,
-    conversationId,
+    conversationId: newConversationId,
     jobId,
     message: 'Revive command sent to sentinel',
   })
@@ -315,26 +316,26 @@ const unsubscribeJob: MessageHandler = (ctx, data) => {
 // ─── Rename Session ──────────────────────────────────────────────
 
 const renameSession: MessageHandler = (ctx, data) => {
-  const sessionId = data.sessionId as string
+  const conversationId = (data.conversationId || data.sessionId) as string
   const name = (data.name as string)?.trim()
   const description = typeof data.description === 'string' ? data.description.trim() : undefined
-  if (!sessionId) throw new GuardError('Missing sessionId')
+  if (!conversationId) throw new GuardError('Missing conversationId')
 
-  const session = ctx.conversations.getConversation(sessionId)
-  if (!session) throw new GuardError('Session not found')
-  ctx.requirePermission('chat', session.project)
+  const conversation = ctx.conversations.getConversation(conversationId)
+  if (!conversation) throw new GuardError('Conversation not found')
+  ctx.requirePermission('chat', conversation.project)
 
   if (name) {
-    session.title = name
-    session.titleUserSet = true
+    conversation.title = name
+    conversation.titleUserSet = true
   } else {
-    session.title = undefined
-    session.titleUserSet = false
+    conversation.title = undefined
+    conversation.titleUserSet = false
   }
   if (description !== undefined) {
-    session.description = description || undefined
+    conversation.description = description || undefined
   }
-  ctx.conversations.broadcastConversationUpdate(sessionId)
+  ctx.conversations.broadcastConversationUpdate(conversationId)
   ctx.reply({ type: 'rename_conversation_result', ok: true })
 }
 

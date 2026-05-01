@@ -13,15 +13,16 @@ const fileResponse: MessageHandler = (ctx, data) => {
   if (data.requestId && ctx.conversations.resolveFile(data.requestId as string, data)) {
     return // Handled server-side, don't broadcast
   }
-  const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
-  const session = sessionId ? ctx.conversations.getConversation(sessionId) : undefined
-  if (session?.project) ctx.broadcastScoped(data, session.project)
+  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
+  if (conversation?.project) ctx.broadcastScoped(data, conversation.project)
   else ctx.broadcast(data)
 }
 
 // Dashboard -> wrapper: file operation requests
 const fileEditorRequest: MessageHandler = (ctx, data) => {
-  if (!ctx.ws.data.isControlPanel || !data.sessionId) return
+  const targetId = (data.conversationId || data.sessionId) as string
+  if (!ctx.ws.data.isControlPanel || !targetId) return
   // Permission: write ops need 'files', read ops need 'files:read'
   const msgType = data.type as string
   const isWrite =
@@ -32,9 +33,9 @@ const fileEditorRequest: MessageHandler = (ctx, data) => {
     msgType === 'project_move' ||
     msgType === 'project_delete' ||
     msgType === 'project_update'
-  const sess = ctx.conversations.getConversation(data.sessionId as string)
-  if (sess) ctx.requirePermission(isWrite ? 'files' : 'files:read', sess.project)
-  const targetSocket = ctx.conversations.getConversationSocket(data.sessionId as string)
+  const conversation = ctx.conversations.getConversation(targetId)
+  if (conversation) ctx.requirePermission(isWrite ? 'files' : 'files:read', conversation.project)
+  const targetSocket = ctx.conversations.getConversationSocket(targetId)
   if (targetSocket) {
     targetSocket.send(JSON.stringify(data))
   } else {
@@ -42,29 +43,29 @@ const fileEditorRequest: MessageHandler = (ctx, data) => {
     const replyType = t.startsWith('project_')
       ? `${t}_response`
       : t.replace('_request', '_response').replace('_save', '_save_response')
-    ctx.reply({ type: replyType, requestId: data.requestId, error: 'Session not connected' })
+    ctx.reply({ type: replyType, requestId: data.requestId, error: 'Conversation not connected' })
   }
 }
 
 // Wrapper -> dashboard: file operation responses (forward to subscribers with access)
 const fileEditorResponse: MessageHandler = (ctx, data) => {
-  const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
-  const session = sessionId ? ctx.conversations.getConversation(sessionId) : undefined
-  if (session?.project) ctx.broadcastScoped(data, session.project)
+  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
+  if (conversation?.project) ctx.broadcastScoped(data, conversation.project)
   else ctx.broadcast(data)
 }
 
 // Dashboard -> wrapper: file request (proxy to rclaude)
 const fileRequest: MessageHandler = (ctx, data) => {
-  const sessionId = data.sessionId as string
-  if (!sessionId) return
-  const sess = ctx.conversations.getConversation(sessionId)
-  if (sess) ctx.requirePermission('files:read', sess.project)
-  const sessionSocket = ctx.conversations.getConversationSocket(sessionId)
-  if (sessionSocket) {
-    sessionSocket.send(JSON.stringify(data))
+  const conversationId = (data.conversationId || data.sessionId) as string
+  if (!conversationId) return
+  const conversation = ctx.conversations.getConversation(conversationId)
+  if (conversation) ctx.requirePermission('files:read', conversation.project)
+  const conversationSocket = ctx.conversations.getConversationSocket(conversationId)
+  if (conversationSocket) {
+    conversationSocket.send(JSON.stringify(data))
   } else {
-    ctx.reply({ type: 'file_response', requestId: data.requestId, error: 'Session not connected' })
+    ctx.reply({ type: 'file_response', requestId: data.requestId, error: 'Conversation not connected' })
   }
 }
 

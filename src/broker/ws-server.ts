@@ -9,15 +9,15 @@ import type { Ack, AgentHostMessage, BrokerError, ConversationMeta, HookEvent, S
 import type { ConversationStore } from './conversation-store'
 
 interface WsData {
-  sessionId?: string
+  conversationId?: string
 }
 
 export interface WsServerOptions {
   port: number
   conversationStore: ConversationStore
-  onSessionStart?: (sessionId: string, meta: ConversationMeta) => void
-  onSessionEnd?: (sessionId: string, reason: string) => void
-  onHookEvent?: (sessionId: string, event: HookEvent) => void
+  onSessionStart?: (conversationId: string, meta: ConversationMeta) => void
+  onSessionEnd?: (conversationId: string, reason: string) => void
+  onHookEvent?: (conversationId: string, event: HookEvent) => void
 }
 
 type WsServer = Server<WsData>
@@ -57,43 +57,44 @@ export function createWsServer(options: WsServerOptions): WsServer {
           switch (data.type) {
             case 'meta': {
               const meta = data as ConversationMeta
-              ws.data.sessionId = meta.sessionId
+              const conversationId = meta.conversationId || meta.sessionId
+              ws.data.conversationId = conversationId
 
-              // Check if session already exists (resume case)
-              const existingSession = conversationStore.getConversation(meta.sessionId)
-              if (existingSession) {
-                // Resume existing session
-                conversationStore.resumeConversation(meta.sessionId)
-                if (meta.configuredModel) existingSession.configuredModel = meta.configuredModel
+              // Check if conversation already exists (resume case)
+              const existingConversation = conversationStore.getConversation(conversationId)
+              if (existingConversation) {
+                // Resume existing conversation
+                conversationStore.resumeConversation(conversationId)
+                if (meta.configuredModel) existingConversation.configuredModel = meta.configuredModel
               } else {
-                // Create new session
-                const session = conversationStore.createConversation(
-                  meta.sessionId,
+                // Create new conversation
+                const conversation = conversationStore.createConversation(
+                  conversationId,
                   parseProjectUri(meta.project).path,
                   meta.model,
                   meta.args,
                 )
-                if (meta.configuredModel) session.configuredModel = meta.configuredModel
+                if (meta.configuredModel) conversation.configuredModel = meta.configuredModel
               }
 
-              // Track socket for this session (for sending input)
-              conversationStore.setConversationSocket(meta.sessionId, meta.conversationId || meta.sessionId, ws)
+              // Track socket for this conversation (for sending input)
+              conversationStore.setConversationSocket(conversationId, meta.conversationId || meta.sessionId, ws)
 
-              onSessionStart?.(meta.sessionId, meta)
+              onSessionStart?.(conversationId, meta)
 
               // Send ack
-              const ack: Ack = { type: 'ack', eventId: meta.sessionId }
+              const ack: Ack = { type: 'ack', eventId: conversationId }
               ws.send(JSON.stringify(ack))
               break
             }
 
             case 'hook': {
               const event = data as HookEvent
-              const sessionId = ws.data.sessionId || event.conversationId
+              const conversationId = ws.data.conversationId || event.conversationId
 
-              if (sessionId) {
-                conversationStore.addEvent(sessionId, event)
-                onHookEvent?.(sessionId, event)
+              if (conversationId) {
+                conversationStore.addEvent(conversationId, event)
+                onHookEvent?.(conversationId, event)
               }
               break
             }
@@ -106,11 +107,11 @@ export function createWsServer(options: WsServerOptions): WsServer {
 
             case 'end': {
               const end = data as SessionEnd
-              const sessionId = ws.data.sessionId || end.sessionId
+              const conversationId = ws.data.conversationId || end.sessionId
 
-              if (sessionId) {
-                conversationStore.endConversation(sessionId, end.reason)
-                onSessionEnd?.(sessionId, end.reason)
+              if (conversationId) {
+                conversationStore.endConversation(conversationId, end.reason)
+                onSessionEnd?.(conversationId, end.reason)
               }
               break
             }
@@ -124,12 +125,12 @@ export function createWsServer(options: WsServerOptions): WsServer {
         }
       },
       close(ws: ServerWebSocket<WsData>) {
-        const sessionId = ws.data.sessionId
-        if (sessionId) {
-          const session = conversationStore.getConversation(sessionId)
-          if (session && session.status !== 'ended') {
-            conversationStore.endConversation(sessionId, 'connection_closed')
-            onSessionEnd?.(sessionId, 'connection_closed')
+        const conversationId = ws.data.conversationId
+        if (conversationId) {
+          const conversation = conversationStore.getConversation(conversationId)
+          if (conversation && conversation.status !== 'ended') {
+            conversationStore.endConversation(conversationId, 'connection_closed')
+            onSessionEnd?.(conversationId, 'connection_closed')
           }
         }
       },

@@ -72,7 +72,9 @@ const terminalResize: MessageHandler = (ctx, data) => {
 
 const terminalError: MessageHandler = (ctx, data) => {
   // rclaude -> dashboard - broadcast to all viewers of this wrapper
-  const viewers = ctx.conversations.getTerminalViewers((data.conversationId as string) || ctx.ws.data.conversationId || '')
+  const viewers = ctx.conversations.getTerminalViewers(
+    (data.conversationId as string) || ctx.ws.data.conversationId || '',
+  )
   const msg = JSON.stringify(data)
   for (const viewer of viewers) {
     try {

@@ -32,7 +32,6 @@ const wrapperBoot: MessageHandler = (ctx, data) => {
   const resolvedProject = project ?? cwdToProjectUri(bootPath!)
 
   // Track the WS so subsequent messages from this wrapper are routed here.
-  ctx.ws.data.sessionId = conversationId
   ctx.ws.data.conversationId = conversationId
 
   // Merge any pending launch config stored at spawn time (keyed by conversationId).
@@ -88,7 +87,8 @@ const bootEvent: MessageHandler = (ctx, data) => {
   if (!conversationId || !step) return
 
   const session =
-    ctx.conversations.getConversation(conversationId) || ctx.conversations.findConversationByConversationId(conversationId)
+    ctx.conversations.getConversation(conversationId) ||
+    ctx.conversations.findConversationByConversationId(conversationId)
   if (!session) {
     ctx.log.debug(`[boot] boot_event for unknown wrapper: ${conversationId.slice(0, 8)} step=${step}`)
     return
@@ -184,7 +184,7 @@ const sessionPromote: MessageHandler = (ctx, data) => {
   }
   rekeyed.status = 'starting'
   rekeyed.project = bootProject
-  ctx.ws.data.sessionId = newSessionId
+  ctx.ws.data.conversationId = newSessionId
   ctx.log.debug(
     `[boot] promoted ${conversationId.slice(0, 8)} -> ${newSessionId.slice(0, 8)} (source=${data.source || 'unknown'})`,
   )

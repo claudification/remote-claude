@@ -26,7 +26,7 @@ function resolveEffort(
 
 const handleChannelRevive: MessageHandler = (ctx, data) => {
   const targetSessionId = data.sessionId as string
-  const callerSession = ctx.ws.data.sessionId
+  const callerSession = ctx.ws.data.conversationId
   if (!targetSessionId || !callerSession) return
 
   ctx.requireBenevolent()
@@ -100,7 +100,7 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
 }
 
 const handleChannelSpawn: MessageHandler = (ctx, data) => {
-  const callerSession = ctx.ws.data.sessionId
+  const callerSession = ctx.ws.data.conversationId
   if (!callerSession) return
 
   ctx.requireBenevolent()
@@ -169,7 +169,7 @@ const handleChannelSpawn: MessageHandler = (ctx, data) => {
 
 const handleChannelRestart: MessageHandler = (ctx, data) => {
   const targetId = data.sessionId as string
-  const callerSession = ctx.ws.data.sessionId
+  const callerSession = ctx.ws.data.conversationId
   if (!targetId || !callerSession) return
 
   ctx.requireBenevolent()
@@ -283,7 +283,7 @@ const handleChannelConfigure: MessageHandler = (ctx, data) => {
 
   ctx.requireBenevolent()
 
-  const callerSession = ctx.ws.data.sessionId
+  const callerSession = ctx.ws.data.conversationId
   const callerSess = callerSession ? ctx.conversations.getConversation(callerSession) : undefined
   const resolved = resolveSessionTarget(targetId, {
     callerSessionId: callerSession,
@@ -333,7 +333,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
   const model = typeof data.model === 'string' ? data.model : undefined
   const effort = typeof data.effort === 'string' ? data.effort : undefined
   const permissionMode = typeof data.permissionMode === 'string' ? data.permissionMode : undefined
-  const fromSession = (data.fromSession as string) || ctx.ws.data.sessionId
+  const fromSession = (data.fromSession as string) || ctx.ws.data.conversationId
 
   if (!targetId) {
     ctx.reply({ type: 'conversation_control_result', ok: false, error: 'Missing targetSession' })
@@ -362,7 +362,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
   }
 
   // Resolve target: compound ID (project:session-slug), bare slug, or raw internal ID
-  const callerSession = ctx.ws.data.sessionId
+  const callerSession = ctx.ws.data.conversationId
   const callerSess = callerSession ? ctx.conversations.getConversation(callerSession) : undefined
   const resolved = resolveSessionTarget(targetId, {
     callerSessionId: callerSession,
@@ -399,7 +399,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
   // Auth: dashboard needs chat permission on target project; inter-session needs benevolent.
   if (ctx.ws.data.isControlPanel) {
     ctx.requirePermission('chat', targetSess.project)
-  } else if (ctx.ws.data.sessionId) {
+  } else if (ctx.ws.data.conversationId) {
     ctx.requireBenevolent()
   } else {
     ctx.reply({ type: 'conversation_control_result', ok: false, action, error: 'Not authorized' })

@@ -9,13 +9,13 @@ import { registerHandlers } from '../message-router'
 
 // Plan approval request: wrapper -> broker -> dashboard
 const planApproval: MessageHandler = (ctx, data) => {
-  const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
-  if (!sessionId) return
+  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  if (!conversationId) return
 
-  const session = ctx.conversations.getConversation(sessionId)
-  if (session) {
+  const conversation = ctx.conversations.getConversation(conversationId)
+  if (conversation) {
     // Store for reconnect recovery (same pattern as pendingDialog)
-    session.pendingPlanApproval = {
+    conversation.pendingPlanApproval = {
       requestId: data.requestId as string,
       toolUseId: data.toolUseId as string | undefined,
       plan: data.plan as string,
@@ -23,88 +23,90 @@ const planApproval: MessageHandler = (ctx, data) => {
       allowedPrompts: data.allowedPrompts as unknown[] | undefined,
       timestamp: Date.now(),
     }
-    session.pendingAttention = {
+    conversation.pendingAttention = {
       type: 'plan_approval',
       question: 'Plan approval required',
       timestamp: Date.now(),
     }
-    ctx.conversations.broadcastConversationUpdate(sessionId)
+    ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
   const msg = {
     type: 'plan_approval',
-    sessionId,
+    sessionId: conversationId,
     requestId: data.requestId,
     toolUseId: data.toolUseId,
     plan: data.plan,
     planFilePath: data.planFilePath,
     allowedPrompts: data.allowedPrompts,
   }
-  if (session?.project) ctx.broadcastScoped(msg, session.project)
+  if (conversation?.project) ctx.broadcastScoped(msg, conversation.project)
   else ctx.broadcast(msg)
 
-  ctx.log.info(`[plan] Approval request: ${(data.requestId as string)?.slice(0, 8)} session=${sessionId.slice(0, 8)}`)
+  ctx.log.info(
+    `[plan] Approval request: ${(data.requestId as string)?.slice(0, 8)} conversation=${conversationId.slice(0, 8)}`,
+  )
 }
 
 // Plan approval response: dashboard -> broker -> wrapper
 const planApprovalResponse: MessageHandler = (ctx, data) => {
-  const sessionId = data.sessionId as string
-  if (!sessionId) return
+  const conversationId = (data.conversationId || data.sessionId) as string
+  if (!conversationId) return
 
-  const sess = ctx.conversations.getConversation(sessionId)
-  if (sess) ctx.requirePermission('chat', sess.project)
+  const conversation = ctx.conversations.getConversation(conversationId)
+  if (conversation) ctx.requirePermission('chat', conversation.project)
 
   // Clear pending state + dismiss dialog on ALL subscribers
-  if (sess) {
-    delete sess.pendingPlanApproval
-    if (sess.pendingAttention?.type === 'plan_approval') {
-      delete sess.pendingAttention
+  if (conversation) {
+    delete conversation.pendingPlanApproval
+    if (conversation.pendingAttention?.type === 'plan_approval') {
+      delete conversation.pendingAttention
     }
-    ctx.conversations.broadcastConversationUpdate(sessionId)
+    ctx.conversations.broadcastConversationUpdate(conversationId)
     // Dismiss the dialog on all dashboard clients (not just the one that responded)
-    const dismissMsg = { type: 'plan_approval_dismissed', sessionId }
-    if (sess.project) ctx.broadcastScoped(dismissMsg, sess.project)
+    const dismissMsg = { type: 'plan_approval_dismissed', sessionId: conversationId }
+    if (conversation.project) ctx.broadcastScoped(dismissMsg, conversation.project)
     else ctx.broadcast(dismissMsg)
   }
 
-  const targetWs = ctx.conversations.getConversationSocket(sessionId)
+  const targetWs = ctx.conversations.getConversationSocket(conversationId)
   if (targetWs) {
     targetWs.send(
       JSON.stringify({
         type: 'plan_approval_response',
-        sessionId,
+        sessionId: conversationId,
         requestId: data.requestId,
         toolUseId: data.toolUseId,
         action: data.action,
         feedback: data.feedback,
       }),
     )
-    ctx.log.info(`[plan] Response: ${data.action} session=${sessionId.slice(0, 8)}`)
+    ctx.log.info(`[plan] Response: ${data.action} conversation=${conversationId.slice(0, 8)}`)
   } else {
-    ctx.log.error(`[plan] No socket for session ${sessionId.slice(0, 8)}`)
+    ctx.log.error(`[plan] No socket for conversation ${conversationId.slice(0, 8)}`)
   }
 }
 
 // Plan mode state change: wrapper -> broker -> dashboard
 const planModeChanged: MessageHandler = (ctx, data) => {
-  const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
-  if (!sessionId) return
+  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  if (!conversationId) return
 
-  const session = ctx.conversations.getConversation(sessionId)
-  if (session) {
-    session.planMode = data.planMode as boolean
+  const conversation = ctx.conversations.getConversation(conversationId)
+  if (conversation) {
+    conversation.planMode = data.planMode as boolean
     // Exiting plan mode: clear pending approval + dismiss dialog on all clients
     if (!data.planMode) {
-      if (session.pendingPlanApproval) delete session.pendingPlanApproval
-      if (session.pendingAttention?.type === 'plan_approval') delete session.pendingAttention
-      const dismissMsg = { type: 'plan_approval_dismissed', sessionId }
-      if (session.project) ctx.broadcastScoped(dismissMsg, session.project)
+      if (conversation.pendingPlanApproval) delete conversation.pendingPlanApproval
+      if (conversation.pendingAttention?.type === 'plan_approval') delete conversation.pendingAttention
+      const dismissMsg = { type: 'plan_approval_dismissed', sessionId: conversationId }
+      if (conversation.project) ctx.broadcastScoped(dismissMsg, conversation.project)
       else ctx.broadcast(dismissMsg)
     }
-    ctx.conversations.broadcastConversationUpdate(sessionId)
+    ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
-  ctx.log.info(`[plan] Mode changed: ${data.planMode ? 'ON' : 'OFF'} session=${sessionId.slice(0, 8)}`)
+  ctx.log.info(`[plan] Mode changed: ${data.planMode ? 'ON' : 'OFF'} conversation=${conversationId.slice(0, 8)}`)
 }
 
 export function registerPlanApprovalHandlers(): void {
