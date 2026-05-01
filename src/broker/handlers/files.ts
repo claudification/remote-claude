@@ -14,7 +14,7 @@ const fileResponse: MessageHandler = (ctx, data) => {
     return // Handled server-side, don't broadcast
   }
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
-  const session = sessionId ? ctx.sessions.getSession(sessionId) : undefined
+  const session = sessionId ? ctx.sessions.getConversation(sessionId) : undefined
   if (session?.project) ctx.broadcastScoped(data, session.project)
   else ctx.broadcast(data)
 }
@@ -32,9 +32,9 @@ const fileEditorRequest: MessageHandler = (ctx, data) => {
     msgType === 'project_move' ||
     msgType === 'project_delete' ||
     msgType === 'project_update'
-  const sess = ctx.sessions.getSession(data.sessionId as string)
+  const sess = ctx.sessions.getConversation(data.sessionId as string)
   if (sess) ctx.requirePermission(isWrite ? 'files' : 'files:read', sess.project)
-  const targetSocket = ctx.sessions.getSessionSocket(data.sessionId as string)
+  const targetSocket = ctx.sessions.getConversationSocket(data.sessionId as string)
   if (targetSocket) {
     targetSocket.send(JSON.stringify(data))
   } else {
@@ -49,7 +49,7 @@ const fileEditorRequest: MessageHandler = (ctx, data) => {
 // Wrapper -> dashboard: file operation responses (forward to subscribers with access)
 const fileEditorResponse: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
-  const session = sessionId ? ctx.sessions.getSession(sessionId) : undefined
+  const session = sessionId ? ctx.sessions.getConversation(sessionId) : undefined
   if (session?.project) ctx.broadcastScoped(data, session.project)
   else ctx.broadcast(data)
 }
@@ -58,9 +58,9 @@ const fileEditorResponse: MessageHandler = (ctx, data) => {
 const fileRequest: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   if (!sessionId) return
-  const sess = ctx.sessions.getSession(sessionId)
+  const sess = ctx.sessions.getConversation(sessionId)
   if (sess) ctx.requirePermission('files:read', sess.project)
-  const sessionSocket = ctx.sessions.getSessionSocket(sessionId)
+  const sessionSocket = ctx.sessions.getConversationSocket(sessionId)
   if (sessionSocket) {
     sessionSocket.send(JSON.stringify(data))
   } else {

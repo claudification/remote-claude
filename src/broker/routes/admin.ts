@@ -18,11 +18,11 @@ import {
   unrevokeUser,
 } from '../auth'
 import { getAuthenticatedUser } from '../auth-routes'
+import type { ConversationStore } from '../conversation-store'
 import { purgeMessages, queryMessages } from '../inter-conversation-log'
 import { resolvePermissionFlags } from '../permissions'
 import { addPersistedLink, getPersistedLinks, removePersistedLink } from '../project-links'
 import { getProjectSettings } from '../project-settings'
-import type { ConversationStore } from '../conversation-store'
 import {
   createShare as createSessionShare,
   getShare as getShareByToken,
@@ -76,14 +76,14 @@ export function createAdminRouter(
         const serverRoles = user.serverRoles
         const global = resolvePermissionFlags(user.grants, '*', serverRoles)
         const perSessionPerms: Record<string, ReturnType<typeof resolvePermissionFlags>> = {}
-        for (const s of sessionStore.getActiveSessions()) {
+        for (const s of sessionStore.getActiveConversations()) {
           perSessionPerms[s.id] = resolvePermissionFlags(user.grants, s.project, serverRoles)
         }
         try {
           ws.send(JSON.stringify({ type: 'permissions', global, sessions: perSessionPerms }))
         } catch {}
         // Re-send filtered session list (user might gain/lose access)
-        sessionStore.sendSessionsList(ws)
+        sessionStore.sendConversationsList(ws)
       }
     }
   }
@@ -303,7 +303,7 @@ export function createAdminRouter(
   app.get('/api/links', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const persisted = getPersistedLinks()
-    const activeSessions = sessionStore.getActiveSessions()
+    const activeSessions = sessionStore.getActiveConversations()
 
     const links = persisted.map(pl => {
       const sessA = activeSessions.find(s => parseProjectUri(s.project).path === pl.projectA)
@@ -334,7 +334,7 @@ export function createAdminRouter(
     const link = addPersistedLink(body.projectA, body.projectB)
 
     // Activate the in-memory project link
-    const active = sessionStore.getActiveSessions()
+    const active = sessionStore.getActiveConversations()
     const anyA = active.find(s => parseProjectUri(s.project).path === link.projectA)
     const anyB = active.find(s => parseProjectUri(s.project).path === link.projectB)
     if (anyA && anyB) sessionStore.linkProjects(anyA.id, anyB.id)

@@ -6,9 +6,9 @@
  */
 
 import type { ServerWebSocket } from 'bun'
+import type { ConversationStore } from './conversation-store'
 import { getGlobalSettings } from './global-settings'
 import { getProjectSettings } from './project-settings'
-import type { ConversationStore } from './conversation-store'
 
 const DEEPGRAM_LIVE_URL = 'wss://api.deepgram.com/v1/listen'
 const VOICE_TIMEOUT_MS = 120_000 // Max 120s recording session
@@ -45,7 +45,7 @@ export function handleVoiceStart(
 
   // Build keyterms from project settings
   const keyterms: string[] = []
-  const project = data.project || (data.sessionId ? sessionStore.getSession(data.sessionId)?.project : null)
+  const project = data.project || (data.sessionId ? sessionStore.getConversation(data.sessionId)?.project : null)
   if (project) {
     const projSettings = getProjectSettings(project)
     if (projSettings?.keyterms?.length) {

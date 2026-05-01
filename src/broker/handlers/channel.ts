@@ -35,7 +35,7 @@ const subscribe: MessageHandler = (ctx, data) => {
     const global = resolvePermissionFlags(grants, '*', serverRoles)
     // Per-session permissions (resolved against each session's project)
     const sessions: Record<string, ReturnType<typeof resolvePermissionFlags>> = {}
-    for (const s of ctx.sessions.getActiveSessions()) {
+    for (const s of ctx.sessions.getActiveConversations()) {
       sessions[s.id] = resolvePermissionFlags(grants, s.project, serverRoles)
     }
     ctx.reply({ type: 'permissions', global, sessions })
@@ -45,7 +45,7 @@ const subscribe: MessageHandler = (ctx, data) => {
   ctx.sessions.broadcastSharesUpdate()
 
   // Push any pending dialogs + plan approvals (reconnect recovery)
-  for (const s of ctx.sessions.getActiveSessions()) {
+  for (const s of ctx.sessions.getActiveConversations()) {
     if (s.pendingDialog) {
       ctx.reply({
         type: 'dialog_show',
@@ -90,7 +90,7 @@ const subscribe: MessageHandler = (ctx, data) => {
 }
 
 const refreshSessions: MessageHandler = ctx => {
-  ctx.sessions.sendSessionsList(ctx.ws)
+  ctx.sessions.sendConversationsList(ctx.ws)
 }
 
 const syncCheck: MessageHandler = (ctx, data) => {
@@ -110,7 +110,7 @@ const channelSubscribe: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   const agentId = data.agentId as string | undefined
   if (!channel || !sessionId) return
-  const sess = ctx.sessions.getSession(sessionId)
+  const sess = ctx.sessions.getConversation(sessionId)
   if (sess) ctx.requirePermission('chat:read', sess.project)
   ctx.sessions.subscribeChannel(ctx.ws, channel, sessionId, agentId)
   ctx.reply({ type: 'channel_ack', channel, sessionId, agentId, status: 'subscribed' })
@@ -140,7 +140,7 @@ const channelListSessions: MessageHandler = (ctx, data) => {
   const callerSession = ctx.ws.data.sessionId
   const callerProject = ctx.caller?.project
   const isBenevolent = ctx.callerSettings?.trustLevel === 'benevolent'
-  const all = Array.from(ctx.sessions.getAllSessions())
+  const all = Array.from(ctx.sessions.getAllConversations())
 
   // Filter by status and exclude self
   const filtered = all
@@ -221,7 +221,7 @@ const channelListSessions: MessageHandler = (ctx, data) => {
   // Build self identity from caller's session
   let self: Record<string, unknown> | undefined
   if (callerSession) {
-    const s = ctx.sessions.getSession(callerSession)
+    const s = ctx.sessions.getConversation(callerSession)
     if (s) {
       const projSettings = ctx.getProjectSettings(s.project)
       const projectName = projSettings?.label || extractProjectLabel(s.project)
@@ -270,7 +270,7 @@ function computeSenderRoutableId(
     return { routable: fallback, project: fallback }
   }
   const projectSlug = ctx.addressBook.getOrAssign(toProject, fromSess.project, fromProjectName)
-  const sessionsAtProject = Array.from(ctx.sessions.getAllSessions()).filter(s =>
+  const sessionsAtProject = Array.from(ctx.sessions.getAllConversations()).filter(s =>
     isSameProject(s.project, fromSess.project),
   )
   // Always compound -- list_sessions must be able to round-trip the from-id.
@@ -283,7 +283,7 @@ const channelSend: MessageHandler = (ctx, data) => {
   const toTarget = data.toSession as string
   if (!fromSession || !toTarget) return
 
-  const fromSess = ctx.sessions.getSession(fromSession)
+  const fromSess = ctx.sessions.getConversation(fromSession)
   const callerProject = fromSess?.project
 
   // Parse compound target: "project:session-name" or bare "project"
@@ -297,7 +297,7 @@ const channelSend: MessageHandler = (ctx, data) => {
   // Address book miss -- populate from all known sessions (same as list_sessions),
   // then retry. This makes send_message work on first call without a prior list_sessions.
   if (!targetProject && callerProject) {
-    for (const s of ctx.sessions.getAllSessions()) {
+    for (const s of ctx.sessions.getAllConversations()) {
       if (s.id === fromSession) continue
       const projSettings = ctx.getProjectSettings(s.project)
       const projectName = projSettings?.label || extractProjectLabel(s.project)
@@ -306,9 +306,9 @@ const channelSend: MessageHandler = (ctx, data) => {
     targetProject = ctx.addressBook.resolve(callerProject, projectSlug)
   }
 
-  let toSess: ReturnType<typeof ctx.sessions.getSession> | undefined
+  let toSess: ReturnType<typeof ctx.sessions.getConversation> | undefined
   if (targetProject) {
-    const sessionsAtProject = Array.from(ctx.sessions.getAllSessions()).filter(s =>
+    const sessionsAtProject = Array.from(ctx.sessions.getAllConversations()).filter(s =>
       isSameProject(s.project, targetProject),
     )
     const projSettings = ctx.getProjectSettings(targetProject)
@@ -329,10 +329,10 @@ const channelSend: MessageHandler = (ctx, data) => {
       return
     }
     if (resolved.kind === 'resolved') {
-      toSess = ctx.sessions.getSession(resolved.session.id)
+      toSess = ctx.sessions.getConversation(resolved.session.id)
     }
   } else {
-    toSess = ctx.sessions.getSessionByConversation(toTarget) || ctx.sessions.getSession(toTarget)
+    toSess = ctx.sessions.findConversationByConversationId(toTarget) || ctx.sessions.getConversation(toTarget)
   }
 
   const toSession = toSess?.id
@@ -451,7 +451,7 @@ const channelSend: MessageHandler = (ctx, data) => {
       )
     }
 
-    const targetWs = ctx.sessions.getSessionSocket(toSession)
+    const targetWs = ctx.sessions.getConversationSocket(toSession)
     if (targetWs) {
       targetWs.send(JSON.stringify(delivery))
       ctx.reply({
@@ -508,9 +508,9 @@ const channelSend: MessageHandler = (ctx, data) => {
 
 const quitSession: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
-  const session = sessionId ? ctx.sessions.getSession(sessionId) : undefined
+  const session = sessionId ? ctx.sessions.getConversation(sessionId) : undefined
   if (session) ctx.requirePermission('chat', session.project)
-  const targetWs = sessionId ? ctx.sessions.getSessionSocket(sessionId) : null
+  const targetWs = sessionId ? ctx.sessions.getConversationSocket(sessionId) : null
   if (targetWs) {
     targetWs.send(JSON.stringify({ type: 'terminate_conversation', sessionId }))
     ctx.log.debug(`Session ${sessionId.slice(0, 8)} - SIGTERM sent to wrapper`)
@@ -522,11 +522,11 @@ const quitSession: MessageHandler = (ctx, data) => {
 const sessionViewed: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   if (!sessionId) return
-  const session = ctx.sessions.getSession(sessionId)
+  const session = ctx.sessions.getConversation(sessionId)
   if (session) ctx.requirePermission('chat:read', session.project)
   if (session?.hasNotification) {
     session.hasNotification = false
-    ctx.sessions.broadcastSessionUpdate(sessionId)
+    ctx.sessions.broadcastConversationUpdate(sessionId)
   }
 }
 
@@ -538,8 +538,8 @@ const channelLinkResponse: MessageHandler = (ctx, data) => {
   if (!fromSession || !toSession) return
 
   // Link approval creates persistent project-level trust -- require settings on BOTH projects
-  const fromSess = ctx.sessions.getSession(fromSession)
-  const toSess = ctx.sessions.getSession(toSession)
+  const fromSess = ctx.sessions.getConversation(fromSession)
+  const toSess = ctx.sessions.getConversation(toSession)
   if (!fromSess || !toSess) {
     ctx.reply({ type: 'error', error: 'Both sessions must exist to approve/block a link' })
     return
@@ -549,19 +549,19 @@ const channelLinkResponse: MessageHandler = (ctx, data) => {
 
   if (data.action === 'approve') {
     ctx.sessions.linkProjects(fromSession, toSession)
-    const fromSess = ctx.sessions.getSession(fromSession)
-    const toSess = ctx.sessions.getSession(toSession)
+    const fromSess = ctx.sessions.getConversation(fromSession)
+    const toSess = ctx.sessions.getConversation(toSession)
     if (fromSess?.project && toSess?.project) ctx.links.add(fromSess.project, toSess.project)
     const queued = ctx.sessions.drainProjectMessages(fromSession, toSession)
-    const targetWs = ctx.sessions.getSessionSocket(toSession)
+    const targetWs = ctx.sessions.getConversationSocket(toSession)
     if (targetWs) {
       for (const msg of queued) targetWs.send(JSON.stringify(msg))
     }
     ctx.log.debug(`Link approved + persisted: ${fromSession.slice(0, 8)} <-> ${toSession.slice(0, 8)}`)
   } else {
     ctx.sessions.blockProject(fromSession, toSession)
-    const fromSess = ctx.sessions.getSession(fromSession)
-    const toSess = ctx.sessions.getSession(toSession)
+    const fromSess = ctx.sessions.getConversation(fromSession)
+    const toSess = ctx.sessions.getConversation(toSession)
     if (fromSess?.project && toSess?.project) ctx.links.remove(fromSess.project, toSess.project)
     ctx.sessions.drainProjectMessages(fromSession, toSession) // discard
     ctx.log.debug(`Link blocked: ${fromSession.slice(0, 8)} X ${toSession.slice(0, 8)}`)
@@ -586,8 +586,8 @@ const channelUnlink: MessageHandler = (ctx, data) => {
   const sessionA = data.sessionA as string
   const sessionB = data.sessionB as string
   if (!sessionA || !sessionB) return
-  const sessA = ctx.sessions.getSession(sessionA)
-  const sessB = ctx.sessions.getSession(sessionB)
+  const sessA = ctx.sessions.getConversation(sessionA)
+  const sessB = ctx.sessions.getConversation(sessionB)
   if (!sessA || !sessB) {
     ctx.reply({ type: 'error', error: 'Both sessions must exist to sever a link' })
     return
@@ -596,8 +596,8 @@ const channelUnlink: MessageHandler = (ctx, data) => {
   ctx.requirePermission('settings', sessB.project)
   ctx.sessions.unlinkProjects(sessionA, sessionB)
   if (sessA.project && sessB.project) ctx.links.remove(sessA.project, sessB.project)
-  ctx.sessions.broadcastSessionUpdate(sessionA)
-  ctx.sessions.broadcastSessionUpdate(sessionB)
+  ctx.sessions.broadcastConversationUpdate(sessionA)
+  ctx.sessions.broadcastConversationUpdate(sessionB)
   ctx.log.debug(`Link severed: ${sessionA.slice(0, 8)} X ${sessionB.slice(0, 8)}`)
 }
 

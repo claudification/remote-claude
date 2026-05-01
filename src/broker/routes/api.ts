@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { Hono } from 'hono'
 import { parseProjectUri } from '../../shared/project-uri'
 import { getAuthenticatedUser } from '../auth-routes'
+import type { ConversationStore } from '../conversation-store'
 import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
 import { getModels, getModelsFetchedAt } from '../model-pricing'
 import { hasPermissionAnyCwd, resolvePermissions, type UserGrant } from '../permissions'
@@ -19,7 +20,6 @@ import {
   setProjectSettings,
 } from '../project-settings'
 import { addSubscription, getSubscriptionCount, isPushConfigured, removeSubscription, sendPushToAll } from '../push'
-import type { ConversationStore } from '../conversation-store'
 import { appendSharedFile, dismissSharedFile, mediaTypeToExt, readSharedFiles, storeBlobStreaming } from './blob-store'
 import type { RouteHelpers } from './shared'
 import { broadcastToSubscribers } from './shared'
@@ -205,11 +205,11 @@ export function createApiRouter(
     const projectPath = body.project || body.cwd
     if (!projectPath) return c.json({ error: 'Missing project' }, 400)
 
-    const allSessions = sessionStore.getAllSessions()
+    const allSessions = sessionStore.getAllConversations()
     const sessionForCwd = allSessions.find(
       s => parseProjectUri(s.project).path === projectPath && s.status === 'active',
     )
-    const wrapperSocket = sessionForCwd ? sessionStore.getSessionSocket(sessionForCwd.id) : null
+    const wrapperSocket = sessionForCwd ? sessionStore.getConversationSocket(sessionForCwd.id) : null
     if (!wrapperSocket) {
       return c.json({ error: 'No active session connected for this project' }, 503)
     }
@@ -316,7 +316,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
     // Require files permission -- check session CWD if available, else any grant
     const uploadSessionId = c.req.header('x-session-id') || c.req.query('sessionId') || undefined
-    const uploadCwd = uploadSessionId ? sessionStore.getSession(uploadSessionId)?.project : undefined
+    const uploadCwd = uploadSessionId ? sessionStore.getConversation(uploadSessionId)?.project : undefined
     if (uploadCwd) {
       if (!httpHasPermission(c.req.raw, 'files', uploadCwd))
         return c.json({ error: 'Forbidden: files permission required' }, 403)
@@ -362,7 +362,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
     // Log to shared files index (keyed by project for per-project queries)
     const sessionId = c.req.header('x-session-id') || c.req.query('sessionId') || undefined
-    const sessionProject = sessionId ? sessionStore.getSession(sessionId)?.project : undefined
+    const sessionProject = sessionId ? sessionStore.getConversation(sessionId)?.project : undefined
     appendSharedFile({
       type: 'file',
       hash,
@@ -472,7 +472,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
     const keyterms: string[] = []
     if (body.sessionId) {
-      const session = sessionStore.getSession(body.sessionId)
+      const session = sessionStore.getConversation(body.sessionId)
       if (session?.project) {
         const projSettings = getProjectSettings(session.project)
         if (projSettings?.keyterms?.length) {

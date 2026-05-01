@@ -75,7 +75,7 @@ export interface RendezvousRegistry {
   resolveRendezvous: (
     conversationId: string,
     sessionId: string,
-    toSessionSummary: (id: string) => ConversationSummary | undefined,
+    toConversationSummary: (id: string) => ConversationSummary | undefined,
   ) => boolean
   getRendezvousInfo: (conversationId: string) => RendezvousInfo | undefined
   addPendingRestart: (conversationId: string, info: PendingRestartInfo) => void
@@ -279,12 +279,12 @@ export function createRendezvousRegistry(): RendezvousRegistry {
       })
     },
 
-    resolveRendezvous(conversationId, sessionId, toSessionSummary) {
+    resolveRendezvous(conversationId, sessionId, toConversationSummary) {
       const rv = sessionRendezvous.get(conversationId)
       if (!rv) return false
       sessionRendezvous.delete(conversationId)
       clearTimeout(rv.timer)
-      const summary = toSessionSummary(sessionId)
+      const summary = toConversationSummary(sessionId)
       if (!summary) {
         rv.reject('Session created but not found in store')
         return false

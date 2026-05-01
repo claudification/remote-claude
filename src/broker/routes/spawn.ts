@@ -7,9 +7,9 @@ import { Hono } from 'hono'
 import type { ListDirsResult } from '../../shared/protocol'
 import { mapProjectTrust, type SpawnCallerContext } from '../../shared/spawn-permissions'
 import { spawnRequestSchema } from '../../shared/spawn-schema'
+import type { ConversationStore } from '../conversation-store'
 import { getGlobalSettings } from '../global-settings'
 import { getProjectSettings } from '../project-settings'
-import type { ConversationStore } from '../conversation-store'
 import { dispatchSpawn } from '../spawn-dispatch'
 import type { RouteHelpers } from './shared'
 
@@ -31,7 +31,7 @@ export function createSpawnRouter(sessionStore: ConversationStore, helpers: Rout
     // Build caller context for the unified permission gate. MCP callers
     // identify themselves via X-Caller-Session; everything else is dashboard HTTP.
     const callerSessionId = c.req.header('X-Caller-Session')
-    const callerSess = callerSessionId ? sessionStore.getSession(callerSessionId) : null
+    const callerSess = callerSessionId ? sessionStore.getConversation(callerSessionId) : null
     const callerProject = callerSess?.project ?? null
     const callerTrust = callerProject ? mapProjectTrust(getProjectSettings(callerProject)?.trustLevel) : 'trusted'
     const callerContext: SpawnCallerContext = {

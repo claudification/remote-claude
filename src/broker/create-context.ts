@@ -5,10 +5,10 @@
 
 import type { ServerWebSocket } from 'bun'
 import type { ProjectSettings } from '../shared/protocol'
+import type { ConversationStore } from './conversation-store'
 import { GuardError, type HandlerContext, logPrefix, type WsData } from './handler-context'
 import type { Permission } from './permissions'
 import { resolvePermissions } from './permissions'
-import type { ConversationStore } from './conversation-store'
 import type { StoreDriver } from './store/types'
 
 export interface ContextDeps {
@@ -61,7 +61,7 @@ export interface ContextDeps {
 
 export function createContext(ws: ServerWebSocket<WsData>, deps: ContextDeps): HandlerContext {
   const sessionId = ws.data.sessionId
-  const caller = sessionId ? deps.sessions.getSession(sessionId) : undefined
+  const caller = sessionId ? deps.sessions.getConversation(sessionId) : undefined
   const callerSettings = caller?.project ? deps.getProjectSettings(caller.project) : null
   const prefix = logPrefix(ws)
 
@@ -89,7 +89,7 @@ export function createContext(ws: ServerWebSocket<WsData>, deps: ContextDeps): H
     },
 
     broadcastScoped(msg, project) {
-      deps.sessions.broadcastSessionScoped(msg, project)
+      deps.sessions.broadcastConversationScoped(msg, project)
     },
 
     push: {

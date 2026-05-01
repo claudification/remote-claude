@@ -28,12 +28,6 @@ import type {
 } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
 import { clearSession as clearAnalyticsSession, recordHookEvent } from './analytics-store'
-import { getModelInfo } from './model-pricing'
-import type { UserGrant } from './permissions'
-import { resolvePermissionFlags, resolvePermissions } from './permissions'
-import { getProjectSettings } from './project-settings'
-import { appendSharedFile } from './routes'
-import type { SentinelRegistry } from './sentinel-registry'
 import { createChannelRegistry } from './conversation-store/channel-registry'
 import { createListenerRegistry } from './conversation-store/listeners'
 import { detectClipboardMime, detectContextModeFromStdout, isReadableText } from './conversation-store/parsers'
@@ -58,12 +52,18 @@ import { createTerminalRegistry } from './conversation-store/terminal-registry'
 import { createTrafficTracker } from './conversation-store/traffic'
 import type { ControlPanelMessage } from './conversation-store/types'
 import { createViewerRegistry } from './conversation-store/viewer-registry'
+import { getModelInfo } from './model-pricing'
+import type { UserGrant } from './permissions'
+import { resolvePermissionFlags, resolvePermissions } from './permissions'
+import { getProjectSettings } from './project-settings'
+import { appendSharedFile } from './routes'
+import type { SentinelRegistry } from './sentinel-registry'
 import { listShares } from './shares'
 import type { StoreDriver } from './store/types'
 
 export type { ControlPanelMessage, ConversationSummary }
 
-export interface SessionStoreOptions {
+export interface ConversationStoreOptions {
   cacheDir?: string
   enablePersistence?: boolean
   store?: StoreDriver
@@ -71,35 +71,35 @@ export interface SessionStoreOptions {
 }
 
 export interface ConversationStore {
-  createSession: (
+  createConversation: (
     id: string,
     project: string,
     model?: string,
     args?: string[],
     capabilities?: AgentHostCapability[],
   ) => Conversation
-  resumeSession: (id: string) => void
-  rekeySession: (
+  resumeConversation: (id: string) => void
+  rekeyConversation: (
     oldId: string,
     newId: string,
     conversationId: string,
     newProject: string,
     model?: string,
   ) => Conversation | undefined
-  getSession: (id: string) => Conversation | undefined
-  getAllSessions: () => Conversation[]
-  getActiveSessions: () => Conversation[]
+  getConversation: (id: string) => Conversation | undefined
+  getAllConversations: () => Conversation[]
+  getActiveConversations: () => Conversation[]
   addEvent: (sessionId: string, event: HookEvent) => void
   updateActivity: (sessionId: string) => void
-  endSession: (sessionId: string, reason: string) => void
-  removeSession: (sessionId: string) => void
-  getSessionEvents: (sessionId: string, limit?: number, since?: number) => HookEvent[]
+  endConversation: (sessionId: string, reason: string) => void
+  removeConversation: (sessionId: string) => void
+  getConversationEvents: (sessionId: string, limit?: number, since?: number) => HookEvent[]
   updateTasks: (sessionId: string, tasks: TaskInfo[]) => void
-  setSessionSocket: (sessionId: string, conversationId: string, ws: ServerWebSocket<unknown>) => void
-  getSessionSocket: (sessionId: string) => ServerWebSocket<unknown> | undefined
-  getSessionSocketByConversation: (conversationId: string) => ServerWebSocket<unknown> | undefined
-  getSessionByConversation: (conversationId: string) => Conversation | undefined
-  removeSessionSocket: (sessionId: string, conversationId: string) => void
+  setConversationSocket: (sessionId: string, conversationId: string, ws: ServerWebSocket<unknown>) => void
+  getConversationSocket: (sessionId: string) => ServerWebSocket<unknown> | undefined
+  findSocketByConversationId: (conversationId: string) => ServerWebSocket<unknown> | undefined
+  findConversationByConversationId: (conversationId: string) => Conversation | undefined
+  removeConversationSocket: (sessionId: string, conversationId: string) => void
   getActiveConversationCount: (sessionId: string) => number
   getConversationIds: (sessionId: string) => string[]
   // Transcript cache methods
@@ -117,7 +117,7 @@ export interface ConversationStore {
   // Background task output methods
   addBgTaskOutput: (sessionId: string, taskId: string, data: string, done: boolean) => void
   getBgTaskOutput: (taskId: string) => string | undefined
-  broadcastSessionUpdate: (sessionId: string) => void
+  broadcastConversationUpdate: (sessionId: string) => void
   // Terminal viewer methods (multiple viewers per session)
   // Terminal viewers keyed by conversationId (each PTY is on a specific rclaude instance)
   addTerminalViewer: (conversationId: string, ws: ServerWebSocket<unknown>) => void
@@ -133,7 +133,7 @@ export interface ConversationStore {
   hasJsonStreamViewers: (conversationId: string) => boolean
   // Dashboard subscriber methods
   addSubscriber: (ws: ServerWebSocket<unknown>, protocolVersion?: number) => void
-  sendSessionsList: (ws: ServerWebSocket<unknown>) => void
+  sendConversationsList: (ws: ServerWebSocket<unknown>) => void
   handleSyncCheck: (
     ws: ServerWebSocket<unknown>,
     clientEpoch: string,
@@ -246,8 +246,8 @@ export interface ConversationStore {
   setPendingLaunchConfig: (conversationId: string, config: LaunchConfig) => void
   consumePendingLaunchConfig: (conversationId: string) => LaunchConfig | undefined
   // Pending session names (set at spawn, consumed on connect)
-  setPendingSessionName: (conversationId: string, name: string) => void
-  consumePendingSessionName: (conversationId: string) => string | undefined
+  setPendingConversationName: (conversationId: string, name: string) => void
+  consumePendingConversationName: (conversationId: string) => string | undefined
   // Inter-project link management
   checkProjectLink: (from: string, to: string) => 'linked' | 'blocked' | 'unknown'
   getLinkedProjects: (sessionId: string) => Array<{ project: string; name: string }>
@@ -257,7 +257,7 @@ export interface ConversationStore {
   queueProjectMessage: (from: string, to: string, message: Record<string, unknown>) => void
   drainProjectMessages: (from: string, to: string) => Array<Record<string, unknown>>
   broadcastForProject: (project: string) => void
-  broadcastSessionScoped: (message: Record<string, unknown>, project: string) => void
+  broadcastConversationScoped: (message: Record<string, unknown>, project: string) => void
   broadcastSharesUpdate: () => void
   recordTraffic: (direction: 'in' | 'out', bytes: number) => void
   getTrafficStats: () => {
@@ -272,17 +272,17 @@ export interface ConversationStore {
 /**
  * Create a session store with optional persistence
  */
-export function createConversationStore(options: SessionStoreOptions = {}): ConversationStore {
+export function createConversationStore(options: ConversationStoreOptions = {}): ConversationStore {
   const { store, sentinelRegistry } = options
 
-  const sessions = new Map<string, Conversation>()
+  const conversations = new Map<string, Conversation>()
   // sessionId -> (conversationId -> socket): multiple rclaude instances can share a Claude session
-  const sessionSockets = new Map<string, Map<string, ServerWebSocket<unknown>>>()
+  const conversationSockets = new Map<string, Map<string, ServerWebSocket<unknown>>>()
   // Terminal viewers keyed by conversationId (each PTY is on a specific conversation)
   const terminalRegistry = createTerminalRegistry()
   // JSON stream viewers keyed by conversationId (raw NDJSON tail for headless sessions)
   const jsonStreamRegistry = createViewerRegistry()
-  const dashboardSubscribers = new Set<ServerWebSocket<unknown>>()
+  const controlPanelSubscribers = new Set<ServerWebSocket<unknown>>()
   let subscriberIdCounter = 0
 
   // Sync protocol: extracted to sync-protocol.ts
@@ -299,9 +299,9 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
   const { recordTraffic, getTrafficStats } = trafficTracker
 
   // Channel pub/sub registry -- created here so it can close over syncStamp + recordTraffic
-  // which are defined in this factory. dashboardSubscribers is a shared mutable ref.
+  // which are defined in this factory. controlPanelSubscribers is a shared mutable ref.
   const channelRegistry = createChannelRegistry({
-    dashboardSubscribers,
+    controlPanelSubscribers,
     syncStamp,
     recordTraffic,
   })
@@ -393,8 +393,8 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
   const bgTaskOutputCache = new Map<string, string>()
 
   // Helper to create session summary for broadcasting
-  function toSessionSummary(session: Conversation): ConversationSummary {
-    const wrappers = sessionSockets.get(session.id)
+  function toConversationSummary(session: Conversation): ConversationSummary {
+    const wrappers = conversationSockets.get(session.id)
     return {
       id: session.id,
       project: session.project,
@@ -490,7 +490,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
   // Broadcast to all dashboard subscribers (sequenced + buffered for sync catchup)
   function broadcast(message: ControlPanelMessage): void {
     const json = stampAndBuffer(message)
-    for (const ws of dashboardSubscribers) {
+    for (const ws of controlPanelSubscribers) {
       try {
         ws.send(json)
         recordTraffic('out', json.length)
@@ -499,15 +499,15 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
         console.error(
           `[broadcast] Send failed to ${subInfo?.id || 'unknown'}: ${err instanceof Error ? err.message : err}`,
         )
-        dashboardSubscribers.delete(ws)
+        controlPanelSubscribers.delete(ws)
       }
     }
   }
 
   /** Broadcast a session message only to subscribers who have chat:read for that project */
-  function broadcastSessionScoped(message: ControlPanelMessage, project: string): void {
+  function broadcastConversationScoped(message: ControlPanelMessage, project: string): void {
     const json = stampAndBuffer(message)
-    for (const ws of dashboardSubscribers) {
+    for (const ws of controlPanelSubscribers) {
       try {
         const grants = (ws.data as { grants?: UserGrant[] }).grants
         if (grants) {
@@ -521,7 +521,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
         console.error(
           `[broadcast] Send failed to ${subInfo?.id || 'unknown'}: ${err instanceof Error ? err.message : err}`,
         )
-        dashboardSubscribers.delete(ws)
+        controlPanelSubscribers.delete(ws)
       }
     }
   }
@@ -530,24 +530,24 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
   const pendingSessionUpdates = new Set<string>()
   let sessionUpdateScheduled = false
 
-  function scheduleSessionUpdate(sessionId: string): void {
+  function scheduleConversationUpdate(sessionId: string): void {
     pendingSessionUpdates.add(sessionId)
     if (!sessionUpdateScheduled) {
       sessionUpdateScheduled = true
-      queueMicrotask(flushSessionUpdates)
+      queueMicrotask(flushConversationUpdates)
     }
   }
 
-  function flushSessionUpdates(): void {
+  function flushConversationUpdates(): void {
     sessionUpdateScheduled = false
     for (const id of pendingSessionUpdates) {
-      const session = sessions.get(id)
+      const session = conversations.get(id)
       if (session) {
-        broadcastSessionScoped(
+        broadcastConversationScoped(
           {
             type: 'conversation_update',
             sessionId: id,
-            session: toSessionSummary(session),
+            session: toConversationSummary(session),
           },
           session.project,
         )
@@ -572,7 +572,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     const LIVENESS_MS = 5 * 60_000 // 5m without hooks = not "actively receiving"
     const toEvict: string[] = []
 
-    for (const session of sessions.values()) {
+    for (const session of conversations.values()) {
       let changed = false
 
       // Liveness check: no hooks for 30s means session isn't actively receiving
@@ -602,7 +602,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
       // Evict zombie sessions: STARTING with 0 events, idle > 24h, no active wrapper
       if (session.status === 'starting' && session.events.length === 0) {
         const idleMs = now - session.lastActivity
-        if (idleMs > ZOMBIE_EVICTION_TTL_MS && !sessionSockets.has(session.id)) {
+        if (idleMs > ZOMBIE_EVICTION_TTL_MS && !conversationSockets.has(session.id)) {
           const hours = Math.round(idleMs / 3600000)
           console.log(`[evict] Zombie session ${session.id.slice(0, 8)} (STARTING, 0 events, idle ${hours}h)`)
           toEvict.push(session.id)
@@ -610,28 +610,28 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
       }
 
       if (changed) {
-        scheduleSessionUpdate(session.id)
+        scheduleConversationUpdate(session.id)
       }
     }
 
     // Evict TTL-expired ended sessions
     for (const id of toEvict) {
-      removeSession(id)
+      removeConversation(id)
     }
 
     // Hard cap: if too many ended sessions, evict oldest first
-    const ended = Array.from(sessions.values())
+    const ended = Array.from(conversations.values())
       .filter(s => s.status === 'ended')
       .sort((a, b) => a.lastActivity - b.lastActivity)
     if (ended.length > MAX_ENDED_SESSIONS) {
       for (let i = 0; i < ended.length - MAX_ENDED_SESSIONS; i++) {
-        removeSession(ended[i].id)
+        removeConversation(ended[i].id)
       }
     }
 
     if (toEvict.length > 0 || ended.length > MAX_ENDED_SESSIONS) {
       const evictedCount = toEvict.length + Math.max(0, ended.length - MAX_ENDED_SESSIONS)
-      console.log(`[eviction] Removed ${evictedCount} ended sessions (${sessions.size} remaining)`)
+      console.log(`[eviction] Removed ${evictedCount} ended sessions (${conversations.size} remaining)`)
     }
   }, 10000)
 
@@ -718,7 +718,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
           hostSentinelId: fullMeta.hostSentinelId as string | undefined,
           hostSentinelAlias: fullMeta.hostSentinelAlias as string | undefined,
         }
-        sessions.set(session.id, session)
+        conversations.set(session.id, session)
       }
       if (records.length > 0) {
         console.log(`[store] Loaded ${records.length} sessions from SQLite`)
@@ -728,7 +728,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     }
   }
 
-  function persistSession(session: Conversation): void {
+  function persistConversation(session: Conversation): void {
     if (!store) return
     try {
       const existing = store.sessions.get(session.id)
@@ -800,7 +800,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
   }
 
   async function clearState(): Promise<void> {
-    sessions.clear()
+    conversations.clear()
     if (store) {
       const all = store.sessions.list()
       for (const s of all) {
@@ -838,7 +838,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     return projectOrCwd
   }
 
-  function createSession(
+  function createConversation(
     id: string,
     projectOrCwd: string,
     model?: string,
@@ -882,22 +882,22 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
       hostSentinelId: getDefaultSentinelId(),
       hostSentinelAlias: getDefaultSentinelAlias(),
     }
-    sessions.set(id, session)
-    persistSession(session)
+    conversations.set(id, session)
+    persistConversation(session)
 
     // Broadcast to dashboard subscribers (scoped by grants)
-    broadcastSessionScoped(
+    broadcastConversationScoped(
       {
         type: 'conversation_created',
         sessionId: id,
-        session: toSessionSummary(session),
+        session: toConversationSummary(session),
       },
       session.project,
     )
 
     // Push per-session permissions to scoped subscribers so the client can
     // immediately include the new session in its filtered list.
-    for (const ws of dashboardSubscribers) {
+    for (const ws of controlPanelSubscribers) {
       try {
         const grants = (ws.data as { grants?: UserGrant[] }).grants
         if (!grants) continue // admins don't use sessionPermissions
@@ -915,8 +915,8 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     return session
   }
 
-  function resumeSession(id: string): void {
-    const session = sessions.get(id)
+  function resumeConversation(id: string): void {
+    const session = conversations.get(id)
     if (session) {
       session.status = 'starting'
       session.lastActivity = Date.now()
@@ -935,11 +935,11 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
         }
       }
       // Notify dashboards that this session resumed - triggers transcript re-fetch
-      broadcastSessionScoped(
+      broadcastConversationScoped(
         {
           type: 'conversation_update',
           sessionId: id,
-          session: toSessionSummary(session),
+          session: toConversationSummary(session),
         },
         session.project,
       )
@@ -948,7 +948,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
 
   // Re-key a session from oldId to newId (e.g. /clear changes Claude's session ID)
   // Preserves the session entry and wrapper socket, resets ephemeral state
-  function rekeySession(
+  function rekeyConversation(
     oldId: string,
     newId: string,
     _conversationId: string,
@@ -956,7 +956,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     newModel?: string,
   ): Conversation | undefined {
     const newProject = newProjectOrCwd.includes('://') ? newProjectOrCwd : cwdToProjectUri(newProjectOrCwd)
-    const session = sessions.get(oldId)
+    const session = conversations.get(oldId)
     if (!session) return undefined
 
     // Same-ID rekey: just update metadata, skip the destructive migration
@@ -964,16 +964,16 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
       session.project = newProject
       if (newModel) session.model = newModel
       session.lastActivity = Date.now()
-      persistSession(session)
-      broadcastSessionScoped(
-        { type: 'conversation_update', sessionId: newId, session: toSessionSummary(session) },
+      persistConversation(session)
+      broadcastConversationScoped(
+        { type: 'conversation_update', sessionId: newId, session: toConversationSummary(session) },
         session.project,
       )
       return session
     }
 
     // Re-key in sessions map
-    sessions.delete(oldId)
+    conversations.delete(oldId)
     if (store) {
       try {
         store.sessions.delete(oldId)
@@ -984,8 +984,8 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     if (newModel) session.model = newModel
     session.status = 'idle'
     session.lastActivity = Date.now()
-    sessions.set(newId, session)
-    persistSession(session)
+    conversations.set(newId, session)
+    persistConversation(session)
 
     // Reset ephemeral state (preserve compacting flag - processEvent handles the transition)
     const wasCompacting = session.compacting
@@ -1025,10 +1025,10 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     }
 
     // Re-key socket map
-    const wrappers = sessionSockets.get(oldId)
+    const wrappers = conversationSockets.get(oldId)
     if (wrappers) {
-      sessionSockets.delete(oldId)
-      sessionSockets.set(newId, wrappers)
+      conversationSockets.delete(oldId)
+      conversationSockets.set(newId, wrappers)
     }
 
     // Migrate channel subscriptions from oldId to newId
@@ -1040,12 +1040,12 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     clearSubagentChannels(oldId)
 
     // Broadcast update (not end+create) so dashboard stays on this session
-    broadcastSessionScoped(
+    broadcastConversationScoped(
       {
         type: 'conversation_update',
         sessionId: newId,
         previousSessionId: oldId,
-        session: toSessionSummary(session),
+        session: toConversationSummary(session),
       },
       session.project,
     )
@@ -1067,20 +1067,20 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     return session
   }
 
-  function getSession(id: string): Conversation | undefined {
-    return sessions.get(id)
+  function getConversation(id: string): Conversation | undefined {
+    return conversations.get(id)
   }
 
-  function getAllSessions(): Conversation[] {
-    return Array.from(sessions.values())
+  function getAllConversations(): Conversation[] {
+    return Array.from(conversations.values())
   }
 
-  function getActiveSessions(): Conversation[] {
-    return Array.from(sessions.values()).filter(s => s.status !== 'ended')
+  function getActiveConversations(): Conversation[] {
+    return Array.from(conversations.values()).filter(s => s.status !== 'ended')
   }
 
   function addEvent(sessionId: string, event: HookEvent): void {
-    const session = sessions.get(sessionId)
+    const session = conversations.get(sessionId)
     if (session) {
       session.events.push(event)
       if (session.events.length > MAX_EVENTS) {
@@ -1117,7 +1117,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
       if (isRecap && typeof eventInput?.content === 'string') {
         session.recap = { content: eventInput.content, timestamp: event.timestamp }
         session.recapFresh = true
-        scheduleSessionUpdate(sessionId)
+        scheduleConversationUpdate(sessionId)
       }
 
       // Status transitions based on actual Claude hooks (not artificial timers).
@@ -1200,7 +1200,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
         if (data.model && typeof data.model === 'string' && !session.model) {
           session.model = data.model
         }
-        // Clear stale error from previous run (belt and suspenders with resumeSession)
+        // Clear stale error from previous run (belt and suspenders with resumeConversation)
         session.lastError = undefined
       }
 
@@ -1298,7 +1298,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
         }
         const toolName = data.tool_name as string | undefined
         const projectName = getProjectSettings(session.project)?.label || extractProjectLabel(session.project)
-        broadcastSessionScoped(
+        broadcastConversationScoped(
           {
             type: 'toast',
             sessionId,
@@ -1505,7 +1505,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
         const data = event.data as Record<string, unknown>
         const message = typeof data.message === 'string' ? data.message : 'Needs attention'
         const projectName = getProjectSettings(session.project)?.label || extractProjectLabel(session.project)
-        broadcastSessionScoped(
+        broadcastConversationScoped(
           {
             type: 'toast',
             sessionId,
@@ -1534,7 +1534,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
         if (now - lastKick > TRANSCRIPT_KICK_DEBOUNCE_MS) {
           lastTranscriptKick.set(sessionId, now)
           // Find the wrapper socket for this session and send kick
-          const wrappers = sessionSockets.get(sessionId)
+          const wrappers = conversationSockets.get(sessionId)
           if (wrappers) {
             for (const ws of wrappers.values()) {
               try {
@@ -1549,12 +1549,12 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
       }
 
       // Coalesce session update (for lastActivity, eventCount changes)
-      scheduleSessionUpdate(sessionId)
+      scheduleConversationUpdate(sessionId)
     }
   }
 
   function updateActivity(sessionId: string): void {
-    const session = sessions.get(sessionId)
+    const session = conversations.get(sessionId)
     if (session) {
       session.lastActivity = Date.now()
       if (session.recapFresh && (!session.recap || Date.now() - session.recap.timestamp > 10_000)) {
@@ -1566,8 +1566,8 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     }
   }
 
-  function endSession(sessionId: string, _reason: string): void {
-    const session = sessions.get(sessionId)
+  function endConversation(sessionId: string, _reason: string): void {
+    const session = conversations.get(sessionId)
     if (session) {
       session.status = 'ended'
       session.planMode = false
@@ -1598,29 +1598,29 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
       }
 
       // Broadcast to dashboard subscribers (scoped by grants)
-      broadcastSessionScoped(
+      broadcastConversationScoped(
         {
           type: 'conversation_ended',
           sessionId,
-          session: toSessionSummary(session),
+          session: toConversationSummary(session),
         },
         session.project,
       )
 
       // Persist to store immediately
-      persistSession(session)
+      persistConversation(session)
     }
   }
 
-  function removeSession(sessionId: string): void {
-    const session = sessions.get(sessionId)
+  function removeConversation(sessionId: string): void {
+    const session = conversations.get(sessionId)
     if (session) {
       for (const bg of session.bgTasks) {
         bgTaskOutputCache.delete(bg.taskId)
       }
     }
-    sessions.delete(sessionId)
-    sessionSockets.delete(sessionId)
+    conversations.delete(sessionId)
+    conversationSockets.delete(sessionId)
     transcriptCache.delete(sessionId)
     transcriptSeqCounters.delete(sessionId)
     dirtyTranscripts.delete(sessionId)
@@ -1639,8 +1639,8 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     }
   }
 
-  function getSessionEvents(sessionId: string, limit?: number, since?: number): HookEvent[] {
-    const session = sessions.get(sessionId)
+  function getConversationEvents(sessionId: string, limit?: number, since?: number): HookEvent[] {
+    const session = conversations.get(sessionId)
     if (!session) return []
 
     let events = session.events
@@ -1657,26 +1657,26 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     return events
   }
 
-  function setSessionSocket(sessionId: string, conversationId: string, ws: ServerWebSocket<unknown>): void {
+  function setConversationSocket(sessionId: string, conversationId: string, ws: ServerWebSocket<unknown>): void {
     // Remove conversationId from any OTHER session first (wrapper reconnected to different session)
-    for (const [sid, wrappers] of sessionSockets.entries()) {
+    for (const [sid, wrappers] of conversationSockets.entries()) {
       if (sid !== sessionId && wrappers.has(conversationId)) {
         wrappers.delete(conversationId)
-        if (wrappers.size === 0) sessionSockets.delete(sid)
+        if (wrappers.size === 0) conversationSockets.delete(sid)
         // Broadcast so dashboard drops the stale conversationId from the old session
-        broadcastSessionUpdate(sid)
+        broadcastConversationUpdate(sid)
       }
     }
-    let wrappers = sessionSockets.get(sessionId)
+    let wrappers = conversationSockets.get(sessionId)
     if (!wrappers) {
       wrappers = new Map()
-      sessionSockets.set(sessionId, wrappers)
+      conversationSockets.set(sessionId, wrappers)
     }
     wrappers.set(conversationId, ws)
   }
 
-  function getSessionSocket(sessionId: string): ServerWebSocket<unknown> | undefined {
-    const wrappers = sessionSockets.get(sessionId)
+  function getConversationSocket(sessionId: string): ServerWebSocket<unknown> | undefined {
+    const wrappers = conversationSockets.get(sessionId)
     if (!wrappers || wrappers.size === 0) return undefined
     // Return the most recently added wrapper socket
     let last: ServerWebSocket<unknown> | undefined
@@ -1684,35 +1684,35 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     return last
   }
 
-  function getSessionSocketByConversation(conversationId: string): ServerWebSocket<unknown> | undefined {
-    for (const wrappers of sessionSockets.values()) {
+  function findSocketByConversationId(conversationId: string): ServerWebSocket<unknown> | undefined {
+    for (const wrappers of conversationSockets.values()) {
       const ws = wrappers.get(conversationId)
       if (ws) return ws
     }
     return undefined
   }
 
-  function getSessionByConversation(conversationId: string): Conversation | undefined {
-    for (const [sessionId, wrappers] of sessionSockets.entries()) {
-      if (wrappers.has(conversationId)) return sessions.get(sessionId)
+  function findConversationByConversationId(conversationId: string): Conversation | undefined {
+    for (const [sessionId, wrappers] of conversationSockets.entries()) {
+      if (wrappers.has(conversationId)) return conversations.get(sessionId)
     }
     return undefined
   }
 
-  function removeSessionSocket(sessionId: string, conversationId: string): void {
-    const wrappers = sessionSockets.get(sessionId)
+  function removeConversationSocket(sessionId: string, conversationId: string): void {
+    const wrappers = conversationSockets.get(sessionId)
     if (wrappers) {
       wrappers.delete(conversationId)
-      if (wrappers.size === 0) sessionSockets.delete(sessionId)
+      if (wrappers.size === 0) conversationSockets.delete(sessionId)
     }
   }
 
   function getActiveConversationCount(sessionId: string): number {
-    return sessionSockets.get(sessionId)?.size ?? 0
+    return conversationSockets.get(sessionId)?.size ?? 0
   }
 
   function getConversationIds(sessionId: string): string[] {
-    const wrappers = sessionSockets.get(sessionId)
+    const wrappers = conversationSockets.get(sessionId)
     return wrappers ? Array.from(wrappers.keys()) : []
   }
 
@@ -1733,12 +1733,12 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
 
   // Dashboard subscriber management
   function addSubscriber(ws: ServerWebSocket<unknown>, protocolVersion = 1): void {
-    dashboardSubscribers.add(ws)
+    controlPanelSubscribers.add(ws)
 
     // Track v2 subscribers and create registry entry (delegated to channel registry)
     channelRegistry.registerSubscriber(ws, protocolVersion, () => ++subscriberIdCounter)
 
-    sendSessionsList(ws)
+    sendConversationsList(ws)
 
     // If this is a share viewer, notify admins about updated viewer counts
     if ((ws.data as { shareToken?: string }).shareToken) {
@@ -1747,7 +1747,10 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
   }
 
   /** Filter sessions by user's grants - only show sessions they have chat:read for */
-  function filterSessionsByGrants(allSessions: ConversationSummary[], grants?: UserGrant[]): ConversationSummary[] {
+  function filterConversationsByGrants(
+    allSessions: ConversationSummary[],
+    grants?: UserGrant[],
+  ): ConversationSummary[] {
     if (!grants) return allSessions // no grants = admin/secret auth = see everything
     return allSessions.filter(s => {
       const { permissions } = resolvePermissions(grants, s.project)
@@ -1755,27 +1758,27 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     })
   }
 
-  function buildSessionsListMessage(grants?: UserGrant[]): string {
-    const allSummaries = Array.from(sessions.values()).map(toSessionSummary)
+  function buildConversationsListMessage(grants?: UserGrant[]): string {
+    const allSummaries = Array.from(conversations.values()).map(toConversationSummary)
     return JSON.stringify({
       type: 'conversations_list',
-      sessions: filterSessionsByGrants(allSummaries, grants),
+      sessions: filterConversationsByGrants(allSummaries, grants),
       serverVersion: BUILD_VERSION.gitHashShort,
       _epoch: sync.epoch,
       _seq: sync.seq,
     })
   }
 
-  function sendSessionsList(ws: ServerWebSocket<unknown>): void {
+  function sendConversationsList(ws: ServerWebSocket<unknown>): void {
     try {
       const grants = (ws.data as { grants?: UserGrant[] }).grants
-      ws.send(buildSessionsListMessage(grants))
+      ws.send(buildConversationsListMessage(grants))
     } catch {}
   }
 
   function removeSubscriber(ws: ServerWebSocket<unknown>): void {
     const wasShareViewer = !!(ws.data as { shareToken?: string }).shareToken
-    dashboardSubscribers.delete(ws)
+    controlPanelSubscribers.delete(ws)
     // Unregister from channel registry (removes v2, unsubscribes all channels, deletes registry entry)
     channelRegistry.unregisterSubscriber(ws)
 
@@ -1786,7 +1789,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
   }
 
   function updateTasks(sessionId: string, tasks: TaskInfo[]): void {
-    const session = sessions.get(sessionId)
+    const session = conversations.get(sessionId)
     if (!session) return
 
     // Diff: find tasks that disappeared (deleted by Claude after completion)
@@ -1800,20 +1803,20 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     }
 
     session.tasks = tasks
-    scheduleSessionUpdate(sessionId)
+    scheduleConversationUpdate(sessionId)
   }
 
   function getSubscriberCount(): number {
-    return dashboardSubscribers.size
+    return controlPanelSubscribers.size
   }
 
   function getSubscribers(): Set<ServerWebSocket<unknown>> {
-    return dashboardSubscribers
+    return controlPanelSubscribers
   }
 
   function getShareViewerCount(shareToken: string): number {
     let count = 0
-    for (const ws of dashboardSubscribers) {
+    for (const ws of controlPanelSubscribers) {
       if ((ws.data as { shareToken?: string }).shareToken === shareToken) count++
     }
     return count
@@ -1834,7 +1837,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
       viewerCount: getShareViewerCount(s.token),
     }))
     const json = JSON.stringify({ type: 'shares_updated', shares })
-    for (const ws of dashboardSubscribers) {
+    for (const ws of controlPanelSubscribers) {
       const data = ws.data as { grants?: UserGrant[]; isShare?: boolean }
       // Skip share viewers - they don't manage shares
       if (data.isShare) continue
@@ -1983,7 +1986,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     dirtyTranscripts.add(sessionId)
 
     // Extract stats from transcript entries
-    const session = sessions.get(sessionId)
+    const session = conversations.get(sessionId)
     let sessionChanged = false
     if (session) {
       // Ensure stats object exists (sessions created before this feature)
@@ -2175,7 +2178,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
                   ...(mime ? { base64, mimeType: mime } : { text: decodedText }),
                   timestamp: Date.now(),
                 }
-                broadcastSessionScoped(capture, session.project)
+                broadcastConversationScoped(capture, session.project)
                 if (toolUseId) processedClipboardIds.add(toolUseId)
                 // Persist to shared files log (per-project, survives restarts)
                 const clipHash = `clip_${Date.now().toString(36)}_${base64.slice(0, 8)}`
@@ -2392,7 +2395,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     }
 
     if (session && sessionChanged) {
-      scheduleSessionUpdate(sessionId)
+      scheduleConversationUpdate(sessionId)
     }
   }
 
@@ -2439,7 +2442,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     }
 
     // Extract token usage from subagent transcript entries
-    const session = sessions.get(sessionId)
+    const session = conversations.get(sessionId)
     if (!session) return
     const subagent = session.subagents.find(a => a.agentId === agentId)
     if (!subagent) return
@@ -2465,7 +2468,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
       changed = true
     }
 
-    if (changed) broadcastSessionUpdate(sessionId)
+    if (changed) broadcastConversationUpdate(sessionId)
   }
 
   function getSubagentTranscriptEntries(sessionId: string, agentId: string, limit?: number): TranscriptEntry[] {
@@ -2488,7 +2491,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
       bgTaskOutputCache.set(taskId, combined.length > 100_000 ? combined.slice(-100_000) : combined)
     }
     // Store output reference on the bgTask if it exists
-    const session = sessions.get(sessionId)
+    const session = conversations.get(sessionId)
     if (session && done) {
       const bgTask = session.bgTasks.find(t => t.taskId === taskId)
       if (bgTask && bgTask.status === 'running') {
@@ -2553,20 +2556,20 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
 
   function resolveRendezvous(conversationId: string, sessionId: string): boolean {
     return rendezvous.resolveRendezvous(conversationId, sessionId, id => {
-      const session = sessions.get(id)
-      return session ? toSessionSummary(session) : undefined
+      const session = conversations.get(id)
+      return session ? toConversationSummary(session) : undefined
     })
   }
 
   // ─── Pending session names (set at spawn time, applied on connect) ──
   const pendingSessionNames = new Map<string, string>()
 
-  function setPendingSessionName(conversationId: string, name: string): void {
+  function setPendingConversationName(conversationId: string, name: string): void {
     pendingSessionNames.set(conversationId, name)
     setTimeout(() => pendingSessionNames.delete(conversationId), 120_000)
   }
 
-  function consumePendingSessionName(conversationId: string): string | undefined {
+  function consumePendingConversationName(conversationId: string): string | undefined {
     const name = pendingSessionNames.get(conversationId)
     if (name) pendingSessionNames.delete(conversationId)
     return name
@@ -2575,12 +2578,12 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
   // File listeners: from extracted listeners module
   const { addFileListener, removeFileListener, resolveFile } = listeners
 
-  function broadcastSessionUpdate(sessionId: string): void {
-    scheduleSessionUpdate(sessionId)
+  function broadcastConversationUpdate(sessionId: string): void {
+    scheduleConversationUpdate(sessionId)
   }
 
   // Inter-project link registry: extracted to project-links.ts
-  const projectLinkReg = createProjectLinkRegistry(sessions, sessionSockets)
+  const projectLinkReg = createProjectLinkRegistry(conversations, conversationSockets)
   const {
     checkProjectLink,
     linkProjects,
@@ -2597,29 +2600,29 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
 
   function broadcastForProject(projectOrCwd: string): void {
     const project = projectLinkReg.toProjectUri(projectOrCwd)
-    for (const [id, s] of sessions) {
-      if (s.project === project) scheduleSessionUpdate(id)
+    for (const [id, s] of conversations) {
+      if (s.project === project) scheduleConversationUpdate(id)
     }
   }
 
   return {
-    createSession,
-    resumeSession,
-    rekeySession,
-    getSession,
-    getAllSessions,
-    getActiveSessions,
+    createConversation,
+    resumeConversation,
+    rekeyConversation,
+    getConversation,
+    getAllConversations,
+    getActiveConversations,
     addEvent,
     updateActivity,
     updateTasks,
-    endSession,
-    removeSession,
-    getSessionEvents,
-    setSessionSocket,
-    getSessionSocket,
-    getSessionSocketByConversation,
-    getSessionByConversation,
-    removeSessionSocket,
+    endConversation,
+    removeConversation,
+    getConversationEvents,
+    setConversationSocket,
+    getConversationSocket,
+    findSocketByConversationId,
+    findConversationByConversationId,
+    removeConversationSocket,
     getActiveConversationCount,
     getConversationIds,
     addTerminalViewer,
@@ -2633,15 +2636,15 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     removeJsonStreamViewerBySocket,
     hasJsonStreamViewers,
     addSubscriber,
-    sendSessionsList,
+    sendConversationsList,
     handleSyncCheck,
     getSyncState: () => ({ epoch: sync.epoch, seq: sync.seq }),
     removeSubscriber,
     getSubscriberCount,
     getSubscribers,
     getShareViewerCount,
-    broadcastSessionScoped: (message: Record<string, unknown>, project: string) =>
-      broadcastSessionScoped(message as unknown as ControlPanelMessage, project),
+    broadcastConversationScoped: (message: Record<string, unknown>, project: string) =>
+      broadcastConversationScoped(message as unknown as ControlPanelMessage, project),
     broadcastSharesUpdate,
     subscribeChannel,
     unsubscribeChannel,
@@ -2672,7 +2675,7 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     hasSubagentTranscriptCache,
     addBgTaskOutput,
     getBgTaskOutput,
-    broadcastSessionUpdate,
+    broadcastConversationUpdate,
     createJob,
     recordJobConfig,
     subscribeJob,
@@ -2709,8 +2712,8 @@ export function createConversationStore(options: SessionStoreOptions = {}): Conv
     getRendezvousInfo,
     setPendingLaunchConfig,
     consumePendingLaunchConfig,
-    setPendingSessionName,
-    consumePendingSessionName,
+    setPendingConversationName,
+    consumePendingConversationName,
     recordTraffic,
     getTrafficStats,
     saveState,

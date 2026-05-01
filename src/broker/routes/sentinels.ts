@@ -4,8 +4,8 @@
  */
 
 import { Hono } from 'hono'
-import { isValidSentinelAlias, type SentinelRegistry } from '../sentinel-registry'
 import type { ConversationStore } from '../conversation-store'
+import { isValidSentinelAlias, type SentinelRegistry } from '../sentinel-registry'
 import type { RouteHelpers } from './shared'
 
 export function createSentinelRouter(
