@@ -14,7 +14,7 @@ interface WsData {
 
 export interface WsServerOptions {
   port: number
-  sessionStore: ConversationStore
+  conversationStore: ConversationStore
   onSessionStart?: (sessionId: string, meta: ConversationMeta) => void
   onSessionEnd?: (sessionId: string, reason: string) => void
   onHookEvent?: (sessionId: string, event: HookEvent) => void
@@ -26,7 +26,7 @@ type WsServer = Server<WsData>
  * Create WebSocket server for broker
  */
 export function createWsServer(options: WsServerOptions): WsServer {
-  const { port, sessionStore, onSessionStart, onSessionEnd, onHookEvent } = options
+  const { port, conversationStore, onSessionStart, onSessionEnd, onHookEvent } = options
 
   const server = Bun.serve<WsData>({
     port,
@@ -60,14 +60,14 @@ export function createWsServer(options: WsServerOptions): WsServer {
               ws.data.sessionId = meta.sessionId
 
               // Check if session already exists (resume case)
-              const existingSession = sessionStore.getConversation(meta.sessionId)
+              const existingSession = conversationStore.getConversation(meta.sessionId)
               if (existingSession) {
                 // Resume existing session
-                sessionStore.resumeConversation(meta.sessionId)
+                conversationStore.resumeConversation(meta.sessionId)
                 if (meta.configuredModel) existingSession.configuredModel = meta.configuredModel
               } else {
                 // Create new session
-                const session = sessionStore.createConversation(
+                const session = conversationStore.createConversation(
                   meta.sessionId,
                   parseProjectUri(meta.project).path,
                   meta.model,
@@ -77,7 +77,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
               }
 
               // Track socket for this session (for sending input)
-              sessionStore.setConversationSocket(meta.sessionId, meta.conversationId || meta.sessionId, ws)
+              conversationStore.setConversationSocket(meta.sessionId, meta.conversationId || meta.sessionId, ws)
 
               onSessionStart?.(meta.sessionId, meta)
 
@@ -92,7 +92,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
               const sessionId = ws.data.sessionId || event.conversationId
 
               if (sessionId) {
-                sessionStore.addEvent(sessionId, event)
+                conversationStore.addEvent(sessionId, event)
                 onHookEvent?.(sessionId, event)
               }
               break
@@ -109,7 +109,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
               const sessionId = ws.data.sessionId || end.sessionId
 
               if (sessionId) {
-                sessionStore.endConversation(sessionId, end.reason)
+                conversationStore.endConversation(sessionId, end.reason)
                 onSessionEnd?.(sessionId, end.reason)
               }
               break
@@ -126,9 +126,9 @@ export function createWsServer(options: WsServerOptions): WsServer {
       close(ws: ServerWebSocket<WsData>) {
         const sessionId = ws.data.sessionId
         if (sessionId) {
-          const session = sessionStore.getConversation(sessionId)
+          const session = conversationStore.getConversation(sessionId)
           if (session && session.status !== 'ended') {
-            sessionStore.endConversation(sessionId, 'connection_closed')
+            conversationStore.endConversation(sessionId, 'connection_closed')
             onSessionEnd?.(sessionId, 'connection_closed')
           }
         }

@@ -25,7 +25,7 @@ import type { RouteHelpers } from './shared'
 import { broadcastToSubscribers } from './shared'
 
 export function createApiRouter(
-  sessionStore: ConversationStore,
+  conversationStore: ConversationStore,
   helpers: RouteHelpers,
   rclaudeSecret: string | undefined,
   cacheDir: string | undefined,
@@ -179,7 +179,7 @@ export function createApiRouter(
     if (!project) return c.json({ error: 'Missing project' }, 400)
     setProjectSettings(project, body.settings || {})
     const allSettings = getAllProjectSettings()
-    broadcastToSubscribers(sessionStore, { type: 'project_settings_updated', settings: allSettings })
+    broadcastToSubscribers(conversationStore, { type: 'project_settings_updated', settings: allSettings })
     return c.json({ success: true, settings: allSettings })
   })
 
@@ -191,7 +191,7 @@ export function createApiRouter(
     if (!project) return c.json({ error: 'Missing project' }, 400)
     deleteProjectSettings(project)
     const allSettings = getAllProjectSettings()
-    broadcastToSubscribers(sessionStore, { type: 'project_settings_updated', settings: allSettings })
+    broadcastToSubscribers(conversationStore, { type: 'project_settings_updated', settings: allSettings })
     return c.json({ success: true, settings: allSettings })
   })
 
@@ -205,11 +205,11 @@ export function createApiRouter(
     const projectPath = body.project || body.cwd
     if (!projectPath) return c.json({ error: 'Missing project' }, 400)
 
-    const allSessions = sessionStore.getAllConversations()
+    const allSessions = conversationStore.getAllConversations()
     const sessionForCwd = allSessions.find(
       s => parseProjectUri(s.project).path === projectPath && s.status === 'active',
     )
-    const wrapperSocket = sessionForCwd ? sessionStore.getConversationSocket(sessionForCwd.id) : null
+    const wrapperSocket = sessionForCwd ? conversationStore.getConversationSocket(sessionForCwd.id) : null
     if (!wrapperSocket) {
       return c.json({ error: 'No active session connected for this project' }, 503)
     }
@@ -227,11 +227,11 @@ export function createApiRouter(
         const content = await new Promise<string | null>((resolve, reject) => {
           const requestId = randomUUID()
           const timeout = setTimeout(() => {
-            sessionStore.removeFileListener(requestId)
+            conversationStore.removeFileListener(requestId)
             reject(new Error(`File read timed out (5s): ${filePath}`))
           }, 5000)
 
-          sessionStore.addFileListener(requestId, raw => {
+          conversationStore.addFileListener(requestId, raw => {
             clearTimeout(timeout)
             const msg = raw as { data?: string; error?: string }
             if (msg.error || !msg.data) resolve(null)
@@ -306,7 +306,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const body = await c.req.json()
     const result = updateGlobalSettings(body)
-    broadcastToSubscribers(sessionStore, { type: 'settings_updated', settings: result.settings })
+    broadcastToSubscribers(conversationStore, { type: 'settings_updated', settings: result.settings })
     return c.json(result)
   })
 
@@ -316,7 +316,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
     // Require files permission -- check session CWD if available, else any grant
     const uploadSessionId = c.req.header('x-session-id') || c.req.query('sessionId') || undefined
-    const uploadCwd = uploadSessionId ? sessionStore.getConversation(uploadSessionId)?.project : undefined
+    const uploadCwd = uploadSessionId ? conversationStore.getConversation(uploadSessionId)?.project : undefined
     if (uploadCwd) {
       if (!httpHasPermission(c.req.raw, 'files', uploadCwd))
         return c.json({ error: 'Forbidden: files permission required' }, 403)
@@ -362,7 +362,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
     // Log to shared files index (keyed by project for per-project queries)
     const sessionId = c.req.header('x-session-id') || c.req.query('sessionId') || undefined
-    const sessionProject = sessionId ? sessionStore.getConversation(sessionId)?.project : undefined
+    const sessionProject = sessionId ? conversationStore.getConversation(sessionId)?.project : undefined
     appendSharedFile({
       type: 'file',
       hash,
@@ -438,7 +438,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     setProjectOrder(body as ProjectOrder)
     const order = getProjectOrder()
     // Broadcast filtered order per subscriber's grants
-    for (const ws of sessionStore.getSubscribers()) {
+    for (const ws of conversationStore.getSubscribers()) {
       try {
         const wsGrants = (ws.data as { grants?: UserGrant[] }).grants
         const scopedOrder = wsGrants ? { ...order, tree: filterProjectOrderTree(order.tree, wsGrants) } : order
@@ -472,7 +472,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
 
     const keyterms: string[] = []
     if (body.sessionId) {
-      const session = sessionStore.getConversation(body.sessionId)
+      const session = conversationStore.getConversation(body.sessionId)
       if (session?.project) {
         const projSettings = getProjectSettings(session.project)
         if (projSettings?.keyterms?.length) {

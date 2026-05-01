@@ -94,14 +94,14 @@ export interface SessionOverview {
   lastEvent?: { hookEvent: string; timestamp: number }
 }
 
-export function sessionToOverview(session: Conversation, sessionStore: ConversationStore): SessionOverview {
+export function sessionToOverview(session: Conversation, conversationStore: ConversationStore): SessionOverview {
   const lastEvent = session.events[session.events.length - 1]
   return {
     id: session.id,
     project: session.project,
     model: session.model,
     status: session.status,
-    conversationIds: sessionStore.getConversationIds(session.id),
+    conversationIds: conversationStore.getConversationIds(session.id),
     startedAt: session.startedAt,
     lastActivity: session.lastActivity,
     eventCount: session.events.length,
@@ -118,9 +118,9 @@ export function sessionToOverview(session: Conversation, sessionStore: Conversat
 
 // ─── Broadcast helper ──────────────────────────────────────────────────
 
-export function broadcastToSubscribers(sessionStore: ConversationStore, message: Record<string, unknown>) {
+export function broadcastToSubscribers(conversationStore: ConversationStore, message: Record<string, unknown>) {
   const json = JSON.stringify(message)
-  for (const ws of sessionStore.getSubscribers()) {
+  for (const ws of conversationStore.getSubscribers()) {
     try {
       ws.send(json)
     } catch {

@@ -10,7 +10,7 @@ import type { RouteHelpers } from './shared'
 
 export function createSentinelRouter(
   sentinelRegistry: SentinelRegistry,
-  sessionStore: ConversationStore,
+  conversationStore: ConversationStore,
   helpers: RouteHelpers,
 ): Hono {
   const { httpIsAdmin } = helpers
@@ -64,7 +64,7 @@ export function createSentinelRouter(
     }> = []
 
     for (const [sentinelId, record] of all) {
-      const conn = sessionStore.getSentinelConnection(sentinelId)
+      const conn = conversationStore.getSentinelConnection(sentinelId)
       result.push({
         sentinelId,
         alias: record.aliases[0],
@@ -121,7 +121,7 @@ export function createSentinelRouter(
     if (!record) return c.json({ error: 'Sentinel not found' }, 404)
 
     // Disconnect sentinel if online
-    const conn = sessionStore.getSentinelConnection(sentinelId)
+    const conn = conversationStore.getSentinelConnection(sentinelId)
     if (conn) {
       try {
         conn.ws.close(4403, 'Sentinel revoked')

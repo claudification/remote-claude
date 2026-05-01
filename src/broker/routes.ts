@@ -78,7 +78,7 @@ if (hasEmbeddedWeb) {
 // ─── Route factory ─────────────────────────────────────────────────────
 
 export interface RouteOptions {
-  sessionStore: ConversationStore
+  conversationStore: ConversationStore
   store: StoreDriver
   webDir?: string
   vapidPublicKey?: string
@@ -91,7 +91,7 @@ export interface RouteOptions {
 
 export function createRouter(options: RouteOptions): Hono {
   const {
-    sessionStore,
+    conversationStore,
     store,
     webDir,
     vapidPublicKey,
@@ -193,14 +193,14 @@ export function createRouter(options: RouteOptions): Hono {
 
   // ─── Sentinel ──────────────────────────────────────────────────────
   app.get('/sentinel/status', c => {
-    const connected = sessionStore.hasSentinel()
-    const info = sessionStore.getSentinelInfo()
+    const connected = conversationStore.hasSentinel()
+    const info = conversationStore.getSentinelInfo()
     return c.json({ connected, machineId: info?.machineId, hostname: info?.hostname })
   })
 
   app.post('/sentinel/quit', c => {
     if (!helpers.httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
-    const sentinel = sessionStore.getSentinel()
+    const sentinel = conversationStore.getSentinel()
     if (!sentinel) return c.json({ error: 'No sentinel connected' }, 404)
     sentinel.send(JSON.stringify({ type: 'quit', reason: 'Requested via API' }))
     return c.json({ success: true })
@@ -208,23 +208,23 @@ export function createRouter(options: RouteOptions): Hono {
 
   app.get('/api/sentinel/diag', c => {
     if (!helpers.httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
-    const info = sessionStore.getSentinelInfo()
+    const info = conversationStore.getSentinelInfo()
     return c.json({
-      connected: sessionStore.hasSentinel(),
+      connected: conversationStore.hasSentinel(),
       machineId: info?.machineId,
       hostname: info?.hostname,
-      entries: sessionStore.getSentinelDiag(),
+      entries: conversationStore.getSentinelDiag(),
     })
   })
 
   // ─── Sub-routers ────────────────────────────────────────────────────
-  app.route('/', createSessionsRouter(sessionStore, helpers))
-  app.route('/', createSpawnRouter(sessionStore, helpers))
-  app.route('/', createApiRouter(sessionStore, helpers, rclaudeSecret, cacheDir, blobDir, publicOrigin, vapidPublicKey))
-  app.route('/', createStatsRouter(sessionStore, store, helpers, serverStartTime))
-  app.route('/', createAdminRouter(sessionStore, helpers, rclaudeSecret))
+  app.route('/', createSessionsRouter(conversationStore, helpers))
+  app.route('/', createSpawnRouter(conversationStore, helpers))
+  app.route('/', createApiRouter(conversationStore, helpers, rclaudeSecret, cacheDir, blobDir, publicOrigin, vapidPublicKey))
+  app.route('/', createStatsRouter(conversationStore, store, helpers, serverStartTime))
+  app.route('/', createAdminRouter(conversationStore, helpers, rclaudeSecret))
   if (sentinelRegistry) {
-    app.route('/', createSentinelRouter(sentinelRegistry, sessionStore, helpers))
+    app.route('/', createSentinelRouter(sentinelRegistry, conversationStore, helpers))
   }
 
   // ─── Static file serving ───────────────────────────────────────────

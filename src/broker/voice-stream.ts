@@ -32,7 +32,7 @@ const voiceSessions = new Map<ServerWebSocket<unknown>, VoiceSession>()
 export function handleVoiceStart(
   ws: ServerWebSocket<unknown>,
   data: { sessionId?: string; project?: string },
-  sessionStore: ConversationStore,
+  conversationStore: ConversationStore,
 ) {
   const deepgramKey = process.env.DEEPGRAM_API_KEY
   if (!deepgramKey) {
@@ -45,7 +45,7 @@ export function handleVoiceStart(
 
   // Build keyterms from project settings
   const keyterms: string[] = []
-  const project = data.project || (data.sessionId ? sessionStore.getConversation(data.sessionId)?.project : null)
+  const project = data.project || (data.sessionId ? conversationStore.getConversation(data.sessionId)?.project : null)
   if (project) {
     const projSettings = getProjectSettings(project)
     if (projSettings?.keyterms?.length) {

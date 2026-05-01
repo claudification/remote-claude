@@ -13,7 +13,7 @@ import { getProjectSettings } from '../project-settings'
 import { dispatchSpawn } from '../spawn-dispatch'
 import type { RouteHelpers } from './shared'
 
-export function createSpawnRouter(sessionStore: ConversationStore, helpers: RouteHelpers): Hono {
+export function createSpawnRouter(conversationStore: ConversationStore, helpers: RouteHelpers): Hono {
   const { httpHasPermission } = helpers
   const app = new Hono()
 
@@ -31,7 +31,7 @@ export function createSpawnRouter(sessionStore: ConversationStore, helpers: Rout
     // Build caller context for the unified permission gate. MCP callers
     // identify themselves via X-Caller-Session; everything else is dashboard HTTP.
     const callerSessionId = c.req.header('X-Caller-Session')
-    const callerSess = callerSessionId ? sessionStore.getConversation(callerSessionId) : null
+    const callerSess = callerSessionId ? conversationStore.getConversation(callerSessionId) : null
     const callerProject = callerSess?.project ?? null
     const callerTrust = callerProject ? mapProjectTrust(getProjectSettings(callerProject)?.trustLevel) : 'trusted'
     const callerContext: SpawnCallerContext = {
@@ -42,7 +42,7 @@ export function createSpawnRouter(sessionStore: ConversationStore, helpers: Rout
     }
 
     const result = await dispatchSpawn(body, {
-      sessions: sessionStore,
+      sessions: conversationStore,
       getProjectSettings,
       getGlobalSettings,
       callerContext,
@@ -67,12 +67,12 @@ export function createSpawnRouter(sessionStore: ConversationStore, helpers: Rout
       return c.json({ error: 'Forbidden: spawn permission required' }, 403)
 
     const sentinelAlias = c.req.query('sentinel')
-    let sentinel: ReturnType<typeof sessionStore.getSentinel>
+    let sentinel: ReturnType<typeof conversationStore.getSentinel>
     if (sentinelAlias) {
-      sentinel = sessionStore.getSentinelByAlias(sentinelAlias)
+      sentinel = conversationStore.getSentinelByAlias(sentinelAlias)
       if (!sentinel) return c.json({ error: `Sentinel "${sentinelAlias}" not connected` }, 503)
     } else {
-      sentinel = sessionStore.getSentinel()
+      sentinel = conversationStore.getSentinel()
       if (!sentinel) return c.json({ error: 'No sentinel connected' }, 503)
     }
 
@@ -81,11 +81,11 @@ export function createSpawnRouter(sessionStore: ConversationStore, helpers: Rout
 
     const result = await new Promise<ListDirsResult>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        sessionStore.removeDirListener(requestId)
+        conversationStore.removeDirListener(requestId)
         reject(new Error('Directory listing timed out (5s)'))
       }, 5000)
 
-      sessionStore.addDirListener(requestId, msg => {
+      conversationStore.addDirListener(requestId, msg => {
         clearTimeout(timeout)
         resolve(msg as ListDirsResult)
       })

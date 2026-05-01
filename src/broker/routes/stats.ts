@@ -14,7 +14,7 @@ import type { StoreDriver } from '../store/types'
 import type { RouteHelpers } from './shared'
 
 export function createStatsRouter(
-  sessionStore: ConversationStore,
+  conversationStore: ConversationStore,
   store: StoreDriver,
   helpers: RouteHelpers,
   serverStartTime: number,
@@ -25,7 +25,7 @@ export function createStatsRouter(
   // ─── Stats ─────────────────────────────────────────────────────────
   app.get('/api/stats', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
-    const allSessions = sessionStore.getAllConversations()
+    const allSessions = conversationStore.getAllConversations()
     let active = 0
     let idle = 0
     let ended = 0
@@ -35,8 +35,8 @@ export function createStatsRouter(
       else ended++
     }
 
-    const diag = sessionStore.getSubscriptionsDiag()
-    const traffic = sessionStore.getTrafficStats()
+    const diag = conversationStore.getSubscriptionsDiag()
+    const traffic = conversationStore.getTrafficStats()
 
     return c.json({
       uptime: Math.round((Date.now() - serverStartTime) / 1000),
@@ -53,7 +53,7 @@ export function createStatsRouter(
 
   app.get('/api/subscriptions', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
-    return c.json(sessionStore.getSubscriptionsDiag())
+    return c.json(conversationStore.getSubscriptionsDiag())
   })
 
   // ─── Cost reporting ─────────────────────────────────────────────────

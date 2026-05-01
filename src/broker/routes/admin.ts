@@ -32,7 +32,7 @@ import {
 import type { RouteHelpers } from './shared'
 
 export function createAdminRouter(
-  sessionStore: ConversationStore,
+  conversationStore: ConversationStore,
   helpers: RouteHelpers,
   rclaudeSecret: string | undefined,
 ): Hono {
@@ -68,7 +68,7 @@ export function createAdminRouter(
   function refreshUserPermissions(userName: string) {
     const user = getUser(userName)
     if (!user) return
-    for (const ws of sessionStore.getSubscribers()) {
+    for (const ws of conversationStore.getSubscribers()) {
       if ((ws.data as { userName?: string }).userName === userName) {
         // Hot-reload grants on the live WS connection
         ;(ws.data as { grants?: unknown }).grants = user.grants
@@ -76,14 +76,14 @@ export function createAdminRouter(
         const serverRoles = user.serverRoles
         const global = resolvePermissionFlags(user.grants, '*', serverRoles)
         const perSessionPerms: Record<string, ReturnType<typeof resolvePermissionFlags>> = {}
-        for (const s of sessionStore.getActiveConversations()) {
+        for (const s of conversationStore.getActiveConversations()) {
           perSessionPerms[s.id] = resolvePermissionFlags(user.grants, s.project, serverRoles)
         }
         try {
           ws.send(JSON.stringify({ type: 'permissions', global, sessions: perSessionPerms }))
         } catch {}
         // Re-send filtered session list (user might gain/lose access)
-        sessionStore.sendConversationsList(ws)
+        conversationStore.sendConversationsList(ws)
       }
     }
   }
@@ -157,11 +157,11 @@ export function createAdminRouter(
     const name = c.req.param('name')
     if (revokeUser(name)) {
       // Kill active WS connections for revoked user
-      for (const ws of sessionStore.getSubscribers()) {
+      for (const ws of conversationStore.getSubscribers()) {
         if ((ws.data as { userName?: string }).userName === name) {
-          sessionStore.removeTerminalViewerBySocket(ws)
-          sessionStore.removeJsonStreamViewerBySocket(ws)
-          sessionStore.removeSubscriber(ws)
+          conversationStore.removeTerminalViewerBySocket(ws)
+          conversationStore.removeJsonStreamViewerBySocket(ws)
+          conversationStore.removeSubscriber(ws)
           try {
             ws.close(4401, 'User revoked')
           } catch {}
@@ -248,7 +248,7 @@ export function createAdminRouter(
         hideUserInput: body.hideUserInput,
       })
       const origin = c.req.header('origin') || ''
-      sessionStore.broadcastSharesUpdate()
+      conversationStore.broadcastSharesUpdate()
       return c.json({
         token: share.token,
         expiresAt: share.expiresAt,
@@ -265,7 +265,7 @@ export function createAdminRouter(
     // Include connected viewer count per share
     const shares = active.map(s => ({
       ...s,
-      viewerCount: sessionStore.getShareViewerCount(s.token),
+      viewerCount: conversationStore.getShareViewerCount(s.token),
     }))
     return c.json({ shares })
   })
@@ -276,7 +276,7 @@ export function createAdminRouter(
     if (!share) return c.json({ error: 'Share not found' }, 404)
     return c.json({
       ...share,
-      viewerCount: sessionStore.getShareViewerCount(share.token),
+      viewerCount: conversationStore.getShareViewerCount(share.token),
     })
   })
 
@@ -285,7 +285,7 @@ export function createAdminRouter(
     const token = c.req.param('token')
     if (revokeSessionShare(token)) {
       // Kill all WS connections authenticated with this share token
-      for (const ws of sessionStore.getSubscribers()) {
+      for (const ws of conversationStore.getSubscribers()) {
         if ((ws.data as { shareToken?: string }).shareToken === token) {
           try {
             ws.send(JSON.stringify({ type: 'share_expired', reason: 'Share has been revoked' }))
@@ -293,7 +293,7 @@ export function createAdminRouter(
           } catch {}
         }
       }
-      sessionStore.broadcastSharesUpdate()
+      conversationStore.broadcastSharesUpdate()
       return c.json({ ok: true })
     }
     return c.json({ error: 'Share not found' }, 404)
@@ -303,7 +303,7 @@ export function createAdminRouter(
   app.get('/api/links', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const persisted = getPersistedLinks()
-    const activeSessions = sessionStore.getActiveConversations()
+    const activeSessions = conversationStore.getActiveConversations()
 
     const links = persisted.map(pl => {
       const sessA = activeSessions.find(s => parseProjectUri(s.project).path === pl.projectA)
@@ -334,10 +334,10 @@ export function createAdminRouter(
     const link = addPersistedLink(body.projectA, body.projectB)
 
     // Activate the in-memory project link
-    const active = sessionStore.getActiveConversations()
+    const active = conversationStore.getActiveConversations()
     const anyA = active.find(s => parseProjectUri(s.project).path === link.projectA)
     const anyB = active.find(s => parseProjectUri(s.project).path === link.projectB)
-    if (anyA && anyB) sessionStore.linkProjects(anyA.id, anyB.id)
+    if (anyA && anyB) conversationStore.linkProjects(anyA.id, anyB.id)
 
     return c.json({ ok: true, link })
   })
@@ -350,7 +350,7 @@ export function createAdminRouter(
     const removed = removePersistedLink(body.projectA, body.projectB)
 
     // Sever the in-memory project link
-    sessionStore.unlinkProjects(body.projectA, body.projectB)
+    conversationStore.unlinkProjects(body.projectA, body.projectB)
 
     let purged = 0
     if (body.purgeHistory) {

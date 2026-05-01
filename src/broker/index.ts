@@ -362,7 +362,7 @@ async function main() {
   const sentinelRegistry = authCacheDir ? createSentinelRegistry(authCacheDir) : undefined
   if (sentinelRegistry) setSentinelRegistry(sentinelRegistry)
 
-  const sessionStore = createConversationStore({
+  const conversationStore = createConversationStore({
     cacheDir,
     enablePersistence: !noPersistence,
     store,
@@ -371,7 +371,7 @@ async function main() {
 
   // Handle --clear-cache
   if (clearCache) {
-    await sessionStore.clearState()
+    await conversationStore.clearState()
     console.log('Cache cleared.')
     process.exit(0)
   }
@@ -398,16 +398,16 @@ async function main() {
     console.log('[auth] Reloaded auth + sentinel registry from disk (SIGHUP)')
 
     // Terminate WS connections for revoked users
-    const subscribers = sessionStore.getSubscribers()
+    const subscribers = conversationStore.getSubscribers()
     for (const ws of subscribers) {
       const userName = (ws.data as { userName?: string }).userName
       if (userName) {
         const user = getUser(userName)
         if (!user || user.revoked) {
           console.log(`[auth] Terminating WS for revoked user: ${userName}`)
-          sessionStore.removeTerminalViewerBySocket(ws)
-          sessionStore.removeJsonStreamViewerBySocket(ws)
-          sessionStore.removeSubscriber(ws)
+          conversationStore.removeTerminalViewerBySocket(ws)
+          conversationStore.removeJsonStreamViewerBySocket(ws)
+          conversationStore.removeSubscriber(ws)
           try {
             ws.close(4401, 'User revoked')
           } catch {}
@@ -421,16 +421,16 @@ async function main() {
 
   // Periodically close dashboard WS connections with expired auth tokens
   setInterval(() => {
-    const subscribers = sessionStore.getSubscribers()
+    const subscribers = conversationStore.getSubscribers()
     for (const ws of subscribers) {
       const data = ws.data as { authToken?: string; userName?: string }
       if (!data.authToken) continue // rclaude/agent connections use secret, not tokens
       const session = validateSession(data.authToken)
       if (!session) {
         console.log(`[auth] Closing expired WS for user: ${data.userName || 'unknown'}`)
-        sessionStore.removeTerminalViewerBySocket(ws)
-        sessionStore.removeJsonStreamViewerBySocket(ws)
-        sessionStore.removeSubscriber(ws)
+        conversationStore.removeTerminalViewerBySocket(ws)
+        conversationStore.removeJsonStreamViewerBySocket(ws)
+        conversationStore.removeSubscriber(ws)
         try {
           ws.close(4401, 'Session expired')
         } catch {}
@@ -440,15 +440,15 @@ async function main() {
 
   // Periodically check grant expiry -- disconnect users whose grants have all expired
   setInterval(() => {
-    const subscribers = sessionStore.getSubscribers()
+    const subscribers = conversationStore.getSubscribers()
     for (const ws of subscribers) {
       const data = ws.data as WsData
       if (!data.grants || data.grants.length === 0) continue
       if (allGrantsExpired(data.grants)) {
         console.log(`[auth] All grants expired for user: ${data.userName || 'unknown'} -- disconnecting`)
-        sessionStore.removeTerminalViewerBySocket(ws)
-        sessionStore.removeJsonStreamViewerBySocket(ws)
-        sessionStore.removeSubscriber(ws)
+        conversationStore.removeTerminalViewerBySocket(ws)
+        conversationStore.removeJsonStreamViewerBySocket(ws)
+        conversationStore.removeSubscriber(ws)
         try {
           ws.close(4403, 'Grants expired')
         } catch {}
@@ -460,7 +460,7 @@ async function main() {
   setInterval(() => {
     const expired = cleanExpiredShares()
     if (expired.length > 0) {
-      const subscribers = sessionStore.getSubscribers()
+      const subscribers = conversationStore.getSubscribers()
       for (const ws of subscribers) {
         const data = ws.data as { shareToken?: string }
         if (data.shareToken && expired.includes(data.shareToken)) {
@@ -471,7 +471,7 @@ async function main() {
           } catch {}
         }
       }
-      sessionStore.broadcastSharesUpdate()
+      conversationStore.broadcastSharesUpdate()
     }
   }, 30_000) // check every 30 seconds
 
@@ -484,7 +484,7 @@ async function main() {
   // Create WebSocket server
   const wsServer = createWsServer({
     port,
-    sessionStore,
+    conversationStore,
     onSessionStart(sessionId, meta) {
       if (verbose) {
         console.log(`[+] Session started: ${sessionId.slice(0, 8)}... (${meta.project})`)
@@ -504,7 +504,7 @@ async function main() {
 
       // Auto-send push notification on Notification hook events
       if (event.hookEvent === 'Notification' && isPushConfigured()) {
-        const session = sessionStore.getConversation(sessionId)
+        const session = conversationStore.getConversation(sessionId)
         const label = session?.project ? extractProjectLabel(session.project) : sessionId.slice(0, 8)
         const d = event.data as Record<string, unknown>
         const message = (d?.message as string) || 'Awaiting input...'
@@ -519,7 +519,7 @@ async function main() {
 
       // Auto-send push on session Stop (Claude finished working)
       if (event.hookEvent === 'Stop' && isPushConfigured()) {
-        const session = sessionStore.getConversation(sessionId)
+        const session = conversationStore.getConversation(sessionId)
         const label = session?.project ? extractProjectLabel(session.project) : sessionId.slice(0, 8)
         const d = event.data as Record<string, unknown>
         const reason = (d?.stop_hook_reason as string) || 'completed'
@@ -536,7 +536,7 @@ async function main() {
   // Create Hono router with all HTTP routes
   const serverStartTime = Date.now()
   const router = createRouter({
-    sessionStore,
+    conversationStore,
     store,
     webDir,
     vapidPublicKey,
@@ -563,7 +563,7 @@ async function main() {
 
     // Context deps shared by all handler contexts
     const contextDeps: ContextDeps = {
-      conversations: sessionStore,
+      conversations: conversationStore,
       store,
       verbose,
       origins,
@@ -648,7 +648,7 @@ async function main() {
         message(ws, message) {
           try {
             const msgStr = message as string
-            sessionStore.recordTraffic('in', msgStr.length)
+            conversationStore.recordTraffic('in', msgStr.length)
             const data = JSON.parse(msgStr)
 
             // Route to registered handler
@@ -673,7 +673,7 @@ async function main() {
 
           // Handle sentinel disconnection
           if (ws.data.isSentinel) {
-            sessionStore.removeSentinel(ws)
+            conversationStore.removeSentinel(ws)
             if (verbose) {
               console.log('[sentinel] Sentinel disconnected')
             }
@@ -685,13 +685,13 @@ async function main() {
             // Clean up any active voice streaming session
             cleanupVoiceForWs(ws)
             // If this dashboard was viewing a terminal or json stream, remove from viewers
-            sessionStore.removeTerminalViewerBySocket(ws)
-            sessionStore.removeJsonStreamViewerBySocket(ws)
+            conversationStore.removeTerminalViewerBySocket(ws)
+            conversationStore.removeJsonStreamViewerBySocket(ws)
             // Clean up launch job subscriptions
-            sessionStore.cleanupJobSubscriber(ws)
-            sessionStore.removeSubscriber(ws)
+            conversationStore.cleanupJobSubscriber(ws)
+            conversationStore.removeSubscriber(ws)
             if (verbose) {
-              console.log(`[dashboard] Subscriber disconnected (total: ${sessionStore.getSubscriberCount()})`)
+              console.log(`[dashboard] Subscriber disconnected (total: ${conversationStore.getSubscriberCount()})`)
             }
             return
           }
@@ -701,7 +701,7 @@ async function main() {
           const closeWrapperId = ws.data.conversationId
           if (sessionId && closeWrapperId) {
             // Notify terminal viewers attached to this wrapper's PTY
-            const viewers = sessionStore.getTerminalViewers(closeWrapperId)
+            const viewers = conversationStore.getTerminalViewers(closeWrapperId)
             if (viewers.size > 0) {
               const msg = JSON.stringify({
                 type: 'terminal_error',
@@ -714,12 +714,12 @@ async function main() {
                 } catch {}
               }
               for (const viewer of viewers) {
-                sessionStore.removeTerminalViewer(closeWrapperId, viewer)
+                conversationStore.removeTerminalViewer(closeWrapperId, viewer)
               }
             }
 
             // Notify json-stream viewers attached to this wrapper
-            const jsViewers = sessionStore.getJsonStreamViewers(closeWrapperId)
+            const jsViewers = conversationStore.getJsonStreamViewers(closeWrapperId)
             if (jsViewers.size > 0) {
               const msg = JSON.stringify({
                 type: 'json_stream_data',
@@ -733,26 +733,26 @@ async function main() {
                 } catch {}
               }
               for (const viewer of jsViewers) {
-                sessionStore.removeJsonStreamViewer(closeWrapperId, viewer)
+                conversationStore.removeJsonStreamViewer(closeWrapperId, viewer)
               }
             }
 
             // Remove this wrapper's socket
-            sessionStore.removeConversationSocket(sessionId, closeWrapperId)
-            const remaining = sessionStore.getActiveConversationCount(sessionId)
+            conversationStore.removeConversationSocket(sessionId, closeWrapperId)
+            const remaining = conversationStore.getActiveConversationCount(sessionId)
 
-            const session = sessionStore.getConversation(sessionId)
+            const session = conversationStore.getConversation(sessionId)
             if (session && session.status !== 'ended' && remaining === 0) {
               // Last wrapper disconnected - end the session
-              sessionStore.endConversation(sessionId, 'connection_closed')
+              conversationStore.endConversation(sessionId, 'connection_closed')
               if (verbose) {
                 console.log(`[-] Session ended: ${sessionId.slice(0, 8)}... (connection_closed, last wrapper)`)
               }
 
               // Check for pending restart (terminate + auto-revive)
-              const pendingRestart = sessionStore.consumePendingRestart(closeWrapperId)
+              const pendingRestart = conversationStore.consumePendingRestart(closeWrapperId)
               if (pendingRestart) {
-                const sentinel = sessionStore.getSentinel()
+                const sentinel = conversationStore.getSentinel()
                 if (sentinel) {
                   const conversationId = crypto.randomUUID()
                   console.log(
@@ -770,10 +770,10 @@ async function main() {
 
                   // Register rendezvous for caller (if not self-restart)
                   if (!pendingRestart.isSelfRestart) {
-                    sessionStore
+                    conversationStore
                       .addRendezvous(conversationId, pendingRestart.callerSessionId, pendingRestart.project, 'restart')
                       .then(revived => {
-                        const callerWs = sessionStore.getConversationSocket(pendingRestart.callerSessionId)
+                        const callerWs = conversationStore.getConversationSocket(pendingRestart.callerSessionId)
                         callerWs?.send(
                           JSON.stringify({
                             type: 'restart_ready',
@@ -785,7 +785,7 @@ async function main() {
                         )
                       })
                       .catch(err => {
-                        const callerWs = sessionStore.getConversationSocket(pendingRestart.callerSessionId)
+                        const callerWs = conversationStore.getConversationSocket(pendingRestart.callerSessionId)
                         callerWs?.send(
                           JSON.stringify({
                             type: 'restart_timeout',
@@ -826,7 +826,7 @@ async function main() {
   // Print status periodically
   if (verbose) {
     setInterval(() => {
-      const sessions = sessionStore.getActiveConversations()
+      const sessions = conversationStore.getActiveConversations()
       if (sessions.length > 0) {
         console.log(`\n[i] Active sessions: ${sessions.length}`)
         for (const session of sessions) {
