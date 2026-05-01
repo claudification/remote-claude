@@ -17,8 +17,8 @@ import {
   Save,
 } from 'lucide-react'
 import { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { type FileInfo, useFileEditor } from '@/hooks/use-file-editor'
 import { useConversationsStore } from '@/hooks/use-conversations'
+import { type FileInfo, useFileEditor } from '@/hooks/use-file-editor'
 import { useKeyLayer } from '@/lib/key-layers'
 import { cn, haptic } from '@/lib/utils'
 import { Markdown } from './markdown'

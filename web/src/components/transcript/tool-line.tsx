@@ -11,8 +11,8 @@ import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/control-panel-pre
 import { projectPath, type TranscriptContentBlock } from '@/lib/types'
 import { cn, truncate } from '@/lib/utils'
 import { JsonInspector } from '../json-inspector'
-import { FileListResults, GlobSummary, GrepContentResults, GrepCountResults, GrepSummary } from './grep-results'
 import { SessionTag } from './conversation-tag'
+import { FileListResults, GlobSummary, GrepContentResults, GrepCountResults, GrepSummary } from './grep-results'
 import { Collapsible, cleanCdPrefix, getToolStyle, shortPath, TruncatedPre } from './shared'
 import { BashOutput, DiffView, ReplResult, ReplView, ShellCommand, WritePreview } from './tool-renderers'
 

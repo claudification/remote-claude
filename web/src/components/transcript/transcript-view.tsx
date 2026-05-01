@@ -19,8 +19,8 @@ import {
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { record } from '@/lib/perf-metrics'
 import type { TranscriptEntry } from '@/lib/types'
-import { Markdown } from '../markdown'
 import { LinkRequestBanners, PermissionBanners } from '../conversation-detail/conversation-banners'
+import { Markdown } from '../markdown'
 import { CompactedDivider, CompactingBanner, MemoizedGroupView, SkillDivider } from './group-view'
 import { type DisplayGroup, useIncrementalGroups } from './grouping'
 

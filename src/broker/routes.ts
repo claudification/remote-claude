@@ -220,7 +220,10 @@ export function createRouter(options: RouteOptions): Hono {
   // ─── Sub-routers ────────────────────────────────────────────────────
   app.route('/', createSessionsRouter(conversationStore, helpers))
   app.route('/', createSpawnRouter(conversationStore, helpers))
-  app.route('/', createApiRouter(conversationStore, helpers, rclaudeSecret, cacheDir, blobDir, publicOrigin, vapidPublicKey))
+  app.route(
+    '/',
+    createApiRouter(conversationStore, helpers, rclaudeSecret, cacheDir, blobDir, publicOrigin, vapidPublicKey),
+  )
   app.route('/', createStatsRouter(conversationStore, store, helpers, serverStartTime))
   app.route('/', createAdminRouter(conversationStore, helpers, rclaudeSecret))
   if (sentinelRegistry) {

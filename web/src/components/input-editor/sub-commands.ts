@@ -12,8 +12,8 @@
  *             across React renders.
  */
 
-import type { ProjectTaskMeta } from '@/hooks/use-project'
 import { sendInput } from '@/hooks/use-conversations'
+import type { ProjectTaskMeta } from '@/hooks/use-project'
 import { buildTaskPrompt, scoreAndSortTasks } from '@/lib/task-scoring'
 import { haptic } from '@/lib/utils'
 import { completeModelArg } from './autocomplete-shared'

@@ -9,8 +9,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@/lib/types'
 import { haptic } from '@/lib/utils'
-import { useLaunchChannel } from './use-launch-channel'
 import { useConversationsStore } from './use-conversations'
+import { useLaunchChannel } from './use-launch-channel'
 
 export type LaunchStep = {
   label: string

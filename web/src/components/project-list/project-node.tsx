@@ -4,9 +4,9 @@ import type { Session } from '@/lib/types'
 import { extractProjectLabel, projectPath } from '@/lib/types'
 import { haptic } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from '../project-settings-editor'
-import { partitionSessions } from './partition'
 import { ProjectContextMenu, SessionContextMenu } from './conversation-context-menu'
 import { SessionCard, SessionItemCompact } from './conversation-item'
+import { partitionSessions } from './partition'
 
 function sessionsEqual(a: Session[], b: Session[]): boolean {
   if (a.length !== b.length) return false
