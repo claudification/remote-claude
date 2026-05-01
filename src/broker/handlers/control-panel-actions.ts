@@ -96,7 +96,7 @@ const dismissSession: MessageHandler = (ctx, data) => {
   const project = session.project
   ctx.conversations.removeConversation(sessionId)
   ctx.broadcastScoped({ type: 'conversation_dismissed', sessionId }, project)
-  ctx.reply({ type: 'dismiss_session_result', ok: true })
+  ctx.reply({ type: 'dismiss_conversation_result', ok: true })
 }
 
 // ─── Update global settings ───────────────────────────────────────
@@ -286,7 +286,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
     `[revive] ${name} (${sessionId.slice(0, 8)}) via WS, conversationId=${conversationId.slice(0, 8)} headless=${headless}${jobId ? ` job=${jobId.slice(0, 8)}` : ''}${lc ? ' (launch config restored)' : ''}`,
   )
   ctx.reply({
-    type: 'revive_session_result',
+    type: 'revive_conversation_result',
     ok: true,
     name,
     conversationId,
@@ -335,7 +335,7 @@ const renameSession: MessageHandler = (ctx, data) => {
     session.description = description || undefined
   }
   ctx.conversations.broadcastConversationUpdate(sessionId)
-  ctx.reply({ type: 'rename_session_result', ok: true })
+  ctx.reply({ type: 'rename_conversation_result', ok: true })
 }
 
 // ─── Register all dashboard action handlers ───────────────────────
@@ -344,13 +344,16 @@ export function registerDashboardActionHandlers(): void {
   registerHandlers({
     send_input: sendInput,
     send_interrupt: sendInterrupt,
-    dismiss_session: dismissSession,
+    dismiss_conversation: dismissSession,
+    dismiss_session: dismissSession, // backward compat
     update_settings: updateSettings,
     update_project_settings: updateProjectSettings,
     delete_project_settings: deleteProjectSettingsHandler,
     update_project_order: updateProjectOrder,
-    revive_session: reviveSession,
-    rename_session: renameSession,
+    revive_conversation: reviveSession,
+    revive_session: reviveSession, // backward compat
+    rename_conversation: renameSession,
+    rename_session: renameSession, // backward compat
     subscribe_job: subscribeJob,
     unsubscribe_job: unsubscribeJob,
   })
