@@ -907,12 +907,15 @@ function processMessage(msg: DashboardMessage) {
     }
     // WS action results (fire-and-forget error feedback)
     case 'send_input_result':
-    case 'dismiss_session_result':
+    case 'dismiss_conversation_result':
+    case 'dismiss_session_result': // backward compat
     case 'update_settings_result':
     case 'update_project_settings_result':
     case 'delete_project_settings_result':
     case 'update_project_order_result':
+    case 'revive_conversation_result':
     case 'revive_session_result': {
+      // backward compat
       if (msg.ok === false) {
         console.error(`[ws] ${msg.type}: ${msg.error}`)
       }

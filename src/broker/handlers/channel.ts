@@ -615,11 +615,13 @@ export function registerChannelHandlers(): void {
     channel_list_sessions: channelListSessions,
     // Inter-session messaging
     channel_send: channelSend,
-    // Session terminate relay
-    terminate_session: quitSession,
-    quit_session: quitSession, // deprecated alias
+    // Conversation terminate relay
+    terminate_conversation: quitSession,
+    terminate_session: quitSession, // backward compat
+    quit_session: quitSession, // backward compat
     // Notification badge
-    session_viewed: sessionViewed,
+    conversation_viewed: sessionViewed,
+    session_viewed: sessionViewed, // backward compat
     // Link management
     channel_link_response: channelLinkResponse,
     channel_unlink: channelUnlink,
