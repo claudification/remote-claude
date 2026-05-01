@@ -9,7 +9,7 @@ import { mapProjectTrust, type SpawnCallerContext } from '../../shared/spawn-per
 import { spawnRequestSchema } from '../../shared/spawn-schema'
 import { getGlobalSettings } from '../global-settings'
 import { getProjectSettings } from '../project-settings'
-import type { ConversationStore } from '../session-store'
+import type { ConversationStore } from '../conversation-store'
 import { dispatchSpawn } from '../spawn-dispatch'
 import type { RouteHelpers } from './shared'
 

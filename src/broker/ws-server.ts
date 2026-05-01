@@ -6,7 +6,7 @@
 import type { Server, ServerWebSocket } from 'bun'
 import { parseProjectUri } from '../shared/project-uri'
 import type { Ack, AgentHostMessage, BrokerError, ConversationMeta, HookEvent, SessionEnd } from '../shared/protocol'
-import type { ConversationStore } from './session-store'
+import type { ConversationStore } from './conversation-store'
 
 interface WsData {
   sessionId?: string

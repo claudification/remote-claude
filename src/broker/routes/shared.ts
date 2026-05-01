@@ -7,7 +7,7 @@ import type { Conversation, TeamInfo } from '../../shared/protocol'
 import { getUser } from '../auth'
 import { getAuthenticatedUser, resolveAuth } from '../auth-routes'
 import { type Permission, resolvePermissions, type UserGrant } from '../permissions'
-import type { ConversationStore } from '../session-store'
+import type { ConversationStore } from '../conversation-store'
 import { shareToGrants, validateShare } from '../shares'
 
 // ─── Route context (shared deps across sub-routers) ────────────────────

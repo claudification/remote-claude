@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TranscriptEntry } from '../shared/protocol'
-import { createConversationStore } from './session-store'
+import { createConversationStore } from './conversation-store'
 
 function makeEntry(index: number): TranscriptEntry {
   return { type: 'user', message: { content: `entry ${index}` }, index }

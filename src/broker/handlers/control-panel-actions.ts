@@ -8,7 +8,7 @@
 
 import { extractProjectLabel, parseProjectUri } from '../../shared/project-uri'
 import type { SendInput } from '../../shared/protocol'
-import { generateConversationName } from '../../shared/session-names'
+import { generateConversationName } from '../../shared/conversation-names'
 import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
 import { GuardError, type MessageHandler, type WsData } from '../handler-context'
 import { registerHandlers } from '../message-router'

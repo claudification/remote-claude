@@ -6,7 +6,7 @@
 import type { ServerWebSocket } from 'bun'
 import type { ProjectSettings } from '../shared/protocol'
 import type { Permission, UserGrant } from './permissions'
-import type { ConversationStore } from './session-store'
+import type { ConversationStore } from './conversation-store'
 import type { StoreDriver } from './store/types'
 
 export interface WsData {

@@ -13,11 +13,11 @@ import { createAdminRouter } from './routes/admin'
 import { createApiRouter } from './routes/api'
 import { blobDir, initBlobStore, initSharedFilesLog } from './routes/blob-store'
 import { createSentinelRouter } from './routes/sentinels'
-import { createSessionsRouter } from './routes/sessions'
+import { createSessionsRouter } from './routes/conversations'
 import { createRouteHelpers } from './routes/shared'
 import { createSpawnRouter } from './routes/spawn'
 import { createStatsRouter } from './routes/stats'
-import type { ConversationStore } from './session-store'
+import type { ConversationStore } from './conversation-store'
 import type { StoreDriver } from './store/types'
 
 // Re-export blob/file helpers for external consumers (session-store, handlers, etc.)

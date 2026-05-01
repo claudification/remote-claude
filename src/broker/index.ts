@@ -27,7 +27,7 @@ import { type ContextDeps, createContext } from './create-context'
 import { initGlobalSettings } from './global-settings'
 import type { WsData } from './handler-context'
 import { registerAllHandlers } from './handlers'
-import { appendMessage, initInterSessionLog } from './inter-session-log'
+import { appendMessage, initInterSessionLog } from './inter-conversation-log'
 import { drain, enqueue, getQueueSize, initMessageQueue } from './message-queue'
 import { routeMessage } from './message-router'
 import { initModelPricing } from './model-pricing'
@@ -47,7 +47,7 @@ import { closeProjectStore, initProjectStore } from './project-store'
 import { initPush, isPushConfigured, sendPushToAll } from './push'
 import { createRouter } from './routes'
 import { createSentinelRegistry } from './sentinel-registry'
-import { createConversationStore } from './session-store'
+import { createConversationStore } from './conversation-store'
 import {
   cleanExpired as cleanExpiredShares,
   initShares,
