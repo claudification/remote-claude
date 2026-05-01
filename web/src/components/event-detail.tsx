@@ -6,7 +6,7 @@ function getEventColor(hookEvent: string): string {
     case 'SessionStart':
     case 'SessionEnd':
     case 'Setup':
-      return 'border-event-session text-event-session'
+      return 'border-event-conversation text-event-conversation'
     case 'PreToolUse':
     case 'PostToolUse':
     case 'PostToolUseFailure':

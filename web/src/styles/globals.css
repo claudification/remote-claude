@@ -31,7 +31,7 @@
 	--ended: oklch(0.5 0.02 260);
 
 	/* Event type colors */
-	--event-session: oklch(0.75 0.18 150);
+	--event-conversation: oklch(0.75 0.18 150);
 	--event-tool: oklch(0.7 0.15 250);
 	--event-prompt: oklch(0.75 0.18 320);
 	--event-stop: oklch(0.75 0.15 85);
@@ -84,7 +84,7 @@
 	--color-idle: var(--idle);
 	--color-ended: var(--ended);
 
-	--color-event-session: var(--event-session);
+	--color-event-conversation: var(--event-conversation);
 	--color-event-tool: var(--event-tool);
 	--color-event-prompt: var(--event-prompt);
 	--color-event-stop: var(--event-stop);
@@ -466,10 +466,10 @@ body:has([data-mobile-compose-panel]) [data-voice-fab] {
 }
 
 /* Session pulse animation (triggered on Ctrl+K selection) */
-@keyframes session-pulse-glow {
+@keyframes conversation-pulse-glow {
 	0%, 100% { box-shadow: none; }
 	50% { box-shadow: 0 0 12px 2px oklch(0.7 0.15 260 / 0.4); }
 }
-.session-pulse {
-	animation: session-pulse-glow 0.5s ease-in-out 3;
+.conversation-pulse {
+	animation: conversation-pulse-glow 0.5s ease-in-out 3;
 }

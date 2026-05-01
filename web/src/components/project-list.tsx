@@ -148,8 +148,8 @@ export function ProjectList() {
       const el = document.querySelector(`[data-session-id="${selectedSessionId}"]`)
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-        el.classList.add('session-pulse')
-        setTimeout(() => el.classList.remove('session-pulse'), 1500)
+        el.classList.add('conversation-pulse')
+        setTimeout(() => el.classList.remove('conversation-pulse'), 1500)
       }
     })
     const timer = setTimeout(() => setPulseSessionId(null), 1500)
