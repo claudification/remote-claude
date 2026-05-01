@@ -7,7 +7,7 @@
 
 import type { SpawnRequestAck } from '@shared/protocol'
 import type { SpawnRequest } from '@shared/spawn-schema'
-import { wsSend } from './use-sessions'
+import { wsSend } from './use-conversations'
 
 type SpawnAckResult =
   | { ok: true; conversationId: string; jobId: string; tmuxSession?: string }

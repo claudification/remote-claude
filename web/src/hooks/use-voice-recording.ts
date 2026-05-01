@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 
 type VoiceState = 'idle' | 'connecting' | 'recording' | 'refining' | 'submitting' | 'error'
 

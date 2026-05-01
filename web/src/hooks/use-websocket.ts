@@ -24,7 +24,7 @@ import {
   type ProjectSettingsMap,
   resolveConfigResponse,
   useConversationsStore,
-} from './use-sessions'
+} from './use-conversations'
 import { handleSpawnRequestAck } from './use-spawn'
 import { recordIn, recordOut } from './ws-stats'
 

@@ -1,6 +1,6 @@
 import { X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { haptic } from '@/lib/utils'
 
 interface Toast {

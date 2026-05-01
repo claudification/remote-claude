@@ -37,7 +37,7 @@ import { AgentTranscriptInline } from './agent-views'
 import { BootTimeline } from './boot-timeline'
 import type { DisplayGroup, TaskNotification } from './grouping'
 import { LaunchTimeline } from './launch-timeline'
-import { SessionTag } from './session-tag'
+import { SessionTag } from './conversation-tag'
 import { MemoizedToolLine } from './tool-line'
 import { BashOutput } from './tool-renderers'
 

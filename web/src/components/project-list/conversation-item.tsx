@@ -1,5 +1,5 @@
 import { memo, type ReactNode, useEffect, useRef, useState } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import {
   formatCost,
   getCacheTimerInfo,
@@ -27,7 +27,7 @@ import { Markdown } from '../markdown'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from '../project-settings-editor'
 import { ShareIndicator } from '../share-panel'
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog'
-import { SessionContextMenu } from './session-context-menu'
+import { SessionContextMenu } from './conversation-context-menu'
 
 // ─── Shared visual components ──────────────────────────────────────
 

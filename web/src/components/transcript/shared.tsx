@@ -37,7 +37,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/control-panel-prefs'
 import { defaultOpenApplied, expandedState } from '@/lib/expanded-state'
 

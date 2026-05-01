@@ -9,14 +9,14 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { saveProjectOrder, useConversationsStore } from '@/hooks/use-sessions'
+import { saveProjectOrder, useConversationsStore } from '@/hooks/use-conversations'
 import type { ProjectOrder, ProjectOrderGroup, ProjectOrderNode, Session } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { MaybeProfiler } from './perf-profiler'
 import { ProjectNode } from './project-list/project-node'
-import { InactiveProjectItem, SessionItemCompact } from './project-list/session-item'
-import { GroupNode, NewGroupDropTarget, SortableNode } from './project-list/session-sorting'
+import { InactiveProjectItem, SessionItemCompact } from './project-list/conversation-item'
+import { GroupNode, NewGroupDropTarget, SortableNode } from './project-list/conversation-sorting'
 
 // ─── Main ProjectList ──────────────────────────────────────────────
 

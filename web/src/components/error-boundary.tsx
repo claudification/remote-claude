@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { clearCacheAndReload } from '@/lib/utils'
 import { BUILD_VERSION } from '../../../src/shared/version'
 

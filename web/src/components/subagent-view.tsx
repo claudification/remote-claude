@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { fetchSubagents, useConversationsStore } from '@/hooks/use-sessions'
+import { fetchSubagents, useConversationsStore } from '@/hooks/use-conversations'
 import type { HookEvent, SubagentInfo } from '@/lib/types'
 import { cn } from '@/lib/utils'
 

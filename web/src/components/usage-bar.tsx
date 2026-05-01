@@ -1,6 +1,6 @@
 import { Popover } from 'radix-ui'
 import { useRef, useState } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import type { ExtraUsage, UsageWindow } from '@/lib/types'
 import { haptic } from '@/lib/utils'
 

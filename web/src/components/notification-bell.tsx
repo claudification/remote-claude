@@ -2,7 +2,7 @@ import { Bell } from 'lucide-react'
 import { Popover } from 'radix-ui'
 import { useState } from 'react'
 import { NotificationPanel } from '@/components/notification-panel'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { useCommand } from '@/lib/commands'
 import { haptic } from '@/lib/utils'
 

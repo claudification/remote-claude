@@ -4,7 +4,7 @@ import { Terminal } from '@xterm/xterm'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import '@xterm/xterm/css/xterm.css'
 import { Settings, WifiOff, X } from 'lucide-react'
-import { type TerminalMessage, useConversationsStore } from '@/hooks/use-sessions'
+import { type TerminalMessage, useConversationsStore } from '@/hooks/use-conversations'
 import { extractProjectLabel, projectPath } from '@/lib/types'
 import { lastPathSegments } from '@/lib/utils'
 import {

@@ -8,7 +8,7 @@
 
 import { Mic, MicOff, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { sendInput, useConversationsStore } from '@/hooks/use-sessions'
+import { sendInput, useConversationsStore } from '@/hooks/use-conversations'
 import { useVoiceRecording } from '@/hooks/use-voice-recording'
 import { cn, haptic } from '@/lib/utils'
 

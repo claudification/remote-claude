@@ -11,8 +11,8 @@ import { MediaLightbox } from '@/components/media-lightbox'
 import { ProjectList } from '@/components/project-list'
 import { QuickTaskModal } from '@/components/quick-task-modal'
 import { ReviveDialog } from '@/components/revive-dialog'
-import { SessionDetail } from '@/components/session-detail'
-import { SharedSessionView } from '@/components/shared-session-view'
+import { SessionDetail } from '@/components/conversation-detail'
+import { SharedSessionView } from '@/components/shared-conversation-view'
 import { ShortcutHelp } from '@/components/shortcut-help'
 import { openSpawnDialog, SpawnDialog } from '@/components/spawn-dialog'
 import { TaskBatchSelector } from '@/components/task-batch-selector'
@@ -42,7 +42,7 @@ import {
   sendInput,
   useConversationsStore,
   wsSend,
-} from '@/hooks/use-sessions'
+} from '@/hooks/use-conversations'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { executeCommand, formatShortcut, useChordCommand, useCommand, validateChordBindings } from '@/lib/commands'
 import { focusInputEditor } from '@/lib/focus-input'

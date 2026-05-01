@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getBgTaskOutput, onBgTaskOutput, useConversationsStore } from '@/hooks/use-sessions'
+import { getBgTaskOutput, onBgTaskOutput, useConversationsStore } from '@/hooks/use-conversations'
 import type { BgTaskSummary } from '@/lib/types'
 import { cn, formatAge } from '@/lib/utils'
 import { AnsiText } from './transcript/shared'

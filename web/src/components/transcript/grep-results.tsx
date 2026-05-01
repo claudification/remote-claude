@@ -10,7 +10,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { resolveToolDisplay } from '@/lib/control-panel-prefs'
 import { projectPath } from '@/lib/types'
 import { cn } from '@/lib/utils'

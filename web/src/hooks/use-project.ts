@@ -4,7 +4,7 @@
 
 import type { TaskStatus } from '@shared/task-statuses'
 import { useCallback, useEffect, useState } from 'react'
-import { useConversationsStore } from './use-sessions'
+import { useConversationsStore } from './use-conversations'
 
 export type { TaskStatus } from '@shared/task-statuses'
 

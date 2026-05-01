@@ -1,7 +1,7 @@
 import { Braces, Terminal } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import type { Session } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 

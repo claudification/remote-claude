@@ -5,7 +5,7 @@
  * the normal send path.
  */
 
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 
 /**
  * Returns true if the input is a client command and was handled (caller

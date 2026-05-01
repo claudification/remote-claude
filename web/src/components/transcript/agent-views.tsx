@@ -4,7 +4,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { fetchSubagentTranscript, useConversationsStore } from '@/hooks/use-sessions'
+import { fetchSubagentTranscript, useConversationsStore } from '@/hooks/use-conversations'
 import type { TranscriptContentBlock, TranscriptEntry } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { JsonInspector } from '../json-inspector'

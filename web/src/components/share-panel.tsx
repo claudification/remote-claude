@@ -10,7 +10,7 @@
 import { Copy, Eye, Link2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { haptic } from '@/lib/utils'
 
 interface SharePanelProps {

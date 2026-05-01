@@ -9,7 +9,7 @@ import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef, useState } from 'react'
 import '@xterm/xterm/css/xterm.css'
 import { WifiOff } from 'lucide-react'
-import { type TerminalMessage, useConversationsStore } from '@/hooks/use-sessions'
+import { type TerminalMessage, useConversationsStore } from '@/hooks/use-conversations'
 import { getFont, getTheme, loadTerminalSettings } from './terminal-settings'
 import { TerminalToolbar } from './terminal-toolbar'
 

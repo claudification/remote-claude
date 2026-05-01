@@ -32,7 +32,7 @@ import {
 } from '@codemirror/autocomplete'
 import { type Extension, Prec } from '@codemirror/state'
 import { type EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { projectPath } from '@/lib/types'
 import { lastPathSegments, projectDisplayName, sessionAddressableSlug } from '@/lib/utils'
 import { BUILTIN_COMMAND_NAMES, BUILTIN_SCORE_BOOST, fuzzyScore } from '../../autocomplete-shared'

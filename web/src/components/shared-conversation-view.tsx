@@ -8,8 +8,8 @@
 import { Clock, Link2Off } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { MediaLightbox } from '@/components/media-lightbox'
-import { SessionDetail } from '@/components/session-detail'
-import { fetchSessionEvents, fetchTranscript, useConversationsStore } from '@/hooks/use-sessions'
+import { SessionDetail } from '@/components/conversation-detail'
+import { fetchSessionEvents, fetchTranscript, useConversationsStore } from '@/hooks/use-conversations'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { extractProjectLabel } from '@/lib/types'
 

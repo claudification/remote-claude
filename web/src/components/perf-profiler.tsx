@@ -10,7 +10,7 @@
  */
 
 import { Fragment, Profiler, type ProfilerOnRenderCallback, type ReactNode, useLayoutEffect, useRef } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import { isPerfEnabled, record } from '@/lib/perf-metrics'
 
 const onRenderProfile: ProfilerOnRenderCallback = (id, phase, actualDuration, baseDuration) => {

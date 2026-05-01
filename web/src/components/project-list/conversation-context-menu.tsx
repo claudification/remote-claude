@@ -1,6 +1,6 @@
 import { ContextMenu } from 'radix-ui'
 import type { ReactNode } from 'react'
-import { saveProjectOrder, useConversationsStore } from '@/hooks/use-sessions'
+import { saveProjectOrder, useConversationsStore } from '@/hooks/use-conversations'
 import type { ProjectOrder, ProjectOrderGroup, Session } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'

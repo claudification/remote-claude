@@ -13,7 +13,7 @@
  */
 
 import type { ProjectTaskMeta } from '@/hooks/use-project'
-import { sendInput } from '@/hooks/use-sessions'
+import { sendInput } from '@/hooks/use-conversations'
 import { buildTaskPrompt, scoreAndSortTasks } from '@/lib/task-scoring'
 import { haptic } from '@/lib/utils'
 import { completeModelArg } from './autocomplete-shared'

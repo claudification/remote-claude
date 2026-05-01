@@ -1,6 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useCallback, useEffect, useRef } from 'react'
-import { useConversationsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-conversations'
 import type { HookEvent } from '@/lib/types'
 import { EventItem } from './event-detail'
 
