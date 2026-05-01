@@ -89,35 +89,35 @@ export interface ConversationStore {
   getConversation: (id: string) => Conversation | undefined
   getAllConversations: () => Conversation[]
   getActiveConversations: () => Conversation[]
-  addEvent: (sessionId: string, event: HookEvent) => void
-  updateActivity: (sessionId: string) => void
-  endConversation: (sessionId: string, reason: string) => void
-  removeConversation: (sessionId: string) => void
-  getConversationEvents: (sessionId: string, limit?: number, since?: number) => HookEvent[]
-  updateTasks: (sessionId: string, tasks: TaskInfo[]) => void
-  setConversationSocket: (sessionId: string, conversationId: string, ws: ServerWebSocket<unknown>) => void
-  getConversationSocket: (sessionId: string) => ServerWebSocket<unknown> | undefined
+  addEvent: (conversationId: string, event: HookEvent) => void
+  updateActivity: (conversationId: string) => void
+  endConversation: (conversationId: string, reason: string) => void
+  removeConversation: (conversationId: string) => void
+  getConversationEvents: (conversationId: string, limit?: number, since?: number) => HookEvent[]
+  updateTasks: (conversationId: string, tasks: TaskInfo[]) => void
+  setConversationSocket: (id: string, conversationId: string, ws: ServerWebSocket<unknown>) => void
+  getConversationSocket: (conversationId: string) => ServerWebSocket<unknown> | undefined
   findSocketByConversationId: (conversationId: string) => ServerWebSocket<unknown> | undefined
   findConversationByConversationId: (conversationId: string) => Conversation | undefined
-  removeConversationSocket: (sessionId: string, conversationId: string) => void
-  getActiveConversationCount: (sessionId: string) => number
-  getConversationIds: (sessionId: string) => string[]
+  removeConversationSocket: (id: string, conversationId: string) => void
+  getActiveConversationCount: (conversationId: string) => number
+  getConversationIds: (conversationId: string) => string[]
   // Transcript cache methods
-  addTranscriptEntries: (sessionId: string, entries: TranscriptEntry[], isInitial: boolean) => void
-  getTranscriptEntries: (sessionId: string, limit?: number) => TranscriptEntry[]
-  hasTranscriptCache: (sessionId: string) => boolean
+  addTranscriptEntries: (conversationId: string, entries: TranscriptEntry[], isInitial: boolean) => void
+  getTranscriptEntries: (conversationId: string, limit?: number) => TranscriptEntry[]
+  hasTranscriptCache: (conversationId: string) => boolean
   addSubagentTranscriptEntries: (
-    sessionId: string,
+    conversationId: string,
     agentId: string,
     entries: TranscriptEntry[],
     isInitial: boolean,
   ) => void
-  getSubagentTranscriptEntries: (sessionId: string, agentId: string, limit?: number) => TranscriptEntry[]
-  hasSubagentTranscriptCache: (sessionId: string, agentId: string) => boolean
+  getSubagentTranscriptEntries: (conversationId: string, agentId: string, limit?: number) => TranscriptEntry[]
+  hasSubagentTranscriptCache: (conversationId: string, agentId: string) => boolean
   // Background task output methods
-  addBgTaskOutput: (sessionId: string, taskId: string, data: string, done: boolean) => void
+  addBgTaskOutput: (conversationId: string, taskId: string, data: string, done: boolean) => void
   getBgTaskOutput: (taskId: string) => string | undefined
-  broadcastConversationUpdate: (sessionId: string) => void
+  broadcastConversationUpdate: (conversationId: string) => void
   // Terminal viewer methods (multiple viewers per session)
   // Terminal viewers keyed by conversationId (each PTY is on a specific rclaude instance)
   addTerminalViewer: (conversationId: string, ws: ServerWebSocket<unknown>) => void
@@ -1079,8 +1079,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return Array.from(conversations.values()).filter(s => s.status !== 'ended')
   }
 
-  function addEvent(sessionId: string, event: HookEvent): void {
-    const session = conversations.get(sessionId)
+  function addEvent(conversationId: string, event: HookEvent): void {
+    const session = conversations.get(conversationId)
     if (session) {
       session.events.push(event)
       if (session.events.length > MAX_EVENTS) {
@@ -1089,7 +1089,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       session.lastActivity = Date.now()
 
       // Feed analytics store (non-blocking, fire-and-forget)
-      recordHookEvent(sessionId, event.hookEvent, (event.data || {}) as Record<string, unknown>, {
+      recordHookEvent(conversationId, event.hookEvent, (event.data || {}) as Record<string, unknown>, {
         projectUri: session.project,
         model: session.model || '',
         account: (session.claudeAuth?.email as string) || '',
@@ -1117,7 +1117,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       if (isRecap && typeof eventInput?.content === 'string') {
         session.recap = { content: eventInput.content, timestamp: event.timestamp }
         session.recapFresh = true
-        scheduleConversationUpdate(sessionId)
+        scheduleConversationUpdate(conversationId)
       }
 
       // Status transitions based on actual Claude hooks (not artificial timers).
@@ -1169,7 +1169,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
               // Delta computation handled inside store.costs.recordTurnFromCumulatives
               store?.costs.recordTurnFromCumulatives({
                 timestamp: event.timestamp,
-                conversationId: sessionId,
+                conversationId,
                 projectUri: session.project,
                 account: session.claudeAuth?.email || '',
                 orgId: session.claudeAuth?.orgId || '',
@@ -1221,10 +1221,10 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       if (event.hookEvent === 'PreCompact') {
         session.compacting = true
         const marker = { type: 'compacting', timestamp: new Date().toISOString() }
-        addTranscriptEntries(sessionId, [marker], false)
-        broadcastToChannel('conversation:transcript', sessionId, {
+        addTranscriptEntries(conversationId, [marker], false)
+        broadcastToChannel('conversation:transcript', conversationId, {
           type: 'transcript_entries',
-          sessionId,
+          sessionId: conversationId,
           entries: [marker],
           isInitial: false,
         })
@@ -1232,10 +1232,10 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         session.compacting = false
         session.compactedAt = Date.now()
         const marker = { type: 'compacted', timestamp: new Date().toISOString() }
-        addTranscriptEntries(sessionId, [marker], false)
-        broadcastToChannel('conversation:transcript', sessionId, {
+        addTranscriptEntries(conversationId, [marker], false)
+        broadcastToChannel('conversation:transcript', conversationId, {
           type: 'transcript_entries',
-          sessionId,
+          sessionId: conversationId,
           entries: [marker],
           isInitial: false,
         })
@@ -1244,10 +1244,10 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         session.compacting = false
         session.compactedAt = Date.now()
         const marker = { type: 'compacted', timestamp: new Date().toISOString() }
-        addTranscriptEntries(sessionId, [marker], false)
-        broadcastToChannel('conversation:transcript', sessionId, {
+        addTranscriptEntries(conversationId, [marker], false)
+        broadcastToChannel('conversation:transcript', conversationId, {
           type: 'transcript_entries',
-          sessionId,
+          sessionId: conversationId,
           entries: [marker],
           isInitial: false,
         })
@@ -1259,9 +1259,9 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         if (data.tool_name === 'Agent' && data.tool_input) {
           const input = data.tool_input as Record<string, unknown>
           if (input.description && typeof input.description === 'string') {
-            const queue = pendingAgentDescriptions.get(sessionId) || []
+            const queue = pendingAgentDescriptions.get(conversationId) || []
             queue.push(input.description)
-            pendingAgentDescriptions.set(sessionId, queue)
+            pendingAgentDescriptions.set(conversationId, queue)
           }
         }
         // Track AskUserQuestion PreToolUse - might block waiting for user
@@ -1301,7 +1301,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         broadcastConversationScoped(
           {
             type: 'toast',
-            sessionId,
+            sessionId: conversationId,
             title: projectName,
             message: `Permission denied: ${toolName || 'unknown tool'}`,
           },
@@ -1341,7 +1341,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         const data = event.data as Record<string, unknown>
         const agentId = String(data.agent_id || '')
         if (agentId && !session.subagents.some(a => a.agentId === agentId)) {
-          const queue = pendingAgentDescriptions.get(sessionId)
+          const queue = pendingAgentDescriptions.get(conversationId)
           const description = queue?.shift()
           session.subagents.push({
             agentId,
@@ -1508,7 +1508,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         broadcastConversationScoped(
           {
             type: 'toast',
-            sessionId,
+            sessionId: conversationId,
             title: projectName,
             message,
           },
@@ -1517,29 +1517,29 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       }
 
       // Broadcast event to dashboard subscribers (channel-filtered for v2)
-      broadcastToChannel('conversation:events', sessionId, {
+      broadcastToChannel('conversation:events', conversationId, {
         type: 'event',
-        sessionId,
+        sessionId: conversationId,
         event,
       })
 
       // Transcript kick: if events are flowing but no transcript entries, nudge the wrapper
       if (
         session.events.length >= TRANSCRIPT_KICK_EVENT_THRESHOLD &&
-        !transcriptCache.has(sessionId) &&
+        !transcriptCache.has(conversationId) &&
         session.status !== 'ended'
       ) {
         const now = Date.now()
-        const lastKick = lastTranscriptKick.get(sessionId) || 0
+        const lastKick = lastTranscriptKick.get(conversationId) || 0
         if (now - lastKick > TRANSCRIPT_KICK_DEBOUNCE_MS) {
-          lastTranscriptKick.set(sessionId, now)
+          lastTranscriptKick.set(conversationId, now)
           // Find the wrapper socket for this session and send kick
-          const wrappers = conversationSockets.get(sessionId)
+          const wrappers = conversationSockets.get(conversationId)
           if (wrappers) {
             for (const ws of wrappers.values()) {
               try {
-                ws.send(JSON.stringify({ type: 'transcript_kick', sessionId }))
-                console.log(`[session-store] Sent transcript_kick to wrapper for ${sessionId.slice(0, 8)}`)
+                ws.send(JSON.stringify({ type: 'transcript_kick', sessionId: conversationId }))
+                console.log(`[session-store] Sent transcript_kick to wrapper for ${conversationId.slice(0, 8)}`)
               } catch {
                 // Wrapper socket may be dead
               }
@@ -1549,12 +1549,12 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       }
 
       // Coalesce session update (for lastActivity, eventCount changes)
-      scheduleConversationUpdate(sessionId)
+      scheduleConversationUpdate(conversationId)
     }
   }
 
-  function updateActivity(sessionId: string): void {
-    const session = conversations.get(sessionId)
+  function updateActivity(conversationId: string): void {
+    const session = conversations.get(conversationId)
     if (session) {
       session.lastActivity = Date.now()
       if (session.recapFresh && (!session.recap || Date.now() - session.recap.timestamp > 10_000)) {
@@ -1566,12 +1566,12 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
   }
 
-  function endConversation(sessionId: string, _reason: string): void {
-    const session = conversations.get(sessionId)
+  function endConversation(conversationId: string, _reason: string): void {
+    const session = conversations.get(conversationId)
     if (session) {
       session.status = 'ended'
       session.planMode = false
-      clearAnalyticsSession(sessionId)
+      clearAnalyticsSession(conversationId)
 
       // Mark all running subagents as stopped (SubagentStop hook may not fire)
       for (const agent of session.subagents) {
@@ -1601,7 +1601,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       broadcastConversationScoped(
         {
           type: 'conversation_ended',
-          sessionId,
+          sessionId: conversationId,
           session: toConversationSummary(session),
         },
         session.project,
@@ -1612,35 +1612,35 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
   }
 
-  function removeConversation(sessionId: string): void {
-    const session = conversations.get(sessionId)
+  function removeConversation(conversationId: string): void {
+    const session = conversations.get(conversationId)
     if (session) {
       for (const bg of session.bgTasks) {
         bgTaskOutputCache.delete(bg.taskId)
       }
     }
-    conversations.delete(sessionId)
-    conversationSockets.delete(sessionId)
-    transcriptCache.delete(sessionId)
-    transcriptSeqCounters.delete(sessionId)
-    dirtyTranscripts.delete(sessionId)
-    pendingAgentDescriptions.delete(sessionId)
-    lastTranscriptKick.delete(sessionId)
+    conversations.delete(conversationId)
+    conversationSockets.delete(conversationId)
+    transcriptCache.delete(conversationId)
+    transcriptSeqCounters.delete(conversationId)
+    dirtyTranscripts.delete(conversationId)
+    pendingAgentDescriptions.delete(conversationId)
+    lastTranscriptKick.delete(conversationId)
     for (const key of subagentTranscriptCache.keys()) {
-      if (key.startsWith(`${sessionId}:`)) {
+      if (key.startsWith(`${conversationId}:`)) {
         subagentTranscriptCache.delete(key)
         subagentTranscriptSeqCounters.delete(key)
       }
     }
     if (store) {
       try {
-        store.sessions.delete(sessionId)
+        store.sessions.delete(conversationId)
       } catch {}
     }
   }
 
-  function getConversationEvents(sessionId: string, limit?: number, since?: number): HookEvent[] {
-    const session = conversations.get(sessionId)
+  function getConversationEvents(conversationId: string, limit?: number, since?: number): HookEvent[] {
+    const session = conversations.get(conversationId)
     if (!session) return []
 
     let events = session.events
@@ -1657,26 +1657,26 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return events
   }
 
-  function setConversationSocket(sessionId: string, conversationId: string, ws: ServerWebSocket<unknown>): void {
+  function setConversationSocket(id: string, conversationId: string, ws: ServerWebSocket<unknown>): void {
     // Remove conversationId from any OTHER session first (wrapper reconnected to different session)
     for (const [sid, wrappers] of conversationSockets.entries()) {
-      if (sid !== sessionId && wrappers.has(conversationId)) {
+      if (sid !== id && wrappers.has(conversationId)) {
         wrappers.delete(conversationId)
         if (wrappers.size === 0) conversationSockets.delete(sid)
         // Broadcast so dashboard drops the stale conversationId from the old session
         broadcastConversationUpdate(sid)
       }
     }
-    let wrappers = conversationSockets.get(sessionId)
+    let wrappers = conversationSockets.get(id)
     if (!wrappers) {
       wrappers = new Map()
-      conversationSockets.set(sessionId, wrappers)
+      conversationSockets.set(id, wrappers)
     }
     wrappers.set(conversationId, ws)
   }
 
-  function getConversationSocket(sessionId: string): ServerWebSocket<unknown> | undefined {
-    const wrappers = conversationSockets.get(sessionId)
+  function getConversationSocket(conversationId: string): ServerWebSocket<unknown> | undefined {
+    const wrappers = conversationSockets.get(conversationId)
     if (!wrappers || wrappers.size === 0) return undefined
     // Return the most recently added wrapper socket
     let last: ServerWebSocket<unknown> | undefined
@@ -1699,20 +1699,20 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return undefined
   }
 
-  function removeConversationSocket(sessionId: string, conversationId: string): void {
-    const wrappers = conversationSockets.get(sessionId)
+  function removeConversationSocket(id: string, conversationId: string): void {
+    const wrappers = conversationSockets.get(id)
     if (wrappers) {
       wrappers.delete(conversationId)
-      if (wrappers.size === 0) conversationSockets.delete(sessionId)
+      if (wrappers.size === 0) conversationSockets.delete(id)
     }
   }
 
-  function getActiveConversationCount(sessionId: string): number {
-    return conversationSockets.get(sessionId)?.size ?? 0
+  function getActiveConversationCount(conversationId: string): number {
+    return conversationSockets.get(conversationId)?.size ?? 0
   }
 
-  function getConversationIds(sessionId: string): string[] {
-    const wrappers = conversationSockets.get(sessionId)
+  function getConversationIds(conversationId: string): string[] {
+    const wrappers = conversationSockets.get(conversationId)
     return wrappers ? Array.from(wrappers.keys()) : []
   }
 
@@ -1788,8 +1788,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
   }
 
-  function updateTasks(sessionId: string, tasks: TaskInfo[]): void {
-    const session = conversations.get(sessionId)
+  function updateTasks(conversationId: string, tasks: TaskInfo[]): void {
+    const session = conversations.get(conversationId)
     if (!session) return
 
     // Diff: find tasks that disappeared (deleted by Claude after completion)
@@ -1803,7 +1803,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
 
     session.tasks = tasks
-    scheduleConversationUpdate(sessionId)
+    scheduleConversationUpdate(conversationId)
   }
 
   function getSubscriberCount(): number {
@@ -1966,27 +1966,27 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   }
 
   // Transcript cache methods
-  function addTranscriptEntries(sessionId: string, entries: TranscriptEntry[], isInitial: boolean): void {
+  function addTranscriptEntries(conversationId: string, entries: TranscriptEntry[], isInitial: boolean): void {
     // Stamp seqs BEFORE cache insert and BEFORE any broadcast the caller does.
     // All entries in `entries` are mutated in place with `entry.seq = N`.
     // Callers (handlers/transcript.ts, handlers/boot-lifecycle.ts) then
     // broadcast the same objects, so the wire payload carries seqs too.
-    assignTranscriptSeqs(transcriptSeqCounters, sessionId, entries, isInitial)
+    assignTranscriptSeqs(transcriptSeqCounters, conversationId, entries, isInitial)
     if (isInitial) {
-      transcriptCache.set(sessionId, entries.slice(-MAX_TRANSCRIPT_ENTRIES))
+      transcriptCache.set(conversationId, entries.slice(-MAX_TRANSCRIPT_ENTRIES))
     } else {
-      const existing = transcriptCache.get(sessionId) || []
+      const existing = transcriptCache.get(conversationId) || []
       existing.push(...entries)
       if (existing.length > MAX_TRANSCRIPT_ENTRIES) {
-        transcriptCache.set(sessionId, existing.slice(-MAX_TRANSCRIPT_ENTRIES))
+        transcriptCache.set(conversationId, existing.slice(-MAX_TRANSCRIPT_ENTRIES))
       } else {
-        transcriptCache.set(sessionId, existing)
+        transcriptCache.set(conversationId, existing)
       }
     }
-    dirtyTranscripts.add(sessionId)
+    dirtyTranscripts.add(conversationId)
 
     // Extract stats from transcript entries
-    const session = conversations.get(sessionId)
+    const session = conversations.get(conversationId)
     let sessionChanged = false
     if (session) {
       // Ensure stats object exists (sessions created before this feature)
@@ -2048,15 +2048,15 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
               session.compactedAt = Date.now()
               session.stats.compactionCount++
               const marker = { type: 'compacted' as const, timestamp: entry.timestamp || new Date().toISOString() }
-              addTranscriptEntries(sessionId, [marker], false)
-              broadcastToChannel('conversation:transcript', sessionId, {
+              addTranscriptEntries(conversationId, [marker], false)
+              broadcastToChannel('conversation:transcript', conversationId, {
                 type: 'transcript_entries',
-                sessionId,
+                sessionId: conversationId,
                 entries: [marker],
                 isInitial: false,
               })
               sessionChanged = true
-              console.log(`[compact] detected via JSONL compact_boundary (session ${sessionId.slice(0, 8)})`)
+              console.log(`[compact] detected via JSONL compact_boundary (session ${conversationId.slice(0, 8)})`)
             }
           }
         }
@@ -2078,7 +2078,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
             if (mode && session.contextMode !== mode) {
               session.contextMode = mode
               sessionChanged = true
-              console.log(`[meta] context mode: ${mode} (session ${sessionId.slice(0, 8)})`)
+              console.log(`[meta] context mode: ${mode} (session ${conversationId.slice(0, 8)})`)
             }
           }
         }
@@ -2106,7 +2106,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           if (typeof s === 'string' && s.trim()) {
             session.summary = s.trim()
             sessionChanged = true
-            console.log(`[meta] summary: "${session.summary.slice(0, 60)}" (session ${sessionId.slice(0, 8)})`)
+            console.log(`[meta] summary: "${session.summary.slice(0, 60)}" (session ${conversationId.slice(0, 8)})`)
           }
         }
         if (entry.type === 'custom-title') {
@@ -2114,7 +2114,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           if (typeof t === 'string' && t.trim()) {
             session.title = t.trim()
             sessionChanged = true
-            console.log(`[meta] title: "${session.title}" (session ${sessionId.slice(0, 8)})`)
+            console.log(`[meta] title: "${session.title}" (session ${conversationId.slice(0, 8)})`)
           }
         }
         if (entry.type === 'agent-name') {
@@ -2122,7 +2122,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           if (typeof n === 'string' && n.trim()) {
             session.agentName = n.trim()
             sessionChanged = true
-            console.log(`[meta] agent: "${session.agentName}" (session ${sessionId.slice(0, 8)})`)
+            console.log(`[meta] agent: "${session.agentName}" (session ${conversationId.slice(0, 8)})`)
           }
         }
         if (entry.type === 'pr-link') {
@@ -2141,7 +2141,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
                 timestamp: (e.timestamp as string) || new Date().toISOString(),
               })
               console.log(
-                `[meta] pr-link: ${prRepository}#${prNumber} (session ${sessionId.slice(0, 8)}, total: ${session.prLinks.length})`,
+                `[meta] pr-link: ${prRepository}#${prNumber} (session ${conversationId.slice(0, 8)}, total: ${session.prLinks.length})`,
               )
               sessionChanged = true
             }
@@ -2173,7 +2173,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
                 }
                 const capture = {
                   type: 'clipboard_capture' as const,
-                  sessionId,
+                  sessionId: conversationId,
                   contentType: mime ? ('image' as const) : ('text' as const),
                   ...(mime ? { base64, mimeType: mime } : { text: decodedText }),
                   timestamp: Date.now(),
@@ -2188,13 +2188,13 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
                   filename: mime ? `clipboard.${mime.split('/')[1]}` : 'clipboard.txt',
                   mediaType: mime || 'text/plain',
                   project: session.project,
-                  conversationId: sessionId,
+                  conversationId,
                   size: base64.length,
                   url: '',
                   text: decodedText,
                   createdAt: Date.now(),
                 })
-                console.log(`[clipboard] ${capture.contentType} from transcript (session ${sessionId.slice(0, 8)})`)
+                console.log(`[clipboard] ${capture.contentType} from transcript (session ${conversationId.slice(0, 8)})`)
               }
             }
           }
@@ -2366,15 +2366,15 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       if (agentEntries.size > 0) {
         for (const [agentId, agentBatch] of agentEntries) {
           console.log(
-            `[transcript] ${sessionId.slice(0, 8)}... live agent ${agentId.slice(0, 7)} ${agentBatch.length} entries from parent`,
+            `[transcript] ${conversationId.slice(0, 8)}... live agent ${agentId.slice(0, 7)} ${agentBatch.length} entries from parent`,
           )
-          addSubagentTranscriptEntries(sessionId, agentId, agentBatch, false)
+          addSubagentTranscriptEntries(conversationId, agentId, agentBatch, false)
           broadcastToChannel(
             'conversation:subagent_transcript',
-            sessionId,
+            conversationId,
             {
               type: 'subagent_transcript',
-              sessionId,
+              sessionId: conversationId,
               agentId,
               entries: agentBatch,
               isInitial: false,
@@ -2384,10 +2384,10 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         }
         // Filter extracted agent entries out of parent cache (they were copied, not moved)
         const agentEntrySet = new Set([...agentEntries.values()].flat())
-        const cached = transcriptCache.get(sessionId)
+        const cached = transcriptCache.get(conversationId)
         if (cached) {
           transcriptCache.set(
-            sessionId,
+            conversationId,
             cached.filter(e => !agentEntrySet.has(e)),
           )
         }
@@ -2395,29 +2395,29 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
 
     if (session && sessionChanged) {
-      scheduleConversationUpdate(sessionId)
+      scheduleConversationUpdate(conversationId)
     }
   }
 
-  function getTranscriptEntries(sessionId: string, limit?: number): TranscriptEntry[] {
-    const entries = transcriptCache.get(sessionId) || []
+  function getTranscriptEntries(conversationId: string, limit?: number): TranscriptEntry[] {
+    const entries = transcriptCache.get(conversationId) || []
     if (limit && entries.length > limit) {
       return entries.slice(-limit)
     }
     return entries
   }
 
-  function hasTranscriptCache(sessionId: string): boolean {
-    return transcriptCache.has(sessionId)
+  function hasTranscriptCache(conversationId: string): boolean {
+    return transcriptCache.has(conversationId)
   }
 
   function addSubagentTranscriptEntries(
-    sessionId: string,
+    conversationId: string,
     agentId: string,
     entries: TranscriptEntry[],
     isInitial: boolean,
   ): void {
-    const key = `${sessionId}:${agentId}`
+    const key = `${conversationId}:${agentId}`
     if (isInitial) {
       // Stamp full batch on initial load -- counter resets to 0.
       assignTranscriptSeqs(subagentTranscriptSeqCounters, key, entries, true)
@@ -2442,7 +2442,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
 
     // Extract token usage from subagent transcript entries
-    const session = conversations.get(sessionId)
+    const session = conversations.get(conversationId)
     if (!session) return
     const subagent = session.subagents.find(a => a.agentId === agentId)
     if (!subagent) return
@@ -2468,22 +2468,22 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       changed = true
     }
 
-    if (changed) broadcastConversationUpdate(sessionId)
+    if (changed) broadcastConversationUpdate(conversationId)
   }
 
-  function getSubagentTranscriptEntries(sessionId: string, agentId: string, limit?: number): TranscriptEntry[] {
-    const entries = subagentTranscriptCache.get(`${sessionId}:${agentId}`) || []
+  function getSubagentTranscriptEntries(conversationId: string, agentId: string, limit?: number): TranscriptEntry[] {
+    const entries = subagentTranscriptCache.get(`${conversationId}:${agentId}`) || []
     if (limit && entries.length > limit) {
       return entries.slice(-limit)
     }
     return entries
   }
 
-  function hasSubagentTranscriptCache(sessionId: string, agentId: string): boolean {
-    return subagentTranscriptCache.has(`${sessionId}:${agentId}`)
+  function hasSubagentTranscriptCache(conversationId: string, agentId: string): boolean {
+    return subagentTranscriptCache.has(`${conversationId}:${agentId}`)
   }
 
-  function addBgTaskOutput(sessionId: string, taskId: string, data: string, done: boolean) {
+  function addBgTaskOutput(conversationId: string, taskId: string, data: string, done: boolean) {
     if (data) {
       const existing = bgTaskOutputCache.get(taskId) || ''
       // Cap at 100KB to prevent memory issues
@@ -2491,7 +2491,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       bgTaskOutputCache.set(taskId, combined.length > 100_000 ? combined.slice(-100_000) : combined)
     }
     // Store output reference on the bgTask if it exists
-    const session = conversations.get(sessionId)
+    const session = conversations.get(conversationId)
     if (session && done) {
       const bgTask = session.bgTasks.find(t => t.taskId === taskId)
       if (bgTask && bgTask.status === 'running') {
@@ -2578,8 +2578,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   // File listeners: from extracted listeners module
   const { addFileListener, removeFileListener, resolveFile } = listeners
 
-  function broadcastConversationUpdate(sessionId: string): void {
-    scheduleConversationUpdate(sessionId)
+  function broadcastConversationUpdate(conversationId: string): void {
+    scheduleConversationUpdate(conversationId)
   }
 
   // Inter-project link registry: extracted to project-links.ts
