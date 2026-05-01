@@ -1114,9 +1114,12 @@ export const SessionItemCompact = memo(function SessionItemCompact({ session }: 
           {session.summary}
         </div>
       )}
-      {!session.summary && session.recap && session.recapFresh && (
+      {session.recap && (
         <div
-          className="mt-0.5 pl-4 text-[9px] text-zinc-400/70 truncate group/recap relative"
+          className={cn(
+            'mt-0.5 pl-4 text-[9px] truncate group/recap relative',
+            session.recapFresh ? 'text-zinc-400/70' : 'text-muted-foreground/40 italic',
+          )}
           title={session.recap.content}
         >
           {session.recap.content}
