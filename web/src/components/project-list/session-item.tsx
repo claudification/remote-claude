@@ -1,5 +1,5 @@
 import { memo, type ReactNode, useEffect, useRef, useState } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import {
   formatCost,
   getCacheTimerInfo,
@@ -469,7 +469,7 @@ function ResultTextModal({ session }: { session: Session }) {
 }
 
 function DismissButton({ sessionId }: { sessionId: string }) {
-  const dismissSession = useSessionsStore(s => s.dismissSession)
+  const dismissSession = useConversationsStore(s => s.dismissSession)
   const [confirming, setConfirming] = useState(false)
 
   if (confirming) {
@@ -541,8 +541,8 @@ function DismissButton({ sessionId }: { sessionId: string }) {
 // ─── Inline rename input ─────────────────────────────────────────────
 
 function InlineRename({ session }: { session: Session }) {
-  const renameSession = useSessionsStore(s => s.renameSession)
-  const setRenamingSessionId = useSessionsStore(s => s.setRenamingSessionId)
+  const renameSession = useConversationsStore(s => s.renameSession)
+  const setRenamingSessionId = useConversationsStore(s => s.setRenamingSessionId)
   const inputRef = useRef<HTMLInputElement>(null)
   const [value, setValue] = useState(session.title || '')
 
@@ -588,8 +588,8 @@ function InlineRename({ session }: { session: Session }) {
 // ─── Inline description input ───────────────────────────────────────
 
 function InlineDescription({ session }: { session: Session }) {
-  const updateDescription = useSessionsStore(s => s.updateDescription)
-  const setEditingDescriptionSessionId = useSessionsStore(s => s.setEditingDescriptionSessionId)
+  const updateDescription = useConversationsStore(s => s.updateDescription)
+  const setEditingDescriptionSessionId = useConversationsStore(s => s.setEditingDescriptionSessionId)
   const inputRef = useRef<HTMLInputElement>(null)
   const [value, setValue] = useState(session.description || '')
 
@@ -755,17 +755,19 @@ function SessionItemTasksBlock({
 // ─── Full-size session card ───────────────────────────────────────
 
 const SessionItemFull = memo(function SessionItemFull({ session }: { session: Session }) {
-  const isSelected = useSessionsStore(s => s.selectedSessionId === session.id)
-  const selectedSubagentId = useSessionsStore(s => (s.selectedSessionId === session.id ? s.selectedSubagentId : null))
-  const selectSession = useSessionsStore(s => s.selectSession)
+  const isSelected = useConversationsStore(s => s.selectedSessionId === session.id)
+  const selectedSubagentId = useConversationsStore(s =>
+    s.selectedSessionId === session.id ? s.selectedSubagentId : null,
+  )
+  const selectSession = useConversationsStore(s => s.selectSession)
 
-  const openTab = useSessionsStore(s => s.openTab)
-  const ps = useSessionsStore(s => s.projectSettings[session.project])
-  const showContextBar = useSessionsStore(s => s.controlPanelPrefs.showContextInList)
-  const showCost = useSessionsStore(s => s.controlPanelPrefs.showCostInList)
-  const isRenaming = useSessionsStore(s => s.renamingSessionId === session.id)
-  const isEditingDescription = useSessionsStore(s => s.editingDescriptionSessionId === session.id)
-  const hasPendingPermission = useSessionsStore(s => s.pendingPermissions.some(p => p.sessionId === session.id))
+  const openTab = useConversationsStore(s => s.openTab)
+  const ps = useConversationsStore(s => s.projectSettings[session.project])
+  const showContextBar = useConversationsStore(s => s.controlPanelPrefs.showContextInList)
+  const showCost = useConversationsStore(s => s.controlPanelPrefs.showCostInList)
+  const isRenaming = useConversationsStore(s => s.renamingSessionId === session.id)
+  const isEditingDescription = useConversationsStore(s => s.editingDescriptionSessionId === session.id)
+  const hasPendingPermission = useConversationsStore(s => s.pendingPermissions.some(p => p.sessionId === session.id))
 
   const projectName = projectDisplayName(projectPath(session.project), ps?.label)
   const sessionName = session.title || session.agentName
@@ -864,7 +866,7 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
           title={`${session.description}\n(click to edit)`}
           onClick={e => {
             e.stopPropagation()
-            useSessionsStore.getState().setEditingDescriptionSessionId(session.id)
+            useConversationsStore.getState().setEditingDescriptionSessionId(session.id)
           }}
         >
           {session.description}
@@ -1009,16 +1011,18 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
 // ─── Compact session card (used inside CWD groups) ───────────────
 
 export const SessionItemCompact = memo(function SessionItemCompact({ session }: { session: Session }) {
-  const isSelected = useSessionsStore(s => s.selectedSessionId === session.id)
-  const selectedSubagentId = useSessionsStore(s => (s.selectedSessionId === session.id ? s.selectedSubagentId : null))
-  const selectSession = useSessionsStore(s => s.selectSession)
+  const isSelected = useConversationsStore(s => s.selectedSessionId === session.id)
+  const selectedSubagentId = useConversationsStore(s =>
+    s.selectedSessionId === session.id ? s.selectedSubagentId : null,
+  )
+  const selectSession = useConversationsStore(s => s.selectSession)
 
-  const ps = useSessionsStore(s => s.projectSettings[session.project])
-  const showCost = useSessionsStore(s => s.controlPanelPrefs.showCostInList)
-  const showContextBar = useSessionsStore(s => s.controlPanelPrefs.showContextInList)
-  const isRenaming = useSessionsStore(s => s.renamingSessionId === session.id)
-  const isEditingDescription = useSessionsStore(s => s.editingDescriptionSessionId === session.id)
-  const hasPendingPermission = useSessionsStore(s => s.pendingPermissions.some(p => p.sessionId === session.id))
+  const ps = useConversationsStore(s => s.projectSettings[session.project])
+  const showCost = useConversationsStore(s => s.controlPanelPrefs.showCostInList)
+  const showContextBar = useConversationsStore(s => s.controlPanelPrefs.showContextInList)
+  const isRenaming = useConversationsStore(s => s.renamingSessionId === session.id)
+  const isEditingDescription = useConversationsStore(s => s.editingDescriptionSessionId === session.id)
+  const hasPendingPermission = useConversationsStore(s => s.pendingPermissions.some(p => p.sessionId === session.id))
 
   const displayColor = ps?.color
 
@@ -1186,7 +1190,7 @@ export const SessionItemCompact = memo(function SessionItemCompact({ session }: 
 
 export const SessionCard = memo(function SessionCard({ session }: { session: Session }) {
   const [showSettings, setShowSettings] = useState(false)
-  const isSelected = useSessionsStore(s => s.selectedSessionId === session.id)
+  const isSelected = useConversationsStore(s => s.selectedSessionId === session.id)
   return (
     <SessionContextMenu session={session} onOpenSettings={() => setShowSettings(true)}>
       <div>
@@ -1217,9 +1221,9 @@ export const SessionCard = memo(function SessionCard({ session }: { session: Ses
 export const InactiveProjectItem = memo(
   function InactiveProjectItem({ sessions }: { sessions: Session[] }) {
     const [showSettings, setShowSettings] = useState(false)
-    const selectSession = useSessionsStore(s => s.selectSession)
+    const selectSession = useConversationsStore(s => s.selectSession)
     const latest = sessions.reduce((a, b) => (a.lastActivity > b.lastActivity ? a : b))
-    const ps = useSessionsStore(s => s.projectSettings[latest.project])
+    const ps = useConversationsStore(s => s.projectSettings[latest.project])
     const displayName = projectDisplayName(projectPath(latest.project), ps?.label)
     const displayColor = ps?.color
 

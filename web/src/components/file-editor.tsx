@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { type FileInfo, useFileEditor } from '@/hooks/use-file-editor'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { useKeyLayer } from '@/lib/key-layers'
 import { cn, haptic } from '@/lib/utils'
 import { Markdown } from './markdown'
@@ -178,14 +178,14 @@ export const FileEditor = memo(function FileEditor({ sessionId }: { sessionId: s
   }, [loadFileList])
 
   // Auto-open file from Ctrl+K file picker
-  const pendingFilePath = useSessionsStore(state => state.pendingFilePath)
+  const pendingFilePath = useConversationsStore(state => state.pendingFilePath)
   useEffect(() => {
     if (pendingFilePath && files.length > 0) {
       const match = files.find(f => f.path === pendingFilePath)
       if (match) {
         openFile(match.path)
       }
-      useSessionsStore.getState().setPendingFilePath(null)
+      useConversationsStore.getState().setPendingFilePath(null)
     }
   }, [pendingFilePath, files, openFile])
 

@@ -9,7 +9,7 @@
 // Session
 // ---------------------------------------------------------------------------
 
-export interface SessionRecord {
+export interface ConversationRecord {
   id: string
   scope: string
   agentType: string
@@ -29,10 +29,10 @@ export interface SessionRecord {
   lastActivity?: number
 
   meta?: Record<string, unknown>
-  stats?: SessionStats
+  stats?: ConversationStats
 }
 
-export interface SessionStats {
+export interface ConversationStats {
   inputTokens?: number
   outputTokens?: number
   cacheReadTokens?: number
@@ -43,7 +43,7 @@ export interface SessionStats {
   turnCount?: number
 }
 
-export interface SessionCreate {
+export interface ConversationCreate {
   id: string
   scope: string
   agentType: string
@@ -54,7 +54,7 @@ export interface SessionCreate {
   createdAt?: number
 }
 
-export interface SessionPatch {
+export interface ConversationPatch {
   status?: string
   model?: string
   title?: string
@@ -65,10 +65,10 @@ export interface SessionPatch {
   endedAt?: number
   lastActivity?: number
   meta?: Record<string, unknown>
-  stats?: SessionStats
+  stats?: ConversationStats
 }
 
-export interface SessionFilter {
+export interface ConversationFilter {
   scope?: string
   status?: string[]
   agentType?: string
@@ -76,7 +76,7 @@ export interface SessionFilter {
   offset?: number
 }
 
-export interface SessionSummaryRecord {
+export interface ConversationSummaryRecord {
   id: string
   scope: string
   agentType: string
@@ -92,13 +92,13 @@ export interface SessionSummaryRecord {
 }
 
 export interface SessionStore {
-  get(id: string): SessionRecord | null
-  create(session: SessionCreate): SessionRecord
-  update(id: string, patch: SessionPatch): void
+  get(id: string): ConversationRecord | null
+  create(session: ConversationCreate): ConversationRecord
+  update(id: string, patch: ConversationPatch): void
   delete(id: string): void
-  list(filter?: SessionFilter): SessionSummaryRecord[]
-  listByScope(scope: string, filter?: { status?: string[] }): SessionSummaryRecord[]
-  updateStats(id: string, stats: Partial<SessionStats>): void
+  list(filter?: ConversationFilter): ConversationSummaryRecord[]
+  listByScope(scope: string, filter?: { status?: string[] }): ConversationSummaryRecord[]
+  updateStats(id: string, stats: Partial<ConversationStats>): void
 }
 
 // ---------------------------------------------------------------------------
@@ -391,7 +391,7 @@ export interface CostSummary {
 
 export interface CumulativeTurnInput {
   timestamp: number
-  sessionId: string
+  conversationId: string
   projectUri: string
   account: string
   orgId: string

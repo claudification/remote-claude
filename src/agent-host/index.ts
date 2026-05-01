@@ -38,13 +38,13 @@ import { processHookEvent } from './hook-processor'
 import { beginLaunch, emitLaunchEvent, filterRelevantEnv, replayLaunchEvents } from './launch-events'
 import { resolveAskRequest, setLocalServerDebug, startLocalServer, stopLocalServer } from './local-server'
 import {
+  type ConversationInfo,
   closeMcpChannel,
   initMcpChannel,
   isMcpChannelReady,
   keepaliveDialog,
   pushChannelMessage,
   resolveDialog,
-  type SessionInfo,
   sendPermissionResponse,
   setClaudeCodeVersion,
   setDialogCwd,
@@ -395,8 +395,8 @@ async function main() {
   }
 
   // Session name: pass --name to Claude CLI (shown in /resume, terminal title)
-  if (process.env.RCLAUDE_SESSION_NAME && !claudeArgs.includes('--name') && !claudeArgs.includes('-n')) {
-    claudeArgs.push('--name', process.env.RCLAUDE_SESSION_NAME)
+  if (process.env.CLAUDWERK_CONVERSATION_NAME && !claudeArgs.includes('--name') && !claudeArgs.includes('-n')) {
+    claudeArgs.push('--name', process.env.CLAUDWERK_CONVERSATION_NAME)
   }
 
   // Permission mode: pass --permission-mode to Claude CLI
@@ -621,7 +621,7 @@ async function main() {
       const json = JSON.stringify(tasks)
       if (json !== ctx.lastTasksJson) {
         ctx.lastTasksJson = json
-        const msg: TasksUpdate = { type: 'tasks_update', sessionId: ctx.claudeSessionId, tasks }
+        const msg: TasksUpdate = { type: 'tasks_update', conversationId: ctx.claudeSessionId, tasks }
         ctx.wsClient?.send(msg)
         debug(`Tasks updated: ${tasks.length} tasks (dir: ${tasksDir?.split('/').pop()?.slice(0, 8)})`)
         diag('tasks', `Sent ${tasks.length} tasks`, { dir: tasksDir?.split('/').pop() })
@@ -869,8 +869,8 @@ async function main() {
         ? undefined
         : {
             claudeArgs,
-            title: process.env.RCLAUDE_SESSION_NAME || undefined,
-            description: process.env.RCLAUDE_SESSION_DESCRIPTION || undefined,
+            title: process.env.CLAUDWERK_CONVERSATION_NAME || undefined,
+            description: process.env.CLAUDWERK_CONVERSATION_DESCRIPTION || undefined,
             // launchConfig is stored on the broker at spawn time (keyed
             // by conversationId) -- the broker merges it into the session on
             // promote, so we don't need to duplicate it here.
@@ -883,15 +883,15 @@ async function main() {
         // during boot phase, but defensive)
         if (sessionId) {
           for (const event of ctx.eventQueue) {
-            ctx.wsClient?.sendHookEvent({ ...event, sessionId })
+            ctx.wsClient?.sendHookEvent({ ...event, conversationId })
           }
           ctx.eventQueue.length = 0
         }
         // Flush pending session name (queued before WS connected)
         if (ctx.pendingSessionName && ctx.wsClient) {
           ctx.wsClient.send({
-            type: 'session_name',
-            sessionId: ctx.claudeSessionId || conversationId,
+            type: 'conversation_name',
+            conversationId: ctx.claudeSessionId || conversationId,
             name: ctx.pendingSessionName.name,
             userSet: ctx.pendingSessionName.userSet,
             description: ctx.pendingSessionName.description,
@@ -1407,7 +1407,7 @@ async function main() {
       onNotify(message, title) {
         diag('channel', `Notify: ${title ? `[${title}] ` : ''}${message.slice(0, 80)}`)
         if (ctx.wsClient?.isConnected()) {
-          ctx.wsClient.send({ type: 'notify', sessionId: ctx.claudeSessionId || conversationId, message, title })
+          ctx.wsClient.send({ type: 'notify', conversationId: ctx.claudeSessionId || conversationId, message, title })
         }
       },
       async onShareFile(filePath) {
@@ -1511,7 +1511,7 @@ async function main() {
         diag('channel', `Permission request: ${data.requestId} ${data.toolName}`)
         sendInteraction(ctx, 'permission_request', data.requestId, {
           type: 'permission_request',
-          sessionId: ctx.claudeSessionId || conversationId,
+          conversationId: ctx.claudeSessionId || conversationId,
           requestId: data.requestId,
           toolName: data.toolName,
           description: data.description,
@@ -1742,7 +1742,7 @@ async function main() {
             resolve(result)
           }
           ctx.wsClient?.send({
-            type: 'session_control',
+            type: 'conversation_control',
             targetSession: sessionId,
             action,
             ...(model && { model }),
@@ -1782,7 +1782,7 @@ async function main() {
             resolve(result)
           }
           ctx.wsClient?.send({
-            type: 'rename_session',
+            type: 'rename_conversation',
             sessionId,
             name,
             description,
@@ -1795,7 +1795,7 @@ async function main() {
       onExitSession(status, message) {
         const detail = message ? `${status}: ${message}` : status
         beginLaunch(ctx, 'live')
-        emitLaunchEvent(ctx, 'session_exit', {
+        emitLaunchEvent(ctx, 'conversation_exit', {
           detail,
           raw: { status, message },
         })
@@ -1821,7 +1821,7 @@ async function main() {
   )
 
   // Pending callbacks for inter-session request/response
-  let pendingListSessions: ((sessions: SessionInfo[], self?: Record<string, unknown>) => void) | null = null
+  let pendingListSessions: ((sessions: ConversationInfo[], self?: Record<string, unknown>) => void) | null = null
   let pendingSendResult:
     | ((result: { ok: boolean; error?: string; conversationId?: string; targetSessionId?: string }) => void)
     | null = null
@@ -1865,7 +1865,7 @@ async function main() {
       const sid = ctx.claudeSessionId || conversationId
       debug(`Notify: ${title ? `[${title}] ` : ''}${message}`)
       if (ctx.wsClient?.isConnected()) {
-        ctx.wsClient.send({ type: 'notify', sessionId: sid, message, title })
+        ctx.wsClient.send({ type: 'notify', conversationId: sid, message, title })
       }
     },
     onAskQuestion(request) {
@@ -1932,31 +1932,31 @@ async function main() {
   const hasUserName = claudeArgs.includes('--name') || claudeArgs.includes('-n')
   const isResuming = claudeArgs.includes('--resume') || claudeArgs.includes('-c')
   // Managed sessions (spawned/revived via agent) get a funny name even when resuming,
-  // unless a name was already provided via RCLAUDE_SESSION_NAME (-> hasUserName).
+  // unless a name was already provided via CLAUDWERK_CONVERSATION_NAME (-> hasUserName).
   // User-initiated --resume skips name generation (existing session has one).
   const isManagedSession = !!(process.env.RCLAUDE_CONVERSATION_ID || process.env.RCLAUDE_WRAPPER_ID)
   const sessionName = hasUserName || (isResuming && !isManagedSession) ? undefined : generateFunnyName()
 
   // Resolve the actual name that will be sent to CC (user-provided via env, or auto-generated)
-  const resolvedSessionName = process.env.RCLAUDE_SESSION_NAME || sessionName
-  debug(`Session name: ${resolvedSessionName || '(none)'} (user=${!!process.env.RCLAUDE_SESSION_NAME})`)
+  const resolvedSessionName = process.env.CLAUDWERK_CONVERSATION_NAME || sessionName
+  debug(`Session name: ${resolvedSessionName || '(none)'} (user=${!!process.env.CLAUDWERK_CONVERSATION_NAME})`)
 
   // Send session name to broker (immediately if connected, or deferred to onConnected)
   // Store on context so onConnected can send it after WS connects
-  const sessionDescription = process.env.RCLAUDE_SESSION_DESCRIPTION || undefined
+  const sessionDescription = process.env.CLAUDWERK_CONVERSATION_DESCRIPTION || undefined
   ctx.pendingSessionName = resolvedSessionName
     ? {
         name: resolvedSessionName,
-        userSet: !!process.env.RCLAUDE_SESSION_NAME,
+        userSet: !!process.env.CLAUDWERK_CONVERSATION_NAME,
         description: sessionDescription,
       }
     : undefined
   if (resolvedSessionName && ctx.wsClient?.isConnected()) {
     ctx.wsClient.send({
-      type: 'session_name',
-      sessionId: ctx.claudeSessionId || conversationId,
+      type: 'conversation_name',
+      conversationId: ctx.claudeSessionId || conversationId,
       name: resolvedSessionName,
-      userSet: !!process.env.RCLAUDE_SESSION_NAME,
+      userSet: !!process.env.CLAUDWERK_CONVERSATION_NAME,
       description: sessionDescription,
     } as AgentHostMessage)
     ctx.pendingSessionName = undefined
@@ -2063,7 +2063,7 @@ async function main() {
               const sid = ctx.claudeSessionId || conversationId
               ctx.wsClient.send({
                 type: 'clipboard_capture',
-                sessionId: sid,
+                conversationId: sid,
                 contentType: capture.contentType,
                 text: capture.text,
                 base64: capture.contentType === 'image' ? capture.base64 : undefined,

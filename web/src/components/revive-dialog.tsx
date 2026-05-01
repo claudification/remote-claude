@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { TogglePill } from '@/components/ui/toggle-pill'
 import { useLaunchProgress } from '@/hooks/use-launch-progress'
-import { reviveSession, useSessionsStore } from '@/hooks/use-sessions'
+import { reviveSession, useConversationsStore } from '@/hooks/use-sessions'
 import { useKeyLayer } from '@/lib/key-layers'
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
@@ -48,9 +48,9 @@ export function ReviveDialog() {
   const [conversationId, setWrapperId] = useState<string | null>(null)
   const sessionAtReviveRef = useRef<string | null>(null)
 
-  const sessionsById = useSessionsStore(s => s.sessionsById)
-  const projectSettings = useSessionsStore(s => s.projectSettings)
-  const globalSettings = useSessionsStore(s => s.globalSettings)
+  const sessionsById = useConversationsStore(s => s.sessionsById)
+  const projectSettings = useConversationsStore(s => s.projectSettings)
+  const globalSettings = useConversationsStore(s => s.globalSettings)
 
   const session = state.options ? sessionsById[state.options.sessionId] : undefined
 
@@ -69,7 +69,7 @@ export function ReviveDialog() {
   const progressReset = progress.reset
   useEffect(() => {
     _openDialog = (options: ReviveDialogOptions) => {
-      const sess = useSessionsStore.getState().sessionsById[options.sessionId]
+      const sess = useConversationsStore.getState().sessionsById[options.sessionId]
       const ps = sess ? projectSettings[sess.project] : undefined
       const gs = globalSettings as Record<string, unknown>
       const lc = sess?.launchConfig
@@ -148,14 +148,14 @@ export function ReviveDialog() {
 
   const handleClose = useCallback(() => {
     addedConnectedStepRef.current = false
-    const currentId = useSessionsStore.getState().selectedSessionId
+    const currentId = useConversationsStore.getState().selectedSessionId
     const userNavigatedAway = currentId !== sessionAtReviveRef.current && currentId !== null
     const sid =
       progress.launch.sessionId ||
       (progress.spawnedSession && progress.spawnedSession.status !== 'ended' ? progress.spawnedSession.id : null)
 
     if (sid && !userNavigatedAway) {
-      useSessionsStore.getState().selectSession(sid, 'revive-dialog-close')
+      useConversationsStore.getState().selectSession(sid, 'revive-dialog-close')
     }
     setState({ open: false, options: null })
     setJobId(null)
@@ -163,7 +163,7 @@ export function ReviveDialog() {
 
   const handleViewSession = useCallback(() => {
     const sid = progress.launch.sessionId || progress.spawnedSession?.id
-    if (sid) useSessionsStore.getState().selectSession(sid, 'revive-dialog-view-session')
+    if (sid) useConversationsStore.getState().selectSession(sid, 'revive-dialog-view-session')
     progress.setViewCountdown(null)
     setState({ open: false, options: null })
     setJobId(null)
@@ -173,7 +173,7 @@ export function ReviveDialog() {
     if (!state.options || phase !== 'config' || !session) return
 
     setPhase('launching')
-    sessionAtReviveRef.current = useSessionsStore.getState().selectedSessionId
+    sessionAtReviveRef.current = useConversationsStore.getState().selectedSessionId
     haptic('tap')
 
     const newJobId = crypto.randomUUID()

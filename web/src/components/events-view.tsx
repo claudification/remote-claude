@@ -1,6 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useCallback, useEffect, useRef } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import type { HookEvent } from '@/lib/types'
 import { EventItem } from './event-detail'
 
@@ -72,8 +72,8 @@ export function EventsView({ events, follow = false, onUserScroll, onReachedTop 
   const followRef = useRef(follow)
   followRef.current = follow
   useEffect(() => {
-    let lastSeq = useSessionsStore.getState().newDataSeq
-    return useSessionsStore.subscribe(state => {
+    let lastSeq = useConversationsStore.getState().newDataSeq
+    return useConversationsStore.subscribe(state => {
       if (state.newDataSeq !== lastSeq) {
         lastSeq = state.newDataSeq
         if (!followRef.current || followKilledRef.current) return

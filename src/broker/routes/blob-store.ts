@@ -124,7 +124,7 @@ export interface SharedFileEntry {
   filename: string
   mediaType: string
   project?: string // project URI (primary query key)
-  sessionId?: string // for attribution
+  conversationId?: string // for attribution
   size: number
   url: string
   text?: string // clipboard text content

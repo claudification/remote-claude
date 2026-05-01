@@ -19,13 +19,13 @@ import {
   setProjectSettings,
 } from '../project-settings'
 import { addSubscription, getSubscriptionCount, isPushConfigured, removeSubscription, sendPushToAll } from '../push'
-import type { SessionStore } from '../session-store'
+import type { ConversationStore } from '../session-store'
 import { appendSharedFile, dismissSharedFile, mediaTypeToExt, readSharedFiles, storeBlobStreaming } from './blob-store'
 import type { RouteHelpers } from './shared'
 import { broadcastToSubscribers } from './shared'
 
 export function createApiRouter(
-  sessionStore: SessionStore,
+  sessionStore: ConversationStore,
   helpers: RouteHelpers,
   rclaudeSecret: string | undefined,
   cacheDir: string | undefined,
@@ -95,7 +95,7 @@ export function createApiRouter(
     const result = await sendPushToAll({
       title: body.title || 'rclaude',
       body: body.body || '',
-      sessionId: body.sessionId,
+      conversationId: body.sessionId,
       tag: body.tag,
     })
     return c.json({ success: true, ...result })
@@ -369,7 +369,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
       filename,
       mediaType,
       project: sessionProject,
-      sessionId,
+      conversationId: sessionId,
       size,
       url,
       createdAt: Date.now(),
@@ -384,7 +384,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     const sessionId = c.req.query('sessionId')
     let files = readSharedFiles()
     if (projectFilter) files = files.filter(f => f.project === projectFilter)
-    else if (sessionId) files = files.filter(f => f.sessionId === sessionId)
+    else if (sessionId) files = files.filter(f => f.conversationId === sessionId)
     // Filter by projects the caller can access
     const grants = resolveHttpGrants(c.req.raw)
     if (grants) {

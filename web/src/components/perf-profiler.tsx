@@ -10,7 +10,7 @@
  */
 
 import { Fragment, Profiler, type ProfilerOnRenderCallback, type ReactNode, useLayoutEffect, useRef } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { isPerfEnabled, record } from '@/lib/perf-metrics'
 
 const onRenderProfile: ProfilerOnRenderCallback = (id, phase, actualDuration, baseDuration) => {
@@ -54,7 +54,7 @@ function useCommitToPaintTimer(id: string) {
  *                           live. Equivalent to CM's `cm.update->paint`.
  */
 export function MaybeProfiler({ id, children }: { id: string; children: ReactNode }) {
-  const enabled = useSessionsStore(s => s.controlPanelPrefs.showPerfMonitor)
+  const enabled = useConversationsStore(s => s.controlPanelPrefs.showPerfMonitor)
   if (!enabled) return <Fragment>{children}</Fragment>
   return (
     <Profiler id={id} onRender={onRenderProfile}>

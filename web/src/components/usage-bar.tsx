@@ -1,6 +1,6 @@
 import { Popover } from 'radix-ui'
 import { useRef, useState } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import type { ExtraUsage, UsageWindow } from '@/lib/types'
 import { haptic } from '@/lib/utils'
 
@@ -94,7 +94,7 @@ function ExtraUsageRow({ extra }: { extra: ExtraUsage }) {
 }
 
 export function UsageBar() {
-  const usage = useSessionsStore(s => s.planUsage)
+  const usage = useConversationsStore(s => s.planUsage)
   const [open, setOpen] = useState(false)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 

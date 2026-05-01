@@ -8,11 +8,11 @@ import type { ProjectSettings } from '../shared/protocol'
 import { GuardError, type HandlerContext, logPrefix, type WsData } from './handler-context'
 import type { Permission } from './permissions'
 import { resolvePermissions } from './permissions'
-import type { SessionStore } from './session-store'
+import type { ConversationStore } from './session-store'
 import type { StoreDriver } from './store/types'
 
 export interface ContextDeps {
-  sessions: SessionStore
+  sessions: ConversationStore
   store: StoreDriver
   verbose: boolean
   origins: string[]

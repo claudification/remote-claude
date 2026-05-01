@@ -48,7 +48,7 @@ function elog(msg: string): void {
   debug(`[dialog] ${msg}`)
 }
 
-export interface SessionInfo {
+export interface ConversationInfo {
   id: string // addressable ID: bare project slug or compound "project:session-name"
   project: string // project URI (e.g. "claude:///Users/jonas/projects/foo")
   session_id?: string // CC session ID (for transcript/task context)
@@ -84,7 +84,7 @@ export interface McpChannelCallbacks {
   onListSessions?: (
     status?: string,
     showMetadata?: boolean,
-  ) => Promise<{ sessions: SessionInfo[]; self?: Record<string, unknown> }>
+  ) => Promise<{ sessions: ConversationInfo[]; self?: Record<string, unknown> }>
   onSendMessage?: (
     to: string,
     intent: string,

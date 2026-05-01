@@ -262,7 +262,7 @@ import {
   deleteProjectSettings,
   generateProjectKeyterms,
   updateProjectSettings,
-  useSessionsStore,
+  useConversationsStore,
 } from '@/hooks/use-sessions'
 import { extractProjectLabel, type ProjectSettings } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -578,8 +578,8 @@ const PROJECT_TABS: SettingsShellTab[] = [
 ]
 
 export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEditorProps) {
-  const projectSettings = useSessionsStore(s => s.projectSettings)
-  const setProjectSettings = useSessionsStore(s => s.setProjectSettings)
+  const projectSettings = useConversationsStore(s => s.projectSettings)
+  const setProjectSettings = useConversationsStore(s => s.setProjectSettings)
   const current = projectSettings[project] || {}
 
   const [activeTab, setActiveTab] = useState('general')

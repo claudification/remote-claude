@@ -1,5 +1,5 @@
 import { memo, useState } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import type { Session } from '@/lib/types'
 import { extractProjectLabel, projectPath } from '@/lib/types'
 import { haptic } from '@/lib/utils'
@@ -19,7 +19,7 @@ function sessionsEqual(a: Session[], b: Session[]): boolean {
 // ─── Dismiss all ended sessions button ────────────────────────────
 
 function DismissAllEndedButton({ ended }: { ended: Session[] }) {
-  const dismissSession = useSessionsStore(s => s.dismissSession)
+  const dismissSession = useConversationsStore(s => s.dismissSession)
   const [confirming, setConfirming] = useState(false)
   if (ended.length === 0) return null
 
@@ -95,12 +95,12 @@ function DismissAllEndedButton({ ended }: { ended: Session[] }) {
 const ProjectSessionGroup = memo(
   function ProjectSessionGroup({ sessions, project }: { sessions: Session[]; project: string }) {
     const [showSettings, setShowSettings] = useState(false)
-    const ps = useSessionsStore(s => s.projectSettings[project])
+    const ps = useConversationsStore(s => s.projectSettings[project])
     const displayName = ps?.label || extractProjectLabel(project)
     const displayColor = ps?.color
     const { adhoc, normal, ended } = partitionSessions(sessions)
     // Project-level rollups: any session in this project needing attention?
-    const hasPendingPermission = useSessionsStore(s => {
+    const hasPendingPermission = useConversationsStore(s => {
       const ids = new Set(sessions.map(x => x.id))
       return s.pendingPermissions.some(p => ids.has(p.sessionId))
     })

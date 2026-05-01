@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { getRates, subscribe as subscribeStats } from '@/hooks/ws-stats'
 import { clearLog, copyLogText, getLogEntries, subscribeLog } from '@/lib/debug-log'
 import {
@@ -127,12 +127,12 @@ function TrafficTab({ serverStats, fetchError }: { serverStats: ServerStats | nu
 }
 
 function CacheTab() {
-  const mru = useSessionsStore(s => s.sessionMru)
-  const sessionsById = useSessionsStore(s => s.sessionsById)
-  const transcripts = useSessionsStore(s => s.transcripts)
-  const events = useSessionsStore(s => s.events)
-  const selected = useSessionsStore(s => s.selectedSessionId)
-  const prefs = useSessionsStore(s => s.controlPanelPrefs)
+  const mru = useConversationsStore(s => s.sessionMru)
+  const sessionsById = useConversationsStore(s => s.sessionsById)
+  const transcripts = useConversationsStore(s => s.transcripts)
+  const events = useConversationsStore(s => s.events)
+  const selected = useConversationsStore(s => s.selectedSessionId)
+  const prefs = useConversationsStore(s => s.controlPanelPrefs)
 
   const cachedIds = Object.keys(transcripts).filter(id => (transcripts[id]?.length ?? 0) > 0)
   const totalEntries = cachedIds.reduce((sum, id) => sum + (transcripts[id]?.length ?? 0), 0)

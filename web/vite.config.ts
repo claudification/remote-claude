@@ -107,7 +107,7 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:9999',
           changeOrigin: true,
         },
-        '/sessions': {
+        '/conversations': {
           target: 'http://localhost:9999',
           changeOrigin: true,
         },

@@ -16,7 +16,7 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { buildSpawnDiagnostics } from '@shared/spawn-diagnostics'
-import { deriveSessionName } from '@shared/spawn-naming'
+import { deriveConversationName } from '@shared/spawn-naming'
 import { composeSpawnPrompt } from '@shared/spawn-prompt'
 import type { SpawnRequest } from '@shared/spawn-schema'
 import {
@@ -49,7 +49,7 @@ import {
 import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import type { ProjectTask } from '@/hooks/use-project'
 import { type ProjectTaskMeta, type TaskStatus, useProject } from '@/hooks/use-project'
-import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
+import { sendInput, useConversationsStore } from '@/hooks/use-sessions'
 import { sendSpawnRequest } from '@/hooks/use-spawn'
 import { useKeyLayer } from '@/lib/key-layers'
 import { loadRunTaskDefaults, saveRunTaskDefaults } from '@/lib/run-task-defaults'
@@ -560,7 +560,7 @@ export function RunTaskDialog({
   sessionId: string
   onClose: () => void
 }) {
-  const spawnPath = useSessionsStore(state => {
+  const spawnPath = useConversationsStore(state => {
     const s = state.sessionsById[sessionId]
     return s ? projectPath(s.project) : ''
   })
@@ -666,10 +666,10 @@ export function RunTaskDialog({
     if (progress.viewCountdown !== 0) return
     const sid = progress.launch.sessionId || progress.spawnedSession?.id
     if (!sid) return
-    const currentId = useSessionsStore.getState().selectedSessionId
+    const currentId = useConversationsStore.getState().selectedSessionId
     const userNavigatedAway = currentId !== sessionAtLaunchRef.current && currentId !== null
     if (!userNavigatedAway) {
-      useSessionsStore.getState().selectSession(sid, 'project-board-auto-redirect')
+      useConversationsStore.getState().selectSession(sid, 'project-board-auto-redirect')
     } else {
       console.log(
         `[nav] project-board: NOT switching to ${sid.slice(0, 8)} -- user navigated to ${currentId?.slice(0, 8)} during launch`,
@@ -691,7 +691,7 @@ export function RunTaskDialog({
       timeout,
     })
     setPhase('launching')
-    sessionAtLaunchRef.current = useSessionsStore.getState().selectedSessionId
+    sessionAtLaunchRef.current = useConversationsStore.getState().selectedSessionId
     haptic('tap')
 
     const newJobId = crypto.randomUUID()
@@ -715,7 +715,7 @@ export function RunTaskDialog({
       worktree: useWorktree ? branchName : undefined,
       leaveRunning: leaveRunning || undefined,
       name:
-        deriveSessionName(
+        deriveConversationName(
           {},
           { slug: task.slug, title: task.title, status: task.status, priority: task.priority, tags: task.tags },
         ) ?? undefined,
@@ -742,7 +742,7 @@ export function RunTaskDialog({
   function handleViewSession() {
     const sid = progress.launch.sessionId || progress.spawnedSession?.id
     if (sid) {
-      useSessionsStore.getState().selectSession(sid, 'project-board-view-session')
+      useConversationsStore.getState().selectSession(sid, 'project-board-view-session')
       progress.setViewCountdown(null)
       onClose()
     }

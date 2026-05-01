@@ -5,7 +5,7 @@
  * the normal send path.
  */
 
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 
 /**
  * Returns true if the input is a client command and was handled (caller
@@ -24,7 +24,7 @@ export function tryRunClientCommand(input: string): boolean {
       return true
     case 'project':
     case 'session': {
-      const state = useSessionsStore.getState()
+      const state = useConversationsStore.getState()
       const sid = state.selectedSessionId
       const project = sid ? state.sessionsById[sid]?.project : null
       if (!project) return false

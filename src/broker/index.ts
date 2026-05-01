@@ -47,7 +47,7 @@ import { closeProjectStore, initProjectStore } from './project-store'
 import { initPush, isPushConfigured, sendPushToAll } from './push'
 import { createRouter } from './routes'
 import { createSentinelRegistry } from './sentinel-registry'
-import { createSessionStore } from './session-store'
+import { createConversationStore } from './session-store'
 import {
   cleanExpired as cleanExpiredShares,
   initShares,
@@ -362,7 +362,7 @@ async function main() {
   const sentinelRegistry = authCacheDir ? createSentinelRegistry(authCacheDir) : undefined
   if (sentinelRegistry) setSentinelRegistry(sentinelRegistry)
 
-  const sessionStore = createSessionStore({
+  const sessionStore = createConversationStore({
     cacheDir,
     enablePersistence: !noPersistence,
     store,
@@ -512,7 +512,7 @@ async function main() {
         sendPushToAll({
           title: `${notifType} - ${label}`,
           body: message,
-          sessionId,
+          conversationId: sessionId,
           tag: `notification-${sessionId}`,
         }).catch(() => {})
       }
@@ -526,7 +526,7 @@ async function main() {
         sendPushToAll({
           title: `Session stopped - ${label}`,
           body: reason,
-          sessionId,
+          conversationId: sessionId,
           tag: `stop-${sessionId}`,
         }).catch(() => {})
       }

@@ -87,7 +87,7 @@ export function DiagView({ sessionId }: DiagViewProps) {
     setData(null)
     setError(null)
     setHighlighted(null)
-    fetch(`/sessions/${sessionId}/diag`)
+    fetch(`/conversations/${sessionId}/diag`)
       .then(res => (res.ok ? res.json() : Promise.reject(new Error(`${res.status}`))))
       .then(setData)
       .catch(e => setError(String(e)))

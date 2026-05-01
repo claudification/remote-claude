@@ -1,6 +1,6 @@
 import type { ServerWebSocket } from 'bun'
 import { extractProjectLabel } from '../../shared/project-uri'
-import type { SessionSummary } from '../../shared/protocol'
+import type { ConversationSummary } from '../../shared/protocol'
 
 interface LaunchJobEvent {
   type: string
@@ -71,11 +71,11 @@ export interface RendezvousRegistry {
     callerSessionId: string,
     project: string,
     action: 'spawn' | 'revive' | 'restart',
-  ) => Promise<SessionSummary>
+  ) => Promise<ConversationSummary>
   resolveRendezvous: (
     conversationId: string,
     sessionId: string,
-    toSessionSummary: (id: string) => SessionSummary | undefined,
+    toSessionSummary: (id: string) => ConversationSummary | undefined,
   ) => boolean
   getRendezvousInfo: (conversationId: string) => RendezvousInfo | undefined
   addPendingRestart: (conversationId: string, info: PendingRestartInfo) => void
@@ -243,7 +243,7 @@ export function createRendezvousRegistry(): RendezvousRegistry {
     conversationId: string
     project: string
     action: 'spawn' | 'revive' | 'restart'
-    resolve: (session: SessionSummary) => void
+    resolve: (session: ConversationSummary) => void
     reject: (error: string) => void
     timer: ReturnType<typeof setTimeout>
     registeredAt: number

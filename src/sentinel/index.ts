@@ -220,8 +220,8 @@ const RCLAUDE_SESSION_VARS = new Set([
   'RCLAUDE_HEADLESS',
   'RCLAUDE_CONVERSATION_ID',
   'RCLAUDE_SESSION_ID',
-  'RCLAUDE_SESSION_NAME',
-  'RCLAUDE_SESSION_DESCRIPTION',
+  'CLAUDWERK_CONVERSATION_NAME',
+  'CLAUDWERK_CONVERSATION_DESCRIPTION',
   'RCLAUDE_SECRET',
   'RCLAUDE_PERMISSION_MODE',
   'RCLAUDE_BARE',
@@ -291,8 +291,8 @@ function buildHeadlessEnv(opts: {
 
   // Optional
   if (opts.sessionId) env.RCLAUDE_SESSION_ID = opts.sessionId
-  if (opts.sessionName) env.RCLAUDE_SESSION_NAME = opts.sessionName
-  if (opts.sessionDescription) env.RCLAUDE_SESSION_DESCRIPTION = opts.sessionDescription
+  if (opts.sessionName) env.CLAUDWERK_CONVERSATION_NAME = opts.sessionName
+  if (opts.sessionDescription) env.CLAUDWERK_CONVERSATION_DESCRIPTION = opts.sessionDescription
   if (opts.permissionMode) env.RCLAUDE_PERMISSION_MODE = opts.permissionMode
   if (opts.autocompactPct) env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(opts.autocompactPct)
   if (opts.bare) env.RCLAUDE_BARE = '1'
@@ -716,7 +716,7 @@ async function reviveSession(
       RCLAUDE_SESSION_ID: sessionId,
       ...(effort ? { RCLAUDE_EFFORT: effort } : {}),
       ...(model ? { RCLAUDE_MODEL: model } : {}),
-      ...(sessionName ? { RCLAUDE_SESSION_NAME: sessionName } : {}),
+      ...(sessionName ? { CLAUDWERK_CONVERSATION_NAME: sessionName } : {}),
       ...(autocompactPct ? { RCLAUDE_AUTOCOMPACT_PCT: String(autocompactPct) } : {}),
       ...(maxBudgetUsd ? { RCLAUDE_MAX_BUDGET_USD: String(maxBudgetUsd) } : {}),
       ...(adHocWorktree ? { RCLAUDE_WORKTREE: adHocWorktree } : {}),
@@ -963,8 +963,8 @@ async function spawnSession(
     ...(model ? { RCLAUDE_MODEL: model } : {}),
     ...(bare ? { RCLAUDE_BARE: '1' } : {}),
     ...(repl ? { CLAUDE_CODE_REPL: 'true' } : {}),
-    ...(sessionName ? { RCLAUDE_SESSION_NAME: shellSafe(sessionName) } : {}),
-    ...(sessionDescription ? { RCLAUDE_SESSION_DESCRIPTION: shellSafe(sessionDescription) } : {}),
+    ...(sessionName ? { CLAUDWERK_CONVERSATION_NAME: shellSafe(sessionName) } : {}),
+    ...(sessionDescription ? { CLAUDWERK_CONVERSATION_DESCRIPTION: shellSafe(sessionDescription) } : {}),
     ...(permissionMode ? { RCLAUDE_PERMISSION_MODE: permissionMode } : {}),
     ...(autocompactPct ? { RCLAUDE_AUTOCOMPACT_PCT: String(autocompactPct) } : {}),
     ...(maxBudgetUsd ? { RCLAUDE_MAX_BUDGET_USD: String(maxBudgetUsd) } : {}),

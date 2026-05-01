@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useRef, useSyncExternalStore } from 'react'
-import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
+import { sendInput, useConversationsStore } from '@/hooks/use-sessions'
 import {
   dismissMicExpired,
   getMicExpired,
@@ -21,8 +21,8 @@ function useMicExpired() {
 }
 
 export function VoiceKey() {
-  const voiceHoldKey = useSessionsStore(s => s.controlPanelPrefs.voiceHoldKey)
-  const keepMicOpen = useSessionsStore(s => s.controlPanelPrefs.keepMicOpen)
+  const voiceHoldKey = useConversationsStore(s => s.controlPanelPrefs.voiceHoldKey)
+  const keepMicOpen = useConversationsStore(s => s.controlPanelPrefs.keepMicOpen)
   const voice = useVoiceRecording()
   const activeRef = useRef(false)
   const micExpired = useMicExpired()
@@ -69,7 +69,7 @@ export function VoiceKey() {
     if (voice.state === 'submitting') {
       const text = voice.refinedText || voice.finalText
       if (text.trim()) {
-        const sessionId = useSessionsStore.getState().selectedSessionId
+        const sessionId = useConversationsStore.getState().selectedSessionId
         if (sessionId) sendInput(sessionId, text)
         haptic('success')
       }

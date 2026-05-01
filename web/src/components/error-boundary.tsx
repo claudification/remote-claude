@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { clearCacheAndReload } from '@/lib/utils'
 import { BUILD_VERSION } from '../../../src/shared/version'
 
@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   reportCrash(error: Error, errorInfo: ErrorInfo) {
     try {
-      const store = useSessionsStore.getState()
+      const store = useConversationsStore.getState()
       const session = store.selectedSessionId ? store.sessionsById[store.selectedSessionId] : undefined
       fetch('/api/crash', {
         method: 'POST',
@@ -76,7 +76,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   getAppState(): string {
     try {
-      const store = useSessionsStore.getState()
+      const store = useConversationsStore.getState()
       const session = store.selectedSessionId ? store.sessionsById[store.selectedSessionId] : undefined
       const transcriptEntries = store.selectedSessionId ? store.transcripts[store.selectedSessionId] : undefined
       const lines = [

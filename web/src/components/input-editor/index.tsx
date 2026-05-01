@@ -12,7 +12,7 @@
  * input, identical for both backends.
  */
 
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { tryRunClientCommand } from '@/lib/client-commands'
 import { MarkdownInput } from '../markdown-input'
 import { MaybeProfiler } from '../perf-profiler'
@@ -22,7 +22,7 @@ import type { InputEditorProps } from './types'
 export type { InputEditorProps } from './types'
 
 export function InputEditor(props: InputEditorProps) {
-  const backend = useSessionsStore(s => s.controlPanelPrefs.inputBackend)
+  const backend = useConversationsStore(s => s.controlPanelPrefs.inputBackend)
 
   function onSubmit() {
     if (tryRunClientCommand(props.value)) {

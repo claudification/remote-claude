@@ -158,7 +158,7 @@ export function processHookEvent(ctx: AgentHostContext, event: HookEvent) {
 
   // Forward to broker, or queue until session ID + WS are ready
   if (ctx.claudeSessionId && ctx.wsClient?.isConnected()) {
-    ctx.wsClient.sendHookEvent({ ...event, sessionId: ctx.claudeSessionId })
+    ctx.wsClient.sendHookEvent({ ...event, conversationId: ctx.claudeSessionId })
     debug(`Hook: ${event.hookEvent} -> forwarded (sid=${ctx.claudeSessionId.slice(0, 8)})`)
   } else {
     if (ctx.eventQueue.length >= MAX_EVENT_QUEUE) {

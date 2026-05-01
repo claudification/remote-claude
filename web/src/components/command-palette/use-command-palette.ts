@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { openSpawnDialog } from '@/components/spawn-dialog'
 import type { FileInfo } from '@/hooks/use-file-editor'
 import { useProject } from '@/hooks/use-project'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { formatShortcut, getCommandGeneration, getCommands } from '@/lib/commands'
 import { getFrequencyMap, recordSwitch } from '@/lib/session-frequency'
 import { scoreAndSortTasks } from '@/lib/task-scoring'
@@ -11,15 +11,15 @@ import { projectPath, type Session } from '@/lib/types'
 import type { PaletteMode } from './types'
 
 export function useCommandPalette(onClose: () => void) {
-  const sessions = useSessionsStore(state => state.sessions)
-  const sessionsById = useSessionsStore(state => state.sessionsById)
-  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
-  const sessionMru = useSessionsStore(state => state.sessionMru)
-  const projectSettings = useSessionsStore(state => state.projectSettings)
-  const sendWsMessage = useSessionsStore(state => state.sendWsMessage)
-  const sentinelConnected = useSessionsStore(state => state.sentinelConnected)
+  const sessions = useConversationsStore(state => state.sessions)
+  const sessionsById = useConversationsStore(state => state.sessionsById)
+  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
+  const sessionMru = useConversationsStore(state => state.sessionMru)
+  const projectSettings = useConversationsStore(state => state.projectSettings)
+  const sendWsMessage = useConversationsStore(state => state.sendWsMessage)
+  const sentinelConnected = useConversationsStore(state => state.sentinelConnected)
 
-  const switcherInitialFilter = useSessionsStore(state => state.switcherInitialFilter)
+  const switcherInitialFilter = useConversationsStore(state => state.switcherInitialFilter)
   const [filter, setFilter] = useState(switcherInitialFilter)
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -29,7 +29,7 @@ export function useCommandPalette(onClose: () => void) {
   useEffect(() => {
     if (switcherInitialFilter) {
       setFilter(switcherInitialFilter)
-      useSessionsStore.getState().openSwitcherWithFilter('')
+      useConversationsStore.getState().openSwitcherWithFilter('')
     }
   }, [])
 
@@ -225,7 +225,7 @@ export function useCommandPalette(onClose: () => void) {
       } catch {}
     }
 
-    const ws = useSessionsStore.getState().ws
+    const ws = useConversationsStore.getState().ws
     if (ws) {
       ws.addEventListener('message', handler)
       sendWsMessage({ type: 'file_list_request', sessionId: selectedSessionId, requestId })
@@ -419,7 +419,7 @@ export function useCommandPalette(onClose: () => void) {
         } else if (isTaskMode) {
           const task = filteredTasks[activeIndex]
           if (task) {
-            useSessionsStore.getState().setPendingTaskEdit({ slug: task.slug, status: task.status })
+            useConversationsStore.getState().setPendingTaskEdit({ slug: task.slug, status: task.status })
             onClose()
           }
         } else {

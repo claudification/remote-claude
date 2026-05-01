@@ -190,6 +190,6 @@ export function isSameProject(a: string, b: string): boolean {
   return compareProjectUri(a, b) === 0
 }
 
-export function isSameProjectSession(a: string, b: string): boolean {
+export function isSameProjectConversation(a: string, b: string): boolean {
   return compareProjectSessionUri(a, b) === 0
 }

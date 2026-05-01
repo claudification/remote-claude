@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@/lib/types'
 import { haptic } from '@/lib/utils'
 import { useLaunchChannel } from './use-launch-channel'
-import { useSessionsStore } from './use-sessions'
+import { useConversationsStore } from './use-sessions'
 
 export type LaunchStep = {
   label: string
@@ -83,7 +83,7 @@ export function useLaunchProgress({
   }
 
   // Track spawned session by conversationId
-  const spawnedSession: Session | null = useSessionsStore(
+  const spawnedSession: Session | null = useConversationsStore(
     useCallback(
       state => {
         if (!effectiveWrapperId) return null

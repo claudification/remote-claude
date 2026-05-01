@@ -185,7 +185,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
       for (const ws of subs) {
         try {
           const wsData = ws.data as { hideUserInput?: boolean }
-          if (channel === 'session:transcript' && wsData.hideUserInput) {
+          if (channel === 'conversation:transcript' && wsData.hideUserInput) {
             const fj = getFilteredJson()
             if (!fj) {
               sent.add(ws)
@@ -271,7 +271,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
       for (const ch of entry.channels.values()) {
         channels.push({
           channel: ch.channel,
-          sessionId: ch.sessionId,
+          conversationId: ch.sessionId,
           agentId: ch.agentId,
           subscribedAt: ch.subscribedAt,
           messagesSent: ch.messagesSent,
@@ -342,10 +342,10 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
   // Migrate channel subscriptions from oldId to newId (called by rekeySession)
   function migrateChannels(oldId: string, newId: string): void {
     const channelTypes: SubscriptionChannel[] = [
-      'session:events',
-      'session:transcript',
-      'session:tasks',
-      'session:bg_output',
+      'conversation:events',
+      'conversation:transcript',
+      'conversation:tasks',
+      'conversation:bg_output',
     ]
     for (const channel of channelTypes) {
       const oldKey = channelKey(channel, oldId)
@@ -395,7 +395,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
   // Clear subagent transcript subscriptions for a session (called by rekeySession)
   function clearSubagentChannels(sessionId: string): void {
     for (const key of channelSubscribers.keys()) {
-      if (key.startsWith(`session:subagent_transcript:${sessionId}:`)) {
+      if (key.startsWith(`conversation:subagent_transcript:${sessionId}:`)) {
         const subs = channelSubscribers.get(key)
         if (subs) {
           for (const ws of subs) {

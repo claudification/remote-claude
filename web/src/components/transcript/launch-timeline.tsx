@@ -32,7 +32,7 @@ const STEP_LABEL: Record<WrapperLaunchStep, string> = {
   skills_changed: 'skills changed',
   agents_changed: 'agents changed',
   plugins_changed: 'plugins changed',
-  session_exit: 'session exit',
+  conversation_exit: 'session exit',
 }
 
 const LIVE_STEPS = new Set<WrapperLaunchStep>([
@@ -49,7 +49,7 @@ const LIVE_STEPS = new Set<WrapperLaunchStep>([
 
 function stepColor(step: WrapperLaunchStep): string {
   if (step === 'clear_requested') return 'text-amber-400'
-  if (step === 'process_killed' || step === 'session_exit') return 'text-red-400'
+  if (step === 'process_killed' || step === 'conversation_exit') return 'text-red-400'
   if (step === 'init_received' || step === 'ready') return 'text-emerald-400'
   if (step === 'rekeyed') return 'text-violet-400'
   if (LIVE_STEPS.has(step)) return 'text-cyan-400'

@@ -12,31 +12,31 @@ import { filterDisplayEntries } from '../../shared/transcript-filter'
 import { slugify } from '../address-book'
 import { getGlobalSettings } from '../global-settings'
 import { getProjectSettings } from '../project-settings'
-import type { SessionStore } from '../session-store'
+import type { ConversationStore } from '../session-store'
 import { validateShare } from '../shares'
 import { processImagesInEntry } from './blob-store'
 import type { RouteHelpers } from './shared'
 import { broadcastToSubscribers, sessionToOverview } from './shared'
 
-export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteHelpers): Hono {
+export function createSessionsRouter(sessionStore: ConversationStore, helpers: RouteHelpers): Hono {
   const { httpHasPermission, httpIsAdmin, filterSessionsByHttpGrants } = helpers
   const app = new Hono()
 
-  app.get('/sessions', c => {
+  app.get('/conversations', c => {
     const activeOnly = c.req.query('active') === 'true'
     const sessions = activeOnly ? sessionStore.getActiveSessions() : sessionStore.getAllSessions()
     const filtered = filterSessionsByHttpGrants(c.req.raw, sessions)
     return c.json(filtered.map(s => sessionToOverview(s, sessionStore)))
   })
 
-  app.get('/sessions/:id', c => {
+  app.get('/conversations/:id', c => {
     const session = sessionStore.getSession(c.req.param('id'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
     if (!httpHasPermission(c.req.raw, 'chat:read', session.project)) return c.json({ error: 'Forbidden' }, 403)
     return c.json(sessionToOverview(session, sessionStore))
   })
 
-  app.get('/sessions/:id/events', c => {
+  app.get('/conversations/:id/events', c => {
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
@@ -47,7 +47,7 @@ export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteH
     return c.json(events)
   })
 
-  app.get('/sessions/:id/subagents', c => {
+  app.get('/conversations/:id/subagents', c => {
     const session = sessionStore.getSession(c.req.param('id'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
     if (!httpHasPermission(c.req.raw, 'chat:read', session.project)) return c.json({ error: 'Forbidden' }, 403)
@@ -70,7 +70,7 @@ export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteH
   //     evicted older entries). Client treats gap=true as "replace, don't
   //     append" -- otherwise the client's transcript would have a hole
   //     between its last applied seq and the oldest returned seq.
-  app.get('/sessions/:id/transcript', c => {
+  app.get('/conversations/:id/transcript', c => {
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
@@ -125,7 +125,7 @@ export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteH
     })
   })
 
-  app.get('/sessions/:id/subagents/:agentId/transcript', c => {
+  app.get('/conversations/:id/subagents/:agentId/transcript', c => {
     const sessionId = c.req.param('id')
     const agentId = c.req.param('agentId')
     const session = sessionStore.getSession(sessionId)
@@ -139,7 +139,7 @@ export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteH
     return c.json(entries.map(e => processImagesInEntry(e as Record<string, unknown>)))
   })
 
-  app.get('/sessions/:id/diag', c => {
+  app.get('/conversations/:id/diag', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
@@ -170,14 +170,14 @@ export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteH
     })
   })
 
-  app.get('/sessions/:id/tasks', c => {
+  app.get('/conversations/:id/tasks', c => {
     const session = sessionStore.getSession(c.req.param('id'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
     if (!httpHasPermission(c.req.raw, 'chat:read', session.project)) return c.json({ error: 'Forbidden' }, 403)
     return c.json({ tasks: session.tasks, archivedTasks: session.archivedTasks })
   })
 
-  app.post('/sessions/:id/input', async c => {
+  app.post('/conversations/:id/input', async c => {
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
@@ -192,7 +192,7 @@ export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteH
 
     const inputMsg: SendInput = {
       type: 'input',
-      sessionId,
+      conversationId: sessionId,
       input: body.input,
       ...(typeof body.crDelay === 'number' && body.crDelay > 0 && { crDelay: body.crDelay }),
     }
@@ -200,7 +200,7 @@ export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteH
     return c.json({ success: true })
   })
 
-  app.post('/sessions/:id/revive', async c => {
+  app.post('/conversations/:id/revive', async c => {
     if (!httpHasPermission(c.req.raw, 'spawn', '*'))
       return c.json({ error: 'Forbidden: spawn permission required' }, 403)
     const sessionId = c.req.param('id')
@@ -307,7 +307,7 @@ export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteH
     return c.json({ success: true, name, message: 'Revive command sent to sentinel', conversationId }, 202)
   })
 
-  app.get('/sessions/by-slug/:slug', c => {
+  app.get('/conversations/by-slug/:slug', c => {
     const slug = c.req.param('slug')
     const all = sessionStore.getAllSessions()
     const filtered = filterSessionsByHttpGrants(c.req.raw, all)
@@ -333,14 +333,14 @@ export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteH
     })
   })
 
-  app.delete('/sessions/:id', c => {
+  app.delete('/conversations/:id', c => {
     if (!httpHasPermission(c.req.raw, 'settings', '*')) return c.json({ error: 'Forbidden' }, 403)
     const sessionId = c.req.param('id')
     const session = sessionStore.getSession(sessionId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
     if (session.status !== 'ended') return c.json({ error: 'Only ended sessions can be dismissed' }, 400)
     sessionStore.removeSession(sessionId)
-    broadcastToSubscribers(sessionStore, { type: 'session_dismissed', sessionId })
+    broadcastToSubscribers(sessionStore, { type: 'conversation_dismissed', sessionId })
     return c.json({ success: true })
   })
 

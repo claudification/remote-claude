@@ -1,7 +1,7 @@
 import type { ServerWebSocket } from 'bun'
 import type { UserGrant } from '../permissions'
 import { resolvePermissions } from '../permissions'
-import type { DashboardMessage } from './types'
+import type { ControlPanelMessage } from './types'
 
 export interface BroadcastDeps {
   dashboardSubscribers: Set<ServerWebSocket<unknown>>
@@ -10,7 +10,7 @@ export interface BroadcastDeps {
   getSubscriberEntry: (ws: ServerWebSocket<unknown>) => { id: number } | undefined
 }
 
-export function broadcast(deps: BroadcastDeps, message: DashboardMessage): void {
+export function broadcast(deps: BroadcastDeps, message: ControlPanelMessage): void {
   const json = deps.stampAndBuffer(message)
   for (const ws of deps.dashboardSubscribers) {
     try {
@@ -26,7 +26,7 @@ export function broadcast(deps: BroadcastDeps, message: DashboardMessage): void 
   }
 }
 
-export function broadcastSessionScoped(deps: BroadcastDeps, message: DashboardMessage, project: string): void {
+export function broadcastSessionScoped(deps: BroadcastDeps, message: ControlPanelMessage, project: string): void {
   const json = deps.stampAndBuffer(message)
   for (const ws of deps.dashboardSubscribers) {
     try {

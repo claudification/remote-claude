@@ -9,14 +9,14 @@ import { Clock, Link2Off } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { MediaLightbox } from '@/components/media-lightbox'
 import { SessionDetail } from '@/components/session-detail'
-import { fetchSessionEvents, fetchTranscript, useSessionsStore } from '@/hooks/use-sessions'
+import { fetchSessionEvents, fetchTranscript, useConversationsStore } from '@/hooks/use-sessions'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { extractProjectLabel } from '@/lib/types'
 
 export function SharedSessionView({ token: _token }: { token: string }) {
-  const sessions = useSessionsStore(s => s.sessions)
-  const selectedSessionId = useSessionsStore(s => s.selectedSessionId)
-  const isConnected = useSessionsStore(s => s.isConnected)
+  const sessions = useConversationsStore(s => s.sessions)
+  const selectedSessionId = useConversationsStore(s => s.selectedSessionId)
+  const isConnected = useConversationsStore(s => s.isConnected)
   const [expired, setExpired] = useState(false)
   const [timeLeft, _setTimeLeft] = useState('')
 
@@ -26,7 +26,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
   // Auto-select the first (and only) session when it arrives
   useEffect(() => {
     if (sessions.length > 0 && !selectedSessionId) {
-      useSessionsStore.getState().selectSession(sessions[0].id, 'shared-view-auto')
+      useConversationsStore.getState().selectSession(sessions[0].id, 'shared-view-auto')
     }
   }, [sessions, selectedSessionId])
 
@@ -36,15 +36,15 @@ export function SharedSessionView({ token: _token }: { token: string }) {
     if (!selectedSessionId || !isConnected || fetchedRef.current) return
     fetchedRef.current = true
     fetchSessionEvents(selectedSessionId).then(events => {
-      useSessionsStore.getState().setEvents(selectedSessionId, events)
+      useConversationsStore.getState().setEvents(selectedSessionId, events)
     })
     fetchTranscript(selectedSessionId).then(transcript => {
       if (transcript) {
-        useSessionsStore.getState().setTranscript(selectedSessionId, transcript.entries)
+        useConversationsStore.getState().setTranscript(selectedSessionId, transcript.entries)
         // Bump newDataSeq again after a delay to trigger scroll-to-bottom
         // after the virtualizer has measured all items
         setTimeout(() => {
-          useSessionsStore.setState(s => ({ newDataSeq: s.newDataSeq + 1 }))
+          useConversationsStore.setState(s => ({ newDataSeq: s.newDataSeq + 1 }))
         }, 200)
       }
     })
@@ -61,7 +61,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
         }
       } catch {}
     }
-    const ws = useSessionsStore.getState().ws
+    const ws = useConversationsStore.getState().ws
     if (ws) ws.addEventListener('message', handleMessage)
     return () => {
       if (ws) ws.removeEventListener('message', handleMessage)

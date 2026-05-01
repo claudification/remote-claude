@@ -40,7 +40,7 @@ import {
   fetchTranscript,
   saveProjectOrder,
   sendInput,
-  useSessionsStore,
+  useConversationsStore,
   wsSend,
 } from '@/hooks/use-sessions'
 import { useWebSocket } from '@/hooks/use-websocket'
@@ -85,7 +85,9 @@ function useSwipeToOpen(onOpen: () => void) {
 }
 
 function Dashboard() {
-  const [sheetOpen, setSheetOpen] = useState(() => isMobileViewport() && !useSessionsStore.getState().selectedSessionId)
+  const [sheetOpen, setSheetOpen] = useState(
+    () => isMobileViewport() && !useConversationsStore.getState().selectedSessionId,
+  )
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === 'true')
   const [showUserAdmin, setShowUserAdmin] = useState(false)
   const [showSentinelManager, setShowSentinelManager] = useState(false)
@@ -161,11 +163,11 @@ function Dashboard() {
       }
     } catch {}
   }, [])
-  const selectedSessionId = useSessionsStore(s => s.selectedSessionId)
-  const setEvents = useSessionsStore(s => s.setEvents)
-  const setTranscript = useSessionsStore(s => s.setTranscript)
-  const showSwitcher = useSessionsStore(s => s.showSwitcher)
-  const showDebugConsole = useSessionsStore(s => s.showDebugConsole)
+  const selectedSessionId = useConversationsStore(s => s.selectedSessionId)
+  const setEvents = useConversationsStore(s => s.setEvents)
+  const setTranscript = useConversationsStore(s => s.setTranscript)
+  const showSwitcher = useConversationsStore(s => s.showSwitcher)
+  const showDebugConsole = useConversationsStore(s => s.showDebugConsole)
   const swipeHandlers = useSwipeToOpen(() => setSheetOpen(true))
 
   function toggleSidebar() {
@@ -192,7 +194,7 @@ function Dashboard() {
     ])
     const flatTree = flattenProjectOrderTree(order.tree)
     const flatOrder = { ...order, tree: flatTree }
-    useSessionsStore.setState({
+    useConversationsStore.setState({
       projectSettings: settings,
       serverCapabilities: capabilities,
       globalSettings,
@@ -234,7 +236,7 @@ function Dashboard() {
         if (res.ok) {
           const data = await res.json()
           if (!data.authenticated) {
-            useSessionsStore.getState().setAuthExpired(true)
+            useConversationsStore.getState().setAuthExpired(true)
           }
         }
       } catch {}
@@ -257,7 +259,7 @@ function Dashboard() {
       } else if (hiddenAt) {
         const elapsed = Date.now() - hiddenAt
         hiddenAt = 0
-        const { syncEpoch, syncSeq, transcripts } = useSessionsStore.getState()
+        const { syncEpoch, syncSeq, transcripts } = useConversationsStore.getState()
         // Include transcript entry counts for cached sessions so server can detect gaps
         const transcriptCounts: Record<string, number> = {}
         for (const [sid, entries] of Object.entries(transcripts)) {
@@ -286,8 +288,8 @@ function Dashboard() {
   // Uses a per-session fetch generation tracker to avoid the iOS resume storm:
   // when sync_stale bumps connectSeq, only the CURRENTLY SELECTED session is
   // re-fetched immediately. Other sessions lazy-load when the user switches to them.
-  const isConnected = useSessionsStore(state => state.isConnected)
-  const connectSeq = useSessionsStore(state => state.connectSeq)
+  const isConnected = useConversationsStore(state => state.isConnected)
+  const connectSeq = useConversationsStore(state => state.connectSeq)
 
   // Track which connectSeq each session was last fetched at.
   // When connectSeq bumps, sessions with fetchedAt < connectSeq are stale.
@@ -304,7 +306,7 @@ function Dashboard() {
         console.log(`[sync] SKIP fetch ${sessionId.slice(0, 8)} (${reason || '?'}) - fetched ${elapsed}ms ago`)
         return
       }
-      const cachedCount = useSessionsStore.getState().transcripts[sessionId]?.length ?? 0
+      const cachedCount = useConversationsStore.getState().transcripts[sessionId]?.length ?? 0
       console.log(
         `[sync] FETCH ${sessionId.slice(0, 8)} (${reason || '?'}) cached=${cachedCount} lastFetch=${lastFetch ? `${elapsed}ms ago` : 'never'}`,
       )
@@ -327,7 +329,7 @@ function Dashboard() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected intentionally omitted - connectSeq only bumps while connected
   useEffect(() => {
     if (!isConnected) return
-    const sid = useSessionsStore.getState().selectedSessionId
+    const sid = useConversationsStore.getState().selectedSessionId
     console.log(
       `[sync] connectSeq=${connectSeq} - refresh sessions + sidebar metadata, re-fetch ${sid?.slice(0, 8) || 'none'}`,
     )
@@ -344,7 +346,7 @@ function Dashboard() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected and fetchSessionData intentionally omitted - only re-run on session switch
   useEffect(() => {
     if (!selectedSessionId || !isConnected) return
-    const { transcripts, events } = useSessionsStore.getState()
+    const { transcripts, events } = useConversationsStore.getState()
     const cachedTranscript = transcripts[selectedSessionId]?.length ?? 0
     const cachedEvents = events[selectedSessionId]?.length ?? 0
     if (cachedTranscript > 0) {
@@ -365,12 +367,12 @@ function Dashboard() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const { sessionCacheTimeout } = useSessionsStore.getState().controlPanelPrefs
+      const { sessionCacheTimeout } = useConversationsStore.getState().controlPanelPrefs
       if (sessionCacheTimeout <= 0) return // 0 = never timeout
       const now = Date.now()
       const timeoutMs = sessionCacheTimeout * 60_000
-      const selected = useSessionsStore.getState().selectedSessionId
-      const transcripts = useSessionsStore.getState().transcripts
+      const selected = useConversationsStore.getState().selectedSessionId
+      const transcripts = useConversationsStore.getState().transcripts
       let evicted = false
       for (const sid of Object.keys(transcripts)) {
         if (sid === selected) continue // never evict selected
@@ -382,7 +384,7 @@ function Dashboard() {
       }
       if (evicted) {
         // Trigger a store update to clear evicted transcripts
-        useSessionsStore.setState(state => {
+        useConversationsStore.setState(state => {
           const kept = new Set(state.sessionMru.slice(0, state.controlPanelPrefs.sessionCacheSize))
           if (state.selectedSessionId) kept.add(state.selectedSessionId)
           // Remove timed-out entries
@@ -409,7 +411,7 @@ function Dashboard() {
   }, [selectedSessionId])
 
   // ── Sync chord timeout from prefs ────────────────────────────────────────
-  const chordTimeoutMs = useSessionsStore(s => s.controlPanelPrefs.chordTimeoutMs)
+  const chordTimeoutMs = useConversationsStore(s => s.controlPanelPrefs.chordTimeoutMs)
   useEffect(() => {
     setChordTimeout(chordTimeoutMs)
   }, [chordTimeoutMs])
@@ -417,13 +419,13 @@ function Dashboard() {
   // ── Global commands (registered via key-layers, show in palette + help) ──
 
   const openSwitcher = useCallback(() => {
-    const store = useSessionsStore.getState()
+    const store = useConversationsStore.getState()
     if (store.showTerminal) store.setShowTerminal(false)
     store.toggleSwitcher()
   }, [])
 
   const openCommandMode = useCallback(() => {
-    const store = useSessionsStore.getState()
+    const store = useConversationsStore.getState()
     if (store.showTerminal) store.setShowTerminal(false)
     store.openSwitcherWithFilter('>')
   }, [])
@@ -453,7 +455,7 @@ function Dashboard() {
   useCommand(
     'toggle-verbose',
     () => {
-      useSessionsStore.getState().toggleExpandAll()
+      useConversationsStore.getState().toggleExpandAll()
     },
     { label: 'Toggle verbose / expand all', shortcut: 'mod+o', group: 'View' },
   )
@@ -469,7 +471,7 @@ function Dashboard() {
   useChordCommand(
     'toggle-debug',
     () => {
-      useSessionsStore.getState().toggleDebugConsole()
+      useConversationsStore.getState().toggleDebugConsole()
     },
     { label: 'Toggle debug console', key: 'd', group: 'View' },
   )
@@ -477,7 +479,7 @@ function Dashboard() {
   useCommand(
     'toggle-debug-direct',
     () => {
-      useSessionsStore.getState().toggleDebugConsole()
+      useConversationsStore.getState().toggleDebugConsole()
     },
     { label: 'Toggle debug console', shortcut: 'ctrl+shift+d', group: 'View' },
   )
@@ -485,7 +487,7 @@ function Dashboard() {
   useChordCommand(
     'toggle-tty',
     () => {
-      const store = useSessionsStore.getState()
+      const store = useConversationsStore.getState()
       if (store.showTerminal) {
         store.setShowTerminal(false)
         if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'transcript')
@@ -500,7 +502,7 @@ function Dashboard() {
   useChordCommand(
     'fullscreen-terminal',
     () => {
-      const store = useSessionsStore.getState()
+      const store = useConversationsStore.getState()
       if (store.showTerminal) {
         store.setShowTerminal(false)
         if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'transcript')
@@ -517,7 +519,7 @@ function Dashboard() {
   useChordCommand(
     'spawn-session',
     () => {
-      useSessionsStore.getState().openSwitcherWithFilter('S:~/')
+      useConversationsStore.getState().openSwitcherWithFilter('S:~/')
     },
     { label: 'Spawn new session', key: 's', group: 'Session' },
   )
@@ -525,7 +527,7 @@ function Dashboard() {
   useChordCommand(
     'launch-session',
     () => {
-      const store = useSessionsStore.getState()
+      const store = useConversationsStore.getState()
       const session = store.selectedSessionId ? store.sessionsById[store.selectedSessionId] : undefined
       const spawnPath = session
         ? projectPath(session.project) || store.controlPanelPrefs.defaultSessionCwd
@@ -538,7 +540,7 @@ function Dashboard() {
   useChordCommand(
     'terminate-session',
     () => {
-      const store = useSessionsStore.getState()
+      const store = useConversationsStore.getState()
       const sid = store.selectedSessionId
       if (!sid) return
       const session = store.sessionsById[sid]
@@ -552,7 +554,7 @@ function Dashboard() {
   useChordCommand(
     'search-tasks',
     () => {
-      useSessionsStore.getState().openSwitcherWithFilter('@')
+      useConversationsStore.getState().openSwitcherWithFilter('@')
     },
     { label: 'Search tasks', key: '/', group: 'Navigation' },
   )
@@ -560,7 +562,7 @@ function Dashboard() {
   useChordCommand(
     'open-notes',
     () => {
-      const store = useSessionsStore.getState()
+      const store = useConversationsStore.getState()
       if (store.selectedSessionId) {
         store.openTab(store.selectedSessionId, 'files')
         store.setPendingFilePath('NOTES.md')
@@ -572,7 +574,7 @@ function Dashboard() {
   useChordCommand(
     'open-project',
     () => {
-      const store = useSessionsStore.getState()
+      const store = useConversationsStore.getState()
       const sid = store.selectedSessionId
       if (!sid) return
       const session = store.sessionsById[sid]
@@ -585,7 +587,7 @@ function Dashboard() {
 
   const goHome = useCallback(() => {
     if (isMobileViewport()) return
-    const store = useSessionsStore.getState()
+    const store = useConversationsStore.getState()
     if (store.showSwitcher || store.showDebugConsole || store.showTerminal) return
     if (!store.selectedSessionId) return
     store.selectSubagent(null)
@@ -608,7 +610,7 @@ function Dashboard() {
   useChordCommand(
     'toggle-ended-sessions',
     () => {
-      const store = useSessionsStore.getState()
+      const store = useConversationsStore.getState()
       store.updateControlPanelPrefs({ showEndedSessions: !store.controlPanelPrefs.showEndedSessions })
     },
     { label: 'Toggle show ended sessions', key: 'e', group: 'View' },
@@ -617,7 +619,7 @@ function Dashboard() {
   useCommand(
     'interrupt',
     () => {
-      const store = useSessionsStore.getState()
+      const store = useConversationsStore.getState()
       const sid = store.selectedSessionId
       if (!sid) return
       const session = store.sessionsById[sid]
@@ -631,18 +633,18 @@ function Dashboard() {
   useCommand(
     'switch-session',
     () => {
-      const { sessionMru, sessions, selectSession } = useSessionsStore.getState()
+      const { sessionMru, sessions, selectSession } = useConversationsStore.getState()
       const prev = sessionMru.slice(1).find(id => sessions.some(s => s.id === id))
       if (prev) selectSession(prev, 'ctrl-tab')
     },
     { label: 'Switch to previous session', shortcut: 'ctrl+Tab', group: 'Navigation' },
   )
 
-  const keepMicOpen = useSessionsStore(s => s.controlPanelPrefs.keepMicOpen)
+  const keepMicOpen = useConversationsStore(s => s.controlPanelPrefs.keepMicOpen)
   useCommand(
     'toggle-keep-mic-open',
     () => {
-      const store = useSessionsStore.getState()
+      const store = useConversationsStore.getState()
       const next = !store.controlPanelPrefs.keepMicOpen
       store.updateControlPanelPrefs({ keepMicOpen: next })
       if (next) {
@@ -666,19 +668,19 @@ function Dashboard() {
   useCommand('manage-users', () => window.dispatchEvent(new Event('open-user-admin')), {
     label: 'Manage users',
     group: 'System',
-    when: () => useSessionsStore.getState().permissions.canEditUsers,
+    when: () => useConversationsStore.getState().permissions.canEditUsers,
   })
 
   useCommand('manage-sentinels', () => window.dispatchEvent(new Event('open-sentinel-manager')), {
     label: 'Manage sentinels',
     group: 'System',
-    when: () => useSessionsStore.getState().permissions.canAdmin,
+    when: () => useConversationsStore.getState().permissions.canAdmin,
   })
 
   useCommand(
     'effort',
     (level = 'medium') => {
-      const sid = useSessionsStore.getState().selectedSessionId
+      const sid = useConversationsStore.getState().selectedSessionId
       if (sid) sendInput(sid, `/effort ${level}`)
     },
     { label: 'Set effort level', group: 'Session' },
@@ -705,7 +707,7 @@ function Dashboard() {
   }, [])
 
   function handleSwitcherSelect(id: string) {
-    const store = useSessionsStore.getState()
+    const store = useConversationsStore.getState()
     store.selectSession(id)
     store.setShowSwitcher(false)
     // Auto-focus input on desktop after session switch
@@ -714,7 +716,7 @@ function Dashboard() {
     }
   }
 
-  const canAdmin = useSessionsStore(s => s.permissions.canAdmin)
+  const canAdmin = useConversationsStore(s => s.permissions.canAdmin)
   const showProjectList = true // sidebar always visible for authenticated users
 
   return (
@@ -787,7 +789,7 @@ function Dashboard() {
             variant="outline"
             size="icon"
             className="shrink-0 sm:hidden"
-            onClick={() => useSessionsStore.getState().toggleSwitcher()}
+            onClick={() => useConversationsStore.getState().toggleSwitcher()}
             title="Command palette"
           >
             <Command className="h-4 w-4" />
@@ -833,20 +835,20 @@ function Dashboard() {
       </div>
 
       {/* Debug console (Ctrl+Shift+D) */}
-      {showDebugConsole && <DebugConsole onClose={() => useSessionsStore.getState().toggleDebugConsole()} />}
+      {showDebugConsole && <DebugConsole onClose={() => useConversationsStore.getState().toggleDebugConsole()} />}
 
       {/* Global session switcher (Ctrl+K from anywhere) - admin only */}
       {canAdmin && showSwitcher && (
         <CommandPalette
           onSelect={handleSwitcherSelect}
           onFileSelect={(sessionId, path) => {
-            const store = useSessionsStore.getState()
+            const store = useConversationsStore.getState()
             store.selectSession(sessionId)
             store.setShowSwitcher(false)
             store.openTab(sessionId, 'files')
             store.setPendingFilePath(path)
           }}
-          onClose={() => useSessionsStore.getState().setShowSwitcher(false)}
+          onClose={() => useConversationsStore.getState().setShowSwitcher(false)}
         />
       )}
 
@@ -901,7 +903,7 @@ function Dashboard() {
 }
 
 function AuthExpiredModal() {
-  const authExpired = useSessionsStore(s => s.authExpired)
+  const authExpired = useConversationsStore(s => s.authExpired)
   if (!authExpired) return null
 
   function handleSignOut() {
@@ -931,8 +933,8 @@ function AuthExpiredModal() {
 
 // Voice FAB gate - show on touch devices with pref enabled and active session
 function VoiceFabGate() {
-  const showVoiceFab = useSessionsStore(state => state.controlPanelPrefs.showVoiceFab)
-  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
+  const showVoiceFab = useConversationsStore(state => state.controlPanelPrefs.showVoiceFab)
+  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
 
   if (!isTouchDevice() || !showVoiceFab || !selectedSessionId) return null
   return <VoiceFab />
@@ -940,7 +942,7 @@ function VoiceFabGate() {
 
 // Action FAB gate - show on touch devices with active session
 function ActionFabGate() {
-  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
+  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
   if (!isTouchDevice() || !selectedSessionId) return null
   return <ActionFab />
 }

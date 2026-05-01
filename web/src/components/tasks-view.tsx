@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import type { ArchivedTaskGroup, TaskInfo } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -69,8 +69,8 @@ function TaskRow({ task, onToggleDesc, expanded }: { task: TaskInfo; onToggleDes
 }
 
 export function TasksView({ sessionId, pendingCount }: TasksViewProps) {
-  const storeTasks = useSessionsStore(state => state.tasks[sessionId])
-  const archivedTaskCount = useSessionsStore(state => state.sessionsById[sessionId]?.archivedTaskCount ?? 0)
+  const storeTasks = useConversationsStore(state => state.tasks[sessionId])
+  const archivedTaskCount = useConversationsStore(state => state.sessionsById[sessionId]?.archivedTaskCount ?? 0)
   const [initialTasks, setInitialTasks] = useState<TaskInfo[] | null>(null)
   const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set())
   const [showArchived, setShowArchived] = useState(false)
@@ -80,7 +80,7 @@ export function TasksView({ sessionId, pendingCount }: TasksViewProps) {
   // Fetch initial tasks via HTTP
   useEffect(() => {
     let cancelled = false
-    fetch(`/sessions/${sessionId}/tasks`)
+    fetch(`/conversations/${sessionId}/tasks`)
       .then(res => (res.ok ? res.json() : { tasks: [] }))
       .then(data => {
         if (!cancelled) {
@@ -100,7 +100,7 @@ export function TasksView({ sessionId, pendingCount }: TasksViewProps) {
   function fetchArchived() {
     if (loadingArchived) return
     setLoadingArchived(true)
-    fetch(`/sessions/${sessionId}/tasks`)
+    fetch(`/conversations/${sessionId}/tasks`)
       .then(res => (res.ok ? res.json() : { archivedTasks: [] }))
       .then(data => {
         setArchivedGroups(data.archivedTasks || [])

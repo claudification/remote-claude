@@ -1,6 +1,6 @@
 import { ContextMenu } from 'radix-ui'
 import type { ReactNode } from 'react'
-import { saveProjectOrder, useSessionsStore } from '@/hooks/use-sessions'
+import { saveProjectOrder, useConversationsStore } from '@/hooks/use-sessions'
 import type { ProjectOrder, ProjectOrderGroup, Session } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
@@ -14,7 +14,7 @@ const menuItemClass =
 
 // Grouping actions that operate on a project key (shared by session + project menus).
 function useProjectGroupingActions(project: string) {
-  const rawProjectOrder = useSessionsStore(s => s.projectOrder) as ProjectOrder | null
+  const rawProjectOrder = useConversationsStore(s => s.projectOrder) as ProjectOrder | null
   const projectOrder = rawProjectOrder?.tree ? rawProjectOrder : { tree: [] }
   const groups = projectOrder.tree.filter((n): n is ProjectOrderGroup => n.type === 'group')
 
@@ -116,8 +116,8 @@ export function SessionContextMenu({
   onOpenSettings?: () => void
   children: ReactNode
 }) {
-  const dismissSession = useSessionsStore(s => s.dismissSession)
-  const selectSession = useSessionsStore(s => s.selectSession)
+  const dismissSession = useConversationsStore(s => s.dismissSession)
+  const selectSession = useConversationsStore(s => s.selectSession)
 
   return (
     <ContextMenu.Root>
@@ -129,7 +129,7 @@ export function SessionContextMenu({
             className={menuItemClass}
             onSelect={() => {
               haptic('tap')
-              useSessionsStore.getState().setRenamingSessionId(session.id)
+              useConversationsStore.getState().setRenamingSessionId(session.id)
             }}
           >
             Rename...
@@ -138,7 +138,7 @@ export function SessionContextMenu({
             className={menuItemClass}
             onSelect={() => {
               haptic('tap')
-              useSessionsStore.getState().setEditingDescriptionSessionId(session.id)
+              useConversationsStore.getState().setEditingDescriptionSessionId(session.id)
             }}
           >
             Edit description...
@@ -179,7 +179,7 @@ export function SessionContextMenu({
               className={cn(menuItemClass, 'text-destructive')}
               onSelect={() => {
                 haptic('error')
-                useSessionsStore.getState().terminateSession(session.id)
+                useConversationsStore.getState().terminateSession(session.id)
               }}
             >
               Terminate session
@@ -225,7 +225,7 @@ export function ProjectContextMenu({
   onOpenSettings: () => void
   children: ReactNode
 }) {
-  const dismissSession = useSessionsStore(s => s.dismissSession)
+  const dismissSession = useConversationsStore(s => s.dismissSession)
   const ended = sessions.filter(s => s.status === 'ended')
 
   return (

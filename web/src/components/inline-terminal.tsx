@@ -9,7 +9,7 @@ import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef, useState } from 'react'
 import '@xterm/xterm/css/xterm.css'
 import { WifiOff } from 'lucide-react'
-import { type TerminalMessage, useSessionsStore } from '@/hooks/use-sessions'
+import { type TerminalMessage, useConversationsStore } from '@/hooks/use-sessions'
 import { getFont, getTheme, loadTerminalSettings } from './terminal-settings'
 import { TerminalToolbar } from './terminal-toolbar'
 
@@ -21,10 +21,10 @@ export function InlineTerminal({ conversationId }: InlineTerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
-  const sendWsMessage = useSessionsStore(state => state.sendWsMessage)
-  const setTerminalHandler = useSessionsStore(state => state.setTerminalHandler)
-  const isConnected = useSessionsStore(state => state.isConnected)
-  const showSwitcher = useSessionsStore(state => state.showSwitcher)
+  const sendWsMessage = useConversationsStore(state => state.sendWsMessage)
+  const setTerminalHandler = useConversationsStore(state => state.setTerminalHandler)
+  const isConnected = useConversationsStore(state => state.isConnected)
+  const showSwitcher = useConversationsStore(state => state.showSwitcher)
   const [terminalError, setTerminalError] = useState<string | null>(null)
   const [themeColors] = useState(() => getTheme(loadTerminalSettings().themeId))
 
@@ -60,7 +60,7 @@ export function InlineTerminal({ conversationId }: InlineTerminalProps) {
         }
         return false
       }
-      if (useSessionsStore.getState().showSwitcher) return false
+      if (useConversationsStore.getState().showSwitcher) return false
       return true
     })
 

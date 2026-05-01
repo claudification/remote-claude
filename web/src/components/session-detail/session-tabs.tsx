@@ -1,7 +1,7 @@
 import { Braces, Terminal } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import type { Session } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 
@@ -178,7 +178,7 @@ export function SessionTabs({
               id="verbose"
               checked={expandAll}
               onCheckedChange={checked => {
-                if (checked !== expandAll) useSessionsStore.getState().toggleExpandAll()
+                if (checked !== expandAll) useConversationsStore.getState().toggleExpandAll()
               }}
               className="h-3.5 w-3.5"
             />

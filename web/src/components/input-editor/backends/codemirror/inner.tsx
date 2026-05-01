@@ -21,7 +21,7 @@ import CodeMirror from '@uiw/react-codemirror'
 import { Send } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useProject } from '@/hooks/use-project'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { cn, haptic } from '@/lib/utils'
 import { useIsMobile } from '../../shell/use-is-mobile'
 import { useScrollLock } from '../../shell/use-scroll-lock'
@@ -36,7 +36,7 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
   const isMobile = useIsMobile()
   const expanded = isMobile && focused && !props.inline
 
-  const sessionId = useSessionsStore(s => s.selectedSessionId)
+  const sessionId = useConversationsStore(s => s.selectedSessionId)
   const sessionIdRef = useRef(sessionId)
   sessionIdRef.current = sessionId
   const viewRef = useRef<EditorView | null>(null)

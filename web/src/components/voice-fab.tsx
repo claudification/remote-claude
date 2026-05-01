@@ -8,7 +8,7 @@
 
 import { Mic, MicOff, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
+import { sendInput, useConversationsStore } from '@/hooks/use-sessions'
 import { useVoiceRecording } from '@/hooks/use-voice-recording'
 import { cn, haptic } from '@/lib/utils'
 
@@ -50,7 +50,7 @@ export function VoiceFab() {
       const text = voice.refinedText || voice.finalText
       haptic('tick')
       if (text.trim()) {
-        const sessionId = useSessionsStore.getState().selectedSessionId
+        const sessionId = useConversationsStore.getState().selectedSessionId
         if (sessionId) sendInput(sessionId, text)
         haptic('double')
       }

@@ -22,7 +22,7 @@ import { purgeMessages, queryMessages } from '../inter-session-log'
 import { resolvePermissionFlags } from '../permissions'
 import { addPersistedLink, getPersistedLinks, removePersistedLink } from '../project-links'
 import { getProjectSettings } from '../project-settings'
-import type { SessionStore } from '../session-store'
+import type { ConversationStore } from '../session-store'
 import {
   createShare as createSessionShare,
   getShare as getShareByToken,
@@ -32,7 +32,7 @@ import {
 import type { RouteHelpers } from './shared'
 
 export function createAdminRouter(
-  sessionStore: SessionStore,
+  sessionStore: ConversationStore,
   helpers: RouteHelpers,
   rclaudeSecret: string | undefined,
 ): Hono {

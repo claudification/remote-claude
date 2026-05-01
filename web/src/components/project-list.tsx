@@ -9,7 +9,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { saveProjectOrder, useSessionsStore } from '@/hooks/use-sessions'
+import { saveProjectOrder, useConversationsStore } from '@/hooks/use-sessions'
 import type { ProjectOrder, ProjectOrderGroup, ProjectOrderNode, Session } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
@@ -23,14 +23,14 @@ import { GroupNode, NewGroupDropTarget, SortableNode } from './project-list/sess
 export function ProjectList() {
   // Server already filters sessions_list by grants (filterSessionsByGrants) --
   // if a session made it here, the user has chat:read for its project.
-  const sessions = useSessionsStore(s => s.sessions)
-  const sessionsById = useSessionsStore(s => s.sessionsById)
-  const selectedSessionId = useSessionsStore(s => s.selectedSessionId)
-  const rawProjectOrder = useSessionsStore(s => s.projectOrder)
+  const sessions = useConversationsStore(s => s.sessions)
+  const sessionsById = useConversationsStore(s => s.sessionsById)
+  const selectedSessionId = useConversationsStore(s => s.selectedSessionId)
+  const rawProjectOrder = useConversationsStore(s => s.projectOrder)
   const projectOrder = rawProjectOrder?.tree ? rawProjectOrder : { tree: [] }
-  const showEnded = useSessionsStore(s => s.controlPanelPrefs.showEndedSessions)
-  const showInactive = useSessionsStore(s => s.controlPanelPrefs.showInactiveByDefault)
-  const updatePrefs = useSessionsStore(s => s.updateControlPanelPrefs)
+  const showEnded = useConversationsStore(s => s.controlPanelPrefs.showEndedSessions)
+  const showInactive = useConversationsStore(s => s.controlPanelPrefs.showInactiveByDefault)
+  const updatePrefs = useConversationsStore(s => s.updateControlPanelPrefs)
   const [_pulseSessionId, setPulseSessionId] = useState<string | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     try {
@@ -167,7 +167,7 @@ export function ProjectList() {
         })
       }
       const newOrder: ProjectOrder = { tree: renameInTree(projectOrder.tree) }
-      useSessionsStore.getState().setProjectOrder(newOrder)
+      useConversationsStore.getState().setProjectOrder(newOrder)
       saveProjectOrder(newOrder)
     },
     [projectOrder],
@@ -326,7 +326,7 @@ export function ProjectList() {
 
   function persistTree(tree: ProjectOrderNode[]) {
     const newOrder: ProjectOrder = { tree }
-    useSessionsStore.getState().setProjectOrder(newOrder)
+    useConversationsStore.getState().setProjectOrder(newOrder)
     saveProjectOrder(newOrder)
   }
 

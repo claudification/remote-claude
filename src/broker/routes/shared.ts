@@ -3,11 +3,11 @@
  * used by all route sub-modules.
  */
 
-import type { Session, TeamInfo } from '../../shared/protocol'
+import type { Conversation, TeamInfo } from '../../shared/protocol'
 import { getUser } from '../auth'
 import { getAuthenticatedUser, resolveAuth } from '../auth-routes'
 import { type Permission, resolvePermissions, type UserGrant } from '../permissions'
-import type { SessionStore } from '../session-store'
+import type { ConversationStore } from '../session-store'
 import { shareToGrants, validateShare } from '../shares'
 
 // ─── Route context (shared deps across sub-routers) ────────────────────
@@ -79,7 +79,7 @@ export interface SessionOverview {
   id: string
   project: string
   model?: string
-  status: Session['status']
+  status: Conversation['status']
   conversationIds: string[]
   startedAt: number
   lastActivity: number
@@ -90,11 +90,11 @@ export interface SessionOverview {
   summary?: string
   title?: string
   agentName?: string
-  prLinks?: Session['prLinks']
+  prLinks?: Conversation['prLinks']
   lastEvent?: { hookEvent: string; timestamp: number }
 }
 
-export function sessionToOverview(session: Session, sessionStore: SessionStore): SessionOverview {
+export function sessionToOverview(session: Conversation, sessionStore: ConversationStore): SessionOverview {
   const lastEvent = session.events[session.events.length - 1]
   return {
     id: session.id,
@@ -118,7 +118,7 @@ export function sessionToOverview(session: Session, sessionStore: SessionStore):
 
 // ─── Broadcast helper ──────────────────────────────────────────────────
 
-export function broadcastToSubscribers(sessionStore: SessionStore, message: Record<string, unknown>) {
+export function broadcastToSubscribers(sessionStore: ConversationStore, message: Record<string, unknown>) {
   const json = JSON.stringify(message)
   for (const ws of sessionStore.getSubscribers()) {
     try {

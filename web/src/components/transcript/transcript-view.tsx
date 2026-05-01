@@ -16,7 +16,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { record } from '@/lib/perf-metrics'
 import type { TranscriptEntry } from '@/lib/types'
 import { Markdown } from '../markdown'
@@ -90,8 +90,8 @@ const EMPTY_STREAMING = ''
 
 /** Isolated streaming text component - subscribes to its own store slice so token updates don't re-render the virtualizer */
 const StreamingBlock = memo(function StreamingBlock({ sessionId }: { sessionId: string | null }) {
-  const showStreaming = useSessionsStore(state => state.controlPanelPrefs.showStreaming !== false)
-  const streamingText = useSessionsStore(
+  const showStreaming = useConversationsStore(state => state.controlPanelPrefs.showStreaming !== false)
+  const streamingText = useConversationsStore(
     state => (sessionId ? state.streamingText[sessionId] : null) || EMPTY_STREAMING,
   )
   if (!showStreaming || !streamingText) return null
@@ -149,12 +149,14 @@ const VERBS = [
 
 /** Shows a fun random verb spinner while the session is active (between UserPromptSubmit and Stop) */
 const ThinkingSpinner = memo(function ThinkingSpinner({ sessionId }: { sessionId: string | null }) {
-  const isActive = useSessionsStore(state => (sessionId ? state.sessionsById[sessionId]?.status === 'active' : false))
-  const totalOutput = useSessionsStore(state =>
+  const isActive = useConversationsStore(state =>
+    sessionId ? state.sessionsById[sessionId]?.status === 'active' : false,
+  )
+  const totalOutput = useConversationsStore(state =>
     sessionId ? (state.sessionsById[sessionId]?.stats?.totalOutputTokens ?? 0) : 0,
   )
   // Custom verbs: project settings override > session verbs (from CC settings) > defaults
-  const customVerbs = useSessionsStore(state => {
+  const customVerbs = useConversationsStore(state => {
     const session = sessionId ? state.sessionsById[sessionId] : undefined
     const projectVerbs = session?.project ? state.projectSettings[session.project]?.verbs : undefined
     return projectVerbs?.length ? projectVerbs : session?.spinnerVerbs
@@ -253,10 +255,10 @@ export const TranscriptView = memo(function TranscriptView({
   const { getResult, groups } = useIncrementalGroups(entries)
 
   // Lift settings selectors here (once) instead of per-GroupView (N times)
-  const expandAll = useSessionsStore(state => state.expandAll)
-  const globalSettings = useSessionsStore(state => state.globalSettings)
-  const chatBubbles = useSessionsStore(state => state.controlPanelPrefs.chatBubbles)
-  const bubbleColor = useSessionsStore(state => state.controlPanelPrefs.chatBubbleColor) || 'blue'
+  const expandAll = useConversationsStore(state => state.expandAll)
+  const globalSettings = useConversationsStore(state => state.globalSettings)
+  const chatBubbles = useConversationsStore(state => state.controlPanelPrefs.chatBubbles)
+  const bubbleColor = useConversationsStore(state => state.controlPanelPrefs.chatBubbleColor) || 'blue'
   const transcriptSettings = useMemo(
     () => ({
       expandAll,
@@ -316,29 +318,29 @@ export const TranscriptView = memo(function TranscriptView({
   // Lift subagents selector here (once) instead of per-GroupView (N times)
   // Return a primitive string so Zustand's Object.is check works - avoids re-renders
   // from session_update creating new array references with identical content
-  const subagentsSummary = useSessionsStore(state => {
+  const subagentsSummary = useConversationsStore(state => {
     const session = state.selectedSessionId ? state.sessionsById[state.selectedSessionId] : undefined
     if (!session?.subagents?.length) return ''
     return session.subagents.map(a => `${a.agentId}:${a.status}:${a.description || ''}`).join('|')
   })
   // biome-ignore lint/correctness/useExhaustiveDependencies: subagentsSummary is a serialized primitive dep key that triggers recompute when subagent state changes
   const subagents = useMemo(() => {
-    const state = useSessionsStore.getState()
+    const state = useConversationsStore.getState()
     return state.selectedSessionId ? state.sessionsById[state.selectedSessionId]?.subagents : undefined
   }, [subagentsSummary])
 
-  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
-  const perfEnabled = useSessionsStore(state => state.controlPanelPrefs.showPerfMonitor)
+  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
+  const perfEnabled = useConversationsStore(state => state.controlPanelPrefs.showPerfMonitor)
 
   // Count pending permissions for the selected session. Used as a scroll-to-bottom
   // trigger so a newly-arrived permission pins into view when follow is active.
-  const pendingPermissionCount = useSessionsStore(state =>
+  const pendingPermissionCount = useConversationsStore(state =>
     state.selectedSessionId ? state.pendingPermissions.filter(p => p.sessionId === state.selectedSessionId).length : 0,
   )
 
   // Same idea for pending project-link requests targeting this session -- they
   // also render inline at the transcript bottom as a blocking gate.
-  const pendingLinkCount = useSessionsStore(state =>
+  const pendingLinkCount = useConversationsStore(state =>
     state.selectedSessionId ? state.pendingProjectLinks.filter(r => r.toSession === state.selectedSessionId).length : 0,
   )
 
@@ -449,9 +451,9 @@ export const TranscriptView = memo(function TranscriptView({
   useEffect(() => {
     const getTranscriptRef = (state: { selectedSessionId: string | null; transcripts: Record<string, unknown> }) =>
       state.selectedSessionId ? state.transcripts[state.selectedSessionId] : undefined
-    let lastRef = getTranscriptRef(useSessionsStore.getState())
+    let lastRef = getTranscriptRef(useConversationsStore.getState())
 
-    return useSessionsStore.subscribe(state => {
+    return useConversationsStore.subscribe(state => {
       const current = getTranscriptRef(state)
       if (current !== lastRef) {
         lastRef = current

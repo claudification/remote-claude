@@ -14,10 +14,10 @@ import {
 } from '../shared/project-uri'
 import type {
   AgentHostCapability,
+  Conversation,
+  ConversationSummary,
   HookEvent,
   LaunchConfig,
-  Session,
-  SessionSummary,
   SubscriptionChannel,
   SubscriptionsDiag,
   TaskInfo,
@@ -56,12 +56,12 @@ import {
 } from './session-store/sync-protocol'
 import { createTerminalRegistry } from './session-store/terminal-registry'
 import { createTrafficTracker } from './session-store/traffic'
-import type { DashboardMessage } from './session-store/types'
+import type { ControlPanelMessage } from './session-store/types'
 import { createViewerRegistry } from './session-store/viewer-registry'
 import { listShares } from './shares'
 import type { StoreDriver } from './store/types'
 
-export type { DashboardMessage, SessionSummary }
+export type { ControlPanelMessage, ConversationSummary }
 
 export interface SessionStoreOptions {
   cacheDir?: string
@@ -70,14 +70,14 @@ export interface SessionStoreOptions {
   sentinelRegistry?: SentinelRegistry
 }
 
-export interface SessionStore {
+export interface ConversationStore {
   createSession: (
     id: string,
     project: string,
     model?: string,
     args?: string[],
     capabilities?: AgentHostCapability[],
-  ) => Session
+  ) => Conversation
   resumeSession: (id: string) => void
   rekeySession: (
     oldId: string,
@@ -85,10 +85,10 @@ export interface SessionStore {
     conversationId: string,
     newProject: string,
     model?: string,
-  ) => Session | undefined
-  getSession: (id: string) => Session | undefined
-  getAllSessions: () => Session[]
-  getActiveSessions: () => Session[]
+  ) => Conversation | undefined
+  getSession: (id: string) => Conversation | undefined
+  getAllSessions: () => Conversation[]
+  getActiveSessions: () => Conversation[]
   addEvent: (sessionId: string, event: HookEvent) => void
   updateActivity: (sessionId: string) => void
   endSession: (sessionId: string, reason: string) => void
@@ -98,7 +98,7 @@ export interface SessionStore {
   setSessionSocket: (sessionId: string, conversationId: string, ws: ServerWebSocket<unknown>) => void
   getSessionSocket: (sessionId: string) => ServerWebSocket<unknown> | undefined
   getSessionSocketByConversation: (conversationId: string) => ServerWebSocket<unknown> | undefined
-  getSessionByConversation: (conversationId: string) => Session | undefined
+  getSessionByConversation: (conversationId: string) => Conversation | undefined
   removeSessionSocket: (sessionId: string, conversationId: string) => void
   getActiveConversationCount: (sessionId: string) => number
   getConversationIds: (sessionId: string) => string[]
@@ -231,7 +231,7 @@ export interface SessionStore {
     callerSessionId: string,
     project: string,
     action: 'spawn' | 'revive' | 'restart',
-  ) => Promise<SessionSummary>
+  ) => Promise<ConversationSummary>
   // Pending restart (terminate + auto-revive on disconnect)
   addPendingRestart: (
     conversationId: string,
@@ -272,10 +272,10 @@ export interface SessionStore {
 /**
  * Create a session store with optional persistence
  */
-export function createSessionStore(options: SessionStoreOptions = {}): SessionStore {
+export function createConversationStore(options: SessionStoreOptions = {}): ConversationStore {
   const { store, sentinelRegistry } = options
 
-  const sessions = new Map<string, Session>()
+  const sessions = new Map<string, Conversation>()
   // sessionId -> (conversationId -> socket): multiple rclaude instances can share a Claude session
   const sessionSockets = new Map<string, Map<string, ServerWebSocket<unknown>>>()
   // Terminal viewers keyed by conversationId (each PTY is on a specific conversation)
@@ -393,7 +393,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   const bgTaskOutputCache = new Map<string, string>()
 
   // Helper to create session summary for broadcasting
-  function toSessionSummary(session: Session): SessionSummary {
+  function toSessionSummary(session: Conversation): ConversationSummary {
     const wrappers = sessionSockets.get(session.id)
     return {
       id: session.id,
@@ -488,7 +488,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   }
 
   // Broadcast to all dashboard subscribers (sequenced + buffered for sync catchup)
-  function broadcast(message: DashboardMessage): void {
+  function broadcast(message: ControlPanelMessage): void {
     const json = stampAndBuffer(message)
     for (const ws of dashboardSubscribers) {
       try {
@@ -505,7 +505,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   }
 
   /** Broadcast a session message only to subscribers who have chat:read for that project */
-  function broadcastSessionScoped(message: DashboardMessage, project: string): void {
+  function broadcastSessionScoped(message: ControlPanelMessage, project: string): void {
     const json = stampAndBuffer(message)
     for (const ws of dashboardSubscribers) {
       try {
@@ -545,7 +545,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       if (session) {
         broadcastSessionScoped(
           {
-            type: 'session_update',
+            type: 'conversation_update',
             sessionId: id,
             session: toSessionSummary(session),
           },
@@ -646,7 +646,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         // Full record for meta fields
         const full = store.sessions.get(rec.id)
         const fullMeta = full?.meta || meta
-        const session: Session = {
+        const session: Conversation = {
           id: rec.id,
           project: rec.scope || cwdToProjectUri('/'),
           model: rec.model,
@@ -654,40 +654,40 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           lastActivity: rec.lastActivity || rec.createdAt,
           status: 'ended',
           events: [],
-          subagents: ((fullMeta.subagents as Session['subagents']) || []).map(a => ({
+          subagents: ((fullMeta.subagents as Conversation['subagents']) || []).map(a => ({
             ...a,
             events: a.events || [],
             status: 'stopped' as const,
             stoppedAt: a.stoppedAt || a.startedAt,
           })),
-          tasks: (fullMeta.tasks as Session['tasks']) || [],
-          archivedTasks: (fullMeta.archivedTasks as Session['archivedTasks']) || [],
-          bgTasks: ((fullMeta.bgTasks as Session['bgTasks']) || []).map(t => ({
+          tasks: (fullMeta.tasks as Conversation['tasks']) || [],
+          archivedTasks: (fullMeta.archivedTasks as Conversation['archivedTasks']) || [],
+          bgTasks: ((fullMeta.bgTasks as Conversation['bgTasks']) || []).map(t => ({
             ...t,
             status: t.status === 'running' ? ('completed' as const) : t.status,
             completedAt: t.completedAt || t.startedAt,
           })),
-          monitors: ((fullMeta.monitors as Session['monitors']) || []).map(m => ({
+          monitors: ((fullMeta.monitors as Conversation['monitors']) || []).map(m => ({
             ...m,
             status: m.status === 'running' ? ('completed' as const) : m.status,
             stoppedAt: m.stoppedAt || m.startedAt,
           })),
-          teammates: (fullMeta.teammates as Session['teammates']) || [],
-          team: fullMeta.team as Session['team'],
+          teammates: (fullMeta.teammates as Conversation['teammates']) || [],
+          team: fullMeta.team as Conversation['team'],
           diagLog: [],
           configuredModel: fullMeta.configuredModel as string | undefined,
           permissionMode: fullMeta.permissionMode as string | undefined,
           effortLevel: fullMeta.effortLevel as string | undefined,
-          contextMode: fullMeta.contextMode as Session['contextMode'],
+          contextMode: fullMeta.contextMode as Conversation['contextMode'],
           args: fullMeta.args as string[] | undefined,
           capabilities: fullMeta.capabilities as AgentHostCapability[] | undefined,
           version: fullMeta.version as string | undefined,
           buildTime: fullMeta.buildTime as string | undefined,
           claudeVersion: fullMeta.claudeVersion as string | undefined,
-          claudeAuth: fullMeta.claudeAuth as Session['claudeAuth'],
+          claudeAuth: fullMeta.claudeAuth as Conversation['claudeAuth'],
           transcriptPath: fullMeta.transcriptPath as string | undefined,
           compactedAt: fullMeta.compactedAt as number | undefined,
-          stats: (full?.stats as unknown as Session['stats']) || {
+          stats: (full?.stats as unknown as Conversation['stats']) || {
             totalInputTokens: 0,
             totalOutputTokens: 0,
             totalCacheCreation: 0,
@@ -701,20 +701,20 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
             linesRemoved: 0,
             totalApiDurationMs: 0,
           },
-          costTimeline: (fullMeta.costTimeline as Session['costTimeline']) || [],
+          costTimeline: (fullMeta.costTimeline as Conversation['costTimeline']) || [],
           gitBranch: fullMeta.gitBranch as string | undefined,
           adHocTaskId: fullMeta.adHocTaskId as string | undefined,
           adHocWorktree: fullMeta.adHocWorktree as string | undefined,
           launchConfig: fullMeta.launchConfig as LaunchConfig | undefined,
           resultText: fullMeta.resultText as string | undefined,
-          recap: fullMeta.recap as Session['recap'],
+          recap: fullMeta.recap as Conversation['recap'],
           recapFresh: fullMeta.recapFresh as boolean | undefined,
           title: rec.title || (fullMeta.title as string | undefined),
           titleUserSet: fullMeta.titleUserSet as boolean | undefined,
           description: fullMeta.description as string | undefined,
           summary: (full as unknown as { summary?: string })?.summary || (fullMeta.summary as string | undefined),
           agentName: fullMeta.agentName as string | undefined,
-          prLinks: fullMeta.prLinks as Session['prLinks'],
+          prLinks: fullMeta.prLinks as Conversation['prLinks'],
           hostSentinelId: fullMeta.hostSentinelId as string | undefined,
           hostSentinelAlias: fullMeta.hostSentinelAlias as string | undefined,
         }
@@ -728,7 +728,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     }
   }
 
-  function persistSession(session: Session): void {
+  function persistSession(session: Conversation): void {
     if (!store) return
     try {
       const existing = store.sessions.get(session.id)
@@ -787,7 +787,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           lastActivity: session.lastActivity,
           endedAt: session.status === 'ended' ? session.lastActivity : undefined,
           meta,
-          stats: session.stats as unknown as import('./store/types').SessionStats,
+          stats: session.stats as unknown as import('./store/types').ConversationStats,
         })
       }
     } catch (err) {
@@ -844,10 +844,10 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     model?: string,
     args?: string[],
     capabilities?: AgentHostCapability[],
-  ): Session {
+  ): Conversation {
     const sentinelAlias = getDefaultSentinelAlias()
     const project = resolveProjectUri(projectOrCwd, sentinelAlias)
-    const session: Session = {
+    const session: Conversation = {
       id,
       project,
       model,
@@ -888,7 +888,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     // Broadcast to dashboard subscribers (scoped by grants)
     broadcastSessionScoped(
       {
-        type: 'session_created',
+        type: 'conversation_created',
         sessionId: id,
         session: toSessionSummary(session),
       },
@@ -937,7 +937,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       // Notify dashboards that this session resumed - triggers transcript re-fetch
       broadcastSessionScoped(
         {
-          type: 'session_update',
+          type: 'conversation_update',
           sessionId: id,
           session: toSessionSummary(session),
         },
@@ -954,7 +954,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     _conversationId: string,
     newProjectOrCwd: string,
     newModel?: string,
-  ): Session | undefined {
+  ): Conversation | undefined {
     const newProject = newProjectOrCwd.includes('://') ? newProjectOrCwd : cwdToProjectUri(newProjectOrCwd)
     const session = sessions.get(oldId)
     if (!session) return undefined
@@ -966,7 +966,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       session.lastActivity = Date.now()
       persistSession(session)
       broadcastSessionScoped(
-        { type: 'session_update', sessionId: newId, session: toSessionSummary(session) },
+        { type: 'conversation_update', sessionId: newId, session: toSessionSummary(session) },
         session.project,
       )
       return session
@@ -1042,7 +1042,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     // Broadcast update (not end+create) so dashboard stays on this session
     broadcastSessionScoped(
       {
-        type: 'session_update',
+        type: 'conversation_update',
         sessionId: newId,
         previousSessionId: oldId,
         session: toSessionSummary(session),
@@ -1056,7 +1056,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     if (wasCompacting) {
       const marker = { type: 'compacting' as const, timestamp: new Date().toISOString() }
       addTranscriptEntries(newId, [marker], false)
-      broadcastToChannel('session:transcript', newId, {
+      broadcastToChannel('conversation:transcript', newId, {
         type: 'transcript_entries',
         sessionId: newId,
         entries: [marker],
@@ -1067,15 +1067,15 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     return session
   }
 
-  function getSession(id: string): Session | undefined {
+  function getSession(id: string): Conversation | undefined {
     return sessions.get(id)
   }
 
-  function getAllSessions(): Session[] {
+  function getAllSessions(): Conversation[] {
     return Array.from(sessions.values())
   }
 
-  function getActiveSessions(): Session[] {
+  function getActiveSessions(): Conversation[] {
     return Array.from(sessions.values()).filter(s => s.status !== 'ended')
   }
 
@@ -1169,7 +1169,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
               // Delta computation handled inside store.costs.recordTurnFromCumulatives
               store?.costs.recordTurnFromCumulatives({
                 timestamp: event.timestamp,
-                sessionId,
+                conversationId: sessionId,
                 projectUri: session.project,
                 account: session.claudeAuth?.email || '',
                 orgId: session.claudeAuth?.orgId || '',
@@ -1222,7 +1222,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         session.compacting = true
         const marker = { type: 'compacting', timestamp: new Date().toISOString() }
         addTranscriptEntries(sessionId, [marker], false)
-        broadcastToChannel('session:transcript', sessionId, {
+        broadcastToChannel('conversation:transcript', sessionId, {
           type: 'transcript_entries',
           sessionId,
           entries: [marker],
@@ -1233,7 +1233,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         session.compactedAt = Date.now()
         const marker = { type: 'compacted', timestamp: new Date().toISOString() }
         addTranscriptEntries(sessionId, [marker], false)
-        broadcastToChannel('session:transcript', sessionId, {
+        broadcastToChannel('conversation:transcript', sessionId, {
           type: 'transcript_entries',
           sessionId,
           entries: [marker],
@@ -1245,7 +1245,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         session.compactedAt = Date.now()
         const marker = { type: 'compacted', timestamp: new Date().toISOString() }
         addTranscriptEntries(sessionId, [marker], false)
-        broadcastToChannel('session:transcript', sessionId, {
+        broadcastToChannel('conversation:transcript', sessionId, {
           type: 'transcript_entries',
           sessionId,
           entries: [marker],
@@ -1517,7 +1517,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       }
 
       // Broadcast event to dashboard subscribers (channel-filtered for v2)
-      broadcastToChannel('session:events', sessionId, {
+      broadcastToChannel('conversation:events', sessionId, {
         type: 'event',
         sessionId,
         event,
@@ -1600,7 +1600,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       // Broadcast to dashboard subscribers (scoped by grants)
       broadcastSessionScoped(
         {
-          type: 'session_ended',
+          type: 'conversation_ended',
           sessionId,
           session: toSessionSummary(session),
         },
@@ -1692,7 +1692,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     return undefined
   }
 
-  function getSessionByConversation(conversationId: string): Session | undefined {
+  function getSessionByConversation(conversationId: string): Conversation | undefined {
     for (const [sessionId, wrappers] of sessionSockets.entries()) {
       if (wrappers.has(conversationId)) return sessions.get(sessionId)
     }
@@ -1747,7 +1747,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   }
 
   /** Filter sessions by user's grants - only show sessions they have chat:read for */
-  function filterSessionsByGrants(allSessions: SessionSummary[], grants?: UserGrant[]): SessionSummary[] {
+  function filterSessionsByGrants(allSessions: ConversationSummary[], grants?: UserGrant[]): ConversationSummary[] {
     if (!grants) return allSessions // no grants = admin/secret auth = see everything
     return allSessions.filter(s => {
       const { permissions } = resolvePermissions(grants, s.project)
@@ -1758,7 +1758,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   function buildSessionsListMessage(grants?: UserGrant[]): string {
     const allSummaries = Array.from(sessions.values()).map(toSessionSummary)
     return JSON.stringify({
-      type: 'sessions_list',
+      type: 'conversations_list',
       sessions: filterSessionsByGrants(allSummaries, grants),
       serverVersion: BUILD_VERSION.gitHashShort,
       _epoch: sync.epoch,
@@ -2046,7 +2046,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
               session.stats.compactionCount++
               const marker = { type: 'compacted' as const, timestamp: entry.timestamp || new Date().toISOString() }
               addTranscriptEntries(sessionId, [marker], false)
-              broadcastToChannel('session:transcript', sessionId, {
+              broadcastToChannel('conversation:transcript', sessionId, {
                 type: 'transcript_entries',
                 sessionId,
                 entries: [marker],
@@ -2185,7 +2185,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
                   filename: mime ? `clipboard.${mime.split('/')[1]}` : 'clipboard.txt',
                   mediaType: mime || 'text/plain',
                   project: session.project,
-                  sessionId,
+                  conversationId: sessionId,
                   size: base64.length,
                   url: '',
                   text: decodedText,
@@ -2367,7 +2367,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
           )
           addSubagentTranscriptEntries(sessionId, agentId, agentBatch, false)
           broadcastToChannel(
-            'session:subagent_transcript',
+            'conversation:subagent_transcript',
             sessionId,
             {
               type: 'subagent_transcript',
@@ -2547,7 +2547,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     callerSessionId: string,
     project: string,
     action: 'spawn' | 'revive' | 'restart',
-  ): Promise<SessionSummary> {
+  ): Promise<ConversationSummary> {
     return rendezvous.addRendezvous(conversationId, callerSessionId, project, action)
   }
 
@@ -2641,7 +2641,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     getSubscribers,
     getShareViewerCount,
     broadcastSessionScoped: (message: Record<string, unknown>, project: string) =>
-      broadcastSessionScoped(message as unknown as DashboardMessage, project),
+      broadcastSessionScoped(message as unknown as ControlPanelMessage, project),
     broadcastSharesUpdate,
     subscribeChannel,
     unsubscribeChannel,

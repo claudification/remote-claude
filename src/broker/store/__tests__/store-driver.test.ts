@@ -818,7 +818,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
       it('recordTurnFromCumulatives records first turn as full cumulative', () => {
         const ok = store.costs.recordTurnFromCumulatives({
           timestamp: 1000,
-          sessionId: 'cum1',
+          conversationId: 'cum1',
           projectUri: 'proj',
           account: '',
           orgId: '',
@@ -840,7 +840,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
       it('recordTurnFromCumulatives subsequent call records delta only', () => {
         store.costs.recordTurnFromCumulatives({
           timestamp: 1000,
-          sessionId: 'cum2',
+          conversationId: 'cum2',
           projectUri: 'p',
           account: '',
           orgId: '',
@@ -854,7 +854,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         })
         store.costs.recordTurnFromCumulatives({
           timestamp: 2000,
-          sessionId: 'cum2',
+          conversationId: 'cum2',
           projectUri: 'p',
           account: '',
           orgId: '',
@@ -877,7 +877,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
       it('recordTurnFromCumulatives skips when no token delta', () => {
         const args = {
           timestamp: 1000,
-          sessionId: 'same',
+          conversationId: 'same',
           projectUri: 'p',
           account: '',
           orgId: '',

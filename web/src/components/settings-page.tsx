@@ -1,6 +1,6 @@
 import { Save } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSessionsStore, wsSend } from '@/hooks/use-sessions'
+import { useConversationsStore, wsSend } from '@/hooks/use-sessions'
 import { invalidateWarmStream } from '@/hooks/use-voice-recording'
 import { resolveToolDisplay, type SettingsTab, TOOL_DISPLAY_KEYS } from '@/lib/control-panel-prefs'
 import { extractProjectLabel } from '@/lib/types'
@@ -22,8 +22,8 @@ import { VoiceDevicePicker } from './settings/voice-device-picker'
 
 // --- Default session picker ---
 function DefaultSessionPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const sessions = useSessionsStore(s => s.sessions)
-  const projectSettings = useSessionsStore(s => s.projectSettings)
+  const sessions = useConversationsStore(s => s.sessions)
+  const projectSettings = useConversationsStore(s => s.projectSettings)
   // Unique projects by project URI
   const options = useMemo(() => {
     const seen = new Map<string, string>()
@@ -89,8 +89,8 @@ interface SettingsContext {
   server: Record<string, unknown>
   setServer: (key: string, value: unknown) => void
   // Client prefs
-  prefs: ReturnType<typeof useSessionsStore.getState>['controlPanelPrefs']
-  updatePrefs: ReturnType<typeof useSessionsStore.getState>['updateControlPanelPrefs']
+  prefs: ReturnType<typeof useConversationsStore.getState>['controlPanelPrefs']
+  updatePrefs: ReturnType<typeof useConversationsStore.getState>['updateControlPanelPrefs']
 }
 
 const SETTINGS: SettingItem[] = [
@@ -718,9 +718,9 @@ const SETTINGS: SettingItem[] = [
 
 export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [filter, setFilter] = useState('')
-  const globalSettings = useSessionsStore(s => s.globalSettings)
-  const prefs = useSessionsStore(s => s.controlPanelPrefs)
-  const updatePrefs = useSessionsStore(s => s.updateControlPanelPrefs)
+  const globalSettings = useConversationsStore(s => s.globalSettings)
+  const prefs = useConversationsStore(s => s.controlPanelPrefs)
+  const updatePrefs = useConversationsStore(s => s.updateControlPanelPrefs)
 
   // Local draft of server settings (only committed on Save)
   const [serverDraft, setServerDraft] = useState<Record<string, unknown>>({})

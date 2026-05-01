@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TranscriptEntry } from '../shared/protocol'
-import { createSessionStore } from './session-store'
+import { createConversationStore } from './session-store'
 
 function makeEntry(index: number): TranscriptEntry {
   return { type: 'user', message: { content: `entry ${index}` }, index }
@@ -8,7 +8,7 @@ function makeEntry(index: number): TranscriptEntry {
 
 describe('TranscriptCache', () => {
   it('stores and retrieves transcript entries', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
 
     const entries = [makeEntry(1), makeEntry(2), makeEntry(3)]
@@ -19,7 +19,7 @@ describe('TranscriptCache', () => {
   })
 
   it('appends incremental entries', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
 
     store.addTranscriptEntries('s1', [makeEntry(1), makeEntry(2)], true)
@@ -34,7 +34,7 @@ describe('TranscriptCache', () => {
   })
 
   it('initial batch replaces previous entries and resets seq counter', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
 
     store.addTranscriptEntries('s1', [makeEntry(1), makeEntry(2)], true)
@@ -48,7 +48,7 @@ describe('TranscriptCache', () => {
   })
 
   it('respects limit parameter', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
 
     const entries = Array.from({ length: 20 }, (_, i) => makeEntry(i))
@@ -62,7 +62,7 @@ describe('TranscriptCache', () => {
   })
 
   it('caps at max entries (1000)', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
 
     const entries = Array.from({ length: 1200 }, (_, i) => makeEntry(i))
@@ -79,7 +79,7 @@ describe('TranscriptCache', () => {
   })
 
   it('caps incremental appends too', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
 
     // Fill with 990 entries
@@ -100,7 +100,7 @@ describe('TranscriptCache', () => {
   })
 
   it('stamps per-session monotonic seq starting at 1', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
     store.createSession('s2', '/tmp')
 
@@ -116,13 +116,13 @@ describe('TranscriptCache', () => {
   })
 
   it('returns empty array for unknown session', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     expect(store.getTranscriptEntries('nonexistent')).toEqual([])
     expect(store.hasTranscriptCache('nonexistent')).toBe(false)
   })
 
   it('hasTranscriptCache returns correct state', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
 
     expect(store.hasTranscriptCache('s1')).toBe(false)
@@ -133,7 +133,7 @@ describe('TranscriptCache', () => {
 
 describe('SubagentTranscriptCache', () => {
   it('stores and retrieves subagent transcript entries', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
 
     const entries = [makeEntry(1), makeEntry(2)]
@@ -144,7 +144,7 @@ describe('SubagentTranscriptCache', () => {
   })
 
   it('isolates different agents', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
 
     store.addSubagentTranscriptEntries('s1', 'agent-1', [makeEntry(1)], true)
@@ -162,7 +162,7 @@ describe('SubagentTranscriptCache', () => {
   })
 
   it('isolates different sessions', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
     store.createSession('s2', '/tmp')
 
@@ -178,7 +178,7 @@ describe('SubagentTranscriptCache', () => {
   })
 
   it('appends incremental entries', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
 
     store.addSubagentTranscriptEntries('s1', 'agent-1', [makeEntry(1)], true)
@@ -189,7 +189,7 @@ describe('SubagentTranscriptCache', () => {
   })
 
   it('hasSubagentTranscriptCache works', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
 
     expect(store.hasSubagentTranscriptCache('s1', 'agent-1')).toBe(false)
@@ -198,7 +198,7 @@ describe('SubagentTranscriptCache', () => {
   })
 
   it('respects limit on retrieval', () => {
-    const store = createSessionStore({ enablePersistence: false })
+    const store = createConversationStore({ enablePersistence: false })
     store.createSession('s1', '/tmp')
 
     const entries = Array.from({ length: 50 }, (_, i) => makeEntry(i))

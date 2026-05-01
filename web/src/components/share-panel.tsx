@@ -10,7 +10,7 @@
 import { Copy, Eye, Link2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { haptic } from '@/lib/utils'
 
 interface SharePanelProps {
@@ -24,10 +24,10 @@ const DURATION_OPTIONS = [
   { label: '7d', ms: 7 * 24 * 60 * 60 * 1000 },
 ]
 
-const EMPTY_SHARES: ReturnType<typeof useSessionsStore.getState>['shares'] = []
+const EMPTY_SHARES: ReturnType<typeof useConversationsStore.getState>['shares'] = []
 
 export function ShareBanner({ sessionProject }: SharePanelProps) {
-  const allShares = useSessionsStore(s => s.shares) || EMPTY_SHARES
+  const allShares = useConversationsStore(s => s.shares) || EMPTY_SHARES
   const shares = allShares.filter(s => s.sessionCwd === sessionProject && s.expiresAt > Date.now())
 
   const [expanded, setExpanded] = useState(false)
@@ -278,7 +278,7 @@ export function ShareBanner({ sessionProject }: SharePanelProps) {
 
 /** Small share indicator for the session list sidebar */
 export function ShareIndicator({ sessionProject }: { sessionProject: string }) {
-  const count = useSessionsStore(
+  const count = useConversationsStore(
     s => s.shares.filter(sh => sh.sessionCwd === sessionProject && sh.expiresAt > Date.now()).length,
   )
 

@@ -6,7 +6,7 @@ import { NotificationBell } from '@/components/notification-bell'
 import { ProjectSettingsEditor } from '@/components/project-settings-editor'
 import { SettingsDialog } from '@/components/settings-page'
 import { UsageBar } from '@/components/usage-bar'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { getRates, subscribe as subscribeStats } from '@/hooks/ws-stats'
 import { haptic } from '@/lib/utils'
 
@@ -18,11 +18,11 @@ function formatBytes(bps: number): string {
 const EMPTY_SENTINELS: { sentinelId: string; alias: string; hostname?: string; connected: boolean }[] = []
 
 function StatusIndicator() {
-  const isConnected = useSessionsStore(s => s.isConnected)
-  const sentinelConnected = useSessionsStore(s => s.sentinelConnected)
-  const sentinels = useSessionsStore(s => s.sentinels) || EMPTY_SENTINELS
-  const error = useSessionsStore(s => s.error)
-  const showStats = useSessionsStore(s => s.controlPanelPrefs.showWsStats)
+  const isConnected = useConversationsStore(s => s.isConnected)
+  const sentinelConnected = useConversationsStore(s => s.sentinelConnected)
+  const sentinels = useConversationsStore(s => s.sentinels) || EMPTY_SENTINELS
+  const error = useConversationsStore(s => s.error)
+  const showStats = useConversationsStore(s => s.controlPanelPrefs.showWsStats)
   const rates = useSyncExternalStore(subscribeStats, getRates)
 
   const [open, setOpen] = useState(false)
@@ -161,7 +161,7 @@ export function Header() {
     window.addEventListener('open-project-settings', handleOpenProject)
     return () => window.removeEventListener('open-project-settings', handleOpenProject)
   }, [])
-  const showStats = useSessionsStore(s => s.controlPanelPrefs.showWsStats)
+  const showStats = useConversationsStore(s => s.controlPanelPrefs.showWsStats)
 
   return (
     <header className="border border-border p-2 sm:p-3 font-mono select-none">

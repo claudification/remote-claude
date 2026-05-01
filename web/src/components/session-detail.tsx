@@ -4,7 +4,7 @@ import { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from '
 import { useShallow } from 'zustand/react/shallow'
 import { Button } from '@/components/ui/button'
 import { type TaskStatus, useProject } from '@/hooks/use-project'
-import { fetchSubagentTranscript, useSessionsStore } from '@/hooks/use-sessions'
+import { fetchSubagentTranscript, useConversationsStore } from '@/hooks/use-sessions'
 import { canJsonStream, canTerminal, projectPath, type TranscriptEntry } from '@/lib/types'
 import { setSessionTab } from '@/lib/ui-state'
 import { cn, haptic } from '@/lib/utils'
@@ -37,8 +37,8 @@ const EMPTY_TRANSCRIPT: TranscriptEntry[] = []
 export const SessionDetail = memo(function SessionDetail() {
   const [activeTab, setActiveTab] = useState<Tab>('transcript')
   const [follow, setFollow] = useState(true)
-  const showThinking = useSessionsStore(s => s.controlPanelPrefs.showThinking)
-  const showDiag = useSessionsStore(s => s.controlPanelPrefs.showDiag)
+  const showThinking = useConversationsStore(s => s.controlPanelPrefs.showThinking)
+  const showDiag = useConversationsStore(s => s.controlPanelPrefs.showDiag)
   const [conversationTarget, setConversationTarget] = useState<{
     projectA: string
     projectB: string
@@ -48,13 +48,13 @@ export const SessionDetail = memo(function SessionDetail() {
   const disableFollow = useCallback(() => setFollow(false), [])
   const enableFollow = useCallback(() => setFollow(true), [])
   const [infoExpanded, setInfoExpanded] = useState(false)
-  const showTerminal = useSessionsStore(state => state.showTerminal)
-  const terminalWrapperId = useSessionsStore(state => state.terminalWrapperId)
-  const setShowTerminal = useSessionsStore(state => state.setShowTerminal)
-  const requestedTab = useSessionsStore(state => state.requestedTab)
-  const requestedTabSeq = useSessionsStore(state => state.requestedTabSeq)
-  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
-  const expandAll = useSessionsStore(state => state.expandAll)
+  const showTerminal = useConversationsStore(state => state.showTerminal)
+  const terminalWrapperId = useConversationsStore(state => state.terminalWrapperId)
+  const setShowTerminal = useConversationsStore(state => state.setShowTerminal)
+  const requestedTab = useConversationsStore(state => state.requestedTab)
+  const requestedTabSeq = useConversationsStore(state => state.requestedTabSeq)
+  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
+  const expandAll = useConversationsStore(state => state.expandAll)
 
   // Reset follow state on session switch
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedSessionId is the trigger dep, setters are stable React dispatch functions
@@ -72,7 +72,7 @@ export const SessionDetail = memo(function SessionDetail() {
     }
   }, [requestedTab, requestedTabSeq])
 
-  const session = useSessionsStore(state =>
+  const session = useConversationsStore(state =>
     state.selectedSessionId ? state.sessionsById[state.selectedSessionId] : undefined,
   )
 
@@ -87,7 +87,7 @@ export const SessionDetail = memo(function SessionDetail() {
   useEffect(() => {
     if (selectedSessionId) setSessionTab(selectedSessionId, activeTab)
   }, [selectedSessionId, activeTab])
-  const { canAdmin, canChat, canReadTerminal, canReadFiles, canFiles, canSpawn } = useSessionsStore(
+  const { canAdmin, canChat, canReadTerminal, canReadFiles, canFiles, canSpawn } = useConversationsStore(
     useShallow(s => {
       const p = (s.selectedSessionId && s.sessionPermissions[s.selectedSessionId]) || s.permissions
       return {
@@ -106,26 +106,26 @@ export const SessionDetail = memo(function SessionDetail() {
   const activeTabRef = useRef(activeTab)
   activeTabRef.current = activeTab
 
-  const events = useSessionsStore(state => {
+  const events = useConversationsStore(state => {
     const tab = activeTabRef.current
     if (tab !== 'events' && tab !== 'transcript' && tab !== 'tty') return EMPTY_EVENTS
     return selectedSessionId ? state.events[selectedSessionId] || EMPTY_EVENTS : EMPTY_EVENTS
   })
-  const transcript = useSessionsStore(state => {
+  const transcript = useConversationsStore(state => {
     const tab = activeTabRef.current
     if (tab !== 'transcript' && tab !== 'tty') return EMPTY_TRANSCRIPT
     return selectedSessionId ? state.transcripts[selectedSessionId] || EMPTY_TRANSCRIPT : EMPTY_TRANSCRIPT
   })
-  const sentinelConnected = useSessionsStore(state => state.sentinelConnected)
-  const projectSettings = useSessionsStore(state =>
+  const sentinelConnected = useConversationsStore(state => state.sentinelConnected)
+  const projectSettings = useConversationsStore(state =>
     session?.project ? state.projectSettings[session.project] : undefined,
   )
-  const selectedSubagentId = useSessionsStore(state => state.selectedSubagentId)
-  const selectSubagent = useSessionsStore(state => state.selectSubagent)
+  const selectedSubagentId = useConversationsStore(state => state.selectedSubagentId)
+  const selectSubagent = useConversationsStore(state => state.selectSubagent)
 
   // Subagent transcript: store (live WS push) + initial HTTP fetch
   const subagentKey = selectedSessionId && selectedSubagentId ? `${selectedSessionId}:${selectedSubagentId}` : ''
-  const subagentTranscriptRaw = useSessionsStore(state =>
+  const subagentTranscriptRaw = useConversationsStore(state =>
     subagentKey ? state.subagentTranscripts[subagentKey] : undefined,
   )
   const subagentTranscript = subagentTranscriptRaw || EMPTY_TRANSCRIPT
@@ -142,7 +142,7 @@ export const SessionDetail = memo(function SessionDetail() {
       setSubagentLoading(false)
       if (entries.length > 0) {
         const key = `${selectedSessionId}:${selectedSubagentId}`
-        useSessionsStore.setState(state => ({
+        useConversationsStore.setState(state => ({
           subagentTranscripts: { ...state.subagentTranscripts, [key]: entries },
         }))
       }
@@ -153,13 +153,13 @@ export const SessionDetail = memo(function SessionDetail() {
   }, [selectedSessionId, selectedSubagentId])
 
   // @ / t: command palette -> task editor overlay (no tab switch, transcript stays mounted)
-  const pendingTaskEdit = useSessionsStore(s => s.pendingTaskEdit)
+  const pendingTaskEdit = useConversationsStore(s => s.pendingTaskEdit)
   const { tasks: projectTasks, readTask, updateTask, moveTask } = useProject(selectedSessionId ?? null)
   const [taskEditorTask, setTaskEditorTask] = useState<import('@/hooks/use-project').ProjectTask | null>(null)
   const [runTaskFromEditor, setRunTaskFromEditor] = useState<import('@/hooks/use-project').ProjectTask | null>(null)
   useEffect(() => {
     if (!pendingTaskEdit) return
-    useSessionsStore.getState().setPendingTaskEdit(null)
+    useConversationsStore.getState().setPendingTaskEdit(null)
     readTask(pendingTaskEdit.slug, pendingTaskEdit.status as TaskStatus).then(full => {
       if (full) setTaskEditorTask(full)
     })
@@ -456,7 +456,7 @@ export const SessionDetail = memo(function SessionDetail() {
             conversationId={terminalWrapperId}
             onClose={() => {
               setShowTerminal(false)
-              const store = useSessionsStore.getState()
+              const store = useConversationsStore.getState()
               if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'transcript')
             }}
           />

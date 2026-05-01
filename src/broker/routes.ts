@@ -17,7 +17,7 @@ import { createSessionsRouter } from './routes/sessions'
 import { createRouteHelpers } from './routes/shared'
 import { createSpawnRouter } from './routes/spawn'
 import { createStatsRouter } from './routes/stats'
-import type { SessionStore } from './session-store'
+import type { ConversationStore } from './session-store'
 import type { StoreDriver } from './store/types'
 
 // Re-export blob/file helpers for external consumers (session-store, handlers, etc.)
@@ -78,7 +78,7 @@ if (hasEmbeddedWeb) {
 // ─── Route factory ─────────────────────────────────────────────────────
 
 export interface RouteOptions {
-  sessionStore: SessionStore
+  sessionStore: ConversationStore
   store: StoreDriver
   webDir?: string
   vapidPublicKey?: string
@@ -258,7 +258,7 @@ export function createRouter(options: RouteOptions): Hono {
 
       // SPA fallback for non-API paths
       if (
-        !path.startsWith('/sessions') &&
+        !path.startsWith('/conversations') &&
         !path.startsWith('/health') &&
         !path.startsWith('/api') &&
         !path.startsWith('/file')
@@ -300,7 +300,7 @@ export function createRouter(options: RouteOptions): Hono {
 
       // SPA fallback
       if (
-        !path.startsWith('/sessions') &&
+        !path.startsWith('/conversations') &&
         !path.startsWith('/health') &&
         !path.startsWith('/api') &&
         !path.startsWith('/file')

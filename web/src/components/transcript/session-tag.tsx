@@ -3,7 +3,7 @@
  * Shared by send_message (tool-line) and received inter-session messages (group-view).
  */
 
-import { buildSessionsById, useSessionsStore } from '@/hooks/use-sessions'
+import { buildSessionsById, useConversationsStore } from '@/hooks/use-sessions'
 import type { Session } from '@/lib/types'
 import { extractProjectLabel, projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
@@ -26,7 +26,7 @@ function stripProjectPrefix(slug: string): string {
 
 /** Find a session matching an address book slug (best-effort client-side match). */
 function findSessionBySlug(slug: string) {
-  const { sessions, projectSettings } = useSessionsStore.getState()
+  const { sessions, projectSettings } = useConversationsStore.getState()
   const normalizedSlug = slug.toLowerCase()
   for (const s of sessions) {
     const ps = projectSettings[s.project]
@@ -40,7 +40,7 @@ function findSessionBySlug(slug: string) {
 
 /** Resolve a session by ID or slug and compute the display name. */
 function resolveSessionDisplay(idOrSlug: string, fallbackId?: string) {
-  const { sessionsById, projectSettings } = useSessionsStore.getState()
+  const { sessionsById, projectSettings } = useConversationsStore.getState()
   const bare = stripProjectPrefix(idOrSlug)
   const session =
     sessionsById[idOrSlug] ||
@@ -90,7 +90,7 @@ function injectSession(overview: Record<string, unknown>) {
     title: overview.title as string | undefined,
     agentName: overview.agentName as string | undefined,
   }
-  useSessionsStore.setState(state => {
+  useConversationsStore.setState(state => {
     if (state.sessionsById[partial.id]) return state
     const sessions = [...state.sessions, partial]
     return { sessions, sessionsById: buildSessionsById(sessions) }
@@ -101,8 +101,8 @@ function injectSession(overview: Record<string, unknown>) {
 /** Try to fetch a session from the server by UUID or slug. Returns the session ID on success. */
 async function fetchAndInjectSession(resolvedId?: string, slug?: string): Promise<string | null> {
   const attempts: string[] = []
-  if (resolvedId) attempts.push(`/sessions/${resolvedId}`)
-  if (slug) attempts.push(`/sessions/by-slug/${slug}`)
+  if (resolvedId) attempts.push(`/conversations/${resolvedId}`)
+  if (slug) attempts.push(`/conversations/by-slug/${slug}`)
 
   for (const url of attempts) {
     try {
@@ -135,14 +135,14 @@ export function SessionTag({ idOrSlug, resolvedId, className }: SessionTagProps)
   const handleClick = () => {
     if (session) {
       haptic('tap')
-      useSessionsStore.getState().selectSession(session.id)
+      useConversationsStore.getState().selectSession(session.id)
       return
     }
     haptic('tap')
     const bare = stripProjectPrefix(idOrSlug)
     fetchAndInjectSession(resolvedId, bare).then(id => {
       if (id) {
-        useSessionsStore.getState().selectSession(id)
+        useConversationsStore.getState().selectSession(id)
       } else {
         haptic('error')
         showToast('Session not found', `Could not find session "${bare}" on the server.`)

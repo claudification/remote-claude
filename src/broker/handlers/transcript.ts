@@ -116,7 +116,7 @@ const tasksUpdate: MessageHandler = (ctx, data) => {
   if (!sessionId) return
   const tasks = data.tasks || []
   ctx.sessions.updateTasks(sessionId, tasks)
-  ctx.sessions.broadcastToChannel('session:tasks', sessionId, {
+  ctx.sessions.broadcastToChannel('conversation:tasks', sessionId, {
     type: 'tasks_update',
     sessionId,
     tasks,
@@ -141,7 +141,7 @@ const transcriptEntries: MessageHandler = (ctx, data) => {
   if (!sessionId) return
   const entries = data.entries || []
   ctx.sessions.addTranscriptEntries(sessionId, entries, !!data.isInitial)
-  ctx.sessions.broadcastToChannel('session:transcript', sessionId, data)
+  ctx.sessions.broadcastToChannel('conversation:transcript', sessionId, data)
   console.log(`[transcript] ${sessionId.slice(0, 8)}... ${entries.length} entries (initial: ${data.isInitial})`)
 }
 
@@ -151,7 +151,7 @@ const subagentTranscript: MessageHandler = (ctx, data) => {
   if (!sessionId || !agentId) return
   const entries = data.entries || []
   ctx.sessions.addSubagentTranscriptEntries(sessionId, agentId, entries, !!data.isInitial)
-  ctx.sessions.broadcastToChannel('session:subagent_transcript', sessionId, data, agentId)
+  ctx.sessions.broadcastToChannel('conversation:subagent_transcript', sessionId, data, agentId)
   console.log(`[transcript] ${sessionId.slice(0, 8)}... subagent ${agentId.slice(0, 7)} ${entries.length} entries`)
 }
 
@@ -159,7 +159,7 @@ const bgTaskOutput: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || data.sessionId
   if (!sessionId || !data.taskId) return
   ctx.sessions.addBgTaskOutput(sessionId, data.taskId, data.data || '', !!data.done)
-  ctx.sessions.broadcastToChannel('session:bg_output', sessionId, data)
+  ctx.sessions.broadcastToChannel('conversation:bg_output', sessionId, data)
 }
 
 const transcriptRequest: MessageHandler = (ctx, data) => {
@@ -253,7 +253,7 @@ const sessionInfo: MessageHandler = (ctx, data) => {
         timestamp: new Date().toISOString(),
       }
       ctx.sessions.addTranscriptEntries(sessionId, [warningEntry], false)
-      ctx.sessions.broadcastToChannel('session:transcript', sessionId, {
+      ctx.sessions.broadcastToChannel('conversation:transcript', sessionId, {
         type: 'transcript_entries',
         sessionId,
         entries: [warningEntry],
@@ -277,7 +277,7 @@ const sessionInfo: MessageHandler = (ctx, data) => {
     const changes = diffSessionInfo(prevSnapshot, nextSnapshot)
     if (changes.length > 0) {
       ctx.sessions.addTranscriptEntries(sessionId, changes, false)
-      ctx.sessions.broadcastToChannel('session:transcript', sessionId, {
+      ctx.sessions.broadcastToChannel('conversation:transcript', sessionId, {
         type: 'transcript_entries',
         sessionId,
         entries: changes,
@@ -289,7 +289,7 @@ const sessionInfo: MessageHandler = (ctx, data) => {
 
   // Broadcast with canonical session ID (not whatever the wrapper sent)
   if (session.project) {
-    ctx.broadcastScoped({ ...data, type: 'session_info', sessionId }, session.project)
+    ctx.broadcastScoped({ ...data, type: 'conversation_info', sessionId }, session.project)
   }
   ctx.log.debug(
     `session_info: ${(data.tools as unknown[])?.length} tools, ${(data.skills as unknown[])?.length} skills, ${(data.agents as unknown[])?.length} agents`,
@@ -339,7 +339,7 @@ const turnCost: MessageHandler = (ctx, data) => {
     const now = Date.now()
     ctx.store.costs.recordTurnFromCumulatives({
       timestamp: now,
-      sessionId,
+      conversationId: sessionId,
       projectUri: session.project,
       account: session.claudeAuth?.email || '',
       orgId: session.claudeAuth?.orgId || '',

@@ -4,7 +4,7 @@
 
 import type { TaskStatus } from '@shared/task-statuses'
 import { useCallback, useEffect, useState } from 'react'
-import { useSessionsStore } from './use-sessions'
+import { useConversationsStore } from './use-sessions'
 
 export type { TaskStatus } from '@shared/task-statuses'
 
@@ -39,7 +39,7 @@ let handlerInstalled = false
 function installSharedHandler() {
   if (handlerInstalled) return
   handlerInstalled = true
-  useSessionsStore.setState({
+  useConversationsStore.setState({
     projectHandler: (msg: Record<string, unknown>) => {
       if (msg.type === 'project_changed' && msg.notes) {
         for (const listener of changeListeners) listener(msg.notes as ProjectTaskMeta[])
@@ -65,7 +65,7 @@ function installSharedHandler() {
 export function useProject(sessionId: string | null) {
   const [tasks, setTasks] = useState<ProjectTaskMeta[]>([])
   const [loading, setLoading] = useState(false)
-  const sendWsMessage = useSessionsStore(state => state.sendWsMessage)
+  const sendWsMessage = useConversationsStore(state => state.sendWsMessage)
 
   function sendRequest(msg: Record<string, unknown>): Promise<Record<string, unknown>> {
     const requestId = crypto.randomUUID()

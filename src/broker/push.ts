@@ -73,7 +73,7 @@ export function getSubscriptionCount(): number {
 export interface PushPayload {
   title: string
   body: string
-  sessionId?: string
+  conversationId?: string
   sessionProject?: string
   tag?: string
   data?: Record<string, unknown>

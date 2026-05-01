@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 
 type VoiceState = 'idle' | 'connecting' | 'recording' | 'refining' | 'submitting' | 'error'
 
@@ -68,7 +68,7 @@ export function dismissMicExpired() {
 }
 
 function releaseWarmStream() {
-  const wasKeepOpen = useSessionsStore.getState().controlPanelPrefs.keepMicOpen
+  const wasKeepOpen = useConversationsStore.getState().controlPanelPrefs.keepMicOpen
   if (warmStream) {
     for (const t of warmStream.getTracks()) t.stop()
     warmStream = null
@@ -80,14 +80,14 @@ function releaseWarmStream() {
 
 function scheduleStreamRelease() {
   if (warmStreamTimer) clearTimeout(warmStreamTimer)
-  const prefs = useSessionsStore.getState().controlPanelPrefs
+  const prefs = useConversationsStore.getState().controlPanelPrefs
   const ttl = prefs.keepMicOpen ? KEEP_MIC_IDLE_TTL : (prefs.voiceWarmStreamMs ?? 30_000)
   warmStreamTimer = setTimeout(releaseWarmStream, ttl)
   if (prefs.keepMicOpen) console.log('[voice] keepMicOpen: mic idle timer set (30min)')
 }
 
 function preferredDeviceId(): string {
-  return useSessionsStore.getState().controlPanelPrefs.voiceDeviceId || ''
+  return useConversationsStore.getState().controlPanelPrefs.voiceDeviceId || ''
 }
 
 function micConstraints(deviceId: string): MediaStreamConstraints {
@@ -172,7 +172,7 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
   }
 
   const sendWs = useCallback((msg: Record<string, unknown>) => {
-    useSessionsStore.getState().sendWsMessage(msg)
+    useConversationsStore.getState().sendWsMessage(msg)
   }, [])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: cleanup is a stable function defined in this scope, runs once on unmount
@@ -194,7 +194,7 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
       clearTimeout(utteranceTimerRef.current)
       utteranceTimerRef.current = null
     }
-    const ws = useSessionsStore.getState().ws
+    const ws = useConversationsStore.getState().ws
     if (ws && wsListenerRef.current) {
       ws.removeEventListener('message', wsListenerRef.current)
       wsListenerRef.current = null
@@ -202,7 +202,7 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
   }
 
   function attachWsListener(onDone?: (text: string) => void) {
-    const ws = useSessionsStore.getState().ws
+    const ws = useConversationsStore.getState().ws
     if (!ws) {
       setErrorMsg('WebSocket not connected')
       setState('error')
@@ -302,7 +302,7 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
 
       streamRef.current = stream
 
-      const sessionId = useSessionsStore.getState().selectedSessionId
+      const sessionId = useConversationsStore.getState().selectedSessionId
       sendWs({ type: 'voice_start', sessionId })
       console.log(`[voice] ${elapsed()} voice_start sent`)
 

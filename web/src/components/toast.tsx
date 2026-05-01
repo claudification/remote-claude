@@ -1,6 +1,6 @@
 import { X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { haptic } from '@/lib/utils'
 
 interface Toast {
@@ -37,7 +37,7 @@ export function ToastContainer() {
     if (toast.taskId) {
       window.dispatchEvent(new CustomEvent('open-project-task', { detail: { taskId: toast.taskId } }))
     } else if (toast.sessionId) {
-      useSessionsStore.getState().selectSession(toast.sessionId)
+      useConversationsStore.getState().selectSession(toast.sessionId)
     }
     dismiss(toast.id)
   }

@@ -5,7 +5,7 @@
 
 import type { FileInfo } from '@shared/protocol'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useSessionsStore } from './use-sessions'
+import { useConversationsStore } from './use-sessions'
 
 export type { FileInfo } from '@shared/protocol'
 
@@ -46,7 +46,7 @@ export function useFileEditor(sessionId: string | null) {
   versionRef.current = version
   activeFileRef.current = activeFile
 
-  const sendWsMessage = useSessionsStore(state => state.sendWsMessage)
+  const sendWsMessage = useConversationsStore(state => state.sendWsMessage)
 
   function sendRequest(msg: Record<string, unknown>): Promise<Record<string, unknown>> {
     const requestId = crypto.randomUUID()
@@ -98,9 +98,9 @@ export function useFileEditor(sessionId: string | null) {
 
   // Register handler with the websocket store
   useEffect(() => {
-    useSessionsStore.setState({ fileHandler: handleMessage })
+    useConversationsStore.setState({ fileHandler: handleMessage })
     return () => {
-      useSessionsStore.setState({ fileHandler: null })
+      useConversationsStore.setState({ fileHandler: null })
     }
   }, [handleMessage])
 

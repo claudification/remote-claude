@@ -1,5 +1,5 @@
 import { cwdToProjectUri, extractProjectLabel, normalizeProjectUri } from '../../shared/project-uri'
-import type { Session } from '../../shared/protocol'
+import type { Conversation } from '../../shared/protocol'
 import { getProjectSettings } from '../project-settings'
 
 function toProjectUri(cwdOrUri: string): string {
@@ -24,7 +24,7 @@ export interface ProjectLinkRegistry {
 }
 
 export function createProjectLinkRegistry(
-  sessions: Map<string, Session>,
+  sessions: Map<string, Conversation>,
   sessionSockets: Map<string, Map<string, import('bun').ServerWebSocket<unknown>>>,
 ): ProjectLinkRegistry {
   const projectLinks = new Set<string>()

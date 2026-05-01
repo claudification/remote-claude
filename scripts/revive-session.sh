@@ -93,9 +93,9 @@ if [[ "${RCLAUDE_BARE:-}" == "1" ]]; then
 fi
 # Session name passed as env var (not CLI flag) to avoid quoting hell in tmux -c "..."
 # Strip quotes and backslashes to prevent shell injection in nested tmux command chains
-if [[ -n "${RCLAUDE_SESSION_NAME:-}" ]]; then
-  SAFE_SESSION_NAME="${RCLAUDE_SESSION_NAME//[\"\'\`\\]/}"
-  CMD_PREFIX+="RCLAUDE_SESSION_NAME='${SAFE_SESSION_NAME}' "
+if [[ -n "${CLAUDWERK_CONVERSATION_NAME:-}" ]]; then
+  SAFE_SESSION_NAME="${CLAUDWERK_CONVERSATION_NAME//[\"\'\`\\]/}"
+  CMD_PREFIX+="CLAUDWERK_CONVERSATION_NAME='${SAFE_SESSION_NAME}' "
 fi
 # Permission mode passed as env var for the same reason
 if [[ -n "${RCLAUDE_PERMISSION_MODE:-}" ]]; then

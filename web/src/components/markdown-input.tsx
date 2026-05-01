@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom'
 import { VoiceOverlay } from '@/components/voice-overlay'
 import { useProject } from '@/hooks/use-project'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { uploadFileWithPlaceholder } from '@/lib/upload'
 import { cn, haptic, isMobileViewport } from '@/lib/utils'
 import { fuzzyScore } from './input-editor/autocomplete-shared'
@@ -120,8 +120,8 @@ export function MarkdownInput({
       requestAnimationFrame(() => textareaRef.current?.focus())
     }
   }, [autoFocus, isMobile, inline])
-  const voiceCapable = useSessionsStore(state => state.serverCapabilities.voice)
-  const showVoicePref = useSessionsStore(state => state.controlPanelPrefs.showVoiceInput)
+  const voiceCapable = useConversationsStore(state => state.serverCapabilities.voice)
+  const showVoicePref = useConversationsStore(state => state.controlPanelPrefs.showVoiceInput)
   const showVoice = voiceCapable && showVoicePref
 
   const [expanded, setExpanded] = useState(false)
@@ -132,7 +132,7 @@ export function MarkdownInput({
   const maybeAutocomplete = enableAutocomplete && (value.includes('/') || value.includes('@'))
 
   // Session info for autocomplete data - only subscribe when we might need it
-  const sessionInfoData = useSessionsStore(state => {
+  const sessionInfoData = useConversationsStore(state => {
     if (!maybeAutocomplete) return EMPTY_INFO
     const sid = state.selectedSessionId
     return (sid ? state.sessionInfo[sid] : null) || EMPTY_INFO
@@ -140,7 +140,7 @@ export function MarkdownInput({
 
   // Task data for sub-command completers (e.g. /workon) - only load when needed
   const hasSubCommandWithTasks = enableAutocomplete && /^\/workon\s/i.test(value)
-  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
+  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
   const { tasks: projectTasks } = useProject(hasSubCommandWithTasks ? selectedSessionId : null)
   const subCmdCtx = useMemo(
     (): SubCommandContext => ({ tasks: projectTasks, sessionId: selectedSessionId }),

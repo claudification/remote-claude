@@ -2,10 +2,10 @@ import { Database } from 'bun:sqlite'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type {
+  ConversationCreate,
+  ConversationPatch,
   EnqueueMessage,
   MessageLogEntry,
-  SessionCreate,
-  SessionPatch,
   ShareCreate,
   StoreDriver,
   TranscriptEntryInput,
@@ -89,7 +89,7 @@ function migrateSessions(store: StoreDriver, cacheDir: string, result: Migration
 
     try {
       const scope = (session.project as string) || (session.cwd as string) || ''
-      const create: SessionCreate = {
+      const create: ConversationCreate = {
         id,
         scope,
         agentType: (session.agentName as string) || 'claude',
@@ -102,7 +102,7 @@ function migrateSessions(store: StoreDriver, cacheDir: string, result: Migration
 
       store.sessions.create(create)
 
-      const patch: SessionPatch = {
+      const patch: ConversationPatch = {
         status: (session.status as string) || 'ended',
         summary: session.summary as string | undefined,
         lastActivity: session.lastActivity as number | undefined,

@@ -2,7 +2,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 import { DialogModal } from '@/components/dialog'
 import { InputEditor } from '@/components/input-editor'
-import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
+import { sendInput, useConversationsStore } from '@/hooks/use-sessions'
 import { focusInputEditor } from '@/lib/focus-input'
 import { canTerminal } from '@/lib/types'
 import { cn, haptic, isMobileViewport } from '@/lib/utils'
@@ -37,7 +37,7 @@ export function ScrollToBottomButton({
 
 // Isolated input bar - typing here does NOT rerender transcript/events
 export const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
-  const [inputValue, setLocalInput] = useState(() => useSessionsStore.getState().inputDrafts[sessionId] ?? '')
+  const [inputValue, setLocalInput] = useState(() => useConversationsStore.getState().inputDrafts[sessionId] ?? '')
   const [isSending, setIsSending] = useState(false)
   const [showAttention, setShowAttention] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -45,8 +45,8 @@ export const InputBar = memo(function InputBar({ sessionId }: { sessionId: strin
   const sessionRef = useRef(sessionId)
 
   // Track pendingAttention with 15s delay before showing (PTY only - headless uses PermissionBanners)
-  const pendingAttention = useSessionsStore(s => s.sessionsById[sessionId]?.pendingAttention)
-  const sessionHasTerminal = useSessionsStore(s => {
+  const pendingAttention = useConversationsStore(s => s.sessionsById[sessionId]?.pendingAttention)
+  const sessionHasTerminal = useConversationsStore(s => {
     const sess = s.sessionsById[sessionId]
     return sess ? canTerminal(sess) : false
   })
@@ -70,8 +70,8 @@ export const InputBar = memo(function InputBar({ sessionId }: { sessionId: strin
   // Session switch: save old draft, restore new, focus input (desktop only)
   useEffect(() => {
     if (sessionRef.current !== sessionId) {
-      useSessionsStore.getState().setInputDraft(sessionRef.current, inputRef.current)
-      const restored = useSessionsStore.getState().inputDrafts[sessionId] ?? ''
+      useConversationsStore.getState().setInputDraft(sessionRef.current, inputRef.current)
+      const restored = useConversationsStore.getState().inputDrafts[sessionId] ?? ''
       setLocalInput(restored)
       inputRef.current = restored
       sessionRef.current = sessionId
@@ -84,7 +84,7 @@ export const InputBar = memo(function InputBar({ sessionId }: { sessionId: strin
   // Save draft on unmount
   useEffect(() => {
     return () => {
-      useSessionsStore.getState().setInputDraft(sessionRef.current, inputRef.current)
+      useConversationsStore.getState().setInputDraft(sessionRef.current, inputRef.current)
     }
   }, [])
 
@@ -102,7 +102,7 @@ export const InputBar = memo(function InputBar({ sessionId }: { sessionId: strin
     haptic('tap')
     // Clear optimistically -- restore on failure
     setInputValue('')
-    useSessionsStore.getState().setInputDraft(sessionId, '')
+    useConversationsStore.getState().setInputDraft(sessionId, '')
     setIsSending(true)
     const success = sendInput(sessionId, text)
     setIsSending(false)
@@ -111,11 +111,11 @@ export const InputBar = memo(function InputBar({ sessionId }: { sessionId: strin
       console.error('[input] sendInput failed for session', sessionId)
       // Restore on failure
       setInputValue(text)
-      useSessionsStore.getState().setInputDraft(sessionId, text)
+      useConversationsStore.getState().setInputDraft(sessionId, text)
     } else {
       // Defensive re-clear (optimistic transcript entry now handled inside sendInput)
       setInputValue('')
-      useSessionsStore.getState().setInputDraft(sessionId, '')
+      useConversationsStore.getState().setInputDraft(sessionId, '')
     }
     if (!isMobileViewport()) {
       requestAnimationFrame(() => containerRef.current && focusInputEditor(containerRef.current))
@@ -134,13 +134,13 @@ export const InputBar = memo(function InputBar({ sessionId }: { sessionId: strin
           className="mb-2 px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded font-mono text-xs text-amber-400 flex items-center gap-2 animate-pulse cursor-pointer hover:bg-amber-500/20 transition-colors"
           onClick={() => {
             haptic('tap')
-            const store = useSessionsStore.getState()
+            const store = useConversationsStore.getState()
             if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'tty')
           }}
           onKeyDown={e => {
             if (e.key === 'Enter' || e.key === ' ') {
               haptic('tap')
-              const store = useSessionsStore.getState()
+              const store = useConversationsStore.getState()
               if (store.selectedSessionId) store.openTab(store.selectedSessionId, 'tty')
             }
           }}
@@ -217,10 +217,10 @@ export const InputBar = memo(function InputBar({ sessionId }: { sessionId: strin
 const EMPTY_EXPLORER = undefined
 
 export function DialogOverlay({ sessionId }: { sessionId: string }) {
-  const pending = useSessionsStore(s => s.pendingDialogs[sessionId] || EMPTY_EXPLORER)
-  const submitDialog = useSessionsStore(s => s.submitDialog)
-  const dismissDialog = useSessionsStore(s => s.dismissDialog)
-  const keepaliveDialog = useSessionsStore(s => s.keepaliveDialog)
+  const pending = useConversationsStore(s => s.pendingDialogs[sessionId] || EMPTY_EXPLORER)
+  const submitDialog = useConversationsStore(s => s.submitDialog)
+  const dismissDialog = useConversationsStore(s => s.dismissDialog)
+  const keepaliveDialog = useConversationsStore(s => s.keepaliveDialog)
 
   if (!pending) return null
 

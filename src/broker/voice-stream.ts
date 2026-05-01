@@ -8,7 +8,7 @@
 import type { ServerWebSocket } from 'bun'
 import { getGlobalSettings } from './global-settings'
 import { getProjectSettings } from './project-settings'
-import type { SessionStore } from './session-store'
+import type { ConversationStore } from './session-store'
 
 const DEEPGRAM_LIVE_URL = 'wss://api.deepgram.com/v1/listen'
 const VOICE_TIMEOUT_MS = 120_000 // Max 120s recording session
@@ -32,7 +32,7 @@ const voiceSessions = new Map<ServerWebSocket<unknown>, VoiceSession>()
 export function handleVoiceStart(
   ws: ServerWebSocket<unknown>,
   data: { sessionId?: string; project?: string },
-  sessionStore: SessionStore,
+  sessionStore: ConversationStore,
 ) {
   const deepgramKey = process.env.DEEPGRAM_API_KEY
   if (!deepgramKey) {

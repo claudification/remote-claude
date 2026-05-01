@@ -12,7 +12,7 @@ import { haptic } from '@/lib/utils'
 // Graceful fallback if unstable_batchedUpdates is ever removed
 const batch: (fn: () => void) => void = batchUpdates ?? (fn => fn())
 
-import type { SessionSummary } from '@shared/protocol'
+import type { ConversationSummary } from '@shared/protocol'
 import { isPerfEnabled, record as perfRecord } from '@/lib/perf-metrics'
 import { buildWsUrl } from '@/lib/share-mode'
 import type { HookEvent, ProjectOrder, Session, TaskInfo, TranscriptEntry } from '@/lib/types'
@@ -23,7 +23,7 @@ import {
   handleBgTaskOutputMessage,
   type ProjectSettingsMap,
   resolveConfigResponse,
-  useSessionsStore,
+  useConversationsStore,
 } from './use-sessions'
 import { handleSpawnRequestAck } from './use-spawn'
 import { recordIn, recordOut } from './ws-stats'
@@ -33,8 +33,8 @@ interface DashboardMessage {
   type: string
   sessionId?: string
   previousSessionId?: string
-  session?: SessionSummary
-  sessions?: SessionSummary[]
+  session?: ConversationSummary
+  sessions?: ConversationSummary[]
   event?: HookEvent
   connected?: boolean
   data?: string
@@ -60,7 +60,12 @@ function getWsUrl() {
   return _wsUrl
 }
 const RECONNECT_DELAY_MS = 2000
-const SESSION_CHANNELS = ['session:events', 'session:transcript', 'session:tasks', 'session:bg_output'] as const
+const SESSION_CHANNELS = [
+  'conversation:events',
+  'conversation:transcript',
+  'conversation:tasks',
+  'conversation:bg_output',
+] as const
 
 // --- rAF message buffer (module-level, outside React) ---
 let msgBuffer: DashboardMessage[] = []
@@ -72,7 +77,7 @@ function clearSubscribedSessions() {
   _subscribedSessions = new Set<string>()
 }
 
-function toSession(summary: SessionSummary): Session {
+function toSession(summary: ConversationSummary): Session {
   return {
     id: summary.id,
     project: summary.project,
@@ -149,7 +154,7 @@ function flushMessages() {
   msgBuffer = []
 
   // Track sync state (epoch+seq) from incoming messages
-  const { syncSeq: prevSeq, syncEpoch: prevEpoch } = useSessionsStore.getState()
+  const { syncSeq: prevSeq, syncEpoch: prevEpoch } = useConversationsStore.getState()
   let maxSeq = prevSeq
   let epoch = prevEpoch
   for (const msg of pending) {
@@ -160,7 +165,7 @@ function flushMessages() {
     }
   }
   if (maxSeq > prevSeq || epoch !== prevEpoch) {
-    useSessionsStore.setState({ syncEpoch: epoch, syncSeq: maxSeq })
+    useConversationsStore.setState({ syncEpoch: epoch, syncSeq: maxSeq })
   }
 
   batch(() => {
@@ -180,7 +185,7 @@ function flushMessages() {
 // we'd have a hole between our lastAppliedSeq and the first returned seq.
 function refetchStaleTranscripts(staleTranscripts?: Record<string, number>): void {
   if (!staleTranscripts) return
-  const { lastAppliedTranscriptSeq, setTranscript } = useSessionsStore.getState()
+  const { lastAppliedTranscriptSeq, setTranscript } = useConversationsStore.getState()
   const sids = Object.keys(staleTranscripts)
   const actuallyStale = sids.filter(s => {
     const localSeq = lastAppliedTranscriptSeq[s] ?? 0
@@ -217,14 +222,14 @@ function refetchStaleTranscripts(staleTranscripts?: Record<string, number>): voi
         // so we stop asking. Happens if server advanced its counter without
         // net-new cached entries (e.g. all new entries got evicted between
         // sync_check and our fetch).
-        useSessionsStore.setState(state => ({
+        useConversationsStore.setState(state => ({
           lastAppliedTranscriptSeq: { ...state.lastAppliedTranscriptSeq, [sid]: result.lastSeq },
         }))
         console.log(`[sync] REFETCH transcript ${sid.slice(0, 8)}: no new entries, bumped seq -> ${result.lastSeq}`)
         return
       }
       // Normal delta: append to existing transcript.
-      useSessionsStore.setState(state => {
+      useConversationsStore.setState(state => {
         const existing = state.transcripts[sid] || []
         // Guard: only append entries strictly newer than what we have.
         // Handles the race where a WS transcript_entries broadcast landed
@@ -282,7 +287,7 @@ function processMessage(msg: DashboardMessage) {
       // seq counters reset, so our stored seqs are from the previous generation
       // and would false-negative a future sync_check. The upcoming initial
       // transcript_entries broadcasts will reseed from fresh seqs.
-      useSessionsStore.setState(s => ({
+      useConversationsStore.setState(s => ({
         connectSeq: s.connectSeq + 1,
         syncEpoch: stale.epoch || '',
         syncSeq: stale.seq || 0,
@@ -290,9 +295,9 @@ function processMessage(msg: DashboardMessage) {
       }))
       break
     }
-    case 'sessions_list': {
+    case 'conversations_list': {
       if (msg.sessions) {
-        useSessionsStore.getState().setSessions(msg.sessions.map(toSession))
+        useConversationsStore.getState().setSessions(msg.sessions.map(toSession))
         applyHashRoute()
       }
       // Check for version mismatch between server and this frontend bundle
@@ -301,10 +306,10 @@ function processMessage(msg: DashboardMessage) {
       // When sw.js changes, browser installs new SW and sends 'sw-updated' postMessage.
       break
     }
-    case 'session_created': {
+    case 'conversation_created': {
       if (msg.session) {
         const newSession = toSession(msg.session)
-        useSessionsStore.setState(state => {
+        useConversationsStore.setState(state => {
           let sessions: Session[]
           if (state.sessions.some(s => s.id === newSession.id)) {
             sessions = state.sessions.map(s => (s.id === newSession.id ? { ...s, ...newSession } : s))
@@ -316,14 +321,14 @@ function processMessage(msg: DashboardMessage) {
       }
       break
     }
-    case 'session_ended':
-    case 'session_update': {
+    case 'conversation_ended':
+    case 'conversation_update': {
       if (msg.session && msg.sessionId) {
         const sessionId = msg.sessionId
         const session = msg.session
         const prevId = msg.previousSessionId
         const matchId = prevId || sessionId
-        useSessionsStore.setState(state => {
+        useConversationsStore.setState(state => {
           const updated = toSession(session)
           // Rekey collision: if two booting placeholders (different conversationIds)
           // both get rekeyed to the same real session id, the map-replace leaves
@@ -383,11 +388,11 @@ function processMessage(msg: DashboardMessage) {
               console.log(
                 `[sync] rekey refetch ${sessionId.slice(0, 8)}: ${transcript?.entries.length ?? 'null'} entries lastSeq=${transcript?.lastSeq ?? '-'}`,
               )
-              if (transcript) useSessionsStore.getState().setTranscript(sessionId, transcript.entries)
+              if (transcript) useConversationsStore.getState().setTranscript(sessionId, transcript.entries)
             })
           }, 500)
         } else if (session.status === 'starting') {
-          const state = useSessionsStore.getState()
+          const state = useConversationsStore.getState()
           const cached = state.transcripts[sessionId]?.length ?? 0
           const isSelected = state.selectedSessionId === sessionId
           console.log(`[sync] session_update: RESUME ${sessionId.slice(0, 8)} selected=${isSelected} cached=${cached}`)
@@ -399,7 +404,7 @@ function processMessage(msg: DashboardMessage) {
                 console.log(
                   `[sync] resume refetch ${sessionId.slice(0, 8)}: ${transcript?.entries.length ?? 'null'} entries lastSeq=${transcript?.lastSeq ?? '-'}`,
                 )
-                if (transcript) useSessionsStore.getState().setTranscript(sessionId, transcript.entries)
+                if (transcript) useConversationsStore.getState().setTranscript(sessionId, transcript.entries)
               })
             }, 1000)
           }
@@ -421,7 +426,7 @@ function processMessage(msg: DashboardMessage) {
       if (msg.event && msg.sessionId) {
         const sid = msg.sessionId
         const evt = msg.event
-        useSessionsStore.setState(state => {
+        useConversationsStore.setState(state => {
           const currentEvents = state.events[sid] || []
           return {
             events: {
@@ -438,7 +443,7 @@ function processMessage(msg: DashboardMessage) {
         const sid = msg.sessionId
         const newEntries = msg.entries as TranscriptEntry[]
         const initial = msg.isInitial
-        useSessionsStore.setState(state => {
+        useConversationsStore.setState(state => {
           const existing = state.transcripts[sid] || []
           // isInitial=true REPLACES the cache. The wrapper fires this on WS
           // reconnect (resendTranscriptFromFile in headless) and on PTY
@@ -513,11 +518,11 @@ function processMessage(msg: DashboardMessage) {
       }
       break
     }
-    case 'session_info': {
+    case 'conversation_info': {
       // Session metadata from headless init - store for autocomplete
       const sid = msg.sessionId as string
       if (sid) {
-        useSessionsStore.setState(state => ({
+        useConversationsStore.setState(state => ({
           sessionInfo: {
             ...state.sessionInfo,
             [sid]: {
@@ -547,7 +552,7 @@ function processMessage(msg: DashboardMessage) {
         if (eventType === 'content_block_delta') {
           const delta = event.delta as Record<string, unknown> | undefined
           if (delta?.type === 'text_delta' && typeof delta.text === 'string') {
-            useSessionsStore.setState(state => {
+            useConversationsStore.setState(state => {
               const updated = (state.streamingText[sid] || '') + delta.text
               // Bump newDataSeq every ~500 chars to trigger auto-scroll without thrashing
               const prevLen = (state.streamingText[sid] || '').length
@@ -564,13 +569,13 @@ function processMessage(msg: DashboardMessage) {
           // tool_use / thinking) and resetting on each block wipes earlier text_deltas
           // before message_stop flushes the final assistant entry, making the first
           // block look "missed" to the viewer.
-          useSessionsStore.setState(state => {
+          useConversationsStore.setState(state => {
             if (!state.streamingText[sid]) return state
             return { streamingText: { ...state.streamingText, [sid]: '' } }
           })
         } else if (eventType === 'message_stop') {
           // Turn complete -- clear streaming buffer entirely
-          useSessionsStore.setState(state => {
+          useConversationsStore.setState(state => {
             if (!state.streamingText[sid]) return state
             const { [sid]: _, ...rest } = state.streamingText
             return { streamingText: rest }
@@ -588,7 +593,7 @@ function processMessage(msg: DashboardMessage) {
           const newEntries = msg.entries
           const initial = msg.isInitial
           const key = `${sid}:${agentId}`
-          useSessionsStore.setState(state => {
+          useConversationsStore.setState(state => {
             const existing = state.subagentTranscripts[key] || []
             return {
               subagentTranscripts: {
@@ -605,7 +610,7 @@ function processMessage(msg: DashboardMessage) {
       if (msg.sessionId && msg.tasks) {
         const sid = msg.sessionId
         const taskList = msg.tasks
-        useSessionsStore.setState(state => ({
+        useConversationsStore.setState(state => ({
           tasks: { ...state.tasks, [sid]: taskList },
         }))
       }
@@ -613,37 +618,37 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'sentinel_status': {
       if (msg.connected !== undefined) {
-        useSessionsStore.getState().setSentinelConnected(msg.connected, msg.sentinels)
+        useConversationsStore.getState().setSentinelConnected(msg.connected, msg.sentinels)
       }
       break
     }
     case 'usage_update': {
       if (msg.usage) {
-        useSessionsStore.getState().setPlanUsage(msg.usage)
+        useConversationsStore.getState().setPlanUsage(msg.usage)
       }
       break
     }
     case 'settings_updated': {
       if (msg.settings) {
-        useSessionsStore.setState({ globalSettings: msg.settings as Record<string, unknown> })
+        useConversationsStore.setState({ globalSettings: msg.settings as Record<string, unknown> })
       }
       break
     }
     case 'project_settings_updated': {
       if (msg.settings) {
-        useSessionsStore.getState().setProjectSettings(msg.settings as ProjectSettingsMap)
+        useConversationsStore.getState().setProjectSettings(msg.settings as ProjectSettingsMap)
       }
       break
     }
     case 'project_order_updated': {
       if (msg.order) {
-        useSessionsStore.getState().setProjectOrder(msg.order as ProjectOrder)
+        useConversationsStore.getState().setProjectOrder(msg.order as ProjectOrder)
       }
       break
     }
     case 'shares_updated': {
       if (msg.shares) {
-        useSessionsStore.getState().setShares(msg.shares)
+        useConversationsStore.getState().setShares(msg.shares)
       }
       break
     }
@@ -657,7 +662,7 @@ function processMessage(msg: DashboardMessage) {
       const fromSession = req.fromSession
       const toSession = req.toSession
       if (fromSession && toSession) {
-        useSessionsStore.setState(state => {
+        useConversationsStore.setState(state => {
           // Deduplicate
           if (state.pendingProjectLinks.some(r => r.fromSession === fromSession && r.toSession === toSession)) {
             return state
@@ -687,7 +692,7 @@ function processMessage(msg: DashboardMessage) {
       const permSid = req.sessionId
       const permRid = req.requestId
       if (permSid && permRid) {
-        useSessionsStore.setState(state => {
+        useConversationsStore.setState(state => {
           if (state.pendingPermissions.some(p => p.requestId === permRid)) return state
           return {
             pendingPermissions: [
@@ -737,7 +742,7 @@ function processMessage(msg: DashboardMessage) {
       const askSid = askMsg.sessionId
       const askTuid = askMsg.toolUseId
       if (askSid && askTuid && askMsg.questions) {
-        useSessionsStore.setState(state => {
+        useConversationsStore.setState(state => {
           if (state.pendingAskQuestions.some(q => q.toolUseId === askTuid)) return state
           return {
             pendingAskQuestions: [
@@ -761,9 +766,9 @@ function processMessage(msg: DashboardMessage) {
       if (exSid && exId && exLayout) {
         // Dedup: the wrapper replays dialog_show on reconnect. If we already
         // have this exact dialog open, preserve any in-progress user input.
-        const existing = useSessionsStore.getState().pendingDialogs[exSid]
+        const existing = useConversationsStore.getState().pendingDialogs[exSid]
         if (existing?.dialogId === exId) break
-        useSessionsStore.setState(state => ({
+        useConversationsStore.setState(state => ({
           pendingDialogs: {
             ...state.pendingDialogs,
             [exSid]: { dialogId: exId, layout: exLayout, timestamp: Date.now() },
@@ -775,7 +780,7 @@ function processMessage(msg: DashboardMessage) {
     case 'dialog_dismiss': {
       const exSid = msg.sessionId as string
       if (exSid) {
-        useSessionsStore.setState(state => {
+        useConversationsStore.setState(state => {
           const updated = { ...state.pendingDialogs }
           delete updated[exSid]
           return { pendingDialogs: updated }
@@ -797,7 +802,7 @@ function processMessage(msg: DashboardMessage) {
         // Dedup: wrapper replays plan_approval on reconnect so the broker
         // can rebuild pending state. If we already have this exact dialog open,
         // don't overwrite -- would wipe any feedback the user has typed.
-        const existing = useSessionsStore.getState().pendingDialogs[paSid]
+        const existing = useConversationsStore.getState().pendingDialogs[paSid]
         if (existing?.dialogId === dialogId && existing.source === 'plan_approval') break
         // Build a dialog layout from the plan content
         const layout: import('@shared/dialog-schema').DialogLayout = {
@@ -817,7 +822,7 @@ function processMessage(msg: DashboardMessage) {
             },
           ],
         }
-        useSessionsStore.setState(state => ({
+        useConversationsStore.setState(state => ({
           pendingDialogs: {
             ...state.pendingDialogs,
             [paSid]: {
@@ -836,7 +841,7 @@ function processMessage(msg: DashboardMessage) {
     case 'plan_approval_dismissed': {
       const sid = msg.sessionId
       if (sid) {
-        useSessionsStore.setState(state => {
+        useConversationsStore.setState(state => {
           const pending = state.pendingDialogs[sid]
           if (pending?.source === 'plan_approval') {
             const { [sid]: _, ...rest } = state.pendingDialogs
@@ -856,7 +861,7 @@ function processMessage(msg: DashboardMessage) {
         timestamp?: number
       }
       if (clipMsg.sessionId && clipMsg.contentType) {
-        useSessionsStore.setState(state => {
+        useConversationsStore.setState(state => {
           const capture = {
             id: `clip_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
             sessionId: clipMsg.sessionId || '',
@@ -873,9 +878,9 @@ function processMessage(msg: DashboardMessage) {
       }
       break
     }
-    case 'session_dismissed': {
+    case 'conversation_dismissed': {
       if (msg.sessionId) {
-        useSessionsStore.setState(state => {
+        useConversationsStore.setState(state => {
           const sessions = state.sessions.filter(s => s.id !== msg.sessionId)
           if (state.selectedSessionId === msg.sessionId) {
             console.log(`[nav] session_dismissed: clearing selection (WS dismissed ${msg.sessionId.slice(0, 8)})`)
@@ -895,9 +900,9 @@ function processMessage(msg: DashboardMessage) {
       if (msg.global) update.permissions = msg.global
       if (msg.sessions) {
         // Merge into existing sessionPermissions (incremental updates for new sessions)
-        update.sessionPermissions = { ...useSessionsStore.getState().sessionPermissions, ...msg.sessions }
+        update.sessionPermissions = { ...useConversationsStore.getState().sessionPermissions, ...msg.sessions }
       }
-      if (Object.keys(update).length > 0) useSessionsStore.setState(update)
+      if (Object.keys(update).length > 0) useConversationsStore.setState(update)
       break
     }
     // WS action results (fire-and-forget error feedback)
@@ -982,7 +987,8 @@ export function useWebSocket() {
         // Single batched setState for ALL onopen state changes.
         // Multiple separate setState calls fire Zustand subscribers individually,
         // causing useSyncExternalStore tearing detection to loop (React #310).
-        const { selectedSessionId, selectedSubagentId, transcripts, events, connectSeq } = useSessionsStore.getState()
+        const { selectedSessionId, selectedSubagentId, transcripts, events, connectSeq } =
+          useConversationsStore.getState()
 
         // Evict stale sessions from LIFO cache (non-selected sessions may have missed WS entries)
         const evictedSids = Object.keys(transcripts).filter(sid => sid !== selectedSessionId)
@@ -999,7 +1005,7 @@ export function useWebSocket() {
         }
 
         // ONE setState call instead of 5 separate ones
-        useSessionsStore.setState({
+        useConversationsStore.setState({
           isConnected: true,
           error: null,
           ws,
@@ -1020,7 +1026,7 @@ export function useWebSocket() {
           if (selectedSubagentId) {
             send({
               type: 'channel_subscribe',
-              channel: 'session:subagent_transcript',
+              channel: 'conversation:subagent_transcript',
               sessionId: selectedSessionId,
               agentId: selectedSubagentId,
             })
@@ -1035,7 +1041,7 @@ export function useWebSocket() {
           // sync_check sends the last applied transcript seq per session, not
           // entry counts. Server compares against its own lastAssignedSeq per
           // session and replies with a delta list if we're behind.
-          const { syncEpoch, syncSeq, lastAppliedTranscriptSeq } = useSessionsStore.getState()
+          const { syncEpoch, syncSeq, lastAppliedTranscriptSeq } = useConversationsStore.getState()
           const transcriptSeqs: Record<string, number> = {}
           for (const [sid, seq] of Object.entries(lastAppliedTranscriptSeq)) {
             if (seq > 0) transcriptSeqs[sid] = seq
@@ -1059,7 +1065,7 @@ export function useWebSocket() {
 
         if (e.code === 1008 || e.code === 4401) {
           // Auth failure - don't reconnect, show expiry modal
-          useSessionsStore.setState({
+          useConversationsStore.setState({
             isConnected: false,
             ws: null,
             authExpired: true,
@@ -1068,7 +1074,7 @@ export function useWebSocket() {
           return
         }
         // Single setState for disconnect state
-        useSessionsStore.setState({
+        useConversationsStore.setState({
           isConnected: false,
           ws: null,
           ...(e.code !== 1000 ? { error: `WebSocket closed (${e.code}${e.reason ? `: ${e.reason}` : ''})` } : {}),
@@ -1083,7 +1089,7 @@ export function useWebSocket() {
       }
 
       ws.onerror = () => {
-        useSessionsStore.setState({ error: `WebSocket connection failed: ${getWsUrl()}` })
+        useConversationsStore.setState({ error: `WebSocket connection failed: ${getWsUrl()}` })
       }
 
       ws.onmessage = event => {
@@ -1111,7 +1117,7 @@ export function useWebSocket() {
             msg.type === 'project_quick_add_response' ||
             msg.type === 'file_changed'
           ) {
-            const handler = useSessionsStore.getState().fileHandler
+            const handler = useConversationsStore.getState().fileHandler
             handler?.(msg as unknown as Record<string, unknown>)
             return
           }
@@ -1121,14 +1127,14 @@ export function useWebSocket() {
             typeof msg.type === 'string' &&
             ((msg.type.startsWith('project_') && msg.type.endsWith('_response')) || msg.type === 'project_changed')
           ) {
-            const handler = useSessionsStore.getState().projectHandler
+            const handler = useConversationsStore.getState().projectHandler
             handler?.(msg as unknown as Record<string, unknown>)
             return
           }
 
           // Terminal data -> direct handler callback (low latency critical)
           if (msg.type === 'terminal_data' || msg.type === 'terminal_error') {
-            const handler = useSessionsStore.getState().terminalHandler
+            const handler = useConversationsStore.getState().terminalHandler
             handler?.({
               type: msg.type as 'terminal_data' | 'terminal_error',
               conversationId: (msg as DashboardMessage & { conversationId?: string }).conversationId || '',
@@ -1140,7 +1146,7 @@ export function useWebSocket() {
 
           // JSON stream data -> direct handler callback (raw NDJSON for headless sessions)
           if (msg.type === 'json_stream_data') {
-            const handler = useSessionsStore.getState().jsonStreamHandler
+            const handler = useConversationsStore.getState().jsonStreamHandler
             handler?.({
               type: 'json_stream_data',
               conversationId: (msg as DashboardMessage & { conversationId?: string }).conversationId || '',
@@ -1179,10 +1185,10 @@ export function useWebSocket() {
             )
             // Accumulate non-transient toasts into bell notifications
             if (msg.sessionId && !msg.variant) {
-              const store = useSessionsStore.getState()
+              const store = useConversationsStore.getState()
               const isViewing = store.selectedSessionId === msg.sessionId
               if (!isViewing) {
-                useSessionsStore.setState(state => ({
+                useConversationsStore.setState(state => ({
                   notifications: [
                     ...state.notifications,
                     {
@@ -1209,7 +1215,7 @@ export function useWebSocket() {
         }
       }
     } catch {
-      useSessionsStore.setState({ isConnected: false })
+      useConversationsStore.setState({ isConnected: false })
     }
   }, [])
 
@@ -1223,7 +1229,7 @@ export function useWebSocket() {
     _subscribedSessions = new Set<string>()
     let _lastSelectedId: string | null = null
     let _lastTranscriptKeys: string = ''
-    const unsubSessionion = useSessionsStore.subscribe(state => {
+    const unsubSessionion = useConversationsStore.subscribe(state => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
 
       // Quick check: bail if nothing subscription-relevant changed
@@ -1260,7 +1266,7 @@ export function useWebSocket() {
 
     // Watch for subagent selection and subscribe to its transcript channel
     let lastSubagentKey: string | null = null
-    const unsubAgent = useSessionsStore.subscribe(state => {
+    const unsubAgent = useConversationsStore.subscribe(state => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
       const sessionId = state.selectedSessionId
       const agentId = state.selectedSubagentId
@@ -1274,13 +1280,13 @@ export function useWebSocket() {
         const [prevSid, prevAid] = prevKey.split(':')
         send({
           type: 'channel_unsubscribe',
-          channel: 'session:subagent_transcript',
+          channel: 'conversation:subagent_transcript',
           sessionId: prevSid,
           agentId: prevAid,
         })
       }
       if (key && sessionId && agentId) {
-        send({ type: 'channel_subscribe', channel: 'session:subagent_transcript', sessionId, agentId })
+        send({ type: 'channel_subscribe', channel: 'conversation:subagent_transcript', sessionId, agentId })
       }
     })
 
@@ -1290,7 +1296,7 @@ export function useWebSocket() {
     // what we've applied -- those get a ?sinceSeq=N delta refetch.
     const syncInterval = setInterval(() => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
-      const { syncEpoch, syncSeq, lastAppliedTranscriptSeq } = useSessionsStore.getState()
+      const { syncEpoch, syncSeq, lastAppliedTranscriptSeq } = useConversationsStore.getState()
       const transcriptSeqs: Record<string, number> = {}
       for (const [sid, seq] of Object.entries(lastAppliedTranscriptSeq)) {
         if (seq > 0) transcriptSeqs[sid] = seq

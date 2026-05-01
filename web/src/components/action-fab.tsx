@@ -10,7 +10,7 @@
 
 import { Command, ListChecks, MessageSquarePlus, PenLine, Power, RefreshCw, Rocket, Share2, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { projectPath, type Session } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { openReviveDialog } from './revive-dialog'
@@ -33,7 +33,7 @@ function buildActions(session: Session | undefined, selectedSessionId: string | 
       id: 'switcher',
       icon: <Command className="w-4 h-4" />,
       label: 'Switcher',
-      action: () => useSessionsStore.getState().toggleSwitcher(),
+      action: () => useConversationsStore.getState().toggleSwitcher(),
       color: 'bg-[#7aa2f7]',
     },
     {
@@ -61,7 +61,7 @@ function buildActions(session: Session | undefined, selectedSessionId: string | 
       id: 'spawn',
       icon: <MessageSquarePlus className="w-4 h-4" />,
       label: 'Spawn',
-      action: () => useSessionsStore.getState().openSwitcherWithFilter('S:~/'),
+      action: () => useConversationsStore.getState().openSwitcherWithFilter('S:~/'),
       color: 'bg-[#e0af68]',
     },
   ]
@@ -73,7 +73,7 @@ function buildActions(session: Session | undefined, selectedSessionId: string | 
         id: 'share',
         icon: <Share2 className="w-4 h-4" />,
         label: 'Share',
-        action: () => useSessionsStore.getState().openTab(selectedSessionId, 'shared'),
+        action: () => useConversationsStore.getState().openTab(selectedSessionId, 'shared'),
         color: 'bg-[#bb9af7]',
       })
       actions.push({
@@ -96,7 +96,7 @@ function buildActions(session: Session | undefined, selectedSessionId: string | 
         icon: <RefreshCw className="w-4 h-4" />,
         label: 'Revive...',
         action: () => {
-          useSessionsStore.getState().selectSession(session.id)
+          useConversationsStore.getState().selectSession(session.id)
           openReviveDialog({ sessionId: session.id })
         },
         color: 'bg-emerald-500',
@@ -105,7 +105,7 @@ function buildActions(session: Session | undefined, selectedSessionId: string | 
         id: 'dismiss',
         icon: <Trash2 className="w-4 h-4" />,
         label: 'Dismiss',
-        action: () => useSessionsStore.getState().dismissSession(session.id),
+        action: () => useConversationsStore.getState().dismissSession(session.id),
         color: 'bg-red-500/80',
         dangerous: true,
       })
@@ -119,8 +119,8 @@ export function ActionFab() {
   const [expanded, setExpanded] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const lastTapRef = useRef(0)
-  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
-  const session = useSessionsStore(state =>
+  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
+  const session = useConversationsStore(state =>
     state.selectedSessionId ? state.sessionsById[state.selectedSessionId] : undefined,
   )
 
@@ -146,7 +146,7 @@ export function ActionFab() {
       }
       haptic('double')
       setExpanded(false)
-      const { sessionMru, sessions, selectSession } = useSessionsStore.getState()
+      const { sessionMru, sessions, selectSession } = useConversationsStore.getState()
       const prev = sessionMru.slice(1).find(id => sessions.some(s => s.id === id))
       if (prev) selectSession(prev)
       lastTapRef.current = 0

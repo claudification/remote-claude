@@ -5,10 +5,10 @@
 
 import type { SpawnRequest } from './spawn-schema'
 
-// Dashboard -> Broker: spawn request (WS equivalent of POST /api/spawn)
+// Control Panel -> Broker: spawn request (WS equivalent of POST /api/spawn)
 export type SpawnRequestMessage = { type: 'spawn_request' } & SpawnRequest
 
-// Broker -> Dashboard: ack for spawn_request (correlated by jobId)
+// Broker -> Control Panel: ack for spawn_request (correlated by jobId)
 export interface SpawnRequestAck {
   type: 'spawn_request_ack'
   ok: boolean
@@ -21,7 +21,7 @@ export interface SpawnRequestAck {
 // Wrapper -> Broker messages
 export interface HookEvent {
   type: 'hook'
-  sessionId: string
+  conversationId: string
   hookEvent: HookEventType
   timestamp: number
   data: HookEventData
@@ -53,7 +53,7 @@ export type BootStep =
   | 'claude_exited'
   | 'boot_error'
 
-export interface SessionMeta {
+export interface ConversationMeta {
   type: 'meta'
   sessionId: string
   conversationId: string // stable identity that survives /clear, reconnect, and revival
@@ -99,7 +99,7 @@ export interface SessionClear {
 
 export interface Heartbeat {
   type: 'heartbeat'
-  sessionId: string
+  conversationId: string
   timestamp: number
 }
 
@@ -138,27 +138,27 @@ export interface TerminalError {
 
 export interface DiagLog {
   type: 'diag'
-  sessionId: string
+  conversationId: string
   entries: Array<{ t: number; type: string; msg: string; args?: unknown }>
 }
 
 export interface TasksUpdate {
   type: 'tasks_update'
-  sessionId: string
+  conversationId: string
   tasks: TaskInfo[]
 }
 
 // Transcript streaming: rclaude -> broker
 export interface TranscriptEntries {
   type: 'transcript_entries'
-  sessionId: string
+  conversationId: string
   entries: TranscriptEntry[]
   isInitial: boolean // true for initial batch on connect, false for incremental
 }
 
 export interface SubagentTranscript {
   type: 'subagent_transcript'
-  sessionId: string
+  conversationId: string
   agentId: string
   entries: TranscriptEntry[]
   isInitial: boolean
@@ -339,7 +339,7 @@ export type TranscriptEntry =
 // Streaming output from background bash tasks (.output file watching)
 export interface BgTaskOutput {
   type: 'bg_task_output'
-  sessionId: string
+  conversationId: string
   taskId: string
   data: string // new chunk of output
   done: boolean // true when task has completed and file is fully read
@@ -347,7 +347,7 @@ export interface BgTaskOutput {
 
 export interface WrapperNotify {
   type: 'notify'
-  sessionId: string
+  conversationId: string
   message: string
   title?: string
 }
@@ -419,7 +419,7 @@ export type WrapperLaunchStep =
   | 'skills_changed' // detail: "+N / -N". raw: { added, removed, count }
   | 'agents_changed' // detail: "+N / -N". raw: { added, removed, count }
   | 'plugins_changed' // detail: "+N / -N". raw: { added, removed, count }
-  | 'session_exit' // self-termination via exit_session MCP tool. raw: { status, message }
+  | 'conversation_exit' // self-termination via exit_session MCP tool. raw: { status, message }
 
 /**
  * Wrapper -> broker -> dashboard: CC process launch lifecycle event.
@@ -452,7 +452,7 @@ export interface SessionPromote {
 
 export type AgentHostMessage =
   | HookEvent
-  | SessionMeta
+  | ConversationMeta
   | SessionEnd
   | SessionClear
   | WrapperBoot
@@ -480,25 +480,25 @@ export type AgentHostMessage =
   | PlanModeChanged
   | StreamDelta
   | WrapperRateLimit
-  | SessionInfoUpdate
-  | SessionNameUpdate
+  | ConversationInfoUpdate
+  | ConversationNameUpdate
   | SpawnFailed
   | MonitorUpdate
   | ScheduledTaskFire
-  | SessionStatusSignal
+  | ConversationStatusSignal
   | JsonStreamData
 
-export interface SessionNameUpdate {
-  type: 'session_name'
-  sessionId: string
+export interface ConversationNameUpdate {
+  type: 'conversation_name'
+  conversationId: string
   name: string
   description?: string
 }
 
 // Session info from stream-json init (skills, tools, agents, etc.)
-export interface SessionInfoUpdate {
-  type: 'session_info'
-  sessionId: string
+export interface ConversationInfoUpdate {
+  type: 'conversation_info'
+  conversationId: string
   tools: string[]
   slashCommands: string[]
   skills: string[]
@@ -514,16 +514,16 @@ export interface SessionInfoUpdate {
 // Backend-agnostic session status signal (wrapper -> broker)
 // Works for any backend (headless stream-json, PTY, future transports).
 // Fired when the wrapper detects work starting/stopping, independent of CC hooks.
-export interface SessionStatusSignal {
-  type: 'session_status'
-  sessionId: string
+export interface ConversationStatusSignal {
+  type: 'conversation_status'
+  conversationId: string
   status: 'active' | 'idle'
 }
 
 // Headless streaming deltas (token-by-token from --include-partial-messages)
 export interface StreamDelta {
   type: 'stream_delta'
-  sessionId: string
+  conversationId: string
   event: Record<string, unknown> // raw Anthropic API SSE event
 }
 
@@ -549,7 +549,7 @@ export interface JsonStreamData {
 // Rate limit notification from headless stream-json backend
 export interface WrapperRateLimit {
   type: 'rate_limit'
-  sessionId: string
+  conversationId: string
   retryAfterMs: number
   message: string
 }
@@ -557,7 +557,7 @@ export interface WrapperRateLimit {
 // Clipboard capture from PTY OSC 52 sequences
 export interface ClipboardCapture {
   type: 'clipboard_capture'
-  sessionId: string
+  conversationId: string
   contentType: 'text' | 'image'
   text?: string // decoded text (for text content)
   base64?: string // raw base64 (for images -- text omits this to save bandwidth)
@@ -579,7 +579,7 @@ export interface BrokerError {
 
 export interface SendInput {
   type: 'input'
-  sessionId: string
+  conversationId: string
   input: string
   crDelay?: number // carriage return delay in ms (dashboard setting, optional)
 }
@@ -587,13 +587,13 @@ export interface SendInput {
 // Transcript streaming: broker -> rclaude
 export interface TranscriptRequest {
   type: 'transcript_request'
-  sessionId: string
+  conversationId: string
   limit?: number
 }
 
 export interface SubagentTranscriptRequest {
   type: 'subagent_transcript_request'
-  sessionId: string
+  conversationId: string
   agentId: string
   limit?: number
 }
@@ -606,7 +606,7 @@ export interface FileRequest {
 
 export interface TranscriptKick {
   type: 'transcript_kick'
-  sessionId: string
+  conversationId: string
 }
 
 // Persistent inter-session link (project-pair based, survives restarts)
@@ -653,7 +653,7 @@ export interface ProjectLinkRequest {
 
 export interface ProjectLinkResponse {
   type: 'channel_link_response'
-  sessionId: string
+  conversationId: string
   action: 'approve' | 'block'
 }
 
@@ -662,7 +662,7 @@ export interface InterSessionListRequest {
   status?: 'live' | 'inactive' | 'all'
 }
 
-export interface InterSessionListResponse {
+export interface InterConversationListResponse {
   type: 'channel_sessions_list'
   sessions: Array<{
     id: string
@@ -701,14 +701,14 @@ export interface AskQuestionItem {
 
 export interface AskQuestionRequest {
   type: 'ask_question'
-  sessionId: string
+  conversationId: string
   toolUseId: string
   questions: AskQuestionItem[]
 }
 
 export interface AskQuestionResponse {
   type: 'ask_answer'
-  sessionId: string
+  conversationId: string
   toolUseId: string
   answers: Record<string, string> // question text -> selected label(s)
   annotations?: Record<string, { preview?: string; notes?: string }>
@@ -720,14 +720,14 @@ export type { DialogComponent, DialogLayout, DialogResult } from './dialog-schem
 
 export interface DialogShowMessage {
   type: 'dialog_show'
-  sessionId: string
+  conversationId: string
   dialogId: string
   layout: import('./dialog-schema').DialogLayout
 }
 
 export interface DialogResultMessage {
   type: 'dialog_result'
-  sessionId: string
+  conversationId: string
   dialogId: string
   result: import('./dialog-schema').DialogResult
   [key: string]: unknown
@@ -735,14 +735,14 @@ export interface DialogResultMessage {
 
 export interface DialogDismissMessage {
   type: 'dialog_dismiss'
-  sessionId: string
+  conversationId: string
   dialogId: string
 }
 
 // Plan approval relay (headless: ExitPlanMode -> wrapper -> broker -> dashboard -> back)
 export interface PlanApprovalRequest {
   type: 'plan_approval'
-  sessionId: string
+  conversationId: string
   requestId: string // control_request request_id from CC
   toolUseId?: string
   plan: string // the plan content (markdown)
@@ -752,7 +752,7 @@ export interface PlanApprovalRequest {
 
 export interface PlanApprovalResponse {
   type: 'plan_approval_response'
-  sessionId: string
+  conversationId: string
   requestId: string
   toolUseId?: string
   action: 'approve' | 'reject' | 'feedback'
@@ -762,14 +762,14 @@ export interface PlanApprovalResponse {
 
 export interface PlanModeChanged {
   type: 'plan_mode_changed'
-  sessionId: string
+  conversationId: string
   planMode: boolean
 }
 
 // Permission relay (CC -> channel -> dashboard -> channel -> CC)
 export interface PermissionRequest {
   type: 'permission_request'
-  sessionId: string
+  conversationId: string
   requestId: string // request_id from CC's control_request
   toolName: string
   description: string
@@ -779,7 +779,7 @@ export interface PermissionRequest {
 
 export interface PermissionResponse {
   type: 'permission_response'
-  sessionId: string
+  conversationId: string
   requestId: string
   behavior: 'allow' | 'deny'
   toolUseId?: string
@@ -799,12 +799,12 @@ export type BrokerMessage =
   | TranscriptKick
   | InterSessionDelivery
   | ProjectLinkRequest
-  | InterSessionListResponse
+  | InterConversationListResponse
   | SendInterrupt
   | PermissionResponse
   | AskQuestionResponse
-  | QuitSession
-  | SessionControl
+  | QuitConversation
+  | ConversationControl
   | ControlDeliver
   | DialogResultMessage
   | PlanApprovalResponse
@@ -820,12 +820,12 @@ export interface NotifyConfigUpdated {
 
 export interface SendInterrupt {
   type: 'interrupt'
-  sessionId: string
+  conversationId: string
 }
 
-export interface QuitSession {
-  type: 'terminate_session'
-  sessionId: string
+export interface QuitConversation {
+  type: 'terminate_conversation'
+  conversationId: string
 }
 
 /**
@@ -835,22 +835,28 @@ export interface QuitSession {
  *   - dashboard input: when user types a bare `/clear`, `/quit`, `:q`, etc.
  *   - inter-session MCP `control_session` tool
  */
-export type SessionControlAction = 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode'
+export type ConversationControlAction =
+  | 'clear'
+  | 'quit'
+  | 'interrupt'
+  | 'set_model'
+  | 'set_effort'
+  | 'set_permission_mode'
 
-export interface SessionControl {
-  type: 'session_control'
+export interface ConversationControl {
+  type: 'conversation_control'
   targetSession: string
-  action: SessionControlAction
+  action: ConversationControlAction
   fromSession?: string
   model?: string // required when action === 'set_model'
   effort?: string // required when action === 'set_effort' (low|medium|high|xhigh|max|auto)
   permissionMode?: string // required when action === 'set_permission_mode'
 }
 
-export interface SessionControlResult {
-  type: 'session_control_result'
+export interface ConversationControlResult {
+  type: 'conversation_control_result'
   ok: boolean
-  action?: SessionControlAction
+  action?: ConversationControlAction
   name?: string
   error?: string
 }
@@ -858,7 +864,7 @@ export interface SessionControlResult {
 /** Broker -> wrapper: execute a control verb against the local CC. */
 export interface ControlDeliver {
   type: 'control'
-  action: SessionControlAction
+  action: ConversationControlAction
   model?: string
   effort?: string
   permissionMode?: string
@@ -1071,14 +1077,14 @@ export interface MonitorInfo {
 // Monitor lifecycle events (wrapper -> broker)
 export interface MonitorUpdate {
   type: 'monitor_update'
-  sessionId: string
+  conversationId: string
   monitor: MonitorInfo
 }
 
 // Scheduled task fire event (wrapper -> broker, distinct from transcript entry)
 export interface ScheduledTaskFire {
   type: 'scheduled_task_fire'
-  sessionId: string
+  conversationId: string
   content: string
   timestamp: number
 }
@@ -1131,7 +1137,7 @@ export interface ArchivedTaskGroup {
   tasks: TaskInfo[]
 }
 
-export interface Session {
+export interface Conversation {
   id: string
   project: string // project URI identity (e.g. "claude:///Users/jonas/projects/foo")
   currentPath?: string // where Claude is currently working (CwdChanged hook)
@@ -1275,7 +1281,7 @@ export type LaunchStep =
   | 'failed'
 
 /**
- * Broker -> Dashboard: first-class launch progress event.
+ * Broker -> Control Panel: first-class launch progress event.
  * Emitted at each lifecycle step of a spawn/revive job so clients (dashboard,
  * MCP callers) see real progress instead of silence.
  */
@@ -1292,7 +1298,7 @@ export interface LaunchProgressEvent {
   error?: string
 }
 
-/** Broker -> Dashboard: launch job completed (session connected) */
+/** Broker -> Control Panel: launch job completed (session connected) */
 export interface JobComplete {
   type: 'job_complete'
   jobId: string
@@ -1300,7 +1306,7 @@ export interface JobComplete {
   conversationId: string
 }
 
-/** Broker -> Dashboard: launch job failed */
+/** Broker -> Control Panel: launch job failed */
 export interface JobFailed {
   type: 'job_failed'
   jobId: string
@@ -1389,7 +1395,7 @@ export type SentinelMessage =
   | LaunchLog
 
 // Broker -> Sentinel messages
-export interface ReviveSession {
+export interface ReviveConversation {
   type: 'revive'
   sessionId: string
   project: string
@@ -1399,7 +1405,7 @@ export interface ReviveSession {
   env?: Record<string, string> // custom env vars forwarded to claude process
 }
 
-export interface SpawnSession {
+export interface SpawnConversation {
   type: 'spawn'
   requestId: string
   cwd: string
@@ -1468,7 +1474,7 @@ export interface SentinelReject {
   reason: string
 }
 
-export type BrokerSentinelMessage = ReviveSession | SpawnSession | ListDirs | SentinelQuit | SentinelReject
+export type BrokerSentinelMessage = ReviveConversation | SpawnConversation | ListDirs | SentinelQuit | SentinelReject
 
 // Dashboard broadcast: sentinel status
 export interface SentinelStatus {
@@ -1477,7 +1483,7 @@ export interface SentinelStatus {
 }
 
 // Session summary: broker -> dashboard wire format
-export interface SessionSummary {
+export interface ConversationSummary {
   id: string
   project: string
   model?: string
@@ -1489,7 +1495,7 @@ export interface SessionSummary {
   conversationIds: string[]
   startedAt: number
   lastActivity: number
-  status: Session['status']
+  status: Conversation['status']
   compacting?: boolean
   compactedAt?: number
   eventCount: number
@@ -1531,32 +1537,32 @@ export interface SessionSummary {
   team?: TeamInfo
   effortLevel?: string
   permissionMode?: string
-  lastError?: Session['lastError']
-  rateLimit?: Session['rateLimit']
+  lastError?: Conversation['lastError']
+  rateLimit?: Conversation['rateLimit']
   planMode?: boolean
-  pendingAttention?: Session['pendingAttention']
+  pendingAttention?: Conversation['pendingAttention']
   hasNotification?: boolean
   summary?: string
   title?: string
   description?: string
   agentName?: string
-  prLinks?: Session['prLinks']
+  prLinks?: Conversation['prLinks']
   linkedProjects?: Array<{ project: string; name: string }>
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
   contextWindow?: number // effective window (200K or 1M) matching Claude Code's current selection
   cacheTtl?: '5m' | '1h'
   lastTurnEndedAt?: number
-  stats: Session['stats']
-  costTimeline?: Session['costTimeline']
+  stats: Conversation['stats']
+  costTimeline?: Conversation['costTimeline']
   gitBranch?: string
   spinnerVerbs?: string[]
   autocompactPct?: number
   maxBudgetUsd?: number
   adHocTaskId?: string
   adHocWorktree?: string
-  modelMismatch?: Session['modelMismatch']
+  modelMismatch?: Conversation['modelMismatch']
   resultText?: string
-  recap?: Session['recap']
+  recap?: Conversation['recap']
   recapFresh?: boolean
   hostSentinelId?: string
   hostSentinelAlias?: string
@@ -1564,24 +1570,24 @@ export interface SessionSummary {
 
 // Subscription channels (dashboard <-> broker pub/sub)
 export type SubscriptionChannel =
-  | 'session:events'
-  | 'session:transcript'
-  | 'session:tasks'
-  | 'session:bg_output'
-  | 'session:subagent_transcript'
+  | 'conversation:events'
+  | 'conversation:transcript'
+  | 'conversation:tasks'
+  | 'conversation:bg_output'
+  | 'conversation:subagent_transcript'
 
-// Dashboard -> Broker: channel subscription management
+// Control Panel -> Broker: channel subscription management
 export interface ChannelSubscribe {
   type: 'channel_subscribe'
   channel: SubscriptionChannel
-  sessionId: string
+  conversationId: string
   agentId?: string // required for session:subagent_transcript
 }
 
 export interface ChannelUnsubscribe {
   type: 'channel_unsubscribe'
   channel: SubscriptionChannel
-  sessionId: string
+  conversationId: string
   agentId?: string
 }
 
@@ -1589,11 +1595,11 @@ export interface ChannelUnsubscribeAll {
   type: 'channel_unsubscribe_all'
 }
 
-// Broker -> Dashboard: subscription acknowledgment
+// Broker -> Control Panel: subscription acknowledgment
 export interface ChannelAck {
   type: 'channel_ack'
   channel: SubscriptionChannel
-  sessionId: string
+  conversationId: string
   agentId?: string
   status: 'subscribed' | 'unsubscribed'
   previousSessionId?: string // set during rekey rollover
@@ -1602,7 +1608,7 @@ export interface ChannelAck {
 // Per-channel diagnostic stats
 export interface ChannelStats {
   channel: SubscriptionChannel
-  sessionId: string
+  conversationId: string
   agentId?: string
   subscribedAt: number
   messagesSent: number

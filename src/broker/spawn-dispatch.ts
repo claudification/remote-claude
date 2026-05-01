@@ -16,21 +16,21 @@
 
 import { randomUUID } from 'node:crypto'
 import { validateModel } from '../shared/models'
-import type { LaunchProgressEvent, LaunchStep, ProjectSettings, Session, SpawnResult } from '../shared/protocol'
-import { generateSessionName } from '../shared/session-names'
+import type { Conversation, LaunchProgressEvent, LaunchStep, ProjectSettings, SpawnResult } from '../shared/protocol'
+import { generateConversationName } from '../shared/session-names'
 import { resolveSpawnConfig } from '../shared/spawn-defaults'
-import { deriveSessionName, validateSessionName } from '../shared/spawn-naming'
+import { deriveConversationName, validateSessionName } from '../shared/spawn-naming'
 import { assertSpawnAllowed, type SpawnCallerContext, SpawnPermissionError } from '../shared/spawn-permissions'
 import type { SpawnRequest } from '../shared/spawn-schema'
 import type { GlobalSettings } from './global-settings'
-import type { SessionStore } from './session-store'
+import type { ConversationStore } from './session-store'
 
 /**
  * Emit a first-class launch_progress event to all subscribers of the job.
  * No-op if jobId is undefined (callers that dispatch without tracking a job).
  */
 function emitProgress(
-  sessions: SessionStore,
+  sessions: ConversationStore,
   jobId: string | undefined,
   step: LaunchStep,
   status: LaunchProgressEvent['status'],
@@ -48,7 +48,7 @@ function emitProgress(
 }
 
 export type SpawnDispatchDeps = {
-  sessions: SessionStore
+  sessions: ConversationStore
   getProjectSettings: (project: string) => ProjectSettings | null
   getGlobalSettings: () => GlobalSettings
   /** Caller context for the unified permission gate. */
@@ -106,7 +106,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
     const usedNames = new Set(
       deps.sessions
         .getAllSessions()
-        .map((s: Session) => s.title)
+        .map((s: Conversation) => s.title)
         .filter(Boolean) as string[],
     )
     const nameErr = validateSessionName(req.name, usedNames)
@@ -217,12 +217,12 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
         bare: bare || false,
         repl: repl || false,
         sessionName:
-          deriveSessionName(req) ??
-          generateSessionName(
+          deriveConversationName(req) ??
+          generateConversationName(
             new Set(
               deps.sessions
                 .getAllSessions()
-                .map((s: Session) => s.title)
+                .map((s: Conversation) => s.title)
                 .filter(Boolean) as string[],
             ),
           ),

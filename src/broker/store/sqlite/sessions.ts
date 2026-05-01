@@ -1,18 +1,18 @@
 import type { Database } from 'bun:sqlite'
 import { DuplicateEntry, SessionNotFound } from '../errors'
 import type {
-  SessionCreate,
-  SessionFilter,
-  SessionPatch,
-  SessionRecord,
-  SessionStats,
+  ConversationCreate,
+  ConversationFilter,
+  ConversationPatch,
+  ConversationRecord,
+  ConversationStats,
+  ConversationSummaryRecord,
   SessionStore,
-  SessionSummaryRecord,
 } from '../types'
 
 type Params = Record<string, string | number | bigint | boolean | null>
 
-function rowToRecord(row: Params): SessionRecord {
+function rowToRecord(row: Params): ConversationRecord {
   return {
     id: row.id as string,
     scope: row.scope as string,
@@ -33,7 +33,7 @@ function rowToRecord(row: Params): SessionRecord {
   }
 }
 
-function rowToSummary(row: Params): SessionSummaryRecord {
+function rowToSummary(row: Params): ConversationSummaryRecord {
   return {
     id: row.id as string,
     scope: row.scope as string,
@@ -64,7 +64,7 @@ export function createSqliteSessionStore(db: Database): SessionStore {
       return row ? rowToRecord(row) : null
     },
 
-    create(input: SessionCreate) {
+    create(input: ConversationCreate) {
       const existing = stmtGet.get({ id: input.id })
       if (existing) throw new DuplicateEntry(`Session already exists: ${input.id}`)
 
@@ -93,7 +93,7 @@ export function createSqliteSessionStore(db: Database): SessionStore {
       }
     },
 
-    update(id, patch: SessionPatch) {
+    update(id, patch: ConversationPatch) {
       const existing = stmtGet.get({ id })
       if (!existing) throw new SessionNotFound(id)
 
@@ -154,7 +154,7 @@ export function createSqliteSessionStore(db: Database): SessionStore {
       stmtDelete.run({ id })
     },
 
-    list(filter?: SessionFilter) {
+    list(filter?: ConversationFilter) {
       const conditions: string[] = []
       const params: Params = {}
 
@@ -200,11 +200,11 @@ export function createSqliteSessionStore(db: Database): SessionStore {
       return rows.map(rowToSummary)
     },
 
-    updateStats(id, stats: Partial<SessionStats>) {
+    updateStats(id, stats: Partial<ConversationStats>) {
       const row = stmtGet.get({ id }) as Params | null
       if (!row) throw new SessionNotFound(id)
 
-      const existing: SessionStats = row.stats ? JSON.parse(row.stats as string) : {}
+      const existing: ConversationStats = row.stats ? JSON.parse(row.stats as string) : {}
       const merged = { ...existing, ...stats }
       db.prepare('UPDATE sessions SET stats = $stats WHERE id = $id').run({
         id,

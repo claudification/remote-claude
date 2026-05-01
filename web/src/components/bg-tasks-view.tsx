@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getBgTaskOutput, onBgTaskOutput, useSessionsStore } from '@/hooks/use-sessions'
+import { getBgTaskOutput, onBgTaskOutput, useConversationsStore } from '@/hooks/use-sessions'
 import type { BgTaskSummary } from '@/lib/types'
 import { cn, formatAge } from '@/lib/utils'
 import { AnsiText } from './transcript/shared'
@@ -43,7 +43,7 @@ function BgTaskOutputView({ taskId }: { taskId: string }) {
 const EMPTY_BG_TASKS: BgTaskSummary[] = []
 
 export function BgTasksView({ sessionId }: { sessionId: string }) {
-  const bgTasks = useSessionsStore(state => state.sessionsById[sessionId]?.bgTasks || EMPTY_BG_TASKS)
+  const bgTasks = useConversationsStore(state => state.sessionsById[sessionId]?.bgTasks || EMPTY_BG_TASKS)
 
   if (bgTasks.length === 0) {
     return <div className="text-muted-foreground text-center py-10 text-xs">No background tasks</div>

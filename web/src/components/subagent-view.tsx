@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { fetchSubagents, useSessionsStore } from '@/hooks/use-sessions'
+import { fetchSubagents, useConversationsStore } from '@/hooks/use-sessions'
 import type { HookEvent, SubagentInfo } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -44,7 +44,7 @@ export function SubagentView({ sessionId }: { sessionId: string }) {
   const [subagents, setSubagents] = useState<SubagentInfo[]>([])
   const [loaded, setLoaded] = useState(false)
 
-  const events = useSessionsStore(state => state.events[sessionId] || EMPTY_EVENTS)
+  const events = useConversationsStore(state => state.events[sessionId] || EMPTY_EVENTS)
 
   // Fetch subagents on mount
   useEffect(() => {
@@ -95,7 +95,7 @@ export function SubagentView({ sessionId }: { sessionId: string }) {
   const running = subagents.filter(a => a.status === 'running').length
   const stopped = subagents.filter(a => a.status === 'stopped').length
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
-  const selectSubagent = useSessionsStore(state => state.selectSubagent)
+  const selectSubagent = useConversationsStore(state => state.selectSubagent)
 
   if (subagents.length === 0 && loaded) {
     return (

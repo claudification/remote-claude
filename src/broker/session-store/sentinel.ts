@@ -1,6 +1,6 @@
 import type { ServerWebSocket } from 'bun'
 import type { UsageUpdate } from '../../shared/protocol'
-import type { DashboardMessage, SentinelStatusInfo } from './types'
+import type { ControlPanelMessage, SentinelStatusInfo } from './types'
 
 const SENTINEL_DIAG_MAX = 200
 
@@ -54,7 +54,7 @@ export function createSentinelState(): SentinelState {
 export function setSentinel(
   state: SentinelState,
   ws: ServerWebSocket<unknown>,
-  broadcast: (msg: DashboardMessage) => void,
+  broadcast: (msg: ControlPanelMessage) => void,
   info?: SentinelIdentifyInfo,
 ): boolean {
   const sentinelId = info?.sentinelId || 'default'
@@ -92,7 +92,7 @@ export function setSentinel(
 export function removeSentinel(
   state: SentinelState,
   ws: ServerWebSocket<unknown>,
-  broadcast: (msg: DashboardMessage) => void,
+  broadcast: (msg: ControlPanelMessage) => void,
 ): void {
   for (const [id, conn] of state.sentinels) {
     if (conn.ws === ws) {
@@ -118,7 +118,11 @@ export function pushSentinelDiag(
   }
 }
 
-export function setUsage(state: SentinelState, usage: UsageUpdate, broadcast: (msg: DashboardMessage) => void): void {
+export function setUsage(
+  state: SentinelState,
+  usage: UsageUpdate,
+  broadcast: (msg: ControlPanelMessage) => void,
+): void {
   state.usage = usage
-  broadcast({ type: 'usage_update', usage } as unknown as DashboardMessage)
+  broadcast({ type: 'usage_update', usage } as unknown as ControlPanelMessage)
 }

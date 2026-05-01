@@ -512,7 +512,7 @@ const quitSession: MessageHandler = (ctx, data) => {
   if (session) ctx.requirePermission('chat', session.project)
   const targetWs = sessionId ? ctx.sessions.getSessionSocket(sessionId) : null
   if (targetWs) {
-    targetWs.send(JSON.stringify({ type: 'terminate_session', sessionId }))
+    targetWs.send(JSON.stringify({ type: 'terminate_conversation', sessionId }))
     ctx.log.debug(`Session ${sessionId.slice(0, 8)} - SIGTERM sent to wrapper`)
   }
 }

@@ -48,7 +48,7 @@ the spawn pipeline MUST be sanitized at the sentinel level.
 **Sanitization:** `shellSafe()` in `src/sentinel/index.ts` strips `'"\\`$`.
 Shell script also strips as defense-in-depth.
 
-**What to sanitize:** `RCLAUDE_SESSION_NAME`, `RCLAUDE_WORKTREE` -- any string
+**What to sanitize:** `CLAUDWERK_CONVERSATION_NAME`, `RCLAUDE_WORKTREE` -- any string
 from dashboard input that ends up in `CMD_PREFIX`. When adding new spawn env vars
 from user input, apply `shellSafe()` in the sentinel.
 

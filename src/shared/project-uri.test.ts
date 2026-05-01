@@ -7,7 +7,7 @@ import {
   DEFAULT_SENTINEL_NAME,
   extractProjectLabel,
   isSameProject,
-  isSameProjectSession,
+  isSameProjectConversation,
   matchProjectUri,
   normalizeProjectUri,
   parseProjectUri,
@@ -423,8 +423,8 @@ describe('compareProjectSessionUri', () => {
   })
 
   test('isSameProjectSession wraps the comparator', () => {
-    expect(isSameProjectSession('claude:///foo#conv-1', 'claude://default/foo#conv-1')).toBe(true)
-    expect(isSameProjectSession('claude://default/foo#conv-1', 'claude://default/foo#conv-2')).toBe(false)
+    expect(isSameProjectConversation('claude:///foo#conv-1', 'claude://default/foo#conv-1')).toBe(true)
+    expect(isSameProjectConversation('claude://default/foo#conv-1', 'claude://default/foo#conv-2')).toBe(false)
   })
 })
 

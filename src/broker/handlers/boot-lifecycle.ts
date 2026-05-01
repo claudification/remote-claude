@@ -97,7 +97,7 @@ const bootEvent: MessageHandler = (ctx, data) => {
 
   // Append to the session's transcript + broadcast to dashboard subscribers.
   ctx.sessions.addTranscriptEntries(session.id, [entry], false)
-  ctx.sessions.broadcastToChannel('session:transcript', session.id, {
+  ctx.sessions.broadcastToChannel('conversation:transcript', session.id, {
     type: 'transcript_entries',
     sessionId: session.id,
     entries: [entry],
@@ -134,7 +134,7 @@ const launchEvent: MessageHandler = (ctx, data) => {
   }
 
   ctx.sessions.addTranscriptEntries(session.id, [entry], false)
-  ctx.sessions.broadcastToChannel('session:transcript', session.id, {
+  ctx.sessions.broadcastToChannel('conversation:transcript', session.id, {
     type: 'transcript_entries',
     sessionId: session.id,
     entries: [entry],

@@ -209,7 +209,7 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
               // Notify the wrapper to forward to broker -> dashboard
               onAskQuestion?.({
                 type: 'ask_question',
-                sessionId,
+                conversationId: sessionId,
                 toolUseId,
                 questions,
               })
@@ -254,7 +254,7 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
 
             const event: HookEvent = {
               type: 'hook',
-              sessionId: effectiveSessionId,
+              conversationId: effectiveSessionId,
               hookEvent: eventType,
               timestamp: Date.now(),
               data,

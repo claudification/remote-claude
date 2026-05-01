@@ -1,6 +1,6 @@
-import type { SessionSummary } from '../../shared/protocol'
+import type { ConversationSummary } from '../../shared/protocol'
 
-export type { SessionSummary }
+export type { ConversationSummary }
 
 export interface SentinelStatusInfo {
   sentinelId: string
@@ -11,13 +11,13 @@ export interface SentinelStatusInfo {
   color?: string
 }
 
-export interface DashboardMessage {
+export interface ControlPanelMessage {
   type:
-    | 'session_update'
-    | 'session_created'
-    | 'session_ended'
+    | 'conversation_update'
+    | 'conversation_created'
+    | 'conversation_ended'
     | 'event'
-    | 'sessions_list'
+    | 'conversations_list'
     | 'sentinel_status'
     | 'toast'
     | 'settings_updated'
@@ -26,8 +26,8 @@ export interface DashboardMessage {
     | 'usage_update'
   sessionId?: string
   previousSessionId?: string
-  session?: SessionSummary
-  sessions?: SessionSummary[]
+  session?: ConversationSummary
+  sessions?: ConversationSummary[]
   event?: unknown
   connected?: boolean
   machineId?: string

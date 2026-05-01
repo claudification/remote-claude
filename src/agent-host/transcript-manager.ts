@@ -6,7 +6,7 @@
 
 import { existsSync } from 'node:fs'
 import { structuredPatch as computeStructuredPatch } from 'diff'
-import type { SessionNameUpdate, TaskInfo, TasksUpdate, TranscriptEntry } from '../shared/protocol'
+import type { ConversationNameUpdate, TaskInfo, TasksUpdate, TranscriptEntry } from '../shared/protocol'
 import type { AgentHostContext } from './agent-host-context'
 import { debug as _debug, DEBUG } from './debug'
 import { createTranscriptWatcher } from './transcript-watcher'
@@ -116,7 +116,7 @@ export function interceptTodoWrite(ctx: AgentHostContext, entries: TranscriptEnt
         status: STATUS_MAP[todo.status] || 'pending',
         updatedAt: Date.now(),
       }))
-      const msg: TasksUpdate = { type: 'tasks_update', sessionId: ctx.claudeSessionId, tasks }
+      const msg: TasksUpdate = { type: 'tasks_update', conversationId: ctx.claudeSessionId, tasks }
       ctx.wsClient?.send(msg)
       debug(`TodoWrite intercepted: ${tasks.length} items -> tasks_update`)
     }
@@ -283,9 +283,9 @@ function detectRename(ctx: AgentHostContext, entries: TranscriptEntry[]): void {
     if (match) {
       const name = match[1].trim()
       debug(`Detected /rename: "${name}"`)
-      const msg: SessionNameUpdate = {
-        type: 'session_name',
-        sessionId: ctx.claudeSessionId || ctx.conversationId,
+      const msg: ConversationNameUpdate = {
+        type: 'conversation_name',
+        conversationId: ctx.claudeSessionId || ctx.conversationId,
         name,
       }
       ctx.wsClient?.send(msg)

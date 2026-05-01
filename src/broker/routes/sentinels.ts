@@ -5,12 +5,12 @@
 
 import { Hono } from 'hono'
 import { isValidSentinelAlias, type SentinelRegistry } from '../sentinel-registry'
-import type { SessionStore } from '../session-store'
+import type { ConversationStore } from '../session-store'
 import type { RouteHelpers } from './shared'
 
 export function createSentinelRouter(
   sentinelRegistry: SentinelRegistry,
-  sessionStore: SessionStore,
+  sessionStore: ConversationStore,
   helpers: RouteHelpers,
 ): Hono {
   const { httpIsAdmin } = helpers

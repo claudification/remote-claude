@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useState } from 'react'
 import { BannerButton, BannerStack, SessionBanner } from '@/components/ui/session-banner'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 
@@ -9,9 +9,9 @@ import { cn, haptic } from '@/lib/utils'
 // ---------------------------------------------------------------------------
 
 export function LinkRequestBanners() {
-  const requests = useSessionsStore(s => s.pendingProjectLinks)
-  const respond = useSessionsStore(s => s.respondToProjectLink)
-  const selectedSession = useSessionsStore(s => s.selectedSessionId)
+  const requests = useConversationsStore(s => s.pendingProjectLinks)
+  const respond = useConversationsStore(s => s.respondToProjectLink)
+  const selectedSession = useConversationsStore(s => s.selectedSessionId)
   // Only surface requests whose target is the currently-viewed session. Rendered
   // inline at the transcript bottom (see TranscriptView) as a blocking UI gate,
   // same pattern as PermissionBanners. Without this filter we'd leak other
@@ -161,11 +161,11 @@ function formatPermissionInput(toolName: string, inputPreview: string, root?: st
 // ---------------------------------------------------------------------------
 
 export function PermissionBanners() {
-  const permissions = useSessionsStore(s => s.pendingPermissions)
-  const respond = useSessionsStore(s => s.respondToPermission)
-  const sendRule = useSessionsStore(s => s.sendPermissionRule)
-  const selectedSession = useSessionsStore(s => s.selectedSessionId)
-  const sessionPath = useSessionsStore(s =>
+  const permissions = useConversationsStore(s => s.pendingPermissions)
+  const respond = useConversationsStore(s => s.respondToPermission)
+  const sendRule = useConversationsStore(s => s.sendPermissionRule)
+  const selectedSession = useConversationsStore(s => s.selectedSessionId)
+  const sessionPath = useConversationsStore(s =>
     s.selectedSessionId ? projectPath(s.sessionsById[s.selectedSessionId]?.project ?? '') : undefined,
   )
   const relevant = permissions.filter(p => p.sessionId === selectedSession)
@@ -222,9 +222,9 @@ export function PermissionBanners() {
 // ---------------------------------------------------------------------------
 
 export function ClipboardBanners() {
-  const captures = useSessionsStore(s => s.clipboardCaptures)
-  const dismiss = useSessionsStore(s => s.dismissClipboard)
-  const selectedSession = useSessionsStore(s => s.selectedSessionId)
+  const captures = useConversationsStore(s => s.clipboardCaptures)
+  const dismiss = useConversationsStore(s => s.dismissClipboard)
+  const selectedSession = useConversationsStore(s => s.selectedSessionId)
   const relevant = captures.filter(c => c.sessionId === selectedSession)
 
   return (
@@ -295,9 +295,9 @@ export function ClipboardBanners() {
 // ---------------------------------------------------------------------------
 
 export function AskQuestionBanners() {
-  const questions = useSessionsStore(s => s.pendingAskQuestions)
-  const respond = useSessionsStore(s => s.respondToAskQuestion)
-  const selectedSession = useSessionsStore(s => s.selectedSessionId)
+  const questions = useConversationsStore(s => s.pendingAskQuestions)
+  const respond = useConversationsStore(s => s.respondToAskQuestion)
+  const selectedSession = useConversationsStore(s => s.selectedSessionId)
   const relevant = questions.filter(q => q.sessionId === selectedSession)
 
   return (

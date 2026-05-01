@@ -32,7 +32,7 @@ import {
 } from '@codemirror/autocomplete'
 import { type Extension, Prec } from '@codemirror/state'
 import { type EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { projectPath } from '@/lib/types'
 import { lastPathSegments, projectDisplayName, sessionAddressableSlug } from '@/lib/utils'
 import { BUILTIN_COMMAND_NAMES, BUILTIN_SCORE_BOOST, fuzzyScore } from '../../autocomplete-shared'
@@ -48,7 +48,7 @@ interface SourceInfo {
 const EMPTY_INFO: SourceInfo = { slashCommands: [], skills: [], agents: [] }
 
 function readSourceInfo(): SourceInfo {
-  const state = useSessionsStore.getState()
+  const state = useConversationsStore.getState()
   const sid = state.selectedSessionId
   return (sid ? state.sessionInfo[sid] : null) ?? EMPTY_INFO
 }
@@ -227,7 +227,7 @@ interface SessionCompletion {
 }
 
 function sessionCompletions(query: string): SessionCompletion[] {
-  const state = useSessionsStore.getState()
+  const state = useConversationsStore.getState()
   const { sessions, projectSettings } = state
   const q = query.toLowerCase()
   const scored: Array<{ opt: SessionCompletion; score: number }> = []

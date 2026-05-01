@@ -11,8 +11,8 @@
 import type { ServerWebSocket } from 'bun'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { HookEvent, TaskInfo, TranscriptEntry } from '../../shared/protocol'
-import type { SessionStore } from '../session-store'
-import { createSessionStore } from '../session-store'
+import type { ConversationStore } from '../session-store'
+import { createConversationStore } from '../session-store'
 
 // Minimal mock socket -- used only for identity / set membership.
 // No actual send() calls reach these in non-persistence, no-subscriber mode
@@ -43,7 +43,7 @@ function makeHookEvent(
 ): HookEvent {
   return {
     type: 'hook',
-    sessionId,
+    conversationId: sessionId,
     hookEvent,
     timestamp: Date.now(),
     data: { session_id: sessionId },
@@ -59,10 +59,10 @@ function makeTranscriptEntry(type: string = 'user'): TranscriptEntry {
 // Test suite
 // ---------------------------------------------------------------------------
 
-let store: SessionStore
+let store: ConversationStore
 
 beforeEach(() => {
-  store = createSessionStore({ enablePersistence: false })
+  store = createConversationStore({ enablePersistence: false })
 })
 
 // ---------------------------------------------------------------------------
@@ -326,19 +326,19 @@ describe('channel pub/sub', () => {
     // Must be a registered subscriber for the reverse index to work properly
     // (subscribeChannel does track via subscriberRegistry but getChannelSubscribers
     //  uses the forward index directly -- no subscriber registry required)
-    store.subscribeChannel(ws, 'session:events', 'ch-sess')
+    store.subscribeChannel(ws, 'conversation:events', 'ch-sess')
 
-    const subs = store.getChannelSubscribers('session:events', 'ch-sess')
+    const subs = store.getChannelSubscribers('conversation:events', 'ch-sess')
     expect(subs.has(ws)).toBe(true)
   })
 
   it('unsubscribeChannel removes ws from getChannelSubscribers', () => {
     store.createSession('ch-sess2', '/cwd')
     const ws = mockSocket()
-    store.subscribeChannel(ws, 'session:events', 'ch-sess2')
-    store.unsubscribeChannel(ws, 'session:events', 'ch-sess2')
+    store.subscribeChannel(ws, 'conversation:events', 'ch-sess2')
+    store.unsubscribeChannel(ws, 'conversation:events', 'ch-sess2')
 
-    const subs = store.getChannelSubscribers('session:events', 'ch-sess2')
+    const subs = store.getChannelSubscribers('conversation:events', 'ch-sess2')
     expect(subs.has(ws)).toBe(false)
   })
 
@@ -348,26 +348,26 @@ describe('channel pub/sub', () => {
     // Register in subscriber registry first so unsubscribeAllChannels can find the channels
     store.addSubscriber(ws, 2)
 
-    store.subscribeChannel(ws, 'session:events', 'ch-multi')
-    store.subscribeChannel(ws, 'session:transcript', 'ch-multi')
+    store.subscribeChannel(ws, 'conversation:events', 'ch-multi')
+    store.subscribeChannel(ws, 'conversation:transcript', 'ch-multi')
 
     store.unsubscribeAllChannels(ws)
 
-    expect(store.getChannelSubscribers('session:events', 'ch-multi').has(ws)).toBe(false)
-    expect(store.getChannelSubscribers('session:transcript', 'ch-multi').has(ws)).toBe(false)
+    expect(store.getChannelSubscribers('conversation:events', 'ch-multi').has(ws)).toBe(false)
+    expect(store.getChannelSubscribers('conversation:transcript', 'ch-multi').has(ws)).toBe(false)
   })
 
   it('getSubscriptionsDiag reflects subscription state', () => {
     store.createSession('diag-sess', '/cwd')
     const ws = mockSocket()
     store.addSubscriber(ws, 2)
-    store.subscribeChannel(ws, 'session:events', 'diag-sess')
+    store.subscribeChannel(ws, 'conversation:events', 'diag-sess')
 
     const diag = store.getSubscriptionsDiag()
     expect(diag.summary.totalSubscribers).toBeGreaterThanOrEqual(1)
     expect(diag.summary.v2Subscribers).toBeGreaterThanOrEqual(1)
     // Channel counts should include our subscription
-    const eventCount = diag.summary.channelCounts['session:events']
+    const eventCount = diag.summary.channelCounts['conversation:events']
     expect(eventCount).toBeGreaterThanOrEqual(1)
   })
 })

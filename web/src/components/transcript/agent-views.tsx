@@ -4,7 +4,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { fetchSubagentTranscript, useSessionsStore } from '@/hooks/use-sessions'
+import { fetchSubagentTranscript, useConversationsStore } from '@/hooks/use-sessions'
 import type { TranscriptContentBlock, TranscriptEntry } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { JsonInspector } from '../json-inspector'
@@ -15,9 +15,9 @@ import { ToolLine } from './tool-line'
 
 // Inline expandable agent transcript - live via store subscription + HTTP seed
 export function AgentTranscriptInline({ agentId, toolId }: { agentId: string; toolId?: string }) {
-  const sessionId = useSessionsStore(state => state.selectedSessionId)
+  const sessionId = useConversationsStore(state => state.selectedSessionId)
   const storeKey = sessionId ? `${sessionId}:${agentId}` : ''
-  const liveEntries = useSessionsStore(state => (storeKey ? state.subagentTranscripts[storeKey] : undefined))
+  const liveEntries = useConversationsStore(state => (storeKey ? state.subagentTranscripts[storeKey] : undefined))
   const [fetched, setFetched] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,7 +32,7 @@ export function AgentTranscriptInline({ agentId, toolId }: { agentId: string; to
         setLoading(false)
         if (data.length > 0) {
           const key = `${sessionId}:${agentId}`
-          useSessionsStore.setState(state => ({
+          useConversationsStore.setState(state => ({
             subagentTranscripts: { ...state.subagentTranscripts, [key]: data },
           }))
         }
@@ -80,9 +80,9 @@ function AgentGroupView({
   group: DisplayGroup
   resultMap: Map<string, { result: string; extra?: Record<string, unknown> }>
 }) {
-  const expandAll = useSessionsStore(state => state.expandAll)
-  const showThinking = useSessionsStore(state => state.controlPanelPrefs.showThinking)
-  const globalSettings = useSessionsStore(state => state.globalSettings)
+  const expandAll = useConversationsStore(state => state.expandAll)
+  const showThinking = useConversationsStore(state => state.controlPanelPrefs.showThinking)
+  const globalSettings = useConversationsStore(state => state.globalSettings)
 
   if (group.type === 'system') return null
 

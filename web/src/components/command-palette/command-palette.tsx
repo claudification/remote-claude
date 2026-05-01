@@ -1,5 +1,5 @@
 import { FileText, FolderPlus } from 'lucide-react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { useKeyLayer } from '@/lib/key-layers'
 import { CommandResults, CommandRow } from './command-results'
 import { FileResults } from './file-results'
@@ -94,7 +94,7 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
                       i === palette.activeIndex ? 'bg-[#283457] text-[#c0caf5]' : 'text-[#a9b1d6] hover:bg-[#1a1b26]'
                     }`}
                     onClick={() => {
-                      useSessionsStore.getState().setPendingTaskEdit({ slug: task.slug, status: task.status })
+                      useConversationsStore.getState().setPendingTaskEdit({ slug: task.slug, status: task.status })
                       onClose()
                     }}
                     onMouseEnter={() => palette.setActiveIndex(i)}
@@ -137,7 +137,7 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
                   projectSettings={palette.projectSettings}
                   active={i === palette.activeIndex}
                   onSelect={() => {
-                    const sess = useSessionsStore.getState().sessionsById[item.session.id]
+                    const sess = useConversationsStore.getState().sessionsById[item.session.id]
                     if (sess) palette.selectSessionWithTracking(sess, onSelect)
                     else onSelect(item.session.id)
                   }}

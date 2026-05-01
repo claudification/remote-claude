@@ -4,7 +4,7 @@ import { Terminal } from '@xterm/xterm'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import '@xterm/xterm/css/xterm.css'
 import { Settings, WifiOff, X } from 'lucide-react'
-import { type TerminalMessage, useSessionsStore } from '@/hooks/use-sessions'
+import { type TerminalMessage, useConversationsStore } from '@/hooks/use-sessions'
 import { extractProjectLabel, projectPath } from '@/lib/types'
 import { lastPathSegments } from '@/lib/utils'
 import {
@@ -27,11 +27,11 @@ export function WebTerminal({ conversationId, onClose, popout }: WebTerminalProp
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
-  const sessions = useSessionsStore(state => state.sessions)
-  const sendWsMessage = useSessionsStore(state => state.sendWsMessage)
-  const setTerminalHandler = useSessionsStore(state => state.setTerminalHandler)
-  const isConnected = useSessionsStore(state => state.isConnected)
-  const showSwitcher = useSessionsStore(state => state.showSwitcher)
+  const sessions = useConversationsStore(state => state.sessions)
+  const sendWsMessage = useConversationsStore(state => state.sendWsMessage)
+  const setTerminalHandler = useConversationsStore(state => state.setTerminalHandler)
+  const isConnected = useConversationsStore(state => state.isConnected)
+  const showSwitcher = useConversationsStore(state => state.showSwitcher)
   const [terminalError, setTerminalError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [settings, setSettings] = useState<TerminalSettings>(loadTerminalSettings)
@@ -66,7 +66,7 @@ export function WebTerminal({ conversationId, onClose, popout }: WebTerminalProp
   const ownerSession = sessions.find(s => s.conversationIds?.includes(conversationId))
 
   // Set window title in popout mode
-  const projectSettings = useSessionsStore(state => state.projectSettings)
+  const projectSettings = useConversationsStore(state => state.projectSettings)
   useEffect(() => {
     if (!popout) return
     if (ownerSession) {
@@ -119,7 +119,7 @@ export function WebTerminal({ conversationId, onClose, popout }: WebTerminalProp
         return false
       }
       // When switcher is open, eat all keys so they don't go to PTY
-      if (useSessionsStore.getState().showSwitcher) return false
+      if (useConversationsStore.getState().showSwitcher) return false
       return true
     })
 

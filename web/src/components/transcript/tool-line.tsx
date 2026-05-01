@@ -6,7 +6,7 @@
 import { structuredPatch } from 'diff'
 import { memo, type ReactNode } from 'react'
 import { Markdown } from '@/components/markdown'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/control-panel-prefs'
 import { projectPath, type TranscriptContentBlock } from '@/lib/types'
 import { cn, truncate } from '@/lib/utils'
@@ -101,7 +101,7 @@ function parseTaskIdFromResult(result: string | undefined): string {
 // best-effort display info, not critical data.
 function lookupTaskSubject(taskId: string | undefined): string {
   if (!taskId) return ''
-  const state = useSessionsStore.getState()
+  const state = useConversationsStore.getState()
   const sid = state.selectedSessionId
   if (!sid) return ''
   const session = sid ? state.sessionsById[sid] : undefined
@@ -167,14 +167,14 @@ export function ToolLine({
   const name = tool.name || 'Tool'
   const input = tool.input || {}
   const style = getToolStyle(name)
-  const expandAllStore = useSessionsStore(state => state.expandAll)
+  const expandAllStore = useConversationsStore(state => state.expandAll)
   const expandAll = expandAllProp ?? expandAllStore
   const displayKey = name.startsWith('mcp__') ? 'MCP' : name
-  const toolDefaultOpen = useSessionsStore(
+  const toolDefaultOpen = useConversationsStore(
     state => resolveToolDisplay(state.controlPanelPrefs, displayKey as ToolDisplayKey).defaultOpen,
   )
   // Path sanitization for command display
-  const sessionPath = useSessionsStore(s => {
+  const sessionPath = useConversationsStore(s => {
     if (s.controlPanelPrefs.sanitizePaths === false) return undefined
     const sid = s.selectedSessionId
     const session = sid ? s.sessionsById[sid] : undefined
@@ -500,7 +500,7 @@ export function ToolLine({
               type="button"
               onClick={e => {
                 e.stopPropagation()
-                const store = useSessionsStore.getState()
+                const store = useConversationsStore.getState()
                 store.selectSubagent(agentIdForNav)
                 if (store.selectedSessionId) {
                   store.openTab(store.selectedSessionId, 'transcript')

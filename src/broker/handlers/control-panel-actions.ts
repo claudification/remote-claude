@@ -8,7 +8,7 @@
 
 import { extractProjectLabel, parseProjectUri } from '../../shared/project-uri'
 import type { SendInput } from '../../shared/protocol'
-import { generateSessionName } from '../../shared/session-names'
+import { generateConversationName } from '../../shared/session-names'
 import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
 import { GuardError, type MessageHandler, type WsData } from '../handler-context'
 import { registerHandlers } from '../message-router'
@@ -49,7 +49,7 @@ const sendInput: MessageHandler = (ctx, data) => {
   const crDelay = typeof data.crDelay === 'number' && data.crDelay > 0 ? data.crDelay : undefined
   const inputMsg: SendInput = {
     type: 'input',
-    sessionId,
+    conversationId: sessionId,
     input,
     ...(crDelay && { crDelay }),
   }
@@ -95,7 +95,7 @@ const dismissSession: MessageHandler = (ctx, data) => {
 
   const project = session.project
   ctx.sessions.removeSession(sessionId)
-  ctx.broadcastScoped({ type: 'session_dismissed', sessionId }, project)
+  ctx.broadcastScoped({ type: 'conversation_dismissed', sessionId }, project)
   ctx.reply({ type: 'dismiss_session_result', ok: true })
 }
 
@@ -238,7 +238,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
       .map(s => s.title)
       .filter(Boolean) as string[],
   )
-  const sessionName = session.title || generateSessionName(usedNames)
+  const sessionName = session.title || generateConversationName(usedNames)
   const name = sessionName || projSettings?.label || extractProjectLabel(session.project) || sessionId.slice(0, 8)
 
   // Resolve headless: explicit override > launch config > project default > global setting

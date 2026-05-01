@@ -3,6 +3,12 @@ import { DuplicateEntry, SessionNotFound } from '../errors'
 import type {
   AddressBookStore,
   AddressEntry,
+  ConversationCreate,
+  ConversationFilter,
+  ConversationPatch,
+  ConversationRecord,
+  ConversationStats,
+  ConversationSummaryRecord,
   CostPeriod,
   CostStore,
   CostSummary,
@@ -20,13 +26,7 @@ import type {
   ScopeLink,
   ScopeLinkStore,
   SearchHit,
-  SessionCreate,
-  SessionFilter,
-  SessionPatch,
-  SessionRecord,
-  SessionStats,
   SessionStore,
-  SessionSummaryRecord,
   ShareCreate,
   ShareRecord,
   ShareStore,
@@ -57,7 +57,7 @@ function linkKey(a: string, b: string): string {
   return a < b ? `${a}\0${b}` : `${b}\0${a}`
 }
 
-function toSummary(s: SessionRecord): SessionSummaryRecord {
+function toSummary(s: ConversationRecord): ConversationSummaryRecord {
   return {
     id: s.id,
     scope: s.scope,
@@ -74,19 +74,19 @@ function toSummary(s: SessionRecord): SessionSummaryRecord {
   }
 }
 
-function createSessionStore(): SessionStore {
-  const sessions = new Map<string, SessionRecord>()
+function createConversationStore(): SessionStore {
+  const sessions = new Map<string, ConversationRecord>()
 
   return {
     get(id) {
       return sessions.get(id) ?? null
     },
 
-    create(input: SessionCreate) {
+    create(input: ConversationCreate) {
       if (sessions.has(input.id)) {
         throw new DuplicateEntry(`Session already exists: ${input.id}`)
       }
-      const rec: SessionRecord = {
+      const rec: ConversationRecord = {
         id: input.id,
         scope: input.scope,
         agentType: input.agentType,
@@ -101,7 +101,7 @@ function createSessionStore(): SessionStore {
       return rec
     },
 
-    update(id, patch: SessionPatch) {
+    update(id, patch: ConversationPatch) {
       const s = sessions.get(id)
       if (!s) throw new SessionNotFound(id)
       for (const [k, v] of Object.entries(patch)) {
@@ -113,7 +113,7 @@ function createSessionStore(): SessionStore {
       sessions.delete(id)
     },
 
-    list(filter?: SessionFilter) {
+    list(filter?: ConversationFilter) {
       let results = [...sessions.values()]
       if (filter?.scope) results = results.filter(s => s.scope === filter.scope)
       const statuses = filter?.status
@@ -133,7 +133,7 @@ function createSessionStore(): SessionStore {
       return results.map(toSummary)
     },
 
-    updateStats(id, stats: Partial<SessionStats>) {
+    updateStats(id, stats: Partial<ConversationStats>) {
       const s = sessions.get(id)
       if (!s) throw new SessionNotFound(id)
       s.stats = { ...s.stats, ...stats }
@@ -640,7 +640,7 @@ function createCostStore(): CostStore {
     },
 
     recordTurnFromCumulatives(params: CumulativeTurnInput) {
-      const prev = lastSnapshot.get(params.sessionId) ?? {
+      const prev = lastSnapshot.get(params.conversationId) ?? {
         inputTokens: 0,
         outputTokens: 0,
         cacheRead: 0,
@@ -658,7 +658,7 @@ function createCostStore(): CostStore {
 
       turns.push({
         timestamp: params.timestamp,
-        sessionId: params.sessionId,
+        sessionId: params.conversationId,
         projectUri: normalizeUri(params.projectUri),
         account: params.account,
         orgId: params.orgId,
@@ -671,7 +671,7 @@ function createCostStore(): CostStore {
         exactCost: params.exactCost,
       })
 
-      lastSnapshot.set(params.sessionId, {
+      lastSnapshot.set(params.conversationId, {
         inputTokens: params.totalInputTokens,
         outputTokens: params.totalOutputTokens,
         cacheRead: params.totalCacheRead,
@@ -813,7 +813,7 @@ function createCostStore(): CostStore {
 
 export function createMemoryDriver(): StoreDriver {
   return {
-    sessions: createSessionStore(),
+    sessions: createConversationStore(),
     transcripts: createTranscriptStore(),
     events: createEventStore(),
     kv: createKVStore(),

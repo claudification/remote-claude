@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CacheExpiredBanner, CacheTimer } from '@/components/cache-timer'
 import { CostSparkline } from '@/components/cost-sparkline'
 import { renderProjectIcon } from '@/components/project-settings-editor'
-import { useSessionsStore, wsSend } from '@/hooks/use-sessions'
+import { useConversationsStore, wsSend } from '@/hooks/use-sessions'
 import { formatCost, getBurnRate, getCacheEfficiency, getCostColor, getSessionCost } from '@/lib/cost-utils'
 import type { Session } from '@/lib/types'
 import { projectPath } from '@/lib/types'
@@ -22,9 +22,9 @@ import {
 // ─── Inline description editor (session header, expanded view) ──────
 
 function HeaderDescription({ session }: { session: Session }) {
-  const isEditing = useSessionsStore(s => s.editingDescriptionSessionId === session.id)
-  const setEditing = useSessionsStore(s => s.setEditingDescriptionSessionId)
-  const updateDescription = useSessionsStore(s => s.updateDescription)
+  const isEditing = useConversationsStore(s => s.editingDescriptionSessionId === session.id)
+  const setEditing = useConversationsStore(s => s.setEditingDescriptionSessionId)
+  const updateDescription = useConversationsStore(s => s.updateDescription)
   const inputRef = useRef<HTMLInputElement>(null)
   const [value, setValue] = useState(session.description || '')
 

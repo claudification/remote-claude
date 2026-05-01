@@ -37,7 +37,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/control-panel-prefs'
 import { defaultOpenApplied, expandedState } from '@/lib/expanded-state'
 
@@ -218,7 +218,7 @@ export function Collapsible({
     expandedState.add(id)
   }
 
-  const expandAllStore = useSessionsStore(state => state.expandAll)
+  const expandAllStore = useConversationsStore(state => state.expandAll)
   const expandAll = expandAllProp ?? expandAllStore
   const [open, setOpen] = useState(() => (id ? expandedState.has(id) : defaultOpen))
 
@@ -237,7 +237,7 @@ export function Collapsible({
       else expandedState.delete(id)
     }
     if (expandAll && !next) {
-      useSessionsStore.getState().toggleExpandAll()
+      useConversationsStore.getState().toggleExpandAll()
     }
     if (next && onExpand) onExpand()
   }
@@ -270,7 +270,7 @@ function capLineLength(line: string, max: number): { text: string; truncated: bo
 
 export function TruncatedPre({ text, tool, highlight }: { text: string; tool?: ToolDisplayKey; highlight?: RegExp }) {
   const [revealed, setRevealed] = useState(false)
-  const limit = useSessionsStore(s => (tool ? resolveToolDisplay(s.controlPanelPrefs, tool).lineLimit : 10))
+  const limit = useConversationsStore(s => (tool ? resolveToolDisplay(s.controlPanelPrefs, tool).lineLimit : 10))
   const safeText = typeof text === 'string' ? text : String(text ?? '')
   const lines = safeText.split('\n')
   const needsLineTruncation = limit > 0 && lines.length > limit && !revealed

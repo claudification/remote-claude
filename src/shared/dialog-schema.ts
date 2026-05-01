@@ -202,7 +202,7 @@ export interface DialogResponse {
   result: DialogResult
 }
 
-/** Wrapper -> Broker -> Dashboard: dismiss active dialog */
+/** Wrapper -> Broker -> Control Panel: dismiss active dialog */
 export interface DialogDismiss {
   type: 'dialog_dismiss'
   sessionId: string

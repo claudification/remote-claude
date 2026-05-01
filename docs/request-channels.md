@@ -56,7 +56,7 @@ Used for spawn/revive progress tracking.
 
 **Subscribe:** `{ type: 'subscribe_job', jobId }`
 
-**Trigger:** `POST /api/spawn { jobId }` or `{ type: 'revive_session', jobId }`
+**Trigger:** `POST /api/spawn { jobId }` or `{ type: 'revive_conversation', jobId }`
 
 **Events:** Agent sends `{ type: 'launch_log', jobId, step, status, detail, t }`
 at each pipeline stage (directory validation, spawn approval, tmux launch, etc.)

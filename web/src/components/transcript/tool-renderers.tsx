@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react'
 import JsonHighlight from '@/components/json-highlight'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/control-panel-prefs'
 import { projectPath } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -15,7 +15,7 @@ import { ensureLang, getHighlighter, langFromPath } from './syntax'
 // Single selector: returns project path if sanitizePaths is enabled, undefined otherwise.
 // Returns a primitive (string|undefined) so Zustand skips re-renders when the value is stable.
 function useSessionPath(): string | undefined {
-  return useSessionsStore(s => {
+  return useConversationsStore(s => {
     if (s.controlPanelPrefs.sanitizePaths === false) return undefined
     const sid = s.selectedSessionId
     const session = sid ? s.sessionsById[sid] : undefined
@@ -33,7 +33,7 @@ export function DiffView({
 }) {
   const [highlighted, setHighlighted] = useState<Map<string, string> | null>(null)
   const [revealed, setRevealed] = useState(false)
-  const prefs = useSessionsStore(s => s.controlPanelPrefs)
+  const prefs = useConversationsStore(s => s.controlPanelPrefs)
   const limit = resolveToolDisplay(prefs, 'Edit').lineLimit
 
   useEffect(() => {
@@ -190,7 +190,7 @@ export function ShellCommand({ command, maxLines = 10 }: { command: string; maxL
 export function WritePreview({ content, filePath }: { content: string; filePath?: string }) {
   const [html, setHtml] = useState<string | null>(null)
   const [revealed, setRevealed] = useState(false)
-  const writePrefs = useSessionsStore(s => s.controlPanelPrefs)
+  const writePrefs = useConversationsStore(s => s.controlPanelPrefs)
   const writeDisplay = resolveToolDisplay(writePrefs, 'Write')
   const limit = writeDisplay.lineLimit
   const truncated = content.length > 3000 ? content.slice(0, 3000) : content
@@ -362,7 +362,7 @@ export function BashOutput({
 // REPL code block - always visible, JS syntax highlighted
 export function ReplView({ code, isError }: { code: string; isError?: boolean }) {
   const [codeHtml, setCodeHtml] = useState<string | null>(null)
-  const replPrefs = useSessionsStore(s => s.controlPanelPrefs)
+  const replPrefs = useConversationsStore(s => s.controlPanelPrefs)
   const replDisplay = resolveToolDisplay(replPrefs, 'REPL' as ToolDisplayKey)
   const lineLimit = replDisplay.lineLimit
   const [revealed, setRevealed] = useState(false)

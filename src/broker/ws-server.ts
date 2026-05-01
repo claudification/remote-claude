@@ -5,8 +5,8 @@
 
 import type { Server, ServerWebSocket } from 'bun'
 import { parseProjectUri } from '../shared/project-uri'
-import type { Ack, AgentHostMessage, BrokerError, HookEvent, SessionEnd, SessionMeta } from '../shared/protocol'
-import type { SessionStore } from './session-store'
+import type { Ack, AgentHostMessage, BrokerError, ConversationMeta, HookEvent, SessionEnd } from '../shared/protocol'
+import type { ConversationStore } from './session-store'
 
 interface WsData {
   sessionId?: string
@@ -14,8 +14,8 @@ interface WsData {
 
 export interface WsServerOptions {
   port: number
-  sessionStore: SessionStore
-  onSessionStart?: (sessionId: string, meta: SessionMeta) => void
+  sessionStore: ConversationStore
+  onSessionStart?: (sessionId: string, meta: ConversationMeta) => void
   onSessionEnd?: (sessionId: string, reason: string) => void
   onHookEvent?: (sessionId: string, event: HookEvent) => void
 }
@@ -56,7 +56,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
 
           switch (data.type) {
             case 'meta': {
-              const meta = data as SessionMeta
+              const meta = data as ConversationMeta
               ws.data.sessionId = meta.sessionId
 
               // Check if session already exists (resume case)
@@ -89,7 +89,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
 
             case 'hook': {
               const event = data as HookEvent
-              const sessionId = ws.data.sessionId || event.sessionId
+              const sessionId = ws.data.sessionId || event.conversationId
 
               if (sessionId) {
                 sessionStore.addEvent(sessionId, event)

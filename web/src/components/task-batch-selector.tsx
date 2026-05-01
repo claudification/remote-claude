@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
 import type { ProjectTask, ProjectTaskMeta, TaskStatus } from '@/hooks/use-project'
 import { useProject } from '@/hooks/use-project'
-import { sendInput, useSessionsStore } from '@/hooks/use-sessions'
+import { sendInput, useConversationsStore } from '@/hooks/use-sessions'
 import { useKeyLayer } from '@/lib/key-layers'
 import { cn, haptic } from '@/lib/utils'
 import { Markdown } from './markdown'
@@ -297,8 +297,8 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Get a session ID for useProject -- use the first active session's wrapper
-  const selectedSessionId = useSessionsStore(s => s.selectedSessionId)
-  const sessions = useSessionsStore(s => s.sessions)
+  const selectedSessionId = useConversationsStore(s => s.selectedSessionId)
+  const sessions = useConversationsStore(s => s.sessions)
   // Find a connected session to relay project requests through
   const relaySessionId = useMemo(() => {
     // Prefer selected session, fall back to any active session

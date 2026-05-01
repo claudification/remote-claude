@@ -14,7 +14,7 @@ import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { TileToggleRow } from '@/components/ui/tile-toggle-row'
 import { TogglePill } from '@/components/ui/toggle-pill'
 import { useLaunchProgress } from '@/hooks/use-launch-progress'
-import { updateProjectSettings, useSessionsStore, wsSend } from '@/hooks/use-sessions'
+import { updateProjectSettings, useConversationsStore, wsSend } from '@/hooks/use-sessions'
 import { sendSpawnRequest } from '@/hooks/use-spawn'
 import { parseEnvText } from '@/lib/env-parse'
 import { useKeyLayer } from '@/lib/key-layers'
@@ -68,8 +68,8 @@ export function SpawnDialog() {
   // back to the spawned session if they navigated away during the countdown
   const sessionAtSpawnRef = useRef<string | null>(null)
 
-  const projectSettings = useSessionsStore(s => s.projectSettings)
-  const globalSettings = useSessionsStore(s => s.globalSettings)
+  const projectSettings = useConversationsStore(s => s.projectSettings)
+  const globalSettings = useConversationsStore(s => s.globalSettings)
 
   // Shared launch progress hook
   const progress = useLaunchProgress({
@@ -149,14 +149,14 @@ export function SpawnDialog() {
    *  Skips navigation if the user switched sessions during the spawn countdown. */
   const handleClose = useCallback(() => {
     addedConnectedStepRef.current = false
-    const currentId = useSessionsStore.getState().selectedSessionId
+    const currentId = useConversationsStore.getState().selectedSessionId
     const userNavigatedAway = currentId !== sessionAtSpawnRef.current && currentId !== null
     const sid =
       progress.launch.sessionId ||
       (progress.spawnedSession && progress.spawnedSession.status !== 'ended' ? progress.spawnedSession.id : null)
 
     if (sid && !userNavigatedAway) {
-      useSessionsStore.getState().selectSession(sid, 'spawn-dialog-close')
+      useConversationsStore.getState().selectSession(sid, 'spawn-dialog-close')
     } else if (sid && userNavigatedAway) {
       console.log(
         `[nav] spawn-dialog: NOT switching to ${sid.slice(0, 8)} -- user navigated to ${currentId?.slice(0, 8)} during spawn`,
@@ -169,7 +169,7 @@ export function SpawnDialog() {
   /** Explicitly navigate to the spawned session and close. */
   const handleViewSession = useCallback(() => {
     const sid = progress.launch.sessionId || progress.spawnedSession?.id
-    if (sid) useSessionsStore.getState().selectSession(sid, 'spawn-dialog-view-session')
+    if (sid) useConversationsStore.getState().selectSession(sid, 'spawn-dialog-view-session')
     progress.setViewCountdown(null)
     setState({ open: false, options: null })
     setJobId(null)
@@ -188,7 +188,7 @@ export function SpawnDialog() {
     }
 
     setPhase('launching')
-    sessionAtSpawnRef.current = useSessionsStore.getState().selectedSessionId
+    sessionAtSpawnRef.current = useConversationsStore.getState().selectedSessionId
     haptic('tap')
 
     // Generate jobId and subscribe BEFORE making the HTTP request

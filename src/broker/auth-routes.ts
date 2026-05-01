@@ -196,7 +196,7 @@ export function requireAuth(req: Request): Response | null {
   // API paths (/sessions, /file, etc.) must NEVER fall through without auth
   const accept = req.headers.get('accept') || ''
   const isApiPath =
-    url.pathname.startsWith('/sessions') || url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')
+    url.pathname.startsWith('/conversations') || url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')
   if (accept.includes('text/html') && !isApiPath) {
     return null // SPA handles showing login screen
   }

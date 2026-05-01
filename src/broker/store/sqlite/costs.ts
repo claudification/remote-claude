@@ -132,7 +132,7 @@ export function createSqliteCostStore(db: Database): CostStore {
   }
 
   function recordTurnFromCumulatives(params: CumulativeTurnInput): boolean {
-    const prev = lastSnapshot.get(params.sessionId) ?? {
+    const prev = lastSnapshot.get(params.conversationId) ?? {
       inputTokens: 0,
       outputTokens: 0,
       cacheRead: 0,
@@ -150,7 +150,7 @@ export function createSqliteCostStore(db: Database): CostStore {
 
     recordTurn({
       timestamp: params.timestamp,
-      sessionId: params.sessionId,
+      sessionId: params.conversationId,
       projectUri: normalizeUri(params.projectUri),
       account: params.account,
       orgId: params.orgId,
@@ -163,7 +163,7 @@ export function createSqliteCostStore(db: Database): CostStore {
       exactCost: params.exactCost,
     })
 
-    lastSnapshot.set(params.sessionId, {
+    lastSnapshot.set(params.conversationId, {
       inputTokens: params.totalInputTokens,
       outputTokens: params.totalOutputTokens,
       cacheRead: params.totalCacheRead,

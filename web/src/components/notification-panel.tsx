@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { renderProjectIcon } from '@/components/project-settings-editor'
 import { BannerButton, SessionBanner } from '@/components/ui/session-banner'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { projectPath } from '@/lib/types'
 import { haptic, projectDisplayName } from '@/lib/utils'
 
@@ -18,19 +18,19 @@ interface GroupedItem {
 }
 
 export function NotificationPanel({ onClose }: NotificationPanelProps) {
-  const sessions = useSessionsStore(s => s.sessionsById)
-  const projectSettings = useSessionsStore(s => s.projectSettings)
-  const selectSession = useSessionsStore(s => s.selectSession)
+  const sessions = useConversationsStore(s => s.sessionsById)
+  const projectSettings = useConversationsStore(s => s.projectSettings)
+  const selectSession = useConversationsStore(s => s.selectSession)
 
-  const perms = useSessionsStore(s => s.pendingPermissions)
-  const respondPerm = useSessionsStore(s => s.respondToPermission)
-  const sendRule = useSessionsStore(s => s.sendPermissionRule)
-  const links = useSessionsStore(s => s.pendingProjectLinks)
-  const respondLink = useSessionsStore(s => s.respondToProjectLink)
-  const asks = useSessionsStore(s => s.pendingAskQuestions)
-  const dialogs = useSessionsStore(s => s.pendingDialogs)
-  const notifs = useSessionsStore(s => s.notifications)
-  const dismissNotif = useSessionsStore(s => s.dismissNotification)
+  const perms = useConversationsStore(s => s.pendingPermissions)
+  const respondPerm = useConversationsStore(s => s.respondToPermission)
+  const sendRule = useConversationsStore(s => s.sendPermissionRule)
+  const links = useConversationsStore(s => s.pendingProjectLinks)
+  const respondLink = useConversationsStore(s => s.respondToProjectLink)
+  const asks = useConversationsStore(s => s.pendingAskQuestions)
+  const dialogs = useConversationsStore(s => s.pendingDialogs)
+  const notifs = useConversationsStore(s => s.notifications)
+  const dismissNotif = useConversationsStore(s => s.dismissNotification)
 
   const items: GroupedItem[] = []
 

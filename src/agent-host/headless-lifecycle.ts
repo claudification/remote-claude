@@ -116,8 +116,8 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       // Forward full init metadata to broker for dashboard autocomplete
       if (ctx.wsClient?.isConnected()) {
         ctx.wsClient.send({
-          type: 'session_info',
-          sessionId: ctx.claudeSessionId || ctx.conversationId,
+          type: 'conversation_info',
+          conversationId: ctx.claudeSessionId || ctx.conversationId,
           tools: (init.tools as Array<{ name: string } | string>)?.map(t => (typeof t === 'string' ? t : t.name)) || [],
           slashCommands: (init.slash_commands as string[]) || [],
           skills: (init.skills as string[]) || [],

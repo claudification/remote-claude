@@ -210,7 +210,7 @@ const NOUNS = [
  * @param maxRetries - Maximum collision retries before appending a number
  * @returns A unique funny name like "quantum-muffin"
  */
-export function generateSessionName(usedNames?: Set<string>, maxRetries = 10): string {
+export function generateConversationName(usedNames?: Set<string>, maxRetries = 10): string {
   for (let i = 0; i < maxRetries; i++) {
     const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]
     const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)]

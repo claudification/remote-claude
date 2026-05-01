@@ -324,7 +324,7 @@ export function applyHashRoute() {
   // Listen for postMessage from service worker (notification click deep links)
   navigator.serviceWorker?.addEventListener('message', event => {
     if (event.data?.type === 'navigate-session' && event.data.sessionId) {
-      useSessionsStore.getState().selectSession(event.data.sessionId, 'sw-navigate-session')
+      useConversationsStore.getState().selectSession(event.data.sessionId, 'sw-navigate-session')
     }
     if (event.data?.type === 'navigate-task' && event.data.taskId) {
       window.dispatchEvent(new CustomEvent('open-project-task', { detail: { taskId: event.data.taskId } }))
@@ -347,7 +347,7 @@ function findBestSessionForProject(sessions: Session[], projectUri: string): Ses
 function applyDefaultSession() {
   if (defaultApplied) return
   defaultApplied = true
-  const store = useSessionsStore.getState()
+  const store = useConversationsStore.getState()
   // Don't override if a session was already selected (hash route, deep link, etc.)
   if (store.selectedSessionId) return
 
@@ -382,7 +382,7 @@ function processHash() {
   const [mode, id] = hash.split('/')
   if (!id) return
 
-  const store = useSessionsStore.getState()
+  const store = useConversationsStore.getState()
   if (mode === 'terminal') {
     store.openTerminal(id) // id is conversationId
   } else if (mode === 'session') {
@@ -400,7 +400,7 @@ export function buildSessionsById(sessions: Session[]): Record<string, Session> 
   return map
 }
 
-export const useSessionsStore = create<SessionsState>((set, get) => ({
+export const useConversationsStore = create<SessionsState>((set, get) => ({
   sessions: [],
   sessionsById: {},
   selectedSessionId: null,
@@ -442,7 +442,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   pendingProjectLinks: [],
   respondToProjectLink: (fromSession, toSession, action) => {
     wsSend('channel_link_response', { fromSession, toSession, action })
-    useSessionsStore.setState(state => ({
+    useConversationsStore.setState(state => ({
       pendingProjectLinks: state.pendingProjectLinks.filter(
         r => !(r.fromSession === fromSession && r.toSession === toSession),
       ),
@@ -451,7 +451,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   pendingPermissions: [],
   respondToPermission: (sessionId, requestId, behavior) => {
     wsSend('permission_response', { sessionId, requestId, behavior })
-    useSessionsStore.setState(state => ({
+    useConversationsStore.setState(state => ({
       pendingPermissions: state.pendingPermissions.filter(p => p.requestId !== requestId),
     }))
   },
@@ -461,7 +461,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   pendingAskQuestions: [],
   respondToAskQuestion: (sessionId, toolUseId, answers, annotations, skip) => {
     wsSend('ask_answer', { sessionId, toolUseId, answers, annotations, skip })
-    useSessionsStore.setState(state => ({
+    useConversationsStore.setState(state => ({
       pendingAskQuestions: state.pendingAskQuestions.filter(q => q.toolUseId !== toolUseId),
     }))
   },
@@ -542,16 +542,16 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
   clipboardCaptures: [],
   dismissClipboard: id =>
-    useSessionsStore.setState(state => ({
+    useConversationsStore.setState(state => ({
       clipboardCaptures: state.clipboardCaptures.filter(c => c.id !== id),
     })),
   notifications: [],
   dismissNotification: id =>
-    useSessionsStore.setState(state => ({
+    useConversationsStore.setState(state => ({
       notifications: state.notifications.filter(n => n.id !== id),
     })),
   clearSessionNotifications: sessionId =>
-    useSessionsStore.setState(state => ({
+    useConversationsStore.setState(state => ({
       notifications: state.notifications.filter(n => n.sessionId !== sessionId),
     })),
   requestedTab: null,
@@ -562,7 +562,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   renamingSessionId: null,
   setRenamingSessionId: sessionId => set({ renamingSessionId: sessionId }),
   renameSession: (sessionId, name, description) => {
-    wsSend('rename_session', { sessionId, name, ...(description !== undefined ? { description } : {}) })
+    wsSend('rename_conversation', { sessionId, name, ...(description !== undefined ? { description } : {}) })
     set(state => {
       const sessions = state.sessions.map(s =>
         s.id === sessionId
@@ -581,7 +581,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   updateDescription: (sessionId, description) => {
     const session = get().sessionsById[sessionId]
     const name = session?.title || ''
-    wsSend('rename_session', { sessionId, name, description })
+    wsSend('rename_conversation', { sessionId, name, description })
     set(state => {
       const sessions = state.sessions.map(s =>
         s.id === sessionId ? { ...s, description: description || undefined } : s,
@@ -695,7 +695,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     if (id) {
       const session = get().sessionsById[id]
       if (session?.hasNotification) {
-        get().sendWsMessage({ type: 'session_viewed', sessionId: id })
+        get().sendWsMessage({ type: 'conversation_viewed', sessionId: id })
       }
       get().clearSessionNotifications(id)
     }
@@ -812,7 +812,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
   dismissSession: sessionId => {
-    wsSend('dismiss_session', { sessionId })
+    wsSend('dismiss_conversation', { sessionId })
     set(state => {
       const sessions = state.sessions.filter(s => s.id !== sessionId)
       if (state.selectedSessionId === sessionId) {
@@ -826,7 +826,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     })
   },
   terminateSession: sessionId => {
-    wsSend('terminate_session', { sessionId })
+    wsSend('terminate_conversation', { sessionId })
   },
 
   getSelectedSession: () => {
@@ -850,7 +850,7 @@ const API_BASE = ''
  * Handles JSON serialization and readyState check.
  */
 export function wsSend(type: string, data?: Record<string, unknown>): boolean {
-  const ws = useSessionsStore.getState().ws
+  const ws = useConversationsStore.getState().ws
   if (!ws || ws.readyState !== WebSocket.OPEN) return false
   const json = JSON.stringify({ type, ...data })
   recordOut(json.length)
@@ -859,7 +859,7 @@ export function wsSend(type: string, data?: Record<string, unknown>): boolean {
 }
 
 export async function fetchSessionEvents(sessionId: string): Promise<HookEvent[]> {
-  const res = await fetch(appendShareParam(`${API_BASE}/sessions/${sessionId}/events?limit=200`))
+  const res = await fetch(appendShareParam(`${API_BASE}/conversations/${sessionId}/events?limit=200`))
   if (!res.ok) throw new Error('Failed to fetch events')
   return res.json()
 }
@@ -884,7 +884,7 @@ export interface TranscriptFetchResult {
 export async function fetchTranscript(sessionId: string, sinceSeq?: number): Promise<TranscriptFetchResult | null> {
   try {
     const qs = sinceSeq !== undefined ? `?sinceSeq=${sinceSeq}&limit=1000` : `?limit=500`
-    const res = await fetch(appendShareParam(`${API_BASE}/sessions/${sessionId}/transcript${qs}`))
+    const res = await fetch(appendShareParam(`${API_BASE}/conversations/${sessionId}/transcript${qs}`))
     if (!res.ok) return null
     const body = await res.json()
     return body as TranscriptFetchResult
@@ -894,13 +894,13 @@ export async function fetchTranscript(sessionId: string, sinceSeq?: number): Pro
 }
 
 export async function fetchSubagents(sessionId: string): Promise<SubagentInfo[]> {
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}/subagents`)
+  const res = await fetch(`${API_BASE}/conversations/${sessionId}/subagents`)
   if (!res.ok) return []
   return res.json()
 }
 
 export async function fetchSubagentTranscript(sessionId: string, agentId: string): Promise<TranscriptEntry[]> {
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}/subagents/${agentId}/transcript?limit=500`)
+  const res = await fetch(`${API_BASE}/conversations/${sessionId}/subagents/${agentId}/transcript?limit=500`)
   if (!res.ok) return []
   return res.json()
 }
@@ -914,7 +914,7 @@ interface ReviveSessionOptions {
 
 export function reviveSession(sessionId: string, options: ReviveSessionOptions = {}): boolean {
   const { headless, jobId, model, effort } = options
-  return wsSend('revive_session', {
+  return wsSend('revive_conversation', {
     sessionId,
     ...(headless !== undefined && { headless }),
     ...(jobId && { jobId }),
@@ -954,7 +954,7 @@ function sendSessionControl(
   action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode',
   opts: { model?: string; effort?: string; permissionMode?: string } = {},
 ): boolean {
-  return wsSend('session_control', {
+  return wsSend('conversation_control', {
     targetSession: sessionId,
     action,
     ...(opts.model && { model: opts.model }),
@@ -975,7 +975,7 @@ export function sendInput(sessionId: string, input: string): boolean {
       permissionMode: control.permissionMode,
     })
   }
-  const crDelay = (useSessionsStore.getState().globalSettings.carriageReturnDelay as number) || 0
+  const crDelay = (useConversationsStore.getState().globalSettings.carriageReturnDelay as number) || 0
   const ok = wsSend('send_input', { sessionId, input, ...(crDelay > 0 && { crDelay }) })
   // User messages for headless sessions are emitted by the wrapper's
   // sendUserMessage() directly to the broker, which persists + broadcasts.

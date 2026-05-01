@@ -9,11 +9,11 @@ import { mapProjectTrust, type SpawnCallerContext } from '../../shared/spawn-per
 import { spawnRequestSchema } from '../../shared/spawn-schema'
 import { getGlobalSettings } from '../global-settings'
 import { getProjectSettings } from '../project-settings'
-import type { SessionStore } from '../session-store'
+import type { ConversationStore } from '../session-store'
 import { dispatchSpawn } from '../spawn-dispatch'
 import type { RouteHelpers } from './shared'
 
-export function createSpawnRouter(sessionStore: SessionStore, helpers: RouteHelpers): Hono {
+export function createSpawnRouter(sessionStore: ConversationStore, helpers: RouteHelpers): Hono {
   const { httpHasPermission } = helpers
   const app = new Hono()
 

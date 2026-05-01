@@ -10,7 +10,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { resolveToolDisplay } from '@/lib/control-panel-prefs'
 import { projectPath } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -21,7 +21,7 @@ const CONTENT_LINE_DEFAULT_LIMIT = 40
 const COUNT_BAR_DEFAULT_LIMIT = 25
 
 function useSessionPath(): string | undefined {
-  return useSessionsStore(s => {
+  return useConversationsStore(s => {
     if (s.controlPanelPrefs.sanitizePaths === false) return undefined
     const sid = s.selectedSessionId
     const session = sid ? s.sessionsById[sid] : undefined
@@ -30,7 +30,7 @@ function useSessionPath(): string | undefined {
 }
 
 function useToolLineLimit(tool: 'Grep' | 'Glob', fallback: number): number {
-  return useSessionsStore(s => {
+  return useConversationsStore(s => {
     const v = resolveToolDisplay(s.controlPanelPrefs, tool).lineLimit
     return v > 0 ? v : fallback
   })

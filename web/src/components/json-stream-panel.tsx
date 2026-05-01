@@ -1,6 +1,6 @@
 import { Check, ChevronRight, Copy, EyeOff, Filter, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { type JsonStreamMessage, useSessionsStore } from '@/hooks/use-sessions'
+import { type JsonStreamMessage, useConversationsStore } from '@/hooks/use-sessions'
 import { cn } from '@/lib/utils'
 
 interface JsonStreamPanelProps {
@@ -171,9 +171,9 @@ function truncate(s: string, max: number): string {
 }
 
 export function JsonStreamPanel({ conversationId }: JsonStreamPanelProps) {
-  const sendWsMessage = useSessionsStore(state => state.sendWsMessage)
-  const setJsonStreamHandler = useSessionsStore(state => state.setJsonStreamHandler)
-  const isConnected = useSessionsStore(state => state.isConnected)
+  const sendWsMessage = useConversationsStore(state => state.sendWsMessage)
+  const setJsonStreamHandler = useConversationsStore(state => state.setJsonStreamHandler)
+  const isConnected = useConversationsStore(state => state.isConnected)
   const [lines, setLines] = useState<ParsedLine[]>([])
   const [filter, setFilter] = useState<FilterType>('all')
   const [showFilter, setShowFilter] = useState(false)

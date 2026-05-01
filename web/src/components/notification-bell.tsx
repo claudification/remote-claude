@@ -2,7 +2,7 @@ import { Bell } from 'lucide-react'
 import { Popover } from 'radix-ui'
 import { useState } from 'react'
 import { NotificationPanel } from '@/components/notification-panel'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { useCommand } from '@/lib/commands'
 import { haptic } from '@/lib/utils'
 
@@ -15,11 +15,11 @@ const EMPTY_DIALOGS: Record<string, never> = {}
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
 
-  const perms = useSessionsStore(s => s.pendingPermissions) || EMPTY_PERMS
-  const links = useSessionsStore(s => s.pendingProjectLinks) || EMPTY_LINKS
-  const asks = useSessionsStore(s => s.pendingAskQuestions) || EMPTY_ASKS
-  const notifs = useSessionsStore(s => s.notifications) || EMPTY_NOTIFS
-  const dialogs = useSessionsStore(s => s.pendingDialogs) || EMPTY_DIALOGS
+  const perms = useConversationsStore(s => s.pendingPermissions) || EMPTY_PERMS
+  const links = useConversationsStore(s => s.pendingProjectLinks) || EMPTY_LINKS
+  const asks = useConversationsStore(s => s.pendingAskQuestions) || EMPTY_ASKS
+  const notifs = useConversationsStore(s => s.notifications) || EMPTY_NOTIFS
+  const dialogs = useConversationsStore(s => s.pendingDialogs) || EMPTY_DIALOGS
 
   const planApprovalCount = Object.values(dialogs).filter(d => d.source === 'plan_approval').length
   const totalCount = perms.length + links.length + asks.length + notifs.length + planApprovalCount

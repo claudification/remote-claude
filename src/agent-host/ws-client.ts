@@ -11,16 +11,16 @@ import type {
   BootEvent,
   BootStep,
   BrokerMessage,
+  ConversationMeta,
   FileResponse,
   Heartbeat,
   HookEvent,
+  InterConversationListResponse,
   InterSessionDelivery,
-  InterSessionListResponse,
   LaunchConfig,
   ProjectLinkRequest,
   SessionClear,
   SessionEnd,
-  SessionMeta,
   SessionPromote,
   SubagentTranscript,
   TerminalData,
@@ -78,8 +78,8 @@ export interface WsClientOptions {
   onAck?: (origins: string[]) => void
   onTranscriptKick?: () => void
   onChannelSessionsList?: (
-    sessions: InterSessionListResponse['sessions'],
-    self?: InterSessionListResponse['self'],
+    sessions: InterConversationListResponse['sessions'],
+    self?: InterConversationListResponse['self'],
   ) => void
   onChannelSendResult?: (result: unknown) => void
   onChannelDeliver?: (delivery: InterSessionDelivery) => void
@@ -270,7 +270,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
           if (sessionId) {
             // Normal flow: CC session id already known -> `meta` creates/resumes
             // the real session on the broker.
-            const meta: SessionMeta = {
+            const meta: ConversationMeta = {
               type: 'meta',
               sessionId,
               conversationId,
@@ -329,7 +329,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
               try {
                 const heartbeat: Heartbeat = {
                   type: 'heartbeat',
-                  sessionId: routeId(),
+                  conversationId: routeId(),
                   timestamp: Date.now(),
                 }
                 ws?.send(JSON.stringify(heartbeat))
@@ -458,7 +458,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
             case 'interrupt':
               onInterrupt?.()
               break
-            case 'terminate_session':
+            case 'terminate_conversation':
               onQuitSession?.()
               break
             case 'control': {
@@ -554,7 +554,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
                 onChannelRenameResult?.(message as unknown as { ok: boolean; error?: string })
                 break
               }
-              if (msgType === 'session_control_result') {
+              if (msgType === 'conversation_control_result') {
                 onSessionControlResult?.(
                   message as unknown as { ok: boolean; error?: string; name?: string; action?: string },
                 )
@@ -670,7 +670,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
   function sendTranscriptEntries(entries: TranscriptEntry[], isInitial: boolean) {
     const msg: TranscriptEntries = {
       type: 'transcript_entries',
-      sessionId: routeId(),
+      conversationId: routeId(),
       entries,
       isInitial,
     }
@@ -680,7 +680,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
   function sendSubagentTranscript(agentId: string, entries: TranscriptEntry[], isInitial: boolean) {
     const msg: SubagentTranscript = {
       type: 'subagent_transcript',
-      sessionId: routeId(),
+      conversationId: routeId(),
       agentId,
       entries,
       isInitial,
@@ -702,7 +702,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
   function sendBgTaskOutput(taskId: string, data: string, done: boolean) {
     const msg: BgTaskOutput = {
       type: 'bg_task_output',
-      sessionId: routeId(),
+      conversationId: routeId(),
       taskId,
       data,
       done,
@@ -736,7 +736,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     send(promote)
     // Then send meta so the broker resumes/creates the real session with
     // full metadata (the boot payload only had a subset of fields).
-    const meta: SessionMeta = {
+    const meta: ConversationMeta = {
       type: 'meta',
       sessionId: newSessionId,
       conversationId,
@@ -792,13 +792,13 @@ export function createWsClient(options: WsClientOptions): WsClient {
       send({ type: 'json_stream_data', conversationId, lines, isBackfill } as AgentHostMessage)
     },
     sendStreamDelta(event: Record<string, unknown>) {
-      send({ type: 'stream_delta', sessionId: routeId(), event } as AgentHostMessage)
+      send({ type: 'stream_delta', conversationId: routeId(), event } as AgentHostMessage)
     },
     sendRateLimit(retryAfterMs: number, message: string) {
-      send({ type: 'rate_limit', sessionId: routeId(), retryAfterMs, message } as AgentHostMessage)
+      send({ type: 'rate_limit', conversationId: routeId(), retryAfterMs, message } as AgentHostMessage)
     },
     sendSessionStatus(status: 'active' | 'idle') {
-      send({ type: 'session_status', sessionId: routeId(), status } as AgentHostMessage)
+      send({ type: 'conversation_status', conversationId: routeId(), status } as AgentHostMessage)
     },
     sendBootEvent,
     setSessionId,

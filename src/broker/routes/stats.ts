@@ -9,12 +9,12 @@ import {
   queryTimeSeries as queryAnalyticsTimeSeries,
 } from '../analytics-store'
 import { listProjects } from '../project-store'
-import type { SessionStore } from '../session-store'
+import type { ConversationStore } from '../session-store'
 import type { StoreDriver } from '../store/types'
 import type { RouteHelpers } from './shared'
 
 export function createStatsRouter(
-  sessionStore: SessionStore,
+  sessionStore: ConversationStore,
   store: StoreDriver,
   helpers: RouteHelpers,
   serverStartTime: number,

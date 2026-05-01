@@ -4,7 +4,7 @@ import {
   type RclaudePermissionConfig,
   requestRclaudeConfig,
   saveRclaudeConfig,
-  useSessionsStore,
+  useConversationsStore,
 } from '@/hooks/use-sessions'
 import { projectPath } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -221,7 +221,7 @@ function ToolSection({
 }
 
 export function PermissionRulesEditor({ project }: PermissionRulesEditorProps) {
-  const hasConfigRw = useSessionsStore(s =>
+  const hasConfigRw = useConversationsStore(s =>
     s.sessions.some(sess => sess.project === project && sess.capabilities?.includes('config_rw')),
   )
   const [rules, setRules] = useState<Record<Tool, string[]>>({ Write: [], Edit: [], Read: [] })

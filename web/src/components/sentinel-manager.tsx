@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { haptic } from '@/lib/utils'
 
 interface SentinelEntry {
@@ -96,7 +96,7 @@ function SentinelList() {
   const [creating, setCreating] = useState(false)
   const [newAlias, setNewAlias] = useState('')
   const [createdSecret, setCreatedSecret] = useState<string | null>(null)
-  const connectedSentinels = useSessionsStore(s => s.sentinels)
+  const connectedSentinels = useConversationsStore(s => s.sentinels)
 
   const fetchSentinels = useCallback(() => {
     setLoading(true)

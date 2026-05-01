@@ -5,7 +5,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { extractProjectLabel } from '../../shared/project-uri'
-import type { SessionControlAction } from '../../shared/protocol'
+import type { ConversationControlAction } from '../../shared/protocol'
 import { resolveSpawnConfig } from '../../shared/spawn-defaults'
 import { mapProjectTrust, type SpawnCallerContext } from '../../shared/spawn-permissions'
 import { type SpawnRequest, spawnRequestSchema } from '../../shared/spawn-schema'
@@ -266,7 +266,7 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
   })
 
   // Terminate the target
-  targetWs.send(JSON.stringify({ type: 'terminate_session', sessionId: target.id }))
+  targetWs.send(JSON.stringify({ type: 'terminate_conversation', sessionId: target.id }))
 
   const projSettings = ctx.getProjectSettings(target.project)
   const name = target.title || projSettings?.label || extractProjectLabel(target.project)
@@ -336,24 +336,24 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
   const fromSession = (data.fromSession as string) || ctx.ws.data.sessionId
 
   if (!targetId) {
-    ctx.reply({ type: 'session_control_result', ok: false, error: 'Missing targetSession' })
+    ctx.reply({ type: 'conversation_control_result', ok: false, error: 'Missing targetSession' })
     return
   }
   if (!VALID_CONTROL_ACTIONS.has(action)) {
-    ctx.reply({ type: 'session_control_result', ok: false, action, error: `Unknown action "${action}"` })
+    ctx.reply({ type: 'conversation_control_result', ok: false, action, error: `Unknown action "${action}"` })
     return
   }
   if (action === 'set_model' && !model) {
-    ctx.reply({ type: 'session_control_result', ok: false, action, error: 'model is required for set_model' })
+    ctx.reply({ type: 'conversation_control_result', ok: false, action, error: 'model is required for set_model' })
     return
   }
   if (action === 'set_effort' && !effort) {
-    ctx.reply({ type: 'session_control_result', ok: false, action, error: 'effort is required for set_effort' })
+    ctx.reply({ type: 'conversation_control_result', ok: false, action, error: 'effort is required for set_effort' })
     return
   }
   if (action === 'set_permission_mode' && !permissionMode) {
     ctx.reply({
-      type: 'session_control_result',
+      type: 'conversation_control_result',
       ok: false,
       action,
       error: 'permissionMode is required for set_permission_mode',
@@ -375,7 +375,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
     callerProject: callerSess?.project,
   })
   if (resolved.kind !== 'resolved') {
-    ctx.reply({ type: 'session_control_result', ok: false, action, error: resolved.error })
+    ctx.reply({ type: 'conversation_control_result', ok: false, action, error: resolved.error })
     return
   }
   const targetSess = ctx.sessions.getSession(resolved.session.id)
@@ -384,7 +384,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
     ctx.sessions.getSessionSocket(resolved.session.id)
   if (!targetSess || !targetWs) {
     ctx.reply({
-      type: 'session_control_result',
+      type: 'conversation_control_result',
       ok: false,
       action,
       error: 'Target not connected. Use list_sessions to find current sessions.',
@@ -392,7 +392,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
     return
   }
   if (targetSess.status === 'ended') {
-    ctx.reply({ type: 'session_control_result', ok: false, action, error: 'Session has ended' })
+    ctx.reply({ type: 'conversation_control_result', ok: false, action, error: 'Session has ended' })
     return
   }
 
@@ -402,7 +402,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
   } else if (ctx.ws.data.sessionId) {
     ctx.requireBenevolent()
   } else {
-    ctx.reply({ type: 'session_control_result', ok: false, action, error: 'Not authorized' })
+    ctx.reply({ type: 'conversation_control_result', ok: false, action, error: 'Not authorized' })
     return
   }
 
@@ -424,9 +424,9 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
   }
 
   ctx.reply({
-    type: 'session_control_result',
+    type: 'conversation_control_result',
     ok: true,
-    action: action as SessionControlAction,
+    action: action as ConversationControlAction,
     name: targetSess.title || extractProjectLabel(targetSess.project),
   })
   ctx.log.debug(

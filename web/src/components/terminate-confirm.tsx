@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { useKeyLayer } from '@/lib/key-layers'
 import { haptic } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
@@ -26,7 +26,7 @@ export function openTerminateConfirm(sessionId: string, sessionName: string | nu
 
 export function TerminateConfirmDialog() {
   const [state, setState] = useState<TerminateConfirmState>({ open: false, sessionId: null, sessionName: null })
-  const terminateSession = useSessionsStore(s => s.terminateSession)
+  const terminateSession = useConversationsStore(s => s.terminateSession)
 
   useEffect(() => {
     _open = (sessionId, sessionName) => {

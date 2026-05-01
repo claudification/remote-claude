@@ -6,7 +6,7 @@
 import { AlertTriangle, FileText } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useProject } from '@/hooks/use-project'
-import { useSessionsStore } from '@/hooks/use-sessions'
+import { useConversationsStore } from '@/hooks/use-sessions'
 import { useChordCommand, useCommand } from '@/lib/commands'
 import { haptic } from '@/lib/utils'
 import { InputEditor } from './input-editor'
@@ -18,8 +18,8 @@ export function QuickTaskModal() {
   const [text, setText] = useState('')
   const [flash, setFlash] = useState(false)
 
-  const selectedSessionId = useSessionsStore(state => state.selectedSessionId)
-  const session = useSessionsStore(state =>
+  const selectedSessionId = useConversationsStore(state => state.selectedSessionId)
+  const session = useConversationsStore(state =>
     state.selectedSessionId ? state.sessionsById[state.selectedSessionId] : undefined,
   )
   const isActive = session != null && session.status !== 'ended'
