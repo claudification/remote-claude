@@ -14,7 +14,7 @@ import { registerHandlers } from '../message-router'
 const permissionRequest: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
 
   // Store for reconnect recovery (same pattern as pendingDialog/pendingPlanApproval)
   if (session) {
@@ -31,7 +31,7 @@ const permissionRequest: MessageHandler = (ctx, data) => {
       toolName: data.toolName as string,
       timestamp: Date.now(),
     }
-    ctx.sessions.broadcastConversationUpdate(sessionId)
+    ctx.conversations.broadcastConversationUpdate(sessionId)
   }
 
   const msg = {
@@ -51,9 +51,9 @@ const permissionRequest: MessageHandler = (ctx, data) => {
 // Permission relay: dashboard -> wrapper (forward + clear stored state)
 const permissionResponse: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
-  const sess = sessionId ? ctx.sessions.getConversation(sessionId) : undefined
+  const sess = sessionId ? ctx.conversations.getConversation(sessionId) : undefined
   if (sess) ctx.requirePermission('chat', sess.project)
-  const targetWs = sessionId ? ctx.sessions.getConversationSocket(sessionId) : null
+  const targetWs = sessionId ? ctx.conversations.getConversationSocket(sessionId) : null
   if (targetWs) {
     targetWs.send(
       JSON.stringify({
@@ -70,7 +70,7 @@ const permissionResponse: MessageHandler = (ctx, data) => {
       if (sess.pendingAttention?.type === 'permission') {
         delete sess.pendingAttention
       }
-      ctx.sessions.broadcastConversationUpdate(sessionId)
+      ctx.conversations.broadcastConversationUpdate(sessionId)
     }
     ctx.log.debug(`[permission] Response: ${data.requestId} -> ${data.behavior}`)
   }
@@ -79,9 +79,9 @@ const permissionResponse: MessageHandler = (ctx, data) => {
 // Permission rule: dashboard -> wrapper (session-scoped auto-approve)
 const permissionRule: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
-  const sess = sessionId ? ctx.sessions.getConversation(sessionId) : undefined
+  const sess = sessionId ? ctx.conversations.getConversation(sessionId) : undefined
   if (sess) ctx.requirePermission('chat', sess.project)
-  const targetWs = sessionId ? ctx.sessions.getConversationSocket(sessionId) : null
+  const targetWs = sessionId ? ctx.conversations.getConversationSocket(sessionId) : null
   if (targetWs) {
     targetWs.send(
       JSON.stringify({
@@ -98,7 +98,7 @@ const permissionRule: MessageHandler = (ctx, data) => {
 const permissionAutoApproved: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
   const msg = {
     type: 'permission_auto_approved',
     sessionId,
@@ -114,7 +114,7 @@ const permissionAutoApproved: MessageHandler = (ctx, data) => {
 const clipboardCapture: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
   const msg = {
     type: 'clipboard_capture',
     sessionId,
@@ -133,7 +133,7 @@ const clipboardCapture: MessageHandler = (ctx, data) => {
 const askQuestion: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
 
   // Store for reconnect recovery (same pattern as pendingPermission)
   if (session) {
@@ -147,7 +147,7 @@ const askQuestion: MessageHandler = (ctx, data) => {
       toolName: 'AskUserQuestion',
       timestamp: Date.now(),
     }
-    ctx.sessions.broadcastConversationUpdate(sessionId)
+    ctx.conversations.broadcastConversationUpdate(sessionId)
   }
 
   const msg = {
@@ -166,9 +166,9 @@ const askQuestion: MessageHandler = (ctx, data) => {
 // AskUserQuestion relay: dashboard -> wrapper (forward + clear stored state)
 const askAnswer: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
-  const sess = sessionId ? ctx.sessions.getConversation(sessionId) : undefined
+  const sess = sessionId ? ctx.conversations.getConversation(sessionId) : undefined
   if (sess) ctx.requirePermission('chat', sess.project)
-  const targetWs = sessionId ? ctx.sessions.getConversationSocket(sessionId) : null
+  const targetWs = sessionId ? ctx.conversations.getConversationSocket(sessionId) : null
   if (targetWs) {
     targetWs.send(
       JSON.stringify({
@@ -186,7 +186,7 @@ const askAnswer: MessageHandler = (ctx, data) => {
       if (sess.pendingAttention?.type === 'ask') {
         delete sess.pendingAttention
       }
-      ctx.sessions.broadcastConversationUpdate(sessionId)
+      ctx.conversations.broadcastConversationUpdate(sessionId)
     }
     ctx.log.debug(`[ask] Answer: ${(data.toolUseId as string)?.slice(0, 12)} ${data.skip ? 'SKIP' : 'answered'}`)
   }

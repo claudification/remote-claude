@@ -12,7 +12,7 @@ const planApproval: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return
 
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
   if (session) {
     // Store for reconnect recovery (same pattern as pendingDialog)
     session.pendingPlanApproval = {
@@ -28,7 +28,7 @@ const planApproval: MessageHandler = (ctx, data) => {
       question: 'Plan approval required',
       timestamp: Date.now(),
     }
-    ctx.sessions.broadcastConversationUpdate(sessionId)
+    ctx.conversations.broadcastConversationUpdate(sessionId)
   }
 
   const msg = {
@@ -51,7 +51,7 @@ const planApprovalResponse: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   if (!sessionId) return
 
-  const sess = ctx.sessions.getConversation(sessionId)
+  const sess = ctx.conversations.getConversation(sessionId)
   if (sess) ctx.requirePermission('chat', sess.project)
 
   // Clear pending state + dismiss dialog on ALL subscribers
@@ -60,14 +60,14 @@ const planApprovalResponse: MessageHandler = (ctx, data) => {
     if (sess.pendingAttention?.type === 'plan_approval') {
       delete sess.pendingAttention
     }
-    ctx.sessions.broadcastConversationUpdate(sessionId)
+    ctx.conversations.broadcastConversationUpdate(sessionId)
     // Dismiss the dialog on all dashboard clients (not just the one that responded)
     const dismissMsg = { type: 'plan_approval_dismissed', sessionId }
     if (sess.project) ctx.broadcastScoped(dismissMsg, sess.project)
     else ctx.broadcast(dismissMsg)
   }
 
-  const targetWs = ctx.sessions.getConversationSocket(sessionId)
+  const targetWs = ctx.conversations.getConversationSocket(sessionId)
   if (targetWs) {
     targetWs.send(
       JSON.stringify({
@@ -90,7 +90,7 @@ const planModeChanged: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return
 
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
   if (session) {
     session.planMode = data.planMode as boolean
     // Exiting plan mode: clear pending approval + dismiss dialog on all clients
@@ -101,7 +101,7 @@ const planModeChanged: MessageHandler = (ctx, data) => {
       if (session.project) ctx.broadcastScoped(dismissMsg, session.project)
       else ctx.broadcast(dismissMsg)
     }
-    ctx.sessions.broadcastConversationUpdate(sessionId)
+    ctx.conversations.broadcastConversationUpdate(sessionId)
   }
 
   ctx.log.info(`[plan] Mode changed: ${data.planMode ? 'ON' : 'OFF'} session=${sessionId.slice(0, 8)}`)

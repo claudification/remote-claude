@@ -20,7 +20,7 @@ const dialogShow: MessageHandler = (ctx, data) => {
   if (!dialogId || !layout) return
 
   // Store pending dialog on the session for reconnect recovery + attention indicator
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
   if (session) {
     session.pendingDialog = {
       dialogId,
@@ -32,7 +32,7 @@ const dialogShow: MessageHandler = (ctx, data) => {
       question: (layout.title as string) || 'Dialog',
       timestamp: Date.now(),
     }
-    ctx.sessions.broadcastConversationUpdate(sessionId)
+    ctx.conversations.broadcastConversationUpdate(sessionId)
   }
 
   // Broadcast to dashboard subscribers with access to this session's CWD
@@ -57,7 +57,7 @@ const dialogResult: MessageHandler = (ctx, data) => {
   if (!sessionId || !dialogId || !result) return
 
   // Permission check: user must have chat permission for this session
-  const sess = sessionId ? ctx.sessions.getConversation(sessionId) : undefined
+  const sess = sessionId ? ctx.conversations.getConversation(sessionId) : undefined
   if (sess) ctx.requirePermission('chat', sess.project)
 
   // Clear pending dialog + attention from session
@@ -66,11 +66,11 @@ const dialogResult: MessageHandler = (ctx, data) => {
     if (sess.pendingAttention?.type === 'dialog') {
       delete sess.pendingAttention
     }
-    ctx.sessions.broadcastConversationUpdate(sessionId)
+    ctx.conversations.broadcastConversationUpdate(sessionId)
   }
 
   // Forward to the wrapper that owns this session
-  const targetWs = ctx.sessions.getConversationSocket(sessionId)
+  const targetWs = ctx.conversations.getConversationSocket(sessionId)
   if (targetWs) {
     targetWs.send(
       JSON.stringify({
@@ -99,13 +99,13 @@ const dialogDismiss: MessageHandler = (ctx, data) => {
   if (!sessionId || !dialogId) return
 
   // Clear pending dialog + attention from session
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
   if (session) {
     delete session.pendingDialog
     if (session.pendingAttention?.type === 'dialog') {
       delete session.pendingAttention
     }
-    ctx.sessions.broadcastConversationUpdate(sessionId)
+    ctx.conversations.broadcastConversationUpdate(sessionId)
   }
 
   const dismissMsg2 = { type: 'dialog_dismiss', sessionId, dialogId }
@@ -121,7 +121,7 @@ const dialogKeepalive: MessageHandler = (ctx, data) => {
   const dialogId = data.dialogId as string
   if (!sessionId || !dialogId) return
 
-  const targetWs = ctx.sessions.getConversationSocket(sessionId)
+  const targetWs = ctx.conversations.getConversationSocket(sessionId)
   if (targetWs) {
     targetWs.send(JSON.stringify({ type: 'dialog_keepalive', dialogId }))
   }

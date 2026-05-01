@@ -36,9 +36,9 @@ const wrapperBoot: MessageHandler = (ctx, data) => {
   ctx.ws.data.conversationId = conversationId
 
   // Merge any pending launch config stored at spawn time (keyed by conversationId).
-  const pendingLaunchConfig = ctx.sessions.consumePendingLaunchConfig(conversationId)
+  const pendingLaunchConfig = ctx.conversations.consumePendingLaunchConfig(conversationId)
 
-  const existing = ctx.sessions.getConversation(conversationId)
+  const existing = ctx.conversations.getConversation(conversationId)
   const capabilities = (data.capabilities as AgentHostCapability[] | undefined) || []
   const claudeArgs = (data.claudeArgs as string[] | undefined) || []
 
@@ -56,7 +56,7 @@ const wrapperBoot: MessageHandler = (ctx, data) => {
   } else {
     // Create a placeholder session keyed by conversationId -- the real sessionId
     // replaces this once session_promote arrives.
-    const placeholder = ctx.sessions.createConversation(
+    const placeholder = ctx.conversations.createConversation(
       conversationId,
       resolvedProject,
       undefined,
@@ -77,8 +77,8 @@ const wrapperBoot: MessageHandler = (ctx, data) => {
 
   // Register the WS as this session's socket so messages (including boot
   // events) can be tagged with it.
-  ctx.sessions.setConversationSocket(conversationId, conversationId, ctx.ws)
-  ctx.sessions.broadcastConversationUpdate(conversationId)
+  ctx.conversations.setConversationSocket(conversationId, conversationId, ctx.ws)
+  ctx.conversations.broadcastConversationUpdate(conversationId)
   ctx.log.debug(`[boot] wrapper_boot: ${conversationId.slice(0, 8)} project=${resolvedProject}`)
 }
 
@@ -88,7 +88,7 @@ const bootEvent: MessageHandler = (ctx, data) => {
   if (!conversationId || !step) return
 
   const session =
-    ctx.sessions.getConversation(conversationId) || ctx.sessions.findConversationByConversationId(conversationId)
+    ctx.conversations.getConversation(conversationId) || ctx.conversations.findConversationByConversationId(conversationId)
   if (!session) {
     ctx.log.debug(`[boot] boot_event for unknown wrapper: ${conversationId.slice(0, 8)} step=${step}`)
     return
@@ -103,8 +103,8 @@ const bootEvent: MessageHandler = (ctx, data) => {
   }
 
   // Append to the session's transcript + broadcast to dashboard subscribers.
-  ctx.sessions.addTranscriptEntries(session.id, [entry], false)
-  ctx.sessions.broadcastToChannel('conversation:transcript', session.id, {
+  ctx.conversations.addTranscriptEntries(session.id, [entry], false)
+  ctx.conversations.broadcastToChannel('conversation:transcript', session.id, {
     type: 'transcript_entries',
     sessionId: session.id,
     entries: [entry],
@@ -122,9 +122,9 @@ const launchEvent: MessageHandler = (ctx, data) => {
   // Route via conversationId (stable across rekeys) or the session id on the event.
   const sessionIdFromEvent = data.sessionId as string | null
   const session =
-    (sessionIdFromEvent ? ctx.sessions.getConversation(sessionIdFromEvent) : undefined) ||
-    ctx.sessions.getConversation(conversationId) ||
-    ctx.sessions.findConversationByConversationId(conversationId)
+    (sessionIdFromEvent ? ctx.conversations.getConversation(sessionIdFromEvent) : undefined) ||
+    ctx.conversations.getConversation(conversationId) ||
+    ctx.conversations.findConversationByConversationId(conversationId)
   if (!session) {
     ctx.log.debug(`[launch] event for unknown wrapper: ${conversationId.slice(0, 8)} step=${step}`)
     return
@@ -140,8 +140,8 @@ const launchEvent: MessageHandler = (ctx, data) => {
     timestamp: new Date().toISOString(),
   }
 
-  ctx.sessions.addTranscriptEntries(session.id, [entry], false)
-  ctx.sessions.broadcastToChannel('conversation:transcript', session.id, {
+  ctx.conversations.addTranscriptEntries(session.id, [entry], false)
+  ctx.conversations.broadcastToChannel('conversation:transcript', session.id, {
     type: 'transcript_entries',
     sessionId: session.id,
     entries: [entry],
@@ -154,7 +154,7 @@ const sessionPromote: MessageHandler = (ctx, data) => {
   const newSessionId = data.sessionId as string
   if (!conversationId || !newSessionId) return
 
-  const bootSession = ctx.sessions.getConversation(conversationId)
+  const bootSession = ctx.conversations.getConversation(conversationId)
   if (!bootSession) {
     ctx.log.debug(`[boot] session_promote for unknown wrapper: ${conversationId.slice(0, 8)}`)
     return
@@ -164,14 +164,14 @@ const sessionPromote: MessageHandler = (ctx, data) => {
     // Nothing to migrate -- just flip status out of booting; meta handler
     // will take over with full metadata.
     bootSession.status = 'starting'
-    ctx.sessions.broadcastConversationUpdate(newSessionId)
+    ctx.conversations.broadcastConversationUpdate(newSessionId)
     return
   }
 
   // Re-key the booting session to the real session id. This moves the
   // transcript (including boot entries), sockets, subscriptions, etc.
   const bootProject = bootSession.project
-  const rekeyed = ctx.sessions.rekeyConversation(
+  const rekeyed = ctx.conversations.rekeyConversation(
     conversationId,
     newSessionId,
     conversationId,

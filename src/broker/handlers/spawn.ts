@@ -47,7 +47,7 @@ const handleSpawnRequest: MessageHandler = (ctx, data) => {
   // Fire-and-track: dispatchSpawn is async but the router doesn't await handlers.
   // We catch promise rejections to ensure the caller always gets an ack.
   dispatchSpawn(req, {
-    sessions: ctx.sessions,
+    sessions: ctx.conversations,
     getProjectSettings,
     getGlobalSettings,
     callerContext,
@@ -103,7 +103,7 @@ const handleGetSpawnDiagnostics: MessageHandler = (ctx, data) => {
     return
   }
 
-  const diag = ctx.sessions.getJobDiagnostics(jobId)
+  const diag = ctx.conversations.getJobDiagnostics(jobId)
   if (!diag) {
     ctx.reply({
       type: 'spawn_diagnostics_result',

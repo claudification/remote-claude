@@ -18,11 +18,11 @@ const meta: MessageHandler = (ctx, data) => {
   ctx.ws.data.conversationId = conversationId
 
   // Consume pending launch config (stored at spawn time, keyed by conversationId)
-  const pendingLaunchConfig = ctx.sessions.consumePendingLaunchConfig(conversationId)
+  const pendingLaunchConfig = ctx.conversations.consumePendingLaunchConfig(conversationId)
 
-  const existingSession = ctx.sessions.getConversation(sessionId)
+  const existingSession = ctx.conversations.getConversation(sessionId)
   if (existingSession) {
-    ctx.sessions.resumeConversation(sessionId)
+    ctx.conversations.resumeConversation(sessionId)
     existingSession.project = project
     if (data.capabilities) existingSession.capabilities = data.capabilities
     if (data.version) existingSession.version = data.version as string
@@ -41,10 +41,10 @@ const meta: MessageHandler = (ctx, data) => {
       if (pendingLaunchConfig.agent) existingSession.agentName = pendingLaunchConfig.agent
     }
     ctx.log.debug(
-      `Session resumed: ${sessionId.slice(0, 8)}... conv=${conversationId.slice(0, 8)} (${data.cwd}) [${ctx.sessions.getActiveConversationCount(sessionId) + 1} conversation(s)]${data.version ? ` [${data.version}]` : ''}`,
+      `Session resumed: ${sessionId.slice(0, 8)}... conv=${conversationId.slice(0, 8)} (${data.cwd}) [${ctx.conversations.getActiveConversationCount(sessionId) + 1} conversation(s)]${data.version ? ` [${data.version}]` : ''}`,
     )
   } else {
-    const newSession = ctx.sessions.createConversation(
+    const newSession = ctx.conversations.createConversation(
       sessionId,
       project,
       data.model as string,
@@ -75,17 +75,17 @@ const meta: MessageHandler = (ctx, data) => {
     }
   }
 
-  ctx.sessions.setConversationSocket(sessionId, conversationId, ctx.ws)
+  ctx.conversations.setConversationSocket(sessionId, conversationId, ctx.ws)
 
   // Auto-restore persisted links for this session's project
-  const sessionProject = (existingSession || ctx.sessions.getConversation(sessionId))?.project
+  const sessionProject = (existingSession || ctx.conversations.getConversation(sessionId))?.project
   if (sessionProject) {
     const persistedLinks = ctx.getLinksForProject(sessionProject)
     for (const pl of persistedLinks) {
       const otherProject = pl.projectA === sessionProject ? pl.projectB : pl.projectA
-      for (const s of ctx.sessions.getActiveConversations()) {
+      for (const s of ctx.conversations.getActiveConversations()) {
         if (s.project === otherProject && s.id !== sessionId) {
-          ctx.sessions.linkProjects(sessionId, s.id)
+          ctx.conversations.linkProjects(sessionId, s.id)
           ctx.log.debug(
             `[links] Auto-restored: ${sessionId.slice(0, 8)} (${extractProjectLabel(sessionProject)}) <-> ${s.id.slice(0, 8)} (${extractProjectLabel(otherProject)})`,
           )
@@ -94,15 +94,15 @@ const meta: MessageHandler = (ctx, data) => {
     }
   }
 
-  ctx.sessions.broadcastConversationUpdate(sessionId)
+  ctx.conversations.broadcastConversationUpdate(sessionId)
 
   // Complete launch job if this conversationId is tracked
-  ctx.sessions.completeJob(conversationId, sessionId)
+  ctx.conversations.completeJob(conversationId, sessionId)
 
   // Check rendezvous: someone may be waiting for this wrapper to connect
-  const rvResolved = ctx.sessions.resolveRendezvous(conversationId, sessionId)
+  const rvResolved = ctx.conversations.resolveRendezvous(conversationId, sessionId)
   if (!rvResolved) {
-    const rvInfo = ctx.sessions.getRendezvousInfo(conversationId)
+    const rvInfo = ctx.conversations.getRendezvousInfo(conversationId)
     if (rvInfo) ctx.log.debug(`[rendezvous] conversationId matched but resolve failed: ${conversationId.slice(0, 8)}`)
   }
 
@@ -112,13 +112,13 @@ const meta: MessageHandler = (ctx, data) => {
   // Pass session title so only messages targeted at this specific session
   // (or CWD-level messages with no target) are drained. Messages for other
   // sessions at the same CWD stay queued.
-  const drainSession = existingSession || ctx.sessions.getConversation(sessionId)
+  const drainSession = existingSession || ctx.conversations.getConversation(sessionId)
   const drainProject = drainSession?.project
   if (drainProject) {
     const sessionNameSlug = drainSession?.title ? slugify(drainSession.title) : undefined
     const queued = ctx.messageQueue.drain(drainProject, sessionNameSlug)
     if (queued.length > 0) {
-      const targetWs = ctx.sessions.getConversationSocket(sessionId)
+      const targetWs = ctx.conversations.getConversationSocket(sessionId)
       if (targetWs) {
         for (const item of queued) {
           targetWs.send(JSON.stringify(item.message))
@@ -136,7 +136,7 @@ const meta: MessageHandler = (ctx, data) => {
 const hook: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return
-  ctx.sessions.addEvent(sessionId, data as import('../../shared/protocol').HookEvent)
+  ctx.conversations.addEvent(sessionId, data as import('../../shared/protocol').HookEvent)
   const toolName = (data.data as Record<string, unknown>)?.tool_name
   ctx.log.debug(`${(data.hookEvent as string) || 'hook'}${toolName ? ` (${toolName})` : ''}`)
 }
@@ -157,7 +157,7 @@ const sessionClear: MessageHandler = (ctx, data) => {
 
   const clearProject = (data.project as string) ?? cwdToProjectUri(data.cwd as string)
 
-  const session = ctx.sessions.rekeyConversation(oldId, newId, clearWrapperId, clearProject, data.model as string)
+  const session = ctx.conversations.rekeyConversation(oldId, newId, clearWrapperId, clearProject, data.model as string)
   if (session) {
     ctx.ws.data.sessionId = newId
     ctx.log.debug(
@@ -165,9 +165,9 @@ const sessionClear: MessageHandler = (ctx, data) => {
     )
   } else {
     ctx.log.debug(`session_clear: old session ${oldId.slice(0, 8)} not found, creating new`)
-    ctx.sessions.createConversation(newId, clearProject, data.model as string)
+    ctx.conversations.createConversation(newId, clearProject, data.model as string)
     ctx.ws.data.sessionId = newId
-    ctx.sessions.setConversationSocket(newId, clearWrapperId, ctx.ws)
+    ctx.conversations.setConversationSocket(newId, clearWrapperId, ctx.ws)
   }
 }
 
@@ -175,7 +175,7 @@ const sessionClear: MessageHandler = (ctx, data) => {
 
 const notify: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
-  const session = sessionId ? ctx.sessions.getConversation(sessionId) : undefined
+  const session = sessionId ? ctx.conversations.getConversation(sessionId) : undefined
   const label = (session?.project ? extractProjectLabel(session.project) : null) || sessionId?.slice(0, 8) || 'rclaude'
   const message = (data.message as string) || 'Notification'
   const title = (data.title as string) || label
@@ -198,12 +198,12 @@ const end: MessageHandler = (ctx, data) => {
   if (!sessionId || !endWrapperId) return
 
   // Capture session before ending (for ad-hoc notification)
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
 
-  ctx.sessions.removeConversationSocket(sessionId, endWrapperId)
-  const remaining = ctx.sessions.getActiveConversationCount(sessionId)
+  ctx.conversations.removeConversationSocket(sessionId, endWrapperId)
+  const remaining = ctx.conversations.getActiveConversationCount(sessionId)
   if (remaining === 0) {
-    ctx.sessions.endConversation(sessionId, (data.reason as string) || '')
+    ctx.conversations.endConversation(sessionId, (data.reason as string) || '')
     ctx.log.debug(`Session ended: ${sessionId.slice(0, 8)}... (${data.reason})`)
 
     // Ad-hoc session completion notification
@@ -245,7 +245,7 @@ const end: MessageHandler = (ctx, data) => {
 const sessionStatus: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
   if (!sessionId) return
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
   if (!session || session.status === 'ended') return
 
   const status = data.status as 'active' | 'idle'
@@ -259,7 +259,7 @@ const sessionStatus: MessageHandler = (ctx, data) => {
     if (session.lastError) session.lastError = undefined
     if (session.rateLimit) session.rateLimit = undefined
   }
-  ctx.sessions.broadcastConversationUpdate(sessionId)
+  ctx.conversations.broadcastConversationUpdate(sessionId)
   ctx.log.debug(`session_status: ${sessionId.slice(0, 8)} -> ${status}`)
 }
 

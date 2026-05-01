@@ -9,7 +9,7 @@ import { handleVoiceData, handleVoiceStart, handleVoiceStop } from '../voice-str
 
 const voiceStart: MessageHandler = (ctx, data) => {
   ctx.requirePermission('voice')
-  handleVoiceStart(ctx.ws, data, ctx.sessions)
+  handleVoiceStart(ctx.ws, data, ctx.conversations)
 }
 
 const voiceData: MessageHandler = (ctx, data) => {

@@ -30,17 +30,17 @@ const sendInput: MessageHandler = (ctx, data) => {
     throw new GuardError('Missing sessionId or input')
   }
 
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
   if (!session) throw new GuardError('Session not found')
   if (session.status === 'ended') throw new GuardError('Session has ended')
   ctx.requirePermission('chat', session.project)
 
   // Try by session ID first, then by wrapper IDs (handles ID changes from SessionStart)
-  let ws = ctx.sessions.getConversationSocket(sessionId)
+  let ws = ctx.conversations.getConversationSocket(sessionId)
   if (!ws) {
-    const conversationIds = ctx.sessions.getConversationIds(sessionId)
+    const conversationIds = ctx.conversations.getConversationIds(sessionId)
     for (const wid of conversationIds) {
-      ws = ctx.sessions.findSocketByConversationId(wid)
+      ws = ctx.conversations.findSocketByConversationId(wid)
       if (ws) break
     }
   }
@@ -60,10 +60,10 @@ const sendInput: MessageHandler = (ctx, data) => {
 
 /** Broadcast project settings filtered per subscriber's grants */
 function broadcastFilteredProjectSettings(
-  ctx: { sessions: { getSubscribers(): Set<import('bun').ServerWebSocket<unknown>> } },
+  ctx: { conversations: { getSubscribers(): Set<import('bun').ServerWebSocket<unknown>> } },
   all: Record<string, unknown>,
 ): void {
-  for (const ws of ctx.sessions.getSubscribers()) {
+  for (const ws of ctx.conversations.getSubscribers()) {
     try {
       const wsGrants = (ws.data as WsData).grants
       if (!wsGrants) {
@@ -88,13 +88,13 @@ const dismissSession: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   if (!sessionId) throw new GuardError('Missing sessionId')
 
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
   if (!session) throw new GuardError('Session not found')
   if (session.status !== 'ended') throw new GuardError('Only ended sessions can be dismissed')
   ctx.requirePermission('settings', session.project)
 
   const project = session.project
-  ctx.sessions.removeConversation(sessionId)
+  ctx.conversations.removeConversation(sessionId)
   ctx.broadcastScoped({ type: 'conversation_dismissed', sessionId }, project)
   ctx.reply({ type: 'dismiss_session_result', ok: true })
 }
@@ -152,7 +152,7 @@ const updateProjectOrder: MessageHandler = (ctx, data) => {
   const saved = getProjectOrder()
 
   // Broadcast filtered order per subscriber's grants (same as HTTP POST handler)
-  for (const ws of ctx.sessions.getSubscribers()) {
+  for (const ws of ctx.conversations.getSubscribers()) {
     try {
       const wsGrants = (ws.data as WsData).grants
       if (!wsGrants) {
@@ -189,16 +189,16 @@ const sendInterrupt: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   if (!sessionId) throw new GuardError('Missing sessionId')
 
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
   if (!session) throw new GuardError('Session not found')
   if (session.status === 'ended') throw new GuardError('Session has ended')
   ctx.requirePermission('chat', session.project)
 
-  let ws = ctx.sessions.getConversationSocket(sessionId)
+  let ws = ctx.conversations.getConversationSocket(sessionId)
   if (!ws) {
-    const conversationIds = ctx.sessions.getConversationIds(sessionId)
+    const conversationIds = ctx.conversations.getConversationIds(sessionId)
     for (const wid of conversationIds) {
-      ws = ctx.sessions.findSocketByConversationId(wid)
+      ws = ctx.conversations.findSocketByConversationId(wid)
       if (ws) break
     }
   }
@@ -207,7 +207,7 @@ const sendInterrupt: MessageHandler = (ctx, data) => {
   ws.send(JSON.stringify({ type: 'interrupt', sessionId }))
   // Immediately set idle -- CC won't fire a Stop hook after interrupt
   session.status = 'idle'
-  ctx.sessions.broadcastConversationUpdate(sessionId)
+  ctx.conversations.broadcastConversationUpdate(sessionId)
   ctx.log.debug(`send_interrupt: ${sessionId.slice(0, 8)}`)
   ctx.reply({ type: 'send_interrupt_result', ok: true })
 }
@@ -218,7 +218,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   if (!sessionId) throw new GuardError('Missing sessionId')
 
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
   if (!session) throw new GuardError('Session not found')
   if (session.status === 'active') throw new GuardError('Session is already active')
   ctx.requirePermission('spawn', session.project)
@@ -233,7 +233,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
 
   // Generate a funny session name for revived sessions that don't have one
   const usedNames = new Set(
-    ctx.sessions
+    ctx.conversations
       .getAllConversations()
       .map(s => s.title)
       .filter(Boolean) as string[],
@@ -256,7 +256,7 @@ const reviveSession: MessageHandler = (ctx, data) => {
 
   // Register launch job if dashboard provided a jobId
   if (jobId) {
-    ctx.sessions.createJob(jobId, conversationId)
+    ctx.conversations.createJob(jobId, conversationId)
   }
 
   sentinel.send(
@@ -301,14 +301,14 @@ const reviveSession: MessageHandler = (ctx, data) => {
 const subscribeJob: MessageHandler = (ctx, data) => {
   const jobId = data.jobId as string
   if (!jobId) throw new GuardError('Missing jobId')
-  ctx.sessions.subscribeJob(jobId, ctx.ws)
+  ctx.conversations.subscribeJob(jobId, ctx.ws)
   ctx.log.debug(`[job] Subscribed: ${jobId.slice(0, 8)}`)
 }
 
 const unsubscribeJob: MessageHandler = (ctx, data) => {
   const jobId = data.jobId as string
   if (!jobId) return
-  ctx.sessions.unsubscribeJob(jobId, ctx.ws)
+  ctx.conversations.unsubscribeJob(jobId, ctx.ws)
   ctx.log.debug(`[job] Unsubscribed: ${jobId.slice(0, 8)}`)
 }
 
@@ -320,7 +320,7 @@ const renameSession: MessageHandler = (ctx, data) => {
   const description = typeof data.description === 'string' ? data.description.trim() : undefined
   if (!sessionId) throw new GuardError('Missing sessionId')
 
-  const session = ctx.sessions.getConversation(sessionId)
+  const session = ctx.conversations.getConversation(sessionId)
   if (!session) throw new GuardError('Session not found')
   ctx.requirePermission('chat', session.project)
 
@@ -334,7 +334,7 @@ const renameSession: MessageHandler = (ctx, data) => {
   if (description !== undefined) {
     session.description = description || undefined
   }
-  ctx.sessions.broadcastConversationUpdate(sessionId)
+  ctx.conversations.broadcastConversationUpdate(sessionId)
   ctx.reply({ type: 'rename_session_result', ok: true })
 }
 

@@ -10,11 +10,11 @@ import { registerHandlers } from '../message-router'
 
 // Wrapper -> dashboard: file response (also handles server-side requests like keyterms)
 const fileResponse: MessageHandler = (ctx, data) => {
-  if (data.requestId && ctx.sessions.resolveFile(data.requestId as string, data)) {
+  if (data.requestId && ctx.conversations.resolveFile(data.requestId as string, data)) {
     return // Handled server-side, don't broadcast
   }
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
-  const session = sessionId ? ctx.sessions.getConversation(sessionId) : undefined
+  const session = sessionId ? ctx.conversations.getConversation(sessionId) : undefined
   if (session?.project) ctx.broadcastScoped(data, session.project)
   else ctx.broadcast(data)
 }
@@ -32,9 +32,9 @@ const fileEditorRequest: MessageHandler = (ctx, data) => {
     msgType === 'project_move' ||
     msgType === 'project_delete' ||
     msgType === 'project_update'
-  const sess = ctx.sessions.getConversation(data.sessionId as string)
+  const sess = ctx.conversations.getConversation(data.sessionId as string)
   if (sess) ctx.requirePermission(isWrite ? 'files' : 'files:read', sess.project)
-  const targetSocket = ctx.sessions.getConversationSocket(data.sessionId as string)
+  const targetSocket = ctx.conversations.getConversationSocket(data.sessionId as string)
   if (targetSocket) {
     targetSocket.send(JSON.stringify(data))
   } else {
@@ -49,7 +49,7 @@ const fileEditorRequest: MessageHandler = (ctx, data) => {
 // Wrapper -> dashboard: file operation responses (forward to subscribers with access)
 const fileEditorResponse: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
-  const session = sessionId ? ctx.sessions.getConversation(sessionId) : undefined
+  const session = sessionId ? ctx.conversations.getConversation(sessionId) : undefined
   if (session?.project) ctx.broadcastScoped(data, session.project)
   else ctx.broadcast(data)
 }
@@ -58,9 +58,9 @@ const fileEditorResponse: MessageHandler = (ctx, data) => {
 const fileRequest: MessageHandler = (ctx, data) => {
   const sessionId = data.sessionId as string
   if (!sessionId) return
-  const sess = ctx.sessions.getConversation(sessionId)
+  const sess = ctx.conversations.getConversation(sessionId)
   if (sess) ctx.requirePermission('files:read', sess.project)
-  const sessionSocket = ctx.sessions.getConversationSocket(sessionId)
+  const sessionSocket = ctx.conversations.getConversationSocket(sessionId)
   if (sessionSocket) {
     sessionSocket.send(JSON.stringify(data))
   } else {

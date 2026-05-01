@@ -36,8 +36,8 @@ export class GuardError extends Error {
 export interface HandlerContext {
   /** The WebSocket connection that sent this message */
   ws: ServerWebSocket<WsData>
-  /** Session store (read/write session state) */
-  sessions: ConversationStore
+  /** Conversation store (read/write conversation state) */
+  conversations: ConversationStore
   /** Unified StoreDriver (SQLite-backed domain stores: costs, kv, transcripts, etc.) */
   store: StoreDriver
   /** Resolved caller session (from ws.data.sessionId) */
@@ -135,7 +135,7 @@ export interface HandlerContext {
   /** Guard: throws GuardError if no sentinel connected */
   requireSentinel(): ServerWebSocket<unknown>
   /** Guard: throws GuardError if caller has no session */
-  requireSession(): NonNullable<ReturnType<ConversationStore['getConversation']>>
+  requireConversation(): NonNullable<ReturnType<ConversationStore['getConversation']>>
   /**
    * Guard: throws GuardError if dashboard user lacks the required permission
    * for the given project. Wrappers/sentinels bypass all permission checks.

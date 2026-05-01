@@ -13,9 +13,9 @@ import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
 function findWrapperSocketByProject(ctx: Parameters<MessageHandler>[0], project: string) {
-  for (const session of ctx.sessions.getAllConversations()) {
+  for (const session of ctx.conversations.getAllConversations()) {
     if (session.project !== project) continue
-    const socket = ctx.sessions.getConversationSocket(session.id)
+    const socket = ctx.conversations.getConversationSocket(session.id)
     if (socket) return { socket, session }
   }
   return undefined
@@ -60,20 +60,20 @@ const rclaudeConfigSet: MessageHandler = (ctx, data) => {
 
 const rclaudeConfigData: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
-  const session = sessionId ? ctx.sessions.getConversation(sessionId) : undefined
+  const session = sessionId ? ctx.conversations.getConversation(sessionId) : undefined
   if (session?.project) ctx.broadcastScoped(data, session.project)
   else ctx.broadcast(data)
 }
 
 const rclaudeConfigOk: MessageHandler = (ctx, data) => {
   const sessionId = ctx.ws.data.sessionId || (data.sessionId as string)
-  const session = sessionId ? ctx.sessions.getConversation(sessionId) : undefined
+  const session = sessionId ? ctx.conversations.getConversation(sessionId) : undefined
   const project = session?.project
 
   if (project) {
     ctx.broadcastScoped(data, project)
     if (data.ok) {
-      const notified = ctx.sessions.broadcastToConversationsAtCwd(project, { type: 'notify_config_updated' })
+      const notified = ctx.conversations.broadcastToConversationsAtCwd(project, { type: 'notify_config_updated' })
       ctx.log.info(`Config saved for ${project} -- notified ${notified} wrapper(s)`)
     }
   } else {

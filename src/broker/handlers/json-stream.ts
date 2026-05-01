@@ -8,17 +8,17 @@ import { registerHandlers } from '../message-router'
 
 const jsonStreamAttach: MessageHandler = (ctx, data) => {
   const wid = data.conversationId as string
-  const sess = ctx.sessions.findConversationByConversationId(wid)
+  const sess = ctx.conversations.findConversationByConversationId(wid)
   if (sess) ctx.requirePermission('chat:read', sess.project)
-  const targetSocket = ctx.sessions.findSocketByConversationId(wid)
+  const targetSocket = ctx.conversations.findSocketByConversationId(wid)
   if (targetSocket) {
-    const isFirstViewer = !ctx.sessions.hasJsonStreamViewers(wid)
-    ctx.sessions.addJsonStreamViewer(wid, ctx.ws)
+    const isFirstViewer = !ctx.conversations.hasJsonStreamViewers(wid)
+    ctx.conversations.addJsonStreamViewer(wid, ctx.ws)
     if (isFirstViewer) {
       targetSocket.send(JSON.stringify(data))
     }
     ctx.log.debug(
-      `[json-stream] Attached to conv=${wid.slice(0, 8)} [${ctx.sessions.getJsonStreamViewers(wid).size} viewer(s)]`,
+      `[json-stream] Attached to conv=${wid.slice(0, 8)} [${ctx.conversations.getJsonStreamViewers(wid).size} viewer(s)]`,
     )
   } else {
     ctx.reply({ type: 'json_stream_data', conversationId: wid, lines: [], isBackfill: false })
@@ -27,22 +27,22 @@ const jsonStreamAttach: MessageHandler = (ctx, data) => {
 
 const jsonStreamDetach: MessageHandler = (ctx, data) => {
   const wid = data.conversationId as string
-  ctx.sessions.removeJsonStreamViewer(wid, ctx.ws)
-  if (!ctx.sessions.hasJsonStreamViewers(wid)) {
-    const targetSocket = ctx.sessions.findSocketByConversationId(wid)
+  ctx.conversations.removeJsonStreamViewer(wid, ctx.ws)
+  if (!ctx.conversations.hasJsonStreamViewers(wid)) {
+    const targetSocket = ctx.conversations.findSocketByConversationId(wid)
     if (targetSocket) {
       targetSocket.send(JSON.stringify(data))
     }
   }
   ctx.log.debug(
-    `[json-stream] Detached from conv=${wid.slice(0, 8)} [${ctx.sessions.getJsonStreamViewers(wid).size} viewer(s) remaining]`,
+    `[json-stream] Detached from conv=${wid.slice(0, 8)} [${ctx.conversations.getJsonStreamViewers(wid).size} viewer(s) remaining]`,
   )
 }
 
 const jsonStreamData: MessageHandler = (ctx, data) => {
   const wid = (data.conversationId as string) || ctx.ws.data.conversationId
   if (!wid) return
-  const viewers = ctx.sessions.getJsonStreamViewers(wid)
+  const viewers = ctx.conversations.getJsonStreamViewers(wid)
   const msg = JSON.stringify(data)
   for (const viewer of viewers) {
     try {

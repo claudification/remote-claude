@@ -19,7 +19,7 @@ const sentinelIdentify: MessageHandler = (ctx, data) => {
     spawnRoot: typeof data.spawnRoot === 'string' ? data.spawnRoot : undefined,
     sentinelId: authSentinelId,
   }
-  const accepted = ctx.sessions.setSentinel(ctx.ws, sentinelMeta)
+  const accepted = ctx.conversations.setSentinel(ctx.ws, sentinelMeta)
   if (accepted) {
     ctx.ws.data.isSentinel = true
     ctx.reply({ type: 'ack', eventId: 'sentinel' })
@@ -41,7 +41,7 @@ const reviveResult: MessageHandler = (ctx, data) => {
 
   // Forward to dashboard so the launch monitor can show step-by-step progress.
   // Resolve CWD from the session store for scoped broadcast.
-  const session = sessionId ? ctx.sessions.getConversation(sessionId) : null
+  const session = sessionId ? ctx.conversations.getConversation(sessionId) : null
   const project = session?.project || (data.project as string)
   if (project) {
     ctx.broadcastScoped(
@@ -61,19 +61,19 @@ const reviveResult: MessageHandler = (ctx, data) => {
 
   // Forward failure to job subscribers
   if (jobId && !data.success) {
-    ctx.sessions.failJob(jobId, (data.error as string) || 'Revive failed')
+    ctx.conversations.failJob(jobId, (data.error as string) || 'Revive failed')
   }
 }
 
 const spawnResult: MessageHandler = (ctx, data) => {
   const ok = data.success ? 'OK' : 'FAIL'
   ctx.log.debug(`Spawn ${ok}${data.error ? ` (${data.error})` : ''}`)
-  ctx.sessions.resolveSpawn(data.requestId as string, data)
+  ctx.conversations.resolveSpawn(data.requestId as string, data)
   const jobId = data.jobId as string | undefined
   if (jobId) {
     if (data.success) {
       // Sentinel confirmed the wrapper process has started (tmux session is up)
-      ctx.sessions.forwardJobEvent(jobId, {
+      ctx.conversations.forwardJobEvent(jobId, {
         type: 'launch_progress',
         jobId,
         step: 'wrapper_booted',
@@ -83,19 +83,19 @@ const spawnResult: MessageHandler = (ctx, data) => {
       })
     } else {
       // Forward failure to job subscribers so launch monitor can show the error
-      ctx.sessions.failJob(jobId, (data.error as string) || 'Spawn failed')
+      ctx.conversations.failJob(jobId, (data.error as string) || 'Spawn failed')
     }
   }
 }
 
 const listDirsResult: MessageHandler = (ctx, data) => {
-  ctx.sessions.resolveDir(data.requestId as string, data)
+  ctx.conversations.resolveDir(data.requestId as string, data)
 }
 
 const launchLog: MessageHandler = (ctx, data) => {
   const jobId = data.jobId as string
   if (!jobId) return
-  ctx.sessions.forwardJobEvent(jobId, {
+  ctx.conversations.forwardJobEvent(jobId, {
     type: 'launch_log',
     jobId,
     step: data.step,
@@ -123,10 +123,10 @@ const spawnFailed: MessageHandler = (ctx, data) => {
   // Route through the job system so the launch monitor gets an immediate job_failed
   // instead of timing out after 30s with a generic error
   if (conversationId) {
-    const jobId = ctx.sessions.getJobByConversation(conversationId)
+    const jobId = ctx.conversations.getJobByConversation(conversationId)
     if (jobId) {
       // Emit first-class progress alongside the legacy job_failed event
-      ctx.sessions.forwardJobEvent(jobId, {
+      ctx.conversations.forwardJobEvent(jobId, {
         type: 'launch_progress',
         jobId,
         step: 'failed',
@@ -136,7 +136,7 @@ const spawnFailed: MessageHandler = (ctx, data) => {
         conversationId,
         elapsed: elapsedMs,
       })
-      ctx.sessions.failJob(jobId, errorMsg)
+      ctx.conversations.failJob(jobId, errorMsg)
     }
   }
 
@@ -154,7 +154,7 @@ const spawnFailed: MessageHandler = (ctx, data) => {
 const sentinelDiag: MessageHandler = (ctx, data) => {
   if (Array.isArray(data.entries)) {
     for (const entry of data.entries) {
-      ctx.sessions.pushSentinelDiag(entry)
+      ctx.conversations.pushSentinelDiag(entry)
     }
   }
 }
@@ -162,7 +162,7 @@ const sentinelDiag: MessageHandler = (ctx, data) => {
 const usageUpdate: MessageHandler = (ctx, data) => {
   const usage = data as unknown as import('../../shared/protocol').UsageUpdate
   if (usage.fiveHour && usage.sevenDay) {
-    ctx.sessions.setUsage(usage)
+    ctx.conversations.setUsage(usage)
     ctx.log.debug(
       `Usage: 5h=${usage.fiveHour.usedPercent}% 7d=${usage.sevenDay.usedPercent}%${usage.sevenDayOpus ? ` opus=${usage.sevenDayOpus.usedPercent}%` : ''}${usage.sevenDaySonnet ? ` sonnet=${usage.sevenDaySonnet.usedPercent}%` : ''}`,
     )

@@ -563,7 +563,7 @@ async function main() {
 
     // Context deps shared by all handler contexts
     const contextDeps: ContextDeps = {
-      sessions: sessionStore,
+      conversations: sessionStore,
       store,
       verbose,
       origins,

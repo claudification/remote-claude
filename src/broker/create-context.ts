@@ -12,7 +12,7 @@ import { resolvePermissions } from './permissions'
 import type { StoreDriver } from './store/types'
 
 export interface ContextDeps {
-  sessions: ConversationStore
+  conversations: ConversationStore
   store: StoreDriver
   verbose: boolean
   origins: string[]
@@ -61,13 +61,13 @@ export interface ContextDeps {
 
 export function createContext(ws: ServerWebSocket<WsData>, deps: ContextDeps): HandlerContext {
   const sessionId = ws.data.sessionId
-  const caller = sessionId ? deps.sessions.getConversation(sessionId) : undefined
+  const caller = sessionId ? deps.conversations.getConversation(sessionId) : undefined
   const callerSettings = caller?.project ? deps.getProjectSettings(caller.project) : null
   const prefix = logPrefix(ws)
 
   return {
     ws,
-    sessions: deps.sessions,
+    conversations: deps.conversations,
     store: deps.store,
     caller,
     callerSettings,
@@ -79,7 +79,7 @@ export function createContext(ws: ServerWebSocket<WsData>, deps: ContextDeps): H
 
     broadcast(msg) {
       const json = JSON.stringify(msg)
-      for (const sub of deps.sessions.getSubscribers()) {
+      for (const sub of deps.conversations.getSubscribers()) {
         try {
           sub.send(json)
         } catch {
@@ -89,7 +89,7 @@ export function createContext(ws: ServerWebSocket<WsData>, deps: ContextDeps): H
     },
 
     broadcastScoped(msg, project) {
-      deps.sessions.broadcastConversationScoped(msg, project)
+      deps.conversations.broadcastConversationScoped(msg, project)
     },
 
     push: {
@@ -98,7 +98,7 @@ export function createContext(ws: ServerWebSocket<WsData>, deps: ContextDeps): H
     },
 
     origins: deps.origins,
-    getSentinel: () => deps.sessions.getSentinel(),
+    getSentinel: () => deps.conversations.getSentinel(),
     getLinksForProject: deps.getLinksForProject,
 
     links: {
@@ -133,13 +133,13 @@ export function createContext(ws: ServerWebSocket<WsData>, deps: ContextDeps): H
     },
 
     requireSentinel() {
-      const sentinel = deps.sessions.getSentinel()
+      const sentinel = deps.conversations.getSentinel()
       if (!sentinel) throw new GuardError('No sentinel connected')
       return sentinel
     },
 
-    requireSession() {
-      if (!caller) throw new GuardError('No session')
+    requireConversation() {
+      if (!caller) throw new GuardError('No conversation')
       return caller
     },
 
