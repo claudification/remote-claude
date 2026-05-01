@@ -14,9 +14,9 @@ import type { ProjectOrder, ProjectOrderGroup, ProjectOrderNode, Session } from 
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { MaybeProfiler } from './perf-profiler'
-import { ProjectNode } from './project-list/project-node'
 import { InactiveProjectItem, SessionItemCompact } from './project-list/conversation-item'
 import { GroupNode, NewGroupDropTarget, SortableNode } from './project-list/conversation-sorting'
+import { ProjectNode } from './project-list/project-node'
 
 // ─── Main ProjectList ──────────────────────────────────────────────
 

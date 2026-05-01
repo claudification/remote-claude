@@ -5,8 +5,8 @@
 
 import { AlertTriangle, FileText } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { useProject } from '@/hooks/use-project'
 import { useConversationsStore } from '@/hooks/use-conversations'
+import { useProject } from '@/hooks/use-project'
 import { useChordCommand, useCommand } from '@/lib/commands'
 import { haptic } from '@/lib/utils'
 import { InputEditor } from './input-editor'
