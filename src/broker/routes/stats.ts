@@ -9,7 +9,7 @@ import {
   queryTimeSeries as queryAnalyticsTimeSeries,
 } from '../analytics-store'
 import { listProjects } from '../project-store'
-import type { ConversationStore } from '../session-store'
+import type { ConversationStore } from '../conversation-store'
 import type { StoreDriver } from '../store/types'
 import type { RouteHelpers } from './shared'
 

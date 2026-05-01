@@ -18,11 +18,11 @@ import {
   unrevokeUser,
 } from '../auth'
 import { getAuthenticatedUser } from '../auth-routes'
-import { purgeMessages, queryMessages } from '../inter-session-log'
+import { purgeMessages, queryMessages } from '../inter-conversation-log'
 import { resolvePermissionFlags } from '../permissions'
 import { addPersistedLink, getPersistedLinks, removePersistedLink } from '../project-links'
 import { getProjectSettings } from '../project-settings'
-import type { ConversationStore } from '../session-store'
+import type { ConversationStore } from '../conversation-store'
 import {
   createShare as createSessionShare,
   getShare as getShareByToken,

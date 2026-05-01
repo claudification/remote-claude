@@ -8,7 +8,7 @@
 import type { ServerWebSocket } from 'bun'
 import { getGlobalSettings } from './global-settings'
 import { getProjectSettings } from './project-settings'
-import type { ConversationStore } from './session-store'
+import type { ConversationStore } from './conversation-store'
 
 const DEEPGRAM_LIVE_URL = 'wss://api.deepgram.com/v1/listen'
 const VOICE_TIMEOUT_MS = 120_000 // Max 120s recording session

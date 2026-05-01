@@ -19,7 +19,7 @@ import {
   setProjectSettings,
 } from '../project-settings'
 import { addSubscription, getSubscriptionCount, isPushConfigured, removeSubscription, sendPushToAll } from '../push'
-import type { ConversationStore } from '../session-store'
+import type { ConversationStore } from '../conversation-store'
 import { appendSharedFile, dismissSharedFile, mediaTypeToExt, readSharedFiles, storeBlobStreaming } from './blob-store'
 import type { RouteHelpers } from './shared'
 import { broadcastToSubscribers } from './shared'

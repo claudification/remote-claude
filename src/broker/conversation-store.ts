@@ -34,10 +34,10 @@ import { resolvePermissionFlags, resolvePermissions } from './permissions'
 import { getProjectSettings } from './project-settings'
 import { appendSharedFile } from './routes'
 import type { SentinelRegistry } from './sentinel-registry'
-import { createChannelRegistry } from './session-store/channel-registry'
-import { createListenerRegistry } from './session-store/listeners'
-import { detectClipboardMime, detectContextModeFromStdout, isReadableText } from './session-store/parsers'
-import { createProjectLinkRegistry } from './session-store/project-links'
+import { createChannelRegistry } from './conversation-store/channel-registry'
+import { createListenerRegistry } from './conversation-store/listeners'
+import { detectClipboardMime, detectContextModeFromStdout, isReadableText } from './conversation-store/parsers'
+import { createProjectLinkRegistry } from './conversation-store/project-links'
 import {
   createSentinelState,
   pushSentinelDiag as pushSentinelDiagImpl,
@@ -45,19 +45,19 @@ import {
   type SentinelIdentifyInfo,
   setSentinel as setSentinelImpl,
   setUsage as setUsageImpl,
-} from './session-store/sentinel'
-import { createRendezvousRegistry, createSpawnJobRegistry } from './session-store/spawn-jobs'
+} from './conversation-store/sentinel'
+import { createRendezvousRegistry, createSpawnJobRegistry } from './conversation-store/spawn-jobs'
 import {
   createSyncState,
   handleSyncCheck as handleSyncCheckImpl,
   type SyncState,
   stampAndBuffer as stampAndBufferImpl,
   syncStamp as syncStampImpl,
-} from './session-store/sync-protocol'
-import { createTerminalRegistry } from './session-store/terminal-registry'
-import { createTrafficTracker } from './session-store/traffic'
-import type { ControlPanelMessage } from './session-store/types'
-import { createViewerRegistry } from './session-store/viewer-registry'
+} from './conversation-store/sync-protocol'
+import { createTerminalRegistry } from './conversation-store/terminal-registry'
+import { createTrafficTracker } from './conversation-store/traffic'
+import type { ControlPanelMessage } from './conversation-store/types'
+import { createViewerRegistry } from './conversation-store/viewer-registry'
 import { listShares } from './shares'
 import type { StoreDriver } from './store/types'
 
@@ -171,7 +171,7 @@ export interface ConversationStore {
   setSentinel: (ws: ServerWebSocket<unknown>, info?: SentinelIdentifyInfo) => boolean
   getSentinel: () => ServerWebSocket<unknown> | undefined
   getSentinelByAlias: (alias: string) => ServerWebSocket<unknown> | undefined
-  getSentinelConnection: (sentinelId: string) => import('./session-store/sentinel').SentinelConnection | undefined
+  getSentinelConnection: (sentinelId: string) => import('./conversation-store/sentinel').SentinelConnection | undefined
   getSentinelInfo: () => { machineId?: string; hostname?: string } | undefined
   getDefaultSentinelId: () => string | undefined
   getDefaultSentinelAlias: () => string | undefined

@@ -17,13 +17,13 @@
 import { randomUUID } from 'node:crypto'
 import { validateModel } from '../shared/models'
 import type { Conversation, LaunchProgressEvent, LaunchStep, ProjectSettings, SpawnResult } from '../shared/protocol'
-import { generateConversationName } from '../shared/session-names'
+import { generateConversationName } from '../shared/conversation-names'
 import { resolveSpawnConfig } from '../shared/spawn-defaults'
 import { deriveConversationName, validateSessionName } from '../shared/spawn-naming'
 import { assertSpawnAllowed, type SpawnCallerContext, SpawnPermissionError } from '../shared/spawn-permissions'
 import type { SpawnRequest } from '../shared/spawn-schema'
 import type { GlobalSettings } from './global-settings'
-import type { ConversationStore } from './session-store'
+import type { ConversationStore } from './conversation-store'
 
 /**
  * Emit a first-class launch_progress event to all subscribers of the job.

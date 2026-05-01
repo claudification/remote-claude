@@ -11,8 +11,8 @@
 import type { ServerWebSocket } from 'bun'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { HookEvent, TaskInfo, TranscriptEntry } from '../../shared/protocol'
-import type { ConversationStore } from '../session-store'
-import { createConversationStore } from '../session-store'
+import type { ConversationStore } from '../conversation-store'
+import { createConversationStore } from '../conversation-store'
 
 // Minimal mock socket -- used only for identity / set membership.
 // No actual send() calls reach these in non-persistence, no-subscriber mode
