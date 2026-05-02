@@ -68,7 +68,7 @@ function injectSession(overview: Record<string, unknown>) {
     project: overview.project as string,
     model: overview.model as string,
     status: (overview.status as Session['status']) || 'ended',
-    conversationIds: (overview.conversationIds as string[]) || [],
+    ccSessionIds: (overview.ccSessionIds as string[]) || [],
     startedAt: overview.startedAt as number,
     lastActivity: overview.lastActivity as number,
     eventCount: (overview.eventCount as number) || 0,

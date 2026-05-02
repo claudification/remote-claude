@@ -11,7 +11,10 @@ import type {
   BootEvent,
   BootStep,
   BrokerMessage,
+  ConversationEnd,
   ConversationMeta,
+  ConversationPromote,
+  ConversationRekey,
   FileResponse,
   Heartbeat,
   HookEvent,
@@ -19,9 +22,6 @@ import type {
   InterSessionDelivery,
   LaunchConfig,
   ProjectLinkRequest,
-  SessionClear,
-  SessionEnd,
-  SessionPromote,
   SubagentTranscript,
   TerminalData,
   TranscriptEntries,
@@ -272,7 +272,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
             // the real session on the broker.
             const meta: ConversationMeta = {
               type: 'meta',
-              sessionId,
+              ccSessionId: sessionId,
               conversationId,
               project,
               startedAt: Date.now(),
@@ -622,9 +622,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
   }
 
   function sendSessionEnd(reason: string) {
-    const endMsg: SessionEnd = {
+    const endMsg: ConversationEnd = {
       type: 'end',
-      sessionId: routeId(),
+      ccSessionId: routeId(),
       reason,
       endedAt: Date.now(),
     }
@@ -645,10 +645,10 @@ export function createWsClient(options: WsClientOptions): WsClient {
       onDiag?.('session', warn, { conversationId, sessionId })
       return
     }
-    const msg: SessionClear = {
+    const msg: ConversationRekey = {
       type: 'session_clear',
-      oldSessionId: prev,
-      newSessionId,
+      oldCcSessionId: prev,
+      newCcSessionId: newSessionId,
       conversationId,
       project: newProject,
       model: newModel,
@@ -727,10 +727,10 @@ export function createWsClient(options: WsClientOptions): WsClient {
     sessionId = newSessionId
     if (!wasBoot) return // already had a session id, nothing to promote
     // Tell the broker to migrate the booting session to the real one.
-    const promote: SessionPromote = {
+    const promote: ConversationPromote = {
       type: 'session_promote',
       conversationId,
-      sessionId: newSessionId,
+      ccSessionId: newSessionId,
       source,
     }
     send(promote)
@@ -738,7 +738,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     // full metadata (the boot payload only had a subset of fields).
     const meta: ConversationMeta = {
       type: 'meta',
-      sessionId: newSessionId,
+      ccSessionId: newSessionId,
       conversationId,
       project,
       startedAt: Date.now(),

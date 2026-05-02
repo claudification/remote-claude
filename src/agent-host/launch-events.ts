@@ -80,7 +80,7 @@ export function emitLaunchEvent(
     launchId: ctx.currentLaunchId,
     phase: ctx.currentLaunchPhase,
     step,
-    sessionId: ctx.claudeSessionId,
+    ccSessionId: ctx.claudeSessionId,
     detail: opts.detail,
     raw: opts.raw,
     t: Date.now(),

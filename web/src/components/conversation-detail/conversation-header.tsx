@@ -361,11 +361,11 @@ export function SessionHeader({
                 )}
                 <span
                   className="text-muted-foreground text-[10px]"
-                  title={`session: ${session.id}\nconversations: ${session.conversationIds?.join(', ') || 'none'}`}
+                  title={`session: ${session.id}\nconversations: ${session.ccSessionIds?.join(', ') || 'none'}`}
                 >
                   {session.id.slice(0, 8)}
-                  {session.conversationIds?.[0] && session.conversationIds[0] !== session.id && (
-                    <span className="text-muted-foreground/50"> c:{session.conversationIds[0].slice(0, 6)}</span>
+                  {session.ccSessionIds?.[0] && session.ccSessionIds[0] !== session.id && (
+                    <span className="text-muted-foreground/50"> c:{session.ccSessionIds[0].slice(0, 6)}</span>
                   )}
                 </span>
                 {session.capabilities &&

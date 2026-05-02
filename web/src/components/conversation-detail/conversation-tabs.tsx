@@ -89,7 +89,7 @@ export function SessionTabs({
           title="Terminal (Shift+click to pop out)"
           onClick={e => {
             if (e.shiftKey) {
-              const wid = session?.conversationIds?.[0]
+              const wid = session?.ccSessionIds?.[0]
               if (wid) window.open(`/#popout-terminal/${wid}`, '_blank', 'width=900,height=600,menubar=no,toolbar=no')
             } else {
               haptic('tick')

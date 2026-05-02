@@ -318,8 +318,8 @@ export function createAdminRouter(
         createdAt: pl.createdAt,
         lastUsed: pl.lastUsed,
         online: !!(sessA && sessB),
-        sessionIdA: sessA?.id,
-        sessionIdB: sessB?.id,
+        ccSessionIdA: sessA?.id,
+        ccSessionIdB: sessB?.id,
       }
     })
     return c.json({ links })

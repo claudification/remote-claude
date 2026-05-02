@@ -40,7 +40,7 @@ export interface Session {
   capabilities?: AgentHostCapability[]
   version?: string
   buildTime?: string
-  conversationIds?: string[]
+  ccSessionIds?: string[]
   status: 'active' | 'idle' | 'ended' | 'starting' | 'booting'
   compacting?: boolean
   compactedAt?: number

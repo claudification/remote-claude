@@ -38,7 +38,7 @@ const sendInput: MessageHandler = (ctx, data) => {
   // Try by conversation ID first, then by routing IDs (handles ID changes from SessionStart)
   let ws = ctx.conversations.getConversationSocket(conversationId)
   if (!ws) {
-    const routingIds = ctx.conversations.getConversationIds(conversationId)
+    const routingIds = ctx.conversations.getCcSessionIds(conversationId)
     for (const wid of routingIds) {
       ws = ctx.conversations.findSocketByConversationId(wid)
       if (ws) break
@@ -196,7 +196,7 @@ const sendInterrupt: MessageHandler = (ctx, data) => {
 
   let ws = ctx.conversations.getConversationSocket(conversationId)
   if (!ws) {
-    const routingIds = ctx.conversations.getConversationIds(conversationId)
+    const routingIds = ctx.conversations.getCcSessionIds(conversationId)
     for (const wid of routingIds) {
       ws = ctx.conversations.findSocketByConversationId(wid)
       if (ws) break

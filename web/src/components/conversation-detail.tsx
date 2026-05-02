@@ -376,14 +376,14 @@ export const SessionDetail = memo(function SessionDetail() {
               {!follow && transcript.length > 0 && <ScrollToBottomButton onClick={enableFollow} direction="down" />}
             </TranscriptDropZone>
           )}
-          {activeTab === 'tty' && hasTerminal && !showTerminal && session.conversationIds?.[0] && (
+          {activeTab === 'tty' && hasTerminal && !showTerminal && session.ccSessionIds?.[0] && (
             <div className="flex-1 min-h-0 overflow-hidden">
-              <InlineTerminal conversationId={session.conversationIds[0]} />
+              <InlineTerminal conversationId={session.ccSessionIds[0]} />
             </div>
           )}
-          {activeTab === 'json_stream' && hasJsonStream && session.conversationIds?.[0] && (
+          {activeTab === 'json_stream' && hasJsonStream && session.ccSessionIds?.[0] && (
             <div className="flex-1 min-h-0 overflow-hidden">
-              <JsonStreamPanel conversationId={session.conversationIds[0]} />
+              <JsonStreamPanel conversationId={session.ccSessionIds[0]} />
             </div>
           )}
           {!conversationTarget && activeTab === 'events' && (

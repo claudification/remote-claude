@@ -728,7 +728,7 @@ export const useConversationsStore = create<SessionsState>((set, get) => ({
   toggleDebugConsole: () => set(state => ({ showDebugConsole: !state.showDebugConsole })),
   openTerminal: conversationId => {
     // Find the session that owns this wrapper so we can select it in the main panel too
-    const ownerSession = get().sessions.find(s => s.conversationIds?.includes(conversationId))
+    const ownerSession = get().sessions.find(s => s.ccSessionIds?.includes(conversationId))
     const prev = get().selectedConversationId
     const next = ownerSession?.id ?? null
     if (next !== prev) {

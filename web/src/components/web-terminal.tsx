@@ -63,7 +63,7 @@ export function WebTerminal({ conversationId, onClose, popout }: WebTerminalProp
   }
 
   // Resolve the owning session for this wrapper (for display purposes)
-  const ownerSession = sessions.find(s => s.conversationIds?.includes(conversationId))
+  const ownerSession = sessions.find(s => s.ccSessionIds?.includes(conversationId))
 
   // Set window title in popout mode
   const projectSettings = useConversationsStore(state => state.projectSettings)

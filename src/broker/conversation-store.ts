@@ -101,7 +101,7 @@ export interface ConversationStore {
   findConversationByConversationId: (conversationId: string) => Conversation | undefined
   removeConversationSocket: (id: string, conversationId: string) => void
   getActiveConversationCount: (conversationId: string) => number
-  getConversationIds: (conversationId: string) => string[]
+  getCcSessionIds: (conversationId: string) => string[]
   // Transcript cache methods
   addTranscriptEntries: (conversationId: string, entries: TranscriptEntry[], isInitial: boolean) => void
   getTranscriptEntries: (conversationId: string, limit?: number) => TranscriptEntry[]
@@ -407,7 +407,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       spinnerVerbs: session.spinnerVerbs,
       autocompactPct: session.autocompactPct,
       maxBudgetUsd: session.maxBudgetUsd,
-      conversationIds: wrappers ? Array.from(wrappers.keys()) : [],
+      ccSessionIds: wrappers ? Array.from(wrappers.keys()) : [],
       startedAt: session.startedAt,
       lastActivity: session.lastActivity,
       status: session.status,
@@ -1711,7 +1711,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return conversationSockets.get(conversationId)?.size ?? 0
   }
 
-  function getConversationIds(conversationId: string): string[] {
+  function getCcSessionIds(conversationId: string): string[] {
     const wrappers = conversationSockets.get(conversationId)
     return wrappers ? Array.from(wrappers.keys()) : []
   }
@@ -2626,7 +2626,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     findConversationByConversationId,
     removeConversationSocket,
     getActiveConversationCount,
-    getConversationIds,
+    getCcSessionIds,
     addTerminalViewer,
     getTerminalViewers,
     removeTerminalViewer,

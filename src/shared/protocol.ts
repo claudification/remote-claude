@@ -55,7 +55,7 @@ export type BootStep =
 
 export interface ConversationMeta {
   type: 'meta'
-  sessionId: string
+  ccSessionId: string
   conversationId: string // stable identity that survives /clear, reconnect, and revival
   project: string
   startedAt: number
@@ -79,19 +79,19 @@ export interface ConversationMeta {
   adHocWorktree?: string // worktree branch name for ad-hoc sessions
 }
 
-export interface SessionEnd {
+export interface ConversationEnd {
   type: 'end'
-  sessionId: string
+  ccSessionId: string
   reason: string
   endedAt: number
 }
 
 // Wrapper tells broker the Claude session ID changed (e.g. /clear)
 // Same wrapper, same PTY, just a new Claude session -- re-key without ending
-export interface SessionClear {
+export interface ConversationRekey {
   type: 'session_clear'
-  oldSessionId: string
-  newSessionId: string
+  oldCcSessionId: string
+  newCcSessionId: string
   conversationId: string
   project: string
   model?: string
@@ -433,8 +433,8 @@ export interface WrapperLaunchEvent {
   launchId: string
   phase: WrapperLaunchPhase
   step: WrapperLaunchStep
-  /** Session id at the time of the step. null before init_received. */
-  sessionId: string | null
+  /** CC session id at the time of the step. null before init_received. */
+  ccSessionId: string | null
   detail?: string
   raw?: Record<string, unknown>
   t: number
@@ -443,22 +443,22 @@ export interface WrapperLaunchEvent {
 /** Tells the broker to promote the boot session to a real session once
  *  CC has produced a session id. Source indicates which channel won the race
  *  (stream-json init in headless, SessionStart hook in PTY). */
-export interface SessionPromote {
+export interface ConversationPromote {
   type: 'session_promote'
   conversationId: string
-  sessionId: string
+  ccSessionId: string
   source: 'stream_json' | 'hook'
 }
 
 export type AgentHostMessage =
   | HookEvent
   | ConversationMeta
-  | SessionEnd
-  | SessionClear
+  | ConversationEnd
+  | ConversationRekey
   | WrapperBoot
   | BootEvent
   | WrapperLaunchEvent
-  | SessionPromote
+  | ConversationPromote
   | Heartbeat
   | TerminalData
   | TerminalError
@@ -618,8 +618,8 @@ export interface LinkSummary {
   createdAt: number
   lastUsed: number
   online: boolean // true if both CWDs have active sessions
-  sessionIdA?: string
-  sessionIdB?: string
+  ccSessionIdA?: string
+  ccSessionIdB?: string
 }
 
 // Inter-session messaging (channel-enabled sessions only)
@@ -1293,7 +1293,7 @@ export interface LaunchProgressEvent {
   detail?: string
   t: number
   conversationId?: string
-  sessionId?: string
+  ccSessionId?: string
   elapsed?: number
   error?: string
 }
@@ -1302,7 +1302,7 @@ export interface LaunchProgressEvent {
 export interface JobComplete {
   type: 'job_complete'
   jobId: string
-  sessionId: string
+  ccSessionId: string
   conversationId: string
 }
 
@@ -1531,7 +1531,7 @@ export interface ConversationSummary {
   buildTime?: string
   claudeVersion?: string
   claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
-  conversationIds: string[]
+  ccSessionIds: string[]
   startedAt: number
   lastActivity: number
   status: Conversation['status']
@@ -1641,7 +1641,7 @@ export interface ChannelAck {
   conversationId: string
   agentId?: string
   status: 'subscribed' | 'unsubscribed'
-  previousSessionId?: string // set during rekey rollover
+  previousSessionId?: string // set during rekey rollover (routing key, matches session.id)
 }
 
 // Per-channel diagnostic stats

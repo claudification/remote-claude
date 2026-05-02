@@ -54,7 +54,7 @@ export interface ConversationInfo {
   session_id?: string // CC session ID (for transcript/task context)
   name: string
   status: 'live' | 'inactive'
-  conversationIds?: string[] // only present when multiple wrappers share a session
+  ccSessionIds?: string[] // only present when multiple wrappers share a session
   label?: string
   description?: string
   title?: string

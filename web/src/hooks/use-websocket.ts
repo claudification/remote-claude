@@ -83,7 +83,7 @@ function toSession(summary: ConversationSummary): Session {
     project: summary.project,
     model: summary.model,
     capabilities: summary.capabilities,
-    conversationIds: summary.conversationIds,
+    ccSessionIds: summary.ccSessionIds,
     startedAt: summary.startedAt,
     lastActivity: summary.lastActivity,
     status: summary.status,

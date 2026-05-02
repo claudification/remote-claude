@@ -149,7 +149,7 @@ export function createSessionsRouter(conversationStore: ConversationStore, helpe
       project: session.project,
       model: session.model,
       status: session.status,
-      conversationIds: conversationStore.getConversationIds(sessionId),
+      ccSessionIds: conversationStore.getCcSessionIds(sessionId),
       capabilities: session.capabilities,
       version: session.version,
       buildTime: session.buildTime,

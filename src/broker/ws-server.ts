@@ -5,7 +5,14 @@
 
 import type { Server, ServerWebSocket } from 'bun'
 import { parseProjectUri } from '../shared/project-uri'
-import type { Ack, AgentHostMessage, BrokerError, ConversationMeta, HookEvent, SessionEnd } from '../shared/protocol'
+import type {
+  Ack,
+  AgentHostMessage,
+  BrokerError,
+  ConversationEnd,
+  ConversationMeta,
+  HookEvent,
+} from '../shared/protocol'
 import type { ConversationStore } from './conversation-store'
 
 interface WsData {
@@ -57,7 +64,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
           switch (data.type) {
             case 'meta': {
               const meta = data as ConversationMeta
-              const conversationId = meta.conversationId || meta.sessionId
+              const conversationId = meta.conversationId || meta.ccSessionId
               ws.data.conversationId = conversationId
 
               // Check if conversation already exists (resume case)
@@ -78,7 +85,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
               }
 
               // Track socket for this conversation (for sending input)
-              conversationStore.setConversationSocket(conversationId, meta.conversationId || meta.sessionId, ws)
+              conversationStore.setConversationSocket(conversationId, meta.conversationId || meta.ccSessionId, ws)
 
               onSessionStart?.(conversationId, meta)
 
@@ -106,8 +113,8 @@ export function createWsServer(options: WsServerOptions): WsServer {
             }
 
             case 'end': {
-              const end = data as SessionEnd
-              const conversationId = ws.data.conversationId || end.sessionId
+              const end = data as ConversationEnd
+              const conversationId = ws.data.conversationId || end.ccSessionId
 
               if (conversationId) {
                 conversationStore.endConversation(conversationId, end.reason)

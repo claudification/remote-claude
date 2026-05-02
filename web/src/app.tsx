@@ -508,8 +508,8 @@ function Dashboard() {
         if (store.selectedConversationId) store.openTab(store.selectedConversationId, 'transcript')
       } else {
         const session = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
-        if (session && canTerminal(session) && session.conversationIds?.[0]) {
-          store.openTerminal(session.conversationIds[0])
+        if (session && canTerminal(session) && session.ccSessionIds?.[0]) {
+          store.openTerminal(session.ccSessionIds[0])
         }
       }
     },
