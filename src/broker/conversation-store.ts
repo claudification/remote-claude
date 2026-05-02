@@ -527,11 +527,11 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   }
 
   // Coalesced session_update broadcasts: only the last update per session per tick is sent
-  const pendingSessionUpdates = new Set<string>()
+  const pendingConversationUpdates = new Set<string>()
   let sessionUpdateScheduled = false
 
   function scheduleConversationUpdate(sessionId: string): void {
-    pendingSessionUpdates.add(sessionId)
+    pendingConversationUpdates.add(sessionId)
     if (!sessionUpdateScheduled) {
       sessionUpdateScheduled = true
       queueMicrotask(flushConversationUpdates)
@@ -540,7 +540,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
 
   function flushConversationUpdates(): void {
     sessionUpdateScheduled = false
-    for (const id of pendingSessionUpdates) {
+    for (const id of pendingConversationUpdates) {
       const session = conversations.get(id)
       if (session) {
         broadcastConversationScoped(
@@ -553,7 +553,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         )
       }
     }
-    pendingSessionUpdates.clear()
+    pendingConversationUpdates.clear()
   }
 
   // Load persisted state from StoreDriver on startup
@@ -1100,10 +1100,10 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       // from the parent session ID, it came from a subagent context.
       // MUST happen BEFORE status transitions so subagent activity doesn't
       // flip the parent from idle -> active (spinner stays on after Stop).
-      const hookSessionId = (event.data as Record<string, unknown>)?.session_id
-      const isSubagentEvent = typeof hookSessionId === 'string' && hookSessionId !== session.id
+      const hookConversationId = (event.data as Record<string, unknown>)?.session_id
+      const isSubagentEvent = typeof hookConversationId === 'string' && hookConversationId !== session.id
       if (isSubagentEvent) {
-        const subagent = session.subagents.find(a => a.agentId === hookSessionId && a.status === 'running')
+        const subagent = session.subagents.find(a => a.agentId === hookConversationId && a.status === 'running')
         if (subagent) {
           subagent.events.push(event)
         }
@@ -1748,11 +1748,11 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
 
   /** Filter sessions by user's grants - only show sessions they have chat:read for */
   function filterConversationsByGrants(
-    allSessions: ConversationSummary[],
+    allConversations: ConversationSummary[],
     grants?: UserGrant[],
   ): ConversationSummary[] {
-    if (!grants) return allSessions // no grants = admin/secret auth = see everything
-    return allSessions.filter(s => {
+    if (!grants) return allConversations // no grants = admin/secret auth = see everything
+    return allConversations.filter(s => {
       const { permissions } = resolvePermissions(grants, s.project)
       return permissions.has('chat:read')
     })
@@ -2564,16 +2564,16 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   }
 
   // ─── Pending session names (set at spawn time, applied on connect) ──
-  const pendingSessionNames = new Map<string, string>()
+  const pendingConversationNames = new Map<string, string>()
 
   function setPendingConversationName(conversationId: string, name: string): void {
-    pendingSessionNames.set(conversationId, name)
-    setTimeout(() => pendingSessionNames.delete(conversationId), 120_000)
+    pendingConversationNames.set(conversationId, name)
+    setTimeout(() => pendingConversationNames.delete(conversationId), 120_000)
   }
 
   function consumePendingConversationName(conversationId: string): string | undefined {
-    const name = pendingSessionNames.get(conversationId)
-    if (name) pendingSessionNames.delete(conversationId)
+    const name = pendingConversationNames.get(conversationId)
+    if (name) pendingConversationNames.delete(conversationId)
     return name
   }
 

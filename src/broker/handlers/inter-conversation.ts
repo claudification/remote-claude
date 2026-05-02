@@ -14,7 +14,7 @@ import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 import { getProjectSettings } from '../project-settings'
 import { dispatchSpawn } from '../spawn-dispatch'
-import { resolveSessionTarget } from './channel-id'
+import { resolveConversationTarget } from './channel-id'
 
 /** Resolve effective effort level from project + global settings */
 function resolveEffort(
@@ -175,7 +175,7 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
   ctx.requireBenevolent()
 
   const callerSess = ctx.conversations.getConversation(callerSession)
-  const resolved = resolveSessionTarget(targetId, {
+  const resolved = resolveConversationTarget(targetId, {
     callerSessionId: callerSession,
     getAllConversations: () => Array.from(ctx.conversations.getAllConversations()),
     getConversation: id => ctx.conversations.getConversation(id),
@@ -285,7 +285,7 @@ const handleChannelConfigure: MessageHandler = (ctx, data) => {
 
   const callerSession = ctx.ws.data.conversationId
   const callerSess = callerSession ? ctx.conversations.getConversation(callerSession) : undefined
-  const resolved = resolveSessionTarget(targetId, {
+  const resolved = resolveConversationTarget(targetId, {
     callerSessionId: callerSession,
     getAllConversations: () => Array.from(ctx.conversations.getAllConversations()),
     getConversation: id => ctx.conversations.getConversation(id),
@@ -364,7 +364,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
   // Resolve target: compound ID (project:session-slug), bare slug, or raw internal ID
   const callerSession = ctx.ws.data.conversationId
   const callerSess = callerSession ? ctx.conversations.getConversation(callerSession) : undefined
-  const resolved = resolveSessionTarget(targetId, {
+  const resolved = resolveConversationTarget(targetId, {
     callerSessionId: callerSession,
     getAllConversations: () => Array.from(ctx.conversations.getAllConversations()),
     getConversation: id => ctx.conversations.getConversation(id),

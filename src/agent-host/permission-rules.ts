@@ -29,9 +29,9 @@ interface PermissionConfig {
 
 interface RulesEngine {
   shouldAutoApprove(toolName: string, inputPreview: string): boolean
-  addSessionRule(toolName: string): void
-  removeSessionRule(toolName: string): void
-  getSessionRules(): string[]
+  addConversationRule(toolName: string): void
+  removeConversationRule(toolName: string): void
+  getConversationRules(): string[]
   getProjectRulesSummary(): Record<string, string[]>
   isPlanModeAllowed(): boolean
   reload(): void
@@ -117,15 +117,15 @@ export function createRulesEngine(cwd: string): RulesEngine {
       return false
     },
 
-    addSessionRule(toolName: string) {
+    addConversationRule(toolName: string) {
       sessionRules.add(toolName)
     },
 
-    removeSessionRule(toolName: string) {
+    removeConversationRule(toolName: string) {
       sessionRules.delete(toolName)
     },
 
-    getSessionRules(): string[] {
+    getConversationRules(): string[] {
       return Array.from(sessionRules)
     },
 

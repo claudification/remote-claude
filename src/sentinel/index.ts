@@ -604,7 +604,7 @@ function launchLog(jobId: string | undefined, step: string, status: 'info' | 'ok
  * Script exit codes: 0=continued, 1=fresh session, 2=dir not found, 3=tmux failed
  * Script stdout: TMUX_SESSION=<name> and CONTINUED=<true|false>
  */
-async function reviveSession(
+async function reviveConversation(
   sessionId: string,
   cwd: string,
   conversationId: string,
@@ -801,7 +801,7 @@ function isSpawnApproved(cwd: string): boolean {
  * Spawn a new rclaude session at the given cwd.
  * Headless sessions use direct Bun.spawn(), PTY sessions use tmux via revive-session.sh.
  */
-async function spawnSession(
+async function spawnConversation(
   cwd: string,
   conversationId: string,
   reviveScript: string,
@@ -1286,7 +1286,7 @@ function connect(
             `Reviving ccSession=${reviveMsg.ccSessionId.slice(0, 8)} conv=${reviveMsg.conversationId.slice(0, 8)} mode=${reviveMsg.mode || 'default'} headless=${reviveMsg.headless !== false}${reviveMsg.effort ? ` effort=${reviveMsg.effort}` : ''}${reviveMsg.model ? ` model=${reviveMsg.model}` : ''}${reviveMsg.maxBudgetUsd ? ` maxBudget=$${reviveMsg.maxBudgetUsd}` : ''}${reviveMsg.jobId ? ` job=${reviveMsg.jobId.slice(0, 8)}` : ''} (${reviveCwd})`,
           )
           launchLog(reviveMsg.jobId, 'Sentinel received revive request', 'ok')
-          const result = await reviveSession(
+          const result = await reviveConversation(
             reviveMsg.ccSessionId,
             reviveCwd,
             reviveMsg.conversationId,
@@ -1382,7 +1382,7 @@ function connect(
             headless: spawnMsg.headless,
             resumeId: spawnMsg.resumeId,
           })
-          const spawnRes = await spawnSession(
+          const spawnRes = await spawnConversation(
             expandedCwd,
             spawnMsg.conversationId,
             reviveScript,

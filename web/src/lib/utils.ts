@@ -90,21 +90,21 @@ export function slugify(name: string): string {
  * `src/broker/handlers/channel-id.ts` (the canonical implementation
  * that round-trips through send_message).
  *
- * `siblingSessions` is the list of sessions at the same project (including
+ * `siblingConversations` is the list of sessions at the same project (including
  * this one) -- used purely to disambiguate identical title slugs with a
  * 6-char id suffix.
  */
 export function sessionAddressableSlug(
   session: { id: string; project: string; title?: string; agentName?: string },
   projectSettings: { [project: string]: { label?: string } },
-  siblingSessions: ReadonlyArray<{ id: string; title?: string; agentName?: string }>,
+  siblingConversations: ReadonlyArray<{ id: string; title?: string; agentName?: string }>,
 ): string {
   const projectName = projectSettings[session.project]?.label || extractProjectLabel(session.project) || 'project'
   const projectSlug = slugify(projectName)
   const titleFor = (s: { id: string; title?: string; agentName?: string }) =>
     slugify(s.title || s.agentName || s.id.slice(0, 8))
   const baseSlug = titleFor(session)
-  const collides = siblingSessions.some(other => other.id !== session.id && titleFor(other) === baseSlug)
+  const collides = siblingConversations.some(other => other.id !== session.id && titleFor(other) === baseSlug)
   const sessionSlug = collides ? `${baseSlug}-${session.id.slice(0, 6)}` : baseSlug
   return `${projectSlug}:${sessionSlug}`
 }

@@ -85,7 +85,7 @@ export interface AgentHostContext {
   readonly eventQueue: HookEvent[]
 
   // Pending session name (sent when WS connects)
-  pendingSessionName?: { name: string; userSet: boolean; description?: string }
+  pendingConversationName?: { name: string; userSet: boolean; description?: string }
 
   // Outstanding user interactions (permission_request / ask_question /
   // dialog_show / plan_approval) keyed by their id. Full payload is kept

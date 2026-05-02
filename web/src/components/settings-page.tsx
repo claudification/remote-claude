@@ -193,8 +193,8 @@ const SETTINGS: SettingItem[] = [
     keywords: 'startup auto select home',
     render: ctx => (
       <DefaultSessionPicker
-        value={ctx.prefs.defaultSessionCwd ?? ''}
-        onChange={v => ctx.updatePrefs({ defaultSessionCwd: v })}
+        value={ctx.prefs.defaultConversationCwd ?? ''}
+        onChange={v => ctx.updatePrefs({ defaultConversationCwd: v })}
       />
     ),
   },
@@ -409,8 +409,8 @@ const SETTINGS: SettingItem[] = [
     render: ctx => (
       <input
         type="checkbox"
-        checked={ctx.prefs.showEndedSessions}
-        onChange={e => ctx.updatePrefs({ showEndedSessions: e.target.checked })}
+        checked={ctx.prefs.showEndedConversations}
+        onChange={e => ctx.updatePrefs({ showEndedConversations: e.target.checked })}
         className="accent-primary w-4 h-4"
       />
     ),

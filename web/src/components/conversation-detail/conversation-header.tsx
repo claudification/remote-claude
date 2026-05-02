@@ -5,7 +5,7 @@ import { CacheExpiredBanner, CacheTimer } from '@/components/cache-timer'
 import { CostSparkline } from '@/components/cost-sparkline'
 import { renderProjectIcon } from '@/components/project-settings-editor'
 import { useConversationsStore, wsSend } from '@/hooks/use-conversations'
-import { formatCost, getBurnRate, getCacheEfficiency, getCostColor, getSessionCost } from '@/lib/cost-utils'
+import { formatCost, getBurnRate, getCacheEfficiency, getConversationCost, getCostColor } from '@/lib/cost-utils'
 import type { Session } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import {
@@ -234,7 +234,7 @@ export function ConversationHeader({
                     })()}
                   {session.stats &&
                     (() => {
-                      const { cost, exact } = getSessionCost(session.stats, model || session.model)
+                      const { cost, exact } = getConversationCost(session.stats, model || session.model)
                       if (cost < 0.01) return null
                       return (
                         <span className="inline-flex items-center gap-1">
@@ -288,7 +288,7 @@ export function ConversationHeader({
           const compactWarnAt = compactThreshold - 5
 
           // Cost calculation
-          const sessionCost = s ? getSessionCost(s, model || session.model) : { cost: 0, exact: false }
+          const sessionCost = s ? getConversationCost(s, model || session.model) : { cost: 0, exact: false }
           const burnRate = s ? getBurnRate(sessionCost.cost, session.startedAt, session.lastActivity) : null
           const cacheEff = s ? getCacheEfficiency(s.totalCacheRead, s.totalCacheCreation) : null
 

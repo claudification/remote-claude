@@ -23,7 +23,7 @@ export interface MigrationCounts {
   addressBook: number
   projectLinks: number
   messageQueue: number
-  interSessionLog: number
+  interConversationLog: number
   costTurns: number
 }
 
@@ -45,7 +45,7 @@ function emptyCounts(): MigrationCounts {
     addressBook: 0,
     projectLinks: 0,
     messageQueue: 0,
-    interSessionLog: 0,
+    interConversationLog: 0,
     costTurns: 0,
   }
 }
@@ -97,7 +97,7 @@ function migrateSessions(store: StoreDriver, cacheDir: string, result: Migration
         title: session.title as string | undefined,
         model: session.model as string | undefined,
         createdAt: (session.startedAt as number) || Date.now(),
-        meta: buildSessionMeta(session),
+        meta: buildConversationMeta(session),
       }
 
       store.sessions.create(create)
@@ -107,7 +107,7 @@ function migrateSessions(store: StoreDriver, cacheDir: string, result: Migration
         summary: session.summary as string | undefined,
         lastActivity: session.lastActivity as number | undefined,
         endedAt: session.status === 'ended' ? (session.lastActivity as number) : undefined,
-        stats: buildSessionStats(session),
+        stats: buildConversationStats(session),
       }
       store.sessions.update(id, patch)
       result.counts.sessions++
@@ -117,7 +117,7 @@ function migrateSessions(store: StoreDriver, cacheDir: string, result: Migration
   }
 }
 
-function buildSessionMeta(session: Record<string, unknown>): Record<string, unknown> {
+function buildConversationMeta(session: Record<string, unknown>): Record<string, unknown> {
   const meta: Record<string, unknown> = {}
   const passthrough = [
     'configuredModel',
@@ -160,7 +160,7 @@ function buildSessionMeta(session: Record<string, unknown>): Record<string, unkn
   return Object.keys(meta).length > 0 ? meta : {}
 }
 
-function buildSessionStats(session: Record<string, unknown>): Record<string, unknown> | undefined {
+function buildConversationStats(session: Record<string, unknown>): Record<string, unknown> | undefined {
   const stats = session.stats as Record<string, unknown> | undefined
   if (!stats) return undefined
 
@@ -477,7 +477,7 @@ function migrateInterSessionLog(store: StoreDriver, cacheDir: string, result: Mi
         createdAt: (entry.ts as number) || Date.now(),
       }
       store.messages.log(logEntry)
-      result.counts.interSessionLog++
+      result.counts.interConversationLog++
     } catch {
       result.warnings.push('inter-session-messages.jsonl: skipping malformed line')
     }
@@ -608,7 +608,7 @@ export function migrateFromLegacy(store: StoreDriver, cacheDir: string): Migrati
 export interface CanonicalizeResult {
   storeTurns: number
   storeHourlyDeleted: number
-  storeSessions: number
+  storeConversations: number
   storeScopeLinks: number
   storeAddressBook: number
   analyticsTurns: number
@@ -634,7 +634,7 @@ export function canonicalizeUris(cacheDir: string): CanonicalizeResult {
   const result: CanonicalizeResult = {
     storeTurns: 0,
     storeHourlyDeleted: 0,
-    storeSessions: 0,
+    storeConversations: 0,
     storeScopeLinks: 0,
     storeAddressBook: 0,
     analyticsTurns: 0,
@@ -656,7 +656,7 @@ export function canonicalizeUris(cacheDir: string): CanonicalizeResult {
         .run()
       result.storeHourlyDeleted = r.changes ?? 0
 
-      result.storeSessions = canonicalizeColumn(db, 'sessions', 'scope')
+      result.storeConversations = canonicalizeColumn(db, 'sessions', 'scope')
       // scope_links: both columns, plus dedup on collision (PK is (scope_a, scope_b))
       const sl1 = canonicalizeColumn(db, 'scope_links', 'scope_a')
       const sl2 = canonicalizeColumn(db, 'scope_links', 'scope_b')

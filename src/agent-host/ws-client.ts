@@ -77,7 +77,7 @@ export interface WsClientOptions {
   onFileEditorMessage?: (message: Record<string, unknown>) => void
   onAck?: (origins: string[]) => void
   onTranscriptKick?: () => void
-  onChannelSessionsList?: (
+  onChannelConversationsList?: (
     sessions: InterConversationListResponse['sessions'],
     self?: InterConversationListResponse['self'],
   ) => void
@@ -110,7 +110,7 @@ export interface WsClientOptions {
   onLaunchJobEvent?: (event: Record<string, unknown>) => void
   onChannelConfigureResult?: (result: { ok: boolean; error?: string }) => void
   onChannelRenameResult?: (result: { ok: boolean; error?: string }) => void
-  onSessionControlResult?: (result: { ok: boolean; error?: string; name?: string; action?: string }) => void
+  onConversationControlResult?: (result: { ok: boolean; error?: string; name?: string; action?: string }) => void
   onAskAnswer?: (
     toolUseId: string,
     answers?: Record<string, string>,
@@ -125,7 +125,7 @@ export interface WsClientOptions {
     feedback?: string,
     toolUseId?: string,
   ) => void
-  onQuitSession?: () => void
+  onQuitConversation?: () => void
   onInterrupt?: () => void
   onConfigUpdated?: () => void
   onConfigGet?: (requestId: string) => void
@@ -147,8 +147,8 @@ export interface WsClientOptions {
 export interface WsClient {
   send: (message: AgentHostMessage) => void
   sendHookEvent: (event: HookEvent) => void
-  sendSessionEnd: (reason: string) => void
-  sendSessionClear: (newSessionId: string, project: string, model?: string) => void
+  sendConversationEnd: (reason: string) => void
+  sendConversationRekey: (newSessionId: string, project: string, model?: string) => void
   sendTerminalData: (data: string) => void
   sendTranscriptEntries: (entries: TranscriptEntry[], isInitial: boolean) => void
   sendSubagentTranscript: (agentId: string, entries: TranscriptEntry[], isInitial: boolean) => void
@@ -157,7 +157,7 @@ export interface WsClient {
   sendJsonStreamData: (lines: string[], isBackfill: boolean) => void
   sendStreamDelta: (event: Record<string, unknown>) => void
   sendRateLimit: (retryAfterMs: number, message: string) => void
-  sendSessionStatus: (status: 'active' | 'idle') => void
+  sendConversationStatus: (status: 'active' | 'idle') => void
   /** Emit a structured boot-phase event. Queued if not yet connected. */
   sendBootEvent: (step: BootStep, detail?: string, raw?: unknown) => void
   /** Called once the real CC session id is known. Sends `meta` (so the
@@ -205,7 +205,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onFileEditorMessage,
     onAck,
     onTranscriptKick,
-    onChannelSessionsList,
+    onChannelConversationsList,
     onChannelSendResult,
     onChannelDeliver,
     onChannelLinkRequest,
@@ -219,12 +219,12 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onLaunchJobEvent,
     onChannelConfigureResult,
     onChannelRenameResult,
-    onSessionControlResult,
+    onConversationControlResult,
     onAskAnswer,
     onDialogResult,
     onDialogKeepalive,
     onPlanApprovalResponse,
-    onQuitSession,
+    onQuitConversation,
     onInterrupt,
     onConfigUpdated,
     onConfigGet,
@@ -435,7 +435,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
               onConfigSet?.(message.requestId, message.config)
               break
             case 'channel_sessions_list':
-              onChannelSessionsList?.(message.sessions, message.self)
+              onChannelConversationsList?.(message.sessions, message.self)
               break
             case 'channel_deliver':
               onChannelDeliver?.(message)
@@ -459,7 +459,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
               onInterrupt?.()
               break
             case 'terminate_conversation':
-              onQuitSession?.()
+              onQuitConversation?.()
               break
             case 'control': {
               const action = message.action
@@ -486,7 +486,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
               const msgType = (message as unknown as Record<string, unknown>).type as string
               // Deprecated alias for terminate_session
               if (msgType === 'quit_session') {
-                onQuitSession?.()
+                onQuitConversation?.()
                 break
               }
               if (msgType === 'dialog_keepalive') {
@@ -555,7 +555,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
                 break
               }
               if (msgType === 'conversation_control_result') {
-                onSessionControlResult?.(
+                onConversationControlResult?.(
                   message as unknown as { ok: boolean; error?: string; name?: string; action?: string },
                 )
                 break
@@ -621,7 +621,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     send(event)
   }
 
-  function sendSessionEnd(reason: string) {
+  function sendConversationEnd(reason: string) {
     const endMsg: ConversationEnd = {
       type: 'end',
       ccSessionId: routeId(),
@@ -631,7 +631,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     send(endMsg)
   }
 
-  function sendSessionClear(newSessionId: string, newProject: string, newModel?: string) {
+  function sendConversationRekey(newSessionId: string, newProject: string, newModel?: string) {
     const prev = routeId()
     // Same-id short-circuit. With session-transition.ts as the single source
     // of truth this should NEVER fire in normal operation -- if it does, an
@@ -781,8 +781,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
   return {
     send,
     sendHookEvent,
-    sendSessionEnd,
-    sendSessionClear,
+    sendConversationEnd,
+    sendConversationRekey,
     sendTerminalData,
     sendTranscriptEntries,
     sendSubagentTranscript,
@@ -797,7 +797,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     sendRateLimit(retryAfterMs: number, message: string) {
       send({ type: 'rate_limit', conversationId: routeId(), retryAfterMs, message } as AgentHostMessage)
     },
-    sendSessionStatus(status: 'active' | 'idle') {
+    sendConversationStatus(status: 'active' | 'idle') {
       send({ type: 'conversation_status', conversationId: routeId(), status } as AgentHostMessage)
     },
     sendBootEvent,

@@ -167,7 +167,7 @@ export function SpawnDialog() {
   }, [progress.launch.sessionId, progress.spawnedSession])
 
   /** Explicitly navigate to the spawned session and close. */
-  const handleViewSession = useCallback(() => {
+  const handleViewConversation = useCallback(() => {
     const sid = progress.launch.sessionId || progress.spawnedSession?.id
     if (sid) useConversationsStore.getState().selectConversation(sid, 'spawn-dialog-view-session')
     progress.setViewCountdown(null)
@@ -260,7 +260,7 @@ export function SpawnDialog() {
     {
       Enter: () => {
         if (phase === 'config') handleSpawn()
-        else if (phase === 'launching' && progress.isConnected) handleViewSession()
+        else if (phase === 'launching' && progress.isConnected) handleViewConversation()
       },
       h: () => {
         if (phase !== 'config') return
@@ -637,9 +637,9 @@ export function SpawnDialog() {
                 isComplete={progress.isComplete}
                 hasError={progress.hasError}
                 viewCountdown={progress.viewCountdown}
-                onViewSession={() => {
+                onViewConversation={() => {
                   progress.setViewCountdown(null)
-                  handleViewSession()
+                  handleViewConversation()
                 }}
                 onClose={handleClose}
               />

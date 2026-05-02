@@ -329,7 +329,7 @@ export function GroupView({
         source: string
         sessionId?: string
         intent?: string
-        isInterSession?: boolean
+        isInterConversation?: boolean
         isDialog?: boolean
         dialogStatus?: string
         dialogAction?: string
@@ -372,7 +372,7 @@ export function GroupView({
               source: fromProject,
               sessionId: fromSessionId,
               intent: intent || undefined,
-              isInterSession: true,
+              isInterConversation: true,
             })
           } else if (sender === 'dialog') {
             // Dialog result -- structured display
@@ -466,7 +466,7 @@ export function GroupView({
   // Chat bubble layout for user messages (opt-in)
   // Skip bubbles for inter-session messages and project-task cards - they use rich card renderers
   const hasInterSessionContent = items.some(
-    it => it.kind === 'channel' && (it.isInterSession || it.isDialog || it.isSystem),
+    it => it.kind === 'channel' && (it.isInterConversation || it.isDialog || it.isSystem),
   )
   const hasProjectTask = items.some(it => it.kind === 'project-task')
   if (chatBubbles && isUser && !hasInterSessionContent && !hasProjectTask) {
@@ -698,7 +698,7 @@ export function GroupView({
                 </div>
               )
             case 'channel':
-              if (item.isInterSession) {
+              if (item.isInterConversation) {
                 const intentStyles: Record<string, string> = {
                   request: 'bg-yellow-400/15 text-yellow-400 border-yellow-400/30',
                   response: 'bg-green-400/15 text-green-400 border-green-400/30',

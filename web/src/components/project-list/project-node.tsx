@@ -6,7 +6,7 @@ import { haptic } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from '../project-settings-editor'
 import { ConversationContextMenu, ProjectContextMenu } from './conversation-context-menu'
 import { ConversationCard, ConversationItemCompact } from './conversation-item'
-import { partitionSessions } from './partition'
+import { partitionConversations } from './partition'
 
 function sessionsEqual(a: Session[], b: Session[]): boolean {
   if (a.length !== b.length) return false
@@ -19,7 +19,7 @@ function sessionsEqual(a: Session[], b: Session[]): boolean {
 // ─── Dismiss all ended sessions button ────────────────────────────
 
 function DismissAllEndedButton({ ended }: { ended: Session[] }) {
-  const dismissSession = useConversationsStore(s => s.dismissSession)
+  const dismissConversation = useConversationsStore(s => s.dismissConversation)
   const [confirming, setConfirming] = useState(false)
   if (ended.length === 0) return null
 
@@ -37,13 +37,13 @@ function DismissAllEndedButton({ ended }: { ended: Session[] }) {
           tabIndex={0}
           onClick={() => {
             haptic('tap')
-            for (const s of ended) dismissSession(s.id)
+            for (const s of ended) dismissConversation(s.id)
             setConfirming(false)
           }}
           onKeyDown={e => {
             if (e.key === 'Enter' || e.key === ' ') {
               haptic('tap')
-              for (const s of ended) dismissSession(s.id)
+              for (const s of ended) dismissConversation(s.id)
               setConfirming(false)
             }
           }}
@@ -98,7 +98,7 @@ const ProjectSessionGroup = memo(
     const ps = useConversationsStore(s => s.projectSettings[project])
     const displayName = ps?.label || extractProjectLabel(project)
     const displayColor = ps?.color
-    const { adhoc, normal, ended } = partitionSessions(sessions)
+    const { adhoc, normal, ended } = partitionConversations(sessions)
     // Project-level rollups: any session in this project needing attention?
     const hasPendingPermission = useConversationsStore(s => {
       const ids = new Set(sessions.map(x => x.id))

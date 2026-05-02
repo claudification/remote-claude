@@ -34,7 +34,7 @@ const DEFAULT_TOOL_DISPLAY: Record<ToolDisplayKey, ToolDisplayPrefs> = {
 }
 
 export interface ControlPanelPrefs {
-  showEndedSessions: boolean // show [ENDED] sessions within CWD groups (organized + unorganized)
+  showEndedConversations: boolean // show [ENDED] sessions within CWD groups (organized + unorganized)
   showInactiveByDefault: boolean
   compactMode: boolean
   showVoiceInput: boolean
@@ -53,7 +53,7 @@ export interface ControlPanelPrefs {
   voiceWarmStreamMs: number // how long to keep mic stream warm after recording (0 = release immediately)
   voiceDeviceId: string // preferred audio input device ID ('' = system default)
   chatBubbleColor: string // tailwind color class prefix (e.g. 'blue', 'teal', 'purple')
-  defaultSessionCwd: string // auto-select this project on dashboard load (per-device)
+  defaultConversationCwd: string // auto-select this project on dashboard load (per-device)
   showDiag: boolean
   showStreaming: boolean
   showPerfMonitor: boolean
@@ -67,7 +67,7 @@ export interface ControlPanelPrefs {
 export type SettingsTab = 'general' | 'display' | 'input' | 'sessions' | 'sentinels' | 'system'
 
 const defaultPrefs: ControlPanelPrefs = {
-  showEndedSessions: true,
+  showEndedConversations: true,
   showInactiveByDefault: false,
   compactMode: false,
   showVoiceInput: true,
@@ -89,7 +89,7 @@ const defaultPrefs: ControlPanelPrefs = {
   showDiag: false,
   showStreaming: true,
   showPerfMonitor: false,
-  defaultSessionCwd: '',
+  defaultConversationCwd: '',
   toolDisplay: {},
   chordTimeoutMs: 3000,
   sanitizePaths: true,

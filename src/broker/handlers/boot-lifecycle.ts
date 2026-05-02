@@ -154,8 +154,8 @@ const sessionPromote: MessageHandler = (ctx, data) => {
   const newSessionId = data.sessionId as string
   if (!conversationId || !newSessionId) return
 
-  const bootSession = ctx.conversations.getConversation(conversationId)
-  if (!bootSession) {
+  const bootConversation = ctx.conversations.getConversation(conversationId)
+  if (!bootConversation) {
     ctx.log.debug(`[boot] session_promote for unknown wrapper: ${conversationId.slice(0, 8)}`)
     return
   }
@@ -163,19 +163,19 @@ const sessionPromote: MessageHandler = (ctx, data) => {
   if (conversationId === newSessionId) {
     // Nothing to migrate -- just flip status out of booting; meta handler
     // will take over with full metadata.
-    bootSession.status = 'starting'
+    bootConversation.status = 'starting'
     ctx.conversations.broadcastConversationUpdate(newSessionId)
     return
   }
 
   // Re-key the booting session to the real session id. This moves the
   // transcript (including boot entries), sockets, subscriptions, etc.
-  const bootProject = bootSession.project
+  const bootProject = bootConversation.project
   const rekeyed = ctx.conversations.rekeyConversation(
     conversationId,
     newSessionId,
     conversationId,
-    parseProjectUri(bootSession.project).path,
+    parseProjectUri(bootConversation.project).path,
     undefined,
   )
   if (!rekeyed) {

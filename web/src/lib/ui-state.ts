@@ -73,11 +73,11 @@ export function setLastSessionId(id: string | null) {
   scheduleFlush()
 }
 
-export function getSessionTab(sessionId: string): string | null {
+export function getConversationTab(sessionId: string): string | null {
   return load().tabPerSession[sessionId] ?? null
 }
 
-export function setSessionTab(sessionId: string, tab: string) {
+export function setConversationTab(sessionId: string, tab: string) {
   const state = load()
   if (state.tabPerSession[sessionId] === tab) return
   state.tabPerSession[sessionId] = tab

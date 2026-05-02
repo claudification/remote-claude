@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { fetchSubagentTranscript, useConversationsStore } from '@/hooks/use-conversations'
 import { type TaskStatus, useProject } from '@/hooks/use-project'
 import { canJsonStream, canTerminal, projectPath, type TranscriptEntry } from '@/lib/types'
-import { setSessionTab } from '@/lib/ui-state'
+import { setConversationTab } from '@/lib/ui-state'
 import { cn, haptic } from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
 import { AskQuestionBanners, ClipboardBanners } from './conversation-detail/conversation-banners'
@@ -85,7 +85,7 @@ export const ConversationDetail = memo(function SessionDetail() {
 
   // Persist active tab to localStorage (batched) so it survives reloads
   useEffect(() => {
-    if (selectedConversationId) setSessionTab(selectedConversationId, activeTab)
+    if (selectedConversationId) setConversationTab(selectedConversationId, activeTab)
   }, [selectedConversationId, activeTab])
   const { canAdmin, canChat, canReadTerminal, canReadFiles, canFiles, canSpawn } = useConversationsStore(
     useShallow(s => {

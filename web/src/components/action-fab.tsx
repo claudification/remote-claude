@@ -105,7 +105,7 @@ function buildActions(session: Session | undefined, selectedConversationId: stri
         id: 'dismiss',
         icon: <Trash2 className="w-4 h-4" />,
         label: 'Dismiss',
-        action: () => useConversationsStore.getState().dismissSession(session.id),
+        action: () => useConversationsStore.getState().dismissConversation(session.id),
         color: 'bg-red-500/80',
         dangerous: true,
       })

@@ -9,7 +9,7 @@ import { Clock, Link2Off } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ConversationDetail } from '@/components/conversation-detail'
 import { MediaLightbox } from '@/components/media-lightbox'
-import { fetchSessionEvents, fetchTranscript, useConversationsStore } from '@/hooks/use-conversations'
+import { fetchConversationEvents, fetchTranscript, useConversationsStore } from '@/hooks/use-conversations'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { extractProjectLabel } from '@/lib/types'
 
@@ -35,7 +35,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
   useEffect(() => {
     if (!selectedConversationId || !isConnected || fetchedRef.current) return
     fetchedRef.current = true
-    fetchSessionEvents(selectedConversationId).then(events => {
+    fetchConversationEvents(selectedConversationId).then(events => {
       useConversationsStore.getState().setEvents(selectedConversationId, events)
     })
     fetchTranscript(selectedConversationId).then(transcript => {

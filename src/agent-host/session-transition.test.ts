@@ -12,7 +12,7 @@ import { observeClaudeSessionId, type SessionTransition } from './session-transi
 type WsCall =
   | { fn: 'setSessionId'; id: string; source: 'hook' | 'stream_json' }
   | { fn: 'sendBootEvent'; step: string; detail?: string; raw?: unknown }
-  | { fn: 'sendSessionClear'; id: string; project: string; model?: string }
+  | { fn: 'sendConversationRekey'; id: string; project: string; model?: string }
 
 interface DiagCall {
   type: string
@@ -39,8 +39,8 @@ function makeCtx(init: { claudeSessionId?: string | null; pendingClearFromId?: s
             wsCalls.push({ fn: 'setSessionId', id, source }),
           sendBootEvent: (step: string, detail?: string, raw?: unknown) =>
             wsCalls.push({ fn: 'sendBootEvent', step, detail, raw }),
-          sendSessionClear: (id: string, project: string, model?: string) =>
-            wsCalls.push({ fn: 'sendSessionClear', id, project, model }),
+          sendConversationRekey: (id: string, project: string, model?: string) =>
+            wsCalls.push({ fn: 'sendConversationRekey', id, project, model }),
           // observeClaudeSessionId now also emits launch events, which call
           // wsClient.send() if connected. Swallow them in the stub -- they
           // are verified indirectly via the kind/reason of the transition.
@@ -130,7 +130,7 @@ describe('observeClaudeSessionId', () => {
     expect(ctx.claudeSessionId).toBe('sess-new')
     expect(ctx.pendingClearFromId).toBe(null)
     expect(wsCalls).toEqual([
-      { fn: 'sendSessionClear', id: 'sess-new', project: 'claude://default/test/cwd', model: 'claude-opus-4-7' },
+      { fn: 'sendConversationRekey', id: 'sess-new', project: 'claude://default/test/cwd', model: 'claude-opus-4-7' },
     ])
     expect(diagCalls.at(-1)).toMatchObject({ type: 'session', msg: 'transition: rekey (post-clear)' })
   })
@@ -166,7 +166,7 @@ describe('observeClaudeSessionId', () => {
     expect(t1.kind).toBe('rekey')
     expect(t1.reason).toBe('post-clear')
     expect(wsCalls).toEqual([
-      { fn: 'sendSessionClear', id: 'sess-new', project: 'claude://default/test/cwd', model: undefined },
+      { fn: 'sendConversationRekey', id: 'sess-new', project: 'claude://default/test/cwd', model: undefined },
     ])
 
     // Hook then fires with the same id -- must no-op.
@@ -187,7 +187,7 @@ describe('observeClaudeSessionId', () => {
       to: 'sess-new',
     })
     expect(wsCalls).toEqual([
-      { fn: 'sendSessionClear', id: 'sess-new', project: 'claude://default/test/cwd', model: undefined },
+      { fn: 'sendConversationRekey', id: 'sess-new', project: 'claude://default/test/cwd', model: undefined },
     ])
   })
 
@@ -224,7 +224,7 @@ describe('observeClaudeSessionId', () => {
     expect(ctx.taskWatcher).toBe(null)
     expect(taskRestart).toBe(1)
     expect(projectRestart).toBe(1)
-    expect(wsCalls).toHaveLength(1) // sendSessionClear
+    expect(wsCalls).toHaveLength(1) // sendConversationRekey
   })
 
   test('rekey with disconnected wsClient: skips send but still updates state', () => {
@@ -232,11 +232,10 @@ describe('observeClaudeSessionId', () => {
     // Override isConnected to simulate disconnected ws
     ;(ctx.wsClient as { isConnected: () => boolean }).isConnected = () => false
     const wsCallsOverride: WsCall[] = []
-    ;(ctx.wsClient as unknown as { sendSessionClear: (id: string, project: string) => void }).sendSessionClear = (
-      id: string,
-      project: string,
-    ) => {
-      wsCallsOverride.push({ fn: 'sendSessionClear', id, project })
+    ;(
+      ctx.wsClient as unknown as { sendConversationRekey: (id: string, project: string) => void }
+    ).sendConversationRekey = (id: string, project: string) => {
+      wsCallsOverride.push({ fn: 'sendConversationRekey', id, project })
     }
 
     const t = observeClaudeSessionId(ctx, 'sess-new', 'hook')

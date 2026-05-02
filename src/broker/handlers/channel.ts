@@ -506,7 +506,7 @@ const channelSend: MessageHandler = (ctx, data) => {
 
 // ─── Quit session relay (dashboard -> wrapper) ─────────────────────
 
-const quitSession: MessageHandler = (ctx, data) => {
+const quitConversation: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.sessionId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   if (conversation) ctx.requirePermission('chat', conversation.project)
@@ -616,9 +616,9 @@ export function registerChannelHandlers(): void {
     // Inter-session messaging
     channel_send: channelSend,
     // Conversation terminate relay
-    terminate_conversation: quitSession,
-    terminate_session: quitSession, // backward compat
-    quit_session: quitSession, // backward compat
+    terminate_conversation: quitConversation,
+    terminate_session: quitConversation, // backward compat
+    quit_session: quitConversation, // backward compat
     // Notification badge
     conversation_viewed: sessionViewed,
     session_viewed: sessionViewed, // backward compat

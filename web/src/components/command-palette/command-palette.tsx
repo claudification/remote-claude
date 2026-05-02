@@ -39,7 +39,7 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
               palette.setFilter(e.target.value)
               palette.setActiveIndex(0)
             }}
-            onKeyDown={e => palette.handleKeyDown(e, { onSelectSession: onSelect, onFileSelect })}
+            onKeyDown={e => palette.handleKeyDown(e, { onSelectConversation: onSelect, onFileSelect })}
             placeholder={
               palette.mode === 'command'
                 ? 'Type a command...'

@@ -28,7 +28,7 @@ export function ProjectList() {
   const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
   const rawProjectOrder = useConversationsStore(s => s.projectOrder)
   const projectOrder = rawProjectOrder?.tree ? rawProjectOrder : { tree: [] }
-  const showEnded = useConversationsStore(s => s.controlPanelPrefs.showEndedSessions)
+  const showEnded = useConversationsStore(s => s.controlPanelPrefs.showEndedConversations)
   const showInactive = useConversationsStore(s => s.controlPanelPrefs.showInactiveByDefault)
   const updatePrefs = useConversationsStore(s => s.updateControlPanelPrefs)
   const [_pulseSessionId, setPulseSessionId] = useState<string | null>(null)
@@ -60,7 +60,7 @@ export function ProjectList() {
   }, [sessions])
 
   // Filtered view: hide ended sessions from project groups when toggle is off
-  const visibleSessionsByCwd = useMemo(() => {
+  const visibleConversationsByCwd = useMemo(() => {
     if (showEnded) return sessionsByCwd
     const map = new Map<string, Session[]>()
     for (const [project, group] of sessionsByCwd) {
@@ -86,15 +86,15 @@ export function ProjectList() {
     return projects
   }, [projectOrder])
 
-  // Unorganized active sessions (uses visibleSessionsByCwd to respect showEnded filter)
+  // Unorganized active sessions (uses visibleConversationsByCwd to respect showEnded filter)
   const unorganized = useMemo(() => {
     const seen = new Set<string>()
     const result: Array<{ project: string; sessions: Session[] }> = []
     for (const s of sessions) {
       if (s.status !== 'ended' && !treeProjects.has(s.project) && !seen.has(s.project)) {
         seen.add(s.project)
-        const projectSessions = visibleSessionsByCwd.get(s.project) || []
-        if (projectSessions.length > 0) result.push({ project: s.project, sessions: projectSessions })
+        const projectConversations = visibleConversationsByCwd.get(s.project) || []
+        if (projectConversations.length > 0) result.push({ project: s.project, sessions: projectConversations })
       }
     }
     result.sort((a, b) => {
@@ -108,7 +108,7 @@ export function ProjectList() {
       return bMax - aMax
     })
     return result
-  }, [sessions, treeProjects, visibleSessionsByCwd])
+  }, [sessions, treeProjects, visibleConversationsByCwd])
 
   // Inactive sessions (ended, not in tree, not in unorganized)
   const inactive = useMemo(() => {
@@ -366,7 +366,7 @@ export function ProjectList() {
                   <SortableNode key={node.id} id={node.id}>
                     <GroupNode
                       group={node}
-                      sessionsByCwd={visibleSessionsByCwd}
+                      sessionsByCwd={visibleConversationsByCwd}
                       collapsed={isCollapsed}
                       onToggle={() => toggleGroup(node.id)}
                       onRename={name => handleRename(node.id, name)}
@@ -376,11 +376,11 @@ export function ProjectList() {
                         {node.children.map(child => {
                           if (child.type === 'group') return null
                           const childProject = child.id
-                          const childSessions = visibleSessionsByCwd.get(childProject)
-                          if (!childSessions || childSessions.length === 0) return null
+                          const childConversations = visibleConversationsByCwd.get(childProject)
+                          if (!childConversations || childConversations.length === 0) return null
                           return (
                             <SortableNode key={child.id} id={child.id}>
-                              <ProjectNode project={childProject} sessions={childSessions} />
+                              <ProjectNode project={childProject} sessions={childConversations} />
                             </SortableNode>
                           )
                         })}
@@ -389,12 +389,12 @@ export function ProjectList() {
                       (() => {
                         // Peek: show selected session even when group is collapsed
                         if (!selectedConversationId) return null
-                        const selectedSession = sessionsById[selectedConversationId]
-                        if (!selectedSession) return null
-                        if (!node.children.some(c => c.id === selectedSession.project)) return null
+                        const selectedConversation = sessionsById[selectedConversationId]
+                        if (!selectedConversation) return null
+                        if (!node.children.some(c => c.id === selectedConversation.project)) return null
                         return (
                           <div className="opacity-80">
-                            <ConversationItemCompact session={selectedSession} />
+                            <ConversationItemCompact session={selectedConversation} />
                           </div>
                         )
                       })()
@@ -404,11 +404,11 @@ export function ProjectList() {
               }
               // Root-level session node
               const nodeProject = node.id
-              const nodeSessions = visibleSessionsByCwd.get(nodeProject)
-              if (!nodeSessions || nodeSessions.length === 0) return null
+              const nodeConversations = visibleConversationsByCwd.get(nodeProject)
+              if (!nodeConversations || nodeConversations.length === 0) return null
               return (
                 <SortableNode key={node.id} id={node.id}>
-                  <ProjectNode project={nodeProject} sessions={nodeSessions} />
+                  <ProjectNode project={nodeProject} sessions={nodeConversations} />
                 </SortableNode>
               )
             })}
@@ -433,9 +433,9 @@ export function ProjectList() {
                   </div>
                 )}
                 <div className="space-y-1">
-                  {unorganized.map(({ project, sessions: projectSessions }, i) => {
+                  {unorganized.map(({ project, sessions: projectConversations }, i) => {
                     // Insert separator before first ad-hoc-only group
-                    const isAllAdHoc = projectSessions.every(s => s.capabilities?.includes('ad-hoc'))
+                    const isAllAdHoc = projectConversations.every(s => s.capabilities?.includes('ad-hoc'))
                     const prevIsRegular =
                       i > 0 && !unorganized[i - 1].sessions.every(s => s.capabilities?.includes('ad-hoc'))
                     const showAdHocSeparator = isAllAdHoc && (i === 0 || prevIsRegular)
@@ -449,7 +449,7 @@ export function ProjectList() {
                           </div>
                         )}
                         <SortableNode id={project}>
-                          <ProjectNode project={project} sessions={projectSessions} />
+                          <ProjectNode project={project} sessions={projectConversations} />
                         </SortableNode>
                       </div>
                     )

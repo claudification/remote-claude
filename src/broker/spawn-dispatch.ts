@@ -19,7 +19,7 @@ import { generateConversationName } from '../shared/conversation-names'
 import { validateModel } from '../shared/models'
 import type { Conversation, LaunchProgressEvent, LaunchStep, ProjectSettings, SpawnResult } from '../shared/protocol'
 import { resolveSpawnConfig } from '../shared/spawn-defaults'
-import { deriveConversationName, validateSessionName } from '../shared/spawn-naming'
+import { deriveConversationName, validateConversationName } from '../shared/spawn-naming'
 import { assertSpawnAllowed, type SpawnCallerContext, SpawnPermissionError } from '../shared/spawn-permissions'
 import type { SpawnRequest } from '../shared/spawn-schema'
 import type { ConversationStore } from './conversation-store'
@@ -109,7 +109,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
         .map((s: Conversation) => s.title)
         .filter(Boolean) as string[],
     )
-    const nameErr = validateSessionName(req.name, usedNames)
+    const nameErr = validateConversationName(req.name, usedNames)
     if (nameErr) return { ok: false, error: nameErr, statusCode: 400 }
   }
 

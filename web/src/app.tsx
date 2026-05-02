@@ -32,11 +32,11 @@ const SentinelManagerDialog = lazy(() =>
 )
 
 import {
+  fetchConversationEvents,
   fetchGlobalSettings,
   fetchProjectOrder,
   fetchProjectSettings,
   fetchServerCapabilities,
-  fetchSessionEvents,
   fetchTranscript,
   saveProjectOrder,
   sendInput,
@@ -297,7 +297,7 @@ function Dashboard() {
 
   // Helper: fetch events + transcript for a session.
   // Deduplicates within a short window to prevent storm on rapid switches.
-  const fetchSessionData = useCallback(
+  const fetchConversationData = useCallback(
     (sessionId: string, reason?: string) => {
       const now = Date.now()
       const lastFetch = fetchedAtRef.current[sessionId] || 0
@@ -312,7 +312,7 @@ function Dashboard() {
       )
       fetchedAtRef.current[sessionId] = now
       // Batch both fetches into a single state update to avoid useSyncExternalStore tearing (#310)
-      Promise.all([fetchSessionEvents(sessionId), fetchTranscript(sessionId)]).then(([events, transcript]) => {
+      Promise.all([fetchConversationEvents(sessionId), fetchTranscript(sessionId)]).then(([events, transcript]) => {
         console.log(
           `[sync] GOT ${sessionId.slice(0, 8)}: events=${events.length} transcript=${transcript?.entries.length ?? 'null'} lastSeq=${transcript?.lastSeq ?? '-'} (was ${cachedCount})`,
         )
@@ -336,14 +336,14 @@ function Dashboard() {
     wsSend('refresh_sessions')
     fetchSidebarMetadata()
     fetchedAtRef.current = {}
-    if (sid) fetchSessionData(sid, 'reconnect')
-  }, [connectSeq, fetchSessionData, fetchSidebarMetadata]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (sid) fetchConversationData(sid, 'reconnect')
+  }, [connectSeq, fetchConversationData, fetchSidebarMetadata]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // On session switch: fetch only if transcript not in LIFO cache.
   // Cached sessions have active WS subscriptions pushing entries in real-time.
   // The subscription diff subscriber ensures all cached sessions stay subscribed
   // even across WS reconnects (clearSubscribedSessions in onopen).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected and fetchSessionData intentionally omitted - only re-run on session switch
+  // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected and fetchConversationData intentionally omitted - only re-run on session switch
   useEffect(() => {
     if (!selectedConversationId || !isConnected) return
     const { transcripts, events } = useConversationsStore.getState()
@@ -355,7 +355,7 @@ function Dashboard() {
       )
     } else {
       console.log(`[sync] MISS ${selectedConversationId.slice(0, 8)}: no cached transcript, fetching full`)
-      fetchSessionData(selectedConversationId, 'session-switch-empty')
+      fetchConversationData(selectedConversationId, 'session-switch-empty')
     }
   }, [selectedConversationId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -530,8 +530,8 @@ function Dashboard() {
       const store = useConversationsStore.getState()
       const session = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
       const spawnPath = session
-        ? projectPath(session.project) || store.controlPanelPrefs.defaultSessionCwd
-        : store.controlPanelPrefs.defaultSessionCwd
+        ? projectPath(session.project) || store.controlPanelPrefs.defaultConversationCwd
+        : store.controlPanelPrefs.defaultConversationCwd
       openSpawnDialog({ cwd: spawnPath || '~' })
     },
     { label: 'Launch session', key: 'l', group: 'Session' },
@@ -611,7 +611,7 @@ function Dashboard() {
     'toggle-ended-sessions',
     () => {
       const store = useConversationsStore.getState()
-      store.updateControlPanelPrefs({ showEndedSessions: !store.controlPanelPrefs.showEndedSessions })
+      store.updateControlPanelPrefs({ showEndedConversations: !store.controlPanelPrefs.showEndedConversations })
     },
     { label: 'Toggle show ended sessions', key: 'e', group: 'View' },
   )

@@ -84,7 +84,7 @@ function broadcastFilteredProjectSettings(
 
 // ─── Dismiss an ended session ─────────────────────────────────────
 
-const dismissSession: MessageHandler = (ctx, data) => {
+const dismissConversation: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.sessionId) as string
   if (!conversationId) throw new GuardError('Missing conversationId')
 
@@ -214,7 +214,7 @@ const sendInterrupt: MessageHandler = (ctx, data) => {
 
 // ─── Revive a session ─────────────────────────────────────────────
 
-const reviveSession: MessageHandler = (ctx, data) => {
+const reviveConversation: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.sessionId) as string
   if (!conversationId) throw new GuardError('Missing conversationId')
 
@@ -315,7 +315,7 @@ const unsubscribeJob: MessageHandler = (ctx, data) => {
 
 // ─── Rename Session ──────────────────────────────────────────────
 
-const renameSession: MessageHandler = (ctx, data) => {
+const renameConversation: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.sessionId) as string
   const name = (data.name as string)?.trim()
   const description = typeof data.description === 'string' ? data.description.trim() : undefined
@@ -345,16 +345,16 @@ export function registerDashboardActionHandlers(): void {
   registerHandlers({
     send_input: sendInput,
     send_interrupt: sendInterrupt,
-    dismiss_conversation: dismissSession,
-    dismiss_session: dismissSession, // backward compat
+    dismiss_conversation: dismissConversation,
+    dismiss_session: dismissConversation, // backward compat
     update_settings: updateSettings,
     update_project_settings: updateProjectSettings,
     delete_project_settings: deleteProjectSettingsHandler,
     update_project_order: updateProjectOrder,
-    revive_conversation: reviveSession,
-    revive_session: reviveSession, // backward compat
-    rename_conversation: renameSession,
-    rename_session: renameSession, // backward compat
+    revive_conversation: reviveConversation,
+    revive_session: reviveConversation, // backward compat
+    rename_conversation: renameConversation,
+    rename_session: renameConversation, // backward compat
     subscribe_job: subscribeJob,
     unsubscribe_job: unsubscribeJob,
   })

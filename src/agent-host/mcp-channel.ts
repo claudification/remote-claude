@@ -95,7 +95,7 @@ export interface McpChannelCallbacks {
   onPermissionRequest?: (data: PermissionRequestData) => void
   onDisconnect?: () => void
   onTogglePlanMode?: () => void
-  onReviveSession?: (sessionId: string) => Promise<{ ok: boolean; error?: string; name?: string }>
+  onReviveConversation?: (sessionId: string) => Promise<{ ok: boolean; error?: string; name?: string }>
   /**
    * Unified session control: clear | quit | interrupt | set_model | set_effort.
    * Dashboards and the MCP `control_session` tool both route through here. The
@@ -125,7 +125,7 @@ export interface McpChannelCallbacks {
   onGetSpawnDiagnostics?: (
     jobId: string,
   ) => Promise<{ ok: boolean; error?: string; diagnostics?: Record<string, unknown> }>
-  onConfigureSession?: (params: {
+  onConfigureConversation?: (params: {
     sessionId: string
     label?: string
     icon?: string
@@ -700,7 +700,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
           const sessionId = params.session_id
           if (!sessionId)
             return { content: [{ type: 'text', text: 'Error: session_id is required for revive' }], isError: true }
-          const result = await callbacks.onReviveSession?.(sessionId)
+          const result = await callbacks.onReviveConversation?.(sessionId)
           if (!result?.ok) {
             debug(`[channel] spawn_session(revive) failed: ${result?.error}`)
             return { content: [{ type: 'text', text: result?.error || 'Failed to revive session' }], isError: true }
@@ -1004,10 +1004,10 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
         if (Object.keys(update).length === 0) {
           return { content: [{ type: 'text', text: 'Error: at least one setting is required' }], isError: true }
         }
-        const result = await callbacks.onConfigureSession?.({
+        const result = await callbacks.onConfigureConversation?.({
           sessionId,
           ...update,
-        } as Parameters<NonNullable<McpChannelCallbacks['onConfigureSession']>>[0])
+        } as Parameters<NonNullable<McpChannelCallbacks['onConfigureConversation']>>[0])
         if (!result?.ok) {
           debug(`[channel] configure_session failed: ${result?.error}`)
           return {
@@ -1343,7 +1343,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
       async handle(params) {
         const sessionId = params.session_id
         if (!sessionId) return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
-        const result = await callbacks.onReviveSession?.(sessionId)
+        const result = await callbacks.onReviveConversation?.(sessionId)
         if (!result?.ok) {
           return { content: [{ type: 'text', text: result?.error || 'Failed to revive session' }], isError: true }
         }

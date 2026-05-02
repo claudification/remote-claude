@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   type ConversationLike,
+  computeConversationSlug,
   computeLocalId,
-  computeSessionSlug,
   formatAmbiguityError,
   resolveSendTarget,
 } from './channel-id'
@@ -11,27 +11,27 @@ function s(id: string, title?: string, project = 'claude:///projects/arr'): Conv
   return { id, title, project }
 }
 
-describe('computeSessionSlug', () => {
+describe('computeConversationSlug', () => {
   it('uses the title when set', () => {
     const a = s('aaaaaaaaaa', 'viral-zebra')
-    expect(computeSessionSlug(a, [a])).toBe('viral-zebra')
+    expect(computeConversationSlug(a, [a])).toBe('viral-zebra')
   })
 
   it('falls back to a 8-char id slice when no title', () => {
     const a = s('abcdef0123456789')
-    expect(computeSessionSlug(a, [a])).toBe('abcdef01')
+    expect(computeConversationSlug(a, [a])).toBe('abcdef01')
   })
 
   it('disambiguates with a 6-char id suffix on collision', () => {
     const a = s('aaaaaa1111', 'rebel')
     const b = s('bbbbbb2222', 'rebel')
-    expect(computeSessionSlug(a, [a, b])).toBe('rebel-aaaaaa')
-    expect(computeSessionSlug(b, [a, b])).toBe('rebel-bbbbbb')
+    expect(computeConversationSlug(a, [a, b])).toBe('rebel-aaaaaa')
+    expect(computeConversationSlug(b, [a, b])).toBe('rebel-bbbbbb')
   })
 
-  it('does not collide with itself in the siblingSessions', () => {
+  it('does not collide with itself in the siblingConversations', () => {
     const a = s('aaaaaaaa', 'solo')
-    expect(computeSessionSlug(a, [a])).toBe('solo')
+    expect(computeConversationSlug(a, [a])).toBe('solo')
   })
 })
 

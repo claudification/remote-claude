@@ -70,7 +70,7 @@ function estimateCost(
 }
 
 /** Get resolved cost -- exact if available, estimated otherwise */
-export function getSessionCost(
+export function getConversationCost(
   stats: {
     totalInputTokens: number
     totalOutputTokens: number

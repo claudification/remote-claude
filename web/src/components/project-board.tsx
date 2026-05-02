@@ -592,7 +592,7 @@ export function RunTaskDialog({
   useKeyLayer({
     Enter: () => {
       if (phase === 'config') handleRun()
-      else if (progress.isConnected) handleViewSession()
+      else if (progress.isConnected) handleViewConversation()
     },
   })
 
@@ -739,7 +739,7 @@ export function RunTaskDialog({
     }
   }
 
-  function handleViewSession() {
+  function handleViewConversation() {
     const sid = progress.launch.sessionId || progress.spawnedSession?.id
     if (sid) {
       useConversationsStore.getState().selectConversation(sid, 'project-board-view-session')
@@ -901,7 +901,7 @@ export function RunTaskDialog({
                 isComplete={progress.isComplete}
                 hasError={progress.hasError}
                 viewCountdown={progress.viewCountdown}
-                onViewSession={handleViewSession}
+                onViewConversation={handleViewConversation}
                 onClose={onClose}
               />
             </div>

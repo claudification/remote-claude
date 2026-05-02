@@ -25,11 +25,11 @@ export function createStatsRouter(
   // ─── Stats ─────────────────────────────────────────────────────────
   app.get('/api/stats', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
-    const allSessions = conversationStore.getAllConversations()
+    const allConversations = conversationStore.getAllConversations()
     let active = 0
     let idle = 0
     let ended = 0
-    for (const s of allSessions) {
+    for (const s of allConversations) {
       if (s.status === 'active') active++
       else if (s.status === 'idle') idle++
       else ended++
@@ -40,7 +40,7 @@ export function createStatsRouter(
 
     return c.json({
       uptime: Math.round((Date.now() - serverStartTime) / 1000),
-      sessions: { total: allSessions.length, active, idle, ended },
+      sessions: { total: allConversations.length, active, idle, ended },
       connections: {
         total: diag.summary.totalSubscribers,
         legacy: diag.summary.legacySubscribers,

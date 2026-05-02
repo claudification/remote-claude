@@ -16,7 +16,7 @@ export interface RouteHelpers {
   resolveHttpGrants(req: Request): UserGrant[] | null
   httpHasPermission(req: Request, permission: Permission, project: string): boolean
   httpIsAdmin(req: Request, project?: string): boolean
-  filterSessionsByHttpGrants<T extends { project: string }>(req: Request, sessions: T[]): T[]
+  filterConversationsByHttpGrants<T extends { project: string }>(req: Request, sessions: T[]): T[]
 }
 
 export function createRouteHelpers(_rclaudeSecret?: string): RouteHelpers {
@@ -61,7 +61,7 @@ export function createRouteHelpers(_rclaudeSecret?: string): RouteHelpers {
     return isAdmin
   }
 
-  function filterSessionsByHttpGrants<T extends { project: string }>(req: Request, sessions: T[]): T[] {
+  function filterConversationsByHttpGrants<T extends { project: string }>(req: Request, sessions: T[]): T[] {
     const grants = resolveHttpGrants(req)
     if (grants === null) return sessions // admin sees all
     return sessions.filter(s => {
@@ -70,7 +70,7 @@ export function createRouteHelpers(_rclaudeSecret?: string): RouteHelpers {
     })
   }
 
-  return { resolveHttpGrants, httpHasPermission, httpIsAdmin, filterSessionsByHttpGrants }
+  return { resolveHttpGrants, httpHasPermission, httpIsAdmin, filterConversationsByHttpGrants }
 }
 
 // ─── Session overview helper ───────────────────────────────────────────
