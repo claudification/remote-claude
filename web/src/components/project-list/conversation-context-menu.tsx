@@ -107,7 +107,7 @@ function GroupingMenuItems({ project }: { project: string }) {
   )
 }
 
-export function SessionContextMenu({
+export function ConversationContextMenu({
   session,
   onOpenSettings,
   children,

@@ -20,7 +20,7 @@
 import { extractProjectLabel, isSameProject } from '../../shared/project-uri'
 import { slugify } from '../address-book'
 
-export interface SessionLike {
+export interface ConversationLike {
   id: string
   project: string
   title?: string
@@ -31,7 +31,7 @@ export interface SessionLike {
  * Falls back to a 6-char id slice when two sessions in the same project would
  * slug to the same value (so siblings stay disambiguable).
  */
-export function computeSessionSlug(target: SessionLike, siblingSessions: SessionLike[]): string {
+export function computeSessionSlug(target: ConversationLike, siblingSessions: ConversationLike[]): string {
   const sessionSlug = slugify(target.title || target.id.slice(0, 8))
   const collides = siblingSessions.some(
     other => other.id !== target.id && slugify(other.title || other.id.slice(0, 8)) === sessionSlug,
@@ -45,16 +45,20 @@ export function computeSessionSlug(target: SessionLike, siblingSessions: Session
  * Use for both `list_sessions` output and the from-id stamped on outgoing
  * messages so a recipient can replay it verbatim as `to`.
  */
-export function computeLocalId(target: SessionLike, projectSlug: string, siblingSessions: SessionLike[]): string {
+export function computeLocalId(
+  target: ConversationLike,
+  projectSlug: string,
+  siblingSessions: ConversationLike[],
+): string {
   return `${projectSlug}:${computeSessionSlug(target, siblingSessions)}`
 }
 
 // ─── Send target resolution ─────────────────────────────────────────
 
 export type ResolveSendTarget =
-  | { kind: 'resolved'; session: SessionLike }
+  | { kind: 'resolved'; session: ConversationLike }
   | { kind: 'not_found' }
-  | { kind: 'ambiguous'; canonicalProject: string; candidates: SessionLike[] }
+  | { kind: 'ambiguous'; canonicalProject: string; candidates: ConversationLike[] }
 
 export interface ResolveSendInput {
   /** The slug to the LEFT of `:` in the wire `to` -- a project slug. */
@@ -62,11 +66,11 @@ export interface ResolveSendInput {
   /** The slug to the RIGHT of `:`, or undefined for bare addressing. */
   sessionSlug: string | undefined
   /** All sessions registered at the resolved target project (live + inactive). */
-  sessionsAtProject: SessionLike[]
+  sessionsAtProject: ConversationLike[]
   /** The canonical project slug (label or dirname) to surface in error messages. */
   canonicalProject: string
   /** Predicate -- "is this session currently online?". Live count drives ambiguity. */
-  isLive: (s: SessionLike) => boolean
+  isLive: (s: ConversationLike) => boolean
 }
 
 /**
@@ -114,7 +118,7 @@ export function resolveSendTarget(input: ResolveSendInput): ResolveSendTarget {
  * should retry with. Lives here (not in the handler) so it stays in sync
  * with the resolver and is testable without a context.
  */
-export function formatAmbiguityError(canonicalProject: string, candidates: SessionLike[]): string {
+export function formatAmbiguityError(canonicalProject: string, candidates: ConversationLike[]): string {
   const siblingSessions = candidates
   const ids = candidates.map(s => `${canonicalProject}:${computeSessionSlug(s, siblingSessions)}`).join(', ')
   return `Ambiguous target: ${candidates.length} sessions at "${canonicalProject}". Use compound address: ${ids}`
@@ -123,15 +127,15 @@ export function formatAmbiguityError(canonicalProject: string, candidates: Sessi
 // ─── Shared target resolution ──────────────────────────────────────
 
 export type ResolveSessionResult =
-  | { kind: 'resolved'; session: SessionLike }
+  | { kind: 'resolved'; session: ConversationLike }
   | { kind: 'not_found'; error: string }
   | { kind: 'ambiguous'; error: string }
 
 export interface ResolveSessionDeps {
   callerSessionId: string | undefined
-  getAllConversations: () => SessionLike[]
-  getConversation: (id: string) => SessionLike | undefined
-  findConversationByConversationId: (id: string) => SessionLike | undefined
+  getAllConversations: () => ConversationLike[]
+  getConversation: (id: string) => ConversationLike | undefined
+  findConversationByConversationId: (id: string) => ConversationLike | undefined
   getActiveConversationCount: (id: string) => number
   getProjectSettings: (project: string) => { label?: string } | null
   addressBook: {

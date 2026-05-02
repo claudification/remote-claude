@@ -4,7 +4,7 @@ import { ActionFab } from '@/components/action-fab'
 import { AuthGate } from '@/components/auth-gate'
 import { ChordOverlay } from '@/components/chord-overlay'
 import { CommandPalette } from '@/components/command-palette'
-import { SessionDetail } from '@/components/conversation-detail'
+import { ConversationDetail } from '@/components/conversation-detail'
 import { DebugConsole } from '@/components/debug-console'
 import { Header } from '@/components/header'
 import { JsonInspectorDialog } from '@/components/json-inspector'
@@ -830,7 +830,7 @@ function Dashboard() {
 
         {/* Detail panel */}
         <div className="flex-1 border border-border overflow-hidden flex flex-col min-w-0">
-          <SessionDetail />
+          <ConversationDetail />
         </div>
       </div>
 

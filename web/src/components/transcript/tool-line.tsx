@@ -11,7 +11,7 @@ import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/control-panel-pre
 import { projectPath, type TranscriptContentBlock } from '@/lib/types'
 import { cn, truncate } from '@/lib/utils'
 import { JsonInspector } from '../json-inspector'
-import { SessionTag } from './conversation-tag'
+import { ConversationTag } from './conversation-tag'
 import { FileListResults, GlobSummary, GrepContentResults, GrepCountResults, GrepSummary } from './grep-results'
 import { Collapsible, cleanCdPrefix, getToolStyle, shortPath, TruncatedPre } from './shared'
 import { BashOutput, DiffView, ReplResult, ReplView, ShellCommand, WritePreview } from './tool-renderers'
@@ -804,7 +804,7 @@ export function ToolLine({
       summary = (
         <span className="flex items-center gap-1.5">
           <span className="text-teal-400/60">to</span>
-          <SessionTag idOrSlug={to} resolvedId={targetSessionId} />
+          <ConversationTag idOrSlug={to} resolvedId={targetSessionId} />
           {intent && (
             <span
               className={cn(
@@ -838,7 +838,7 @@ export function ToolLine({
       summary = (
         <span className="flex items-center gap-1.5">
           <span className={actionColor}>{action}</span>
-          <SessionTag idOrSlug={sessionId} />
+          <ConversationTag idOrSlug={sessionId} />
         </span>
       )
       if (result) details = <TruncatedPre text={result} tool="MCP" />
@@ -873,7 +873,7 @@ export function ToolLine({
                       s.status === 'live' ? 'bg-green-400' : 'bg-zinc-600',
                     )}
                   />
-                  <SessionTag idOrSlug={s.id} />
+                  <ConversationTag idOrSlug={s.id} />
                 </div>
               ))}
             </div>

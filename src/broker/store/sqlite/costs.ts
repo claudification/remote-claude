@@ -64,7 +64,7 @@ function mapHourlyRow(r: Record<string, unknown>): HourlyRow {
   }
 }
 
-interface SessionSnapshot {
+interface ConversationSnapshot {
   inputTokens: number
   outputTokens: number
   cacheRead: number
@@ -105,7 +105,7 @@ export function createSqliteCostStore(db: Database): CostStore {
   // Per-session cumulative snapshots live in memory -- cheap, reset on restart.
   // After a restart the first turn becomes an outlier (full cumulative as delta);
   // this matches the behavior of the old file-level cost-store.ts.
-  const lastSnapshot = new Map<string, SessionSnapshot>()
+  const lastSnapshot = new Map<string, ConversationSnapshot>()
 
   function materializeHourly(from?: number, to?: number): void {
     const cutoffFrom = from ?? Date.now() - 31 * 24 * 60 * 60 * 1000

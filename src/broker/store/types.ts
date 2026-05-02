@@ -91,7 +91,7 @@ export interface ConversationSummaryRecord {
   lastActivity?: number
 }
 
-export interface SessionStore {
+export interface ConversationStore {
   get(id: string): ConversationRecord | null
   create(session: ConversationCreate): ConversationRecord
   update(id: string, patch: ConversationPatch): void
@@ -452,7 +452,7 @@ export interface StoreConfig {
 }
 
 export interface StoreDriver {
-  readonly sessions: SessionStore
+  readonly sessions: ConversationStore
   readonly transcripts: TranscriptStore
   readonly events: EventStore
   readonly kv: KVStore

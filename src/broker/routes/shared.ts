@@ -75,7 +75,7 @@ export function createRouteHelpers(_rclaudeSecret?: string): RouteHelpers {
 
 // ─── Session overview helper ───────────────────────────────────────────
 
-export interface SessionOverview {
+export interface ConversationOverview {
   id: string
   project: string
   model?: string
@@ -94,7 +94,7 @@ export interface SessionOverview {
   lastEvent?: { hookEvent: string; timestamp: number }
 }
 
-export function sessionToOverview(session: Conversation, conversationStore: ConversationStore): SessionOverview {
+export function sessionToOverview(session: Conversation, conversationStore: ConversationStore): ConversationOverview {
   const lastEvent = session.events[session.events.length - 1]
   return {
     id: session.id,

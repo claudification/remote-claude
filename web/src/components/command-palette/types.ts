@@ -27,7 +27,7 @@ interface ResultListProps {
   setActiveIndex: (i: number) => void
 }
 
-export interface SessionResultsProps extends ResultListProps {
+export interface ConversationResultsProps extends ResultListProps {
   sessions: Session[]
   selectedConversationId: string | null
   projectSettings: Record<string, { label?: string; icon?: string; color?: string; keyterms?: string[] }>

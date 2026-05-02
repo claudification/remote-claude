@@ -36,7 +36,7 @@ const ACCENT_BUTTON: Record<BannerAccent, string> = {
   muted: 'bg-muted/20 text-muted-foreground border-border/30 hover:bg-muted/30',
 }
 
-interface SessionBannerProps {
+interface ConversationBannerProps {
   accent: BannerAccent
   label: string
   title?: ReactNode
@@ -48,7 +48,7 @@ interface SessionBannerProps {
   className?: string
 }
 
-export function SessionBanner({
+export function ConversationBanner({
   accent,
   label,
   title,
@@ -57,7 +57,7 @@ export function SessionBanner({
   actions,
   layout = 'stack',
   className,
-}: SessionBannerProps) {
+}: ConversationBannerProps) {
   if (layout === 'row') {
     return (
       <div

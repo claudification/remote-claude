@@ -14,7 +14,7 @@ import type { ProjectOrder, ProjectOrderGroup, ProjectOrderNode, Session } from 
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { MaybeProfiler } from './perf-profiler'
-import { InactiveProjectItem, SessionItemCompact } from './project-list/conversation-item'
+import { ConversationItemCompact, InactiveProjectItem } from './project-list/conversation-item'
 import { GroupNode, NewGroupDropTarget, SortableNode } from './project-list/conversation-sorting'
 import { ProjectNode } from './project-list/project-node'
 
@@ -394,7 +394,7 @@ export function ProjectList() {
                         if (!node.children.some(c => c.id === selectedSession.project)) return null
                         return (
                           <div className="opacity-80">
-                            <SessionItemCompact session={selectedSession} />
+                            <ConversationItemCompact session={selectedSession} />
                           </div>
                         )
                       })()

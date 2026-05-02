@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  type ConversationLike,
   computeLocalId,
   computeSessionSlug,
   formatAmbiguityError,
   resolveSendTarget,
-  type SessionLike,
 } from './channel-id'
 
-function s(id: string, title?: string, project = 'claude:///projects/arr'): SessionLike {
+function s(id: string, title?: string, project = 'claude:///projects/arr'): ConversationLike {
   return { id, title, project }
 }
 
@@ -52,8 +52,8 @@ describe('computeLocalId', () => {
 
 // ─── resolveSendTarget ──────────────────────────────────────────────
 
-const allLive = (_: SessionLike) => true
-const noneLive = (_: SessionLike) => false
+const allLive = (_: ConversationLike) => true
+const noneLive = (_: ConversationLike) => false
 
 describe('resolveSendTarget', () => {
   describe('compound `project:session-slug`', () => {

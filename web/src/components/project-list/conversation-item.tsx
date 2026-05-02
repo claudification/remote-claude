@@ -27,7 +27,7 @@ import { Markdown } from '../markdown'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from '../project-settings-editor'
 import { ShareIndicator } from '../share-panel'
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog'
-import { SessionContextMenu } from './conversation-context-menu'
+import { ConversationContextMenu } from './conversation-context-menu'
 
 // ─── Shared visual components ──────────────────────────────────────
 
@@ -211,7 +211,7 @@ function LaunchParamsSection({ session }: { session: Session }) {
 
 // ─── Session info dialog (replaces hover tooltip) ────────────────
 
-function SessionInfoDialog({
+function ConversationInfoDialog({
   session,
   open,
   onOpenChange,
@@ -377,7 +377,7 @@ function SessionInfoDialog({
   )
 }
 
-function SessionInfoButton({ session, visible }: { session: Session; visible: boolean }) {
+function ConversationInfoButton({ session, visible }: { session: Session; visible: boolean }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -405,7 +405,7 @@ function SessionInfoButton({ session, visible }: { session: Session; visible: bo
       >
         {'\u24D8'}
       </span>
-      <SessionInfoDialog session={session} open={open} onOpenChange={setOpen} />
+      <ConversationInfoDialog session={session} open={open} onOpenChange={setOpen} />
     </>
   )
 }
@@ -633,7 +633,7 @@ function InlineDescription({ session }: { session: Session }) {
 
 // ─── Session card outer wrapper (shared by Full + Compact) ────────
 
-function SessionItemShell({
+function ConversationItemShell({
   session,
   isSelected,
   displayColor,
@@ -679,7 +679,7 @@ function SessionItemShell({
 
 // ─── Running tasks / subagents / teammates block (shared) ─────────
 
-function SessionItemTasksBlock({
+function ConversationItemTasksBlock({
   session,
   selectedSubagentId,
 }: {
@@ -754,7 +754,7 @@ function SessionItemTasksBlock({
 
 // ─── Full-size session card ───────────────────────────────────────
 
-const SessionItemFull = memo(function SessionItemFull({ session }: { session: Session }) {
+const ConversationItemFull = memo(function SessionItemFull({ session }: { session: Session }) {
   const isSelected = useConversationsStore(s => s.selectedConversationId === session.id)
   const selectedSubagentId = useConversationsStore(s =>
     s.selectedConversationId === session.id ? s.selectedSubagentId : null,
@@ -779,7 +779,7 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
   }
 
   return (
-    <SessionItemShell
+    <ConversationItemShell
       session={session}
       isSelected={isSelected}
       displayColor={displayColor}
@@ -828,7 +828,7 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
             {session.hostSentinelAlias}
           </span>
         )}
-        <SessionInfoButton session={session} visible={isSelected} />
+        <ConversationInfoButton session={session} visible={isSelected} />
         <ShareIndicator sessionProject={projectPath(session.project)} />
         {session.resultText && session.capabilities?.includes('ad-hoc') && <ResultTextModal session={session} />}
         {session.status === 'ended' && <DismissButton sessionId={session.id} />}
@@ -885,7 +885,7 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
           </span>
         </div>
       )}
-      <SessionItemTasksBlock session={session} selectedSubagentId={selectedSubagentId} />
+      <ConversationItemTasksBlock session={session} selectedSubagentId={selectedSubagentId} />
       {(session.runningBgTaskCount > 0 || session.team) && (
         <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
           {session.runningBgTaskCount > 0 && (
@@ -1004,13 +1004,13 @@ const SessionItemFull = memo(function SessionItemFull({ session }: { session: Se
           }
           return null
         })()}
-    </SessionItemShell>
+    </ConversationItemShell>
   )
 })
 
 // ─── Compact session card (used inside CWD groups) ───────────────
 
-export const SessionItemCompact = memo(function SessionItemCompact({ session }: { session: Session }) {
+export const ConversationItemCompact = memo(function SessionItemCompact({ session }: { session: Session }) {
   const isSelected = useConversationsStore(s => s.selectedConversationId === session.id)
   const selectedSubagentId = useConversationsStore(s =>
     s.selectedConversationId === session.id ? s.selectedSubagentId : null,
@@ -1032,7 +1032,7 @@ export const SessionItemCompact = memo(function SessionItemCompact({ session }: 
   }
 
   return (
-    <SessionItemShell
+    <ConversationItemShell
       session={session}
       isSelected={isSelected}
       displayColor={displayColor}
@@ -1098,7 +1098,7 @@ export const SessionItemCompact = memo(function SessionItemCompact({ session }: 
             {session.hostSentinelAlias}
           </span>
         )}
-        <SessionInfoButton session={session} visible={isSelected} />
+        <ConversationInfoButton session={session} visible={isSelected} />
         {session.status === 'ended' && <DismissButton sessionId={session.id} />}
       </div>
       {session.gitBranch && session.gitBranch !== 'main' && session.gitBranch !== 'master' && (
@@ -1181,21 +1181,21 @@ export const SessionItemCompact = memo(function SessionItemCompact({ session }: 
             </div>
           )
         })()}
-      <SessionItemTasksBlock session={session} selectedSubagentId={selectedSubagentId} />
-    </SessionItemShell>
+      <ConversationItemTasksBlock session={session} selectedSubagentId={selectedSubagentId} />
+    </ConversationItemShell>
   )
 })
 
 // ─── Session card with settings button ─────────────────────────────
 
-export const SessionCard = memo(function SessionCard({ session }: { session: Session }) {
+export const ConversationCard = memo(function SessionCard({ session }: { session: Session }) {
   const [showSettings, setShowSettings] = useState(false)
   const isSelected = useConversationsStore(s => s.selectedConversationId === session.id)
   return (
-    <SessionContextMenu session={session} onOpenSettings={() => setShowSettings(true)}>
+    <ConversationContextMenu session={session} onOpenSettings={() => setShowSettings(true)}>
       <div>
         <div className="relative group/card">
-          <SessionItemFull session={session} />
+          <ConversationItemFull session={session} />
           <div
             className={cn(
               'absolute top-2 right-2 transition-opacity',
@@ -1212,7 +1212,7 @@ export const SessionCard = memo(function SessionCard({ session }: { session: Ses
         </div>
         {showSettings && <ProjectSettingsEditor project={session.project} onClose={() => setShowSettings(false)} />}
       </div>
-    </SessionContextMenu>
+    </ConversationContextMenu>
   )
 })
 
@@ -1228,7 +1228,7 @@ export const InactiveProjectItem = memo(
     const displayColor = ps?.color
 
     return (
-      <SessionContextMenu session={latest} onOpenSettings={() => setShowSettings(true)}>
+      <ConversationContextMenu session={latest} onOpenSettings={() => setShowSettings(true)}>
         <div>
           <div
             data-session-id={latest.id}
@@ -1267,7 +1267,7 @@ export const InactiveProjectItem = memo(
           </div>
           {showSettings && <ProjectSettingsEditor project={latest.project} onClose={() => setShowSettings(false)} />}
         </div>
-      </SessionContextMenu>
+      </ConversationContextMenu>
     )
   },
   (prev, next) => {

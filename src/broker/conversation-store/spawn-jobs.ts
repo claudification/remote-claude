@@ -238,7 +238,7 @@ export function createSpawnJobRegistry(): SpawnJobRegistry {
 export function createRendezvousRegistry(): RendezvousRegistry {
   const RENDEZVOUS_TIMEOUT_MS = 120_000
 
-  interface SessionRendezvous {
+  interface ConversationRendezvous {
     callerSessionId: string
     conversationId: string
     project: string
@@ -249,21 +249,21 @@ export function createRendezvousRegistry(): RendezvousRegistry {
     registeredAt: number
   }
 
-  const sessionRendezvous = new Map<string, SessionRendezvous>()
+  const conversationRendezvous = new Map<string, ConversationRendezvous>()
   const pendingRestarts = new Map<string, PendingRestartInfo>()
 
   return {
     addRendezvous(conversationId, callerSessionId, project, action) {
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
-          sessionRendezvous.delete(conversationId)
+          conversationRendezvous.delete(conversationId)
           reject(`Session did not connect within ${RENDEZVOUS_TIMEOUT_MS / 1000}s`)
           console.log(
             `[rendezvous] TIMEOUT: ${action} conversationId=${conversationId.slice(0, 8)} project=${extractProjectLabel(project)} caller=${callerSessionId.slice(0, 8)}`,
           )
         }, RENDEZVOUS_TIMEOUT_MS)
 
-        sessionRendezvous.set(conversationId, {
+        conversationRendezvous.set(conversationId, {
           callerSessionId,
           conversationId,
           project,
@@ -280,9 +280,9 @@ export function createRendezvousRegistry(): RendezvousRegistry {
     },
 
     resolveRendezvous(conversationId, sessionId, toConversationSummary) {
-      const rv = sessionRendezvous.get(conversationId)
+      const rv = conversationRendezvous.get(conversationId)
       if (!rv) return false
-      sessionRendezvous.delete(conversationId)
+      conversationRendezvous.delete(conversationId)
       clearTimeout(rv.timer)
       const summary = toConversationSummary(sessionId)
       if (!summary) {
@@ -298,7 +298,7 @@ export function createRendezvousRegistry(): RendezvousRegistry {
     },
 
     getRendezvousInfo(conversationId) {
-      const rv = sessionRendezvous.get(conversationId)
+      const rv = conversationRendezvous.get(conversationId)
       if (!rv) return undefined
       return { callerSessionId: rv.callerSessionId, action: rv.action }
     },

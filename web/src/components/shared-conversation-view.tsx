@@ -7,7 +7,7 @@
 
 import { Clock, Link2Off } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { SessionDetail } from '@/components/conversation-detail'
+import { ConversationDetail } from '@/components/conversation-detail'
 import { MediaLightbox } from '@/components/media-lightbox'
 import { fetchSessionEvents, fetchTranscript, useConversationsStore } from '@/hooks/use-conversations'
 import { useWebSocket } from '@/hooks/use-websocket'
@@ -151,7 +151,9 @@ export function SharedSessionView({ token: _token }: { token: string }) {
       </div>
 
       {/* Session detail (transcript + input) */}
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{selectedConversationId && <SessionDetail />}</div>
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        {selectedConversationId && <ConversationDetail />}
+      </div>
 
       {/* Global media lightbox -- transcript markdown emits chips that open this */}
       <MediaLightbox />

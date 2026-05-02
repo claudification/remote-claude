@@ -1,7 +1,7 @@
 import { canTerminal, projectPath, type Session } from '@/lib/types'
 import { cn, formatAge, formatModel, projectDisplayName } from '@/lib/utils'
 import { renderProjectIcon } from '../project-settings-editor'
-import type { SessionResultsProps } from './types'
+import type { ConversationResultsProps } from './types'
 
 function statusIndicator(s: Session, selectedConversationId: string | null) {
   if (canTerminal(s)) return '\u25B6' // ▶
@@ -26,23 +26,23 @@ function actionLabel(s: Session, selectedConversationId: string | null) {
   return ''
 }
 
-interface SessionRowProps {
+interface ConversationRowProps {
   session: Session
   selectedConversationId: string | null
-  projectSettings: SessionResultsProps['projectSettings']
+  projectSettings: ConversationResultsProps['projectSettings']
   active: boolean
   onSelect: () => void
   onMouseEnter: () => void
 }
 
-export function SessionRow({
+export function ConversationRow({
   session,
   selectedConversationId,
   projectSettings,
   active,
   onSelect,
   onMouseEnter,
-}: SessionRowProps) {
+}: ConversationRowProps) {
   return (
     <button
       type="button"

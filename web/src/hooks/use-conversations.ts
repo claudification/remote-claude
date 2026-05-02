@@ -86,7 +86,7 @@ export interface SentinelStatusInfo {
   color?: string
 }
 
-interface SessionsState {
+interface ConversationsState {
   sessions: Session[]
   /** O(1) lookup index maintained alongside sessions[] */
   sessionsById: Record<string, Session>
@@ -400,7 +400,7 @@ export function buildSessionsById(sessions: Session[]): Record<string, Session> 
   return map
 }
 
-export const useConversationsStore = create<SessionsState>((set, get) => ({
+export const useConversationsStore = create<ConversationsState>((set, get) => ({
   sessions: [],
   sessionsById: {},
   selectedConversationId: null,
