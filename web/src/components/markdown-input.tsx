@@ -143,7 +143,7 @@ export function MarkdownInput({
   const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
   const { tasks: projectTasks } = useProject(hasSubCommandWithTasks ? selectedConversationId : null)
   const subCmdCtx = useMemo(
-    (): SubCommandContext => ({ tasks: projectTasks, sessionId: selectedConversationId }),
+    (): SubCommandContext => ({ tasks: projectTasks, conversationId: selectedConversationId }),
     [projectTasks, selectedConversationId],
   )
 

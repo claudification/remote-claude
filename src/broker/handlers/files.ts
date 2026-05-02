@@ -1,7 +1,7 @@
 /**
  * File editor relay handlers.
  * Bidirectional proxy between dashboard and rclaude for file operations.
- * Dashboard sends requests (with sessionId), broker forwards to wrapper.
+ * Dashboard sends requests (with conversationId), broker forwards to wrapper.
  * Wrapper sends responses (with requestId), broker forwards to subscribers.
  */
 
@@ -13,7 +13,7 @@ const fileResponse: MessageHandler = (ctx, data) => {
   if (data.requestId && ctx.conversations.resolveFile(data.requestId as string, data)) {
     return // Handled server-side, don't broadcast
   }
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   if (conversation?.project) ctx.broadcastScoped(data, conversation.project)
   else ctx.broadcast(data)
@@ -21,7 +21,7 @@ const fileResponse: MessageHandler = (ctx, data) => {
 
 // Dashboard -> wrapper: file operation requests
 const fileEditorRequest: MessageHandler = (ctx, data) => {
-  const targetId = (data.conversationId || data.sessionId) as string
+  const targetId = (data.conversationId || data.conversationId) as string
   if (!ctx.ws.data.isControlPanel || !targetId) return
   // Permission: write ops need 'files', read ops need 'files:read'
   const msgType = data.type as string
@@ -49,7 +49,7 @@ const fileEditorRequest: MessageHandler = (ctx, data) => {
 
 // Wrapper -> dashboard: file operation responses (forward to subscribers with access)
 const fileEditorResponse: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   if (conversation?.project) ctx.broadcastScoped(data, conversation.project)
   else ctx.broadcast(data)
@@ -57,7 +57,7 @@ const fileEditorResponse: MessageHandler = (ctx, data) => {
 
 // Dashboard -> wrapper: file request (proxy to rclaude)
 const fileRequest: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = (data.conversationId || data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (conversation) ctx.requirePermission('files:read', conversation.project)

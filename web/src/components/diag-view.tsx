@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { getHighlighter } from './transcript/syntax'
 
 interface DiagViewProps {
-  sessionId: string
+  conversationId: string
 }
 
 // Simple JSON -> YAML-ish string (no dependency needed)
@@ -75,23 +75,23 @@ function getDiagHighlighter() {
   return highlightPromise
 }
 
-export function DiagView({ sessionId }: DiagViewProps) {
+export function DiagView({ conversationId }: DiagViewProps) {
   const [data, setData] = useState<Record<string, unknown> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [highlighted, setHighlighted] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const mnemonic = `diag:${sessionId}`
+  const mnemonic = `diag:${conversationId}`
 
   useEffect(() => {
     setData(null)
     setError(null)
     setHighlighted(null)
-    fetch(`/conversations/${sessionId}/diag`)
+    fetch(`/conversations/${conversationId}/diag`)
       .then(res => (res.ok ? res.json() : Promise.reject(new Error(`${res.status}`))))
       .then(setData)
       .catch(e => setError(String(e)))
-  }, [sessionId])
+  }, [conversationId])
 
   const yaml = useMemo(() => (data ? toYaml(data) : ''), [data])
 

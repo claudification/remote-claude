@@ -11,7 +11,7 @@ import { registerHandlers } from '../message-router'
 // ─── Session meta (wrapper connecting) ─────────────────────────────
 
 const meta: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.wrapperId || data.sessionId) as string // wrapperId: one-release backward compat
+  const conversationId = (data.conversationId || data.wrapperId || data.conversationId) as string // wrapperId: one-release backward compat
   const ccSessionId = data.sessionId as string
   const project = (data.project as string) ?? cwdToProjectUri(data.cwd as string)
   ctx.ws.data.conversationId = conversationId
@@ -133,7 +133,7 @@ const meta: MessageHandler = (ctx, data) => {
 // ─── Hook events ───────────────────────────────────────────────────
 
 const hook: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   ctx.conversations.addEvent(conversationId, data as import('../../shared/protocol').HookEvent)
   const toolName = (data.data as Record<string, unknown>)?.tool_name
@@ -179,7 +179,7 @@ const sessionClear: MessageHandler = (ctx, data) => {
 // ─── Notify (push notification from wrapper) ───────────────────────
 
 const notify: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   const label =
     (conversation?.project ? extractProjectLabel(conversation.project) : null) ||
@@ -193,7 +193,7 @@ const notify: MessageHandler = (ctx, data) => {
     ctx.push.sendToAll({ title, body: message, sessionId: conversationId, tag: `notify-${conversationId}` })
   }
 
-  const toastMsg = { type: 'toast', title, message, sessionId: conversationId }
+  const toastMsg = { type: 'toast', title, message, conversationId: conversationId }
   if (conversation?.project) ctx.broadcastScoped(toastMsg, conversation.project)
   else ctx.broadcast(toastMsg)
 }
@@ -201,7 +201,7 @@ const notify: MessageHandler = (ctx, data) => {
 // ─── Session end ───────────────────────────────────────────────────
 
 const end: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   const endConversationId = ctx.ws.data.conversationId as string
   if (!conversationId || !endConversationId) return
 
@@ -227,7 +227,7 @@ const end: MessageHandler = (ctx, data) => {
         message: `${title} (${elapsedStr}${costStr})`,
         variant: 'success' as const,
         taskId: conversation.adHocTaskId,
-        sessionId: conversationId,
+        conversationId: conversationId,
       }
       if (conversation.project) ctx.broadcastScoped(toastMsg, conversation.project)
       else ctx.broadcast(toastMsg)
@@ -251,7 +251,7 @@ const end: MessageHandler = (ctx, data) => {
 // ─── Session status signal (backend-agnostic active/idle) ──────────
 
 const sessionStatus: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (!conversation || conversation.status === 'ended') return

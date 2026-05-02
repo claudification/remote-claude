@@ -17,8 +17,8 @@ export type MergedItem =
   | { kind: 'command'; command: PaletteCommand; score: number; live: boolean }
 
 export interface CommandPaletteProps {
-  onSelect: (sessionId: string) => void
-  onFileSelect: (sessionId: string, path: string) => void
+  onSelect: (conversationId: string) => void
+  onFileSelect: (conversationId: string, path: string) => void
   onClose: () => void
 }
 
@@ -31,7 +31,7 @@ export interface ConversationResultsProps extends ResultListProps {
   sessions: Session[]
   selectedConversationId: string | null
   projectSettings: Record<string, { label?: string; icon?: string; color?: string; keyterms?: string[] }>
-  onSelect: (sessionId: string) => void
+  onSelect: (conversationId: string) => void
 }
 
 export interface CommandResultsProps extends ResultListProps {
@@ -42,7 +42,7 @@ export interface FileResultsProps extends ResultListProps {
   files: FileInfo[]
   loading: boolean
   selectedConversationId: string | null
-  onFileSelect: (sessionId: string, path: string) => void
+  onFileSelect: (conversationId: string, path: string) => void
 }
 
 export interface SpawnResultsProps extends ResultListProps {

@@ -9,7 +9,7 @@ import { registerHandlers } from '../message-router'
 
 // Plan approval request: wrapper -> broker -> dashboard
 const planApproval: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
 
   const conversation = ctx.conversations.getConversation(conversationId)
@@ -33,7 +33,7 @@ const planApproval: MessageHandler = (ctx, data) => {
 
   const msg = {
     type: 'plan_approval',
-    sessionId: conversationId,
+    conversationId: conversationId,
     requestId: data.requestId,
     toolUseId: data.toolUseId,
     plan: data.plan,
@@ -50,7 +50,7 @@ const planApproval: MessageHandler = (ctx, data) => {
 
 // Plan approval response: dashboard -> broker -> wrapper
 const planApprovalResponse: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = (data.conversationId || data.conversationId) as string
   if (!conversationId) return
 
   const conversation = ctx.conversations.getConversation(conversationId)
@@ -64,7 +64,7 @@ const planApprovalResponse: MessageHandler = (ctx, data) => {
     }
     ctx.conversations.broadcastConversationUpdate(conversationId)
     // Dismiss the dialog on all dashboard clients (not just the one that responded)
-    const dismissMsg = { type: 'plan_approval_dismissed', sessionId: conversationId }
+    const dismissMsg = { type: 'plan_approval_dismissed', conversationId: conversationId }
     if (conversation.project) ctx.broadcastScoped(dismissMsg, conversation.project)
     else ctx.broadcast(dismissMsg)
   }
@@ -74,7 +74,7 @@ const planApprovalResponse: MessageHandler = (ctx, data) => {
     targetWs.send(
       JSON.stringify({
         type: 'plan_approval_response',
-        sessionId: conversationId,
+        conversationId: conversationId,
         requestId: data.requestId,
         toolUseId: data.toolUseId,
         action: data.action,
@@ -89,7 +89,7 @@ const planApprovalResponse: MessageHandler = (ctx, data) => {
 
 // Plan mode state change: wrapper -> broker -> dashboard
 const planModeChanged: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
 
   const conversation = ctx.conversations.getConversation(conversationId)
@@ -99,7 +99,7 @@ const planModeChanged: MessageHandler = (ctx, data) => {
     if (!data.planMode) {
       if (conversation.pendingPlanApproval) delete conversation.pendingPlanApproval
       if (conversation.pendingAttention?.type === 'plan_approval') delete conversation.pendingAttention
-      const dismissMsg = { type: 'plan_approval_dismissed', sessionId: conversationId }
+      const dismissMsg = { type: 'plan_approval_dismissed', conversationId: conversationId }
       if (conversation.project) ctx.broadcastScoped(dismissMsg, conversation.project)
       else ctx.broadcast(dismissMsg)
     }

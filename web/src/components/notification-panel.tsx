@@ -12,7 +12,7 @@ interface NotificationPanelProps {
 interface GroupedItem {
   type: 'permission' | 'plan_approval' | 'ask' | 'link' | 'notification'
   key: string
-  sessionId: string
+  conversationId: string
   timestamp: number
   render: () => ReactNode
 }
@@ -38,7 +38,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     items.push({
       type: 'permission',
       key: `perm-${p.requestId}`,
-      sessionId: p.sessionId,
+      conversationId: p.conversationId,
       timestamp: p.timestamp,
       render: () => (
         <ConversationBanner
@@ -53,7 +53,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                 size="sm"
                 onClick={() => {
                   haptic('success')
-                  respondPerm(p.sessionId, p.requestId, 'allow')
+                  respondPerm(p.conversationId, p.requestId, 'allow')
                 }}
               />
               <BannerButton
@@ -62,8 +62,8 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                 size="sm"
                 onClick={() => {
                   haptic('double')
-                  respondPerm(p.sessionId, p.requestId, 'allow')
-                  sendRule(p.sessionId, p.toolName, 'allow')
+                  respondPerm(p.conversationId, p.requestId, 'allow')
+                  sendRule(p.conversationId, p.toolName, 'allow')
                 }}
               />
               <BannerButton
@@ -72,7 +72,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                 size="sm"
                 onClick={() => {
                   haptic('error')
-                  respondPerm(p.sessionId, p.requestId, 'deny')
+                  respondPerm(p.conversationId, p.requestId, 'deny')
                 }}
               />
             </>
@@ -85,12 +85,12 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     })
   }
 
-  for (const [sessionId, dialog] of Object.entries(dialogs)) {
+  for (const [conversationId, dialog] of Object.entries(dialogs)) {
     if (dialog.source !== 'plan_approval') continue
     items.push({
       type: 'plan_approval',
       key: `plan-${dialog.dialogId}`,
-      sessionId,
+      conversationId,
       timestamp: dialog.timestamp,
       render: () => (
         <ConversationBanner accent="blue" label="PLAN APPROVAL">
@@ -102,7 +102,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
               size="sm"
               onClick={() => {
                 haptic('tap')
-                navigate(sessionId)
+                navigate(conversationId)
               }}
             />
           </div>
@@ -115,7 +115,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     items.push({
       type: 'ask',
       key: `ask-${ask.toolUseId}`,
-      sessionId: ask.sessionId,
+      conversationId: ask.conversationId,
       timestamp: ask.timestamp,
       render: () => (
         <ConversationBanner accent="violet" label="QUESTION">
@@ -129,7 +129,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
               size="sm"
               onClick={() => {
                 haptic('tap')
-                navigate(ask.sessionId)
+                navigate(ask.conversationId)
               }}
             />
           </div>
@@ -142,7 +142,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     items.push({
       type: 'link',
       key: `link-${link.fromSession}-${link.toSession}`,
-      sessionId: link.toSession,
+      conversationId: link.toSession,
       timestamp: Date.now(),
       render: () => (
         <ConversationBanner
@@ -187,7 +187,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     items.push({
       type: 'notification',
       key: n.id,
-      sessionId: n.sessionId,
+      conversationId: n.conversationId,
       timestamp: n.timestamp,
       render: () => (
         <ConversationBanner
@@ -215,9 +215,9 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
   // Group by session, sort by most recent first
   const grouped = new Map<string, GroupedItem[]>()
   for (const item of items) {
-    const list = grouped.get(item.sessionId) || []
+    const list = grouped.get(item.conversationId) || []
     list.push(item)
-    grouped.set(item.sessionId, list)
+    grouped.set(item.conversationId, list)
   }
   const sessionGroups = [...grouped.entries()].sort((a, b) => {
     const aMax = Math.max(...a[1].map(i => i.timestamp))
@@ -225,9 +225,9 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     return bMax - aMax
   })
 
-  function navigate(sessionId: string) {
+  function navigate(conversationId: string) {
     haptic('tap')
-    selectConversation(sessionId, 'notification-panel')
+    selectConversation(conversationId, 'notification-panel')
     onClose()
   }
 
@@ -237,19 +237,19 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
 
   return (
     <div className="divide-y divide-border/50">
-      {sessionGroups.map(([sessionId, groupItems]) => {
-        const session = sessions[sessionId]
+      {sessionGroups.map(([conversationId, groupItems]) => {
+        const session = sessions[conversationId]
         const ps = session ? projectSettings[session.project] : undefined
         const displayColor = ps?.color
-        const sessionName = session?.title || session?.agentName || sessionId.slice(0, 8)
+        const sessionName = session?.title || session?.agentName || conversationId.slice(0, 8)
         const projectName = session ? projectDisplayName(projectPath(session.project), ps?.label) : ''
 
         return (
-          <div key={sessionId} className="p-2 space-y-1.5">
+          <div key={conversationId} className="p-2 space-y-1.5">
             <button
               type="button"
               className="flex items-center gap-1.5 w-full text-left hover:opacity-80 transition-opacity cursor-pointer"
-              onClick={() => navigate(sessionId)}
+              onClick={() => navigate(conversationId)}
             >
               {ps?.icon && (
                 <span className="shrink-0" style={displayColor ? { color: displayColor } : undefined}>

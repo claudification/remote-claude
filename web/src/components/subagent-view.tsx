@@ -40,19 +40,19 @@ function agentTypeIcon(agentType: string): string {
   }
 }
 
-export function SubagentView({ sessionId }: { sessionId: string }) {
+export function SubagentView({ conversationId }: { conversationId: string }) {
   const [subagents, setSubagents] = useState<SubagentInfo[]>([])
   const [loaded, setLoaded] = useState(false)
 
-  const events = useConversationsStore(state => state.events[sessionId] || EMPTY_EVENTS)
+  const events = useConversationsStore(state => state.events[conversationId] || EMPTY_EVENTS)
 
   // Fetch subagents on mount
   useEffect(() => {
-    fetchSubagents(sessionId).then(data => {
+    fetchSubagents(conversationId).then(data => {
       setSubagents(data)
       setLoaded(true)
     })
-  }, [sessionId])
+  }, [conversationId])
 
   // Update from real-time events
   useEffect(() => {

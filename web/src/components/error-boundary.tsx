@@ -52,7 +52,7 @@ export class ErrorBoundary extends Component<Props, State> {
           url: window.location.href,
           viewport: `${window.innerWidth}x${window.innerHeight}`,
           touch: navigator.maxTouchPoints > 0,
-          sessionId: store.selectedConversationId,
+          conversationId: store.selectedConversationId,
           sessionStatus: session?.status,
           sessionProject: session?.project,
         }),

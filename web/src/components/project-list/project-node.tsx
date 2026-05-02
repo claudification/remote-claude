@@ -102,7 +102,7 @@ const ProjectSessionGroup = memo(
     // Project-level rollups: any session in this project needing attention?
     const hasPendingPermission = useConversationsStore(s => {
       const ids = new Set(sessions.map(x => x.id))
-      return s.pendingPermissions.some(p => ids.has(p.sessionId))
+      return s.pendingPermissions.some(p => ids.has(p.conversationId))
     })
     const hasPendingAttention = sessions.some(s => s.pendingAttention)
     const hasNotification = sessions.some(s => s.hasNotification)

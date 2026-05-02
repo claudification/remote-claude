@@ -25,7 +25,7 @@ interface PendingRequest {
 
 const REQUEST_TIMEOUT_MS = 10_000
 
-export function useFileEditor(sessionId: string | null) {
+export function useFileEditor(conversationId: string | null) {
   const [files, setFiles] = useState<FileInfo[]>([])
   const [activeFile, setActiveFile] = useState<string | null>(null)
   const [content, setContent] = useState('')
@@ -80,7 +80,7 @@ export function useFileEditor(sessionId: string | null) {
       }
 
       // Handle file_changed broadcasts (no requestId)
-      if (msg.type === 'file_changed' && msg.sessionId === sessionId) {
+      if (msg.type === 'file_changed' && msg.conversationId === conversationId) {
         if (msg.path === activeFileRef.current) {
           if (dirty) {
             // User has unsaved changes - show conflict
@@ -93,7 +93,7 @@ export function useFileEditor(sessionId: string | null) {
         }
       }
     },
-    [sessionId, dirty],
+    [conversationId, dirty],
   )
 
   // Register handler with the websocket store
@@ -105,15 +105,15 @@ export function useFileEditor(sessionId: string | null) {
   }, [handleMessage])
 
   // Load file list
-  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId is the real trigger
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - conversationId is the real trigger
   const loadFileList = useCallback(async () => {
-    if (!sessionId) return
+    if (!conversationId) return
     setLoading(true)
     setError(null)
     try {
       const response = await sendRequest({
         type: 'file_list_request',
-        sessionId,
+        conversationId,
       })
       setFiles((response.files as FileInfo[] | undefined) || [])
     } catch (err: unknown) {
@@ -121,13 +121,13 @@ export function useFileEditor(sessionId: string | null) {
     } finally {
       setLoading(false)
     }
-  }, [sessionId])
+  }, [conversationId])
 
   // Open a file
-  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId/sendWsMessage are the real triggers
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - conversationId/sendWsMessage are the real triggers
   const openFile = useCallback(
     async (path: string) => {
-      if (!sessionId) return
+      if (!conversationId) return
       setLoading(true)
       setError(null)
       setConflict(null)
@@ -135,27 +135,27 @@ export function useFileEditor(sessionId: string | null) {
       try {
         const response = await sendRequest({
           type: 'file_content_request',
-          sessionId,
+          conversationId,
           path,
         })
         setActiveFile(path)
         setContent(response.content as string)
         setVersion(response.version as number)
         // Start watching for disk changes
-        sendWsMessage({ type: 'file_watch', sessionId, path })
+        sendWsMessage({ type: 'file_watch', conversationId, path })
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : String(err))
       } finally {
         setLoading(false)
       }
     },
-    [sessionId, sendWsMessage],
+    [conversationId, sendWsMessage],
   )
 
   // Close current file
   const closeFile = useCallback(() => {
-    if (sessionId && activeFile) {
-      sendWsMessage({ type: 'file_unwatch', sessionId, path: activeFile })
+    if (conversationId && activeFile) {
+      sendWsMessage({ type: 'file_unwatch', conversationId, path: activeFile })
     }
     setActiveFile(null)
     setContent('')
@@ -166,18 +166,18 @@ export function useFileEditor(sessionId: string | null) {
       clearTimeout(autosaveTimer.current)
       autosaveTimer.current = null
     }
-  }, [sessionId, activeFile, sendWsMessage])
+  }, [conversationId, activeFile, sendWsMessage])
 
   // Save file
-  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId/dirty are the real triggers
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - conversationId/dirty are the real triggers
   const saveFile = useCallback(async () => {
-    if (!sessionId || !activeFileRef.current || !dirty) return
+    if (!conversationId || !activeFileRef.current || !dirty) return
     setSaving(true)
     setError(null)
     try {
       const response = await sendRequest({
         type: 'file_save',
-        sessionId,
+        conversationId,
         path: activeFileRef.current,
         content: contentRef.current,
         diff: '', // computed server-side from content
@@ -195,7 +195,7 @@ export function useFileEditor(sessionId: string | null) {
     } finally {
       setSaving(false)
     }
-  }, [sessionId, dirty])
+  }, [conversationId, dirty])
 
   // Update content (from editor changes)
   const updateContent = useCallback(
@@ -224,14 +224,14 @@ export function useFileEditor(sessionId: string | null) {
   )
 
   // Load history
-  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId is the real trigger
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - conversationId is the real trigger
   const loadHistory = useCallback(
     async (path: string) => {
-      if (!sessionId) return
+      if (!conversationId) return
       try {
         const response = await sendRequest({
           type: 'file_history_request',
-          sessionId,
+          conversationId,
           path,
         })
         setHistory((response.versions as VersionInfo[] | undefined) || [])
@@ -239,18 +239,18 @@ export function useFileEditor(sessionId: string | null) {
         setError(err instanceof Error ? err.message : String(err))
       }
     },
-    [sessionId],
+    [conversationId],
   )
 
   // Restore version
-  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId is the real trigger
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - conversationId is the real trigger
   const restoreVersion = useCallback(
     async (path: string, ver: number) => {
-      if (!sessionId) return
+      if (!conversationId) return
       try {
         const response = await sendRequest({
           type: 'file_restore',
-          sessionId,
+          conversationId,
           path,
           version: ver,
         })
@@ -262,29 +262,29 @@ export function useFileEditor(sessionId: string | null) {
         setError(err instanceof Error ? err.message : String(err))
       }
     },
-    [sessionId],
+    [conversationId],
   )
 
   // Quick note append
-  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - sessionId is the real trigger
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is recreated each render but intentionally omitted - conversationId is the real trigger
   const appendQuickNote = useCallback(
     async (text: string) => {
-      if (!sessionId) return
+      if (!conversationId) return
       try {
         await sendRequest({
           type: 'project_quick_add',
-          sessionId,
+          conversationId,
           text,
         })
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : String(err))
       }
     },
-    [sessionId],
+    [conversationId],
   )
 
   // Cleanup on session change
-  // biome-ignore lint/correctness/useExhaustiveDependencies: sessionId is intentionally used as cleanup trigger even though not read in the effect body
+  // biome-ignore lint/correctness/useExhaustiveDependencies: conversationId is intentionally used as cleanup trigger even though not read in the effect body
   useEffect(() => {
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
@@ -293,7 +293,7 @@ export function useFileEditor(sessionId: string | null) {
       }
       pendingRequests.current.clear()
     }
-  }, [sessionId])
+  }, [conversationId])
 
   return {
     files,

@@ -89,10 +89,10 @@ function estimateGroupSize(group: DisplayGroup, measuredSizes: Map<string, numbe
 const EMPTY_STREAMING = ''
 
 /** Isolated streaming text component - subscribes to its own store slice so token updates don't re-render the virtualizer */
-const StreamingBlock = memo(function StreamingBlock({ sessionId }: { sessionId: string | null }) {
+const StreamingBlock = memo(function StreamingBlock({ conversationId }: { conversationId: string | null }) {
   const showStreaming = useConversationsStore(state => state.controlPanelPrefs.showStreaming !== false)
   const streamingText = useConversationsStore(
-    state => (sessionId ? state.streamingText[sessionId] : null) || EMPTY_STREAMING,
+    state => (conversationId ? state.streamingText[conversationId] : null) || EMPTY_STREAMING,
   )
   if (!showStreaming || !streamingText) return null
   return (
@@ -148,16 +148,16 @@ const VERBS = [
 ]
 
 /** Shows a fun random verb spinner while the session is active (between UserPromptSubmit and Stop) */
-const ThinkingSpinner = memo(function ThinkingSpinner({ sessionId }: { sessionId: string | null }) {
+const ThinkingSpinner = memo(function ThinkingSpinner({ conversationId }: { conversationId: string | null }) {
   const isActive = useConversationsStore(state =>
-    sessionId ? state.sessionsById[sessionId]?.status === 'active' : false,
+    conversationId ? state.sessionsById[conversationId]?.status === 'active' : false,
   )
   const totalOutput = useConversationsStore(state =>
-    sessionId ? (state.sessionsById[sessionId]?.stats?.totalOutputTokens ?? 0) : 0,
+    conversationId ? (state.sessionsById[conversationId]?.stats?.totalOutputTokens ?? 0) : 0,
   )
   // Custom verbs: project settings override > session verbs (from CC settings) > defaults
   const customVerbs = useConversationsStore(state => {
-    const session = sessionId ? state.sessionsById[sessionId] : undefined
+    const session = conversationId ? state.sessionsById[conversationId] : undefined
     const projectVerbs = session?.project ? state.projectSettings[session.project]?.verbs : undefined
     return projectVerbs?.length ? projectVerbs : session?.spinnerVerbs
   })
@@ -336,7 +336,7 @@ export const TranscriptView = memo(function TranscriptView({
   // trigger so a newly-arrived permission pins into view when follow is active.
   const pendingPermissionCount = useConversationsStore(state =>
     state.selectedConversationId
-      ? state.pendingPermissions.filter(p => p.sessionId === state.selectedConversationId).length
+      ? state.pendingPermissions.filter(p => p.conversationId === state.selectedConversationId).length
       : 0,
   )
 
@@ -580,9 +580,9 @@ export const TranscriptView = memo(function TranscriptView({
           TranscriptGroups and silently cost frames). */}
       <MaybeProfiler enabled={perfEnabled} id="TranscriptStreaming">
         {/* Headless streaming text - isolated component so token updates don't re-render the virtualizer */}
-        <StreamingBlock sessionId={selectedConversationId} />
+        <StreamingBlock conversationId={selectedConversationId} />
         {/* Fun verb spinner while session is working */}
-        <ThinkingSpinner sessionId={selectedConversationId} />
+        <ThinkingSpinner conversationId={selectedConversationId} />
         {/* Pending permission + link requests: rendered inline at the bottom as
             blocking UI gates. Both follow the same pattern -- structured wire
             message -> store -> inline banner -> user response over WS. */}

@@ -9,7 +9,7 @@
 import type { EditorView } from '@codemirror/view'
 import { uploadFileWithPlaceholder } from '@/lib/upload'
 
-function uploadFileIntoView(view: EditorView, file: File, sessionId?: string) {
+function uploadFileIntoView(view: EditorView, file: File, conversationId?: string) {
   uploadFileWithPlaceholder(
     file,
     placeholder => {
@@ -37,7 +37,7 @@ function uploadFileIntoView(view: EditorView, file: File, sessionId?: string) {
         })
       }
     },
-    sessionId,
+    conversationId,
   )
 }
 
@@ -60,6 +60,6 @@ export function attachPasteUpload(view: EditorView, getSessionId: () => string |
 }
 
 /** Upload a dropped file (called from React onDrop handler). */
-export function uploadDroppedFile(view: EditorView, file: File, sessionId: string | null) {
-  uploadFileIntoView(view, file, sessionId ?? undefined)
+export function uploadDroppedFile(view: EditorView, file: File, conversationId: string | null) {
+  uploadFileIntoView(view, file, conversationId ?? undefined)
 }

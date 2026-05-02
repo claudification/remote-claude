@@ -211,7 +211,7 @@ export const ConversationDetail = memo(function SessionDetail() {
   function handleRevive() {
     if (!selectedConversationId) return
     haptic('tap')
-    openReviveDialog({ sessionId: selectedConversationId })
+    openReviveDialog({ conversationId: selectedConversationId })
   }
 
   return (
@@ -225,7 +225,7 @@ export const ConversationDetail = memo(function SessionDetail() {
       {/* Share banner - always visible when shares active (admin only) */}
       {canAdmin && session && <ShareBanner sessionProject={projectPath(session.project)} />}
       {/* Dialog Modal */}
-      {selectedConversationId && <DialogOverlay sessionId={selectedConversationId} />}
+      {selectedConversationId && <DialogOverlay conversationId={selectedConversationId} />}
       {/* Task Editor Modal (from @ / t: command palette, renders over any tab) */}
       {taskEditorTask && selectedConversationId && (
         <TaskEditor
@@ -400,7 +400,7 @@ export const ConversationDetail = memo(function SessionDetail() {
           )}
           {!conversationTarget && activeTab === 'agents' && selectedConversationId && (
             <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-4">
-              <SubagentView sessionId={selectedConversationId} />
+              <SubagentView conversationId={selectedConversationId} />
               {session.bgTasks.length > 0 && (
                 <>
                   <div className="border-t border-border pt-3">
@@ -408,19 +408,19 @@ export const ConversationDetail = memo(function SessionDetail() {
                       Background Tasks
                     </h3>
                   </div>
-                  <BgTasksView sessionId={selectedConversationId} />
+                  <BgTasksView conversationId={selectedConversationId} />
                 </>
               )}
             </div>
           )}
           {!conversationTarget && activeTab === 'tasks' && selectedConversationId && (
             <div className="flex-1 min-h-0 overflow-hidden">
-              <TasksView sessionId={selectedConversationId} pendingCount={session.pendingTaskCount} />
+              <TasksView conversationId={selectedConversationId} pendingCount={session.pendingTaskCount} />
             </div>
           )}
           {!conversationTarget && activeTab === 'files' && selectedConversationId && (
             <div className="flex-1 min-h-0 overflow-hidden">
-              <FileEditor sessionId={selectedConversationId} />
+              <FileEditor conversationId={selectedConversationId} />
             </div>
           )}
           {!conversationTarget && activeTab === 'project' && selectedConversationId && (
@@ -432,7 +432,7 @@ export const ConversationDetail = memo(function SessionDetail() {
             <SharedView projectPath={projectPath(session.project)} />
           )}
           {!conversationTarget && activeTab === 'diag' && selectedConversationId && (
-            <DiagView sessionId={selectedConversationId} />
+            <DiagView conversationId={selectedConversationId} />
           )}
         </>
       )}
@@ -442,7 +442,7 @@ export const ConversationDetail = memo(function SessionDetail() {
         canSendInput &&
         (activeTab === 'transcript' || (activeTab === 'tty' && !hasTerminal)) &&
         !selectedSubagentId &&
-        selectedConversationId && <InputBar sessionId={selectedConversationId} />}
+        selectedConversationId && <InputBar conversationId={selectedConversationId} />}
 
       {/* Terminal overlay - routed by conversationId (physical PTY) */}
       {showTerminal && terminalWrapperId && (

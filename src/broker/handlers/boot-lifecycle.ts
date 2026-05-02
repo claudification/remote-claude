@@ -53,7 +53,7 @@ const wrapperBoot: MessageHandler = (ctx, data) => {
     }
     if (bootConfiguredModel) existing.configuredModel = bootConfiguredModel
   } else {
-    // Create a placeholder session keyed by conversationId -- the real sessionId
+    // Create a placeholder session keyed by conversationId -- the real conversationId
     // replaces this once session_promote arrives.
     const placeholder = ctx.conversations.createConversation(
       conversationId,
@@ -106,7 +106,7 @@ const bootEvent: MessageHandler = (ctx, data) => {
   ctx.conversations.addTranscriptEntries(session.id, [entry], false)
   ctx.conversations.broadcastToChannel('conversation:transcript', session.id, {
     type: 'transcript_entries',
-    sessionId: session.id,
+    conversationId: session.id,
     entries: [entry],
     isInitial: false,
   })
@@ -120,7 +120,7 @@ const launchEvent: MessageHandler = (ctx, data) => {
   if (!conversationId || !step || !launchId || !phase) return
 
   // Route via conversationId (stable across rekeys) or the session id on the event.
-  const sessionIdFromEvent = data.sessionId as string | null
+  const sessionIdFromEvent = data.conversationId as string | null
   const session =
     (sessionIdFromEvent ? ctx.conversations.getConversation(sessionIdFromEvent) : undefined) ||
     ctx.conversations.getConversation(conversationId) ||
@@ -143,7 +143,7 @@ const launchEvent: MessageHandler = (ctx, data) => {
   ctx.conversations.addTranscriptEntries(session.id, [entry], false)
   ctx.conversations.broadcastToChannel('conversation:transcript', session.id, {
     type: 'transcript_entries',
-    sessionId: session.id,
+    conversationId: session.id,
     entries: [entry],
     isInitial: false,
   })

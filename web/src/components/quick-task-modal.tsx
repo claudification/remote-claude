@@ -77,7 +77,7 @@ export function QuickTaskModal() {
     const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : text.trim()
 
     // Log to console for recovery in case the WS relay fails
-    console.log('[quick-task] Creating task:', JSON.stringify({ title, body, sessionId: selectedConversationId }))
+    console.log('[quick-task] Creating task:', JSON.stringify({ title, body, conversationId: selectedConversationId }))
 
     createTask({ title, body }).catch(err => {
       console.error('[quick-task] Failed to create task:', err, { title, body })

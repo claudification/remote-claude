@@ -97,7 +97,7 @@ function buildActions(session: Session | undefined, selectedConversationId: stri
         label: 'Revive...',
         action: () => {
           useConversationsStore.getState().selectConversation(session.id)
-          openReviveDialog({ sessionId: session.id })
+          openReviveDialog({ conversationId: session.id })
         },
         color: 'bg-emerald-500',
       })

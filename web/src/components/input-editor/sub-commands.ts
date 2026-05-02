@@ -26,7 +26,7 @@ interface SubCommandItem {
 
 export interface SubCommandContext {
   tasks: ProjectTaskMeta[]
-  sessionId: string | null
+  conversationId: string | null
 }
 
 export interface SubCommandDef {
@@ -71,8 +71,8 @@ export const SUB_COMMANDS: SubCommandDef[] = [
         })),
     onSelect: (slug, ctx) => {
       const task = ctx.tasks.find(t => t.slug === slug)
-      if (!task || !ctx.sessionId) return null
-      sendInput(ctx.sessionId, buildTaskPrompt(task))
+      if (!task || !ctx.conversationId) return null
+      sendInput(ctx.conversationId, buildTaskPrompt(task))
       haptic('success')
       return '' // clear input
     },

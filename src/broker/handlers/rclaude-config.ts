@@ -59,14 +59,14 @@ const rclaudeConfigSet: MessageHandler = (ctx, data) => {
 }
 
 const rclaudeConfigData: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   if (conversation?.project) ctx.broadcastScoped(data, conversation.project)
   else ctx.broadcast(data)
 }
 
 const rclaudeConfigOk: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   const project = conversation?.project
 

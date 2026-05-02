@@ -832,13 +832,13 @@ export function ToolLine({
     case 'mcp__rclaude__terminate_session':
     case 'mcp__rclaude__quit_session': {
       // deprecated alias
-      const sessionId = (input.session_id as string) || ''
+      const conversationId = (input.session_id as string) || ''
       const action = name.includes('revive') ? 'revive' : 'terminate'
       const actionColor = action === 'revive' ? 'text-green-400' : 'text-red-400'
       summary = (
         <span className="flex items-center gap-1.5">
           <span className={actionColor}>{action}</span>
-          <ConversationTag idOrSlug={sessionId} />
+          <ConversationTag idOrSlug={conversationId} />
         </span>
       )
       if (result) details = <TruncatedPre text={result} tool="MCP" />

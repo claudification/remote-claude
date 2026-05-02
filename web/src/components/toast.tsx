@@ -7,7 +7,7 @@ interface Toast {
   id: number
   title: string
   body: string
-  sessionId?: string
+  conversationId?: string
   taskId?: string
   variant?: string
 }
@@ -19,10 +19,10 @@ export function ToastContainer() {
 
   useEffect(() => {
     function handleToast(e: Event) {
-      const { title, body, sessionId, taskId, variant } = (e as CustomEvent).detail
+      const { title, body, conversationId, taskId, variant } = (e as CustomEvent).detail
       const id = nextId++
       haptic('double')
-      setToasts(prev => [...prev, { id, title, body, sessionId, taskId, variant }])
+      setToasts(prev => [...prev, { id, title, body, conversationId, taskId, variant }])
       setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 8000)
     }
     window.addEventListener('rclaude-toast', handleToast)
@@ -36,8 +36,8 @@ export function ToastContainer() {
   function handleClick(toast: Toast) {
     if (toast.taskId) {
       window.dispatchEvent(new CustomEvent('open-project-task', { detail: { taskId: toast.taskId } }))
-    } else if (toast.sessionId) {
-      useConversationsStore.getState().selectConversation(toast.sessionId)
+    } else if (toast.conversationId) {
+      useConversationsStore.getState().selectConversation(toast.conversationId)
     }
     dismiss(toast.id)
   }
@@ -49,7 +49,7 @@ export function ToastContainer() {
       {toasts.map(t => (
         <div
           key={t.id}
-          className={`bg-background border rounded-lg shadow-lg p-3 animate-in slide-in-from-right-5 fade-in duration-200 ${t.variant === 'warning' ? 'border-orange-500/50' : t.variant === 'success' ? 'border-amber-500/50' : 'border-accent/50'} ${t.sessionId || t.taskId ? 'cursor-pointer hover:border-accent' : ''}`}
+          className={`bg-background border rounded-lg shadow-lg p-3 animate-in slide-in-from-right-5 fade-in duration-200 ${t.variant === 'warning' ? 'border-orange-500/50' : t.variant === 'success' ? 'border-amber-500/50' : 'border-accent/50'} ${t.conversationId || t.taskId ? 'cursor-pointer hover:border-accent' : ''}`}
           onClick={() => handleClick(t)}
           onKeyDown={e => {
             if (e.key === 'Enter') handleClick(t)

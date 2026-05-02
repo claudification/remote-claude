@@ -73,14 +73,14 @@ export function setLastConversationId(id: string | null) {
   scheduleFlush()
 }
 
-export function getConversationTab(sessionId: string): string | null {
-  return load().tabPerConversation[sessionId] ?? null
+export function getConversationTab(conversationId: string): string | null {
+  return load().tabPerConversation[conversationId] ?? null
 }
 
-export function setConversationTab(sessionId: string, tab: string) {
+export function setConversationTab(conversationId: string, tab: string) {
   const state = load()
-  if (state.tabPerConversation[sessionId] === tab) return
-  state.tabPerConversation[sessionId] = tab
+  if (state.tabPerConversation[conversationId] === tab) return
+  state.tabPerConversation[conversationId] = tab
   // Prune if over limit -- keep the most recently written entries
   const keys = Object.keys(state.tabPerConversation)
   if (keys.length > MAX_TAB_ENTRIES) {

@@ -168,7 +168,7 @@ export function PermissionBanners() {
   const sessionPath = useConversationsStore(s =>
     s.selectedConversationId ? projectPath(s.sessionsById[s.selectedConversationId]?.project ?? '') : undefined,
   )
-  const relevant = permissions.filter(p => p.sessionId === selectedConversation)
+  const relevant = permissions.filter(p => p.conversationId === selectedConversation)
   return (
     <BannerStack
       items={relevant}
@@ -186,7 +186,7 @@ export function PermissionBanners() {
                 label="ALLOW"
                 onClick={() => {
                   haptic('success')
-                  respond(perm.sessionId, perm.requestId, 'allow')
+                  respond(perm.conversationId, perm.requestId, 'allow')
                 }}
               />
               <BannerButton
@@ -194,8 +194,8 @@ export function PermissionBanners() {
                 label="ALWAYS"
                 onClick={() => {
                   haptic('double')
-                  respond(perm.sessionId, perm.requestId, 'allow')
-                  sendRule(perm.sessionId, perm.toolName, 'allow')
+                  respond(perm.conversationId, perm.requestId, 'allow')
+                  sendRule(perm.conversationId, perm.toolName, 'allow')
                 }}
               />
               <BannerButton
@@ -203,7 +203,7 @@ export function PermissionBanners() {
                 label="DENY"
                 onClick={() => {
                   haptic('error')
-                  respond(perm.sessionId, perm.requestId, 'deny')
+                  respond(perm.conversationId, perm.requestId, 'deny')
                 }}
               />
             </>
@@ -225,7 +225,7 @@ export function ClipboardBanners() {
   const captures = useConversationsStore(s => s.clipboardCaptures)
   const dismiss = useConversationsStore(s => s.dismissClipboard)
   const selectedConversation = useConversationsStore(s => s.selectedConversationId)
-  const relevant = captures.filter(c => c.sessionId === selectedConversation)
+  const relevant = captures.filter(c => c.conversationId === selectedConversation)
 
   return (
     <BannerStack
@@ -298,7 +298,7 @@ export function AskQuestionBanners() {
   const questions = useConversationsStore(s => s.pendingAskQuestions)
   const respond = useConversationsStore(s => s.respondToAskQuestion)
   const selectedConversation = useConversationsStore(s => s.selectedConversationId)
-  const relevant = questions.filter(q => q.sessionId === selectedConversation)
+  const relevant = questions.filter(q => q.conversationId === selectedConversation)
 
   return (
     <BannerStack
@@ -314,7 +314,7 @@ function AskQuestionCard({
   onRespond,
 }: {
   request: {
-    sessionId: string
+    conversationId: string
     toolUseId: string
     questions: Array<{
       question: string
@@ -325,7 +325,7 @@ function AskQuestionCard({
     timestamp: number
   }
   onRespond: (
-    sessionId: string,
+    conversationId: string,
     toolUseId: string,
     answers?: Record<string, string>,
     annotations?: Record<string, { preview?: string; notes?: string }>,
@@ -377,12 +377,12 @@ function AskQuestionCard({
       }
     }
     const hasAnnotations = Object.keys(annots).length > 0
-    onRespond(request.sessionId, request.toolUseId, answers, hasAnnotations ? annots : undefined)
+    onRespond(request.conversationId, request.toolUseId, answers, hasAnnotations ? annots : undefined)
   }
 
   function handleSkip() {
     haptic('tick')
-    onRespond(request.sessionId, request.toolUseId, undefined, undefined, true)
+    onRespond(request.conversationId, request.toolUseId, undefined, undefined, true)
   }
 
   const allAnswered = request.questions.every(q => {

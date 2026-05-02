@@ -23,7 +23,7 @@ import { LaunchConfigFields, type LaunchFieldsValue } from './launch-config-fiel
 import { LaunchErrorBanner, LaunchFooterActions, LaunchStepList } from './launch-monitor'
 
 interface ReviveDialogOptions {
-  sessionId: string
+  conversationId: string
 }
 
 interface ReviveDialogState {
@@ -52,7 +52,7 @@ export function ReviveDialog() {
   const projectSettings = useConversationsStore(s => s.projectSettings)
   const globalSettings = useConversationsStore(s => s.globalSettings)
 
-  const session = state.options ? sessionsById[state.options.sessionId] : undefined
+  const session = state.options ? sessionsById[state.options.conversationId] : undefined
 
   const progress = useLaunchProgress({
     jobId,
@@ -69,7 +69,7 @@ export function ReviveDialog() {
   const progressReset = progress.reset
   useEffect(() => {
     _openDialog = (options: ReviveDialogOptions) => {
-      const sess = useConversationsStore.getState().sessionsById[options.sessionId]
+      const sess = useConversationsStore.getState().sessionsById[options.conversationId]
       const ps = sess ? projectSettings[sess.project] : undefined
       const gs = globalSettings as Record<string, unknown>
       const lc = sess?.launchConfig
@@ -107,10 +107,10 @@ export function ReviveDialog() {
         label: 'Session connected',
         status: 'done',
         ts: Date.now(),
-        detail: (progress.launch.sessionId || progress.spawnedConversation?.id || '').slice(0, 8),
+        detail: (progress.launch.conversationId || progress.spawnedConversation?.id || '').slice(0, 8),
       },
     ])
-  }, [progress.isConnected, progress.launch.sessionId, progress.spawnedConversation?.id])
+  }, [progress.isConnected, progress.launch.conversationId, progress.spawnedConversation?.id])
 
   // Auto-redirect when countdown reaches 0
   useEffect(() => {
@@ -151,7 +151,7 @@ export function ReviveDialog() {
     const currentId = useConversationsStore.getState().selectedConversationId
     const userNavigatedAway = currentId !== sessionAtReviveRef.current && currentId !== null
     const sid =
-      progress.launch.sessionId ||
+      progress.launch.conversationId ||
       (progress.spawnedConversation && progress.spawnedConversation.status !== 'ended'
         ? progress.spawnedConversation.id
         : null)
@@ -161,15 +161,15 @@ export function ReviveDialog() {
     }
     setState({ open: false, options: null })
     setJobId(null)
-  }, [progress.launch.sessionId, progress.spawnedConversation])
+  }, [progress.launch.conversationId, progress.spawnedConversation])
 
   const handleViewConversation = useCallback(() => {
-    const sid = progress.launch.sessionId || progress.spawnedConversation?.id
+    const sid = progress.launch.conversationId || progress.spawnedConversation?.id
     if (sid) useConversationsStore.getState().selectConversation(sid, 'revive-dialog-view-session')
     progress.setViewCountdown(null)
     setState({ open: false, options: null })
     setJobId(null)
-  }, [progress.launch.sessionId, progress.spawnedConversation, progress.setViewCountdown])
+  }, [progress.launch.conversationId, progress.spawnedConversation, progress.setViewCountdown])
 
   const handleRevive = useCallback(() => {
     if (!state.options || phase !== 'config' || !session) return
@@ -182,7 +182,7 @@ export function ReviveDialog() {
     setJobId(newJobId)
     progress.start([{ label: 'Sending revive request...', status: 'active', ts: Date.now() }])
 
-    const sent = reviveConversation(state.options.sessionId, {
+    const sent = reviveConversation(state.options.conversationId, {
       headless,
       jobId: newJobId,
       model: model || undefined,
@@ -229,7 +229,7 @@ export function ReviveDialog() {
     const log = [
       '=== rclaude revive log ===',
       `Time: ${new Date().toISOString()}`,
-      `Session: ${state.options?.sessionId ?? 'n/a'}${session?.title ? ` (${session.title})` : ''}`,
+      `Session: ${state.options?.conversationId ?? 'n/a'}${session?.title ? ` (${session.title})` : ''}`,
       `Project: ${session?.project ?? 'n/a'}`,
       `Wrapper: ${conversationId || 'n/a'}`,
       `Job: ${jobId || 'n/a'}`,

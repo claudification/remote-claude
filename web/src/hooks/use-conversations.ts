@@ -105,10 +105,10 @@ interface ConversationsState {
    *      initial transcript_entries (isInitial=true) reseeds from max(seqs).
    *    - Server broker restart -> SYNC_EPOCH changes -> `sync_stale`
    *      path above handles it.
-   *    - Rekey on server -> sessionId changes -> old lastAppliedSeq[oldId]
-   *      goes stale harmlessly (new sessionId entry in this map starts fresh). */
+   *    - Rekey on server -> conversationId changes -> old lastAppliedSeq[oldId]
+   *      goes stale harmlessly (new conversationId entry in this map starts fresh). */
   lastAppliedTranscriptSeq: Record<string, number>
-  streamingText: Record<string, string> // sessionId -> accumulating text from headless stream deltas
+  streamingText: Record<string, string> // conversationId -> accumulating text from headless stream deltas
   sessionInfo: Record<
     string,
     {
@@ -122,12 +122,12 @@ interface ConversationsState {
       claudeCodeVersion: string
     }
   >
-  subagentTranscripts: Record<string, TranscriptEntry[]> // key: `${sessionId}:${agentId}`
+  subagentTranscripts: Record<string, TranscriptEntry[]> // key: `${conversationId}:${agentId}`
   tasks: Record<string, TaskInfo[]>
   projectSettings: ProjectSettingsMap
   globalSettings: Record<string, unknown>
   permissions: ResolvedPermissions
-  /** Per-session resolved permissions (keyed by sessionId) */
+  /** Per-session resolved permissions (keyed by conversationId) */
   sessionPermissions: Record<string, ResolvedPermissions>
   projectOrder: ProjectOrder
   serverCapabilities: { voice: boolean }
@@ -152,17 +152,17 @@ interface ConversationsState {
   pendingProjectLinks: Array<{ fromSession: string; fromProject: string; toSession: string; toProject: string }>
   respondToProjectLink: (fromSession: string, toSession: string, action: 'approve' | 'block') => void
   pendingPermissions: Array<{
-    sessionId: string
+    conversationId: string
     requestId: string
     toolName: string
     description: string
     inputPreview: string
     timestamp: number
   }>
-  respondToPermission: (sessionId: string, requestId: string, behavior: 'allow' | 'deny') => void
-  sendPermissionRule: (sessionId: string, toolName: string, behavior: 'allow' | 'deny') => void
+  respondToPermission: (conversationId: string, requestId: string, behavior: 'allow' | 'deny') => void
+  sendPermissionRule: (conversationId: string, toolName: string, behavior: 'allow' | 'deny') => void
   pendingAskQuestions: Array<{
-    sessionId: string
+    conversationId: string
     toolUseId: string
     questions: Array<{
       question: string
@@ -173,7 +173,7 @@ interface ConversationsState {
     timestamp: number
   }>
   respondToAskQuestion: (
-    sessionId: string,
+    conversationId: string,
     toolUseId: string,
     answers?: Record<string, string>,
     annotations?: Record<string, { preview?: string; notes?: string }>,
@@ -190,13 +190,13 @@ interface ConversationsState {
       meta?: Record<string, unknown> // requestId, toolUseId, etc.
     }
   >
-  submitDialog: (sessionId: string, dialogId: string, result: import('@shared/dialog-schema').DialogResult) => void
-  dismissDialog: (sessionId: string, dialogId: string) => void
-  keepaliveDialog: (sessionId: string, dialogId: string) => void
+  submitDialog: (conversationId: string, dialogId: string, result: import('@shared/dialog-schema').DialogResult) => void
+  dismissDialog: (conversationId: string, dialogId: string) => void
+  keepaliveDialog: (conversationId: string, dialogId: string) => void
 
   clipboardCaptures: Array<{
     id: string
-    sessionId: string
+    conversationId: string
     contentType: 'text' | 'image'
     text?: string
     base64?: string
@@ -206,13 +206,13 @@ interface ConversationsState {
   dismissClipboard: (id: string) => void
   notifications: Array<{
     id: string
-    sessionId: string
+    conversationId: string
     title: string
     message: string
     timestamp: number
   }>
   dismissNotification: (id: string) => void
-  clearSessionNotifications: (sessionId: string) => void
+  clearSessionNotifications: (conversationId: string) => void
   requestedTab: string | null
   requestedTabSeq: number
   pendingFilePath: string | null
@@ -231,16 +231,16 @@ interface ConversationsState {
   /** Select a conversation. Optional `reason` is logged to console for debugging navigation bugs. */
   selectConversation: (id: string | null, reason?: string) => void
   selectSubagent: (agentId: string | null) => void
-  openTab: (sessionId: string, tab: string) => void
+  openTab: (conversationId: string, tab: string) => void
   setShowTerminal: (show: boolean) => void
   setShowSwitcher: (show: boolean) => void
   toggleSwitcher: () => void
   openSwitcherWithFilter: (filter: string) => void
   toggleDebugConsole: () => void
   openTerminal: (conversationId: string) => void
-  setEvents: (sessionId: string, events: HookEvent[]) => void
-  setTranscript: (sessionId: string, entries: TranscriptEntry[]) => void
-  setTasks: (sessionId: string, tasks: TaskInfo[]) => void
+  setEvents: (conversationId: string, events: HookEvent[]) => void
+  setTranscript: (conversationId: string, entries: TranscriptEntry[]) => void
+  setTasks: (conversationId: string, tasks: TaskInfo[]) => void
   setProjectSettings: (settings: ProjectSettingsMap) => void
   setProjectOrder: (order: ProjectOrder) => void
   setConnected: (connected: boolean) => void
@@ -255,19 +255,19 @@ interface ConversationsState {
   setFileHandler: (handler: ((msg: Record<string, unknown>) => void) | null) => void
   projectHandler: ((msg: Record<string, unknown>) => void) | null
   sendWsMessage: (msg: Record<string, unknown>) => void
-  dismissConversation: (sessionId: string) => void
-  terminateConversation: (sessionId: string) => void
+  dismissConversation: (conversationId: string) => void
+  terminateConversation: (conversationId: string) => void
   renamingConversationId: string | null
-  setRenamingConversationId: (sessionId: string | null) => void
-  renameConversation: (sessionId: string, name: string, description?: string) => void
+  setRenamingConversationId: (conversationId: string | null) => void
+  renameConversation: (conversationId: string, name: string, description?: string) => void
   editingDescriptionConversationId: string | null
-  setEditingDescriptionConversationId: (sessionId: string | null) => void
-  updateDescription: (sessionId: string, description: string) => void
+  setEditingDescriptionConversationId: (conversationId: string | null) => void
+  updateDescription: (conversationId: string, description: string) => void
   setPendingFilePath: (path: string | null) => void
   pendingTaskEdit: { slug: string; status: string } | null
   setPendingTaskEdit: (task: { slug: string; status: string } | null) => void
   inputDrafts: Record<string, string>
-  setInputDraft: (sessionId: string, text: string) => void
+  setInputDraft: (conversationId: string, text: string) => void
 
   shares: Array<{
     token: string
@@ -323,8 +323,8 @@ export function applyHashRoute() {
 
   // Listen for postMessage from service worker (notification click deep links)
   navigator.serviceWorker?.addEventListener('message', event => {
-    if (event.data?.type === 'navigate-session' && event.data.sessionId) {
-      useConversationsStore.getState().selectConversation(event.data.sessionId, 'sw-navigate-session')
+    if (event.data?.type === 'navigate-session' && event.data.conversationId) {
+      useConversationsStore.getState().selectConversation(event.data.conversationId, 'sw-navigate-session')
     }
     if (event.data?.type === 'navigate-task' && event.data.taskId) {
       window.dispatchEvent(new CustomEvent('open-project-task', { detail: { taskId: event.data.taskId } }))
@@ -449,33 +449,33 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     }))
   },
   pendingPermissions: [],
-  respondToPermission: (sessionId, requestId, behavior) => {
-    wsSend('permission_response', { sessionId, requestId, behavior })
+  respondToPermission: (conversationId, requestId, behavior) => {
+    wsSend('permission_response', { conversationId, requestId, behavior })
     useConversationsStore.setState(state => ({
       pendingPermissions: state.pendingPermissions.filter(p => p.requestId !== requestId),
     }))
   },
-  sendPermissionRule: (sessionId, toolName, behavior) => {
-    wsSend('permission_rule', { sessionId, toolName, behavior })
+  sendPermissionRule: (conversationId, toolName, behavior) => {
+    wsSend('permission_rule', { conversationId, toolName, behavior })
   },
   pendingAskQuestions: [],
-  respondToAskQuestion: (sessionId, toolUseId, answers, annotations, skip) => {
-    wsSend('ask_answer', { sessionId, toolUseId, answers, annotations, skip })
+  respondToAskQuestion: (conversationId, toolUseId, answers, annotations, skip) => {
+    wsSend('ask_answer', { conversationId, toolUseId, answers, annotations, skip })
     useConversationsStore.setState(state => ({
       pendingAskQuestions: state.pendingAskQuestions.filter(q => q.toolUseId !== toolUseId),
     }))
   },
   pendingDialogs: {},
-  submitDialog: (sessionId, dialogId, result) => {
+  submitDialog: (conversationId, dialogId, result) => {
     const { ws, pendingDialogs } = get()
-    const pending = pendingDialogs[sessionId]
+    const pending = pendingDialogs[conversationId]
     if (ws?.readyState === WebSocket.OPEN) {
       if (pending?.source === 'plan_approval' && pending.meta) {
         // Plan approval: route as plan_approval_response instead of dialog_result
         const action = result._action === 'reject' ? 'reject' : result.feedback ? 'feedback' : 'approve'
         const msg = JSON.stringify({
           type: 'plan_approval_response',
-          sessionId,
+          conversationId,
           requestId: pending.meta.requestId,
           toolUseId: pending.meta.toolUseId,
           action,
@@ -486,7 +486,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       } else {
         const msg = JSON.stringify({
           type: 'dialog_result',
-          sessionId,
+          conversationId,
           dialogId,
           result,
         })
@@ -496,19 +496,19 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     }
     set(state => {
       const updated = { ...state.pendingDialogs }
-      delete updated[sessionId]
+      delete updated[conversationId]
       return { pendingDialogs: updated }
     })
   },
-  dismissDialog: (sessionId, dialogId) => {
+  dismissDialog: (conversationId, dialogId) => {
     const { ws, pendingDialogs } = get()
-    const pending = pendingDialogs[sessionId]
+    const pending = pendingDialogs[conversationId]
     if (ws?.readyState === WebSocket.OPEN) {
       if (pending?.source === 'plan_approval' && pending.meta) {
         // Plan approval dismiss = reject
         const msg = JSON.stringify({
           type: 'plan_approval_response',
-          sessionId,
+          conversationId,
           requestId: pending.meta.requestId,
           toolUseId: pending.meta.toolUseId,
           action: 'reject',
@@ -518,7 +518,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       } else {
         const msg = JSON.stringify({
           type: 'dialog_result',
-          sessionId,
+          conversationId,
           dialogId,
           result: { _action: 'submit', _timeout: false, _cancelled: true },
         })
@@ -528,14 +528,14 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     }
     set(state => {
       const updated = { ...state.pendingDialogs }
-      delete updated[sessionId]
+      delete updated[conversationId]
       return { pendingDialogs: updated }
     })
   },
-  keepaliveDialog: (sessionId, dialogId) => {
+  keepaliveDialog: (conversationId, dialogId) => {
     const { ws } = get()
     if (ws?.readyState === WebSocket.OPEN) {
-      const msg = JSON.stringify({ type: 'dialog_keepalive', sessionId, dialogId })
+      const msg = JSON.stringify({ type: 'dialog_keepalive', conversationId, dialogId })
       ws.send(msg)
       recordOut(msg.length)
     }
@@ -550,9 +550,9 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     useConversationsStore.setState(state => ({
       notifications: state.notifications.filter(n => n.id !== id),
     })),
-  clearSessionNotifications: sessionId =>
+  clearSessionNotifications: conversationId =>
     useConversationsStore.setState(state => ({
-      notifications: state.notifications.filter(n => n.sessionId !== sessionId),
+      notifications: state.notifications.filter(n => n.conversationId !== conversationId),
     })),
   requestedTab: null,
   requestedTabSeq: 0,
@@ -560,12 +560,12 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   pendingTaskEdit: null,
   setPendingTaskEdit: task => set({ pendingTaskEdit: task }),
   renamingConversationId: null,
-  setRenamingConversationId: sessionId => set({ renamingConversationId: sessionId }),
-  renameConversation: (sessionId, name, description) => {
-    wsSend('rename_conversation', { sessionId, name, ...(description !== undefined ? { description } : {}) })
+  setRenamingConversationId: conversationId => set({ renamingConversationId: conversationId }),
+  renameConversation: (conversationId, name, description) => {
+    wsSend('rename_conversation', { conversationId, name, ...(description !== undefined ? { description } : {}) })
     set(state => {
       const sessions = state.sessions.map(s =>
-        s.id === sessionId
+        s.id === conversationId
           ? {
               ...s,
               title: name || undefined,
@@ -577,20 +577,21 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     })
   },
   editingDescriptionConversationId: null,
-  setEditingDescriptionConversationId: sessionId => set({ editingDescriptionConversationId: sessionId }),
-  updateDescription: (sessionId, description) => {
-    const session = get().sessionsById[sessionId]
+  setEditingDescriptionConversationId: conversationId => set({ editingDescriptionConversationId: conversationId }),
+  updateDescription: (conversationId, description) => {
+    const session = get().sessionsById[conversationId]
     const name = session?.title || ''
-    wsSend('rename_conversation', { sessionId, name, description })
+    wsSend('rename_conversation', { conversationId, name, description })
     set(state => {
       const sessions = state.sessions.map(s =>
-        s.id === sessionId ? { ...s, description: description || undefined } : s,
+        s.id === conversationId ? { ...s, description: description || undefined } : s,
       )
       return { editingDescriptionConversationId: null, sessions, sessionsById: buildConversationsById(sessions) }
     })
   },
   inputDrafts: {},
-  setInputDraft: (sessionId, text) => set(state => ({ inputDrafts: { ...state.inputDrafts, [sessionId]: text } })),
+  setInputDraft: (conversationId, text) =>
+    set(state => ({ inputDrafts: { ...state.inputDrafts, [conversationId]: text } })),
   newDataSeq: 0,
   shares: [],
   setShares: shares => set({ shares }),
@@ -695,7 +696,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     if (id) {
       const session = get().sessionsById[id]
       if (session?.hasNotification) {
-        get().sendWsMessage({ type: 'conversation_viewed', sessionId: id })
+        get().sendWsMessage({ type: 'conversation_viewed', conversationId: id })
       }
       get().clearSessionNotifications(id)
     }
@@ -703,17 +704,17 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   selectSubagent: agentId => {
     set({ selectedSubagentId: agentId })
   },
-  openTab: (sessionId, tab) => {
+  openTab: (conversationId, tab) => {
     const prev = get().selectedConversationId
-    if (sessionId !== prev) {
-      console.log(`[nav] openTab: ${prev?.slice(0, 8) || 'none'} -> ${sessionId.slice(0, 8)} tab=${tab}`)
+    if (conversationId !== prev) {
+      console.log(`[nav] openTab: ${prev?.slice(0, 8) || 'none'} -> ${conversationId.slice(0, 8)} tab=${tab}`)
     }
     set(state => ({
-      selectedConversationId: sessionId,
+      selectedConversationId: conversationId,
       requestedTab: tab,
       requestedTabSeq: state.requestedTabSeq + 1,
     }))
-    updateHash(`session/${sessionId}`)
+    updateHash(`session/${conversationId}`)
   },
   setShowTerminal: show => {
     set({ showTerminal: show, ...(!show && { terminalWrapperId: null }) })
@@ -744,22 +745,22 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     })
     updateHash(`terminal/${conversationId}`)
   },
-  setEvents: (sessionId, events) =>
+  setEvents: (conversationId, events) =>
     set(state => {
-      const existing = state.events[sessionId]
+      const existing = state.events[conversationId]
       // Don't replace a larger local cache with a smaller server response.
       // WS pushes may have appended newer events since the HTTP fetch started.
       if (existing && existing.length > events.length) {
         console.log(
-          `[events] SKIP replace ${sessionId.slice(0, 8)}: local=${existing.length} > server=${events.length}`,
+          `[events] SKIP replace ${conversationId.slice(0, 8)}: local=${existing.length} > server=${events.length}`,
         )
         return state
       }
-      return { events: { ...state.events, [sessionId]: events }, newDataSeq: state.newDataSeq + 1 }
+      return { events: { ...state.events, [conversationId]: events }, newDataSeq: state.newDataSeq + 1 }
     }),
-  setTranscript: (sessionId, entries) =>
+  setTranscript: (conversationId, entries) =>
     set(state => {
-      const existing = state.transcripts[sessionId]
+      const existing = state.transcripts[conversationId]
       // Don't replace a larger local cache with a smaller server response
       // unless the server sent an initial/full load (entries have different first entry)
       if (existing && existing.length > entries.length) {
@@ -770,7 +771,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
         if (existingFirst === newFirst) {
           // Same conversation, server just has fewer entries -- keep local
           console.log(
-            `[transcript] SKIP replace ${sessionId.slice(0, 8)}: local=${existing.length} > server=${entries.length}`,
+            `[transcript] SKIP replace ${conversationId.slice(0, 8)}: local=${existing.length} > server=${entries.length}`,
           )
           return state
         }
@@ -780,12 +781,12 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       // pre-seq entries (none in practice after first deploy).
       const lastSeq = entries.length > 0 ? (entries[entries.length - 1].seq ?? 0) : 0
       return {
-        transcripts: { ...state.transcripts, [sessionId]: entries },
-        lastAppliedTranscriptSeq: { ...state.lastAppliedTranscriptSeq, [sessionId]: lastSeq },
+        transcripts: { ...state.transcripts, [conversationId]: entries },
+        lastAppliedTranscriptSeq: { ...state.lastAppliedTranscriptSeq, [conversationId]: lastSeq },
         newDataSeq: state.newDataSeq + 1,
       }
     }),
-  setTasks: (sessionId, tasks) => set(state => ({ tasks: { ...state.tasks, [sessionId]: tasks } })),
+  setTasks: (conversationId, tasks) => set(state => ({ tasks: { ...state.tasks, [conversationId]: tasks } })),
   setProjectSettings: settings => set({ projectSettings: settings }),
   setProjectOrder: order => set({ projectOrder: { ...order, tree: flattenProjectOrderTree(order.tree) } }),
   setConnected: connected =>
@@ -811,22 +812,22 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       ws.send(payload)
     }
   },
-  dismissConversation: sessionId => {
-    wsSend('dismiss_conversation', { sessionId })
+  dismissConversation: conversationId => {
+    wsSend('dismiss_conversation', { conversationId })
     set(state => {
-      const sessions = state.sessions.filter(s => s.id !== sessionId)
-      if (state.selectedConversationId === sessionId) {
-        console.log(`[nav] dismissConversation: clearing selection (dismissed ${sessionId.slice(0, 8)})`)
+      const sessions = state.sessions.filter(s => s.id !== conversationId)
+      if (state.selectedConversationId === conversationId) {
+        console.log(`[nav] dismissConversation: clearing selection (dismissed ${conversationId.slice(0, 8)})`)
       }
       return {
         sessions,
         sessionsById: buildConversationsById(sessions),
-        selectedConversationId: state.selectedConversationId === sessionId ? null : state.selectedConversationId,
+        selectedConversationId: state.selectedConversationId === conversationId ? null : state.selectedConversationId,
       }
     })
   },
-  terminateConversation: sessionId => {
-    wsSend('terminate_conversation', { sessionId })
+  terminateConversation: conversationId => {
+    wsSend('terminate_conversation', { conversationId })
   },
 
   getSelectedSession: () => {
@@ -858,8 +859,8 @@ export function wsSend(type: string, data?: Record<string, unknown>): boolean {
   return true
 }
 
-export async function fetchConversationEvents(sessionId: string): Promise<HookEvent[]> {
-  const res = await fetch(appendShareParam(`${API_BASE}/conversations/${sessionId}/events?limit=200`))
+export async function fetchConversationEvents(conversationId: string): Promise<HookEvent[]> {
+  const res = await fetch(appendShareParam(`${API_BASE}/conversations/${conversationId}/events?limit=200`))
   if (!res.ok) throw new Error('Failed to fetch events')
   return res.json()
 }
@@ -881,10 +882,13 @@ export interface TranscriptFetchResult {
  *  - With `sinceSeq`: returns entries with seq > sinceSeq (delta mode),
  *    used after sync_check flags the session as stale. If `gap=true` in the
  *    response, the client has evicted entries it needed -- full replace. */
-export async function fetchTranscript(sessionId: string, sinceSeq?: number): Promise<TranscriptFetchResult | null> {
+export async function fetchTranscript(
+  conversationId: string,
+  sinceSeq?: number,
+): Promise<TranscriptFetchResult | null> {
   try {
     const qs = sinceSeq !== undefined ? `?sinceSeq=${sinceSeq}&limit=1000` : `?limit=500`
-    const res = await fetch(appendShareParam(`${API_BASE}/conversations/${sessionId}/transcript${qs}`))
+    const res = await fetch(appendShareParam(`${API_BASE}/conversations/${conversationId}/transcript${qs}`))
     if (!res.ok) return null
     const body = await res.json()
     return body as TranscriptFetchResult
@@ -893,14 +897,14 @@ export async function fetchTranscript(sessionId: string, sinceSeq?: number): Pro
   }
 }
 
-export async function fetchSubagents(sessionId: string): Promise<SubagentInfo[]> {
-  const res = await fetch(`${API_BASE}/conversations/${sessionId}/subagents`)
+export async function fetchSubagents(conversationId: string): Promise<SubagentInfo[]> {
+  const res = await fetch(`${API_BASE}/conversations/${conversationId}/subagents`)
   if (!res.ok) return []
   return res.json()
 }
 
-export async function fetchSubagentTranscript(sessionId: string, agentId: string): Promise<TranscriptEntry[]> {
-  const res = await fetch(`${API_BASE}/conversations/${sessionId}/subagents/${agentId}/transcript?limit=500`)
+export async function fetchSubagentTranscript(conversationId: string, agentId: string): Promise<TranscriptEntry[]> {
+  const res = await fetch(`${API_BASE}/conversations/${conversationId}/subagents/${agentId}/transcript?limit=500`)
   if (!res.ok) return []
   return res.json()
 }
@@ -912,10 +916,10 @@ interface ReviveSessionOptions {
   effort?: string
 }
 
-export function reviveConversation(sessionId: string, options: ReviveSessionOptions = {}): boolean {
+export function reviveConversation(conversationId: string, options: ReviveSessionOptions = {}): boolean {
   const { headless, jobId, model, effort } = options
   return wsSend('revive_conversation', {
-    sessionId,
+    conversationId,
     ...(headless !== undefined && { headless }),
     ...(jobId && { jobId }),
     ...(model && { model }),
@@ -950,12 +954,12 @@ function detectControlCommand(input: string): {
 }
 
 function sendConversationControl(
-  sessionId: string,
+  conversationId: string,
   action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode',
   opts: { model?: string; effort?: string; permissionMode?: string } = {},
 ): boolean {
   return wsSend('conversation_control', {
-    targetSession: sessionId,
+    targetSession: conversationId,
     action,
     ...(opts.model && { model: opts.model }),
     ...(opts.effort && { effort: opts.effort }),
@@ -963,20 +967,20 @@ function sendConversationControl(
   })
 }
 
-export function sendInput(sessionId: string, input: string): boolean {
+export function sendInput(conversationId: string, input: string): boolean {
   // Bare control commands (/clear, /quit, :q, /model X, /effort X) bypass the
   // model and go straight to the wrapper's control channel. Everything else
   // flows through send_input as before.
   const control = detectControlCommand(input)
   if (control) {
-    return sendConversationControl(sessionId, control.action, {
+    return sendConversationControl(conversationId, control.action, {
       model: control.model,
       effort: control.effort,
       permissionMode: control.permissionMode,
     })
   }
   const crDelay = (useConversationsStore.getState().globalSettings.carriageReturnDelay as number) || 0
-  const ok = wsSend('send_input', { sessionId, input, ...(crDelay > 0 && { crDelay }) })
+  const ok = wsSend('send_input', { conversationId, input, ...(crDelay > 0 && { crDelay }) })
   // User messages for headless sessions are emitted by the wrapper's
   // sendUserMessage() directly to the broker, which persists + broadcasts.
   // No optimistic entry needed -- the broker round-trip is fast enough,

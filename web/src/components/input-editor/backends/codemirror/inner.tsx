@@ -46,8 +46,8 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
   // actually composing a /workon command.
   const wantsTasks = props.enableAutocomplete && /^\/workon\s/i.test(props.value)
   const { tasks: projectTasks } = useProject(wantsTasks ? conversationId : null)
-  const subCmdCtxRef = useRef<SubCommandContext>({ tasks: projectTasks, sessionId: conversationId })
-  subCmdCtxRef.current = { tasks: projectTasks, sessionId: conversationId }
+  const subCmdCtxRef = useRef<SubCommandContext>({ tasks: projectTasks, conversationId: conversationId })
+  subCmdCtxRef.current = { tasks: projectTasks, conversationId: conversationId }
 
   const onSubmitRef = useRef(props.onSubmit)
   onSubmitRef.current = props.onSubmit

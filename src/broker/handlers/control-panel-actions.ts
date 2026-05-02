@@ -24,7 +24,7 @@ import {
 // ─── Send input to a session ──────────────────────────────────────
 
 const sendInput: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = (data.conversationId || data.conversationId) as string
   const input = data.input as string
   if (!conversationId || !input || typeof input !== 'string') {
     throw new GuardError('Missing conversationId or input')
@@ -85,7 +85,7 @@ function broadcastFilteredProjectSettings(
 // ─── Dismiss an ended session ─────────────────────────────────────
 
 const dismissConversation: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = (data.conversationId || data.conversationId) as string
   if (!conversationId) throw new GuardError('Missing conversationId')
 
   const conversation = ctx.conversations.getConversation(conversationId)
@@ -95,7 +95,7 @@ const dismissConversation: MessageHandler = (ctx, data) => {
 
   const project = conversation.project
   ctx.conversations.removeConversation(conversationId)
-  ctx.broadcastScoped({ type: 'conversation_dismissed', sessionId: conversationId }, project)
+  ctx.broadcastScoped({ type: 'conversation_dismissed', conversationId: conversationId }, project)
   ctx.reply({ type: 'dismiss_conversation_result', ok: true })
 }
 
@@ -186,7 +186,7 @@ const updateProjectOrder: MessageHandler = (ctx, data) => {
 // ─── Interrupt a session (headless) ───────────────────────────────
 
 const sendInterrupt: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = (data.conversationId || data.conversationId) as string
   if (!conversationId) throw new GuardError('Missing conversationId')
 
   const conversation = ctx.conversations.getConversation(conversationId)
@@ -204,7 +204,7 @@ const sendInterrupt: MessageHandler = (ctx, data) => {
   }
   if (!ws) throw new GuardError('Conversation not connected')
 
-  ws.send(JSON.stringify({ type: 'interrupt', sessionId: conversationId }))
+  ws.send(JSON.stringify({ type: 'interrupt', conversationId: conversationId }))
   // Immediately set idle -- CC won't fire a Stop hook after interrupt
   conversation.status = 'idle'
   ctx.conversations.broadcastConversationUpdate(conversationId)
@@ -215,7 +215,7 @@ const sendInterrupt: MessageHandler = (ctx, data) => {
 // ─── Revive a session ─────────────────────────────────────────────
 
 const reviveConversation: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = (data.conversationId || data.conversationId) as string
   if (!conversationId) throw new GuardError('Missing conversationId')
 
   const conversation = ctx.conversations.getConversation(conversationId)
@@ -316,7 +316,7 @@ const unsubscribeJob: MessageHandler = (ctx, data) => {
 // ─── Rename Session ──────────────────────────────────────────────
 
 const renameConversation: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = (data.conversationId || data.conversationId) as string
   const name = (data.name as string)?.trim()
   const description = typeof data.description === 'string' ? data.description.trim() : undefined
   if (!conversationId) throw new GuardError('Missing conversationId')

@@ -13,7 +13,7 @@ function projectLinkKey(a: string, b: string): string {
 
 export interface ProjectLinkRegistry {
   checkProjectLink: (from: string, to: string) => 'linked' | 'blocked' | 'unknown'
-  getLinkedProjects: (sessionId: string) => Array<{ project: string; name: string }>
+  getLinkedProjects: (conversationId: string) => Array<{ project: string; name: string }>
   linkProjects: (a: string, b: string) => void
   unlinkProjects: (a: string, b: string) => void
   blockProject: (blocker: string, blocked: string) => void
@@ -31,8 +31,8 @@ export function createProjectLinkRegistry(
   const projectBlocks = new Map<string, number>()
   const messageQueue = new Map<string, Array<Record<string, unknown>>>()
 
-  function sessionToProject(sessionId: string): string | undefined {
-    return conversations.get(sessionId)?.project
+  function sessionToProject(conversationId: string): string | undefined {
+    return conversations.get(conversationId)?.project
   }
 
   return {
@@ -48,8 +48,8 @@ export function createProjectLinkRegistry(
       return 'unknown'
     },
 
-    getLinkedProjects(sessionId) {
-      const thisProject = sessionToProject(sessionId)
+    getLinkedProjects(conversationId) {
+      const thisProject = sessionToProject(conversationId)
       if (!thisProject) return []
       const result: Array<{ project: string; name: string }> = []
       for (const key of projectLinks) {
@@ -112,9 +112,9 @@ export function createProjectLinkRegistry(
       const project = toProjectUri(projectOrCwd)
       const json = JSON.stringify(message)
       let count = 0
-      for (const [sessionId, session] of conversations) {
+      for (const [conversationId, session] of conversations) {
         if (session.project !== project) continue
-        const wrappers = conversationSockets.get(sessionId)
+        const wrappers = conversationSockets.get(conversationId)
         if (!wrappers) continue
         for (const ws of wrappers.values()) {
           try {

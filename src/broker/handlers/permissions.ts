@@ -12,7 +12,7 @@ import { registerHandlers } from '../message-router'
 
 // Permission relay: wrapper -> dashboard (broadcast + store for reconnect recovery)
 const permissionRequest: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
 
@@ -36,7 +36,7 @@ const permissionRequest: MessageHandler = (ctx, data) => {
 
   const msg = {
     type: 'permission_request',
-    sessionId: conversationId,
+    conversationId: conversationId,
     requestId: data.requestId,
     toolName: data.toolName,
     description: data.description,
@@ -50,7 +50,7 @@ const permissionRequest: MessageHandler = (ctx, data) => {
 
 // Permission relay: dashboard -> wrapper (forward + clear stored state)
 const permissionResponse: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = (data.conversationId || data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   if (conversation) ctx.requirePermission('chat', conversation.project)
   const targetWs = conversationId ? ctx.conversations.getConversationSocket(conversationId) : null
@@ -58,7 +58,7 @@ const permissionResponse: MessageHandler = (ctx, data) => {
     targetWs.send(
       JSON.stringify({
         type: 'permission_response',
-        sessionId: conversationId,
+        conversationId: conversationId,
         requestId: data.requestId,
         behavior: data.behavior,
         toolUseId: data.toolUseId,
@@ -78,7 +78,7 @@ const permissionResponse: MessageHandler = (ctx, data) => {
 
 // Permission rule: dashboard -> wrapper (session-scoped auto-approve)
 const permissionRule: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = (data.conversationId || data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   if (conversation) ctx.requirePermission('chat', conversation.project)
   const targetWs = conversationId ? ctx.conversations.getConversationSocket(conversationId) : null
@@ -96,12 +96,12 @@ const permissionRule: MessageHandler = (ctx, data) => {
 
 // Permission auto-approved: wrapper -> dashboard (notification)
 const permissionAutoApproved: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   const msg = {
     type: 'permission_auto_approved',
-    sessionId: conversationId,
+    conversationId: conversationId,
     requestId: data.requestId,
     toolName: data.toolName,
     description: data.description,
@@ -112,12 +112,12 @@ const permissionAutoApproved: MessageHandler = (ctx, data) => {
 
 // Clipboard capture: wrapper -> dashboard (broadcast)
 const clipboardCapture: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   const msg = {
     type: 'clipboard_capture',
-    sessionId: conversationId,
+    conversationId: conversationId,
     contentType: data.contentType,
     text: data.text,
     base64: data.base64,
@@ -131,7 +131,7 @@ const clipboardCapture: MessageHandler = (ctx, data) => {
 
 // AskUserQuestion relay: wrapper -> dashboard (broadcast + store for reconnect recovery)
 const askQuestion: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
 
@@ -152,7 +152,7 @@ const askQuestion: MessageHandler = (ctx, data) => {
 
   const msg = {
     type: 'ask_question',
-    sessionId: conversationId,
+    conversationId: conversationId,
     toolUseId: data.toolUseId,
     questions: data.questions,
   }
@@ -165,7 +165,7 @@ const askQuestion: MessageHandler = (ctx, data) => {
 
 // AskUserQuestion relay: dashboard -> wrapper (forward + clear stored state)
 const askAnswer: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = (data.conversationId || data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   if (conversation) ctx.requirePermission('chat', conversation.project)
   const targetWs = conversationId ? ctx.conversations.getConversationSocket(conversationId) : null
@@ -173,7 +173,7 @@ const askAnswer: MessageHandler = (ctx, data) => {
     targetWs.send(
       JSON.stringify({
         type: 'ask_answer',
-        sessionId: conversationId,
+        conversationId: conversationId,
         toolUseId: data.toolUseId,
         answers: data.answers,
         annotations: data.annotations,

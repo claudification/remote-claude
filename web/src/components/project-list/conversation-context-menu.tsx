@@ -192,7 +192,7 @@ export function ConversationContextMenu({
                 onSelect={() => {
                   haptic('tap')
                   selectConversation(session.id)
-                  openReviveDialog({ sessionId: session.id })
+                  openReviveDialog({ conversationId: session.id })
                 }}
               >
                 Revive...

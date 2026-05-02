@@ -36,18 +36,18 @@ export function ScrollToBottomButton({
 // ---------------------------------------------------------------------------
 
 // Isolated input bar - typing here does NOT rerender transcript/events
-export const InputBar = memo(function InputBar({ sessionId }: { sessionId: string }) {
-  const [inputValue, setLocalInput] = useState(() => useConversationsStore.getState().inputDrafts[sessionId] ?? '')
+export const InputBar = memo(function InputBar({ conversationId }: { conversationId: string }) {
+  const [inputValue, setLocalInput] = useState(() => useConversationsStore.getState().inputDrafts[conversationId] ?? '')
   const [isSending, setIsSending] = useState(false)
   const [showAttention, setShowAttention] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef(inputValue)
-  const sessionRef = useRef(sessionId)
+  const sessionRef = useRef(conversationId)
 
   // Track pendingAttention with 15s delay before showing (PTY only - headless uses PermissionBanners)
-  const pendingAttention = useConversationsStore(s => s.sessionsById[sessionId]?.pendingAttention)
+  const pendingAttention = useConversationsStore(s => s.sessionsById[conversationId]?.pendingAttention)
   const sessionHasTerminal = useConversationsStore(s => {
-    const sess = s.sessionsById[sessionId]
+    const sess = s.sessionsById[conversationId]
     return sess ? canTerminal(sess) : false
   })
   useEffect(() => {
@@ -69,17 +69,17 @@ export const InputBar = memo(function InputBar({ sessionId }: { sessionId: strin
 
   // Session switch: save old draft, restore new, focus input (desktop only)
   useEffect(() => {
-    if (sessionRef.current !== sessionId) {
+    if (sessionRef.current !== conversationId) {
       useConversationsStore.getState().setInputDraft(sessionRef.current, inputRef.current)
-      const restored = useConversationsStore.getState().inputDrafts[sessionId] ?? ''
+      const restored = useConversationsStore.getState().inputDrafts[conversationId] ?? ''
       setLocalInput(restored)
       inputRef.current = restored
-      sessionRef.current = sessionId
+      sessionRef.current = conversationId
       if (!isMobileViewport()) {
         requestAnimationFrame(() => containerRef.current && focusInputEditor(containerRef.current))
       }
     }
-  }, [sessionId])
+  }, [conversationId])
 
   // Save draft on unmount
   useEffect(() => {
@@ -102,20 +102,20 @@ export const InputBar = memo(function InputBar({ sessionId }: { sessionId: strin
     haptic('tap')
     // Clear optimistically -- restore on failure
     setInputValue('')
-    useConversationsStore.getState().setInputDraft(sessionId, '')
+    useConversationsStore.getState().setInputDraft(conversationId, '')
     setIsSending(true)
-    const success = sendInput(sessionId, text)
+    const success = sendInput(conversationId, text)
     setIsSending(false)
     if (!success) {
       haptic('error')
-      console.error('[input] sendInput failed for session', sessionId)
+      console.error('[input] sendInput failed for session', conversationId)
       // Restore on failure
       setInputValue(text)
-      useConversationsStore.getState().setInputDraft(sessionId, text)
+      useConversationsStore.getState().setInputDraft(conversationId, text)
     } else {
       // Defensive re-clear (optimistic transcript entry now handled inside sendInput)
       setInputValue('')
-      useConversationsStore.getState().setInputDraft(sessionId, '')
+      useConversationsStore.getState().setInputDraft(conversationId, '')
     }
     if (!isMobileViewport()) {
       requestAnimationFrame(() => containerRef.current && focusInputEditor(containerRef.current))
@@ -216,8 +216,8 @@ export const InputBar = memo(function InputBar({ sessionId }: { sessionId: strin
 
 const EMPTY_EXPLORER = undefined
 
-export function DialogOverlay({ sessionId }: { sessionId: string }) {
-  const pending = useConversationsStore(s => s.pendingDialogs[sessionId] || EMPTY_EXPLORER)
+export function DialogOverlay({ conversationId }: { conversationId: string }) {
+  const pending = useConversationsStore(s => s.pendingDialogs[conversationId] || EMPTY_EXPLORER)
   const submitDialog = useConversationsStore(s => s.submitDialog)
   const dismissDialog = useConversationsStore(s => s.dismissDialog)
   const keepaliveDialog = useConversationsStore(s => s.keepaliveDialog)
@@ -227,9 +227,9 @@ export function DialogOverlay({ sessionId }: { sessionId: string }) {
   return (
     <DialogModal
       layout={pending.layout}
-      onSubmit={result => submitDialog(sessionId, pending.dialogId, result)}
-      onCancel={() => dismissDialog(sessionId, pending.dialogId)}
-      onKeepalive={() => keepaliveDialog(sessionId, pending.dialogId)}
+      onSubmit={result => submitDialog(conversationId, pending.dialogId, result)}
+      onCancel={() => dismissDialog(conversationId, pending.dialogId)}
+      onKeepalive={() => keepaliveDialog(conversationId, pending.dialogId)}
     />
   )
 }

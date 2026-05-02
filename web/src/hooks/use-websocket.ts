@@ -31,7 +31,7 @@ import { recordIn, recordOut } from './ws-stats'
 // Dashboard message from broker WS (loose type field for extensibility)
 interface DashboardMessage {
   type: string
-  sessionId?: string
+  conversationId?: string
   previousSessionId?: string
   session?: ConversationSummary
   sessions?: ConversationSummary[]
@@ -323,11 +323,11 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'conversation_ended':
     case 'conversation_update': {
-      if (msg.session && msg.sessionId) {
-        const sessionId = msg.sessionId
+      if (msg.session && msg.conversationId) {
+        const conversationId = msg.conversationId
         const session = msg.session
         const prevId = msg.previousSessionId
-        const matchId = prevId || sessionId
+        const matchId = prevId || conversationId
         useConversationsStore.setState(state => {
           const updated = toSession(session)
           // Rekey collision: if two booting placeholders (different conversationIds)
@@ -349,15 +349,15 @@ function processMessage(msg: DashboardMessage) {
             sessionsById: buildConversationsById(sessions),
           }
           // Clear stale streaming text when session goes idle or ends
-          if ((updated.status === 'idle' || updated.status === 'ended') && state.streamingText[sessionId]) {
-            const { [sessionId]: _, ...rest } = state.streamingText
+          if ((updated.status === 'idle' || updated.status === 'ended') && state.streamingText[conversationId]) {
+            const { [conversationId]: _, ...rest } = state.streamingText
             newState.streamingText = rest
           }
           if (prevId && state.selectedConversationId === prevId) {
             console.log(
-              `[nav] session rekey: ${prevId.slice(0, 8)} -> ${sessionId.slice(0, 8)} (selected session rekeyed)`,
+              `[nav] session rekey: ${prevId.slice(0, 8)} -> ${conversationId.slice(0, 8)} (selected session rekeyed)`,
             )
-            newState.selectedConversationId = sessionId
+            newState.selectedConversationId = conversationId
             const oldEvents = state.events[prevId]
             const oldTranscripts = state.transcripts[prevId]
             if (oldEvents || oldTranscripts) {
@@ -367,8 +367,8 @@ function processMessage(msg: DashboardMessage) {
               delete transcripts[prevId]
               // Preserve any data already received for the new session ID
               // (e.g. compacting marker broadcast during rekey)
-              if (!events[sessionId]) events[sessionId] = []
-              if (!transcripts[sessionId]) transcripts[sessionId] = []
+              if (!events[conversationId]) events[conversationId] = []
+              if (!transcripts[conversationId]) transcripts[conversationId] = []
               newState.events = events
               newState.transcripts = transcripts
             }
@@ -379,32 +379,34 @@ function processMessage(msg: DashboardMessage) {
         // missed channel entries under new-id while backgrounded. Re-fetch.
         if (prevId) {
           console.log(
-            `[sync] session_update: REKEY ${prevId.slice(0, 8)} -> ${sessionId.slice(0, 8)} status=${session.status}`,
+            `[sync] session_update: REKEY ${prevId.slice(0, 8)} -> ${conversationId.slice(0, 8)} status=${session.status}`,
           )
           // Delay: broker processes rekey and re-receives transcript from rclaude.
           // 500ms gives the transcript watcher time to stream initial entries to the new ID.
           setTimeout(() => {
-            fetchTranscript(sessionId).then(transcript => {
+            fetchTranscript(conversationId).then(transcript => {
               console.log(
-                `[sync] rekey refetch ${sessionId.slice(0, 8)}: ${transcript?.entries.length ?? 'null'} entries lastSeq=${transcript?.lastSeq ?? '-'}`,
+                `[sync] rekey refetch ${conversationId.slice(0, 8)}: ${transcript?.entries.length ?? 'null'} entries lastSeq=${transcript?.lastSeq ?? '-'}`,
               )
-              if (transcript) useConversationsStore.getState().setTranscript(sessionId, transcript.entries)
+              if (transcript) useConversationsStore.getState().setTranscript(conversationId, transcript.entries)
             })
           }, 500)
         } else if (session.status === 'starting') {
           const state = useConversationsStore.getState()
-          const cached = state.transcripts[sessionId]?.length ?? 0
-          const isSelected = state.selectedConversationId === sessionId
-          console.log(`[sync] session_update: RESUME ${sessionId.slice(0, 8)} selected=${isSelected} cached=${cached}`)
+          const cached = state.transcripts[conversationId]?.length ?? 0
+          const isSelected = state.selectedConversationId === conversationId
+          console.log(
+            `[sync] session_update: RESUME ${conversationId.slice(0, 8)} selected=${isSelected} cached=${cached}`,
+          )
           if (isSelected) {
             // Always refetch on resume -- transcript may have been corrupted by a
             // same-ID rekey or the session may have new data from a restart.
             setTimeout(() => {
-              fetchTranscript(sessionId).then(transcript => {
+              fetchTranscript(conversationId).then(transcript => {
                 console.log(
-                  `[sync] resume refetch ${sessionId.slice(0, 8)}: ${transcript?.entries.length ?? 'null'} entries lastSeq=${transcript?.lastSeq ?? '-'}`,
+                  `[sync] resume refetch ${conversationId.slice(0, 8)}: ${transcript?.entries.length ?? 'null'} entries lastSeq=${transcript?.lastSeq ?? '-'}`,
                 )
-                if (transcript) useConversationsStore.getState().setTranscript(sessionId, transcript.entries)
+                if (transcript) useConversationsStore.getState().setTranscript(conversationId, transcript.entries)
               })
             }, 1000)
           }
@@ -423,8 +425,8 @@ function processMessage(msg: DashboardMessage) {
       break
     }
     case 'event': {
-      if (msg.event && msg.sessionId) {
-        const sid = msg.sessionId
+      if (msg.event && msg.conversationId) {
+        const sid = msg.conversationId
         const evt = msg.event
         useConversationsStore.setState(state => {
           const currentEvents = state.events[sid] || []
@@ -439,8 +441,8 @@ function processMessage(msg: DashboardMessage) {
       break
     }
     case 'transcript_entries': {
-      if (msg.sessionId && msg.entries?.length) {
-        const sid = msg.sessionId
+      if (msg.conversationId && msg.entries?.length) {
+        const sid = msg.conversationId
         const newEntries = msg.entries as TranscriptEntry[]
         const initial = msg.isInitial
         useConversationsStore.setState(state => {
@@ -520,7 +522,7 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'conversation_info': {
       // Session metadata from headless init - store for autocomplete
-      const sid = msg.sessionId as string
+      const sid = msg.conversationId as string
       if (sid) {
         useConversationsStore.setState(state => ({
           sessionInfo: {
@@ -545,7 +547,7 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'stream_delta': {
       // Headless token streaming - accumulate text deltas
-      const sid = msg.sessionId as string
+      const sid = msg.conversationId as string
       const event = msg.event as Record<string, unknown> | undefined
       if (sid && event) {
         const eventType = event.type as string
@@ -585,11 +587,11 @@ function processMessage(msg: DashboardMessage) {
       break
     }
     case 'subagent_transcript': {
-      if (msg.sessionId && msg.entries?.length) {
+      if (msg.conversationId && msg.entries?.length) {
         const subMsg = msg as DashboardMessage & { agentId?: string }
         const agentId = subMsg.agentId
         if (agentId) {
-          const sid = msg.sessionId
+          const sid = msg.conversationId
           const newEntries = msg.entries
           const initial = msg.isInitial
           const key = `${sid}:${agentId}`
@@ -607,8 +609,8 @@ function processMessage(msg: DashboardMessage) {
       break
     }
     case 'tasks_update': {
-      if (msg.sessionId && msg.tasks) {
-        const sid = msg.sessionId
+      if (msg.conversationId && msg.tasks) {
+        const sid = msg.conversationId
         const taskList = msg.tasks
         useConversationsStore.setState(state => ({
           tasks: { ...state.tasks, [sid]: taskList },
@@ -689,7 +691,7 @@ function processMessage(msg: DashboardMessage) {
         description?: string
         inputPreview?: string
       }
-      const permSid = req.sessionId
+      const permSid = req.conversationId
       const permRid = req.requestId
       if (permSid && permRid) {
         useConversationsStore.setState(state => {
@@ -698,7 +700,7 @@ function processMessage(msg: DashboardMessage) {
             pendingPermissions: [
               ...state.pendingPermissions,
               {
-                sessionId: permSid,
+                conversationId: permSid,
                 requestId: permRid,
                 toolName: req.toolName || 'Unknown',
                 description: req.description || '',
@@ -719,11 +721,11 @@ function processMessage(msg: DashboardMessage) {
         toolName?: string
         description?: string
       }
-      if (auto.sessionId && auto.toolName) {
+      if (auto.conversationId && auto.toolName) {
         // Emit a custom event that the session-detail can pick up for a brief toast
         window.dispatchEvent(
           new CustomEvent('permission-auto-approved', {
-            detail: { sessionId: auto.sessionId, toolName: auto.toolName, description: auto.description },
+            detail: { conversationId: auto.conversationId, toolName: auto.toolName, description: auto.description },
           }),
         )
       }
@@ -739,7 +741,7 @@ function processMessage(msg: DashboardMessage) {
           multiSelect?: boolean
         }>
       }
-      const askSid = askMsg.sessionId
+      const askSid = askMsg.conversationId
       const askTuid = askMsg.toolUseId
       if (askSid && askTuid && askMsg.questions) {
         useConversationsStore.setState(state => {
@@ -748,7 +750,7 @@ function processMessage(msg: DashboardMessage) {
             pendingAskQuestions: [
               ...state.pendingAskQuestions,
               {
-                sessionId: askSid,
+                conversationId: askSid,
                 toolUseId: askTuid,
                 questions: askMsg.questions || [],
                 timestamp: Date.now(),
@@ -760,7 +762,7 @@ function processMessage(msg: DashboardMessage) {
       break
     }
     case 'dialog_show': {
-      const exSid = msg.sessionId as string
+      const exSid = msg.conversationId as string
       const exId = msg.dialogId as string
       const exLayout = msg.layout as import('@shared/dialog-schema').DialogLayout
       if (exSid && exId && exLayout) {
@@ -778,7 +780,7 @@ function processMessage(msg: DashboardMessage) {
       break
     }
     case 'dialog_dismiss': {
-      const exSid = msg.sessionId as string
+      const exSid = msg.conversationId as string
       if (exSid) {
         useConversationsStore.setState(state => {
           const updated = { ...state.pendingDialogs }
@@ -796,7 +798,7 @@ function processMessage(msg: DashboardMessage) {
         planFilePath?: string
         allowedPrompts?: string[]
       }
-      const paSid = pa.sessionId
+      const paSid = pa.conversationId
       if (paSid && pa.requestId && pa.plan) {
         const dialogId = `plan_${pa.requestId}`
         // Dedup: wrapper replays plan_approval on reconnect so the broker
@@ -839,7 +841,7 @@ function processMessage(msg: DashboardMessage) {
       break
     }
     case 'plan_approval_dismissed': {
-      const sid = msg.sessionId
+      const sid = msg.conversationId
       if (sid) {
         useConversationsStore.setState(state => {
           const pending = state.pendingDialogs[sid]
@@ -860,11 +862,11 @@ function processMessage(msg: DashboardMessage) {
         mimeType?: string
         timestamp?: number
       }
-      if (clipMsg.sessionId && clipMsg.contentType) {
+      if (clipMsg.conversationId && clipMsg.contentType) {
         useConversationsStore.setState(state => {
           const capture = {
             id: `clip_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-            sessionId: clipMsg.sessionId || '',
+            conversationId: clipMsg.conversationId || '',
             contentType: clipMsg.contentType || ('text' as const),
             text: clipMsg.text,
             base64: clipMsg.base64,
@@ -879,17 +881,17 @@ function processMessage(msg: DashboardMessage) {
       break
     }
     case 'conversation_dismissed': {
-      if (msg.sessionId) {
+      if (msg.conversationId) {
         useConversationsStore.setState(state => {
-          const sessions = state.sessions.filter(s => s.id !== msg.sessionId)
-          if (state.selectedConversationId === msg.sessionId) {
-            console.log(`[nav] session_dismissed: clearing selection (WS dismissed ${msg.sessionId.slice(0, 8)})`)
+          const sessions = state.sessions.filter(s => s.id !== msg.conversationId)
+          if (state.selectedConversationId === msg.conversationId) {
+            console.log(`[nav] session_dismissed: clearing selection (WS dismissed ${msg.conversationId.slice(0, 8)})`)
           }
           return {
             sessions,
             sessionsById: buildConversationsById(sessions),
             selectedConversationId:
-              state.selectedConversationId === msg.sessionId ? null : state.selectedConversationId,
+              state.selectedConversationId === msg.conversationId ? null : state.selectedConversationId,
           }
         })
       }
@@ -1024,14 +1026,14 @@ export function useWebSocket() {
         // Subscribe current session immediately
         if (selectedConversationId) {
           for (const ch of SESSION_CHANNELS) {
-            send({ type: 'channel_subscribe', channel: ch, sessionId: selectedConversationId })
+            send({ type: 'channel_subscribe', channel: ch, conversationId: selectedConversationId })
           }
           _subscribedSessions.add(selectedConversationId)
           if (selectedSubagentId) {
             send({
               type: 'channel_subscribe',
               channel: 'conversation:subagent_transcript',
-              sessionId: selectedConversationId,
+              conversationId: selectedConversationId,
               agentId: selectedSubagentId,
             })
           }
@@ -1181,23 +1183,23 @@ export function useWebSocket() {
                 detail: {
                   title,
                   body,
-                  sessionId: msg.sessionId,
+                  conversationId: msg.conversationId,
                   taskId: msg.taskId,
                   variant: msg.variant,
                 },
               }),
             )
             // Accumulate non-transient toasts into bell notifications
-            if (msg.sessionId && !msg.variant) {
+            if (msg.conversationId && !msg.variant) {
               const store = useConversationsStore.getState()
-              const isViewing = store.selectedConversationId === msg.sessionId
+              const isViewing = store.selectedConversationId === msg.conversationId
               if (!isViewing) {
                 useConversationsStore.setState(state => ({
                   notifications: [
                     ...state.notifications,
                     {
                       id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                      sessionId: msg.sessionId as string,
+                      conversationId: msg.conversationId as string,
                       title,
                       message: body,
                       timestamp: Date.now(),
@@ -1253,7 +1255,7 @@ export function useWebSocket() {
       for (const sid of _subscribedSessions) {
         if (!desired.has(sid)) {
           for (const ch of SESSION_CHANNELS) {
-            send({ type: 'channel_unsubscribe', channel: ch, sessionId: sid })
+            send({ type: 'channel_unsubscribe', channel: ch, conversationId: sid })
           }
         }
       }
@@ -1261,7 +1263,7 @@ export function useWebSocket() {
       for (const sid of desired) {
         if (!_subscribedSessions.has(sid)) {
           for (const ch of SESSION_CHANNELS) {
-            send({ type: 'channel_subscribe', channel: ch, sessionId: sid })
+            send({ type: 'channel_subscribe', channel: ch, conversationId: sid })
           }
         }
       }
@@ -1272,9 +1274,9 @@ export function useWebSocket() {
     let lastSubagentKey: string | null = null
     const unsubAgent = useConversationsStore.subscribe(state => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
-      const sessionId = state.selectedConversationId
+      const conversationId = state.selectedConversationId
       const agentId = state.selectedSubagentId
-      const key = sessionId && agentId ? `${sessionId}:${agentId}` : null
+      const key = conversationId && agentId ? `${conversationId}:${agentId}` : null
 
       if (key === lastSubagentKey) return
       const prevKey = lastSubagentKey
@@ -1285,12 +1287,12 @@ export function useWebSocket() {
         send({
           type: 'channel_unsubscribe',
           channel: 'conversation:subagent_transcript',
-          sessionId: prevSid,
+          conversationId: prevSid,
           agentId: prevAid,
         })
       }
-      if (key && sessionId && agentId) {
-        send({ type: 'channel_subscribe', channel: 'conversation:subagent_transcript', sessionId, agentId })
+      if (key && conversationId && agentId) {
+        send({ type: 'channel_subscribe', channel: 'conversation:subagent_transcript', conversationId, agentId })
       }
     })
 

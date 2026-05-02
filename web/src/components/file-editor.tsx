@@ -144,7 +144,7 @@ function EditorPane({
   )
 }
 
-export const FileEditor = memo(function FileEditor({ sessionId }: { sessionId: string }) {
+export const FileEditor = memo(function FileEditor({ conversationId }: { conversationId: string }) {
   const {
     files,
     activeFile,
@@ -164,7 +164,7 @@ export const FileEditor = memo(function FileEditor({ sessionId }: { sessionId: s
     resolveConflict,
     loadHistory,
     restoreVersion,
-  } = useFileEditor(sessionId)
+  } = useFileEditor(conversationId)
 
   const [showHistory, setShowHistory] = useState(false)
   const [previewMode, setPreviewMode] = useState(true)

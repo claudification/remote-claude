@@ -365,7 +365,7 @@ export function buildInputExtensions(opts: InputExtensionOptions): Extension[] {
 
   if (opts.enableEffortKeywords) extensions.push(effortKeywordPlugin)
   if (opts.enableAutocomplete) {
-    const getCtx = opts.getSubCommandContext ?? (() => ({ tasks: [], sessionId: null }))
+    const getCtx = opts.getSubCommandContext ?? (() => ({ tasks: [], conversationId: null }))
     extensions.push(autocompleteExtension({ getSubCommandContext: getCtx }))
   }
 

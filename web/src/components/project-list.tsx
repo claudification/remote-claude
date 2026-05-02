@@ -265,16 +265,16 @@ export function ProjectList() {
       // Drag unorganized onto organized -> pin it (insert near target)
       const overParent = findParentGroup(overId)
       const newTree = [...projectOrder.tree]
-      const sessionId = draggedId
+      const conversationId = draggedId
       if (overParent) {
         const group = newTree.find(n => n.id === overParent && n.type === 'group') as ProjectOrderGroup | undefined
         if (group) {
           const idx = group.children.findIndex(c => c.id === overId)
-          group.children.splice(idx >= 0 ? idx : group.children.length, 0, { id: sessionId, type: 'project' })
+          group.children.splice(idx >= 0 ? idx : group.children.length, 0, { id: conversationId, type: 'project' })
         }
       } else {
         const idx = newTree.findIndex(n => n.id === overId)
-        newTree.splice(idx >= 0 ? idx : newTree.length, 0, { id: sessionId, type: 'project' })
+        newTree.splice(idx >= 0 ? idx : newTree.length, 0, { id: conversationId, type: 'project' })
       }
       persistTree(newTree)
     } else if (draggedIsInTree && !overIsInTree) {

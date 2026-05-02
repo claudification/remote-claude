@@ -468,7 +468,7 @@ function ResultTextModal({ session }: { session: Session }) {
   )
 }
 
-function DismissButton({ sessionId }: { sessionId: string }) {
+function DismissButton({ conversationId }: { conversationId: string }) {
   const dismissConversation = useConversationsStore(s => s.dismissConversation)
   const [confirming, setConfirming] = useState(false)
 
@@ -485,13 +485,13 @@ function DismissButton({ sessionId }: { sessionId: string }) {
           tabIndex={0}
           onClick={() => {
             haptic('tap')
-            dismissConversation(sessionId)
+            dismissConversation(conversationId)
             setConfirming(false)
           }}
           onKeyDown={e => {
             if (e.key === 'Enter' || e.key === ' ') {
               haptic('tap')
-              dismissConversation(sessionId)
+              dismissConversation(conversationId)
               setConfirming(false)
             }
           }}
@@ -767,7 +767,9 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
   const showCost = useConversationsStore(s => s.controlPanelPrefs.showCostInList)
   const isRenaming = useConversationsStore(s => s.renamingConversationId === session.id)
   const isEditingDescription = useConversationsStore(s => s.editingDescriptionConversationId === session.id)
-  const hasPendingPermission = useConversationsStore(s => s.pendingPermissions.some(p => p.sessionId === session.id))
+  const hasPendingPermission = useConversationsStore(s =>
+    s.pendingPermissions.some(p => p.conversationId === session.id),
+  )
 
   const projectName = projectDisplayName(projectPath(session.project), ps?.label)
   const sessionName = session.title || session.agentName
@@ -831,7 +833,7 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
         <ConversationInfoButton session={session} visible={isSelected} />
         <ShareIndicator sessionProject={projectPath(session.project)} />
         {session.resultText && session.capabilities?.includes('ad-hoc') && <ResultTextModal session={session} />}
-        {session.status === 'ended' && <DismissButton sessionId={session.id} />}
+        {session.status === 'ended' && <DismissButton conversationId={session.id} />}
         {showCost &&
           session.stats &&
           (() => {
@@ -1022,7 +1024,9 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
   const showContextBar = useConversationsStore(s => s.controlPanelPrefs.showContextInList)
   const isRenaming = useConversationsStore(s => s.renamingConversationId === session.id)
   const isEditingDescription = useConversationsStore(s => s.editingDescriptionConversationId === session.id)
-  const hasPendingPermission = useConversationsStore(s => s.pendingPermissions.some(p => p.sessionId === session.id))
+  const hasPendingPermission = useConversationsStore(s =>
+    s.pendingPermissions.some(p => p.conversationId === session.id),
+  )
 
   const displayColor = ps?.color
 
@@ -1099,7 +1103,7 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
           </span>
         )}
         <ConversationInfoButton session={session} visible={isSelected} />
-        {session.status === 'ended' && <DismissButton sessionId={session.id} />}
+        {session.status === 'ended' && <DismissButton conversationId={session.id} />}
       </div>
       {session.gitBranch && session.gitBranch !== 'main' && session.gitBranch !== 'master' && (
         <div className="pl-4 flex items-center gap-1">

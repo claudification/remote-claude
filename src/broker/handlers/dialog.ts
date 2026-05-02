@@ -12,7 +12,7 @@ import { registerHandlers } from '../message-router'
 
 // Dialog show: wrapper -> broker -> dashboard (broadcast)
 const dialogShow: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
 
   const dialogId = data.dialogId as string
@@ -38,7 +38,7 @@ const dialogShow: MessageHandler = (ctx, data) => {
   // Broadcast to dashboard subscribers with access to this conversation's project
   const dialogMsg = {
     type: 'dialog_show',
-    sessionId: conversationId,
+    conversationId: conversationId,
     dialogId,
     layout,
   }
@@ -52,7 +52,7 @@ const dialogShow: MessageHandler = (ctx, data) => {
 
 // Dialog result: dashboard -> broker -> wrapper (forward)
 const dialogResult: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = (data.conversationId || data.conversationId) as string
   const dialogId = data.dialogId as string
   const result = data.result as Record<string, unknown>
 
@@ -77,7 +77,7 @@ const dialogResult: MessageHandler = (ctx, data) => {
     targetWs.send(
       JSON.stringify({
         type: 'dialog_result',
-        sessionId: conversationId,
+        conversationId: conversationId,
         dialogId,
         result,
       }),
@@ -90,7 +90,7 @@ const dialogResult: MessageHandler = (ctx, data) => {
   }
 
   // Broadcast dismiss to other dashboard subscribers (clean up UI)
-  const dismissMsg = { type: 'dialog_dismiss', sessionId: conversationId, dialogId }
+  const dismissMsg = { type: 'dialog_dismiss', conversationId: conversationId, dialogId }
   if (conversation?.project) ctx.broadcastScoped(dismissMsg, conversation.project)
   else ctx.broadcast(dismissMsg)
 }
@@ -98,7 +98,7 @@ const dialogResult: MessageHandler = (ctx, data) => {
 // Dialog dismiss: wrapper -> broker -> dashboard
 // (e.g. timeout on wrapper side, session ended)
 const dialogDismiss: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   const dialogId = data.dialogId as string
   if (!conversationId || !dialogId) return
 
@@ -112,7 +112,7 @@ const dialogDismiss: MessageHandler = (ctx, data) => {
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
-  const dismissMsg2 = { type: 'dialog_dismiss', sessionId: conversationId, dialogId }
+  const dismissMsg2 = { type: 'dialog_dismiss', conversationId: conversationId, dialogId }
   if (conversation?.project) ctx.broadcastScoped(dismissMsg2, conversation.project)
   else ctx.broadcast(dismissMsg2)
 
@@ -121,7 +121,7 @@ const dialogDismiss: MessageHandler = (ctx, data) => {
 
 // Dialog keepalive: dashboard -> broker -> wrapper (extend timeout)
 const dialogKeepalive: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = (data.conversationId || data.conversationId) as string
   const dialogId = data.dialogId as string
   if (!conversationId || !dialogId) return
 

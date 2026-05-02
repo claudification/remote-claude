@@ -14,7 +14,7 @@ interface SharedFileEntry {
   filename: string
   mediaType: string
   projectPath?: string
-  sessionId?: string
+  conversationId?: string
   size: number
   url: string
   text?: string

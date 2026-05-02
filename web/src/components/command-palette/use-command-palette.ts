@@ -228,7 +228,7 @@ export function useCommandPalette(onClose: () => void) {
     const ws = useConversationsStore.getState().ws
     if (ws) {
       ws.addEventListener('message', handler)
-      sendWsMessage({ type: 'file_list_request', sessionId: selectedConversationId, requestId })
+      sendWsMessage({ type: 'file_list_request', conversationId: selectedConversationId, requestId })
       const timeout = setTimeout(() => {
         ws.removeEventListener('message', handler)
         setFilesLoading(false)
@@ -373,7 +373,7 @@ export function useCommandPalette(onClose: () => void) {
     e: React.KeyboardEvent,
     callbacks: {
       onSelectConversation: (id: string) => void
-      onFileSelect: (sessionId: string, path: string) => void
+      onFileSelect: (conversationId: string, path: string) => void
     },
   ) {
     switch (e.key) {

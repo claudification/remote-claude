@@ -83,7 +83,7 @@ export function createApiRouter(
     const rawBody = await c.req.text()
     if (!rawBody) return c.json({ error: 'Empty request body' }, 400)
 
-    let body: { title: string; body: string; sessionId?: string; tag?: string }
+    let body: { title: string; body: string; conversationId?: string; tag?: string }
     try {
       body = JSON.parse(rawBody)
     } catch {
@@ -95,7 +95,7 @@ export function createApiRouter(
     const result = await sendPushToAll({
       title: body.title || 'rclaude',
       body: body.body || '',
-      conversationId: body.sessionId,
+      conversationId: body.conversationId,
       tag: body.tag,
     })
     return c.json({ success: true, ...result })
@@ -315,7 +315,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     if (!blobDir) return c.json({ error: 'Blob store not configured' }, 503)
 
     // Require files permission -- check session CWD if available, else any grant
-    const uploadConversationId = c.req.header('x-session-id') || c.req.query('sessionId') || undefined
+    const uploadConversationId = c.req.header('x-session-id') || c.req.query('conversationId') || undefined
     const uploadCwd = uploadConversationId
       ? conversationStore.getConversation(uploadConversationId)?.project
       : undefined
@@ -363,15 +363,15 @@ Output a JSON array of strings. Each string should be the correct spelling of on
       : `http://${c.req.header('host') || 'localhost:9999'}${filePath}`
 
     // Log to shared files index (keyed by project for per-project queries)
-    const sessionId = c.req.header('x-session-id') || c.req.query('sessionId') || undefined
-    const sessionProject = sessionId ? conversationStore.getConversation(sessionId)?.project : undefined
+    const conversationId = c.req.header('x-session-id') || c.req.query('conversationId') || undefined
+    const sessionProject = conversationId ? conversationStore.getConversation(conversationId)?.project : undefined
     appendSharedFile({
       type: 'file',
       hash,
       filename,
       mediaType,
       project: sessionProject,
-      conversationId: sessionId,
+      conversationId: conversationId,
       size,
       url,
       createdAt: Date.now(),
@@ -383,10 +383,10 @@ Output a JSON array of strings. Each string should be the correct spelling of on
   // ─── Shared files + clipboard (per-project) ─────────────────────
   app.get('/api/shared-files', c => {
     const projectFilter = c.req.query('project') || c.req.query('cwd')
-    const sessionId = c.req.query('sessionId')
+    const conversationId = c.req.query('conversationId')
     let files = readSharedFiles()
     if (projectFilter) files = files.filter(f => f.project === projectFilter)
-    else if (sessionId) files = files.filter(f => f.conversationId === sessionId)
+    else if (conversationId) files = files.filter(f => f.conversationId === conversationId)
     // Filter by projects the caller can access
     const grants = resolveHttpGrants(c.req.raw)
     if (grants) {
@@ -462,7 +462,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
       return c.json({ error: 'DEEPGRAM_API_KEY not configured' }, 500)
     }
 
-    const body = await c.req.json<{ audioUrl?: string; sessionId?: string }>()
+    const body = await c.req.json<{ audioUrl?: string; conversationId?: string }>()
     if (!body.audioUrl) return c.json({ error: 'audioUrl required' }, 400)
 
     console.log(`[transcribe] Fetching audio: ${body.audioUrl}`)
@@ -473,8 +473,8 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     console.log(`[transcribe] Audio: ${audioBytes.byteLength} bytes, type: ${ct}`)
 
     const keyterms: string[] = []
-    if (body.sessionId) {
-      const session = conversationStore.getConversation(body.sessionId)
+    if (body.conversationId) {
+      const session = conversationStore.getConversation(body.conversationId)
       if (session?.project) {
         const projSettings = getProjectSettings(session.project)
         if (projSettings?.keyterms?.length) {
