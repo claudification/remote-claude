@@ -49,6 +49,8 @@ export interface ControlPanelPrefs {
   defaultView: 'transcript' | 'tty'
   voiceHoldKey: string | null // KeyboardEvent.code for push-to-talk (e.g. 'F13', 'ScrollLock')
   keepMicOpen: boolean // keep mic stream alive permanently (eliminates cold-start latency)
+  voiceLingerMs: number // how long to keep recording after releasing push-to-talk (catches trailing words)
+  voiceWarmStreamMs: number // how long to keep mic stream warm after recording (0 = release immediately)
   voiceDeviceId: string // preferred audio input device ID ('' = system default)
   chatBubbleColor: string // tailwind color class prefix (e.g. 'blue', 'teal', 'purple')
   defaultSessionCwd: string // auto-select this project on dashboard load (per-device)
@@ -80,6 +82,8 @@ const defaultPrefs: ControlPanelPrefs = {
   defaultView: 'transcript',
   voiceHoldKey: null,
   keepMicOpen: false,
+  voiceLingerMs: 1500,
+  voiceWarmStreamMs: 30_000,
   voiceDeviceId: '',
   chatBubbleColor: 'blue',
   showDiag: false,

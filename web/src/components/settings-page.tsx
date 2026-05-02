@@ -253,9 +253,10 @@ const SETTINGS: SettingItem[] = [
       />
     ),
   },
+  // --- Voice ---
   {
     tab: 'input',
-    group: 'Input',
+    group: 'Voice',
     label: 'Voice input',
     description: 'Show microphone button in input bar',
     keywords: 'mic microphone',
@@ -270,7 +271,7 @@ const SETTINGS: SettingItem[] = [
   },
   {
     tab: 'input',
-    group: 'Input',
+    group: 'Voice',
     label: 'Voice FAB (touch)',
     description: 'Floating hold-to-record button on touch devices',
     keywords: 'mic microphone fab',
@@ -285,7 +286,7 @@ const SETTINGS: SettingItem[] = [
   },
   {
     tab: 'input',
-    group: 'Input',
+    group: 'Voice',
     label: 'Push-to-talk key',
     description: 'Hold a key to record voice input (desktop)',
     keywords: 'voice key hotkey ptt mic keyboard',
@@ -295,7 +296,7 @@ const SETTINGS: SettingItem[] = [
   },
   {
     tab: 'input',
-    group: 'Input',
+    group: 'Voice',
     label: 'Keep mic open',
     description: 'Keep microphone stream alive permanently to eliminate cold-start latency',
     keywords: 'voice mic latency warm always connected',
@@ -310,7 +311,43 @@ const SETTINGS: SettingItem[] = [
   },
   {
     tab: 'input',
-    group: 'Input',
+    group: 'Voice',
+    label: 'Linger time',
+    description: 'Keep recording after releasing push-to-talk to catch trailing words (ms)',
+    keywords: 'voice delay linger timeout trailing words',
+    render: ctx => (
+      <input
+        type="number"
+        min={0}
+        max={5000}
+        step={100}
+        value={ctx.prefs.voiceLingerMs ?? 1500}
+        onChange={e => ctx.updatePrefs({ voiceLingerMs: Math.max(0, Number(e.target.value) || 0) })}
+        className="w-20 bg-muted border border-border px-2 py-1 text-xs font-mono text-foreground text-right"
+      />
+    ),
+  },
+  {
+    tab: 'input',
+    group: 'Voice',
+    label: 'Mic warm stream TTL',
+    description: 'How long mic stays warm after recording to avoid cold-start latency (ms, 0 = release immediately)',
+    keywords: 'voice mic warm cache timeout stream release',
+    render: ctx => (
+      <input
+        type="number"
+        min={0}
+        max={120000}
+        step={1000}
+        value={ctx.prefs.voiceWarmStreamMs ?? 30000}
+        onChange={e => ctx.updatePrefs({ voiceWarmStreamMs: Math.max(0, Number(e.target.value) || 0) })}
+        className="w-20 bg-muted border border-border px-2 py-1 text-xs font-mono text-foreground text-right"
+      />
+    ),
+  },
+  {
+    tab: 'input',
+    group: 'Voice',
     label: 'Audio input device',
     description: 'Microphone to use for voice input (change takes effect on next recording)',
     keywords: 'mic microphone device headphones audio input select',
@@ -324,7 +361,6 @@ const SETTINGS: SettingItem[] = [
       />
     ),
   },
-  // --- Voice ---
   {
     tab: 'input',
     group: 'Voice',

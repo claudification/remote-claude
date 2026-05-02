@@ -36,7 +36,6 @@ interface UseVoiceRecordingResult {
 // - Normal mode: released after 30s of inactivity
 // - keepMicOpen mode: released after 30min of inactivity + banner shown
 
-const WARM_STREAM_TTL = 30_000
 const KEEP_MIC_IDLE_TTL = 30 * 60_000
 let warmStream: MediaStream | null = null
 let warmStreamTimer: ReturnType<typeof setTimeout> | null = null
@@ -81,10 +80,10 @@ function releaseWarmStream() {
 
 function scheduleStreamRelease() {
   if (warmStreamTimer) clearTimeout(warmStreamTimer)
-  const keepOpen = useSessionsStore.getState().controlPanelPrefs.keepMicOpen
-  const ttl = keepOpen ? KEEP_MIC_IDLE_TTL : WARM_STREAM_TTL
+  const prefs = useSessionsStore.getState().controlPanelPrefs
+  const ttl = prefs.keepMicOpen ? KEEP_MIC_IDLE_TTL : (prefs.voiceWarmStreamMs ?? 30_000)
   warmStreamTimer = setTimeout(releaseWarmStream, ttl)
-  if (keepOpen) console.log('[voice] keepMicOpen: mic idle timer set (30min)')
+  if (prefs.keepMicOpen) console.log('[voice] keepMicOpen: mic idle timer set (30min)')
 }
 
 function preferredDeviceId(): string {
@@ -233,7 +232,6 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
             } else {
               setInterimText(msg.transcript || '')
             }
-            if (utteranceTimerRef.current) clearTimeout(utteranceTimerRef.current)
             break
           case 'voice_utterance_end':
             break
@@ -337,16 +335,7 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
     }
   }, [sendWs])
 
-  const stop = useCallback(() => {
-    console.log(`[voice] ${elapsed()} stop() (state=${stateRef.current})`)
-
-    if (stateRef.current === 'connecting') {
-      pendingStopRef.current = true
-      return
-    }
-
-    if (stateRef.current !== 'recording') return
-
+  function doStop() {
     const recorder = mediaRecorderRef.current
     if (recorder?.state === 'recording') {
       recorder.onstop = async () => {
@@ -371,6 +360,32 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
         reset()
       }
     }, 10_000)
+  }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: doStop is a stable function defined in this scope
+  const stop = useCallback(() => {
+    console.log(`[voice] ${elapsed()} stop() (state=${stateRef.current})`)
+
+    if (stateRef.current === 'connecting') {
+      pendingStopRef.current = true
+      return
+    }
+
+    if (stateRef.current !== 'recording') return
+
+    // Already lingering from a previous stop() call
+    if (utteranceTimerRef.current) return
+
+    const lingerMs = useSessionsStore.getState().controlPanelPrefs.voiceLingerMs ?? 0
+    if (lingerMs > 0) {
+      console.log(`[voice] ${elapsed()} lingering ${lingerMs}ms before stop`)
+      utteranceTimerRef.current = setTimeout(() => {
+        utteranceTimerRef.current = null
+        doStop()
+      }, lingerMs)
+    } else {
+      doStop()
+    }
   }, [sendWs, reset])
 
   const cancel = useCallback(() => {
