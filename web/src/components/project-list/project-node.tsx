@@ -16,7 +16,7 @@ function sessionsEqual(a: Session[], b: Session[]): boolean {
   return true
 }
 
-// ─── Dismiss all ended sessions button ────────────────────────────
+// ─── Dismiss all ended conversations button ────────────────────────────
 
 function DismissAllEndedButton({ ended }: { ended: Session[] }) {
   const dismissConversation = useConversationsStore(s => s.dismissConversation)
@@ -99,7 +99,7 @@ const ProjectSessionGroup = memo(
     const displayName = ps?.label || extractProjectLabel(project)
     const displayColor = ps?.color
     const { adhoc, normal, ended } = partitionConversations(sessions)
-    // Project-level rollups: any session in this project needing attention?
+    // Project-level rollups: any conversation in this project needing attention?
     const hasPendingPermission = useConversationsStore(s => {
       const ids = new Set(sessions.map(x => x.id))
       return s.pendingPermissions.some(p => ids.has(p.conversationId))

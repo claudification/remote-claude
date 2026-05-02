@@ -36,14 +36,14 @@ describe('computeConversationSlug', () => {
 })
 
 describe('computeLocalId', () => {
-  it('always produces compound ids -- even for a single-session project', () => {
+  it('always produces compound ids -- even for a single-conversation project', () => {
     // This is the whole point of the always-compound rule: ids must not flip
     // shape when a second session spawns later.
     const a = s('xxxxxxxx', 'viral-zebra')
     expect(computeLocalId(a, 'arr', [a])).toBe('arr:viral-zebra')
   })
 
-  it('appends disambiguated session slug when multiple share the project', () => {
+  it('appends disambiguated conversation slug when multiple share the project', () => {
     const a = s('aaaaaa1111', 'rebel')
     const b = s('bbbbbb2222', 'rebel')
     expect(computeLocalId(a, 'arr', [a, b])).toBe('arr:rebel-aaaaaa')
@@ -57,7 +57,7 @@ const noneLive = (_: ConversationLike) => false
 
 describe('resolveSendTarget', () => {
   describe('compound `project:session-slug`', () => {
-    it('resolves an exact session-slug match', () => {
+    it('resolves an exact conversation-slug match', () => {
       const a = s('a', 'viral-zebra')
       const b = s('b', 'punk-jackal')
       const r = resolveSendTarget({
@@ -84,7 +84,7 @@ describe('resolveSendTarget', () => {
       if (r.kind === 'resolved') expect(r.session.id).toBe('a')
     })
 
-    it('returns not_found when no session matches', () => {
+    it('returns not_found when no conversation matches', () => {
       const a = s('a', 'viral-zebra')
       const r = resolveSendTarget({
         projectSlug: 'arr',
@@ -98,7 +98,7 @@ describe('resolveSendTarget', () => {
   })
 
   describe('bare `project` -- accepted only when single', () => {
-    it('resolves to the lone live session', () => {
+    it('resolves to the lone live conversation', () => {
       const a = s('a', 'viral-zebra')
       const r = resolveSendTarget({
         projectSlug: 'arr',
@@ -128,7 +128,7 @@ describe('resolveSendTarget', () => {
       }
     })
 
-    it('picks the unique LIVE session when there are dead siblings', () => {
+    it('picks the unique LIVE conversation when there are dead siblings', () => {
       const live = s('live', 'viral-zebra')
       const dead = s('dead', 'punk-jackal')
       const r = resolveSendTarget({
@@ -155,7 +155,7 @@ describe('resolveSendTarget', () => {
       expect(r.kind).toBe('ambiguous')
     })
 
-    it('falls back to a single inactive session when none are live', () => {
+    it('falls back to a single inactive conversation when none are live', () => {
       const a = s('a', 'viral-zebra')
       const r = resolveSendTarget({
         projectSlug: 'arr',
@@ -168,8 +168,8 @@ describe('resolveSendTarget', () => {
       if (r.kind === 'resolved') expect(r.session.id).toBe('a')
     })
 
-    it('prefers a session whose own title matches the bare slug', () => {
-      // Edge case: if a session is literally named "arr" inside project "arr",
+    it('prefers a conversation whose own title matches the bare slug', () => {
+      // Edge case: if a conversation is literally named "arr" inside project "arr",
       // bare addressing should target THAT session, not project-level dispatch.
       const namedArr = s('named', 'arr')
       const other = s('other', 'punk-jackal')
@@ -207,7 +207,7 @@ describe('formatAmbiguityError', () => {
     expect(msg).toContain('arr:punk-jackal')
   })
 
-  it('disambiguates colliding session titles in the suggested ids', () => {
+  it('disambiguates colliding conversation titles in the suggested ids', () => {
     const a = s('aaaaaa1111', 'rebel')
     const b = s('bbbbbb2222', 'rebel')
     const msg = formatAmbiguityError('arr', [a, b])

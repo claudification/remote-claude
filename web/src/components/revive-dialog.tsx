@@ -2,9 +2,9 @@
  * Revive Dialog - Pre-revive configuration + launch monitor.
  *
  * Mirrors SpawnDialog (two-phase config -> launching) but for reviving an
- * ended session. Only the minimal overrides are exposed (mode + model +
+ * ended conversations. Only the minimal overrides are exposed (mode + model +
  * effort) -- everything else (permissionMode, bare, repl, worktree, env,
- * autocompact, budget) is inherited from the session's stored launch config
+ * autocompact, budget) is inherited from the conversation's stored launch config
  * and project/global defaults. See `reviveConversation` handler in
  * `src/broker/handlers/control-panel-actions.ts` for the resolution chain.
  */

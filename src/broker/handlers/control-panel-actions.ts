@@ -21,7 +21,7 @@ import {
   setProjectSettings,
 } from '../project-settings'
 
-// ─── Send input to a session ──────────────────────────────────────
+// ─── Send input to a conversation ──────────────────────────────────────
 
 const sendInput: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId) as string
@@ -82,7 +82,7 @@ function broadcastFilteredProjectSettings(
   }
 }
 
-// ─── Dismiss an ended session ─────────────────────────────────────
+// ─── Dismiss an ended conversations ─────────────────────────────────────
 
 const dismissConversation: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId) as string
@@ -183,7 +183,7 @@ const updateProjectOrder: MessageHandler = (ctx, data) => {
   ctx.reply({ type: 'update_project_order_result', ok: true, order: saved })
 }
 
-// ─── Interrupt a session (headless) ───────────────────────────────
+// ─── Interrupt a conversation (headless) ───────────────────────────────
 
 const sendInterrupt: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId) as string
@@ -212,7 +212,7 @@ const sendInterrupt: MessageHandler = (ctx, data) => {
   ctx.reply({ type: 'send_interrupt_result', ok: true })
 }
 
-// ─── Revive a session ─────────────────────────────────────────────
+// ─── Revive a conversation ─────────────────────────────────────────────
 
 const reviveConversation: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId) as string

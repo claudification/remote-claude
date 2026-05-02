@@ -56,7 +56,7 @@ export const ConversationDetail = memo(function SessionDetail() {
   const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
   const expandAll = useConversationsStore(state => state.expandAll)
 
-  // Reset follow state on session switch
+  // Reset follow state on conversation switch
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedConversationId is the trigger dep, setters are stable React dispatch functions
   useEffect(() => {
     setFollow(true)
@@ -76,7 +76,7 @@ export const ConversationDetail = memo(function SessionDetail() {
     state.selectedConversationId ? state.sessionsById[state.selectedConversationId] : undefined,
   )
 
-  // Fall back to transcript if current tab is hidden for ended sessions
+  // Fall back to transcript if current tab is hidden for ended conversations
   useEffect(() => {
     if (session?.status === 'ended' && (activeTab === 'files' || activeTab === 'project')) {
       setActiveTab('transcript')

@@ -22,7 +22,7 @@ import { ProjectNode } from './project-list/project-node'
 
 export function ProjectList() {
   // Server already filters sessions_list by grants (filterConversationsByGrants) --
-  // if a session made it here, the user has chat:read for its project.
+  // if a conversation made it here, the user has chat:read for its project.
   const sessions = useConversationsStore(s => s.sessions)
   const sessionsById = useConversationsStore(s => s.sessionsById)
   const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
@@ -48,7 +48,7 @@ export function ProjectList() {
     return () => clearInterval(t)
   }, [])
 
-  // Group all sessions by project URI
+  // Group all conversations by project URI
   const sessionsByCwd = useMemo(() => {
     const map = new Map<string, Session[]>()
     for (const s of sessions) {
@@ -59,7 +59,7 @@ export function ProjectList() {
     return map
   }, [sessions])
 
-  // Filtered view: hide ended sessions from project groups when toggle is off
+  // Filtered view: hide ended conversations from project groups when toggle is off
   const visibleConversationsByCwd = useMemo(() => {
     if (showEnded) return sessionsByCwd
     const map = new Map<string, Session[]>()
@@ -86,7 +86,7 @@ export function ProjectList() {
     return projects
   }, [projectOrder])
 
-  // Unorganized active sessions (uses visibleConversationsByCwd to respect showEnded filter)
+  // Unorganized active conversations (uses visibleConversationsByCwd to respect showEnded filter)
   const unorganized = useMemo(() => {
     const seen = new Set<string>()
     const result: Array<{ project: string; sessions: Session[] }> = []

@@ -1,5 +1,5 @@
 /**
- * Session lifecycle handlers: meta (connect/resume), hook events,
+ * Conversation lifecycle handlers: meta (connect/resume), hook events,
  * heartbeat, session clear (re-key), notify, and end.
  */
 

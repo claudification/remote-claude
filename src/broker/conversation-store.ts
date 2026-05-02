@@ -270,7 +270,7 @@ export interface ConversationStore {
 }
 
 /**
- * Create a session store with optional persistence
+ * Create a conversation store with optional persistence
  */
 export function createConversationStore(options: ConversationStoreOptions = {}): ConversationStore {
   const { store, sentinelRegistry } = options
@@ -329,7 +329,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   // Pending agent descriptions: PreToolUse(Agent) pushes, SubagentStart pops
   const pendingAgentDescriptions = new Map<string, string[]>()
 
-  // Passive hooks: don't transition session status to 'active'
+  // Passive hooks: don't transition conversation status to 'active'
   // SessionStart/InstructionsLoaded = initialization, not work
   // ConfigChange/Setup/Elicitation = configuration, not work
   const PASSIVE_HOOKS = new Set([
@@ -504,7 +504,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
   }
 
-  /** Broadcast a session message only to subscribers who have chat:read for that project */
+  /** Broadcast a conversation message only to subscribers who have chat:read for that project */
   function broadcastConversationScoped(message: ControlPanelMessage, project: string): void {
     const json = stampAndBuffer(message)
     for (const ws of controlPanelSubscribers) {
@@ -594,7 +594,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         }
       }
 
-      // Mark ended sessions for eviction after TTL
+      // Mark ended conversations for eviction after TTL
       if (session.status === 'ended' && now - session.lastActivity > ENDED_EVICTION_TTL_MS) {
         toEvict.push(session.id)
       }
@@ -614,12 +614,12 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       }
     }
 
-    // Evict TTL-expired ended sessions
+    // Evict TTL-expired ended conversations
     for (const id of toEvict) {
       removeConversation(id)
     }
 
-    // Hard cap: if too many ended sessions, evict oldest first
+    // Hard cap: if too many ended conversations, evict oldest first
     const ended = Array.from(conversations.values())
       .filter(s => s.status === 'ended')
       .sort((a, b) => a.lastActivity - b.lastActivity)
@@ -895,8 +895,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       session.project,
     )
 
-    // Push per-session permissions to scoped subscribers so the client can
-    // immediately include the new session in its filtered list.
+    // Push per-conversation permissions to scoped subscribers so the client can
+    // immediately include the new conversation in its filtered list.
     for (const ws of controlPanelSubscribers) {
       try {
         const grants = (ws.data as { grants?: UserGrant[] }).grants
@@ -934,7 +934,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           bgTask.completedAt = Date.now()
         }
       }
-      // Notify dashboards that this session resumed - triggers transcript re-fetch
+      // Notify dashboards that this conversation resumed - triggers transcript re-fetch
       broadcastConversationScoped(
         {
           type: 'conversation_update',
@@ -946,8 +946,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
   }
 
-  // Re-key a session from oldId to newId (e.g. /clear changes Claude's session ID)
-  // Preserves the session entry and wrapper socket, resets ephemeral state
+  // Re-key a conversation from oldId to newId (e.g. /clear changes Claude's session ID)
+  // Preserves the conversation entry and wrapper socket, resets ephemeral state
   function rekeyConversation(
     oldId: string,
     newId: string,
@@ -1010,7 +1010,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
 
     // Clear transcript caches + seq counters for old session ID.
-    // Rekey creates a new conversation identity; the new session gets a fresh
+    // Rekey creates a new conversation identity; the new conversation gets a fresh
     // counter starting at 0. Client's lastAppliedSeq for the old id is no
     // longer compared against (sessionId is the key).
     transcriptCache.delete(oldId)
@@ -1039,7 +1039,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     // Clear subagent transcript subscriptions (subagents are reset on rekey)
     clearSubagentChannels(oldId)
 
-    // Broadcast update (not end+create) so dashboard stays on this session
+    // Broadcast update (not end+create) so dashboard stays on this conversation
     broadcastConversationScoped(
       {
         type: 'conversation_update',
@@ -1204,7 +1204,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         session.lastError = undefined
       }
 
-      // Track current working directory (NOT the session's project root).
+      // Track current working directory (NOT the conversation's project root).
       // session.project stays as the launch project URI (project identity).
       // session.currentPath tracks where Claude is working right now.
       if (event.hookEvent === 'CwdChanged' && event.data) {
@@ -1533,7 +1533,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         const lastKick = lastTranscriptKick.get(conversationId) || 0
         if (now - lastKick > TRANSCRIPT_KICK_DEBOUNCE_MS) {
           lastTranscriptKick.set(conversationId, now)
-          // Find the wrapper socket for this session and send kick
+          // Find the wrapper socket for this conversation and send kick
           const wrappers = conversationSockets.get(conversationId)
           if (wrappers) {
             for (const ws of wrappers.values()) {
@@ -1947,7 +1947,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return sentinelState.usage
   }
 
-  /** Stamp `entry.seq` on every entry in-place using the per-session counter.
+  /** Stamp `entry.seq` on every entry in-place using the per-conversation counter.
    *  Mutates the array in place -- callers rely on this so subsequent
    *  broadcasts (which share the same entry objects) carry the stamp.
    *  If `reset` is true, the counter is reset to 0 first (isInitial path). */
@@ -2090,8 +2090,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
             const recapTs = new Date(entry.timestamp || 0).getTime()
             session.recap = { content: content.trim(), timestamp: recapTs }
             session.recapFresh = session.lastActivity <= recapTs + 10_000
-            // CC writes away_summary precisely because the session has gone idle long enough
-            // to need a "what were we doing" summary. If we still have the session as 'active'
+            // CC writes away_summary precisely because the conversation has gone idle long enough
+            // to need a "what were we doing" summary. If we still have the conversation as 'active'
             // from earlier activity, flip it to 'idle' -- the recap landing is itself proof.
             if (session.status === 'active') {
               session.status = 'idle'
@@ -2513,7 +2513,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     listeners
 
   // ─── Pending Launch Configs (conversationId -> LaunchConfig) ─────────────
-  // Stored at spawn time, consumed when the session connects (meta handler).
+  // Stored at spawn time, consumed when the conversation connects (meta handler).
   const pendingLaunchConfigs = new Map<string, LaunchConfig>()
 
   function setPendingLaunchConfig(conversationId: string, config: LaunchConfig) {

@@ -1,5 +1,5 @@
 /**
- * Admin routes -- users, shares, inter-session links
+ * Admin routes -- users, shares, inter-conversation links
  */
 
 import { Hono } from 'hono'

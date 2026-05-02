@@ -464,7 +464,7 @@ export function GroupView({
   const { chatBubbles, bubbleColor } = settings
 
   // Chat bubble layout for user messages (opt-in)
-  // Skip bubbles for inter-session messages and project-task cards - they use rich card renderers
+  // Skip bubbles for inter-conversation messages and project-task cards - they use rich card renderers
   const hasInterSessionContent = items.some(
     it => it.kind === 'channel' && (it.isInterConversation || it.isDialog || it.isSystem),
   )

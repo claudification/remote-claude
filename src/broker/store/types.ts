@@ -209,7 +209,7 @@ export interface KVStore {
 }
 
 // ---------------------------------------------------------------------------
-// Messages (offline queue + inter-session log)
+// Messages (offline queue + inter-conversation log)
 // ---------------------------------------------------------------------------
 
 export interface EnqueueMessage {
@@ -324,7 +324,7 @@ export interface ScopeLinkStore {
 }
 
 // ---------------------------------------------------------------------------
-// Tasks (per-session task tracking)
+// Tasks (per-conversation task tracking)
 // ---------------------------------------------------------------------------
 
 export interface TaskRecord {
@@ -429,7 +429,7 @@ export interface CostStore {
   /** Record a turn with explicit per-turn deltas (caller computed the diff). */
   recordTurn(record: TurnRecord): void
   /**
-   * Record a turn from cumulative session totals. The driver tracks per-session
+   * Record a turn from cumulative session totals. The driver tracks per-conversation
    * snapshots internally and stores the delta. Returns true if a turn was
    * recorded, false if no delta was detected (duplicate/noop).
    */

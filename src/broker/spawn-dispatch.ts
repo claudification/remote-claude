@@ -7,7 +7,7 @@
  * Called from:
  * - HTTP `/api/spawn` route (src/broker/routes.ts)
  * - WS `spawn_request` handler (src/broker/handlers/spawn.ts)
- * - WS `channel_spawn` handler (src/broker/handlers/inter-session.ts)
+ * - WS `channel_spawn` handler (src/broker/handlers/inter-conversation.ts)
  *
  * Every caller has already enforced its own permission/trust check BEFORE
  * invoking dispatchSpawn -- this function does NOT re-check. It trusts the

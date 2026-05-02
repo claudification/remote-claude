@@ -113,7 +113,7 @@ export function drain(targetProject: string, sessionName?: string): QueuedMessag
     return valid
   }
 
-  // Partition: take messages for this session (or project-level), leave the rest
+  // Partition: take messages for this conversation (or project-level), leave the rest
   const forMe: QueuedMessage[] = []
   const forOthers: QueuedMessage[] = []
   for (const m of valid) {

@@ -176,14 +176,14 @@ export function useCommandPalette(onClose: () => void) {
     }
     const merged: MergedItem[] = [...sessionSearchResults, ...commandSearchResults]
     merged.sort((a, b) => {
-      // Live sessions always above everything else (ended sessions + commands)
+      // Live sessions always above everything else (ended conversations + commands)
       if (a.live !== b.live) return a.live ? -1 : 1
       return b.score - a.score
     })
     return merged
   }, [isConversationMode, filter, allConversations, selectedConversationId, sessionSearchResults, commandSearchResults])
 
-  // Preserved for consumers that only want the session subset (footer hints etc.)
+  // Preserved for consumers that only want the conversation subset (footer hints etc.)
   const filteredSessions = useMemo(
     () =>
       mergedItems

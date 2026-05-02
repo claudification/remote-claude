@@ -34,7 +34,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
     // -----------------------------------------------------------------
 
     describe('sessions', () => {
-      it('create + get returns the session', () => {
+      it('create + get returns the conversation', () => {
         store.sessions.create({
           id: 'sess-1',
           scope: 'project-a',
@@ -61,7 +61,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         expect(session.agentType).toBe('claude')
       })
 
-      it('delete removes the session', () => {
+      it('delete removes the conversation', () => {
         store.sessions.create({ id: 'sess-del', scope: 's', agentType: 'claude' })
         store.sessions.delete('sess-del')
         expect(store.sessions.get('sess-del')).toBeNull()
@@ -85,7 +85,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         expect(ended.map(s => s.id)).not.toContain('s1')
       })
 
-      it('listByScope returns only sessions for given scope', () => {
+      it('listByScope returns only conversations for given scope', () => {
         store.sessions.create({ id: 'sa', scope: 'alpha', agentType: 'claude' })
         store.sessions.create({ id: 'sb', scope: 'beta', agentType: 'claude' })
         store.sessions.create({ id: 'sc', scope: 'alpha', agentType: 'claude' })
@@ -191,7 +191,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         expect(result.lastSeq).toBe(3)
       })
 
-      it('getLastSeq returns 0 for empty session', () => {
+      it('getLastSeq returns 0 for empty conversation', () => {
         expect(store.transcripts.getLastSeq(SESSION)).toBe(0)
       })
 
@@ -729,7 +729,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         expect(store.tasks.delete('ds', 'ghost')).toBe(false)
       })
 
-      it('deleteForConversation removes all tasks for session', () => {
+      it('deleteForConversation removes all tasks for conversation', () => {
         const now = Date.now()
         store.tasks.upsert('bulk', {
           id: 'b1',

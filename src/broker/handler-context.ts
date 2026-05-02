@@ -1,6 +1,6 @@
 /**
  * Handler context: passed to every WS message handler.
- * Provides access to session state, utilities, and the calling connection.
+ * Provides access to conversation state, utilities, and the calling connection.
  */
 
 import type { ServerWebSocket } from 'bun'
@@ -92,7 +92,7 @@ export interface HandlerContext {
     remove(projectA: string, projectB: string): void
     touch(projectA: string, projectB: string): void
   }
-  /** Log an inter-session message for history */
+  /** Log an inter-conversation message for history */
   logMessage(entry: {
     ts: number
     from: { sessionId: string; conversationId?: string; project: string; name: string }

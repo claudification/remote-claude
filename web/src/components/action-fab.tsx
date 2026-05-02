@@ -3,8 +3,8 @@
  *
  * Position: fixed bottom-right. Tap to expand fan of action buttons.
  * Double-tap the main button to alt-tab to previous session.
- * Actions are context-aware: shows terminate for active sessions,
- * revive/dismiss for ended sessions.
+ * Actions are context-aware: shows terminate for active conversations,
+ * revive/dismiss for ended conversations.
  * Mobile only - hidden on desktop (hover-capable devices).
  */
 

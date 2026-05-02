@@ -99,7 +99,7 @@ describe('TranscriptCache', () => {
     expect(result[999].seq).toBe(1010)
   })
 
-  it('stamps per-session monotonic seq starting at 1', () => {
+  it('stamps per-conversation monotonic seq starting at 1', () => {
     const store = createConversationStore({ enablePersistence: false })
     store.createConversation('s1', '/tmp')
     store.createConversation('s2', '/tmp')
@@ -115,7 +115,7 @@ describe('TranscriptCache', () => {
     expect(s2.map(e => e.seq)).toEqual([1])
   })
 
-  it('returns empty array for unknown session', () => {
+  it('returns empty array for unknown conversation', () => {
     const store = createConversationStore({ enablePersistence: false })
     expect(store.getTranscriptEntries('nonexistent')).toEqual([])
     expect(store.hasTranscriptCache('nonexistent')).toBe(false)

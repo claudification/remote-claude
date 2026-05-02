@@ -3,7 +3,7 @@
  *
  * The wrapper opens its WS to the broker BEFORE Claude Code is spawned
  * so the dashboard shows "booting" state and receives live progress events.
- * Once CC produces a session id (via stream-json `init` or SessionStart hook),
+ * Once CC produces a conversation id (via stream-json `init` or SessionStart hook),
  * the wrapper sends `session_promote` to migrate the booting session into the
  * real one.
  */
@@ -74,7 +74,7 @@ const wrapperBoot: MessageHandler = (ctx, data) => {
     if (bootConfiguredModel) placeholder.configuredModel = bootConfiguredModel
   }
 
-  // Register the WS as this session's socket so messages (including boot
+  // Register the WS as this conversation's socket so messages (including boot
   // events) can be tagged with it.
   ctx.conversations.setConversationSocket(conversationId, conversationId, ctx.ws)
   ctx.conversations.broadcastConversationUpdate(conversationId)
@@ -102,7 +102,7 @@ const bootEvent: MessageHandler = (ctx, data) => {
     timestamp: new Date().toISOString(),
   }
 
-  // Append to the session's transcript + broadcast to dashboard subscribers.
+  // Append to the conversation's transcript + broadcast to dashboard subscribers.
   ctx.conversations.addTranscriptEntries(session.id, [entry], false)
   ctx.conversations.broadcastToChannel('conversation:transcript', session.id, {
     type: 'transcript_entries',
@@ -119,7 +119,7 @@ const launchEvent: MessageHandler = (ctx, data) => {
   const phase = data.phase as WrapperLaunchPhase
   if (!conversationId || !step || !launchId || !phase) return
 
-  // Route via conversationId (stable across rekeys) or the session id on the event.
+  // Route via conversationId (stable across rekeys) or the conversation id on the event.
   const sessionIdFromEvent = data.conversationId as string | null
   const session =
     (sessionIdFromEvent ? ctx.conversations.getConversation(sessionIdFromEvent) : undefined) ||

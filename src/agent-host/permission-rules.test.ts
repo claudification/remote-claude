@@ -102,7 +102,7 @@ describe('absolute path patterns', () => {
   })
 })
 
-describe('session rules (ALWAYS ALLOW button)', () => {
+describe('conversation rules (ALWAYS ALLOW button)', () => {
   test('session rule auto-approves by tool name', () => {
     const engine = createRulesEngine(testDir)
     expect(engine.shouldAutoApprove('Write', input({ file_path: join(testDir, 'any/file.ts') }))).toBe(false)

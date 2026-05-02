@@ -1,5 +1,5 @@
 /**
- * Path Guard - Validates file paths against a session's CWD before forwarding to wrappers.
+ * Path Guard - Validates file paths against a conversation's CWD before forwarding to wrappers.
  *
  * Uses path.resolve for normalization (handles ../, ./, etc) without filesystem access.
  * The broker doesn't have the wrapper's filesystem - this is pure string validation.

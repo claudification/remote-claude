@@ -104,7 +104,7 @@ export function removeEntry(callerProject: string, localId: string): void {
   }
 }
 
-/** Clean up entries pointing to projects that no longer have any sessions. */
+/** Clean up entries pointing to projects that no longer have any conversation. */
 export function pruneStale(activeProjects: Set<string>): number {
   let removed = 0
   for (const [callerProject, book] of Object.entries(books)) {

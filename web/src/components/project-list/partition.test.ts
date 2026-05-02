@@ -45,9 +45,9 @@ describe('partitionConversations', () => {
     expect(partitionConversations([s])).toEqual({ adhoc: [], normal: [s], ended: [] })
   })
 
-  it('ended sessions appear in the ended bucket AND in adhoc/normal by capability', () => {
+  it('ended conversations appear in the ended bucket AND in adhoc/normal by capability', () => {
     // `ended` is a status-based view for DismissAllEndedButton; it overlaps with
-    // the capability buckets on purpose so both renderers see the session.
+    // the capability buckets on purpose so both renderers see the conversation.
     const endedAdhoc = makeConversation({ id: 'ea', status: 'ended', capabilities: ['ad-hoc'] })
     const endedNormal = makeConversation({ id: 'en', status: 'ended' })
     const result = partitionConversations([endedAdhoc, endedNormal])
@@ -56,7 +56,7 @@ describe('partitionConversations', () => {
     expect(result.ended).toEqual([endedAdhoc, endedNormal])
   })
 
-  it('partitions a mixed group once per session (no double-walk)', () => {
+  it('partitions a mixed group once per conversation (no double-walk)', () => {
     const a1 = makeConversation({ id: 'a1', capabilities: ['ad-hoc'] })
     const a2 = makeConversation({ id: 'a2', capabilities: ['ad-hoc'], status: 'ended' })
     const n1 = makeConversation({ id: 'n1' })

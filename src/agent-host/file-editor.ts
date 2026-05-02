@@ -1,7 +1,7 @@
 /**
  * File Editor Engine
  * Manages reading, writing, watching, versioning, and merging of markdown files
- * within a session's working directory.
+ * within a conversation's working directory.
  */
 
 import { readFile as fsReadFile, readdir, stat, writeFile } from 'node:fs/promises'

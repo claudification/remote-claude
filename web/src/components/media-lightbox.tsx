@@ -6,7 +6,7 @@
  * (markdown click delegation, attachment chips, etc.) without passing refs or
  * dialog state through the tree.
  *
- * Why this exists: when a session embeds `![alt](url.png)` or `[clip](url.mp4)`
+ * Why this exists: when a conversation embeds `![alt](url.png)` or `[clip](url.mp4)`
  * in a transcript message, inlining the media can blow up the virtualized row
  * height and shove the whole transcript around. The markdown renderer emits a
  * bounded thumbnail chip and clicking it pops the full asset into this

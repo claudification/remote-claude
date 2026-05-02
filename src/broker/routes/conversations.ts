@@ -60,7 +60,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
   //   1. Full: no `sinceSeq` query param -- returns last `limit` entries.
   //   2. Delta: `?sinceSeq=N` -- returns only entries with seq > N. Used by
   //      the dashboard to catch up on missed entries after a sync_check
-  //      flags the session as stale, without refetching the whole transcript.
+  //      flags the conversation as stale, without refetching the whole transcript.
   //
   // Response shape (both modes): `{ entries, lastSeq, gap }`.
   //   - `lastSeq`: the largest seq currently in cache (0 if empty). Client

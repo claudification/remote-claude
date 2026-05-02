@@ -147,7 +147,7 @@ const VERBS = [
   'Plotting',
 ]
 
-/** Shows a fun random verb spinner while the session is active (between UserPromptSubmit and Stop) */
+/** Shows a fun random verb spinner while the conversation is active (between UserPromptSubmit and Stop) */
 const ThinkingSpinner = memo(function ThinkingSpinner({ conversationId }: { conversationId: string | null }) {
   const isActive = useConversationsStore(state =>
     conversationId ? state.sessionsById[conversationId]?.status === 'active' : false,
@@ -340,7 +340,7 @@ export const TranscriptView = memo(function TranscriptView({
       : 0,
   )
 
-  // Same idea for pending project-link requests targeting this session -- they
+  // Same idea for pending project-link requests targeting this conversation -- they
   // also render inline at the transcript bottom as a blocking gate.
   const pendingLinkCount = useConversationsStore(state =>
     state.selectedConversationId
@@ -448,7 +448,7 @@ export const TranscriptView = memo(function TranscriptView({
   // IMPORTANT: track the transcript array REFERENCE for the selected session, not the global
   // newDataSeq counter. newDataSeq increments for ANY session's data (events, transcripts),
   // which caused scrollToBottom -> virtualizer.scrollToIndex -> TranscriptView re-render on
-  // every store update from any session. By comparing the specific transcript reference,
+  // every store update from any conversation. By comparing the specific transcript reference,
   // we only scroll when the viewed session's data actually changes.
   const followRef = useRef(follow)
   followRef.current = follow

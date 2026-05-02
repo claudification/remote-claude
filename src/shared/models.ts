@@ -28,7 +28,7 @@ export interface ModelEntry {
   window: ContextWindow
   /** Whether the option appears in the spawn/run model dropdown. */
   showInDropdown: boolean
-  /** Whether the id autocompletes for `/model <id>` inside a session. */
+  /** Whether the id autocompletes for `/model <id>` inside a conversation. */
   showInCompleter: boolean
 }
 

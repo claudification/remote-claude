@@ -166,7 +166,7 @@ function cmp(a: string, b: string): number {
  * Returns -1 / 0 / 1 suitable for Array.sort(). Safe on both server and web.
  *
  * Use this when grouping / matching by project identity -- e.g. listing
- * sessions for a project, permission scope matching, sidebar grouping.
+ * conversations for a project, permission scope matching, sidebar grouping.
  */
 export function compareProjectUri(a: string, b: string): number {
   return cmp(normalizeProjectUri(projectWithoutConversation(a)), normalizeProjectUri(projectWithoutConversation(b)))

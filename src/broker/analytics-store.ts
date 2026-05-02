@@ -477,7 +477,7 @@ export function recordHookEvent(
 }
 
 /**
- * Clear the turn accumulator for a session (e.g. on session end).
+ * Clear the turn accumulator for a conversation (e.g. on session end).
  */
 export function clearSession(sessionId: string): void {
   turnAccumulators.delete(sessionId)

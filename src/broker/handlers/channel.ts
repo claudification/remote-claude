@@ -1,5 +1,5 @@
 /**
- * Channel handlers: inter-session messaging, session discovery, link management,
+ * Channel handlers: inter-conversation messaging, session discovery, link management,
  * channel subscriptions, dashboard subscriptions, and session quit relay.
  */
 
@@ -33,7 +33,7 @@ const subscribe: MessageHandler = (ctx, data) => {
     const serverRoles = user?.serverRoles
     // Global permissions (project='*')
     const global = resolvePermissionFlags(grants, '*', serverRoles)
-    // Per-session permissions (resolved against each session's project)
+    // Per-session permissions (resolved against each conversation's project)
     const sessions: Record<string, ReturnType<typeof resolvePermissionFlags>> = {}
     for (const s of ctx.conversations.getActiveConversations()) {
       sessions[s.id] = resolvePermissionFlags(grants, s.project, serverRoles)
@@ -103,7 +103,7 @@ const syncCheck: MessageHandler = (ctx, data) => {
   )
 }
 
-// ─── Channel subscriptions (per-session event streams) ─────────────
+// ─── Channel subscriptions (per-conversation event streams) ─────────────
 
 const channelSubscribe: MessageHandler = (ctx, data) => {
   const channel = data.channel as SubscriptionChannel
@@ -178,7 +178,7 @@ const channelListSessions: MessageHandler = (ctx, data) => {
     const queueSize = ctx.messageQueue.getQueueSize(s.project)
 
     // Assign a stable project-level slug via the caller's address book.
-    // Slug is derived from the PROJECT (label or dirname), never the session title --
+    // Slug is derived from the PROJECT (label or dirname), never the conversation title --
     // multiple sessions can share a project; the project identity must not depend on
     // whichever session happened to register first.
     const projectName = projSettings?.label || extractProjectLabel(s.project)
@@ -337,7 +337,7 @@ const channelSend: MessageHandler = (ctx, data) => {
 
   const toSession = toSess?.id
 
-  // If we resolved a project but no active session, queue for offline delivery
+  // If we resolved a project but no active conversations, queue for offline delivery
   if (targetProject && !toSess) {
     const fromProjectName =
       ctx.getProjectSettings(callerProject || '')?.label ||

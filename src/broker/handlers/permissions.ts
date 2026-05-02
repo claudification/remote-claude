@@ -76,7 +76,7 @@ const permissionResponse: MessageHandler = (ctx, data) => {
   }
 }
 
-// Permission rule: dashboard -> wrapper (session-scoped auto-approve)
+// Permission rule: dashboard -> wrapper (conversation-scoped auto-approve)
 const permissionRule: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined

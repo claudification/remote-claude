@@ -1,7 +1,7 @@
 /**
  * Plan approval handlers: relay between wrapper and dashboard for
  * plan mode approval flow (ExitPlanMode -> review -> approve/reject/feedback).
- * Also handles plan_mode_changed to update session state.
+ * Also handles plan_mode_changed to update conversation state.
  */
 
 import type { MessageHandler } from '../handler-context'

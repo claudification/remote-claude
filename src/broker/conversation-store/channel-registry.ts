@@ -392,7 +392,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
     }
   }
 
-  // Clear subagent transcript subscriptions for a session (called by rekeyConversation)
+  // Clear subagent transcript subscriptions for a conversation (called by rekeyConversation)
   function clearSubagentChannels(sessionId: string): void {
     for (const key of channelSubscribers.keys()) {
       if (key.startsWith(`conversation:subagent_transcript:${sessionId}:`)) {

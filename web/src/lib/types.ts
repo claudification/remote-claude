@@ -22,12 +22,12 @@ import type { AgentHostCapability, BgTaskInfo as BgTaskSummary, ProjectSettings 
 // (dashboard does e.data?.model, e.data?.tool_name, etc.)
 export type { HookEvent } from '@shared/protocol'
 
-/** Check if a session can open a terminal. Requires explicit terminal capability. */
+/** Check if a conversation can open a terminal. Requires explicit terminal capability. */
 export function canTerminal(s: Session): boolean {
   return s.status !== 'ended' && !!s.capabilities?.includes('terminal')
 }
 
-/** Check if a session supports raw JSON stream viewing. */
+/** Check if a conversation supports raw JSON stream viewing. */
 export function canJsonStream(s: Session): boolean {
   return s.status !== 'ended' && !!s.capabilities?.includes('json_stream')
 }

@@ -285,17 +285,17 @@ function Dashboard() {
   }, [])
 
   // Fetch events/transcript/sessions when session selected or WS reconnects.
-  // Uses a per-session fetch generation tracker to avoid the iOS resume storm:
+  // Uses a per-conversation fetch generation tracker to avoid the iOS resume storm:
   // when sync_stale bumps connectSeq, only the CURRENTLY SELECTED session is
   // re-fetched immediately. Other sessions lazy-load when the user switches to them.
   const isConnected = useConversationsStore(state => state.isConnected)
   const connectSeq = useConversationsStore(state => state.connectSeq)
 
-  // Track which connectSeq each session was last fetched at.
+  // Track which connectSeq each conversation was last fetched at.
   // When connectSeq bumps, sessions with fetchedAt < connectSeq are stale.
   const fetchedAtRef = useRef<Record<string, number>>({})
 
-  // Helper: fetch events + transcript for a session.
+  // Helper: fetch events + transcript for a conversation.
   // Deduplicates within a short window to prevent storm on rapid switches.
   const fetchConversationData = useCallback(
     (sessionId: string, reason?: string) => {
@@ -339,11 +339,11 @@ function Dashboard() {
     if (sid) fetchConversationData(sid, 'reconnect')
   }, [connectSeq, fetchConversationData, fetchSidebarMetadata]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // On session switch: fetch only if transcript not in LIFO cache.
+  // On conversation switch: fetch only if transcript not in LIFO cache.
   // Cached sessions have active WS subscriptions pushing entries in real-time.
   // The subscription diff subscriber ensures all cached sessions stay subscribed
   // even across WS reconnects (clearSubscribedSessions in onopen).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected and fetchConversationData intentionally omitted - only re-run on session switch
+  // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected and fetchConversationData intentionally omitted - only re-run on conversation switch
   useEffect(() => {
     if (!selectedConversationId || !isConnected) return
     const { transcripts, events } = useConversationsStore.getState()
@@ -403,7 +403,7 @@ function Dashboard() {
     return () => clearInterval(interval)
   }, [])
 
-  // Close sheet when a session is selected (mobile UX)
+  // Close sheet when a conversation is selected (mobile UX)
   useEffect(() => {
     if (selectedConversationId) {
       setSheetOpen(false)
@@ -710,7 +710,7 @@ function Dashboard() {
     const store = useConversationsStore.getState()
     store.selectConversation(id)
     store.setShowSwitcher(false)
-    // Auto-focus input on desktop after session switch
+    // Auto-focus input on desktop after conversation switch
     if (!isMobileViewport()) {
       requestAnimationFrame(() => focusInputEditor())
     }
@@ -931,7 +931,7 @@ function AuthExpiredModal() {
   )
 }
 
-// Voice FAB gate - show on touch devices with pref enabled and active session
+// Voice FAB gate - show on touch devices with pref enabled and active conversations
 function VoiceFabGate() {
   const showVoiceFab = useConversationsStore(state => state.controlPanelPrefs.showVoiceFab)
   const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
@@ -940,7 +940,7 @@ function VoiceFabGate() {
   return <VoiceFab />
 }
 
-// Action FAB gate - show on touch devices with active session
+// Action FAB gate - show on touch devices with active conversations
 function ActionFabGate() {
   const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
   if (!isTouchDevice() || !selectedConversationId) return null

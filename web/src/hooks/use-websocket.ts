@@ -283,7 +283,7 @@ function processMessage(msg: DashboardMessage) {
       const staleInfo = staleTranscripts ? ` staleTranscripts=${Object.keys(staleTranscripts).length}` : ''
       console.log(`[sync] <- sync_stale: ${stale.reason || 'unknown'} missed=${stale.missed || '?'}${staleInfo}`)
       // Full resync needed - bump connectSeq (triggers LIFO eviction + re-fetch in onopen).
-      // Clear lastAppliedTranscriptSeq: epoch changed means server's per-session
+      // Clear lastAppliedTranscriptSeq: epoch changed means server's per-conversation
       // seq counters reset, so our stored seqs are from the previous generation
       // and would false-negative a future sync_check. The upcoming initial
       // transcript_entries broadcasts will reseed from fresh seqs.
@@ -365,7 +365,7 @@ function processMessage(msg: DashboardMessage) {
               const transcripts = { ...state.transcripts }
               delete events[prevId]
               delete transcripts[prevId]
-              // Preserve any data already received for the new session ID
+              // Preserve any data already received for the new conversation ID
               // (e.g. compacting marker broadcast during rekey)
               if (!events[conversationId]) events[conversationId] = []
               if (!transcripts[conversationId]) transcripts[conversationId] = []
@@ -400,7 +400,7 @@ function processMessage(msg: DashboardMessage) {
           )
           if (isSelected) {
             // Always refetch on resume -- transcript may have been corrupted by a
-            // same-ID rekey or the session may have new data from a restart.
+            // same-ID rekey or the conversation may have new data from a restart.
             setTimeout(() => {
               fetchTranscript(conversationId).then(transcript => {
                 console.log(
@@ -722,7 +722,7 @@ function processMessage(msg: DashboardMessage) {
         description?: string
       }
       if (auto.conversationId && auto.toolName) {
-        // Emit a custom event that the session-detail can pick up for a brief toast
+        // Emit a custom event that the conversation-detail can pick up for a brief toast
         window.dispatchEvent(
           new CustomEvent('permission-auto-approved', {
             detail: { conversationId: auto.conversationId, toolName: auto.toolName, description: auto.description },
@@ -902,7 +902,7 @@ function processMessage(msg: DashboardMessage) {
       const update: Record<string, unknown> = {}
       if (msg.global) update.permissions = msg.global
       if (msg.sessions) {
-        // Merge into existing sessionPermissions (incremental updates for new sessions)
+        // Merge into existing sessionPermissions (incremental updates for new conversation)
         update.sessionPermissions = { ...useConversationsStore.getState().sessionPermissions, ...msg.sessions }
       }
       if (Object.keys(update).length > 0) useConversationsStore.setState(update)
@@ -996,7 +996,7 @@ export function useWebSocket() {
         const { selectedConversationId, selectedSubagentId, transcripts, events, connectSeq } =
           useConversationsStore.getState()
 
-        // Evict stale sessions from LIFO cache (non-selected sessions may have missed WS entries)
+        // Evict stale conversations from LIFO cache (non-selected sessions may have missed WS entries)
         const evictedSids = Object.keys(transcripts).filter(sid => sid !== selectedConversationId)
         let newTranscripts = transcripts
         let newEvents = events
@@ -1244,7 +1244,7 @@ export function useWebSocket() {
       _lastSelectedId = state.selectedConversationId
       _lastTranscriptKeys = transcriptKeys
 
-      // Desired subscriptions: selected + all sessions with cached transcripts
+      // Desired subscriptions: selected + all conversations with cached transcripts
       const desired = new Set<string>()
       if (state.selectedConversationId) desired.add(state.selectedConversationId)
       for (const sid of Object.keys(state.transcripts)) {
@@ -1259,7 +1259,7 @@ export function useWebSocket() {
           }
         }
       }
-      // Subscribe new sessions
+      // Subscribe new conversation
       for (const sid of desired) {
         if (!_subscribedSessions.has(sid)) {
           for (const ch of SESSION_CHANNELS) {
@@ -1297,8 +1297,8 @@ export function useWebSocket() {
     })
 
     // Periodic sync check: detect silently dropped transcript entries.
-    // Runs every 60s while connected. Sends per-session lastAppliedSeq so the
-    // server can report back any sessions where its counter has advanced past
+    // Runs every 60s while connected. Sends per-conversation lastAppliedSeq so the
+    // server can report back any conversation where its counter has advanced past
     // what we've applied -- those get a ?sinceSeq=N delta refetch.
     const syncInterval = setInterval(() => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return

@@ -743,7 +743,7 @@ async function main() {
 
             const session = conversationStore.getConversation(sessionId)
             if (session && session.status !== 'ended' && remaining === 0) {
-              // Last wrapper disconnected - end the session
+              // Last wrapper disconnected - end the conversation
               conversationStore.endConversation(sessionId, 'connection_closed')
               if (verbose) {
                 console.log(`[-] Session ended: ${sessionId.slice(0, 8)}... (connection_closed, last wrapper)`)

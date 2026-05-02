@@ -66,11 +66,11 @@ beforeEach(() => {
 })
 
 // ---------------------------------------------------------------------------
-// 1. Session lifecycle
+// 1. Conversation lifecycle
 // ---------------------------------------------------------------------------
 
-describe('session lifecycle', () => {
-  it('createConversation returns a session accessible via getConversation', () => {
+describe('conversation lifecycle', () => {
+  it('createConversation returns a conversation accessible via getConversation', () => {
     store.createConversation('sess-1', '/home/user/project')
     const session = store.getConversation('sess-1')
     expect(session).toBeDefined()
@@ -78,7 +78,7 @@ describe('session lifecycle', () => {
     expect(session!.project).toBe('claude://default/home/user/project')
   })
 
-  it('createConversation makes session appear in getAllConversations', () => {
+  it('createConversation makes conversation appear in getAllConversations', () => {
     store.createConversation('sess-a', '/cwd/a')
     store.createConversation('sess-b', '/cwd/b')
     const all = store.getAllConversations()
@@ -86,13 +86,13 @@ describe('session lifecycle', () => {
     expect(all.map(s => s.id)).toContain('sess-b')
   })
 
-  it('createConversation makes session appear in getActiveConversations (status is not ended)', () => {
+  it('createConversation makes conversation appear in getActiveConversations (status is not ended)', () => {
     store.createConversation('sess-active', '/cwd')
     const active = store.getActiveConversations()
     expect(active.map(s => s.id)).toContain('sess-active')
   })
 
-  it('createConversation called twice with same id returns existing session without duplicate', () => {
+  it('createConversation called twice with same id returns existing conversation without duplicate', () => {
     const first = store.createConversation('dup-id', '/cwd')
     // Second call -- session already exists, so it goes straight through conversations.set(id, session)
     // The implementation does NOT check for existence; it overwrites but the original session is gone.
@@ -107,7 +107,7 @@ describe('session lifecycle', () => {
     expect(first.id).toBe('dup-id')
   })
 
-  it('endConversation moves session out of getActiveConversations but keeps it in getAllConversations', () => {
+  it('endConversation moves conversation out of getActiveConversations but keeps it in getAllConversations', () => {
     store.createConversation('end-me', '/cwd')
     store.endConversation('end-me', 'completed')
 
@@ -119,7 +119,7 @@ describe('session lifecycle', () => {
     expect(store.getConversation('end-me')!.status).toBe('ended')
   })
 
-  it('removeConversation removes session from everywhere', () => {
+  it('removeConversation removes conversation from everywhere', () => {
     store.createConversation('remove-me', '/cwd')
     store.removeConversation('remove-me')
 
@@ -128,7 +128,7 @@ describe('session lifecycle', () => {
     expect(store.getActiveConversations().map(s => s.id)).not.toContain('remove-me')
   })
 
-  it('resumeConversation on an ended session restores it to active sessions', () => {
+  it('resumeConversation on an ended conversations restores it to active conversations', () => {
     store.createConversation('resume-me', '/cwd')
     store.endConversation('resume-me', 'done')
     expect(store.getActiveConversations().map(s => s.id)).not.toContain('resume-me')
@@ -143,7 +143,7 @@ describe('session lifecycle', () => {
     expect(store.getConversation('ghost-session')).toBeUndefined()
   })
 
-  it('rekeyConversation makes session accessible under new id, old id is gone', () => {
+  it('rekeyConversation makes conversation accessible under new id, old id is gone', () => {
     store.createConversation('old-id', '/cwd')
     store.rekeyConversation('old-id', 'new-id', 'conv-1', '/cwd')
 
@@ -153,7 +153,7 @@ describe('session lifecycle', () => {
     expect(session!.id).toBe('new-id')
   })
 
-  it('updateActivity updates session lastActivity timestamp', async () => {
+  it('updateActivity updates conversation lastActivity timestamp', async () => {
     store.createConversation('act-test', '/cwd')
     const before = store.getConversation('act-test')!.lastActivity
 
@@ -171,7 +171,7 @@ describe('session lifecycle', () => {
 // ---------------------------------------------------------------------------
 
 describe('event ingestion', () => {
-  it('addEvent on an existing session stores the event in getConversationEvents', () => {
+  it('addEvent on an existing conversation stores the event in getConversationEvents', () => {
     store.createConversation('ev-sess', '/cwd')
     const event = makeHookEvent('ev-sess', 'UserPromptSubmit')
     store.addEvent('ev-sess', event)
@@ -181,7 +181,7 @@ describe('event ingestion', () => {
     expect(events[0].hookEvent).toBe('UserPromptSubmit')
   })
 
-  it('addEvent on a missing session does not crash', () => {
+  it('addEvent on a missing conversation does not crash', () => {
     const event = makeHookEvent('ghost', 'UserPromptSubmit')
     // Should not throw -- event is silently dropped
     expect(() => store.addEvent('ghost', event)).not.toThrow()
@@ -210,20 +210,20 @@ describe('event ingestion', () => {
     expect(events[0].timestamp).toBe(200)
   })
 
-  it('addEvent with Stop hook transitions session status to idle', () => {
+  it('addEvent with Stop hook transitions conversation status to idle', () => {
     store.createConversation('stop-sess', '/cwd')
     store.addEvent('stop-sess', makeHookEvent('stop-sess', 'Stop'))
     expect(store.getConversation('stop-sess')!.status).toBe('idle')
   })
 
-  it('addEvent with non-passive hook (UserPromptSubmit) transitions session status to active', () => {
+  it('addEvent with non-passive hook (UserPromptSubmit) transitions conversation status to active', () => {
     store.createConversation('prompt-sess', '/cwd')
     // Start in 'starting' status, a non-passive event should flip to 'active'
     store.addEvent('prompt-sess', makeHookEvent('prompt-sess', 'UserPromptSubmit'))
     expect(store.getConversation('prompt-sess')!.status).toBe('active')
   })
 
-  it('updateTasks replaces session tasks', () => {
+  it('updateTasks replaces conversation tasks', () => {
     store.createConversation('task-sess', '/cwd')
     const tasks: TaskInfo[] = [
       { id: 'task-1', subject: 'Do something', status: 'pending', updatedAt: Date.now() },
@@ -384,7 +384,7 @@ describe('sync state', () => {
     expect(typeof state.seq).toBe('number')
   })
 
-  it('seq increments after session creation (createConversation triggers broadcast which stamps)', () => {
+  it('seq increments after conversation creation (createConversation triggers broadcast which stamps)', () => {
     const before = store.getSyncState().seq
     store.createConversation('seq-sess', '/cwd')
     // createConversation calls broadcastConversationScoped which calls stampAndBuffer -> syncSeq++
@@ -476,8 +476,8 @@ describe('conversation socket tracking', () => {
 // instead of scanning cached SessionStart events per render)
 // ---------------------------------------------------------------------------
 
-describe('session.model derivation', () => {
-  it('SessionStart with data.model sets session.model on first arrival', () => {
+describe('conversation.model derivation', () => {
+  it('SessionStart with data.model sets conversation.model on first arrival', () => {
     store.createConversation('model-1', '/cwd')
     expect(store.getConversation('model-1')!.model).toBeUndefined()
 
@@ -505,7 +505,7 @@ describe('session.model derivation', () => {
     expect(store.getConversation('model-2')!.model).toBe('claude-opus-4-7')
   })
 
-  it('assistant transcript entry sets session.model when absent', () => {
+  it('assistant transcript entry sets conversation.model when absent', () => {
     store.createConversation('model-3', '/cwd')
     store.addTranscriptEntries(
       'model-3',
@@ -545,7 +545,7 @@ describe('session.model derivation', () => {
     expect(store.getConversation('model-5')!.model).toBe('claude-opus-4-7')
   })
 
-  it('<synthetic> assistant entry is always rejected (never sets session.model)', () => {
+  it('<synthetic> assistant entry is always rejected (never sets conversation.model)', () => {
     store.createConversation('model-6', '/cwd')
     store.addTranscriptEntries(
       'model-6',
@@ -588,7 +588,7 @@ describe('project URI field', () => {
     expect(session.project).toBe('claude://default/updated/path')
   })
 
-  it('project field survives session resume', () => {
+  it('project field survives conversation resume', () => {
     store.createConversation('proj-resume', '/Users/jonas/projects/bar')
     store.resumeConversation('proj-resume')
     const session = store.getConversation('proj-resume')!
@@ -634,7 +634,7 @@ describe('project link management (project URI)', () => {
     expect(store.checkProjectLink('block-a', 'block-b')).toBe('blocked')
   })
 
-  it('unlinkProjects removes link by session ID', () => {
+  it('unlinkProjects removes link by conversation ID', () => {
     store.createConversation('unlink-a', '/projects/m')
     store.createConversation('unlink-b', '/projects/n')
 
@@ -645,7 +645,7 @@ describe('project link management (project URI)', () => {
     expect(store.checkProjectLink('unlink-a', 'unlink-b')).toBe('unknown')
   })
 
-  it('unlinkProjects by session ID severs project link', () => {
+  it('unlinkProjects by conversation ID severs project link', () => {
     store.createConversation('cwd-unlink-a', 'claude://default/projects/p')
     store.createConversation('cwd-unlink-b', 'claude://default/projects/q')
 
@@ -656,7 +656,7 @@ describe('project link management (project URI)', () => {
     expect(store.checkProjectLink('cwd-unlink-a', 'cwd-unlink-b')).toBe('unknown')
   })
 
-  it('getLinkedProjects returns linked project CWDs for a session', () => {
+  it('getLinkedProjects returns linked project CWDs for a conversation', () => {
     store.createConversation('gp-a', '/projects/foo')
     store.createConversation('gp-b', '/projects/bar')
     store.linkProjects('gp-a', 'gp-b')
@@ -666,7 +666,7 @@ describe('project link management (project URI)', () => {
     expect(linked[0].project).toBe('claude://default/projects/bar')
   })
 
-  it('getLinkedProjects returns empty for session with no links', () => {
+  it('getLinkedProjects returns empty for conversation with no links', () => {
     store.createConversation('gp-solo', '/projects/solo')
     expect(store.getLinkedProjects('gp-solo')).toEqual([])
   })

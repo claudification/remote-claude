@@ -348,7 +348,7 @@ function applyDefaultSession() {
   if (defaultApplied) return
   defaultApplied = true
   const store = useConversationsStore.getState()
-  // Don't override if a session was already selected (hash route, deep link, etc.)
+  // Don't override if a conversation was already selected (hash route, deep link, etc.)
   if (store.selectedConversationId) return
 
   // Try configured default session project
@@ -368,7 +368,7 @@ function applyDefaultSession() {
     return
   }
 
-  // Auto-select if only one non-ended session visible (common for restricted users)
+  // Auto-select if only one non-ended conversations visible (common for restricted users)
   const activeConversations = store.sessions.filter(s => s.status !== 'ended')
   if (activeConversations.length === 1) {
     store.selectConversation(activeConversations[0].id, 'default-session-only-active')
@@ -393,7 +393,7 @@ function processHash() {
   }
 }
 
-/** Build an O(1) lookup index from a sessions array */
+/** Build an O(1) lookup index from a conversation array */
 export function buildConversationsById(sessions: Session[]): Record<string, Session> {
   const map: Record<string, Session> = {}
   for (const s of sessions) map[s.id] = s
@@ -677,7 +677,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
         evictedData = { events, transcripts, subagentTranscripts }
       }
 
-      // Close terminal on session switch - PTY is tied to a conversationId,
+      // Close terminal on conversation switch - PTY is tied to a conversationId,
       // keeping it open would stream the old session's terminal
       const closeTerminal = state.showTerminal ? { showTerminal: false, terminalWrapperId: null } : {}
       return {
@@ -692,7 +692,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     })
     updateHash(id ? `session/${id}` : '')
     setLastConversationId(id)
-    // Clear notification badge + bell notifications when viewing a session
+    // Clear notification badge + bell notifications when viewing a conversation
     if (id) {
       const session = get().sessionsById[id]
       if (session?.hasNotification) {
@@ -728,7 +728,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   openSwitcherWithFilter: (filter: string) => set({ showSwitcher: true, switcherInitialFilter: filter }),
   toggleDebugConsole: () => set(state => ({ showDebugConsole: !state.showDebugConsole })),
   openTerminal: conversationId => {
-    // Find the session that owns this wrapper so we can select it in the main panel too
+    // Find the conversation that owns this wrapper so we can select it in the main panel too
     const ownerConversation = get().sessions.find(s => s.ccSessionIds?.includes(conversationId))
     const prev = get().selectedConversationId
     const next = ownerConversation?.id ?? null
@@ -877,10 +877,10 @@ export interface TranscriptFetchResult {
   gap: boolean
 }
 
-/** Fetch transcript entries for a session.
+/** Fetch transcript entries for a conversation.
  *  - No `sinceSeq`: returns the last N entries (full mode).
  *  - With `sinceSeq`: returns entries with seq > sinceSeq (delta mode),
- *    used after sync_check flags the session as stale. If `gap=true` in the
+ *    used after sync_check flags the conversation as stale. If `gap=true` in the
  *    response, the client has evicted entries it needed -- full replace. */
 export async function fetchTranscript(
   conversationId: string,

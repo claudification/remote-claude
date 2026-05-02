@@ -306,7 +306,7 @@ export function revokeUser(name: string): boolean {
 
 /**
  * Remove a specific passkey credential from a user.
- * Kills all active sessions for that user (can't track per-credential sessions).
+ * Kills all active conversations for that user (can't track per-credential sessions).
  * If it's the user's last credential, the user is revoked entirely.
  * Returns: 'removed' | 'removed_and_revoked' | 'not_found' | 'user_not_found'
  */
@@ -449,7 +449,7 @@ export function validateConversation(signedToken: string): { name: string } | nu
 }
 
 /**
- * Renew a session token's expiry if it's past the halfway point.
+ * Renew a conversation token's expiry if it's past the halfway point.
  * Returns true if renewed (caller should re-set the cookie).
  */
 export function renewSessionIfNeeded(signedToken: string): boolean {

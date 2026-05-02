@@ -36,7 +36,7 @@ function save(map: FrequencyMap) {
   }
 }
 
-/** Record a switch to a session (by project URI). Call when user selects via switcher. */
+/** Record a switch to a conversation (by project URI). Call when user selects via switcher. */
 export function recordSwitch(project: string) {
   const map = load()
   const entry = map[project] || { count: 0, lastUsed: 0 }

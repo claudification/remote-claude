@@ -62,7 +62,7 @@ export function CacheTimer({ lastTurnEndedAt, tokenUsage, model, cacheTtl, isIdl
   )
 }
 
-/** Inline banner shown below the session header when cache is expired */
+/** Inline banner shown below the conversation header when cache is expired */
 export function CacheExpiredBanner({ lastTurnEndedAt, tokenUsage, model, cacheTtl, isIdle }: CacheTimerProps) {
   const [tick, setTick] = useState(0)
 

@@ -1,7 +1,7 @@
 /**
  * Revive queue -- buffers revive requests for offline sentinels.
  *
- * When a session's sentinel is offline, the revive request is queued
+ * When a conversation's sentinel is offline, the revive request is queued
  * with a 10-minute timeout. On sentinel reconnect, pending requests
  * are drained and dispatched. On timeout, the request is ejected
  * with an error.

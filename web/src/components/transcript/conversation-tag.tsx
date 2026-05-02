@@ -1,6 +1,6 @@
 /**
  * SessionTag - Clickable session name badge with hover tooltip showing project/status.
- * Shared by send_message (tool-line) and received inter-session messages (group-view).
+ * Shared by send_message (tool-line) and received inter-conversation messages (group-view).
  */
 
 import { buildConversationsById, useConversationsStore } from '@/hooks/use-conversations'
@@ -24,7 +24,7 @@ function stripProjectPrefix(slug: string): string {
   return colonIdx >= 0 ? slug.slice(colonIdx + 1) : slug
 }
 
-/** Find a session matching an address book slug (best-effort client-side match). */
+/** Find a conversation matching an address book slug (best-effort client-side match). */
 function findSessionBySlug(slug: string) {
   const { sessions, projectSettings } = useConversationsStore.getState()
   const normalizedSlug = slug.toLowerCase()
@@ -38,7 +38,7 @@ function findSessionBySlug(slug: string) {
   return undefined
 }
 
-/** Resolve a session by ID or slug and compute the display name. */
+/** Resolve a conversation by ID or slug and compute the display name. */
 function resolveSessionDisplay(idOrSlug: string, fallbackId?: string) {
   const { sessionsById, projectSettings } = useConversationsStore.getState()
   const bare = stripProjectPrefix(idOrSlug)
@@ -98,7 +98,7 @@ function injectSession(overview: Record<string, unknown>) {
   return partial.id
 }
 
-/** Try to fetch a session from the server by UUID or slug. Returns the session ID on success. */
+/** Try to fetch a conversation from the server by UUID or slug. Returns the conversation ID on success. */
 async function fetchAndInjectSession(resolvedId?: string, slug?: string): Promise<string | null> {
   const attempts: string[] = []
   if (resolvedId) attempts.push(`/conversations/${resolvedId}`)

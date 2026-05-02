@@ -94,7 +94,10 @@ export interface ConversationOverview {
   lastEvent?: { hookEvent: string; timestamp: number }
 }
 
-export function conversationToOverview(session: Conversation, conversationStore: ConversationStore): ConversationOverview {
+export function conversationToOverview(
+  session: Conversation,
+  conversationStore: ConversationStore,
+): ConversationOverview {
   const lastEvent = session.events[session.events.length - 1]
   return {
     id: session.id,

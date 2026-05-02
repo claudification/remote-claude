@@ -187,7 +187,7 @@ function reportDeadPids(ws: WebSocket) {
 // ─── CC Transcript Discovery ─────────────────────────────────────────
 
 /** Check if a CC transcript file exists for the given session ID and CWD.
- *  CC stores transcripts at ~/.claude/projects/{mangled-cwd}/{session-id}.jsonl
+ *  CC stores transcripts at ~/.claude/projects/{mangled-cwd}/{conversation-id}.jsonl
  *  where mangled-cwd replaces all / with - in the absolute path. */
 function ccTranscriptExists(sessionId: string, cwd: string): boolean {
   const home = process.env.HOME || '/root'
@@ -215,7 +215,7 @@ function findRclaudeBinary(): string | null {
 // ─── Env Sanitization ──────────────────────────────────────────────
 
 /** Session-scoped RCLAUDE_* vars that must NOT leak from the sentinel's own
- *  environment into spawned child sessions. The sentinel may have inherited
+ *  environment into spawned child conversations. The sentinel may have inherited
  *  these from the rclaude process that launched it. Each spawned session
  *  gets its own values set explicitly. */
 const RCLAUDE_SESSION_VARS = new Set([
@@ -242,7 +242,7 @@ const RCLAUDE_SESSION_VARS = new Set([
 ])
 
 /**
- * Return a copy of process.env with session-scoped RCLAUDE_* and
+ * Return a copy of process.env with conversation-scoped RCLAUDE_* and
  * CLAUDE_CODE_* vars stripped. Safe base for building child env.
  */
 function cleanSentinelEnv(): Record<string, string | undefined> {
@@ -283,7 +283,7 @@ function buildHeadlessEnv(opts: {
   includePartialMessages?: boolean
   env?: Record<string, string>
 }): Record<string, string | undefined> {
-  // Start from sanitized sentinel env (PATH, API keys, etc. but no session-scoped vars)
+  // Start from sanitized sentinel env (PATH, API keys, etc. but no conversation-scoped vars)
   const env = cleanSentinelEnv()
 
   // Required
@@ -598,7 +598,7 @@ function launchLog(jobId: string | undefined, step: string, status: 'info' | 'ok
 }
 
 /**
- * Revive a session. Headless sessions are spawned directly via Bun.spawn(),
+ * Revive a conversation. Headless sessions are spawned directly via Bun.spawn(),
  * PTY sessions use the external revive-session.sh script for tmux.
  *
  * Script exit codes: 0=continued, 1=fresh session, 2=dir not found, 3=tmux failed

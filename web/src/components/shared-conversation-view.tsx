@@ -1,7 +1,7 @@
 /**
  * SharedSessionView - Limited dashboard for share link viewers.
  *
- * No sidebar, no switcher, no settings. Just the session transcript,
+ * No sidebar, no switcher, no settings. Just the conversation transcript,
  * input bar (if chat permission), and a countdown timer.
  */
 

@@ -6,7 +6,7 @@
  *   - `@` at start of doc OR after whitespace -> skills + agents
  *   - `:` at start of doc OR after whitespace -> session slugs (live sessions)
  *
- * Source data is read live from the sessions store at completion time, so the
+ * Source data is read live from the conversation store at completion time, so the
  * extension doesn't need rebuilding when sessionInfo changes.
  *
  * Also handles `/model <variant>` argument completion via a shared helper.
@@ -17,8 +17,8 @@
  * Colon trigger rules (parity with `text: prose` natural usage):
  *   - `:` + slug-chars -> popup active, narrows as you type
  *   - `: ` (space after) -> dismisses, natural "foo: bar" prose works
- *   - `::` (double colon) -> dismisses, "::" would never be a session ref
- *   - Accepting a session replaces the whole `:query` with just the slug
+ *   - `::` (double colon) -> dismisses, "::" would never be a conversation ref
+ *   - Accepting a conversation replaces the whole `:query` with just the slug
  *     (e.g. typing `:arr<Tab>` yields `arr`, not `:arr`).
  */
 
@@ -167,7 +167,7 @@ function applySubCommandSelection(
 /**
  * Scan backwards for a `:` session trigger. Uses a stricter char class than
  * the /-and-@ scanner (no `:`, no `.`) so that `::` and `foo:bar` don't
- * accidentally activate the session popup — only `:slug` does.
+ * accidentally activate the conversation popup — only `:slug` does.
  *
  * First char after `:` must be alphanumeric — blocks emoticons like `:-)`,
  * `:_)`, and other punctuation-led prose from triggering the popup.
@@ -189,7 +189,7 @@ function scanColonTrigger(text: string, pos: number): { start: number; query: st
 /**
  * Bare `:` debounce. When the user just typed `:` and nothing follows, hold
  * off showing the popup for a short window so emoticons like `:-)` don't
- * flash the session list between keystrokes. If no follow-up char arrives
+ * flash the conversation list between keystrokes. If no follow-up char arrives
  * within the window, a view plugin re-triggers completion so the popup
  * still appears for a genuine bare-colon mention.
  */

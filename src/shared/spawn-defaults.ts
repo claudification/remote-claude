@@ -5,7 +5,7 @@
  * has a settings-backed default. Consumed by:
  * - HTTP /api/spawn route (src/broker/routes.ts)
  * - HTTP /conversations/:id/revive route
- * - WS channel_spawn handler (src/broker/handlers/inter-session.ts)
+ * - WS channel_spawn handler (src/broker/handlers/inter-conversation.ts)
  *
  * Empty strings, the `'default'` sentinel, and `0` numerics (in defaults) all
  * mean "unset" -- callers downstream treat `undefined` as "use CC default".

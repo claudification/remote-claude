@@ -1,5 +1,5 @@
 /**
- * TerminateConfirmDialog - Confirmation dialog before terminating a session.
+ * TerminateConfirmDialog - Confirmation dialog before terminating a conversation.
  * Imperative API: call openTerminateConfirm(conversationId, sessionName) from anywhere.
  * Keyboard: Enter/Y = confirm, Escape/N = cancel.
  */

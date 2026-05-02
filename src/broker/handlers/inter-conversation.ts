@@ -396,7 +396,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
     return
   }
 
-  // Auth: dashboard needs chat permission on target project; inter-session needs benevolent.
+  // Auth: dashboard needs chat permission on target project; inter-conversation needs benevolent.
   if (ctx.ws.data.isControlPanel) {
     ctx.requirePermission('chat', targetSess.project)
   } else if (ctx.ws.data.conversationId) {

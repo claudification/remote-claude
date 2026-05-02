@@ -788,7 +788,7 @@ export function ToolLine({
       }
       break
     }
-    // rclaude inter-session tools - rich display
+    // rclaude inter-conversation tools - rich display
     case 'mcp__rclaude__send_message': {
       const to = (input.to as string) || ''
       const intent = (input.intent as string) || ''

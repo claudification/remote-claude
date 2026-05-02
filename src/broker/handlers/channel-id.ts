@@ -27,8 +27,8 @@ export interface ConversationLike {
 }
 
 /**
- * Compute the per-session slug suffix used inside compound ids.
- * Falls back to a 6-char id slice when two sessions in the same project would
+ * Compute the per-conversation slug suffix used inside compound ids.
+ * Falls back to a 6-char id slice when two conversations in the same project would
  * slug to the same value (so siblings stay disambiguable).
  */
 export function computeConversationSlug(target: ConversationLike, siblingConversations: ConversationLike[]): string {
@@ -69,12 +69,12 @@ export interface ResolveSendInput {
   sessionsAtProject: ConversationLike[]
   /** The canonical project slug (label or dirname) to surface in error messages. */
   canonicalProject: string
-  /** Predicate -- "is this session currently online?". Live count drives ambiguity. */
+  /** Predicate -- "is this conversation currently online?". Live count drives ambiguity. */
   isLive: (s: ConversationLike) => boolean
 }
 
 /**
- * Resolve a parsed `(projectSlug, sessionSlug?)` target against the sessions
+ * Resolve a parsed `(projectSlug, sessionSlug?)` target against the conversation
  * registered at a given project. Returns the chosen session, a not-found marker,
  * or an ambiguous-bare error with the candidate compound ids the caller
  * should use instead.
@@ -96,7 +96,7 @@ export function resolveSendTarget(input: ResolveSendInput): ResolveSendTarget {
   }
 
   // Bare addressing.
-  // First: exact session-title match (a session named "arr" beats project-level dispatch).
+  // First: exact session-title match (a conversation named "arr" beats project-level dispatch).
   const titleMatch = sessionsAtProject.find(s => slugify(s.title || s.id.slice(0, 8)) === projectSlug)
   if (titleMatch) return { kind: 'resolved', session: titleMatch }
 
@@ -147,7 +147,7 @@ export interface ResolveSessionDeps {
 
 /**
  * Resolve a target ID (compound "project:session-slug", bare project slug,
- * or raw internal session/conversation ID) to a session.
+ * or raw internal session/conversation ID) to a conversation.
  *
  * Used by session_control, channel_restart, channel_configure, and
  * channel_send to consistently handle the compound ID format returned

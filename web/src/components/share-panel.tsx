@@ -2,7 +2,7 @@
  * SharePanel - Session sharing management.
  *
  * Shows active shares with viewer counts, create new shares,
- * revoke shares. Displayed as a banner in the session detail header.
+ * revoke shares. Displayed as a banner in the conversation detail header.
  *
  * Share data is pushed via WS (shares_updated) - no polling.
  */
@@ -276,7 +276,7 @@ export function ShareBanner({ sessionProject }: SharePanelProps) {
   )
 }
 
-/** Small share indicator for the session list sidebar */
+/** Small share indicator for the conversation list sidebar */
 export function ShareIndicator({ sessionProject }: { sessionProject: string }) {
   const count = useConversationsStore(
     s => s.shares.filter(sh => sh.sessionCwd === sessionProject && sh.expiresAt > Date.now()).length,

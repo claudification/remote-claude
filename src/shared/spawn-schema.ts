@@ -93,7 +93,7 @@ export const spawnRequestSchema = z.object({
   description: z
     .string()
     .optional()
-    .describe('Short description of what this session is about. Shown in dashboard and list_sessions.'),
+    .describe('Short description of what this conversation is about. Shown in dashboard and list_sessions.'),
   model: modelEnum.optional().describe('Model preset or pinned version'),
   effort: effortEnum.optional().describe('Thinking effort budget'),
   permissionMode: permissionModeEnum.optional().describe('CC permission prompting mode'),
