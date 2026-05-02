@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState } from 'react'
-import { BannerButton, BannerStack, SessionBanner } from '@/components/ui/conversation-banner'
+import { BannerButton, BannerStack, ConversationBanner } from '@/components/ui/conversation-banner'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
@@ -21,7 +21,7 @@ export function LinkRequestBanners() {
     <BannerStack
       items={relevant}
       render={req => (
-        <SessionBanner
+        <ConversationBanner
           key={`${req.fromSession}:${req.toSession}`}
           accent="teal"
           label="LINK"
@@ -173,7 +173,7 @@ export function PermissionBanners() {
     <BannerStack
       items={relevant}
       render={perm => (
-        <SessionBanner
+        <ConversationBanner
           key={perm.requestId}
           accent="amber"
           label="PERMISSION"
@@ -211,7 +211,7 @@ export function PermissionBanners() {
         >
           {perm.description && <div className="text-foreground/70 text-[11px]">{perm.description}</div>}
           {perm.inputPreview && formatPermissionInput(perm.toolName, perm.inputPreview, sessionPath)}
-        </SessionBanner>
+        </ConversationBanner>
       )}
     />
   )
@@ -231,7 +231,7 @@ export function ClipboardBanners() {
     <BannerStack
       items={relevant}
       render={cap => (
-        <SessionBanner
+        <ConversationBanner
           key={cap.id}
           accent="cyan"
           label="CLIPBOARD"
@@ -284,7 +284,7 @@ export function ClipboardBanners() {
               className="max-h-32 max-w-full rounded border border-border/30 object-contain"
             />
           )}
-        </SessionBanner>
+        </ConversationBanner>
       )}
     />
   )
@@ -391,7 +391,7 @@ function AskQuestionCard({
   })
 
   return (
-    <SessionBanner
+    <ConversationBanner
       accent="violet"
       label="QUESTION"
       meta={
@@ -462,6 +462,6 @@ function AskQuestionCard({
           />
         </div>
       ))}
-    </SessionBanner>
+    </ConversationBanner>
   )
 }

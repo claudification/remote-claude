@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto'
 import type { UserGrant } from './permissions'
 import type { KVStore } from './store/types'
 
-export interface SessionShare {
+export interface ConversationShare {
   token: string
   sessionCwd: string
   createdAt: number
@@ -28,7 +28,7 @@ const DEFAULT_SHARE_PERMISSIONS = ['chat', 'chat:read', 'files:read', 'terminal:
 
 const KV_KEY = 'shares'
 
-let shares: SessionShare[] = []
+let shares: ConversationShare[] = []
 let kv: KVStore | null = null
 let expiryTimer: ReturnType<typeof setInterval> | null = null
 
@@ -41,7 +41,7 @@ export function initShares(opts: { kv: KVStore; skipTimers?: boolean }) {
   kv = opts.kv
 
   // Load existing shares
-  const raw = kv.get<SessionShare[]>(KV_KEY)
+  const raw = kv.get<ConversationShare[]>(KV_KEY)
   if (raw && Array.isArray(raw)) {
     // Clean up expired + revoked on load
     shares = raw.filter(s => !s.revoked && s.expiresAt > Date.now())
@@ -65,7 +65,7 @@ export function createShare(opts: {
   label?: string
   permissions?: string[]
   hideUserInput?: boolean
-}): SessionShare {
+}): ConversationShare {
   // Validate expiry is in the future
   if (opts.expiresAt <= Date.now()) {
     throw new Error('Expiry must be in the future')
@@ -77,7 +77,7 @@ export function createShare(opts: {
   }
 
   const token = randomBytes(32).toString('base64url')
-  const share: SessionShare = {
+  const share: ConversationShare = {
     token,
     sessionCwd: opts.sessionCwd,
     createdAt: Date.now(),
@@ -98,7 +98,7 @@ export function createShare(opts: {
 }
 
 /** Validate a share token. Returns the share if valid, null if expired/revoked/not found. */
-export function validateShare(token: string): SessionShare | null {
+export function validateShare(token: string): ConversationShare | null {
   const share = shares.find(s => s.token === token)
   if (!share) return null
   if (share.revoked) return null
@@ -117,22 +117,22 @@ export function revokeShare(token: string): boolean {
 }
 
 /** List all active (non-expired, non-revoked) shares. */
-export function listShares(): SessionShare[] {
+export function listShares(): ConversationShare[] {
   return shares.filter(s => !s.revoked && s.expiresAt > Date.now())
 }
 
 /** List active shares for a specific project. */
-export function listSharesForProject(project: string): SessionShare[] {
+export function listSharesForProject(project: string): ConversationShare[] {
   return shares.filter(s => !s.revoked && s.expiresAt > Date.now() && s.sessionCwd === project)
 }
 
 /** Get a specific share by token (even if expired/revoked, for admin display). */
-export function getShare(token: string): SessionShare | undefined {
+export function getShare(token: string): ConversationShare | undefined {
   return shares.find(s => s.token === token)
 }
 
 /** Build synthetic UserGrant[] from a share (for WS permission resolution). */
-export function shareToGrants(share: SessionShare): UserGrant[] {
+export function shareToGrants(share: ConversationShare): UserGrant[] {
   return [
     {
       legacyCwd: share.sessionCwd,
@@ -159,7 +159,7 @@ export function cleanExpired(): string[] {
 /** Reload shares from store (for SIGHUP handler). */
 export function reloadShares() {
   if (!kv) return
-  const raw = kv.get<SessionShare[]>(KV_KEY)
+  const raw = kv.get<ConversationShare[]>(KV_KEY)
   if (raw && Array.isArray(raw)) {
     shares = raw
   }

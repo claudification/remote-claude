@@ -4,8 +4,8 @@ import type { Session } from '@/lib/types'
 import { extractProjectLabel, projectPath } from '@/lib/types'
 import { haptic } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from '../project-settings-editor'
-import { ProjectContextMenu, SessionContextMenu } from './conversation-context-menu'
-import { SessionCard, SessionItemCompact } from './conversation-item'
+import { ConversationContextMenu, ProjectContextMenu } from './conversation-context-menu'
+import { ConversationCard, ConversationItemCompact } from './conversation-item'
 import { partitionSessions } from './partition'
 
 function sessionsEqual(a: Session[], b: Session[]): boolean {
@@ -149,11 +149,11 @@ const ProjectSessionGroup = memo(
           </ProjectContextMenu>
           <div className="space-y-0.5 pb-1">
             {normal.map(session => (
-              <SessionContextMenu key={session.id} session={session} onOpenSettings={() => setShowSettings(true)}>
+              <ConversationContextMenu key={session.id} session={session} onOpenSettings={() => setShowSettings(true)}>
                 <div>
-                  <SessionItemCompact session={session} />
+                  <ConversationItemCompact session={session} />
                 </div>
-              </SessionContextMenu>
+              </ConversationContextMenu>
             ))}
             {adhoc.length > 0 && normal.length > 0 && (
               <div className="flex items-center gap-2 px-3 py-1">
@@ -163,11 +163,11 @@ const ProjectSessionGroup = memo(
               </div>
             )}
             {adhoc.map(session => (
-              <SessionContextMenu key={session.id} session={session} onOpenSettings={() => setShowSettings(true)}>
+              <ConversationContextMenu key={session.id} session={session} onOpenSettings={() => setShowSettings(true)}>
                 <div>
-                  <SessionItemCompact session={session} />
+                  <ConversationItemCompact session={session} />
                 </div>
-              </SessionContextMenu>
+              </ConversationContextMenu>
             ))}
           </div>
         </div>
@@ -182,7 +182,7 @@ const ProjectSessionGroup = memo(
 
 export const ProjectNode = memo(
   function ProjectNode({ project, sessions }: { project: string; sessions: Session[] }) {
-    if (sessions.length === 1) return <SessionCard session={sessions[0]} />
+    if (sessions.length === 1) return <ConversationCard session={sessions[0]} />
     return <ProjectSessionGroup sessions={sessions} project={project} />
   },
   (prev, next) => prev.project === next.project && sessionsEqual(prev.sessions, next.sessions),

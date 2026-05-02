@@ -10,9 +10,9 @@ import { setSessionTab } from '@/lib/ui-state'
 import { cn, haptic } from '@/lib/utils'
 import { BgTasksView } from './bg-tasks-view'
 import { AskQuestionBanners, ClipboardBanners } from './conversation-detail/conversation-banners'
-import { SessionHeader } from './conversation-detail/conversation-header'
+import { ConversationHeader } from './conversation-detail/conversation-header'
 import { DialogOverlay, InputBar, ScrollToBottomButton } from './conversation-detail/conversation-input'
-import { SessionTabs, type Tab } from './conversation-detail/conversation-tabs'
+import { ConversationTabs, type Tab } from './conversation-detail/conversation-tabs'
 import { ConversationView } from './conversation-view'
 import { DiagView } from './diag-view'
 import { EventsView } from './events-view'
@@ -34,7 +34,7 @@ const WebTerminal = lazy(() => import('./web-terminal').then(m => ({ default: m.
 const EMPTY_EVENTS: HookEvent[] = []
 const EMPTY_TRANSCRIPT: TranscriptEntry[] = []
 
-export const SessionDetail = memo(function SessionDetail() {
+export const ConversationDetail = memo(function SessionDetail() {
   const [activeTab, setActiveTab] = useState<Tab>('transcript')
   const [follow, setFollow] = useState(true)
   const showThinking = useConversationsStore(s => s.controlPanelPrefs.showThinking)
@@ -255,7 +255,7 @@ export const SessionDetail = memo(function SessionDetail() {
         />
       )}
       {/* Session Info - Collapsible */}
-      <SessionHeader
+      <ConversationHeader
         session={session}
         projectSettings={projectSettings}
         model={model}
@@ -326,7 +326,7 @@ export const SessionDetail = memo(function SessionDetail() {
       {!selectedSubagentId && (
         <>
           {/* Tabs with follow checkbox */}
-          <SessionTabs
+          <ConversationTabs
             session={session}
             activeTab={activeTab}
             onSetActiveTab={setActiveTab}

@@ -1,5 +1,5 @@
 import { normalizeProjectUri } from '../../../shared/project-uri'
-import { DuplicateEntry, SessionNotFound } from '../errors'
+import { ConversationNotFound, DuplicateEntry } from '../errors'
 import type {
   AddressBookStore,
   AddressEntry,
@@ -8,6 +8,7 @@ import type {
   ConversationPatch,
   ConversationRecord,
   ConversationStats,
+  ConversationStore,
   ConversationSummaryRecord,
   CostPeriod,
   CostStore,
@@ -26,7 +27,6 @@ import type {
   ScopeLink,
   ScopeLinkStore,
   SearchHit,
-  SessionStore,
   ShareCreate,
   ShareRecord,
   ShareStore,
@@ -74,7 +74,7 @@ function toSummary(s: ConversationRecord): ConversationSummaryRecord {
   }
 }
 
-function createConversationStore(): SessionStore {
+function createConversationStore(): ConversationStore {
   const sessions = new Map<string, ConversationRecord>()
 
   return {
@@ -103,7 +103,7 @@ function createConversationStore(): SessionStore {
 
     update(id, patch: ConversationPatch) {
       const s = sessions.get(id)
-      if (!s) throw new SessionNotFound(id)
+      if (!s) throw new ConversationNotFound(id)
       for (const [k, v] of Object.entries(patch)) {
         if (v !== undefined) (s as unknown as Record<string, unknown>)[k] = v
       }
@@ -135,7 +135,7 @@ function createConversationStore(): SessionStore {
 
     updateStats(id, stats: Partial<ConversationStats>) {
       const s = sessions.get(id)
-      if (!s) throw new SessionNotFound(id)
+      if (!s) throw new ConversationNotFound(id)
       s.stats = { ...s.stats, ...stats }
     },
   }

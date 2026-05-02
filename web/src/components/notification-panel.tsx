@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { renderProjectIcon } from '@/components/project-settings-editor'
-import { BannerButton, SessionBanner } from '@/components/ui/conversation-banner'
+import { BannerButton, ConversationBanner } from '@/components/ui/conversation-banner'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { projectPath } from '@/lib/types'
 import { haptic, projectDisplayName } from '@/lib/utils'
@@ -41,7 +41,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
       sessionId: p.sessionId,
       timestamp: p.timestamp,
       render: () => (
-        <SessionBanner
+        <ConversationBanner
           accent="amber"
           label="PERMISSION"
           title={<span className="font-bold">{p.toolName}</span>}
@@ -80,7 +80,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
         >
           {p.description && <div className="text-foreground/70 text-[11px]">{p.description}</div>}
           {p.inputPreview && <PermissionPreview toolName={p.toolName} input={p.inputPreview} />}
-        </SessionBanner>
+        </ConversationBanner>
       ),
     })
   }
@@ -93,7 +93,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
       sessionId,
       timestamp: dialog.timestamp,
       render: () => (
-        <SessionBanner accent="blue" label="PLAN APPROVAL">
+        <ConversationBanner accent="blue" label="PLAN APPROVAL">
           <div className="text-foreground/70 text-[11px] line-clamp-3">Plan ready for review</div>
           <div className="flex items-center gap-2 mt-0.5">
             <BannerButton
@@ -106,7 +106,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
               }}
             />
           </div>
-        </SessionBanner>
+        </ConversationBanner>
       ),
     })
   }
@@ -118,7 +118,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
       sessionId: ask.sessionId,
       timestamp: ask.timestamp,
       render: () => (
-        <SessionBanner accent="violet" label="QUESTION">
+        <ConversationBanner accent="violet" label="QUESTION">
           <div className="text-foreground/70 text-[11px] line-clamp-2">
             {ask.questions[0]?.question || 'Waiting for input'}
           </div>
@@ -133,7 +133,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
               }}
             />
           </div>
-        </SessionBanner>
+        </ConversationBanner>
       ),
     })
   }
@@ -145,7 +145,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
       sessionId: link.toSession,
       timestamp: Date.now(),
       render: () => (
-        <SessionBanner
+        <ConversationBanner
           accent="teal"
           label="LINK"
           layout="row"
@@ -190,7 +190,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
       sessionId: n.sessionId,
       timestamp: n.timestamp,
       render: () => (
-        <SessionBanner
+        <ConversationBanner
           accent="muted"
           label="NOTIFY"
           layout="row"

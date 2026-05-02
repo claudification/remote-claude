@@ -12,7 +12,7 @@ import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
 /** Stored session_info snapshot shape used for cross-turn diffing. */
-interface SessionInfoSnapshot {
+interface ConversationInfoSnapshot {
   tools?: unknown[]
   slashCommands?: unknown[]
   skills?: unknown[]
@@ -55,7 +55,7 @@ function setDiff(prev: string[], next: string[]): { added: string[]; removed: st
  * the user." Each change becomes its own TranscriptLaunchEntry (phase: 'live',
  * fresh launchId) so they render as separate cards.
  */
-function diffSessionInfo(prev: SessionInfoSnapshot, next: SessionInfoSnapshot): TranscriptLaunchEntry[] {
+function diffSessionInfo(prev: ConversationInfoSnapshot, next: ConversationInfoSnapshot): TranscriptLaunchEntry[] {
   const out: TranscriptLaunchEntry[] = []
   const ts = () => new Date().toISOString()
   const mkEntry = (step: WrapperLaunchStep, detail: string, raw: Record<string, unknown>): TranscriptLaunchEntry => ({
@@ -89,7 +89,7 @@ function diffSessionInfo(prev: SessionInfoSnapshot, next: SessionInfoSnapshot): 
   }
 
   // Collection diffs (names/identities, not identity-by-reference).
-  const cases: Array<{ key: keyof SessionInfoSnapshot; step: WrapperLaunchStep }> = [
+  const cases: Array<{ key: keyof ConversationInfoSnapshot; step: WrapperLaunchStep }> = [
     { key: 'mcpServers', step: 'mcp_servers_changed' },
     { key: 'tools', step: 'tools_changed' },
     { key: 'slashCommands', step: 'slash_commands_changed' },
@@ -216,8 +216,8 @@ const sessionInfo: MessageHandler = (ctx, data) => {
   }
   const conversationId = conversation.id
   const prevSnapshot =
-    ((conversation as unknown as Record<string, unknown>).sessionInfo as SessionInfoSnapshot | undefined) || {}
-  const nextSnapshot: SessionInfoSnapshot = {
+    ((conversation as unknown as Record<string, unknown>).sessionInfo as ConversationInfoSnapshot | undefined) || {}
+  const nextSnapshot: ConversationInfoSnapshot = {
     tools: data.tools as unknown[] | undefined,
     slashCommands: data.slashCommands as unknown[] | undefined,
     skills: data.skills as unknown[] | undefined,

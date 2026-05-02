@@ -1,13 +1,13 @@
 import type { Database } from 'bun:sqlite'
-import { DuplicateEntry, SessionNotFound } from '../errors'
+import { ConversationNotFound, DuplicateEntry } from '../errors'
 import type {
   ConversationCreate,
   ConversationFilter,
   ConversationPatch,
   ConversationRecord,
   ConversationStats,
+  ConversationStore,
   ConversationSummaryRecord,
-  SessionStore,
 } from '../types'
 
 type Params = Record<string, string | number | bigint | boolean | null>
@@ -50,7 +50,7 @@ function rowToSummary(row: Params): ConversationSummaryRecord {
   }
 }
 
-export function createSqliteSessionStore(db: Database): SessionStore {
+export function createSqliteSessionStore(db: Database): ConversationStore {
   const stmtGet = db.prepare('SELECT * FROM sessions WHERE id = $id')
   const stmtInsert = db.prepare(`
     INSERT INTO sessions (id, scope, agent_type, agent_version, title, model, status, created_at, meta)
@@ -95,7 +95,7 @@ export function createSqliteSessionStore(db: Database): SessionStore {
 
     update(id, patch: ConversationPatch) {
       const existing = stmtGet.get({ id })
-      if (!existing) throw new SessionNotFound(id)
+      if (!existing) throw new ConversationNotFound(id)
 
       const sets: string[] = []
       const params: Params = { id }
@@ -202,7 +202,7 @@ export function createSqliteSessionStore(db: Database): SessionStore {
 
     updateStats(id, stats: Partial<ConversationStats>) {
       const row = stmtGet.get({ id }) as Params | null
-      if (!row) throw new SessionNotFound(id)
+      if (!row) throw new ConversationNotFound(id)
 
       const existing: ConversationStats = row.stats ? JSON.parse(row.stats as string) : {}
       const merged = { ...existing, ...stats }

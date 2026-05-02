@@ -117,7 +117,7 @@ async function fetchAndInjectSession(resolvedId?: string, slug?: string): Promis
   return null
 }
 
-interface SessionTagProps {
+interface ConversationTagProps {
   /** Session ID or slug to resolve */
   idOrSlug: string
   /** Resolved session UUID (from tool result) -- used as fallback when slug doesn't match */
@@ -126,7 +126,7 @@ interface SessionTagProps {
   className?: string
 }
 
-export function SessionTag({ idOrSlug, resolvedId, className }: SessionTagProps) {
+export function ConversationTag({ idOrSlug, resolvedId, className }: ConversationTagProps) {
   const { session, displayName } = resolveSessionDisplay(idOrSlug, resolvedId)
   const resolvedPath = session?.project ? projectPath(session.project) : undefined
   const status = session?.status

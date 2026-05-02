@@ -35,7 +35,7 @@ import { CopyMenu } from '../copy-menu'
 import { Markdown } from '../markdown'
 import { AgentTranscriptInline } from './agent-views'
 import { BootTimeline } from './boot-timeline'
-import { SessionTag } from './conversation-tag'
+import { ConversationTag } from './conversation-tag'
 import type { DisplayGroup, TaskNotification } from './grouping'
 import { LaunchTimeline } from './launch-timeline'
 import { MemoizedToolLine } from './tool-line'
@@ -711,7 +711,7 @@ export function GroupView({
                   <div key={i} className="rounded-lg border border-teal-500/30 bg-teal-500/5 px-3 py-2.5 my-1">
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[10px] font-mono text-teal-400/60">from</span>
-                      <SessionTag idOrSlug={item.sessionId || item.source || ''} className="text-xs" />
+                      <ConversationTag idOrSlug={item.sessionId || item.source || ''} className="text-xs" />
                       {item.intent && (
                         <span
                           className={cn(

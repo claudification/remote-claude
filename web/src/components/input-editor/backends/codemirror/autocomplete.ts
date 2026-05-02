@@ -219,18 +219,18 @@ const colonDelayTracker = ViewPlugin.fromClass(
   },
 )
 
-interface SessionCompletion {
+interface ConversationCompletion {
   label: string // what gets inserted (the session id)
   displayLabel: string // what the user sees (project label or id)
   detail: string // right-aligned: session name + status
   info: string // hover tooltip: filesystem path
 }
 
-function sessionCompletions(query: string): SessionCompletion[] {
+function sessionCompletions(query: string): ConversationCompletion[] {
   const state = useConversationsStore.getState()
   const { sessions, projectSettings } = state
   const q = query.toLowerCase()
-  const scored: Array<{ opt: SessionCompletion; score: number }> = []
+  const scored: Array<{ opt: ConversationCompletion; score: number }> = []
 
   // Group sessions by project so the addressable-slug helper can disambiguate
   // siblings with identical title slugs.

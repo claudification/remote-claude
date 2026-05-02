@@ -2,7 +2,7 @@ import { FileText, FolderPlus } from 'lucide-react'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { useKeyLayer } from '@/lib/key-layers'
 import { CommandResults, CommandRow } from './command-results'
-import { SessionRow } from './conversation-results'
+import { ConversationRow } from './conversation-results'
 import { FileResults } from './file-results'
 import { FooterHints } from './footer-hints'
 import { SpawnResults } from './spawn-results'
@@ -130,7 +130,7 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
           ) : (
             palette.mergedItems.map((item, i) =>
               item.kind === 'session' ? (
-                <SessionRow
+                <ConversationRow
                   key={`s:${item.session.id}`}
                   session={item.session}
                   selectedConversationId={palette.selectedConversationId}

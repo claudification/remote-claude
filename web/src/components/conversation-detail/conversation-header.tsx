@@ -90,7 +90,7 @@ interface ConversationTarget {
   nameB: string
 }
 
-interface SessionHeaderProps {
+interface ConversationHeaderProps {
   session: Session
   projectSettings: ProjectSettings | undefined
   model: string | undefined
@@ -100,7 +100,7 @@ interface SessionHeaderProps {
   onSetConversationTarget: (target: ConversationTarget | null) => void
 }
 
-export function SessionHeader({
+export function ConversationHeader({
   session,
   projectSettings,
   model,
@@ -108,7 +108,7 @@ export function SessionHeader({
   infoExpanded,
   onToggleExpanded,
   onSetConversationTarget,
-}: SessionHeaderProps) {
+}: ConversationHeaderProps) {
   return (
     <div className="shrink-0 border-b border-border max-h-[30vh] overflow-y-auto">
       <button

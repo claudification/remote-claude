@@ -17,7 +17,7 @@ export type Tab =
   | 'project'
   | 'diag'
 
-interface SessionTabsProps {
+interface ConversationTabsProps {
   session: Session
   activeTab: Tab
   onSetActiveTab: (tab: Tab) => void
@@ -64,7 +64,7 @@ function tabClickHandler(target: Tab, onSetActiveTab: (tab: Tab) => void) {
   }
 }
 
-export function SessionTabs({
+export function ConversationTabs({
   session,
   activeTab,
   onSetActiveTab,
@@ -75,7 +75,7 @@ export function SessionTabs({
   canReadFiles,
   showDiag,
   expandAll,
-}: SessionTabsProps) {
+}: ConversationTabsProps) {
   return (
     <div className="shrink-0 flex items-center border-b border-border overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
       <TabButton active={activeTab === 'transcript'} onClick={tabClickHandler('transcript', onSetActiveTab)}>
