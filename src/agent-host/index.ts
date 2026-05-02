@@ -1448,7 +1448,7 @@ async function main() {
           return null
         }
       },
-      async onListSessions(status, showMetadata) {
+      async onListConversations(status, showMetadata) {
         if (!ctx.wsClient?.isConnected()) return { sessions: [] }
         return new Promise(resolve => {
           const timeout = setTimeout(() => resolve({ sessions: [] }), 5000)
@@ -1580,7 +1580,7 @@ async function main() {
           } as unknown as AgentHostMessage)
         })
       },
-      async onSpawnSession({ onProgress, ...spawnParams }) {
+      async onSpawnConversation({ onProgress, ...spawnParams }) {
         if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to broker' }
 
         // Step 1: Send spawn request via WS, get immediate ack with conversationId + jobId.
@@ -1711,7 +1711,7 @@ async function main() {
           } as unknown as AgentHostMessage)
         })
       },
-      async onRestartSession(sessionId) {
+      async onRestartConversation(sessionId) {
         if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to broker' }
         return new Promise(resolve => {
           const timeout = setTimeout(
@@ -1771,7 +1771,7 @@ async function main() {
           } as unknown as AgentHostMessage)
         })
       },
-      async onRenameSession(name, description) {
+      async onRenameConversation(name, description) {
         if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to broker' }
         const sessionId = ctx.claudeSessionId || ctx.conversationId
         return new Promise(resolve => {
@@ -1792,7 +1792,7 @@ async function main() {
       onProjectChanged() {
         sendProjectChanged()
       },
-      onExitSession(status, message) {
+      onExitConversation(status, message) {
         const detail = message ? `${status}: ${message}` : status
         beginLaunch(ctx, 'live')
         emitLaunchEvent(ctx, 'conversation_exit', {

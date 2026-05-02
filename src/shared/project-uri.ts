@@ -136,7 +136,7 @@ export function normalizeProjectUri(uri: string): string {
   return `${parsed.scheme}://${authority}${path}${fragment}`
 }
 
-export function projectWithoutSession(uri: string): string {
+export function projectWithoutConversation(uri: string): string {
   const hashIdx = uri.indexOf('#')
   return hashIdx >= 0 ? uri.slice(0, hashIdx) : uri
 }
@@ -169,7 +169,7 @@ function cmp(a: string, b: string): number {
  * sessions for a project, permission scope matching, sidebar grouping.
  */
 export function compareProjectUri(a: string, b: string): number {
-  return cmp(normalizeProjectUri(projectWithoutSession(a)), normalizeProjectUri(projectWithoutSession(b)))
+  return cmp(normalizeProjectUri(projectWithoutConversation(a)), normalizeProjectUri(projectWithoutConversation(b)))
 }
 
 /**
@@ -182,7 +182,7 @@ export function compareProjectUri(a: string, b: string): number {
  * Use this when matching a specific session (e.g. reconnect routing, live
  * session identity) where the conversation within a project matters.
  */
-export function compareProjectSessionUri(a: string, b: string): number {
+export function compareProjectConversationUri(a: string, b: string): number {
   return cmp(normalizeProjectUri(a), normalizeProjectUri(b))
 }
 
@@ -191,5 +191,5 @@ export function isSameProject(a: string, b: string): boolean {
 }
 
 export function isSameProjectConversation(a: string, b: string): boolean {
-  return compareProjectSessionUri(a, b) === 0
+  return compareProjectConversationUri(a, b) === 0
 }

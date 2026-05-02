@@ -129,7 +129,7 @@ export function ConversationContextMenu({
             className={menuItemClass}
             onSelect={() => {
               haptic('tap')
-              useConversationsStore.getState().setRenamingSessionId(session.id)
+              useConversationsStore.getState().setRenamingConversationId(session.id)
             }}
           >
             Rename...
@@ -138,7 +138,7 @@ export function ConversationContextMenu({
             className={menuItemClass}
             onSelect={() => {
               haptic('tap')
-              useConversationsStore.getState().setEditingDescriptionSessionId(session.id)
+              useConversationsStore.getState().setEditingDescriptionConversationId(session.id)
             }}
           >
             Edit description...

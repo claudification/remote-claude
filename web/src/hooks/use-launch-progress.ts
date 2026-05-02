@@ -83,7 +83,7 @@ export function useLaunchProgress({
   }
 
   // Track spawned session by conversationId
-  const spawnedSession: Session | null = useConversationsStore(
+  const spawnedConversation: Session | null = useConversationsStore(
     useCallback(
       state => {
         if (!effectiveWrapperId) return null
@@ -93,9 +93,9 @@ export function useLaunchProgress({
     ),
   )
 
-  const isConnected = launch.completed || (spawnedSession != null && spawnedSession.status !== 'ended')
-  const isRunning = spawnedSession != null && spawnedSession.status !== 'ended'
-  const isComplete = spawnedSession?.status === 'ended'
+  const isConnected = launch.completed || (spawnedConversation != null && spawnedConversation.status !== 'ended')
+  const isRunning = spawnedConversation != null && spawnedConversation.status !== 'ended'
+  const isComplete = spawnedConversation?.status === 'ended'
   const hasError = !!error || launch.failed
 
   // Elapsed timer - only runs when startTime is set
@@ -153,7 +153,7 @@ export function useLaunchProgress({
   useEffect(() => {
     if (!enabled || !effectiveWrapperId || isConnected || hasError || !startTime) return
     const timer = setInterval(() => {
-      if (Date.now() - startTime > timeoutMs && !spawnedSession) {
+      if (Date.now() - startTime > timeoutMs && !spawnedConversation) {
         const sec = Math.round(timeoutMs / 1000)
         setSteps(prev =>
           prev.map(s =>
@@ -166,7 +166,7 @@ export function useLaunchProgress({
       }
     }, 2000)
     return () => clearInterval(timer)
-  }, [enabled, effectiveWrapperId, isConnected, hasError, timeoutMs, spawnedSession, startTime])
+  }, [enabled, effectiveWrapperId, isConnected, hasError, timeoutMs, spawnedConversation, startTime])
 
   // Auto-redirect countdown - starts when session connects
   useEffect(() => {
@@ -202,7 +202,7 @@ export function useLaunchProgress({
     steps,
     error,
     elapsed,
-    spawnedSession,
+    spawnedConversation,
     isConnected,
     isRunning,
     isComplete,

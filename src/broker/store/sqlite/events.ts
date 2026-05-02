@@ -29,7 +29,7 @@ export function createSqliteEventStore(db: Database): EventStore {
       })
     },
 
-    getForSession(sessionId, opts) {
+    getForConversation(sessionId, opts) {
       let sql = 'SELECT * FROM events WHERE session_id = $sessionId'
       const params: Params = { sessionId }
 

@@ -542,7 +542,7 @@ function DismissButton({ sessionId }: { sessionId: string }) {
 
 function InlineRename({ session }: { session: Session }) {
   const renameConversation = useConversationsStore(s => s.renameConversation)
-  const setRenamingSessionId = useConversationsStore(s => s.setRenamingSessionId)
+  const setRenamingConversationId = useConversationsStore(s => s.setRenamingConversationId)
   const inputRef = useRef<HTMLInputElement>(null)
   const [value, setValue] = useState(session.title || '')
 
@@ -568,7 +568,7 @@ function InlineRename({ session }: { session: Session }) {
       onKeyDown={e => {
         e.stopPropagation()
         if (e.key === 'Enter') submit()
-        if (e.key === 'Escape') setRenamingSessionId(null)
+        if (e.key === 'Escape') setRenamingConversationId(null)
       }}
       onClick={e => e.stopPropagation()}
       onBlur={submit}
@@ -589,7 +589,7 @@ function InlineRename({ session }: { session: Session }) {
 
 function InlineDescription({ session }: { session: Session }) {
   const updateDescription = useConversationsStore(s => s.updateDescription)
-  const setEditingDescriptionSessionId = useConversationsStore(s => s.setEditingDescriptionSessionId)
+  const setEditingDescriptionConversationId = useConversationsStore(s => s.setEditingDescriptionConversationId)
   const inputRef = useRef<HTMLInputElement>(null)
   const [value, setValue] = useState(session.description || '')
 
@@ -614,7 +614,7 @@ function InlineDescription({ session }: { session: Session }) {
       onKeyDown={e => {
         e.stopPropagation()
         if (e.key === 'Enter') submit()
-        if (e.key === 'Escape') setEditingDescriptionSessionId(null)
+        if (e.key === 'Escape') setEditingDescriptionConversationId(null)
       }}
       onClick={e => e.stopPropagation()}
       onBlur={submit}
@@ -765,8 +765,8 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
   const ps = useConversationsStore(s => s.projectSettings[session.project])
   const showContextBar = useConversationsStore(s => s.controlPanelPrefs.showContextInList)
   const showCost = useConversationsStore(s => s.controlPanelPrefs.showCostInList)
-  const isRenaming = useConversationsStore(s => s.renamingSessionId === session.id)
-  const isEditingDescription = useConversationsStore(s => s.editingDescriptionSessionId === session.id)
+  const isRenaming = useConversationsStore(s => s.renamingConversationId === session.id)
+  const isEditingDescription = useConversationsStore(s => s.editingDescriptionConversationId === session.id)
   const hasPendingPermission = useConversationsStore(s => s.pendingPermissions.some(p => p.sessionId === session.id))
 
   const projectName = projectDisplayName(projectPath(session.project), ps?.label)
@@ -866,7 +866,7 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
           title={`${session.description}\n(click to edit)`}
           onClick={e => {
             e.stopPropagation()
-            useConversationsStore.getState().setEditingDescriptionSessionId(session.id)
+            useConversationsStore.getState().setEditingDescriptionConversationId(session.id)
           }}
         >
           {session.description}
@@ -1020,8 +1020,8 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
   const ps = useConversationsStore(s => s.projectSettings[session.project])
   const showCost = useConversationsStore(s => s.controlPanelPrefs.showCostInList)
   const showContextBar = useConversationsStore(s => s.controlPanelPrefs.showContextInList)
-  const isRenaming = useConversationsStore(s => s.renamingSessionId === session.id)
-  const isEditingDescription = useConversationsStore(s => s.editingDescriptionSessionId === session.id)
+  const isRenaming = useConversationsStore(s => s.renamingConversationId === session.id)
+  const isEditingDescription = useConversationsStore(s => s.editingDescriptionConversationId === session.id)
   const hasPendingPermission = useConversationsStore(s => s.pendingPermissions.some(p => p.sessionId === session.id))
 
   const displayColor = ps?.color

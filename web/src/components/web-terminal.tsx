@@ -63,20 +63,20 @@ export function WebTerminal({ conversationId, onClose, popout }: WebTerminalProp
   }
 
   // Resolve the owning session for this wrapper (for display purposes)
-  const ownerSession = sessions.find(s => s.ccSessionIds?.includes(conversationId))
+  const ownerConversation = sessions.find(s => s.ccSessionIds?.includes(conversationId))
 
   // Set window title in popout mode
   const projectSettings = useConversationsStore(state => state.projectSettings)
   useEffect(() => {
     if (!popout) return
-    if (ownerSession) {
-      const ps = projectSettings[ownerSession.project]
-      const name = ps?.label || extractProjectLabel(ownerSession.project) || conversationId.slice(0, 8)
+    if (ownerConversation) {
+      const ps = projectSettings[ownerConversation.project]
+      const name = ps?.label || extractProjectLabel(ownerConversation.project) || conversationId.slice(0, 8)
       document.title = `TTY: ${name}`
     } else {
       document.title = `TTY: ${conversationId.slice(0, 8)}`
     }
-  }, [popout, conversationId, ownerSession, projectSettings])
+  }, [popout, conversationId, ownerConversation, projectSettings])
 
   // Main terminal setup
   useEffect(() => {
@@ -328,8 +328,8 @@ export function WebTerminal({ conversationId, onClose, popout }: WebTerminalProp
       >
         <span className="px-3 py-1.5 text-[10px] font-mono flex-1" style={{ color: currentTheme.brightBlack }}>
           {showDisconnected && <WifiOff className="w-3 h-3 inline mr-1.5" />}
-          {ownerSession
-            ? lastPathSegments(projectPath(ownerSession.project), 2)
+          {ownerConversation
+            ? lastPathSegments(projectPath(ownerConversation.project), 2)
             : `TERMINAL - ${conversationId.slice(0, 8)}`}
         </span>
         <div className="flex items-center gap-1 px-2 shrink-0">

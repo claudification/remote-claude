@@ -268,31 +268,31 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         store.sessions.create({ id: SESSION, scope: 'p', agentType: 'claude' })
       })
 
-      it('append + getForSession returns events', () => {
+      it('append + getForConversation returns events', () => {
         store.events.append(SESSION, { type: 'SessionStart', data: { model: 'opus' } })
         store.events.append(SESSION, { type: 'Stop' })
 
-        const events = store.events.getForSession(SESSION)
+        const events = store.events.getForConversation(SESSION)
         expect(events).toHaveLength(2)
         expect(events[0].type).toBe('SessionStart')
         expect(events[1].type).toBe('Stop')
       })
 
-      it('getForSession with type filter', () => {
+      it('getForConversation with type filter', () => {
         store.events.append(SESSION, { type: 'SessionStart' })
         store.events.append(SESSION, { type: 'UserPromptSubmit' })
         store.events.append(SESSION, { type: 'Stop' })
 
-        const stops = store.events.getForSession(SESSION, { types: ['Stop'] })
+        const stops = store.events.getForConversation(SESSION, { types: ['Stop'] })
         expect(stops).toHaveLength(1)
         expect(stops[0].type).toBe('Stop')
       })
 
-      it('getForSession with limit', () => {
+      it('getForConversation with limit', () => {
         for (let i = 0; i < 10; i++) {
           store.events.append(SESSION, { type: 'tick', data: { i } })
         }
-        const limited = store.events.getForSession(SESSION, { limit: 3 })
+        const limited = store.events.getForConversation(SESSION, { limit: 3 })
         expect(limited).toHaveLength(3)
       })
 
@@ -302,7 +302,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         const pruned = store.events.pruneOlderThan(cutoff)
         expect(pruned).toBeGreaterThanOrEqual(1)
 
-        const remaining = store.events.getForSession(SESSION)
+        const remaining = store.events.getForConversation(SESSION)
         expect(remaining).toHaveLength(0)
       })
     })
@@ -473,7 +473,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         expect(store.shares.get('ghost-token')).toBeNull()
       })
 
-      it('getForSession', () => {
+      it('getForConversation', () => {
         store.shares.create({
           token: 'ts-1',
           sessionId: 'shared-sess',
@@ -493,7 +493,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
           expiresAt: Date.now() + 60_000,
         })
 
-        const shares = store.shares.getForSession('shared-sess')
+        const shares = store.shares.getForConversation('shared-sess')
         expect(shares).toHaveLength(2)
         expect(shares.map(s => s.token).sort()).toEqual(['ts-1', 'ts-2'])
       })
@@ -652,7 +652,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
     // -----------------------------------------------------------------
 
     describe('tasks', () => {
-      it('upsert + getForSession', () => {
+      it('upsert + getForConversation', () => {
         store.tasks.upsert('task-sess', {
           id: 't1',
           sessionId: 'task-sess',
@@ -662,7 +662,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
           createdAt: Date.now(),
         })
 
-        const tasks = store.tasks.getForSession('task-sess')
+        const tasks = store.tasks.getForConversation('task-sess')
         expect(tasks).toHaveLength(1)
         expect(tasks[0].id).toBe('t1')
         expect(tasks[0].status).toBe('pending')
@@ -686,12 +686,12 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
           updatedAt: now + 1000,
         })
 
-        const tasks = store.tasks.getForSession('ts')
+        const tasks = store.tasks.getForConversation('ts')
         expect(tasks).toHaveLength(1)
         expect(tasks[0].status).toBe('completed')
       })
 
-      it('getForSession with kind filter', () => {
+      it('getForConversation with kind filter', () => {
         const now = Date.now()
         store.tasks.upsert('ks', {
           id: 'k1',
@@ -708,7 +708,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
           createdAt: now,
         })
 
-        const tasks = store.tasks.getForSession('ks', 'task')
+        const tasks = store.tasks.getForConversation('ks', 'task')
         expect(tasks).toHaveLength(1)
         expect(tasks[0].id).toBe('k1')
       })
@@ -722,14 +722,14 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
           createdAt: Date.now(),
         })
         expect(store.tasks.delete('ds', 'd1')).toBe(true)
-        expect(store.tasks.getForSession('ds')).toHaveLength(0)
+        expect(store.tasks.getForConversation('ds')).toHaveLength(0)
       })
 
       it('delete returns false for missing task', () => {
         expect(store.tasks.delete('ds', 'ghost')).toBe(false)
       })
 
-      it('deleteForSession removes all tasks for session', () => {
+      it('deleteForConversation removes all tasks for session', () => {
         const now = Date.now()
         store.tasks.upsert('bulk', {
           id: 'b1',
@@ -746,9 +746,9 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
           createdAt: now,
         })
 
-        const deleted = store.tasks.deleteForSession('bulk')
+        const deleted = store.tasks.deleteForConversation('bulk')
         expect(deleted).toBe(2)
-        expect(store.tasks.getForSession('bulk')).toHaveLength(0)
+        expect(store.tasks.getForConversation('bulk')).toHaveLength(0)
       })
     })
 

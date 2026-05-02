@@ -316,7 +316,7 @@ function createEventStore(): EventStore {
       })
     },
 
-    getForSession(sessionId, opts) {
+    getForConversation(sessionId, opts) {
       let arr = events.get(sessionId) ?? []
       const types = opts?.types
       if (types?.length) arr = arr.filter(e => types.includes(e.type))
@@ -455,7 +455,7 @@ function createShareStore(): ShareStore {
       return shares.get(token) ?? null
     },
 
-    getForSession(sessionId) {
+    getForConversation(sessionId) {
       return [...shares.values()].filter(s => s.sessionId === sessionId)
     },
 
@@ -572,7 +572,7 @@ function createTaskStore(): TaskStore {
       getConversation(sessionId).set(task.id, { ...task, sessionId })
     },
 
-    getForSession(sessionId, kind?) {
+    getForConversation(sessionId, kind?) {
       const m = tasks.get(sessionId)
       if (!m) return []
       let results = [...m.values()]
@@ -584,7 +584,7 @@ function createTaskStore(): TaskStore {
       return tasks.get(sessionId)?.delete(taskId) ?? false
     },
 
-    deleteForSession(sessionId) {
+    deleteForConversation(sessionId) {
       const m = tasks.get(sessionId)
       if (!m) return 0
       const count = m.size

@@ -6,10 +6,10 @@
 import { registerBootLifecycleHandlers } from './boot-lifecycle'
 import { registerChannelHandlers } from './channel'
 import { registerDashboardActionHandlers } from './control-panel-actions'
-import { registerSessionLifecycleHandlers } from './conversation-lifecycle'
+import { registerConversationLifecycleHandlers } from './conversation-lifecycle'
 import { registerDialogHandlers } from './dialog'
 import { registerFileHandlers } from './files'
-import { registerInterSessionHandlers } from './inter-conversation'
+import { registerInterConversationHandlers } from './inter-conversation'
 import { registerJsonStreamHandlers } from './json-stream'
 import { registerPermissionHandlers } from './permissions'
 import { registerPlanApprovalHandlers } from './plan-approval'
@@ -27,12 +27,12 @@ export function registerAllHandlers(): void {
   registerDashboardActionHandlers()
   registerDialogHandlers()
   registerFileHandlers()
-  registerInterSessionHandlers()
+  registerInterConversationHandlers()
   registerJsonStreamHandlers()
   registerPermissionHandlers()
   registerPlanApprovalHandlers()
   registerRclaudeConfigHandlers()
-  registerSessionLifecycleHandlers()
+  registerConversationLifecycleHandlers()
   registerSpawnHandlers()
   registerTerminalHandlers()
   registerTranscriptHandlers()

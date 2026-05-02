@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   buildProjectUri,
-  compareProjectSessionUri,
+  compareProjectConversationUri,
   compareProjectUri,
   cwdToProjectUri,
   DEFAULT_SENTINEL_NAME,
@@ -409,17 +409,17 @@ describe('compareProjectUri', () => {
   })
 })
 
-describe('compareProjectSessionUri', () => {
+describe('compareProjectConversationUri', () => {
   test('distinguishes different conversation fragments', () => {
-    expect(compareProjectSessionUri('claude://default/foo#conv-1', 'claude://default/foo#conv-2')).not.toBe(0)
+    expect(compareProjectConversationUri('claude://default/foo#conv-1', 'claude://default/foo#conv-2')).not.toBe(0)
   })
 
   test('project URI with no fragment != session URI with fragment', () => {
-    expect(compareProjectSessionUri('claude://default/foo', 'claude://default/foo#conv-2')).not.toBe(0)
+    expect(compareProjectConversationUri('claude://default/foo', 'claude://default/foo#conv-2')).not.toBe(0)
   })
 
   test('identical session URIs compare equal', () => {
-    expect(compareProjectSessionUri('claude:///foo#conv-1', 'claude://default/foo#conv-1')).toBe(0)
+    expect(compareProjectConversationUri('claude:///foo#conv-1', 'claude://default/foo#conv-1')).toBe(0)
   })
 
   test('isSameProjectSession wraps the comparator', () => {

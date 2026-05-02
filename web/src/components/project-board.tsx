@@ -599,7 +599,7 @@ export function RunTaskDialog({
   // Task lifecycle tracking: add steps after session connects
   const connectedStepRef = useRef(false)
   useEffect(() => {
-    if (!progress.isConnected || connectedStepRef.current || !progress.spawnedSession) return
+    if (!progress.isConnected || connectedStepRef.current || !progress.spawnedConversation) return
     connectedStepRef.current = true
     progress.setSteps(prev => [
       ...prev,
@@ -607,38 +607,38 @@ export function RunTaskDialog({
         label: 'Session connected',
         status: 'done' as const,
         ts: Date.now(),
-        detail: progress.spawnedSession!.id.slice(0, 8),
+        detail: progress.spawnedConversation!.id.slice(0, 8),
       },
       { label: 'Waiting for prompt submission...', status: 'active' as const, ts: Date.now() },
     ])
-  }, [progress.isConnected, progress.spawnedSession])
+  }, [progress.isConnected, progress.spawnedConversation])
 
   // Detect session becoming active (prompt submitted) -> add "Running..." step
   const promptDoneRef = useRef(false)
   useEffect(() => {
-    if (!progress.spawnedSession || promptDoneRef.current) return
-    const status = progress.spawnedSession.status
+    if (!progress.spawnedConversation || promptDoneRef.current) return
+    const status = progress.spawnedConversation.status
     if (status !== 'active' && status !== 'idle') return
     promptDoneRef.current = true
     progress.setSteps(prev => {
       const updated = prev.map(s =>
         s.label === 'Waiting for prompt submission...' && s.status === 'active'
-          ? { ...s, status: 'done' as const, detail: progress.spawnedSession!.lastEvent?.hookEvent || 'active' }
+          ? { ...s, status: 'done' as const, detail: progress.spawnedConversation!.lastEvent?.hookEvent || 'active' }
           : s,
       )
       updated.push({
         label: 'Running...',
         status: 'active' as const,
         ts: Date.now(),
-        detail: `${progress.spawnedSession!.eventCount || 0} events`,
+        detail: `${progress.spawnedConversation!.eventCount || 0} events`,
       })
       return updated
     })
-  }, [progress.spawnedSession])
+  }, [progress.spawnedConversation])
 
   // Update running step event count + detect completion
   useEffect(() => {
-    if (!progress.spawnedSession || !promptDoneRef.current) return
+    if (!progress.spawnedConversation || !promptDoneRef.current) return
     if (progress.isComplete) {
       progress.setSteps(prev =>
         prev.map(s =>
@@ -647,7 +647,7 @@ export function RunTaskDialog({
                 ...s,
                 status: 'done' as const,
                 label: 'Task complete',
-                detail: `${progress.elapsed}s, ${progress.spawnedSession!.eventCount || 0} events`,
+                detail: `${progress.elapsed}s, ${progress.spawnedConversation!.eventCount || 0} events`,
               }
             : s,
         ),
@@ -655,16 +655,16 @@ export function RunTaskDialog({
     } else {
       progress.setSteps(prev =>
         prev.map(s =>
-          s.label === 'Running...' ? { ...s, detail: `${progress.spawnedSession!.eventCount || 0} events` } : s,
+          s.label === 'Running...' ? { ...s, detail: `${progress.spawnedConversation!.eventCount || 0} events` } : s,
         ),
       )
     }
-  }, [progress.spawnedSession, progress.isComplete, progress.elapsed])
+  }, [progress.spawnedConversation, progress.isComplete, progress.elapsed])
 
   // Auto-redirect when countdown reaches 0
   useEffect(() => {
     if (progress.viewCountdown !== 0) return
-    const sid = progress.launch.sessionId || progress.spawnedSession?.id
+    const sid = progress.launch.sessionId || progress.spawnedConversation?.id
     if (!sid) return
     const currentId = useConversationsStore.getState().selectedConversationId
     const userNavigatedAway = currentId !== sessionAtLaunchRef.current && currentId !== null
@@ -676,7 +676,7 @@ export function RunTaskDialog({
       )
     }
     onClose()
-  }, [progress.viewCountdown, progress.launch.sessionId, progress.spawnedSession, onClose])
+  }, [progress.viewCountdown, progress.launch.sessionId, progress.spawnedConversation, onClose])
 
   async function handleRun() {
     if (phase !== 'config' || !spawnPath) return
@@ -740,7 +740,7 @@ export function RunTaskDialog({
   }
 
   function handleViewConversation() {
-    const sid = progress.launch.sessionId || progress.spawnedSession?.id
+    const sid = progress.launch.sessionId || progress.spawnedConversation?.id
     if (sid) {
       useConversationsStore.getState().selectConversation(sid, 'project-board-view-session')
       progress.setViewCountdown(null)

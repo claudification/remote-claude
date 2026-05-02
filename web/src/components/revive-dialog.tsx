@@ -107,10 +107,10 @@ export function ReviveDialog() {
         label: 'Session connected',
         status: 'done',
         ts: Date.now(),
-        detail: (progress.launch.sessionId || progress.spawnedSession?.id || '').slice(0, 8),
+        detail: (progress.launch.sessionId || progress.spawnedConversation?.id || '').slice(0, 8),
       },
     ])
-  }, [progress.isConnected, progress.launch.sessionId, progress.spawnedSession?.id])
+  }, [progress.isConnected, progress.launch.sessionId, progress.spawnedConversation?.id])
 
   // Auto-redirect when countdown reaches 0
   useEffect(() => {
@@ -152,22 +152,24 @@ export function ReviveDialog() {
     const userNavigatedAway = currentId !== sessionAtReviveRef.current && currentId !== null
     const sid =
       progress.launch.sessionId ||
-      (progress.spawnedSession && progress.spawnedSession.status !== 'ended' ? progress.spawnedSession.id : null)
+      (progress.spawnedConversation && progress.spawnedConversation.status !== 'ended'
+        ? progress.spawnedConversation.id
+        : null)
 
     if (sid && !userNavigatedAway) {
       useConversationsStore.getState().selectConversation(sid, 'revive-dialog-close')
     }
     setState({ open: false, options: null })
     setJobId(null)
-  }, [progress.launch.sessionId, progress.spawnedSession])
+  }, [progress.launch.sessionId, progress.spawnedConversation])
 
   const handleViewConversation = useCallback(() => {
-    const sid = progress.launch.sessionId || progress.spawnedSession?.id
+    const sid = progress.launch.sessionId || progress.spawnedConversation?.id
     if (sid) useConversationsStore.getState().selectConversation(sid, 'revive-dialog-view-session')
     progress.setViewCountdown(null)
     setState({ open: false, options: null })
     setJobId(null)
-  }, [progress.launch.sessionId, progress.spawnedSession, progress.setViewCountdown])
+  }, [progress.launch.sessionId, progress.spawnedConversation, progress.setViewCountdown])
 
   const handleRevive = useCallback(() => {
     if (!state.options || phase !== 'config' || !session) return

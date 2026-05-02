@@ -75,12 +75,12 @@ export function createAdminRouter(
         // Push updated permissions
         const serverRoles = user.serverRoles
         const global = resolvePermissionFlags(user.grants, '*', serverRoles)
-        const perSessionPerms: Record<string, ReturnType<typeof resolvePermissionFlags>> = {}
+        const perConversationPerms: Record<string, ReturnType<typeof resolvePermissionFlags>> = {}
         for (const s of conversationStore.getActiveConversations()) {
-          perSessionPerms[s.id] = resolvePermissionFlags(user.grants, s.project, serverRoles)
+          perConversationPerms[s.id] = resolvePermissionFlags(user.grants, s.project, serverRoles)
         }
         try {
-          ws.send(JSON.stringify({ type: 'permissions', global, sessions: perSessionPerms }))
+          ws.send(JSON.stringify({ type: 'permissions', global, sessions: perConversationPerms }))
         } catch {}
         // Re-send filtered session list (user might gain/lose access)
         conversationStore.sendConversationsList(ws)

@@ -12,14 +12,14 @@ const PRUNE_TO = 50
 
 interface UIState {
   /** Last selected session ID (supplements URL hash for reload resilience) */
-  lastSessionId: string | null
+  lastConversationId: string | null
   /** Remembered tab per session */
-  tabPerSession: Record<string, string>
+  tabPerConversation: Record<string, string>
 }
 
 const defaults: UIState = {
-  lastSessionId: null,
-  tabPerSession: {},
+  lastConversationId: null,
+  tabPerConversation: {},
 }
 
 let cache: UIState | undefined
@@ -62,33 +62,33 @@ function flush() {
 
 // ─── Accessors ───────────────────────────────────────────────────────
 
-export function getLastSessionId(): string | null {
-  return load().lastSessionId
+export function getLastConversationId(): string | null {
+  return load().lastConversationId
 }
 
-export function setLastSessionId(id: string | null) {
+export function setLastConversationId(id: string | null) {
   const state = load()
-  if (state.lastSessionId === id) return
-  state.lastSessionId = id
+  if (state.lastConversationId === id) return
+  state.lastConversationId = id
   scheduleFlush()
 }
 
 export function getConversationTab(sessionId: string): string | null {
-  return load().tabPerSession[sessionId] ?? null
+  return load().tabPerConversation[sessionId] ?? null
 }
 
 export function setConversationTab(sessionId: string, tab: string) {
   const state = load()
-  if (state.tabPerSession[sessionId] === tab) return
-  state.tabPerSession[sessionId] = tab
+  if (state.tabPerConversation[sessionId] === tab) return
+  state.tabPerConversation[sessionId] = tab
   // Prune if over limit -- keep the most recently written entries
-  const keys = Object.keys(state.tabPerSession)
+  const keys = Object.keys(state.tabPerConversation)
   if (keys.length > MAX_TAB_ENTRIES) {
     const pruned: Record<string, string> = {}
     for (const k of keys.slice(-PRUNE_TO)) {
-      pruned[k] = state.tabPerSession[k]
+      pruned[k] = state.tabPerConversation[k]
     }
-    state.tabPerSession = pruned
+    state.tabPerConversation = pruned
   }
   scheduleFlush()
 }

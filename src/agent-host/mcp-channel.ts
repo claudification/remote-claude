@@ -81,7 +81,7 @@ export interface PermissionRequestData {
 export interface McpChannelCallbacks {
   onNotify?: (message: string, title?: string) => void
   onShareFile?: (filePath: string) => Promise<string | null>
-  onListSessions?: (
+  onListConversations?: (
     status?: string,
     showMetadata?: boolean,
   ) => Promise<{ sessions: ConversationInfo[]; self?: Record<string, unknown> }>
@@ -109,14 +109,14 @@ export interface McpChannelCallbacks {
     effort?: string
     permissionMode?: string
   }) => Promise<{ ok: boolean; error?: string; name?: string }>
-  onRestartSession?: (sessionId: string) => Promise<{
+  onRestartConversation?: (sessionId: string) => Promise<{
     ok: boolean
     error?: string
     name?: string
     selfRestart?: boolean
     alreadyEnded?: boolean
   }>
-  onSpawnSession?: (
+  onSpawnConversation?: (
     params: Omit<SpawnRequest, 'jobId'> & {
       onProgress?: (event: Record<string, unknown>) => void
     },
@@ -138,11 +138,11 @@ export interface McpChannelCallbacks {
   /** Deliver a message to Claude (channel notification in PTY, stdin user message in headless) */
   onDeliverMessage?: (content: string, meta: Record<string, string>) => void
   /** Rename the current session */
-  onRenameSession?: (name: string, description?: string) => Promise<{ ok: boolean; error?: string }>
+  onRenameConversation?: (name: string, description?: string) => Promise<{ ok: boolean; error?: string }>
   /** Notify that project tasks changed (triggers project_changed broadcast to dashboard) */
   onProjectChanged?: () => void
   /** Self-terminate this session */
-  onExitSession?: (status: 'success' | 'error', message?: string) => void
+  onExitConversation?: (status: 'success' | 'error', message?: string) => void
 }
 
 interface McpChannelState {
@@ -497,7 +497,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
       },
       async handle(params) {
         const showMeta = String(params.show_metadata) === 'true'
-        const result = (await callbacks.onListSessions?.(params.status, showMeta)) || { sessions: [] }
+        const result = (await callbacks.onListConversations?.(params.status, showMeta)) || { sessions: [] }
         let { sessions } = result
         const { self } = result
         if (params.filter) {
@@ -721,7 +721,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
           const sessionId = params.session_id
           if (!sessionId)
             return { content: [{ type: 'text', text: 'Error: session_id is required for restart' }], isError: true }
-          const result = await callbacks.onRestartSession?.(sessionId)
+          const result = await callbacks.onRestartConversation?.(sessionId)
           if (!result?.ok) {
             debug(`[channel] spawn_session(restart) failed: ${result?.error}`)
             return { content: [{ type: 'text', text: result?.error || 'Failed to restart session' }], isError: true }
@@ -828,7 +828,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
 
         const { jobId: _jobId, cwd: _cwd, host: _host, ...spawnRest } = params as SpawnRequest & Record<string, unknown>
         const sentinel = (params.host as string) || (params.sentinel as string) || undefined
-        const result = (await callbacks.onSpawnSession?.({
+        const result = (await callbacks.onSpawnConversation?.({
           ...spawnRest,
           cwd,
           sentinel,
@@ -968,7 +968,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
         const status = (params.status as 'success' | 'error') || 'success'
         const message = typeof params.message === 'string' ? params.message : undefined
         debug(`[channel] exit_session: status=${status} message=${message || '(none)'}`)
-        callbacks.onExitSession?.(status, message)
+        callbacks.onExitConversation?.(status, message)
         return { content: [{ type: 'text', text: `Session exiting (${status})` }] }
       },
     },
@@ -1041,7 +1041,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
       async handle(params) {
         const newName = typeof params.name === 'string' ? params.name : ''
         const newDesc = typeof params.description === 'string' ? params.description : undefined
-        const result = await callbacks.onRenameSession?.(newName, newDesc)
+        const result = await callbacks.onRenameConversation?.(newName, newDesc)
         if (!result?.ok) {
           debug(`[channel] rename_session failed: ${result?.error}`)
           return {

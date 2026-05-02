@@ -188,7 +188,7 @@ export interface EventRecord {
 
 export interface EventStore {
   append(sessionId: string, event: EventInput): void
-  getForSession(sessionId: string, opts?: { types?: string[]; limit?: number; afterId?: number }): EventRecord[]
+  getForConversation(sessionId: string, opts?: { types?: string[]; limit?: number; afterId?: number }): EventRecord[]
   pruneOlderThan(cutoffMs: number): number
 }
 
@@ -276,7 +276,7 @@ export interface ShareRecord {
 export interface ShareStore {
   create(share: ShareCreate): ShareRecord
   get(token: string): ShareRecord | null
-  getForSession(sessionId: string): ShareRecord[]
+  getForConversation(sessionId: string): ShareRecord[]
   incrementViewerCount(token: string): void
   delete(token: string): boolean
   deleteExpired(): number
@@ -340,9 +340,9 @@ export interface TaskRecord {
 
 export interface TaskStore {
   upsert(sessionId: string, task: TaskRecord): void
-  getForSession(sessionId: string, kind?: string): TaskRecord[]
+  getForConversation(sessionId: string, kind?: string): TaskRecord[]
   delete(sessionId: string, taskId: string): boolean
-  deleteForSession(sessionId: string): number
+  deleteForConversation(sessionId: string): number
 }
 
 // ---------------------------------------------------------------------------

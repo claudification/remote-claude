@@ -22,8 +22,8 @@ import {
 // ─── Inline description editor (session header, expanded view) ──────
 
 function HeaderDescription({ session }: { session: Session }) {
-  const isEditing = useConversationsStore(s => s.editingDescriptionSessionId === session.id)
-  const setEditing = useConversationsStore(s => s.setEditingDescriptionSessionId)
+  const isEditing = useConversationsStore(s => s.editingDescriptionConversationId === session.id)
+  const setEditing = useConversationsStore(s => s.setEditingDescriptionConversationId)
   const updateDescription = useConversationsStore(s => s.updateDescription)
   const inputRef = useRef<HTMLInputElement>(null)
   const [value, setValue] = useState(session.description || '')

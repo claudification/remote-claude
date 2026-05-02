@@ -23,7 +23,7 @@ import {
   type TranscriptEntry,
   type UsageUpdate,
 } from '@/lib/types'
-import { getConversationTab, getLastSessionId, initUIState, setLastSessionId } from '@/lib/ui-state'
+import { getConversationTab, getLastConversationId, initUIState, setLastConversationId } from '@/lib/ui-state'
 import { recordOut } from './ws-stats'
 
 export type { ProjectSettingsMap }
@@ -257,11 +257,11 @@ interface ConversationsState {
   sendWsMessage: (msg: Record<string, unknown>) => void
   dismissConversation: (sessionId: string) => void
   terminateConversation: (sessionId: string) => void
-  renamingSessionId: string | null
-  setRenamingSessionId: (sessionId: string | null) => void
+  renamingConversationId: string | null
+  setRenamingConversationId: (sessionId: string | null) => void
   renameConversation: (sessionId: string, name: string, description?: string) => void
-  editingDescriptionSessionId: string | null
-  setEditingDescriptionSessionId: (sessionId: string | null) => void
+  editingDescriptionConversationId: string | null
+  setEditingDescriptionConversationId: (sessionId: string | null) => void
   updateDescription: (sessionId: string, description: string) => void
   setPendingFilePath: (path: string | null) => void
   pendingTaskEdit: { slug: string; status: string } | null
@@ -362,7 +362,7 @@ function applyDefaultSession() {
   }
 
   // Try last-viewed session from localStorage
-  const lastId = getLastSessionId()
+  const lastId = getLastConversationId()
   if (lastId && store.sessionsById[lastId]) {
     store.selectConversation(lastId, 'default-session-last-viewed')
     return
@@ -559,8 +559,8 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   pendingFilePath: null,
   pendingTaskEdit: null,
   setPendingTaskEdit: task => set({ pendingTaskEdit: task }),
-  renamingSessionId: null,
-  setRenamingSessionId: sessionId => set({ renamingSessionId: sessionId }),
+  renamingConversationId: null,
+  setRenamingConversationId: sessionId => set({ renamingConversationId: sessionId }),
   renameConversation: (sessionId, name, description) => {
     wsSend('rename_conversation', { sessionId, name, ...(description !== undefined ? { description } : {}) })
     set(state => {
@@ -573,11 +573,11 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
             }
           : s,
       )
-      return { renamingSessionId: null, sessions, sessionsById: buildConversationsById(sessions) }
+      return { renamingConversationId: null, sessions, sessionsById: buildConversationsById(sessions) }
     })
   },
-  editingDescriptionSessionId: null,
-  setEditingDescriptionSessionId: sessionId => set({ editingDescriptionSessionId: sessionId }),
+  editingDescriptionConversationId: null,
+  setEditingDescriptionConversationId: sessionId => set({ editingDescriptionConversationId: sessionId }),
   updateDescription: (sessionId, description) => {
     const session = get().sessionsById[sessionId]
     const name = session?.title || ''
@@ -586,7 +586,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       const sessions = state.sessions.map(s =>
         s.id === sessionId ? { ...s, description: description || undefined } : s,
       )
-      return { editingDescriptionSessionId: null, sessions, sessionsById: buildConversationsById(sessions) }
+      return { editingDescriptionConversationId: null, sessions, sessionsById: buildConversationsById(sessions) }
     })
   },
   inputDrafts: {},
@@ -690,7 +690,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       }
     })
     updateHash(id ? `session/${id}` : '')
-    setLastSessionId(id)
+    setLastConversationId(id)
     // Clear notification badge + bell notifications when viewing a session
     if (id) {
       const session = get().sessionsById[id]
@@ -728,9 +728,9 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   toggleDebugConsole: () => set(state => ({ showDebugConsole: !state.showDebugConsole })),
   openTerminal: conversationId => {
     // Find the session that owns this wrapper so we can select it in the main panel too
-    const ownerSession = get().sessions.find(s => s.ccSessionIds?.includes(conversationId))
+    const ownerConversation = get().sessions.find(s => s.ccSessionIds?.includes(conversationId))
     const prev = get().selectedConversationId
-    const next = ownerSession?.id ?? null
+    const next = ownerConversation?.id ?? null
     if (next !== prev) {
       console.log(
         `[nav] openTerminal: ${prev?.slice(0, 8) || 'none'} -> ${next?.slice(0, 8) || 'none'} wrapper=${conversationId.slice(0, 8)}`,

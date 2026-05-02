@@ -434,7 +434,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
   )
 }
 
-export function registerInterSessionHandlers(): void {
+export function registerInterConversationHandlers(): void {
   registerHandlers({
     channel_revive: handleChannelRevive,
     channel_spawn: handleChannelSpawn,

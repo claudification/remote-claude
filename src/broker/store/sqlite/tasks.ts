@@ -21,7 +21,7 @@ export function createSqliteTaskStore(db: Database): TaskStore {
     ON CONFLICT(session_id, id) DO UPDATE SET
       kind = $kind, status = $status, name = $name, data = $data, updated_at = $updatedAt
   `)
-  const stmtForSession = db.prepare('SELECT * FROM tasks WHERE session_id = $sessionId')
+  const stmtForConversation = db.prepare('SELECT * FROM tasks WHERE session_id = $sessionId')
   const stmtForSessionKind = db.prepare('SELECT * FROM tasks WHERE session_id = $sessionId AND kind = $kind')
   const stmtDelete = db.prepare('DELETE FROM tasks WHERE session_id = $sessionId AND id = $id')
   const stmtDeleteAll = db.prepare('DELETE FROM tasks WHERE session_id = $sessionId')
@@ -40,12 +40,12 @@ export function createSqliteTaskStore(db: Database): TaskStore {
       })
     },
 
-    getForSession(sessionId, kind?) {
+    getForConversation(sessionId, kind?) {
       if (kind) {
         const rows = stmtForSessionKind.all({ sessionId, kind }) as Record<string, string | number | null>[]
         return rows.map(rowToTask)
       }
-      const rows = stmtForSession.all({ sessionId }) as Record<string, string | number | null>[]
+      const rows = stmtForConversation.all({ sessionId }) as Record<string, string | number | null>[]
       return rows.map(rowToTask)
     },
 
@@ -54,7 +54,7 @@ export function createSqliteTaskStore(db: Database): TaskStore {
       return result.changes > 0
     },
 
-    deleteForSession(sessionId) {
+    deleteForConversation(sessionId) {
       const result = stmtDeleteAll.run({ sessionId })
       return result.changes
     },

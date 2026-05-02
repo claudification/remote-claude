@@ -31,7 +31,7 @@ export function ProjectList() {
   const showEnded = useConversationsStore(s => s.controlPanelPrefs.showEndedConversations)
   const showInactive = useConversationsStore(s => s.controlPanelPrefs.showInactiveByDefault)
   const updatePrefs = useConversationsStore(s => s.updateControlPanelPrefs)
-  const [_pulseSessionId, setPulseSessionId] = useState<string | null>(null)
+  const [_pulseSessionId, setPulseConversationId] = useState<string | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem('collapsed-groups')
@@ -143,7 +143,7 @@ export function ProjectList() {
   // Groups stay collapsed -- the selected session "peeks" below the group header
   useEffect(() => {
     if (!selectedConversationId) return
-    setPulseSessionId(selectedConversationId)
+    setPulseConversationId(selectedConversationId)
     requestAnimationFrame(() => {
       const el = document.querySelector(`[data-session-id="${selectedConversationId}"]`)
       if (el) {
@@ -152,7 +152,7 @@ export function ProjectList() {
         setTimeout(() => el.classList.remove('conversation-pulse'), 1500)
       }
     })
-    const timer = setTimeout(() => setPulseSessionId(null), 1500)
+    const timer = setTimeout(() => setPulseConversationId(null), 1500)
     return () => clearTimeout(timer)
   }, [selectedConversationId])
 

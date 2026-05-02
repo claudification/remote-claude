@@ -271,7 +271,7 @@ const sessionStatus: MessageHandler = (ctx, data) => {
   ctx.log.debug(`session_status: ${conversationId.slice(0, 8)} -> ${status}`)
 }
 
-export function registerSessionLifecycleHandlers(): void {
+export function registerConversationLifecycleHandlers(): void {
   registerHandlers({
     meta,
     hook,
