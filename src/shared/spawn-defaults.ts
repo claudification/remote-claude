@@ -4,7 +4,7 @@
  * Merges `explicit > project > global > undefined` across every field that
  * has a settings-backed default. Consumed by:
  * - HTTP /api/spawn route (src/broker/routes.ts)
- * - HTTP /sessions/:id/revive route
+ * - HTTP /conversations/:id/revive route
  * - WS channel_spawn handler (src/broker/handlers/inter-session.ts)
  *
  * Empty strings, the `'default'` sentinel, and `0` numerics (in defaults) all

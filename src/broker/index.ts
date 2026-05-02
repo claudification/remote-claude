@@ -179,11 +179,11 @@ ENDPOINTS:
     ws://localhost:${DEFAULT_BROKER_PORT}/      Connect session
 
   REST API:
-    GET  /sessions                List all sessions
-    GET  /sessions?active=true    List active sessions only
-    GET  /sessions/:id            Get session details
-    GET  /sessions/:id/events     Get session events
-    POST /sessions/:id/input      Send input to session
+    GET  /conversations                List all sessions
+    GET  /conversations?active=true    List active sessions only
+    GET  /conversations/:id            Get session details
+    GET  /conversations/:id/events     Get session events
+    POST /conversations/:id/input      Send input to session
     GET  /health                  Health check
 
 EXAMPLES:

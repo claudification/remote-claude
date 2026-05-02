@@ -13,7 +13,7 @@ import { resolveInJail } from './path-jail'
 import { createAdminRouter } from './routes/admin'
 import { createApiRouter } from './routes/api'
 import { blobDir, initBlobStore, initSharedFilesLog } from './routes/blob-store'
-import { createSessionsRouter } from './routes/conversations'
+import { createConversationsRouter } from './routes/conversations'
 import { createSentinelRouter } from './routes/sentinels'
 import { createRouteHelpers } from './routes/shared'
 import { createSpawnRouter } from './routes/spawn'
@@ -218,7 +218,7 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   // ─── Sub-routers ────────────────────────────────────────────────────
-  app.route('/', createSessionsRouter(conversationStore, helpers))
+  app.route('/', createConversationsRouter(conversationStore, helpers))
   app.route('/', createSpawnRouter(conversationStore, helpers))
   app.route(
     '/',

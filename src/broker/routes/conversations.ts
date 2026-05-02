@@ -1,5 +1,5 @@
 /**
- * Session routes -- /sessions/*
+ * Conversation routes -- /conversations/*
  */
 
 import { randomUUID } from 'node:crypto'
@@ -16,9 +16,9 @@ import { getProjectSettings } from '../project-settings'
 import { validateShare } from '../shares'
 import { processImagesInEntry } from './blob-store'
 import type { RouteHelpers } from './shared'
-import { broadcastToSubscribers, sessionToOverview } from './shared'
+import { broadcastToSubscribers, conversationToOverview } from './shared'
 
-export function createSessionsRouter(conversationStore: ConversationStore, helpers: RouteHelpers): Hono {
+export function createConversationsRouter(conversationStore: ConversationStore, helpers: RouteHelpers): Hono {
   const { httpHasPermission, httpIsAdmin, filterConversationsByHttpGrants } = helpers
   const app = new Hono()
 
@@ -26,14 +26,14 @@ export function createSessionsRouter(conversationStore: ConversationStore, helpe
     const activeOnly = c.req.query('active') === 'true'
     const sessions = activeOnly ? conversationStore.getActiveConversations() : conversationStore.getAllConversations()
     const filtered = filterConversationsByHttpGrants(c.req.raw, sessions)
-    return c.json(filtered.map(s => sessionToOverview(s, conversationStore)))
+    return c.json(filtered.map(s => conversationToOverview(s, conversationStore)))
   })
 
   app.get('/conversations/:id', c => {
     const session = conversationStore.getConversation(c.req.param('id'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
     if (!httpHasPermission(c.req.raw, 'chat:read', session.project)) return c.json({ error: 'Forbidden' }, 403)
-    return c.json(sessionToOverview(session, conversationStore))
+    return c.json(conversationToOverview(session, conversationStore))
   })
 
   app.get('/conversations/:id/events', c => {
@@ -318,7 +318,7 @@ export function createSessionsRouter(conversationStore: ConversationStore, helpe
       return slugify(s.id.slice(0, 8)) === slug
     })
     if (!match) return c.json({ error: 'Session not found' }, 404)
-    return c.json(sessionToOverview(match, conversationStore))
+    return c.json(conversationToOverview(match, conversationStore))
   })
 
   app.get('/api/share-resolve/:token', c => {
