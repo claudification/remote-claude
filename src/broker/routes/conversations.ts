@@ -19,13 +19,13 @@ import type { RouteHelpers } from './shared'
 import { broadcastToSubscribers, sessionToOverview } from './shared'
 
 export function createSessionsRouter(conversationStore: ConversationStore, helpers: RouteHelpers): Hono {
-  const { httpHasPermission, httpIsAdmin, filterSessionsByHttpGrants } = helpers
+  const { httpHasPermission, httpIsAdmin, filterConversationsByHttpGrants } = helpers
   const app = new Hono()
 
   app.get('/conversations', c => {
     const activeOnly = c.req.query('active') === 'true'
     const sessions = activeOnly ? conversationStore.getActiveConversations() : conversationStore.getAllConversations()
-    const filtered = filterSessionsByHttpGrants(c.req.raw, sessions)
+    const filtered = filterConversationsByHttpGrants(c.req.raw, sessions)
     return c.json(filtered.map(s => sessionToOverview(s, conversationStore)))
   })
 
@@ -310,7 +310,7 @@ export function createSessionsRouter(conversationStore: ConversationStore, helpe
   app.get('/conversations/by-slug/:slug', c => {
     const slug = c.req.param('slug')
     const all = conversationStore.getAllConversations()
-    const filtered = filterSessionsByHttpGrants(c.req.raw, all)
+    const filtered = filterConversationsByHttpGrants(c.req.raw, all)
     const match = filtered.find(s => {
       if (s.title && slugify(s.title) === slug) return true
       const dirname = extractProjectLabel(s.project)

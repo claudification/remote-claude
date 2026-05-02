@@ -106,7 +106,7 @@ export function useCommandPalette(onClose: () => void) {
   const deduplicated = sessions.filter(s => s.status !== 'ended' || !activeProjects.has(s.project))
   const mruIndex = new Map(sessionMru.map((id, i) => [id, i]))
   const freqMap = useMemo(() => getFrequencyMap(), [])
-  const allSessions = [...deduplicated].sort((a, b) => {
+  const allConversations = [...deduplicated].sort((a, b) => {
     const ai = mruIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER
     const bi = mruIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER
     // Top 2 MRU spots are sacred (alt-tab behavior)
@@ -123,36 +123,36 @@ export function useCommandPalette(onClose: () => void) {
 
   const sessionFzf = useMemo(
     () =>
-      new Fzf(allSessions, {
+      new Fzf(allConversations, {
         selector: (s: Session) => {
           const ps = projectSettings[s.project]
           return `${projectPath(s.project)} ${ps?.label || ''} ${s.title || ''} ${s.agentName || ''} ${s.id} ${s.model || ''} ${s.status}`
         },
         casing: 'case-insensitive',
       }),
-    [allSessions, projectSettings],
+    [allConversations, projectSettings],
   )
   // Fzf over commands for the merged-into-sessions result list (no prefix).
   const paletteCommandFzf = useMemo(
     () => new Fzf(registryCommands, { selector: c => `${c.label} ${c.id}`, casing: 'case-insensitive' }),
     [registryCommands],
   )
-  const isSessionMode = !isFileMode && !isSpawnMode && !isCommandMode && !isTaskMode
+  const isConversationMode = !isFileMode && !isSpawnMode && !isCommandMode && !isTaskMode
 
   // Unified fuzzy results for session mode: sessions + commands-at-low-score.
   // Sessions are the primary surface, commands appear below for matching filter text.
   const sessionSearchResults = useMemo(() => {
-    if (!isSessionMode || !filter) return []
+    if (!isConversationMode || !filter) return []
     return sessionFzf.find(filter).map(r => ({
       kind: 'session' as const,
       session: r.item,
       score: r.score,
       live: r.item.status !== 'ended',
     }))
-  }, [isSessionMode, filter, sessionFzf])
+  }, [isConversationMode, filter, sessionFzf])
 
   const commandSearchResults = useMemo(() => {
-    if (!isSessionMode || !filter) return []
+    if (!isConversationMode || !filter) return []
     // Penalty keeps commands below equally-scored sessions ("low score")
     const COMMAND_SCORE_PENALTY = 0.5
     return paletteCommandFzf.find(filter).map(r => ({
@@ -161,16 +161,16 @@ export function useCommandPalette(onClose: () => void) {
       score: r.score * COMMAND_SCORE_PENALTY,
       live: false,
     }))
-  }, [isSessionMode, filter, paletteCommandFzf])
+  }, [isConversationMode, filter, paletteCommandFzf])
 
   type MergedItem =
     | { kind: 'session'; session: Session; score: number; live: boolean }
     | { kind: 'command'; command: (typeof registryCommands)[0]; score: number; live: boolean }
 
   const mergedItems: MergedItem[] = useMemo(() => {
-    if (!isSessionMode) return []
+    if (!isConversationMode) return []
     if (!filter) {
-      return allSessions
+      return allConversations
         .filter(s => s.status !== 'ended' && s.id !== selectedConversationId)
         .map(s => ({ kind: 'session' as const, session: s, score: 0, live: true }))
     }
@@ -181,7 +181,7 @@ export function useCommandPalette(onClose: () => void) {
       return b.score - a.score
     })
     return merged
-  }, [isSessionMode, filter, allSessions, selectedConversationId, sessionSearchResults, commandSearchResults])
+  }, [isConversationMode, filter, allConversations, selectedConversationId, sessionSearchResults, commandSearchResults])
 
   // Preserved for consumers that only want the session subset (footer hints etc.)
   const filteredSessions = useMemo(
@@ -363,16 +363,16 @@ export function useCommandPalette(onClose: () => void) {
   }, [])
 
   // Track frequency when selecting via switcher (keyboard or click)
-  function selectConversationWithTracking(session: Session, onSelectSession: (id: string) => void) {
+  function selectConversationWithTracking(session: Session, onSelectConversation: (id: string) => void) {
     recordSwitch(session.project)
-    onSelectSession(session.id)
+    onSelectConversation(session.id)
   }
 
   // --- Keyboard handler ---
   function handleKeyDown(
     e: React.KeyboardEvent,
     callbacks: {
-      onSelectSession: (id: string) => void
+      onSelectConversation: (id: string) => void
       onFileSelect: (sessionId: string, path: string) => void
     },
   ) {
@@ -425,7 +425,7 @@ export function useCommandPalette(onClose: () => void) {
         } else {
           const item = mergedItems[activeIndex]
           if (item?.kind === 'session') {
-            selectConversationWithTracking(item.session, callbacks.onSelectSession)
+            selectConversationWithTracking(item.session, callbacks.onSelectConversation)
           } else if (item?.kind === 'command') {
             item.command.action()
           }
@@ -452,7 +452,7 @@ export function useCommandPalette(onClose: () => void) {
     // Store data
     sessions: filteredSessions,
     mergedItems,
-    allSessions,
+    allConversations,
     selectedConversationId,
     projectSettings,
     sentinelConnected,

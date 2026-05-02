@@ -21,7 +21,7 @@ export function sanitizeConversationName(raw: string): string {
 }
 
 /** Validate an explicit session name. Returns an error string or null if valid. */
-export function validateSessionName(name: string, existingNames: Set<string>): string | null {
+export function validateConversationName(name: string, existingNames: Set<string>): string | null {
   const sanitized = sanitizeConversationName(name)
   if (!sanitized) return 'Session name is empty after sanitization'
   if (existingNames.has(sanitized)) return `Session name "${sanitized}" is already in use`

@@ -14,7 +14,7 @@ import { extractProjectLabel } from '../shared/project-uri'
 import { DEFAULT_BROKER_PORT } from '../shared/protocol'
 import { getOrAssign, initAddressBook, resolve } from './address-book'
 import { closeAnalyticsStore, initAnalyticsStore } from './analytics-store'
-import { getUser, initAuth, reloadState, validateSession } from './auth'
+import { getUser, initAuth, reloadState, validateConversation } from './auth'
 import {
   getAuthenticatedUser,
   requireAuth,
@@ -301,7 +301,7 @@ async function main() {
         const parts: string[] = []
         if (c.storeTurns) parts.push(`${c.storeTurns} turns`)
         if (c.storeHourlyDeleted) parts.push(`${c.storeHourlyDeleted} stale hourly_stats deleted`)
-        if (c.storeSessions) parts.push(`${c.storeSessions} sessions`)
+        if (c.storeConversations) parts.push(`${c.storeConversations} sessions`)
         if (c.analyticsTurns) parts.push(`${c.analyticsTurns} analytics turns`)
         if (c.storeScopeLinks) parts.push(`${c.storeScopeLinks} scope links`)
         if (c.storeAddressBook) parts.push(`${c.storeAddressBook} address book`)
@@ -425,7 +425,7 @@ async function main() {
     for (const ws of subscribers) {
       const data = ws.data as { authToken?: string; userName?: string }
       if (!data.authToken) continue // rclaude/agent connections use secret, not tokens
-      const session = validateSession(data.authToken)
+      const session = validateConversation(data.authToken)
       if (!session) {
         console.log(`[auth] Closing expired WS for user: ${data.userName || 'unknown'}`)
         conversationStore.removeTerminalViewerBySocket(ws)
@@ -485,12 +485,12 @@ async function main() {
   const wsServer = createWsServer({
     port,
     conversationStore,
-    onSessionStart(sessionId, meta) {
+    onConversationStart(sessionId, meta) {
       if (verbose) {
         console.log(`[+] Session started: ${sessionId.slice(0, 8)}... (${meta.project})`)
       }
     },
-    onSessionEnd(sessionId, reason) {
+    onConversationEnd(sessionId, reason) {
       if (verbose) {
         console.log(`[-] Session ended: ${sessionId.slice(0, 8)}... (${reason})`)
       }

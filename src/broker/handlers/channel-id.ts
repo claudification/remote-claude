@@ -31,9 +31,9 @@ export interface ConversationLike {
  * Falls back to a 6-char id slice when two sessions in the same project would
  * slug to the same value (so siblings stay disambiguable).
  */
-export function computeSessionSlug(target: ConversationLike, siblingSessions: ConversationLike[]): string {
+export function computeConversationSlug(target: ConversationLike, siblingConversations: ConversationLike[]): string {
   const sessionSlug = slugify(target.title || target.id.slice(0, 8))
-  const collides = siblingSessions.some(
+  const collides = siblingConversations.some(
     other => other.id !== target.id && slugify(other.title || other.id.slice(0, 8)) === sessionSlug,
   )
   return collides ? `${sessionSlug}-${target.id.slice(0, 6)}` : sessionSlug
@@ -48,9 +48,9 @@ export function computeSessionSlug(target: ConversationLike, siblingSessions: Co
 export function computeLocalId(
   target: ConversationLike,
   projectSlug: string,
-  siblingSessions: ConversationLike[],
+  siblingConversations: ConversationLike[],
 ): string {
-  return `${projectSlug}:${computeSessionSlug(target, siblingSessions)}`
+  return `${projectSlug}:${computeConversationSlug(target, siblingConversations)}`
 }
 
 // ─── Send target resolution ─────────────────────────────────────────
@@ -119,8 +119,8 @@ export function resolveSendTarget(input: ResolveSendInput): ResolveSendTarget {
  * with the resolver and is testable without a context.
  */
 export function formatAmbiguityError(canonicalProject: string, candidates: ConversationLike[]): string {
-  const siblingSessions = candidates
-  const ids = candidates.map(s => `${canonicalProject}:${computeSessionSlug(s, siblingSessions)}`).join(', ')
+  const siblingConversations = candidates
+  const ids = candidates.map(s => `${canonicalProject}:${computeConversationSlug(s, siblingConversations)}`).join(', ')
   return `Ambiguous target: ${candidates.length} sessions at "${canonicalProject}". Use compound address: ${ids}`
 }
 
@@ -153,7 +153,7 @@ export interface ResolveSessionDeps {
  * channel_send to consistently handle the compound ID format returned
  * by list_sessions.
  */
-export function resolveSessionTarget(targetId: string, deps: ResolveSessionDeps): ResolveSessionResult {
+export function resolveConversationTarget(targetId: string, deps: ResolveSessionDeps): ResolveSessionResult {
   const colonIdx = targetId.indexOf(':')
   const hasCompound = colonIdx >= 0
   const projectSlug = hasCompound ? targetId.slice(0, colonIdx) : targetId

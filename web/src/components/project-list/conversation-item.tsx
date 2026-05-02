@@ -3,10 +3,10 @@ import { useConversationsStore } from '@/hooks/use-conversations'
 import {
   formatCost,
   getCacheTimerInfo,
+  getConversationCost,
   getCostBgColor,
   getCostColor,
   getCostLevel,
-  getSessionCost,
 } from '@/lib/cost-utils'
 import { useKeyLayer } from '@/lib/key-layers'
 import type { Session } from '@/lib/types'
@@ -222,7 +222,7 @@ function ConversationInfoDialog({
 }) {
   const resolvedModel = session.model
   const effort = formatEffort(session.effortLevel)
-  const cost = session.stats ? getSessionCost(session.stats, resolvedModel) : null
+  const cost = session.stats ? getConversationCost(session.stats, resolvedModel) : null
   const duration = session.lastActivity - session.startedAt
   const isAdHoc = session.capabilities?.includes('ad-hoc')
 
@@ -469,7 +469,7 @@ function ResultTextModal({ session }: { session: Session }) {
 }
 
 function DismissButton({ sessionId }: { sessionId: string }) {
-  const dismissSession = useConversationsStore(s => s.dismissSession)
+  const dismissConversation = useConversationsStore(s => s.dismissConversation)
   const [confirming, setConfirming] = useState(false)
 
   if (confirming) {
@@ -485,13 +485,13 @@ function DismissButton({ sessionId }: { sessionId: string }) {
           tabIndex={0}
           onClick={() => {
             haptic('tap')
-            dismissSession(sessionId)
+            dismissConversation(sessionId)
             setConfirming(false)
           }}
           onKeyDown={e => {
             if (e.key === 'Enter' || e.key === ' ') {
               haptic('tap')
-              dismissSession(sessionId)
+              dismissConversation(sessionId)
               setConfirming(false)
             }
           }}
@@ -541,7 +541,7 @@ function DismissButton({ sessionId }: { sessionId: string }) {
 // ─── Inline rename input ─────────────────────────────────────────────
 
 function InlineRename({ session }: { session: Session }) {
-  const renameSession = useConversationsStore(s => s.renameSession)
+  const renameConversation = useConversationsStore(s => s.renameConversation)
   const setRenamingSessionId = useConversationsStore(s => s.setRenamingSessionId)
   const inputRef = useRef<HTMLInputElement>(null)
   const [value, setValue] = useState(session.title || '')
@@ -556,7 +556,7 @@ function InlineRename({ session }: { session: Session }) {
   }, [])
 
   function submit() {
-    renameSession(session.id, value.trim())
+    renameConversation(session.id, value.trim())
     haptic('success')
   }
 
@@ -835,7 +835,7 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
         {showCost &&
           session.stats &&
           (() => {
-            const { cost, exact } = getSessionCost(session.stats, session.model)
+            const { cost, exact } = getConversationCost(session.stats, session.model)
             if (cost < 0.01) return null
             const level = getCostLevel(cost)
             return (
@@ -1081,7 +1081,7 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
         {showCost &&
           session.stats &&
           (() => {
-            const { cost, exact } = getSessionCost(session.stats, session.model)
+            const { cost, exact } = getConversationCost(session.stats, session.model)
             if (cost < 0.5) return null
             return (
               <span className={cn('text-[9px] font-bold font-mono', getCostBgColor(cost).split(' ')[1])}>

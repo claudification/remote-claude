@@ -888,15 +888,15 @@ async function main() {
           ctx.eventQueue.length = 0
         }
         // Flush pending session name (queued before WS connected)
-        if (ctx.pendingSessionName && ctx.wsClient) {
+        if (ctx.pendingConversationName && ctx.wsClient) {
           ctx.wsClient.send({
             type: 'conversation_name',
             conversationId: ctx.claudeSessionId || conversationId,
-            name: ctx.pendingSessionName.name,
-            userSet: ctx.pendingSessionName.userSet,
-            description: ctx.pendingSessionName.description,
+            name: ctx.pendingConversationName.name,
+            userSet: ctx.pendingConversationName.userSet,
+            description: ctx.pendingConversationName.description,
           } as AgentHostMessage)
-          ctx.pendingSessionName = undefined
+          ctx.pendingConversationName = undefined
         }
         // Re-send transcript from JSONL file (repopulates broker cache after restart)
         if (headless) resendTranscriptFromFile(ctx)
@@ -1174,8 +1174,8 @@ async function main() {
           debug('Transcript kick received but no transcript path known')
         }
       },
-      onChannelSessionsList(sessions, self) {
-        pendingListSessions?.(sessions, self)
+      onChannelConversationsList(sessions, self) {
+        pendingListConversations?.(sessions, self)
       },
       onChannelSendResult(result) {
         pendingSendResult?.(
@@ -1216,7 +1216,7 @@ async function main() {
       onChannelRenameResult(result) {
         pendingRenameResult?.(result)
       },
-      onSessionControlResult(result) {
+      onConversationControlResult(result) {
         pendingControlResult?.(result)
       },
       onChannelDeliver(delivery) {
@@ -1367,14 +1367,14 @@ async function main() {
       },
       onPermissionRule(toolName: string, behavior: 'allow' | 'deny') {
         if (behavior === 'allow') {
-          permissionRules.addSessionRule(toolName)
+          permissionRules.addConversationRule(toolName)
           diag('channel', `Auto-approve rule added: ${toolName}`)
         } else {
-          permissionRules.removeSessionRule(toolName)
+          permissionRules.removeConversationRule(toolName)
           diag('channel', `Auto-approve rule removed: ${toolName}`)
         }
       },
-      onQuitSession() {
+      onQuitConversation() {
         executeControl('quit', { source: 'dashboard-quit' })
       },
       onInterrupt() {
@@ -1452,9 +1452,9 @@ async function main() {
         if (!ctx.wsClient?.isConnected()) return { sessions: [] }
         return new Promise(resolve => {
           const timeout = setTimeout(() => resolve({ sessions: [] }), 5000)
-          pendingListSessions = (sessions, self) => {
+          pendingListConversations = (sessions, self) => {
             clearTimeout(timeout)
-            pendingListSessions = null
+            pendingListConversations = null
             resolve({ sessions, self })
           }
           ctx.wsClient?.send({
@@ -1565,7 +1565,7 @@ async function main() {
           if (ctx.ptyProcess) ctx.ptyProcess.write('/plan\r')
         }
       },
-      async onReviveSession(sessionId) {
+      async onReviveConversation(sessionId) {
         if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to broker' }
         return new Promise(resolve => {
           const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
@@ -1751,7 +1751,7 @@ async function main() {
           } as unknown as AgentHostMessage)
         })
       },
-      async onConfigureSession({ sessionId, label, icon, color, description, keyterms }) {
+      async onConfigureConversation({ sessionId, label, icon, color, description, keyterms }) {
         if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to broker' }
         return new Promise(resolve => {
           const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
@@ -1801,7 +1801,7 @@ async function main() {
         })
         const endReason = status === 'error' ? `self_exit_error: ${message || 'unknown'}` : 'self_exit'
         if (ctx.claudeSessionId) {
-          ctx.wsClient?.sendSessionEnd(endReason)
+          ctx.wsClient?.sendConversationEnd(endReason)
         }
         setTimeout(() => {
           cleanup()
@@ -1821,7 +1821,7 @@ async function main() {
   )
 
   // Pending callbacks for inter-session request/response
-  let pendingListSessions: ((sessions: ConversationInfo[], self?: Record<string, unknown>) => void) | null = null
+  let pendingListConversations: ((sessions: ConversationInfo[], self?: Record<string, unknown>) => void) | null = null
   let pendingSendResult:
     | ((result: { ok: boolean; error?: string; conversationId?: string; targetSessionId?: string }) => void)
     | null = null
@@ -1938,28 +1938,28 @@ async function main() {
   const sessionName = hasUserName || (isResuming && !isManagedSession) ? undefined : generateFunnyName()
 
   // Resolve the actual name that will be sent to CC (user-provided via env, or auto-generated)
-  const resolvedSessionName = process.env.CLAUDWERK_CONVERSATION_NAME || sessionName
-  debug(`Session name: ${resolvedSessionName || '(none)'} (user=${!!process.env.CLAUDWERK_CONVERSATION_NAME})`)
+  const resolvedConversationName = process.env.CLAUDWERK_CONVERSATION_NAME || sessionName
+  debug(`Session name: ${resolvedConversationName || '(none)'} (user=${!!process.env.CLAUDWERK_CONVERSATION_NAME})`)
 
   // Send session name to broker (immediately if connected, or deferred to onConnected)
   // Store on context so onConnected can send it after WS connects
   const sessionDescription = process.env.CLAUDWERK_CONVERSATION_DESCRIPTION || undefined
-  ctx.pendingSessionName = resolvedSessionName
+  ctx.pendingConversationName = resolvedConversationName
     ? {
-        name: resolvedSessionName,
+        name: resolvedConversationName,
         userSet: !!process.env.CLAUDWERK_CONVERSATION_NAME,
         description: sessionDescription,
       }
     : undefined
-  if (resolvedSessionName && ctx.wsClient?.isConnected()) {
+  if (resolvedConversationName && ctx.wsClient?.isConnected()) {
     ctx.wsClient.send({
       type: 'conversation_name',
       conversationId: ctx.claudeSessionId || conversationId,
-      name: resolvedSessionName,
+      name: resolvedConversationName,
       userSet: !!process.env.CLAUDWERK_CONVERSATION_NAME,
       description: sessionDescription,
     } as AgentHostMessage)
-    ctx.pendingSessionName = undefined
+    ctx.pendingConversationName = undefined
   }
 
   const finalClaudeArgs = [
@@ -2098,7 +2098,7 @@ async function main() {
           }
 
           if (ctx.claudeSessionId) {
-            ctx.wsClient?.sendSessionEnd(code === 0 ? 'normal' : `exit_code_${code}`)
+            ctx.wsClient?.sendConversationEnd(code === 0 ? 'normal' : `exit_code_${code}`)
           }
           cleanup()
           process.exit(code ?? 0)

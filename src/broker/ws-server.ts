@@ -22,8 +22,8 @@ interface WsData {
 export interface WsServerOptions {
   port: number
   conversationStore: ConversationStore
-  onSessionStart?: (conversationId: string, meta: ConversationMeta) => void
-  onSessionEnd?: (conversationId: string, reason: string) => void
+  onConversationStart?: (conversationId: string, meta: ConversationMeta) => void
+  onConversationEnd?: (conversationId: string, reason: string) => void
   onHookEvent?: (conversationId: string, event: HookEvent) => void
 }
 
@@ -33,7 +33,7 @@ type WsServer = Server<WsData>
  * Create WebSocket server for broker
  */
 export function createWsServer(options: WsServerOptions): WsServer {
-  const { port, conversationStore, onSessionStart, onSessionEnd, onHookEvent } = options
+  const { port, conversationStore, onConversationStart, onConversationEnd, onHookEvent } = options
 
   const server = Bun.serve<WsData>({
     port,
@@ -87,7 +87,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
               // Track socket for this conversation (for sending input)
               conversationStore.setConversationSocket(conversationId, meta.conversationId || meta.ccSessionId, ws)
 
-              onSessionStart?.(conversationId, meta)
+              onConversationStart?.(conversationId, meta)
 
               // Send ack
               const ack: Ack = { type: 'ack', eventId: conversationId }
@@ -118,7 +118,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
 
               if (conversationId) {
                 conversationStore.endConversation(conversationId, end.reason)
-                onSessionEnd?.(conversationId, end.reason)
+                onConversationEnd?.(conversationId, end.reason)
               }
               break
             }
@@ -137,7 +137,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
           const conversation = conversationStore.getConversation(conversationId)
           if (conversation && conversation.status !== 'ended') {
             conversationStore.endConversation(conversationId, 'connection_closed')
-            onSessionEnd?.(conversationId, 'connection_closed')
+            onConversationEnd?.(conversationId, 'connection_closed')
           }
         }
       },

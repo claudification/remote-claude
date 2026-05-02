@@ -303,11 +303,11 @@ export function createAdminRouter(
   app.get('/api/links', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const persisted = getPersistedLinks()
-    const activeSessions = conversationStore.getActiveConversations()
+    const activeConversations = conversationStore.getActiveConversations()
 
     const links = persisted.map(pl => {
-      const sessA = activeSessions.find(s => parseProjectUri(s.project).path === pl.projectA)
-      const sessB = activeSessions.find(s => parseProjectUri(s.project).path === pl.projectB)
+      const sessA = activeConversations.find(s => parseProjectUri(s.project).path === pl.projectA)
+      const sessB = activeConversations.find(s => parseProjectUri(s.project).path === pl.projectB)
       const nameA = getProjectSettings(pl.projectA)?.label || pl.projectA.split('/').pop() || pl.projectA
       const nameB = getProjectSettings(pl.projectB)?.label || pl.projectB.split('/').pop() || pl.projectB
       return {

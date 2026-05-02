@@ -13,7 +13,7 @@
  * ctx.pendingClearFromId) spread across three places. That produced a race
  * where the first observer promoted a post-/clear respawn as a boot, silently
  * advancing wsClient.sessionId, and the second observer's rekey was then
- * eaten by the "same-ID" guard in sendSessionClear -- leaving the
+ * eaten by the "same-ID" guard in sendConversationRekey -- leaving the
  * broker pinned to the old session id. See diag log 2026-04-17
  * for the incident.
  *
@@ -151,7 +151,7 @@ function handleRekey(ctx: AgentHostContext, fromId: string, newId: string, model
   // If wsClient is disconnected, the message drops on the floor -- acceptable
   // since a reconnect will send fresh meta with the new id anyway.
   if (ctx.wsClient?.isConnected()) {
-    ctx.wsClient.sendSessionClear(newId, cwdToProjectUri(ctx.cwd), model)
+    ctx.wsClient.sendConversationRekey(newId, cwdToProjectUri(ctx.cwd), model)
   }
 
   // Stop all subagent watchers -- they reference the old session's transcript dir.

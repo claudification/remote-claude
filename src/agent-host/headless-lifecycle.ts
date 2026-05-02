@@ -143,7 +143,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
     onResult(result) {
       ctx.diag('headless', `Result: ${result.subtype} cost=$${result.total_cost_usd} turns=${result.num_turns}`)
       // Signal idle -- turn is done
-      ctx.wsClient?.sendSessionStatus('idle')
+      ctx.wsClient?.sendConversationStatus('idle')
       if (result.total_cost_usd != null && ctx.wsClient?.isConnected() && ctx.claudeSessionId) {
         ctx.wsClient.send({
           type: 'turn_cost',
@@ -304,7 +304,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
     onApiStatus(status) {
       // Backend-agnostic activity signal: CC is making an API request
       if (status === 'requesting') {
-        ctx.wsClient?.sendSessionStatus('active')
+        ctx.wsClient?.sendConversationStatus('active')
       }
     },
 
@@ -465,7 +465,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
         return
       }
       if (ctx.claudeSessionId) {
-        ctx.wsClient?.sendSessionEnd(code === 0 ? 'normal' : `exit_code_${code}`)
+        ctx.wsClient?.sendConversationEnd(code === 0 ? 'normal' : `exit_code_${code}`)
       }
       cleanup()
       process.exit(code ?? 0)

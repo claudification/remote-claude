@@ -20,7 +20,7 @@ const FILE_LIST_DEFAULT_LIMIT = 30
 const CONTENT_LINE_DEFAULT_LIMIT = 40
 const COUNT_BAR_DEFAULT_LIMIT = 25
 
-function useSessionPath(): string | undefined {
+function useConversationPath(): string | undefined {
   return useConversationsStore(s => {
     if (s.controlPanelPrefs.sanitizePaths === false) return undefined
     const sid = s.selectedConversationId
@@ -97,7 +97,7 @@ export function FileListResults({
   truncated?: boolean
   emptyLabel?: string
 }) {
-  const root = useSessionPath()
+  const root = useConversationPath()
   const limit = useToolLineLimit('Grep', FILE_LIST_DEFAULT_LIMIT)
   const [revealed, setRevealed] = useState(false)
 
@@ -267,7 +267,7 @@ export function GrepContentResults({
   numFiles?: number
   highlight?: RegExp
 }) {
-  const root = useSessionPath()
+  const root = useConversationPath()
   const limit = useToolLineLimit('Grep', CONTENT_LINE_DEFAULT_LIMIT)
   const [revealed, setRevealed] = useState(false)
 
@@ -373,7 +373,7 @@ export function GrepCountResults({
   numMatches?: number
   numFiles?: number
 }) {
-  const root = useSessionPath()
+  const root = useConversationPath()
   const limit = useToolLineLimit('Grep', COUNT_BAR_DEFAULT_LIMIT)
   const [revealed, setRevealed] = useState(false)
 
@@ -460,7 +460,7 @@ export function GrepSummary({
   mode?: string
   isError?: boolean
 }) {
-  const root = useSessionPath()
+  const root = useConversationPath()
   const relPath = path ? relToRoot(path, root) : undefined
   const totalMatches = mode === 'count' ? numMatches : numLines
   return (
@@ -507,7 +507,7 @@ export function GlobSummary({
   truncated?: boolean
   isError?: boolean
 }) {
-  const root = useSessionPath()
+  const root = useConversationPath()
   const relPath = path ? relToRoot(path, root) : undefined
   return (
     <span className="flex items-center gap-1.5 min-w-0 flex-wrap">

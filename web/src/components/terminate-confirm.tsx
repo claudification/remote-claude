@@ -26,7 +26,7 @@ export function openTerminateConfirm(sessionId: string, sessionName: string | nu
 
 export function TerminateConfirmDialog() {
   const [state, setState] = useState<TerminateConfirmState>({ open: false, sessionId: null, sessionName: null })
-  const terminateSession = useConversationsStore(s => s.terminateSession)
+  const terminateConversation = useConversationsStore(s => s.terminateConversation)
 
   useEffect(() => {
     _open = (sessionId, sessionName) => {
@@ -39,7 +39,7 @@ export function TerminateConfirmDialog() {
   }, [])
 
   function confirm() {
-    if (state.sessionId) terminateSession(state.sessionId)
+    if (state.sessionId) terminateConversation(state.sessionId)
     haptic('error')
     setState({ open: false, sessionId: null, sessionName: null })
   }

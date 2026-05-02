@@ -23,7 +23,7 @@ import {
   type TranscriptEntry,
   type UsageUpdate,
 } from '@/lib/types'
-import { getLastSessionId, getSessionTab, initUIState, setLastSessionId } from '@/lib/ui-state'
+import { getConversationTab, getLastSessionId, initUIState, setLastSessionId } from '@/lib/ui-state'
 import { recordOut } from './ws-stats'
 
 export type { ProjectSettingsMap }
@@ -227,7 +227,7 @@ interface ConversationsState {
   updateControlPanelPrefs: (patch: Partial<ControlPanelPrefs>) => void
   resolveToolDisplay: (tool: ToolDisplayKey) => ToolDisplayPrefs
 
-  setSessions: (sessions: Session[]) => void
+  setConversations: (sessions: Session[]) => void
   /** Select a conversation. Optional `reason` is logged to console for debugging navigation bugs. */
   selectConversation: (id: string | null, reason?: string) => void
   selectSubagent: (agentId: string | null) => void
@@ -255,11 +255,11 @@ interface ConversationsState {
   setFileHandler: (handler: ((msg: Record<string, unknown>) => void) | null) => void
   projectHandler: ((msg: Record<string, unknown>) => void) | null
   sendWsMessage: (msg: Record<string, unknown>) => void
-  dismissSession: (sessionId: string) => void
-  terminateSession: (sessionId: string) => void
+  dismissConversation: (sessionId: string) => void
+  terminateConversation: (sessionId: string) => void
   renamingSessionId: string | null
   setRenamingSessionId: (sessionId: string | null) => void
-  renameSession: (sessionId: string, name: string, description?: string) => void
+  renameConversation: (sessionId: string, name: string, description?: string) => void
   editingDescriptionSessionId: string | null
   setEditingDescriptionSessionId: (sessionId: string | null) => void
   updateDescription: (sessionId: string, description: string) => void
@@ -352,7 +352,7 @@ function applyDefaultSession() {
   if (store.selectedConversationId) return
 
   // Try configured default session project
-  const defaultProject = store.controlPanelPrefs.defaultSessionCwd
+  const defaultProject = store.controlPanelPrefs.defaultConversationCwd
   if (defaultProject) {
     const best = findBestSessionForProject(store.sessions, defaultProject)
     if (best) {
@@ -369,9 +369,9 @@ function applyDefaultSession() {
   }
 
   // Auto-select if only one non-ended session visible (common for restricted users)
-  const activeSessions = store.sessions.filter(s => s.status !== 'ended')
-  if (activeSessions.length === 1) {
-    store.selectConversation(activeSessions[0].id, 'default-session-only-active')
+  const activeConversations = store.sessions.filter(s => s.status !== 'ended')
+  if (activeConversations.length === 1) {
+    store.selectConversation(activeConversations[0].id, 'default-session-only-active')
   }
 }
 
@@ -394,7 +394,7 @@ function processHash() {
 }
 
 /** Build an O(1) lookup index from a sessions array */
-export function buildSessionsById(sessions: Session[]): Record<string, Session> {
+export function buildConversationsById(sessions: Session[]): Record<string, Session> {
   const map: Record<string, Session> = {}
   for (const s of sessions) map[s.id] = s
   return map
@@ -561,7 +561,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   setPendingTaskEdit: task => set({ pendingTaskEdit: task }),
   renamingSessionId: null,
   setRenamingSessionId: sessionId => set({ renamingSessionId: sessionId }),
-  renameSession: (sessionId, name, description) => {
+  renameConversation: (sessionId, name, description) => {
     wsSend('rename_conversation', { sessionId, name, ...(description !== undefined ? { description } : {}) })
     set(state => {
       const sessions = state.sessions.map(s =>
@@ -573,7 +573,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
             }
           : s,
       )
-      return { renamingSessionId: null, sessions, sessionsById: buildSessionsById(sessions) }
+      return { renamingSessionId: null, sessions, sessionsById: buildConversationsById(sessions) }
     })
   },
   editingDescriptionSessionId: null,
@@ -586,7 +586,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       const sessions = state.sessions.map(s =>
         s.id === sessionId ? { ...s, description: description || undefined } : s,
       )
-      return { editingDescriptionSessionId: null, sessions, sessionsById: buildSessionsById(sessions) }
+      return { editingDescriptionSessionId: null, sessions, sessionsById: buildConversationsById(sessions) }
     })
   },
   inputDrafts: {},
@@ -618,7 +618,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     }),
   resolveToolDisplay: (tool: ToolDisplayKey) => resolveToolDisplay(get().controlPanelPrefs, tool),
 
-  setSessions: sessions => set({ sessions, sessionsById: buildSessionsById(sessions) }),
+  setConversations: sessions => set({ sessions, sessionsById: buildConversationsById(sessions) }),
   selectConversation: (id: string | null, reason?: string) => {
     const prev = get().selectedConversationId
     if (id !== prev) {
@@ -628,7 +628,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     }
     clearExpandedState()
     const defaultView = get().controlPanelPrefs.defaultView
-    const rememberedTab = id ? getSessionTab(id) : null
+    const rememberedTab = id ? getConversationTab(id) : null
     set(state => {
       const mru = id ? [id, ...state.sessionMru.filter(s => s !== id)] : state.sessionMru
       const { sessionCacheSize } = state.controlPanelPrefs
@@ -811,21 +811,21 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       ws.send(payload)
     }
   },
-  dismissSession: sessionId => {
+  dismissConversation: sessionId => {
     wsSend('dismiss_conversation', { sessionId })
     set(state => {
       const sessions = state.sessions.filter(s => s.id !== sessionId)
       if (state.selectedConversationId === sessionId) {
-        console.log(`[nav] dismissSession: clearing selection (dismissed ${sessionId.slice(0, 8)})`)
+        console.log(`[nav] dismissConversation: clearing selection (dismissed ${sessionId.slice(0, 8)})`)
       }
       return {
         sessions,
-        sessionsById: buildSessionsById(sessions),
+        sessionsById: buildConversationsById(sessions),
         selectedConversationId: state.selectedConversationId === sessionId ? null : state.selectedConversationId,
       }
     })
   },
-  terminateSession: sessionId => {
+  terminateConversation: sessionId => {
     wsSend('terminate_conversation', { sessionId })
   },
 
@@ -858,7 +858,7 @@ export function wsSend(type: string, data?: Record<string, unknown>): boolean {
   return true
 }
 
-export async function fetchSessionEvents(sessionId: string): Promise<HookEvent[]> {
+export async function fetchConversationEvents(sessionId: string): Promise<HookEvent[]> {
   const res = await fetch(appendShareParam(`${API_BASE}/conversations/${sessionId}/events?limit=200`))
   if (!res.ok) throw new Error('Failed to fetch events')
   return res.json()
@@ -912,7 +912,7 @@ interface ReviveSessionOptions {
   effort?: string
 }
 
-export function reviveSession(sessionId: string, options: ReviveSessionOptions = {}): boolean {
+export function reviveConversation(sessionId: string, options: ReviveSessionOptions = {}): boolean {
   const { headless, jobId, model, effort } = options
   return wsSend('revive_conversation', {
     sessionId,
@@ -949,7 +949,7 @@ function detectControlCommand(input: string): {
   return null
 }
 
-function sendSessionControl(
+function sendConversationControl(
   sessionId: string,
   action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode',
   opts: { model?: string; effort?: string; permissionMode?: string } = {},
@@ -969,7 +969,7 @@ export function sendInput(sessionId: string, input: string): boolean {
   // flows through send_input as before.
   const control = detectControlCommand(input)
   if (control) {
-    return sendSessionControl(sessionId, control.action, {
+    return sendConversationControl(sessionId, control.action, {
       model: control.model,
       effort: control.effort,
       permissionMode: control.permissionMode,

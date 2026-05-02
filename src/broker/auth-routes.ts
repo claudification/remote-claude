@@ -35,8 +35,8 @@ import {
   type StoredCredential,
   storeChallenge,
   updateCredentialCounter,
+  validateConversation,
   validateInvite,
-  validateSession,
 } from './auth'
 
 import type { SentinelRegistry } from './sentinel-registry'
@@ -111,7 +111,7 @@ function getCookieValue(req: Request): string | null {
 export function getAuthenticatedUser(req: Request): string | null {
   const token = getCookieValue(req)
   if (!token) return null
-  const session = validateSession(token)
+  const session = validateConversation(token)
   return session?.name ?? null
 }
 
@@ -172,7 +172,7 @@ export function requireAuth(req: Request): Response | null {
     }
     if (getAuthenticatedUser(req)) return null
     const token = url.searchParams.get('token')
-    if (token && validateSession(token)) return null
+    if (token && validateConversation(token)) return null
     return new Response('Unauthorized', { status: 401 })
   }
 

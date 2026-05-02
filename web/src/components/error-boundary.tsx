@@ -82,7 +82,7 @@ export class ErrorBoundary extends Component<Props, State> {
         ? store.transcripts[store.selectedConversationId]
         : undefined
       const lines = [
-        `  selectedSession: ${store.selectedConversationId?.slice(0, 8) || '(none)'}`,
+        `  selectedConversation: ${store.selectedConversationId?.slice(0, 8) || '(none)'}`,
         `  sessionCount: ${store.sessions.length}`,
         `  expandAll: ${store.expandAll}`,
         `  showTerminal: ${store.showTerminal}`,

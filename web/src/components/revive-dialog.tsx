@@ -5,7 +5,7 @@
  * ended session. Only the minimal overrides are exposed (mode + model +
  * effort) -- everything else (permissionMode, bare, repl, worktree, env,
  * autocompact, budget) is inherited from the session's stored launch config
- * and project/global defaults. See `reviveSession` handler in
+ * and project/global defaults. See `reviveConversation` handler in
  * `src/broker/handlers/control-panel-actions.ts` for the resolution chain.
  */
 
@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { TogglePill } from '@/components/ui/toggle-pill'
-import { reviveSession, useConversationsStore } from '@/hooks/use-conversations'
+import { reviveConversation, useConversationsStore } from '@/hooks/use-conversations'
 import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import { useKeyLayer } from '@/lib/key-layers'
 import { projectPath } from '@/lib/types'
@@ -161,7 +161,7 @@ export function ReviveDialog() {
     setJobId(null)
   }, [progress.launch.sessionId, progress.spawnedSession])
 
-  const handleViewSession = useCallback(() => {
+  const handleViewConversation = useCallback(() => {
     const sid = progress.launch.sessionId || progress.spawnedSession?.id
     if (sid) useConversationsStore.getState().selectConversation(sid, 'revive-dialog-view-session')
     progress.setViewCountdown(null)
@@ -180,7 +180,7 @@ export function ReviveDialog() {
     setJobId(newJobId)
     progress.start([{ label: 'Sending revive request...', status: 'active', ts: Date.now() }])
 
-    const sent = reviveSession(state.options.sessionId, {
+    const sent = reviveConversation(state.options.sessionId, {
       headless,
       jobId: newJobId,
       model: model || undefined,
@@ -202,7 +202,7 @@ export function ReviveDialog() {
     {
       Enter: () => {
         if (phase === 'config') handleRevive()
-        else if (phase === 'launching' && progress.isConnected) handleViewSession()
+        else if (phase === 'launching' && progress.isConnected) handleViewConversation()
       },
       h: () => {
         if (phase !== 'config') return
@@ -373,9 +373,9 @@ export function ReviveDialog() {
                 isComplete={progress.isComplete}
                 hasError={progress.hasError}
                 viewCountdown={progress.viewCountdown}
-                onViewSession={() => {
+                onViewConversation={() => {
                   progress.setViewCountdown(null)
-                  handleViewSession()
+                  handleViewConversation()
                 }}
                 onClose={handleClose}
               />

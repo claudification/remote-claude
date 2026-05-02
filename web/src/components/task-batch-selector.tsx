@@ -470,7 +470,7 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
     { id: 'batch-selector', enabled: open },
   )
 
-  const hasActiveSession =
+  const hasActiveConversation =
     !!selectedConversationId && sessions.some(s => s.id === selectedConversationId && s.status !== 'ended')
 
   return (
@@ -704,9 +704,9 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={!hasActiveSession || selected.size === 0}
+              disabled={!hasActiveConversation || selected.size === 0}
               title={
-                !hasActiveSession
+                !hasActiveConversation
                   ? 'No active session'
                   : selected.size === 0
                     ? 'Select tasks first'
@@ -714,7 +714,7 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
               }
               className={cn(
                 'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded text-xs font-mono font-bold transition-colors',
-                hasActiveSession && selected.size > 0
+                hasActiveConversation && selected.size > 0
                   ? 'bg-accent/20 text-accent border border-accent/40 hover:bg-accent/30 active:scale-[0.98]'
                   : 'bg-[#13141f] text-muted-foreground/30 border border-border/20 cursor-not-allowed',
               )}

@@ -18,7 +18,7 @@ import { buildWsUrl } from '@/lib/share-mode'
 import type { HookEvent, ProjectOrder, Session, TaskInfo, TranscriptEntry } from '@/lib/types'
 import {
   applyHashRoute,
-  buildSessionsById,
+  buildConversationsById,
   fetchTranscript,
   handleBgTaskOutputMessage,
   type ProjectSettingsMap,
@@ -297,7 +297,7 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'conversations_list': {
       if (msg.sessions) {
-        useConversationsStore.getState().setSessions(msg.sessions.map(toSession))
+        useConversationsStore.getState().setConversations(msg.sessions.map(toSession))
         applyHashRoute()
       }
       // Check for version mismatch between server and this frontend bundle
@@ -308,15 +308,15 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'conversation_created': {
       if (msg.session) {
-        const newSession = toSession(msg.session)
+        const newConversation = toSession(msg.session)
         useConversationsStore.setState(state => {
           let sessions: Session[]
-          if (state.sessions.some(s => s.id === newSession.id)) {
-            sessions = state.sessions.map(s => (s.id === newSession.id ? { ...s, ...newSession } : s))
+          if (state.sessions.some(s => s.id === newConversation.id)) {
+            sessions = state.sessions.map(s => (s.id === newConversation.id ? { ...s, ...newConversation } : s))
           } else {
-            sessions = [...state.sessions, newSession]
+            sessions = [...state.sessions, newConversation]
           }
-          return { sessions, sessionsById: buildSessionsById(sessions) }
+          return { sessions, sessionsById: buildConversationsById(sessions) }
         })
       }
       break
@@ -346,7 +346,7 @@ function processMessage(msg: DashboardMessage) {
           }
           const newState: Partial<typeof state> = {
             sessions,
-            sessionsById: buildSessionsById(sessions),
+            sessionsById: buildConversationsById(sessions),
           }
           // Clear stale streaming text when session goes idle or ends
           if ((updated.status === 'idle' || updated.status === 'ended') && state.streamingText[sessionId]) {
@@ -887,7 +887,7 @@ function processMessage(msg: DashboardMessage) {
           }
           return {
             sessions,
-            sessionsById: buildSessionsById(sessions),
+            sessionsById: buildConversationsById(sessions),
             selectedConversationId:
               state.selectedConversationId === msg.sessionId ? null : state.selectedConversationId,
           }

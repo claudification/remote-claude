@@ -422,7 +422,7 @@ export function createAuthToken(name: string): string {
   return `${token}.${sig}`
 }
 
-export function validateSession(signedToken: string): { name: string } | null {
+export function validateConversation(signedToken: string): { name: string } | null {
   const parts = signedToken.split('.')
   if (parts.length !== 2) return null
 

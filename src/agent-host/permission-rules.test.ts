@@ -106,29 +106,29 @@ describe('session rules (ALWAYS ALLOW button)', () => {
   test('session rule auto-approves by tool name', () => {
     const engine = createRulesEngine(testDir)
     expect(engine.shouldAutoApprove('Write', input({ file_path: join(testDir, 'any/file.ts') }))).toBe(false)
-    engine.addSessionRule('Write')
+    engine.addConversationRule('Write')
     expect(engine.shouldAutoApprove('Write', input({ file_path: join(testDir, 'any/file.ts') }))).toBe(true)
   })
 
   test('session rule can be removed', () => {
     const engine = createRulesEngine(testDir)
-    engine.addSessionRule('Write')
+    engine.addConversationRule('Write')
     expect(engine.shouldAutoApprove('Write', input({}))).toBe(true)
-    engine.removeSessionRule('Write')
+    engine.removeConversationRule('Write')
     expect(engine.shouldAutoApprove('Write', input({}))).toBe(false)
   })
 
   test('session rules work for any tool name', () => {
     const engine = createRulesEngine(testDir)
-    engine.addSessionRule('Bash')
+    engine.addConversationRule('Bash')
     expect(engine.shouldAutoApprove('Bash', input({ command: 'anything' }))).toBe(true)
   })
 
-  test('getSessionRules returns active rules', () => {
+  test('getConversationRules returns active rules', () => {
     const engine = createRulesEngine(testDir)
-    engine.addSessionRule('Write')
-    engine.addSessionRule('Edit')
-    expect(engine.getSessionRules().sort()).toEqual(['Edit', 'Write'])
+    engine.addConversationRule('Write')
+    engine.addConversationRule('Edit')
+    expect(engine.getConversationRules().sort()).toEqual(['Edit', 'Write'])
   })
 })
 

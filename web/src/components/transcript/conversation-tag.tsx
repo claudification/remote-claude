@@ -3,7 +3,7 @@
  * Shared by send_message (tool-line) and received inter-session messages (group-view).
  */
 
-import { buildSessionsById, useConversationsStore } from '@/hooks/use-conversations'
+import { buildConversationsById, useConversationsStore } from '@/hooks/use-conversations'
 import type { Session } from '@/lib/types'
 import { extractProjectLabel, projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
@@ -93,7 +93,7 @@ function injectSession(overview: Record<string, unknown>) {
   useConversationsStore.setState(state => {
     if (state.sessionsById[partial.id]) return state
     const sessions = [...state.sessions, partial]
-    return { sessions, sessionsById: buildSessionsById(sessions) }
+    return { sessions, sessionsById: buildConversationsById(sessions) }
   })
   return partial.id
 }

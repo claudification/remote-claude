@@ -87,14 +87,14 @@ export function LaunchFooterActions({
   isComplete,
   hasError,
   viewCountdown,
-  onViewSession,
+  onViewConversation,
   onClose,
 }: {
   isConnected: boolean
   isComplete: boolean
   hasError: boolean
   viewCountdown: number | null
-  onViewSession: () => void
+  onViewConversation: () => void
   onClose: () => void
 }) {
   return (
@@ -102,7 +102,7 @@ export function LaunchFooterActions({
       {isConnected && !isComplete && (
         <button
           type="button"
-          onClick={onViewSession}
+          onClick={onViewConversation}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1 text-xs font-bold font-mono',
             'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
@@ -116,7 +116,7 @@ export function LaunchFooterActions({
       {isComplete && (
         <button
           type="button"
-          onClick={onViewSession}
+          onClick={onViewConversation}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1 text-xs font-bold font-mono',
             'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',

@@ -205,8 +205,8 @@ export function createApiRouter(
     const projectPath = body.project || body.cwd
     if (!projectPath) return c.json({ error: 'Missing project' }, 400)
 
-    const allSessions = conversationStore.getAllConversations()
-    const sessionForCwd = allSessions.find(
+    const allConversations = conversationStore.getAllConversations()
+    const sessionForCwd = allConversations.find(
       s => parseProjectUri(s.project).path === projectPath && s.status === 'active',
     )
     const wrapperSocket = sessionForCwd ? conversationStore.getConversationSocket(sessionForCwd.id) : null
@@ -315,8 +315,10 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     if (!blobDir) return c.json({ error: 'Blob store not configured' }, 503)
 
     // Require files permission -- check session CWD if available, else any grant
-    const uploadSessionId = c.req.header('x-session-id') || c.req.query('sessionId') || undefined
-    const uploadCwd = uploadSessionId ? conversationStore.getConversation(uploadSessionId)?.project : undefined
+    const uploadConversationId = c.req.header('x-session-id') || c.req.query('sessionId') || undefined
+    const uploadCwd = uploadConversationId
+      ? conversationStore.getConversation(uploadConversationId)?.project
+      : undefined
     if (uploadCwd) {
       if (!httpHasPermission(c.req.raw, 'files', uploadCwd))
         return c.json({ error: 'Forbidden: files permission required' }, 403)

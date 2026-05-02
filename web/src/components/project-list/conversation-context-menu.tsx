@@ -116,7 +116,7 @@ export function ConversationContextMenu({
   onOpenSettings?: () => void
   children: ReactNode
 }) {
-  const dismissSession = useConversationsStore(s => s.dismissSession)
+  const dismissConversation = useConversationsStore(s => s.dismissConversation)
   const selectConversation = useConversationsStore(s => s.selectConversation)
 
   return (
@@ -179,7 +179,7 @@ export function ConversationContextMenu({
               className={cn(menuItemClass, 'text-destructive')}
               onSelect={() => {
                 haptic('error')
-                useConversationsStore.getState().terminateSession(session.id)
+                useConversationsStore.getState().terminateConversation(session.id)
               }}
             >
               Terminate session
@@ -201,7 +201,7 @@ export function ConversationContextMenu({
                 className={cn(menuItemClass, 'text-destructive')}
                 onSelect={() => {
                   haptic('tap')
-                  dismissSession(session.id)
+                  dismissConversation(session.id)
                 }}
               >
                 Dismiss
@@ -225,7 +225,7 @@ export function ProjectContextMenu({
   onOpenSettings: () => void
   children: ReactNode
 }) {
-  const dismissSession = useConversationsStore(s => s.dismissSession)
+  const dismissConversation = useConversationsStore(s => s.dismissConversation)
   const ended = sessions.filter(s => s.status === 'ended')
 
   return (
@@ -260,7 +260,7 @@ export function ProjectContextMenu({
                 className={cn(menuItemClass, 'text-destructive')}
                 onSelect={() => {
                   haptic('tap')
-                  for (const s of ended) dismissSession(s.id)
+                  for (const s of ended) dismissConversation(s.id)
                 }}
               >
                 Dismiss {ended.length} ended

@@ -11,12 +11,12 @@ import { cn, haptic } from '@/lib/utils'
 export function LinkRequestBanners() {
   const requests = useConversationsStore(s => s.pendingProjectLinks)
   const respond = useConversationsStore(s => s.respondToProjectLink)
-  const selectedSession = useConversationsStore(s => s.selectedConversationId)
+  const selectedConversation = useConversationsStore(s => s.selectedConversationId)
   // Only surface requests whose target is the currently-viewed session. Rendered
   // inline at the transcript bottom (see TranscriptView) as a blocking UI gate,
   // same pattern as PermissionBanners. Without this filter we'd leak other
   // sessions' pending links into whichever session the user happens to be on.
-  const relevant = requests.filter(r => r.toSession === selectedSession)
+  const relevant = requests.filter(r => r.toSession === selectedConversation)
   return (
     <BannerStack
       items={relevant}
@@ -164,11 +164,11 @@ export function PermissionBanners() {
   const permissions = useConversationsStore(s => s.pendingPermissions)
   const respond = useConversationsStore(s => s.respondToPermission)
   const sendRule = useConversationsStore(s => s.sendPermissionRule)
-  const selectedSession = useConversationsStore(s => s.selectedConversationId)
+  const selectedConversation = useConversationsStore(s => s.selectedConversationId)
   const sessionPath = useConversationsStore(s =>
     s.selectedConversationId ? projectPath(s.sessionsById[s.selectedConversationId]?.project ?? '') : undefined,
   )
-  const relevant = permissions.filter(p => p.sessionId === selectedSession)
+  const relevant = permissions.filter(p => p.sessionId === selectedConversation)
   return (
     <BannerStack
       items={relevant}
@@ -224,8 +224,8 @@ export function PermissionBanners() {
 export function ClipboardBanners() {
   const captures = useConversationsStore(s => s.clipboardCaptures)
   const dismiss = useConversationsStore(s => s.dismissClipboard)
-  const selectedSession = useConversationsStore(s => s.selectedConversationId)
-  const relevant = captures.filter(c => c.sessionId === selectedSession)
+  const selectedConversation = useConversationsStore(s => s.selectedConversationId)
+  const relevant = captures.filter(c => c.sessionId === selectedConversation)
 
   return (
     <BannerStack
@@ -297,8 +297,8 @@ export function ClipboardBanners() {
 export function AskQuestionBanners() {
   const questions = useConversationsStore(s => s.pendingAskQuestions)
   const respond = useConversationsStore(s => s.respondToAskQuestion)
-  const selectedSession = useConversationsStore(s => s.selectedConversationId)
-  const relevant = questions.filter(q => q.sessionId === selectedSession)
+  const selectedConversation = useConversationsStore(s => s.selectedConversationId)
+  const relevant = questions.filter(q => q.sessionId === selectedConversation)
 
   return (
     <BannerStack
