@@ -23,7 +23,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { VoiceFab } from '@/components/voice-fab'
 import { VoiceKey } from '@/components/voice-key'
 import { fetchModelDb } from '@/lib/model-db'
-import { detectShareMode } from '@/lib/share-mode'
+import { clearShareMode, detectShareMode } from '@/lib/share-mode'
 
 const WebTerminal = lazy(() => import('@/components/web-terminal').then(m => ({ default: m.WebTerminal })))
 const UserAdminDialog = lazy(() => import('@/components/user-admin').then(m => ({ default: m.UserAdminDialog })))
@@ -962,15 +962,48 @@ function PopoutTerminal({ conversationId }: { conversationId: string }) {
   )
 }
 
+function ShareGate({ token }: { token: string }) {
+  const [mode, setMode] = useState<'checking' | 'guest' | 'redirect'>('checking')
+
+  useEffect(() => {
+    fetch('/auth/status')
+      .then(r => r.json())
+      .then(data => {
+        if (data.authenticated) {
+          clearShareMode()
+          fetch(`/api/share-resolve/${encodeURIComponent(token)}`)
+            .then(r => (r.ok ? r.json() : null))
+            .then(resolved => {
+              const sessionId = resolved?.sessionId
+              window.location.hash = sessionId ? `session/${sessionId}` : ''
+              setMode('redirect')
+            })
+        } else {
+          setMode('guest')
+        }
+      })
+      .catch(() => setMode('guest'))
+  }, [token])
+
+  if (mode === 'checking') return null
+  if (mode === 'redirect') {
+    return (
+      <AuthGate>
+        <Dashboard />
+      </AuthGate>
+    )
+  }
+  detectShareMode()
+  return <SharedSessionView token={token} />
+}
+
 export function App() {
   const hash = window.location.hash.slice(1)
 
-  // Share mode: /#/share/TOKEN - bypasses auth gate, limited UI
+  // Share mode: /#/share/TOKEN - check auth first, redirect if logged in
   const shareMatch = hash.match(/^\/?share\/(.+)$/)
   if (shareMatch) {
-    // Detect share mode before any WS connections (sets the share token for WS URL)
-    detectShareMode()
-    return <SharedSessionView token={shareMatch[1]} />
+    return <ShareGate token={shareMatch[1]} />
   }
 
   // Popout terminal: #popout-terminal/{conversationId}

@@ -54,7 +54,11 @@ interface DashboardMessage {
   [key: string]: any
 }
 
-const WS_URL = buildWsUrl()
+let _wsUrl: string | null = null
+function getWsUrl() {
+  if (!_wsUrl) _wsUrl = buildWsUrl()
+  return _wsUrl
+}
 const RECONNECT_DELAY_MS = 2000
 const SESSION_CHANNELS = ['session:events', 'session:transcript', 'session:tasks', 'session:bg_output'] as const
 
@@ -969,7 +973,7 @@ export function useWebSocket() {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
     try {
-      const ws = new WebSocket(WS_URL)
+      const ws = new WebSocket(getWsUrl())
       wsRef.current = ws
 
       ws.onopen = () => {
@@ -1079,7 +1083,7 @@ export function useWebSocket() {
       }
 
       ws.onerror = () => {
-        useSessionsStore.setState({ error: `WebSocket connection failed: ${WS_URL}` })
+        useSessionsStore.setState({ error: `WebSocket connection failed: ${getWsUrl()}` })
       }
 
       ws.onmessage = event => {

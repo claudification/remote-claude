@@ -321,6 +321,18 @@ export function createSessionsRouter(sessionStore: SessionStore, helpers: RouteH
     return c.json(sessionToOverview(match, sessionStore))
   })
 
+  app.get('/api/share-resolve/:token', c => {
+    const share = validateShare(c.req.param('token'))
+    if (!share) return c.json({ error: 'Invalid or expired share' }, 404)
+    const sessions = sessionStore.getAllSessions().filter(s => s.project === share.sessionCwd)
+    sessions.sort((a, b) => b.lastActivity - a.lastActivity)
+    const best = sessions[0]
+    return c.json({
+      project: share.sessionCwd,
+      sessionId: best?.id || null,
+    })
+  })
+
   app.delete('/sessions/:id', c => {
     if (!httpHasPermission(c.req.raw, 'settings', '*')) return c.json({ error: 'Forbidden' }, 403)
     const sessionId = c.req.param('id')

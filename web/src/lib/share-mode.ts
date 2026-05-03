@@ -5,13 +5,14 @@
  * limited UI, no auth gate, WS connects with ?share=TOKEN.
  *
  * Detection runs eagerly at module load time so the WS URL is correct
- * before any WebSocket connections are established.
+ * before any WebSocket connections are established. Authenticated users
+ * call clearShareMode() to bypass share mode and use the full dashboard.
  */
 
 // Detect immediately on module load (before WS_URL const is evaluated)
 const hash = typeof window !== 'undefined' ? window.location.hash.slice(1) : ''
 const shareMatch = hash.match(/^\/?share\/(.+)$/)
-const shareToken: string | null = shareMatch ? shareMatch[1] : null
+let shareToken: string | null = shareMatch ? shareMatch[1] : null
 
 if (shareToken) {
   console.log(`[share] Share mode detected (token: ${shareToken.slice(0, 8)}...)`)
@@ -20,6 +21,11 @@ if (shareToken) {
 /** Check if we detected a share token. */
 export function detectShareMode(): string | null {
   return shareToken
+}
+
+/** Clear share mode (authenticated user redirecting to full dashboard). */
+export function clearShareMode(): void {
+  shareToken = null
 }
 
 /** Build the WS URL with share token appended if in share mode. */
