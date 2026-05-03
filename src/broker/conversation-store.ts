@@ -546,7 +546,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         broadcastConversationScoped(
           {
             type: 'conversation_update',
-            sessionId: id,
+            conversationId: id,
             session: toConversationSummary(session),
           },
           session.project,
@@ -889,7 +889,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     broadcastConversationScoped(
       {
         type: 'conversation_created',
-        sessionId: id,
+        conversationId: id,
         session: toConversationSummary(session),
       },
       session.project,
@@ -938,7 +938,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       broadcastConversationScoped(
         {
           type: 'conversation_update',
-          sessionId: id,
+          conversationId: id,
           session: toConversationSummary(session),
         },
         session.project,
@@ -966,7 +966,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       session.lastActivity = Date.now()
       persistConversation(session)
       broadcastConversationScoped(
-        { type: 'conversation_update', sessionId: newId, session: toConversationSummary(session) },
+        { type: 'conversation_update', conversationId: newId, session: toConversationSummary(session) },
         session.project,
       )
       return session
@@ -1043,8 +1043,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     broadcastConversationScoped(
       {
         type: 'conversation_update',
-        sessionId: newId,
-        previousSessionId: oldId,
+        conversationId: newId,
+        previousConversationId: oldId,
         session: toConversationSummary(session),
       },
       session.project,
@@ -1058,7 +1058,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       addTranscriptEntries(newId, [marker], false)
       broadcastToChannel('conversation:transcript', newId, {
         type: 'transcript_entries',
-        sessionId: newId,
+        conversationId: newId,
         entries: [marker],
         isInitial: false,
       })
@@ -1224,7 +1224,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         addTranscriptEntries(conversationId, [marker], false)
         broadcastToChannel('conversation:transcript', conversationId, {
           type: 'transcript_entries',
-          sessionId: conversationId,
+          conversationId,
           entries: [marker],
           isInitial: false,
         })
@@ -1235,7 +1235,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         addTranscriptEntries(conversationId, [marker], false)
         broadcastToChannel('conversation:transcript', conversationId, {
           type: 'transcript_entries',
-          sessionId: conversationId,
+          conversationId,
           entries: [marker],
           isInitial: false,
         })
@@ -1247,7 +1247,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         addTranscriptEntries(conversationId, [marker], false)
         broadcastToChannel('conversation:transcript', conversationId, {
           type: 'transcript_entries',
-          sessionId: conversationId,
+          conversationId,
           entries: [marker],
           isInitial: false,
         })
@@ -1301,7 +1301,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         broadcastConversationScoped(
           {
             type: 'toast',
-            sessionId: conversationId,
+            conversationId,
             title: projectName,
             message: `Permission denied: ${toolName || 'unknown tool'}`,
           },
@@ -1508,7 +1508,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         broadcastConversationScoped(
           {
             type: 'toast',
-            sessionId: conversationId,
+            conversationId,
             title: projectName,
             message,
           },
@@ -1519,7 +1519,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       // Broadcast event to dashboard subscribers (channel-filtered for v2)
       broadcastToChannel('conversation:events', conversationId, {
         type: 'event',
-        sessionId: conversationId,
+        conversationId,
         event,
       })
 
@@ -1538,7 +1538,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           if (wrappers) {
             for (const ws of wrappers.values()) {
               try {
-                ws.send(JSON.stringify({ type: 'transcript_kick', sessionId: conversationId }))
+                ws.send(JSON.stringify({ type: 'transcript_kick', conversationId }))
                 console.log(`[session-store] Sent transcript_kick to wrapper for ${conversationId.slice(0, 8)}`)
               } catch {
                 // Wrapper socket may be dead
@@ -1601,7 +1601,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       broadcastConversationScoped(
         {
           type: 'conversation_ended',
-          sessionId: conversationId,
+          conversationId,
           session: toConversationSummary(session),
         },
         session.project,
@@ -2051,7 +2051,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
               addTranscriptEntries(conversationId, [marker], false)
               broadcastToChannel('conversation:transcript', conversationId, {
                 type: 'transcript_entries',
-                sessionId: conversationId,
+                conversationId,
                 entries: [marker],
                 isInitial: false,
               })
@@ -2173,7 +2173,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
                 }
                 const capture = {
                   type: 'clipboard_capture' as const,
-                  sessionId: conversationId,
+                  conversationId,
                   contentType: mime ? ('image' as const) : ('text' as const),
                   ...(mime ? { base64, mimeType: mime } : { text: decodedText }),
                   timestamp: Date.now(),
@@ -2376,7 +2376,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
             conversationId,
             {
               type: 'subagent_transcript',
-              sessionId: conversationId,
+              conversationId,
               agentId,
               entries: agentBatch,
               isInitial: false,

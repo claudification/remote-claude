@@ -35,7 +35,7 @@ const sentinelIdentify: MessageHandler = (ctx, data) => {
 const reviveResult: MessageHandler = (ctx, data) => {
   const ok = data.success ? 'OK' : 'FAIL'
   const ccSessionId = data.ccSessionId as string
-  const conversationId = (data.conversationId || data.wrapperId) as string | undefined
+  const conversationId = data.conversationId as string | undefined
   const jobId = data.jobId as string | undefined
   ctx.log.debug(`Revive ccSession=${ccSessionId?.slice(0, 8)} ${ok}${data.error ? ` (${data.error})` : ''}`)
 
@@ -106,7 +106,7 @@ const launchLog: MessageHandler = (ctx, data) => {
 }
 
 const spawnFailed: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.wrapperId) as string
+  const conversationId = data.conversationId as string
   const exitCode = data.exitCode as number | null | undefined
   const elapsedMs = data.elapsedMs as number | undefined
   const projectPath = data.cwd as string | undefined

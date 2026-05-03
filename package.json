@@ -38,6 +38,7 @@
     "fallow:health": "fallow health",
     "fallow:audit": "fallow audit",
     "test": "vitest run",
+    "test:integration": "vitest run src/broker/__tests__/integration/",
     "test:watch": "vitest",
     "install-cli": "bun install && cd web && bun install && cd .. && bun run build && mkdir -p ~/.local/bin && ln -sf \"$(pwd)/bin/rclaude\" ~/.local/bin/rclaude && ln -sf \"$(pwd)/bin/broker\" ~/.local/bin/broker && ln -sf \"$(pwd)/bin/broker-cli\" ~/.local/bin/broker-cli && ln -sf \"$(pwd)/bin/sentinel\" ~/.local/bin/sentinel && ln -sf \"$(pwd)/scripts/revive-session.sh\" ~/.local/bin/revive-session.sh && echo 'Symlinked rclaude, broker, broker-cli, sentinel, and revive-session.sh to ~/.local/bin'"
   },

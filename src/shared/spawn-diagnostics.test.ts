@@ -6,7 +6,7 @@ function makeInput(over: Partial<BuildDiagnosticsInput> = {}): BuildDiagnosticsI
     source: 'run-task-dialog',
     jobId: 'job-1',
     conversationId: 'wrap-1',
-    sessionId: 'sess-1',
+    ccSessionId: 'sess-1',
     elapsedSec: 12,
     error: null,
     config: { cwd: '/tmp/p', model: 'opus' },
@@ -27,7 +27,7 @@ describe('buildSpawnDiagnostics', () => {
     expect(d.source).toBe('run-task-dialog')
     expect(d.jobId).toBe('job-1')
     expect(d.conversationId).toBe('wrap-1')
-    expect(d.sessionId).toBe('sess-1')
+    expect(d.ccSessionId).toBe('sess-1')
     expect(d.elapsed).toBe('12s')
     expect(d.launchState).toEqual({ completed: true, failed: false })
     expect(d.steps).toHaveLength(1)
@@ -36,11 +36,11 @@ describe('buildSpawnDiagnostics', () => {
 
   it('coerces null-ish ids when omitted', () => {
     const d = buildSpawnDiagnostics(
-      makeInput({ jobId: undefined, conversationId: undefined, sessionId: undefined, error: undefined }),
+      makeInput({ jobId: undefined, conversationId: undefined, ccSessionId: undefined, error: undefined }),
     )
     expect(d.jobId).toBeNull()
     expect(d.conversationId).toBeNull()
-    expect(d.sessionId).toBeNull()
+    expect(d.ccSessionId).toBeNull()
     expect(d.error).toBeNull()
   })
 

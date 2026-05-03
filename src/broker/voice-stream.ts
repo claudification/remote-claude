@@ -17,7 +17,7 @@ const KEEPALIVE_INTERVAL_MS = 5_000 // Deepgram kills connection after 10s of no
 interface VoiceSession {
   dgWs: WebSocket
   dashboardWs: ServerWebSocket<unknown>
-  sessionId: string | null
+  conversationId: string | null
   finalTranscript: string
   keyterms: string[]
   audioBuffer: Buffer[] // Buffer chunks while DG WS is connecting
@@ -31,7 +31,7 @@ const voiceSessions = new Map<ServerWebSocket<unknown>, VoiceSession>()
 
 export function handleVoiceStart(
   ws: ServerWebSocket<unknown>,
-  data: { sessionId?: string; project?: string },
+  data: { conversationId?: string; project?: string },
   conversationStore: ConversationStore,
 ) {
   const deepgramKey = process.env.DEEPGRAM_API_KEY
@@ -45,7 +45,8 @@ export function handleVoiceStart(
 
   // Build keyterms from project settings
   const keyterms: string[] = []
-  const project = data.project || (data.sessionId ? conversationStore.getConversation(data.sessionId)?.project : null)
+  const project =
+    data.project || (data.conversationId ? conversationStore.getConversation(data.conversationId)?.project : null)
   if (project) {
     const projSettings = getProjectSettings(project)
     if (projSettings?.keyterms?.length) {
@@ -79,7 +80,7 @@ export function handleVoiceStart(
   const voiceSession: VoiceSession = {
     dgWs,
     dashboardWs: ws,
-    sessionId: data.sessionId || null,
+    conversationId: data.conversationId || null,
     finalTranscript: '',
     keyterms,
     audioBuffer: [],

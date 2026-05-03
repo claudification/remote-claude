@@ -156,14 +156,14 @@ function MarkdownEditorPane(props: {
 
 export function TaskEditor({
   task,
-  sessionId,
+  conversationId,
   onSave,
   onMove,
   onRun,
   onClose,
 }: {
   task: ProjectTask
-  sessionId: string
+  conversationId: string
   onSave: (
     slug: string,
     status: TaskStatus,
@@ -190,7 +190,7 @@ export function TaskEditor({
       // Radix Dialog handles Escape itself via onOpenChange.
       w: () => {
         if (!canWork) return
-        sendInput(sessionId, buildTaskPrompt({ ...task, title, body, status, priority, tags }))
+        sendInput(conversationId, buildTaskPrompt({ ...task, title, body, status, priority, tags }))
         haptic('success')
         onClose()
       },
@@ -252,7 +252,7 @@ export function TaskEditor({
         const idx = content.indexOf(search)
         if (idx >= 0) view.dispatch({ changes: { from: idx, to: idx + search.length, insert: replacement } })
       },
-      sessionId,
+      conversationId,
     )
   }
 
@@ -429,7 +429,7 @@ export function TaskEditor({
                   <button
                     type="button"
                     onClick={() => {
-                      sendInput(sessionId, buildTaskPrompt({ ...task, title, body, status, priority, tags }))
+                      sendInput(conversationId, buildTaskPrompt({ ...task, title, body, status, priority, tags }))
                       haptic('success')
                       onClose()
                     }}
@@ -553,15 +553,15 @@ export function TaskEditor({
 
 export function RunTaskDialog({
   task,
-  sessionId,
+  conversationId,
   onClose,
 }: {
   task: ProjectTask
-  sessionId: string
+  conversationId: string
   onClose: () => void
 }) {
   const spawnPath = useConversationsStore(state => {
-    const s = state.sessionsById[sessionId]
+    const s = state.sessionsById[conversationId]
     return s ? projectPath(s.project) : ''
   })
   const savedDefaults = useMemo(() => loadRunTaskDefaults(), [])
@@ -577,7 +577,7 @@ export function RunTaskDialog({
 
   // Launch state
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
-  const [conversationId, setWrapperId] = useState<string | null>(null)
+  const [spawnedConversationId, setWrapperId] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
   const sessionAtLaunchRef = useRef<string | null>(null)
 
@@ -664,7 +664,7 @@ export function RunTaskDialog({
   // Auto-redirect when countdown reaches 0
   useEffect(() => {
     if (progress.viewCountdown !== 0) return
-    const sid = progress.launch.sessionId || progress.spawnedConversation?.id
+    const sid = progress.launch.ccSessionId || progress.spawnedConversation?.id
     if (!sid) return
     const currentId = useConversationsStore.getState().selectedConversationId
     const userNavigatedAway = currentId !== sessionAtLaunchRef.current && currentId !== null
@@ -676,7 +676,7 @@ export function RunTaskDialog({
       )
     }
     onClose()
-  }, [progress.viewCountdown, progress.launch.sessionId, progress.spawnedConversation, onClose])
+  }, [progress.viewCountdown, progress.launch.ccSessionId, progress.spawnedConversation, onClose])
 
   async function handleRun() {
     if (phase !== 'config' || !spawnPath) return
@@ -740,7 +740,7 @@ export function RunTaskDialog({
   }
 
   function handleViewConversation() {
-    const sid = progress.launch.sessionId || progress.spawnedConversation?.id
+    const sid = progress.launch.ccSessionId || progress.spawnedConversation?.id
     if (sid) {
       useConversationsStore.getState().selectConversation(sid, 'project-board-view-session')
       progress.setViewCountdown(null)
@@ -752,8 +752,8 @@ export function RunTaskDialog({
     const diag = buildSpawnDiagnostics({
       source: 'run-task-dialog',
       jobId,
-      conversationId: conversationId || progress.launch.conversationId || null,
-      sessionId: progress.launch.sessionId ?? null,
+      conversationId: spawnedConversationId || progress.launch.conversationId || null,
+      ccSessionId: progress.launch.ccSessionId ?? null,
       elapsedSec: progress.elapsed,
       error: progress.error || progress.launch.error || null,
       config: {
@@ -1259,8 +1259,8 @@ function ViewConfigPanel({
   )
 }
 
-export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionId: string }) {
-  const { tasks, loading, refresh, createTask, moveTask, deleteTask, readTask, updateTask } = useProject(sessionId)
+export const ProjectBoard = memo(function ProjectBoard({ conversationId }: { conversationId: string }) {
+  const { tasks, loading, refresh, createTask, moveTask, deleteTask, readTask, updateTask } = useProject(conversationId)
   const [editingTask, setEditingTask] = useState<ProjectTask | null>(null)
   const [runTask, setRunTask] = useState<ProjectTask | null>(null)
   const [activeDragTask, setActiveDragTask] = useState<ProjectTaskMeta | null>(null)
@@ -1636,7 +1636,7 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
       {editingTask && (
         <TaskEditor
           task={editingTask}
-          sessionId={sessionId}
+          conversationId={conversationId}
           onSave={async (slug, status, patch) => {
             await updateTask(slug, status, patch)
           }}
@@ -1657,7 +1657,7 @@ export const ProjectBoard = memo(function ProjectBoard({ sessionId }: { sessionI
       )}
 
       {/* Run task dialog (lifted out of TaskEditor so it persists after editor closes) */}
-      {runTask && <RunTaskDialog task={runTask} sessionId={sessionId} onClose={() => setRunTask(null)} />}
+      {runTask && <RunTaskDialog task={runTask} conversationId={conversationId} onClose={() => setRunTask(null)} />}
     </div>
   )
 })

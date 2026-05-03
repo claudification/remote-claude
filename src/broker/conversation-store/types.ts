@@ -24,8 +24,8 @@ export interface ControlPanelMessage {
     | 'project_settings_updated'
     | 'clipboard_capture'
     | 'usage_update'
-  sessionId?: string
-  previousSessionId?: string
+  conversationId?: string
+  previousConversationId?: string
   session?: ConversationSummary
   sessions?: ConversationSummary[]
   event?: unknown

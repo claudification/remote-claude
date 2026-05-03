@@ -11,8 +11,8 @@ import { registerHandlers } from '../message-router'
 // ─── Session meta (wrapper connecting) ─────────────────────────────
 
 const meta: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.wrapperId || data.conversationId) as string // wrapperId: one-release backward compat
-  const ccSessionId = data.sessionId as string
+  const conversationId = data.conversationId as string
+  const ccSessionId = data.ccSessionId as string
   const project = (data.project as string) ?? cwdToProjectUri(data.cwd as string)
   ctx.ws.data.conversationId = conversationId
 
@@ -190,7 +190,7 @@ const notify: MessageHandler = (ctx, data) => {
   console.log(`[notify] ${title}: ${message}`)
 
   if (ctx.push.configured) {
-    ctx.push.sendToAll({ title, body: message, sessionId: conversationId, tag: `notify-${conversationId}` })
+    ctx.push.sendToAll({ title, body: message, conversationId, tag: `notify-${conversationId}` })
   }
 
   const toastMsg = { type: 'toast', title, message, conversationId: conversationId }

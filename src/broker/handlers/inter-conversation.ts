@@ -25,7 +25,7 @@ function resolveEffort(
 }
 
 const handleChannelRevive: MessageHandler = (ctx, data) => {
-  const targetConversationId = data.sessionId as string
+  const targetConversationId = data.conversationId as string
   const callerSession = ctx.ws.data.conversationId
   if (!targetConversationId || !callerSession) return
 
@@ -53,7 +53,7 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
   sentinel.send(
     JSON.stringify({
       type: 'revive',
-      sessionId: targetConversationId,
+      ccSessionId: targetConversationId,
       project: target.project,
       conversationId,
       mode: 'resume',
@@ -72,9 +72,8 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
         callerWs.send(
           JSON.stringify({
             type: 'revive_ready',
-            sessionId: revived.id,
+            conversationId: revived.id,
             project: revived.project,
-            conversationId,
             session: revived,
           }),
         )
@@ -87,7 +86,7 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
           JSON.stringify({
             type: 'revive_timeout',
             conversationId,
-            sessionId: targetConversationId,
+            targetConversationId,
             project: target.project,
             error: typeof err === 'string' ? err : 'Revive rendezvous timed out',
           }),
@@ -168,7 +167,7 @@ const handleChannelSpawn: MessageHandler = (ctx, data) => {
 }
 
 const handleChannelRestart: MessageHandler = (ctx, data) => {
-  const targetId = data.sessionId as string
+  const targetId = data.conversationId as string
   const callerSession = ctx.ws.data.conversationId
   if (!targetId || !callerSession) return
 
@@ -211,7 +210,7 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
     sentinel.send(
       JSON.stringify({
         type: 'revive',
-        sessionId: target.id,
+        ccSessionId: target.id,
         project: target.project,
         conversationId,
         mode: 'resume',
@@ -227,9 +226,8 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
         callerWs?.send(
           JSON.stringify({
             type: 'restart_ready',
-            sessionId: revived.id,
+            conversationId: revived.id,
             project: revived.project,
-            conversationId,
             session: revived,
           }),
         )
@@ -266,7 +264,7 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
   })
 
   // Terminate the target
-  targetWs.send(JSON.stringify({ type: 'terminate_conversation', sessionId: target.id }))
+  targetWs.send(JSON.stringify({ type: 'terminate_conversation', conversationId: target.id }))
 
   const projSettings = ctx.getProjectSettings(target.project)
   const name = target.title || projSettings?.label || extractProjectLabel(target.project)
@@ -275,7 +273,7 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
 }
 
 const handleChannelConfigure: MessageHandler = (ctx, data) => {
-  const targetId = data.sessionId as string
+  const targetId = data.conversationId as string
   if (!targetId) {
     ctx.reply({ type: 'channel_configure_result', ok: false, error: 'Missing target ID' })
     return

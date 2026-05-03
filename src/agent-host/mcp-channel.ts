@@ -62,7 +62,7 @@ export interface ConversationInfo {
 }
 
 export interface AgentHostIdentity {
-  sessionId: string
+  ccSessionId: string
   conversationId: string
   cwd: string
   configuredModel?: string
@@ -449,7 +449,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
         }
 
         const info: Record<string, unknown> = {
-          sessionId: identity?.sessionId,
+          ccSessionId: identity?.ccSessionId,
           conversationId: identity?.conversationId,
           cwd: identity?.cwd,
           model: identity?.configuredModel,

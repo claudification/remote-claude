@@ -36,9 +36,7 @@ export function initInterSessionLog(store: KVStore): void {
       const to = entry.to as Record<string, unknown>
       if (from.cwd && !from.project) from.project = from.cwd
       if (to.cwd && !to.project) to.project = to.cwd
-      // Migrate legacy `sessionId` to `conversationId`
-      if (from.sessionId && !from.conversationId) from.conversationId = from.sessionId
-      if (to.sessionId && !to.conversationId) to.conversationId = to.sessionId
+      // Legacy migration removed (breaking change branch)
     }
     compact()
   } else {

@@ -2,7 +2,7 @@
  * useLaunchChannel - Request-scoped event channel for spawn/revive progress.
  *
  * Usage:
- *   const { events, completed, failed, error, sessionId } = useLaunchChannel(jobId)
+ *   const { events, completed, failed, error, ccSessionId } = useLaunchChannel(jobId)
  *
  * The hook subscribes to the job on mount (when jobId is set) and unsubscribes on
  * unmount or jobId change. Events arrive via CustomEvent dispatch from use-websocket.ts.
@@ -23,7 +23,7 @@ interface LaunchChannelState {
   completed: boolean
   failed: boolean
   error: string | null
-  sessionId: string | null
+  ccSessionId: string | null
   conversationId: string | null
 }
 
@@ -32,7 +32,7 @@ const INITIAL_STATE: LaunchChannelState = {
   completed: false,
   failed: false,
   error: null,
-  sessionId: null,
+  ccSessionId: null,
   conversationId: null,
 }
 
@@ -101,7 +101,7 @@ export function useLaunchChannel(jobId: string | null): LaunchChannelState {
               },
             ],
             conversationId: detail.conversationId || prev.conversationId,
-            sessionId: detail.sessionId || prev.sessionId,
+            ccSessionId: detail.ccSessionId || prev.ccSessionId,
           }))
           break
         }
@@ -110,7 +110,7 @@ export function useLaunchChannel(jobId: string | null): LaunchChannelState {
           setState(prev => ({
             ...prev,
             completed: true,
-            sessionId: detail.sessionId,
+            ccSessionId: detail.ccSessionId,
             conversationId: detail.conversationId,
           }))
           break

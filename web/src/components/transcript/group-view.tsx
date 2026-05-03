@@ -327,7 +327,7 @@ export function GroupView({
         kind: 'channel'
         text: string
         source: string
-        sessionId?: string
+        conversationId?: string
         intent?: string
         isInterConversation?: boolean
         isDialog?: boolean
@@ -365,12 +365,12 @@ export function GroupView({
 
           if (sender === 'session' && fromProject) {
             // Inter-session message -- rich display
-            const fromSessionId = getAttr('from_session')
+            const fromConversationId = getAttr('from_session')
             items.push({
               kind: 'channel',
               text: msg,
               source: fromProject,
-              sessionId: fromSessionId,
+              conversationId: fromConversationId,
               intent: intent || undefined,
               isInterConversation: true,
             })
@@ -711,7 +711,7 @@ export function GroupView({
                   <div key={i} className="rounded-lg border border-teal-500/30 bg-teal-500/5 px-3 py-2.5 my-1">
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[10px] font-mono text-teal-400/60">from</span>
-                      <ConversationTag idOrSlug={item.sessionId || item.source || ''} className="text-xs" />
+                      <ConversationTag idOrSlug={item.conversationId || item.source || ''} className="text-xs" />
                       {item.intent && (
                         <span
                           className={cn(

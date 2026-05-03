@@ -21,7 +21,7 @@ import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
 const wrapperBoot: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.wrapperId) as string
+  const conversationId = data.conversationId as string
   const project = data.project as string | undefined
   const bootPath = data.cwd as string | undefined
   if (!conversationId || (!project && !bootPath)) {
@@ -82,7 +82,7 @@ const wrapperBoot: MessageHandler = (ctx, data) => {
 }
 
 const bootEvent: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.wrapperId) as string
+  const conversationId = data.conversationId as string
   const step = data.step as BootStep
   if (!conversationId || !step) return
 
@@ -113,16 +113,16 @@ const bootEvent: MessageHandler = (ctx, data) => {
 }
 
 const launchEvent: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.wrapperId) as string
+  const conversationId = data.conversationId as string
   const step = data.step as WrapperLaunchStep
   const launchId = data.launchId as string
   const phase = data.phase as WrapperLaunchPhase
   if (!conversationId || !step || !launchId || !phase) return
 
   // Route via conversationId (stable across rekeys) or the conversation id on the event.
-  const sessionIdFromEvent = data.conversationId as string | null
+  const conversationIdFromEvent = data.conversationId as string | null
   const session =
-    (sessionIdFromEvent ? ctx.conversations.getConversation(sessionIdFromEvent) : undefined) ||
+    (conversationIdFromEvent ? ctx.conversations.getConversation(conversationIdFromEvent) : undefined) ||
     ctx.conversations.getConversation(conversationId) ||
     ctx.conversations.findConversationByConversationId(conversationId)
   if (!session) {
@@ -150,8 +150,8 @@ const launchEvent: MessageHandler = (ctx, data) => {
 }
 
 const sessionPromote: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.wrapperId) as string
-  const newSessionId = data.sessionId as string
+  const conversationId = data.conversationId as string
+  const newSessionId = data.ccSessionId as string
   if (!conversationId || !newSessionId) return
 
   const bootConversation = ctx.conversations.getConversation(conversationId)

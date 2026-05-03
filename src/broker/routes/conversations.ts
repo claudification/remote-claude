@@ -37,13 +37,13 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
   })
 
   app.get('/conversations/:id/events', c => {
-    const sessionId = c.req.param('id')
-    const session = conversationStore.getConversation(sessionId)
+    const conversationId = c.req.param('id')
+    const session = conversationStore.getConversation(conversationId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
     if (!httpHasPermission(c.req.raw, 'chat:read', session.project)) return c.json({ error: 'Forbidden' }, 403)
     const limit = parseInt(c.req.query('limit') || '0', 10)
     const since = parseInt(c.req.query('since') || '0', 10)
-    const events = conversationStore.getConversationEvents(sessionId, limit || undefined, since || undefined)
+    const events = conversationStore.getConversationEvents(conversationId, limit || undefined, since || undefined)
     return c.json(events)
   })
 
@@ -71,20 +71,22 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
   //     append" -- otherwise the client's transcript would have a hole
   //     between its last applied seq and the oldest returned seq.
   app.get('/conversations/:id/transcript', c => {
-    const sessionId = c.req.param('id')
-    const session = conversationStore.getConversation(sessionId)
+    const conversationId = c.req.param('id')
+    const session = conversationStore.getConversation(conversationId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
     if (!httpHasPermission(c.req.raw, 'chat:read', session.project)) return c.json({ error: 'Forbidden' }, 403)
     const limit = parseInt(c.req.query('limit') || '20', 10)
     const filter = c.req.query('filter')
     const sinceSeqRaw = c.req.query('sinceSeq')
     const sinceSeq = sinceSeqRaw !== undefined ? parseInt(sinceSeqRaw, 10) : undefined
-    if (!conversationStore.hasTranscriptCache(sessionId)) {
-      console.log(`[${sessionId.slice(0, 8)}] GET transcript limit=${limit} filter=${filter || 'none'} -> 404 no-cache`)
+    if (!conversationStore.hasTranscriptCache(conversationId)) {
+      console.log(
+        `[${conversationId.slice(0, 8)}] GET transcript limit=${limit} filter=${filter || 'none'} -> 404 no-cache`,
+      )
       return c.json({ error: 'No transcript in cache (rclaude not streaming yet?)' }, 404)
     }
 
-    const allEntries = conversationStore.getTranscriptEntries(sessionId)
+    const allEntries = conversationStore.getTranscriptEntries(conversationId)
     const cacheSize = allEntries.length
     const lastSeq = allEntries.length > 0 ? (allEntries[allEntries.length - 1].seq ?? 0) : 0
 
@@ -116,7 +118,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
 
     const mode = sinceSeq !== undefined ? `delta(sinceSeq=${sinceSeq}${gap ? ' GAP' : ''})` : `full(limit=${limit})`
     console.log(
-      `[${sessionId.slice(0, 8)}] GET transcript ${mode} filter=${filter || 'none'} -> ${entries.length}/${cacheSize} entries lastSeq=${lastSeq}`,
+      `[${conversationId.slice(0, 8)}] GET transcript ${mode} filter=${filter || 'none'} -> ${entries.length}/${cacheSize} entries lastSeq=${lastSeq}`,
     )
     return c.json({
       entries: entries.map(e => processImagesInEntry(e as Record<string, unknown>)),
@@ -126,30 +128,30 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
   })
 
   app.get('/conversations/:id/subagents/:agentId/transcript', c => {
-    const sessionId = c.req.param('id')
+    const conversationId = c.req.param('id')
     const agentId = c.req.param('agentId')
-    const session = conversationStore.getConversation(sessionId)
+    const session = conversationStore.getConversation(conversationId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
     if (!httpHasPermission(c.req.raw, 'chat:read', session.project)) return c.json({ error: 'Forbidden' }, 403)
     const limit = parseInt(c.req.query('limit') || '100', 10)
-    if (!conversationStore.hasSubagentTranscriptCache(sessionId, agentId)) {
+    if (!conversationStore.hasSubagentTranscriptCache(conversationId, agentId)) {
       return c.json({ error: 'No subagent transcript in cache' }, 404)
     }
-    const entries = conversationStore.getSubagentTranscriptEntries(sessionId, agentId, limit)
+    const entries = conversationStore.getSubagentTranscriptEntries(conversationId, agentId, limit)
     return c.json(entries.map(e => processImagesInEntry(e as Record<string, unknown>)))
   })
 
   app.get('/conversations/:id/diag', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
-    const sessionId = c.req.param('id')
-    const session = conversationStore.getConversation(sessionId)
+    const conversationId = c.req.param('id')
+    const session = conversationStore.getConversation(conversationId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
     return c.json({
-      id: sessionId,
+      id: conversationId,
       project: session.project,
       model: session.model,
       status: session.status,
-      ccSessionIds: conversationStore.getCcSessionIds(sessionId),
+      ccSessionIds: conversationStore.getCcSessionIds(conversationId),
       capabilities: session.capabilities,
       version: session.version,
       buildTime: session.buildTime,
@@ -158,7 +160,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
       compacting: session.compacting,
       compactedAt: session.compactedAt,
       eventCount: session.events.length,
-      transcriptCacheEntries: conversationStore.getTranscriptEntries(sessionId).length,
+      transcriptCacheEntries: conversationStore.getTranscriptEntries(conversationId).length,
       subagents: session.subagents,
       tasks: session.tasks,
       bgTasks: session.bgTasks,
@@ -178,13 +180,13 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
   })
 
   app.post('/conversations/:id/input', async c => {
-    const sessionId = c.req.param('id')
-    const session = conversationStore.getConversation(sessionId)
+    const conversationId = c.req.param('id')
+    const session = conversationStore.getConversation(conversationId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
     if (!httpHasPermission(c.req.raw, 'chat', session.project)) return c.json({ error: 'Forbidden' }, 403)
     if (session.status === 'ended') return c.json({ error: 'Session has ended' }, 400)
 
-    const ws = conversationStore.getConversationSocket(sessionId)
+    const ws = conversationStore.getConversationSocket(conversationId)
     if (!ws) return c.json({ error: 'Session not connected' }, 400)
 
     const body = await c.req.json<{ input: string; crDelay?: number }>()
@@ -192,7 +194,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
 
     const inputMsg: SendInput = {
       type: 'input',
-      conversationId: sessionId,
+      conversationId,
       input: body.input,
       ...(typeof body.crDelay === 'number' && body.crDelay > 0 && { crDelay: body.crDelay }),
     }
@@ -203,8 +205,8 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
   app.post('/conversations/:id/revive', async c => {
     if (!httpHasPermission(c.req.raw, 'spawn', '*'))
       return c.json({ error: 'Forbidden: spawn permission required' }, 403)
-    const sessionId = c.req.param('id')
-    const session = conversationStore.getConversation(sessionId)
+    const targetId = c.req.param('id')
+    const session = conversationStore.getConversation(targetId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
     if (session.status === 'active') return c.json({ error: 'Session is already active' }, 400)
 
@@ -227,7 +229,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
       session.title ||
       getProjectSettings(session.project)?.label ||
       extractProjectLabel(session.project) ||
-      sessionId.slice(0, 8)
+      targetId.slice(0, 8)
     // Resolve defaults: launch config > project > global > undefined
     const projSettings = getProjectSettings(session.project)
     const globalSettings = getGlobalSettings()
@@ -252,7 +254,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
     sentinel.send(
       JSON.stringify({
         type: 'revive',
-        sessionId,
+        ccSessionId: targetId,
         project: session.project,
         conversationId,
         mode: 'resume',
@@ -280,9 +282,8 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
             callerWs.send(
               JSON.stringify({
                 type: 'revive_ready',
-                sessionId: revived.id,
+                conversationId: revived.id,
                 project: revived.project,
-                conversationId,
                 session: revived,
               }),
             )
@@ -295,7 +296,6 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
               JSON.stringify({
                 type: 'revive_timeout',
                 conversationId,
-                sessionId,
                 project: session.project,
                 error: typeof err === 'string' ? err : 'Revive rendezvous timed out',
               }),
@@ -335,12 +335,12 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
 
   app.delete('/conversations/:id', c => {
     if (!httpHasPermission(c.req.raw, 'settings', '*')) return c.json({ error: 'Forbidden' }, 403)
-    const sessionId = c.req.param('id')
-    const session = conversationStore.getConversation(sessionId)
+    const conversationId = c.req.param('id')
+    const session = conversationStore.getConversation(conversationId)
     if (!session) return c.json({ error: 'Session not found' }, 404)
     if (session.status !== 'ended') return c.json({ error: 'Only ended sessions can be dismissed' }, 400)
-    conversationStore.removeConversation(sessionId)
-    broadcastToSubscribers(conversationStore, { type: 'conversation_dismissed', sessionId })
+    conversationStore.removeConversation(conversationId)
+    broadcastToSubscribers(conversationStore, { type: 'conversation_dismissed', conversationId })
     return c.json({ success: true })
   })
 

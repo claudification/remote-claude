@@ -32,7 +32,7 @@ export type SpawnDiagnostics = {
   source: DiagnosticsSource
   jobId: string | null
   conversationId: string | null
-  sessionId: string | null
+  ccSessionId: string | null
   elapsed: string
   error: string | null
   config: Partial<SpawnRequest>
@@ -46,7 +46,7 @@ export type BuildDiagnosticsInput = {
   source: DiagnosticsSource
   jobId?: string | null
   conversationId?: string | null
-  sessionId?: string | null
+  ccSessionId?: string | null
   elapsedSec: number
   error?: string | null
   config: Partial<SpawnRequest>
@@ -86,7 +86,7 @@ export function buildSpawnDiagnostics(input: BuildDiagnosticsInput): SpawnDiagno
     source: input.source,
     jobId: input.jobId ?? null,
     conversationId: input.conversationId ?? null,
-    sessionId: input.sessionId ?? null,
+    ccSessionId: input.ccSessionId ?? null,
     elapsed: `${input.elapsedSec}s`,
     error: input.error ?? null,
     config,

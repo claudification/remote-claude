@@ -230,7 +230,7 @@ export const ConversationDetail = memo(function SessionDetail() {
       {taskEditorTask && selectedConversationId && (
         <TaskEditor
           task={taskEditorTask}
-          sessionId={selectedConversationId}
+          conversationId={selectedConversationId}
           onSave={async (slug, status, patch) => {
             await updateTask(slug, status, patch)
           }}
@@ -250,7 +250,7 @@ export const ConversationDetail = memo(function SessionDetail() {
       {runTaskFromEditor && selectedConversationId && (
         <RunTaskDialog
           task={runTaskFromEditor}
-          sessionId={selectedConversationId}
+          conversationId={selectedConversationId}
           onClose={() => setRunTaskFromEditor(null)}
         />
       )}
@@ -425,7 +425,7 @@ export const ConversationDetail = memo(function SessionDetail() {
           )}
           {!conversationTarget && activeTab === 'project' && selectedConversationId && (
             <div className="flex-1 min-h-0 overflow-hidden">
-              <ProjectBoard sessionId={selectedConversationId} />
+              <ProjectBoard conversationId={selectedConversationId} />
             </div>
           )}
           {!conversationTarget && activeTab === 'shared' && session && (

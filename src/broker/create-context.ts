@@ -23,7 +23,7 @@ export interface ContextDeps {
   pushSendToAll(payload: {
     title: string
     body: string
-    sessionId?: string
+    conversationId?: string
     sessionProject?: string
     tag?: string
   }): void

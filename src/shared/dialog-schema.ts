@@ -189,7 +189,7 @@ export interface DialogResult {
 /** Wrapper -> Broker: show dialog to dashboard */
 export interface DialogShow {
   type: 'dialog_show'
-  sessionId: string
+  conversationId: string
   dialogId: string // unique per dialog invocation
   layout: DialogLayout
 }
@@ -197,7 +197,7 @@ export interface DialogShow {
 /** Dashboard -> Broker -> Wrapper: user submitted/cancelled/timed out */
 export interface DialogResponse {
   type: 'dialog_result'
-  sessionId: string
+  conversationId: string
   dialogId: string
   result: DialogResult
 }
@@ -205,7 +205,7 @@ export interface DialogResponse {
 /** Wrapper -> Broker -> Control Panel: dismiss active dialog */
 export interface DialogDismiss {
   type: 'dialog_dismiss'
-  sessionId: string
+  conversationId: string
   dialogId: string
 }
 

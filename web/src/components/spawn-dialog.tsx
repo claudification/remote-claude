@@ -134,10 +134,10 @@ export function SpawnDialog() {
         label: 'Session connected',
         status: 'done',
         ts: Date.now(),
-        detail: (progress.launch.sessionId || progress.spawnedConversation?.id || '').slice(0, 8),
+        detail: (progress.launch.ccSessionId || progress.spawnedConversation?.id || '').slice(0, 8),
       },
     ])
-  }, [progress.isConnected, progress.launch.sessionId, progress.spawnedConversation?.id])
+  }, [progress.isConnected, progress.launch.ccSessionId, progress.spawnedConversation?.id])
 
   // Auto-redirect when countdown reaches 0
   useEffect(() => {
@@ -152,7 +152,7 @@ export function SpawnDialog() {
     const currentId = useConversationsStore.getState().selectedConversationId
     const userNavigatedAway = currentId !== sessionAtSpawnRef.current && currentId !== null
     const sid =
-      progress.launch.sessionId ||
+      progress.launch.ccSessionId ||
       (progress.spawnedConversation && progress.spawnedConversation.status !== 'ended'
         ? progress.spawnedConversation.id
         : null)
@@ -166,16 +166,16 @@ export function SpawnDialog() {
     }
     setState({ open: false, options: null })
     setJobId(null)
-  }, [progress.launch.sessionId, progress.spawnedConversation])
+  }, [progress.launch.ccSessionId, progress.spawnedConversation])
 
   /** Explicitly navigate to the spawned session and close. */
   const handleViewConversation = useCallback(() => {
-    const sid = progress.launch.sessionId || progress.spawnedConversation?.id
+    const sid = progress.launch.ccSessionId || progress.spawnedConversation?.id
     if (sid) useConversationsStore.getState().selectConversation(sid, 'spawn-dialog-view-session')
     progress.setViewCountdown(null)
     setState({ open: false, options: null })
     setJobId(null)
-  }, [progress.launch.sessionId, progress.spawnedConversation, progress.setViewCountdown])
+  }, [progress.launch.ccSessionId, progress.spawnedConversation, progress.setViewCountdown])
 
   const handleSpawn = useCallback(async () => {
     if (!state.options || phase !== 'config') return
@@ -343,7 +343,7 @@ export function SpawnDialog() {
       source: 'spawn-dialog',
       jobId,
       conversationId: conversationId || progress.launch.conversationId || null,
-      sessionId: progress.launch.sessionId ?? null,
+      ccSessionId: progress.launch.ccSessionId ?? null,
       elapsedSec: progress.elapsed,
       error: progress.error || progress.launch.error || null,
       config: {

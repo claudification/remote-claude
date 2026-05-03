@@ -423,12 +423,11 @@ async function main() {
   }
   debug(`Broker: ${noBroker ? 'DISABLED' : 'ENABLED'} (url: ${brokerUrl})`)
 
-  const sessionId =
-    process.env.RCLAUDE_SESSION_ID ||
+  const conversationId =
     process.env.RCLAUDE_CONVERSATION_ID ||
+    process.env.RCLAUDE_SESSION_ID ||
     process.env.RCLAUDE_WRAPPER_ID ||
     randomUUID()
-  const conversationId = process.env.RCLAUDE_CONVERSATION_ID || process.env.RCLAUDE_WRAPPER_ID || sessionId
   const cwd = process.cwd()
   const rclaudeDir = ensureRclaudeDir(cwd)
   const permissionRules = createRulesEngine(cwd)
@@ -549,7 +548,7 @@ async function main() {
     if (ctx.diagBuffer.length === 0) return
     if (!ctx.wsClient?.isConnected() || !ctx.claudeSessionId) return
     const entries = ctx.diagBuffer.splice(0)
-    ctx.wsClient.send({ type: 'diag', sessionId: ctx.claudeSessionId, entries } as unknown as AgentHostMessage)
+    ctx.wsClient.send({ type: 'diag', conversationId: ctx.conversationId, entries } as unknown as AgentHostMessage)
   }
 
   function diag(type: string, msg: string, args?: unknown) {
@@ -672,7 +671,7 @@ async function main() {
     const tasks = listProjectTasks(cwd)
     ctx.wsClient.send({
       type: 'project_changed',
-      sessionId: ctx.claudeSessionId,
+      conversationId: ctx.conversationId,
       notes: tasks,
     } as unknown as AgentHostMessage)
     debug(`Project tasks changed: ${tasks.length} tasks`)
@@ -1308,7 +1307,6 @@ async function main() {
         if (!headless || !ctx.streamProc) return
         clearInteraction(ctx, requestId)
 
-        const sessionId = ctx.claudeSessionId || ctx.conversationId
         if (action === 'approve') {
           ctx.streamProc.sendPermissionResponse(requestId, true, undefined, toolUseId)
           diag('plan', `Plan approved: ${requestId.slice(0, 8)}`)
@@ -1323,14 +1321,14 @@ async function main() {
         if (ctx.wsClient?.isConnected()) {
           ctx.wsClient.send({
             type: 'plan_mode_changed',
-            sessionId,
+            conversationId: ctx.conversationId,
             planMode: false,
           } as unknown as AgentHostMessage)
         }
       },
       onRendezvousResult(message: Record<string, unknown>) {
         const msgType = message.type as string
-        const ccSessionId = message.sessionId as string | undefined
+        const ccSessionId = message.ccSessionId as string | undefined
         const cwd = message.cwd as string | undefined
         const error = message.error as string | undefined
         const isReady = msgType === 'spawn_ready' || msgType === 'revive_ready' || msgType === 'restart_ready'
@@ -1499,7 +1497,7 @@ async function main() {
           if (ctx.wsClient?.isConnected()) {
             ctx.wsClient.send({
               type: 'permission_auto_approved',
-              sessionId: ctx.claudeSessionId || conversationId,
+              conversationId: ctx.conversationId,
               requestId: data.requestId,
               toolName: data.toolName,
               description: data.description,
@@ -1522,7 +1520,7 @@ async function main() {
         diag('dialog', `Show: "${layout.title}" (${dialogId.slice(0, 8)})`)
         sendInteraction(ctx, 'dialog_show', dialogId, {
           type: 'dialog_show',
-          sessionId: ctx.claudeSessionId || conversationId,
+          conversationId: ctx.conversationId,
           dialogId,
           layout,
         } as unknown as AgentHostMessage)
@@ -1532,7 +1530,7 @@ async function main() {
         clearInteraction(ctx, dialogId)
         ctx.wsClient?.send({
           type: 'dialog_dismiss',
-          sessionId: ctx.claudeSessionId || conversationId,
+          conversationId: ctx.conversationId,
           dialogId,
         } as unknown as AgentHostMessage)
       },
@@ -1576,7 +1574,7 @@ async function main() {
           }
           ctx.wsClient?.send({
             type: 'channel_revive',
-            sessionId: targetConversationId,
+            conversationId: targetConversationId,
           } as unknown as AgentHostMessage)
         })
       },
@@ -1658,7 +1656,7 @@ async function main() {
               })
             })
             const session = result.session as Record<string, unknown> | undefined
-            diag('channel', `spawn_session: rendezvous resolved session=${(result.sessionId as string)?.slice(0, 8)}`)
+            diag('channel', `spawn_session: rendezvous resolved session=${(result.ccSessionId as string)?.slice(0, 8)}`)
             cleanupJob()
             return { ok: true, conversationId: spawnResult.conversationId, jobId, session }
           } catch (err) {
@@ -1725,7 +1723,7 @@ async function main() {
           }
           ctx.wsClient?.send({
             type: 'channel_restart',
-            sessionId: targetConversationId,
+            conversationId: targetConversationId,
           } as unknown as AgentHostMessage)
         })
       },
@@ -1769,7 +1767,7 @@ async function main() {
           }
           ctx.wsClient?.send({
             type: 'channel_configure',
-            sessionId: targetConversationId,
+            conversationId: targetConversationId,
             label,
             icon,
             color,
@@ -1780,7 +1778,6 @@ async function main() {
       },
       async onRenameConversation(name, description) {
         if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to broker' }
-        const sessionId = ctx.claudeSessionId || ctx.conversationId
         return new Promise(resolve => {
           const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
           pendingRenameResult = result => {
@@ -1790,7 +1787,7 @@ async function main() {
           }
           ctx.wsClient?.send({
             type: 'rename_conversation',
-            sessionId,
+            conversationId: ctx.conversationId,
             name,
             description,
           } as unknown as AgentHostMessage)
@@ -1817,8 +1814,8 @@ async function main() {
       },
     },
     {
-      sessionId,
-      conversationId: conversationId,
+      ccSessionId: conversationId,
+      conversationId,
       cwd,
       configuredModel,
       headless,
@@ -1879,7 +1876,7 @@ async function main() {
       debug(`AskUserQuestion: ${request.questions.length} questions, toolUseId=${request.toolUseId.slice(0, 12)}`)
       sendInteraction(ctx, 'ask_question', request.toolUseId, {
         ...request,
-        sessionId: ctx.claudeSessionId || conversationId,
+        conversationId: ctx.conversationId,
       } as unknown as AgentHostMessage)
     },
     onAskTimeout(toolUseId: string) {
@@ -1916,7 +1913,7 @@ async function main() {
     buildSystemPrompt({
       channelEnabled,
       headless,
-      identity: { sessionId, conversationId: conversationId, cwd, configuredModel, headless },
+      identity: { ccSessionId: conversationId, conversationId, cwd, configuredModel, headless },
     }),
   )
   claudeArgs.push('--append-system-prompt', readFileSync(promptFile, 'utf-8'))

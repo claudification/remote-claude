@@ -32,7 +32,7 @@ import { recordIn, recordOut } from './ws-stats'
 interface DashboardMessage {
   type: string
   conversationId?: string
-  previousSessionId?: string
+  previousConversationId?: string
   session?: ConversationSummary
   sessions?: ConversationSummary[]
   event?: HookEvent
@@ -326,7 +326,7 @@ function processMessage(msg: DashboardMessage) {
       if (msg.session && msg.conversationId) {
         const conversationId = msg.conversationId
         const session = msg.session
-        const prevId = msg.previousSessionId
+        const prevId = msg.previousConversationId
         const matchId = prevId || conversationId
         useConversationsStore.setState(state => {
           const updated = toSession(session)
@@ -416,10 +416,10 @@ function processMessage(msg: DashboardMessage) {
     }
     case 'channel_ack': {
       // Channel subscription acknowledgment - log for debugging
-      const ack = msg as DashboardMessage & { channel?: string; previousSessionId?: string }
-      if (ack.previousSessionId) {
+      const ack = msg as DashboardMessage & { channel?: string; previousConversationId?: string }
+      if (ack.previousConversationId) {
         console.log(
-          `[ws] Channel ${ack.channel} rolled over: ${ack.previousSessionId.slice(0, 8)} -> ${ack.sessionId?.slice(0, 8)}`,
+          `[ws] Channel ${ack.channel} rolled over: ${ack.previousConversationId.slice(0, 8)} -> ${ack.conversationId?.slice(0, 8)}`,
         )
       }
       break

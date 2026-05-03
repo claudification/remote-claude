@@ -193,7 +193,7 @@ interface TranscriptEntryBase {
   uuid?: string
   parentUuid?: string | null
   isSidechain?: boolean
-  sessionId?: string
+  ccSessionId?: string
   cwd?: string
   version?: string
   gitBranch?: string
@@ -676,7 +676,7 @@ export interface InterConversationListResponse {
   self?: {
     id: string
     project: string
-    session_id: string
+    ccSessionId: string
     name: string
     model?: string
     permissionMode?: string
@@ -1641,7 +1641,7 @@ export interface ChannelAck {
   conversationId: string
   agentId?: string
   status: 'subscribed' | 'unsubscribed'
-  previousSessionId?: string // set during rekey rollover (routing key, matches session.id)
+  previousConversationId?: string // set during rekey rollover (routing key, matches conversation.id)
 }
 
 // Per-channel diagnostic stats

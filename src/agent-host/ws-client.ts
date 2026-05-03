@@ -484,11 +484,6 @@ export function createWsClient(options: WsClientOptions): WsClient {
             }
             default: {
               const msgType = (message as unknown as Record<string, unknown>).type as string
-              // Deprecated alias for terminate_session
-              if (msgType === 'quit_session') {
-                onQuitConversation?.()
-                break
-              }
               if (msgType === 'dialog_keepalive') {
                 const m = message as unknown as Record<string, unknown>
                 onDialogKeepalive?.(m.dialogId as string)

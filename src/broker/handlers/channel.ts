@@ -49,7 +49,7 @@ const subscribe: MessageHandler = (ctx, data) => {
     if (s.pendingDialog) {
       ctx.reply({
         type: 'dialog_show',
-        sessionId: s.id,
+        conversationId: s.id,
         dialogId: s.pendingDialog.dialogId,
         layout: s.pendingDialog.layout,
       })
@@ -57,7 +57,7 @@ const subscribe: MessageHandler = (ctx, data) => {
     if (s.pendingPlanApproval) {
       ctx.reply({
         type: 'plan_approval',
-        sessionId: s.id,
+        conversationId: s.id,
         requestId: s.pendingPlanApproval.requestId,
         toolUseId: s.pendingPlanApproval.toolUseId,
         plan: s.pendingPlanApproval.plan,
@@ -68,7 +68,7 @@ const subscribe: MessageHandler = (ctx, data) => {
     if (s.pendingPermission) {
       ctx.reply({
         type: 'permission_request',
-        sessionId: s.id,
+        conversationId: s.id,
         requestId: s.pendingPermission.requestId,
         toolName: s.pendingPermission.toolName,
         description: s.pendingPermission.description,
@@ -79,7 +79,7 @@ const subscribe: MessageHandler = (ctx, data) => {
     if (s.pendingAskQuestion) {
       ctx.reply({
         type: 'ask_question',
-        sessionId: s.id,
+        conversationId: s.id,
         toolUseId: s.pendingAskQuestion.toolUseId,
         questions: s.pendingAskQuestion.questions,
       })
@@ -107,23 +107,23 @@ const syncCheck: MessageHandler = (ctx, data) => {
 
 const channelSubscribe: MessageHandler = (ctx, data) => {
   const channel = data.channel as SubscriptionChannel
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = data.conversationId as string
   const agentId = data.agentId as string | undefined
   if (!channel || !conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (conversation) ctx.requirePermission('chat:read', conversation.project)
   ctx.conversations.subscribeChannel(ctx.ws, channel, conversationId, agentId)
-  ctx.reply({ type: 'channel_ack', channel, sessionId: conversationId, agentId, status: 'subscribed' })
+  ctx.reply({ type: 'channel_ack', channel, conversationId, agentId, status: 'subscribed' })
   ctx.log.debug(`[channel] ${channel}:${conversationId.slice(0, 8)}${agentId ? `:${agentId.slice(0, 8)}` : ''} +sub`)
 }
 
 const channelUnsubscribe: MessageHandler = (ctx, data) => {
   const channel = data.channel as SubscriptionChannel
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = data.conversationId as string
   const agentId = data.agentId as string | undefined
   if (!channel || !conversationId) return
   ctx.conversations.unsubscribeChannel(ctx.ws, channel, conversationId, agentId)
-  ctx.reply({ type: 'channel_ack', channel, sessionId: conversationId, agentId, status: 'unsubscribed' })
+  ctx.reply({ type: 'channel_ack', channel, conversationId, agentId, status: 'unsubscribed' })
   ctx.log.debug(`[channel] ${channel}:${conversationId.slice(0, 8)}${agentId ? `:${agentId.slice(0, 8)}` : ''} -sub`)
 }
 
@@ -506,12 +506,12 @@ const channelSend: MessageHandler = (ctx, data) => {
 // ─── Quit session relay (dashboard -> wrapper) ─────────────────────
 
 const quitConversation: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = data.conversationId as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   if (conversation) ctx.requirePermission('chat', conversation.project)
   const targetWs = conversationId ? ctx.conversations.getConversationSocket(conversationId) : null
   if (targetWs) {
-    targetWs.send(JSON.stringify({ type: 'terminate_conversation', sessionId: conversationId }))
+    targetWs.send(JSON.stringify({ type: 'terminate_conversation', conversationId }))
     ctx.log.debug(`Conversation ${conversationId.slice(0, 8)} - SIGTERM sent to wrapper`)
   }
 }
@@ -519,7 +519,7 @@ const quitConversation: MessageHandler = (ctx, data) => {
 // ─── Session viewed (clear notification badge) ────────────────────
 
 const sessionViewed: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = data.conversationId as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (conversation) ctx.requirePermission('chat:read', conversation.project)
@@ -616,11 +616,8 @@ export function registerChannelHandlers(): void {
     channel_send: channelSend,
     // Conversation terminate relay
     terminate_conversation: quitConversation,
-    terminate_session: quitConversation, // backward compat
-    quit_session: quitConversation, // backward compat
     // Notification badge
     conversation_viewed: sessionViewed,
-    session_viewed: sessionViewed, // backward compat
     // Link management
     channel_link_response: channelLinkResponse,
     channel_unlink: channelUnlink,

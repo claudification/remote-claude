@@ -20,7 +20,7 @@ export interface SubscriberEntry {
     string,
     {
       channel: SubscriptionChannel
-      sessionId: string
+      conversationId: string
       agentId?: string
       subscribedAt: number
       messagesSent: number
@@ -42,22 +42,22 @@ export interface ChannelRegistry {
   subscribeChannel: (
     ws: ServerWebSocket<unknown>,
     channel: SubscriptionChannel,
-    sessionId: string,
+    conversationId: string,
     agentId?: string,
   ) => void
   unsubscribeChannel: (
     ws: ServerWebSocket<unknown>,
     channel: SubscriptionChannel,
-    sessionId: string,
+    conversationId: string,
     agentId?: string,
   ) => void
   unsubscribeAllChannels: (ws: ServerWebSocket<unknown>) => void
   getChannelSubscribers: (
     channel: SubscriptionChannel,
-    sessionId: string,
+    conversationId: string,
     agentId?: string,
   ) => Set<ServerWebSocket<unknown>>
-  broadcastToChannel: (channel: SubscriptionChannel, sessionId: string, message: unknown, agentId?: string) => void
+  broadcastToChannel: (channel: SubscriptionChannel, conversationId: string, message: unknown, agentId?: string) => void
   isV2Subscriber: (ws: ServerWebSocket<unknown>) => boolean
   getSubscriptionsDiag: () => SubscriptionsDiag
   // Subscriber registry management (called by addSubscriber / removeSubscriber in main factory)
@@ -66,13 +66,13 @@ export interface ChannelRegistry {
   getSubscriberEntry: (ws: ServerWebSocket<unknown>) => SubscriberEntry | undefined
   // Session rekey helpers
   migrateChannels: (oldId: string, newId: string) => void
-  clearSubagentChannels: (sessionId: string) => void
+  clearSubagentChannels: (conversationId: string) => void
   // v2 set exposed for addSubscriber to check
   v2Subscribers: Set<ServerWebSocket<unknown>>
 }
 
-function channelKey(channel: SubscriptionChannel, sessionId: string, agentId?: string): string {
-  return agentId ? `${channel}:${sessionId}:${agentId}` : `${channel}:${sessionId}`
+function channelKey(channel: SubscriptionChannel, conversationId: string, agentId?: string): string {
+  return agentId ? `${channel}:${conversationId}:${agentId}` : `${channel}:${conversationId}`
 }
 
 export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistry {
@@ -87,10 +87,10 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
   function subscribeChannel(
     ws: ServerWebSocket<unknown>,
     channel: SubscriptionChannel,
-    sessionId: string,
+    conversationId: string,
     agentId?: string,
   ): void {
-    const key = channelKey(channel, sessionId, agentId)
+    const key = channelKey(channel, conversationId, agentId)
     let subs = channelSubscribers.get(key)
     if (!subs) {
       subs = new Set()
@@ -102,7 +102,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
     if (entry) {
       entry.channels.set(key, {
         channel,
-        sessionId,
+        conversationId,
         agentId,
         subscribedAt: Date.now(),
         messagesSent: 0,
@@ -115,10 +115,10 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
   function unsubscribeChannel(
     ws: ServerWebSocket<unknown>,
     channel: SubscriptionChannel,
-    sessionId: string,
+    conversationId: string,
     agentId?: string,
   ): void {
-    const key = channelKey(channel, sessionId, agentId)
+    const key = channelKey(channel, conversationId, agentId)
     const subs = channelSubscribers.get(key)
     if (subs) {
       subs.delete(ws)
@@ -145,16 +145,16 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
 
   function getChannelSubscribers(
     channel: SubscriptionChannel,
-    sessionId: string,
+    conversationId: string,
     agentId?: string,
   ): Set<ServerWebSocket<unknown>> {
-    const key = channelKey(channel, sessionId, agentId)
+    const key = channelKey(channel, conversationId, agentId)
     return channelSubscribers.get(key) || EMPTY_SUBSCRIBER_SET
   }
 
   function broadcastToChannel(
     channel: SubscriptionChannel,
-    sessionId: string,
+    conversationId: string,
     message: unknown,
     agentId?: string,
   ): void {
@@ -179,7 +179,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
       return filteredJson
     }
 
-    const key = channelKey(channel, sessionId, agentId)
+    const key = channelKey(channel, conversationId, agentId)
     const subs = channelSubscribers.get(key)
     if (subs) {
       for (const ws of subs) {
@@ -211,7 +211,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
           if (sent_ < 0) {
             const subInfo = subscriberRegistry.get(ws)
             console.warn(
-              `[broadcast] backpressure drop: ${subInfo?.id || 'unknown'} channel=${channel}:${sessionId.slice(0, 8)} bytes=${bytes}`,
+              `[broadcast] backpressure drop: ${subInfo?.id || 'unknown'} channel=${channel}:${conversationId.slice(0, 8)} bytes=${bytes}`,
             )
           }
           sent.add(ws)
@@ -271,7 +271,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
       for (const ch of entry.channels.values()) {
         channels.push({
           channel: ch.channel,
-          conversationId: ch.sessionId,
+          conversationId: ch.conversationId,
           agentId: ch.agentId,
           subscribedAt: ch.subscribedAt,
           messagesSent: ch.messagesSent,
@@ -367,7 +367,7 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
           entry.channels.delete(oldKey)
           entry.channels.set(newKey, {
             channel,
-            sessionId: newId,
+            conversationId: newId,
             subscribedAt: oldStats?.subscribedAt || Date.now(),
             messagesSent: oldStats?.messagesSent || 0,
             bytesSent: oldStats?.bytesSent || 0,
@@ -379,9 +379,9 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
             JSON.stringify({
               type: 'channel_ack',
               channel,
-              sessionId: newId,
+              conversationId: newId,
               status: 'subscribed',
-              previousSessionId: oldId,
+              previousConversationId: oldId,
             }),
           )
         } catch {
@@ -393,9 +393,9 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
   }
 
   // Clear subagent transcript subscriptions for a conversation (called by rekeyConversation)
-  function clearSubagentChannels(sessionId: string): void {
+  function clearSubagentChannels(conversationId: string): void {
     for (const key of channelSubscribers.keys()) {
-      if (key.startsWith(`conversation:subagent_transcript:${sessionId}:`)) {
+      if (key.startsWith(`conversation:subagent_transcript:${conversationId}:`)) {
         const subs = channelSubscribers.get(key)
         if (subs) {
           for (const ws of subs) {

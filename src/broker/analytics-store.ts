@@ -45,7 +45,7 @@ export interface ToolUseEvent {
 }
 
 export interface TurnAnalytics {
-  sessionId: string
+  conversationId: string
   timestamp: number
   /** Canonical project identity URI (e.g. claude:///Users/jonas/projects/foo) */
   projectUri: string
@@ -174,7 +174,7 @@ function flushBatch(): void {
       for (const turn of batch) {
         stmtInsertTurn?.run({
           timestamp: turn.timestamp,
-          sessionId: turn.sessionId,
+          sessionId: turn.conversationId,
           projectUri: turn.projectUri,
           projectId: turn.projectId,
           model: turn.model,
@@ -192,7 +192,7 @@ function flushBatch(): void {
         for (const toolName of turn.tools) {
           stmtInsertToolUse?.run({
             timestamp: turn.timestamp,
-            sessionId: turn.sessionId,
+            sessionId: turn.conversationId,
             toolName,
           })
         }
@@ -212,7 +212,7 @@ let stmtInsertTurn: Statement | null = null
 let stmtInsertToolUse: Statement | null = null
 let cleanupTimer: ReturnType<typeof setInterval> | null = null
 
-/** Per-session turn accumulators (keyed by sessionId) */
+/** Per-conversation turn accumulators (keyed by conversationId) */
 const turnAccumulators = new Map<string, TurnAccumulator>()
 
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000 // 90 days (longer than cost-store)
@@ -388,7 +388,7 @@ export function initAnalyticsStore(cacheDir: string): void {
  * MUST be non-blocking -- errors are caught and logged, never thrown.
  */
 export function recordHookEvent(
-  sessionId: string,
+  conversationId: string,
   hookEvent: string,
   data: Record<string, unknown>,
   sessionMeta: { projectUri: string; model: string; account: string; projectLabel?: string },
@@ -401,7 +401,7 @@ export function recordHookEvent(
       const prompt = String(data.prompt || '')
         .slice(0, 200)
         .toLowerCase()
-      turnAccumulators.set(sessionId, {
+      turnAccumulators.set(conversationId, {
         tools: [],
         promptSnippet: prompt,
         startedAt: Date.now(),
@@ -411,7 +411,7 @@ export function recordHookEvent(
 
     // PreToolUse: record tool invocation (we use Pre because Post may not fire on timeout)
     if (hookEvent === 'PreToolUse') {
-      const acc = turnAccumulators.get(sessionId)
+      const acc = turnAccumulators.get(conversationId)
       if (acc) {
         acc.tools.push({
           toolName: String(data.tool_name || ''),
@@ -424,7 +424,7 @@ export function recordHookEvent(
 
     // PostToolUseFailure: mark the last matching tool as failed
     if (hookEvent === 'PostToolUseFailure') {
-      const acc = turnAccumulators.get(sessionId)
+      const acc = turnAccumulators.get(conversationId)
       if (acc) {
         const toolName = String(data.tool_name || '')
         // Find last tool with this name and mark failed
@@ -440,9 +440,9 @@ export function recordHookEvent(
 
     // Stop / StopFailure: finalize the turn and enqueue for batch write
     if (hookEvent === 'Stop' || hookEvent === 'StopFailure') {
-      const acc = turnAccumulators.get(sessionId)
+      const acc = turnAccumulators.get(conversationId)
       if (!acc) return
-      turnAccumulators.delete(sessionId)
+      turnAccumulators.delete(conversationId)
 
       // Skip empty turns (no tool calls and no prompt = not interesting)
       if (acc.tools.length === 0 && !acc.promptSnippet) return
@@ -452,7 +452,7 @@ export function recordHookEvent(
       const taskCategory = classifyTurn(acc.tools, acc.promptSnippet)
 
       const turn: TurnAnalytics = {
-        sessionId,
+        conversationId,
         timestamp: Date.now(),
         projectUri: sessionMeta.projectUri,
         projectId: getOrCreateProject(sessionMeta.projectUri, sessionMeta.projectLabel).id,
@@ -479,8 +479,8 @@ export function recordHookEvent(
 /**
  * Clear the turn accumulator for a conversation (e.g. on session end).
  */
-export function clearSession(sessionId: string): void {
-  turnAccumulators.delete(sessionId)
+export function clearSession(conversationId: string): void {
+  turnAccumulators.delete(conversationId)
 }
 
 // ─── Queries ────────────────────────────────────────────────────────

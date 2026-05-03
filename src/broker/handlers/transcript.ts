@@ -112,20 +112,20 @@ function diffSessionInfo(prev: ConversationInfoSnapshot, next: ConversationInfoS
 }
 
 const tasksUpdate: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const tasks = data.tasks || []
   ctx.conversations.updateTasks(conversationId, tasks)
   ctx.conversations.broadcastToChannel('conversation:tasks', conversationId, {
     type: 'tasks_update',
-    sessionId: conversationId,
+    conversationId,
     tasks,
   })
   ctx.log.debug(`tasks_update (${tasks.length} tasks)`)
 }
 
 const diagHandler: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId || !Array.isArray(data.entries)) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (conversation) {
@@ -137,7 +137,7 @@ const diagHandler: MessageHandler = (ctx, data) => {
 }
 
 const transcriptEntries: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const entries = data.entries || []
   ctx.conversations.addTranscriptEntries(conversationId, entries, !!data.isInitial)
@@ -146,7 +146,7 @@ const transcriptEntries: MessageHandler = (ctx, data) => {
 }
 
 const subagentTranscript: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || ctx.ws.data.conversationId) as string
   const agentId = data.agentId
   if (!conversationId || !agentId) return
   const entries = data.entries || []
@@ -156,14 +156,14 @@ const subagentTranscript: MessageHandler = (ctx, data) => {
 }
 
 const bgTaskOutput: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId || !data.taskId) return
   ctx.conversations.addBgTaskOutput(conversationId, data.taskId, data.data || '', !!data.done)
   ctx.conversations.broadcastToChannel('conversation:bg_output', conversationId, data)
 }
 
 const transcriptRequest: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = data.conversationId as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (conversation) ctx.requirePermission('chat:read', conversation.project)
@@ -176,7 +176,7 @@ const transcriptRequest: MessageHandler = (ctx, data) => {
     if (ctx.ws.data.hideUserInput) {
       entries = entries.filter(e => (e as { type?: string }).type !== 'user')
     }
-    ctx.reply({ type: 'transcript_entries', sessionId: conversationId, entries, isInitial: true })
+    ctx.reply({ type: 'transcript_entries', conversationId, entries, isInitial: true })
   } else {
     const conversationSocket = ctx.conversations.getConversationSocket(conversationId)
     if (conversationSocket) conversationSocket.send(JSON.stringify(data))
@@ -184,7 +184,7 @@ const transcriptRequest: MessageHandler = (ctx, data) => {
 }
 
 const subagentTranscriptRequest: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = data.conversationId as string
   if (!conversationId || !data.agentId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (conversation) ctx.requirePermission('chat:read', conversation.project)
@@ -192,7 +192,7 @@ const subagentTranscriptRequest: MessageHandler = (ctx, data) => {
     const entries = ctx.conversations.getSubagentTranscriptEntries(conversationId, data.agentId, data.limit)
     ctx.reply({
       type: 'subagent_transcript',
-      sessionId: conversationId,
+      conversationId,
       agentId: data.agentId,
       entries,
       isInitial: true,
@@ -256,7 +256,7 @@ const sessionInfo: MessageHandler = (ctx, data) => {
       ctx.conversations.addTranscriptEntries(conversationId, [warningEntry], false)
       ctx.conversations.broadcastToChannel('conversation:transcript', conversationId, {
         type: 'transcript_entries',
-        sessionId: conversationId,
+        conversationId,
         entries: [warningEntry],
         isInitial: false,
       })
@@ -280,7 +280,7 @@ const sessionInfo: MessageHandler = (ctx, data) => {
       ctx.conversations.addTranscriptEntries(conversationId, changes, false)
       ctx.conversations.broadcastToChannel('conversation:transcript', conversationId, {
         type: 'transcript_entries',
-        sessionId: conversationId,
+        conversationId,
         entries: changes,
         isInitial: false,
       })
@@ -290,7 +290,7 @@ const sessionInfo: MessageHandler = (ctx, data) => {
 
   // Broadcast with canonical conversation ID (not whatever the wrapper sent)
   if (conversation.project) {
-    ctx.broadcastScoped({ ...data, type: 'conversation_info', sessionId: conversationId }, conversation.project)
+    ctx.broadcastScoped({ ...data, type: 'conversation_info', conversationId }, conversation.project)
   }
   ctx.log.debug(
     `session_info: ${(data.tools as unknown[])?.length} tools, ${(data.skills as unknown[])?.length} skills, ${(data.agents as unknown[])?.length} agents`,
@@ -299,17 +299,17 @@ const sessionInfo: MessageHandler = (ctx, data) => {
 
 // Headless stream deltas - forward raw API SSE events to dashboard subscribers
 const streamDelta: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (conversation?.project) {
-    ctx.broadcastScoped({ type: 'stream_delta', sessionId: conversationId, event: data.event }, conversation.project)
+    ctx.broadcastScoped({ type: 'stream_delta', conversationId, event: data.event }, conversation.project)
   }
 }
 
 // Rate limit event from headless backend - store on session and broadcast update
 const rateLimitHandler: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (!conversation) return
@@ -324,7 +324,7 @@ const rateLimitHandler: MessageHandler = (ctx, data) => {
 const MAX_COST_TIMELINE = 500
 
 const turnCost: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = data.conversationId as string
   const costUsd = data.costUsd as number
   const conversation = ctx.conversations.getConversation(conversationId)
   if (conversation) {
@@ -356,7 +356,7 @@ const turnCost: MessageHandler = (ctx, data) => {
     // Broadcast live update for stats page
     ctx.broadcast({
       type: 'turn_recorded',
-      sessionId: conversationId,
+      conversationId,
       project: conversation.project,
       account: conversation.claudeAuth?.email || '',
       model: conversation.model || '',
@@ -369,7 +369,7 @@ const turnCost: MessageHandler = (ctx, data) => {
 }
 
 const sessionName: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = data.conversationId as string
   const name = data.name as string
   const description = typeof data.description === 'string' ? data.description : undefined
   const conversation = ctx.conversations.getConversation(conversationId)
@@ -392,7 +392,7 @@ const sessionName: MessageHandler = (ctx, data) => {
 
 // Monitor lifecycle events - update session monitor state and broadcast
 const monitorUpdate: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (!conversation) return
@@ -439,7 +439,7 @@ const monitorUpdate: MessageHandler = (ctx, data) => {
 
 // Scheduled task fire - broadcast to dashboard subscribers
 const scheduledTaskFire: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId || ctx.ws.data.conversationId) as string
+  const conversationId = (data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (!conversation) return
@@ -448,7 +448,7 @@ const scheduledTaskFire: MessageHandler = (ctx, data) => {
     ctx.broadcastScoped(
       {
         type: 'scheduled_task_fire',
-        sessionId: conversationId,
+        conversationId,
         content: data.content,
         timestamp: data.timestamp || Date.now(),
       },
@@ -460,7 +460,7 @@ const scheduledTaskFire: MessageHandler = (ctx, data) => {
 
 // Store the final result text from headless sessions (used for ad-hoc task completion display)
 const resultText: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.sessionId) as string
+  const conversationId = data.conversationId as string
   const text = data.text as string
   const conversation = ctx.conversations.getConversation(conversationId)
   if (conversation && text) {

@@ -181,7 +181,7 @@ export function createSpawnJobRegistry(): SpawnJobRegistry {
       job.completed = true
       job.ccSessionId = ccSessionId
       job.endedAt = Date.now()
-      forwardJobEvent(jobId, { type: 'job_complete', jobId, sessionId: ccSessionId, conversationId })
+      forwardJobEvent(jobId, { type: 'job_complete', jobId, ccSessionId, conversationId })
       setTimeout(() => {
         launchJobs.delete(jobId)
         conversationToJob.delete(conversationId)

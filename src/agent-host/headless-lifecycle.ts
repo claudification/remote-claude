@@ -147,7 +147,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       if (result.total_cost_usd != null && ctx.wsClient?.isConnected() && ctx.claudeSessionId) {
         ctx.wsClient.send({
           type: 'turn_cost',
-          sessionId: ctx.claudeSessionId,
+          conversationId: ctx.conversationId,
           costUsd: result.total_cost_usd,
         } as unknown as AgentHostMessage)
       }
@@ -155,7 +155,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       if (result.result_text && typeof result.result_text === 'string' && ctx.wsClient?.isConnected()) {
         ctx.wsClient.send({
           type: 'result_text',
-          sessionId: ctx.claudeSessionId || ctx.conversationId,
+          conversationId: ctx.conversationId,
           text: result.result_text,
         } as unknown as AgentHostMessage)
       }
@@ -267,7 +267,6 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
     },
 
     onMonitorUpdate(monitor) {
-      const sessionId = ctx.claudeSessionId || ctx.conversationId
       // Start streaming the monitor's .output file when it becomes active
       if (monitor.status === 'running' && monitor.outputPath) {
         debug(`[headless] Monitor output: ${monitor.taskId.slice(0, 8)} -> ${monitor.outputPath}`)
@@ -276,7 +275,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       if (ctx.wsClient?.isConnected()) {
         ctx.wsClient.send({
           type: 'monitor_update',
-          sessionId,
+          conversationId: ctx.conversationId,
           monitor: {
             ...monitor,
             startedAt: monitor.status === 'running' ? Date.now() : 0,
@@ -290,11 +289,10 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
     },
 
     onScheduledTaskFire(content) {
-      const sessionId = ctx.claudeSessionId || ctx.conversationId
       if (ctx.wsClient?.isConnected()) {
         ctx.wsClient.send({
           type: 'scheduled_task_fire',
-          sessionId,
+          conversationId: ctx.conversationId,
           content,
           timestamp: Date.now(),
         } as unknown as AgentHostMessage)
@@ -309,12 +307,11 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
     },
 
     onPlanModeChanged(planMode) {
-      const sessionId = ctx.claudeSessionId || ctx.conversationId
       ctx.diag('headless', `Plan mode: ${planMode ? 'ON' : 'OFF'} (from status message)`)
       if (ctx.wsClient?.isConnected()) {
         ctx.wsClient.send({
           type: 'plan_mode_changed',
-          sessionId,
+          conversationId: ctx.conversationId,
           planMode,
         } as unknown as AgentHostMessage)
       }
@@ -326,7 +323,6 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
 
       // EnterPlanMode: check allowPlanMode config, approve or deny
       if (request.toolName === 'EnterPlanMode') {
-        const sessionId = ctx.claudeSessionId || ctx.conversationId
         if (!permissionRules.isPlanModeAllowed()) {
           ctx.streamProc?.sendPermissionResponse(request.requestId, false, undefined, toolUseId)
           ctx.diag('headless', 'EnterPlanMode denied: allowPlanMode is false')
@@ -337,7 +333,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
         if (ctx.wsClient?.isConnected()) {
           ctx.wsClient.send({
             type: 'plan_mode_changed',
-            sessionId,
+            conversationId: ctx.conversationId,
             planMode: true,
           } as unknown as AgentHostMessage)
         }
@@ -346,7 +342,6 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
 
       // ExitPlanMode: intercept and forward plan to dashboard for approval
       if (request.toolName === 'ExitPlanMode') {
-        const sessionId = ctx.claudeSessionId || ctx.conversationId
         ctx.diag('headless', `ExitPlanMode input keys: ${Object.keys(request.toolInput || {}).join(', ')}`)
         let plan = (request.toolInput?.plan as string) || ''
         const planFilePath = request.toolInput?.planFilePath as string | undefined
@@ -371,7 +366,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
         // broker restart between now and the user's response is harmless.
         sendInteraction(ctx, 'plan_approval', request.requestId, {
           type: 'plan_approval',
-          sessionId,
+          conversationId: ctx.conversationId,
           requestId: request.requestId,
           toolUseId,
           plan,
@@ -391,7 +386,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
         ctx.pendingAskRequests.set(toolUseId, { requestId: request.requestId, questions })
         sendInteraction(ctx, 'ask_question', toolUseId, {
           type: 'ask_question',
-          sessionId: ctx.claudeSessionId || ctx.conversationId,
+          conversationId: ctx.conversationId,
           toolUseId,
           questions,
         } as unknown as AgentHostMessage)
@@ -406,7 +401,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
         if (ctx.wsClient?.isConnected()) {
           ctx.wsClient.send({
             type: 'permission_auto_approved',
-            sessionId: ctx.claudeSessionId || ctx.conversationId,
+            conversationId: ctx.conversationId,
             requestId: request.requestId,
             toolName: request.toolName,
             description: (request.decision_reason as string) || `${request.toolName}: ${inputStr.slice(0, 100)}`,
@@ -419,7 +414,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       // payload so onConnected can replay after a broker restart.
       sendInteraction(ctx, 'permission_request', request.requestId, {
         type: 'permission_request',
-        sessionId: ctx.claudeSessionId || ctx.conversationId,
+        conversationId: ctx.conversationId,
         toolName: request.toolName,
         description: (request.decision_reason as string) || `${request.toolName}: ${inputStr.slice(0, 100)}`,
         inputPreview: inputStr.slice(0, 200),

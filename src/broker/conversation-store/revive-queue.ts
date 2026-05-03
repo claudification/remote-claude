@@ -12,7 +12,7 @@ const REVIVE_QUEUE_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 export interface QueuedRevive {
   sentinelId: string
   sentinelAlias: string
-  sessionId: string
+  ccSessionId: string
   conversationId: string
   jobId?: string
   payload: Record<string, unknown>

@@ -54,7 +54,7 @@ export class FileEditor {
   private watchers = new Map<string, ChokidarWatcher>()
   private skipNextChange = new Map<string, boolean>()
 
-  constructor(cwd: string, _sessionId: string) {
+  constructor(cwd: string, _conversationId: string) {
     this.cwd = resolve(cwd)
   }
 

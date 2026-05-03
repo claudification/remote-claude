@@ -485,49 +485,49 @@ async function main() {
   const wsServer = createWsServer({
     port,
     conversationStore,
-    onConversationStart(sessionId, meta) {
+    onConversationStart(conversationId, meta) {
       if (verbose) {
-        console.log(`[+] Session started: ${sessionId.slice(0, 8)}... (${meta.project})`)
+        console.log(`[+] Session started: ${conversationId.slice(0, 8)}... (${meta.project})`)
       }
     },
-    onConversationEnd(sessionId, reason) {
+    onConversationEnd(conversationId, reason) {
       if (verbose) {
-        console.log(`[-] Session ended: ${sessionId.slice(0, 8)}... (${reason})`)
+        console.log(`[-] Session ended: ${conversationId.slice(0, 8)}... (${reason})`)
       }
     },
-    onHookEvent(sessionId, event) {
+    onHookEvent(conversationId, event) {
       if (verbose) {
         const toolName = 'tool_name' in event.data ? (event.data.tool_name as string) : ''
         const suffix = toolName ? ` (${toolName})` : ''
-        console.log(`[*] ${sessionId.slice(0, 8)}... ${event.hookEvent}${suffix}`)
+        console.log(`[*] ${conversationId.slice(0, 8)}... ${event.hookEvent}${suffix}`)
       }
 
       // Auto-send push notification on Notification hook events
       if (event.hookEvent === 'Notification' && isPushConfigured()) {
-        const session = conversationStore.getConversation(sessionId)
-        const label = session?.project ? extractProjectLabel(session.project) : sessionId.slice(0, 8)
+        const session = conversationStore.getConversation(conversationId)
+        const label = session?.project ? extractProjectLabel(session.project) : conversationId.slice(0, 8)
         const d = event.data as Record<string, unknown>
         const message = (d?.message as string) || 'Awaiting input...'
         const notifType = (d?.notification_type as string) || 'Notification'
         sendPushToAll({
           title: `${notifType} - ${label}`,
           body: message,
-          conversationId: sessionId,
-          tag: `notification-${sessionId}`,
+          conversationId,
+          tag: `notification-${conversationId}`,
         }).catch(() => {})
       }
 
       // Auto-send push on session Stop (Claude finished working)
       if (event.hookEvent === 'Stop' && isPushConfigured()) {
-        const session = conversationStore.getConversation(sessionId)
-        const label = session?.project ? extractProjectLabel(session.project) : sessionId.slice(0, 8)
+        const session = conversationStore.getConversation(conversationId)
+        const label = session?.project ? extractProjectLabel(session.project) : conversationId.slice(0, 8)
         const d = event.data as Record<string, unknown>
         const reason = (d?.stop_hook_reason as string) || 'completed'
         sendPushToAll({
           title: `Session stopped - ${label}`,
           body: reason,
-          conversationId: sessionId,
-          tag: `stop-${sessionId}`,
+          conversationId,
+          tag: `stop-${conversationId}`,
         }).catch(() => {})
       }
     },
@@ -761,7 +761,7 @@ async function main() {
                   sentinel.send(
                     JSON.stringify({
                       type: 'revive',
-                      sessionId: session.id,
+                      ccSessionId: session.id,
                       project: pendingRestart.project,
                       conversationId,
                       mode: 'resume',
@@ -782,9 +782,8 @@ async function main() {
                         callerWs?.send(
                           JSON.stringify({
                             type: 'restart_ready',
-                            sessionId: revived.id,
+                            conversationId: revived.id,
                             project: revived.project,
-                            conversationId,
                             session: revived,
                           }),
                         )

@@ -28,11 +28,11 @@ export function ensureFileEditor(ctx: AgentHostContext): FileEditor {
 export function handleFileEditorMessage(ctx: AgentHostContext, msg: Record<string, unknown>) {
   const type = msg.type as string
   const requestId = msg.requestId as string | undefined
-  const sessionId = msg.sessionId as string | undefined
+  const conversationId = msg.conversationId as string | undefined
   const editor = ensureFileEditor(ctx)
 
   function respond(responseType: string, data: Record<string, unknown>) {
-    ctx.wsClient?.send({ type: responseType, requestId, sessionId, ...data } as unknown as AgentHostMessage)
+    ctx.wsClient?.send({ type: responseType, requestId, conversationId, ...data } as unknown as AgentHostMessage)
   }
 
   function respondError(responseType: string, err: unknown) {
@@ -72,7 +72,7 @@ export function handleFileEditorMessage(ctx: AgentHostContext, msg: Record<strin
       break
     case 'file_watch':
       editor.watchFile(msg.path as string, event => {
-        ctx.wsClient?.send({ type: 'file_changed', sessionId, ...event } as unknown as AgentHostMessage)
+        ctx.wsClient?.send({ type: 'file_changed', conversationId, ...event } as unknown as AgentHostMessage)
       })
       break
     case 'file_unwatch':

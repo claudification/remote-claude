@@ -59,7 +59,7 @@ export interface HandlerContext {
     sendToAll(payload: {
       title: string
       body: string
-      sessionId?: string
+      conversationId?: string
       sessionProject?: string
       tag?: string
       data?: Record<string, unknown>

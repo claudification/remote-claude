@@ -298,26 +298,26 @@ function Dashboard() {
   // Helper: fetch events + transcript for a conversation.
   // Deduplicates within a short window to prevent storm on rapid switches.
   const fetchConversationData = useCallback(
-    (sessionId: string, reason?: string) => {
+    (convId: string, reason?: string) => {
       const now = Date.now()
-      const lastFetch = fetchedAtRef.current[sessionId] || 0
+      const lastFetch = fetchedAtRef.current[convId] || 0
       const elapsed = now - lastFetch
       if (elapsed < 2000) {
-        console.log(`[sync] SKIP fetch ${sessionId.slice(0, 8)} (${reason || '?'}) - fetched ${elapsed}ms ago`)
+        console.log(`[sync] SKIP fetch ${convId.slice(0, 8)} (${reason || '?'}) - fetched ${elapsed}ms ago`)
         return
       }
-      const cachedCount = useConversationsStore.getState().transcripts[sessionId]?.length ?? 0
+      const cachedCount = useConversationsStore.getState().transcripts[convId]?.length ?? 0
       console.log(
-        `[sync] FETCH ${sessionId.slice(0, 8)} (${reason || '?'}) cached=${cachedCount} lastFetch=${lastFetch ? `${elapsed}ms ago` : 'never'}`,
+        `[sync] FETCH ${convId.slice(0, 8)} (${reason || '?'}) cached=${cachedCount} lastFetch=${lastFetch ? `${elapsed}ms ago` : 'never'}`,
       )
-      fetchedAtRef.current[sessionId] = now
+      fetchedAtRef.current[convId] = now
       // Batch both fetches into a single state update to avoid useSyncExternalStore tearing (#310)
-      Promise.all([fetchConversationEvents(sessionId), fetchTranscript(sessionId)]).then(([events, transcript]) => {
+      Promise.all([fetchConversationEvents(convId), fetchTranscript(convId)]).then(([events, transcript]) => {
         console.log(
-          `[sync] GOT ${sessionId.slice(0, 8)}: events=${events.length} transcript=${transcript?.entries.length ?? 'null'} lastSeq=${transcript?.lastSeq ?? '-'} (was ${cachedCount})`,
+          `[sync] GOT ${convId.slice(0, 8)}: events=${events.length} transcript=${transcript?.entries.length ?? 'null'} lastSeq=${transcript?.lastSeq ?? '-'} (was ${cachedCount})`,
         )
-        setEvents(sessionId, events)
-        if (transcript) setTranscript(sessionId, transcript.entries)
+        setEvents(convId, events)
+        if (transcript) setTranscript(convId, transcript.entries)
       })
     },
     [setEvents, setTranscript],
@@ -624,7 +624,7 @@ function Dashboard() {
       if (!sid) return
       const session = store.sessionsById[sid]
       if (session && session.status !== 'ended') {
-        wsSend('send_interrupt', { sessionId: sid })
+        wsSend('send_interrupt', { conversationId: sid })
       }
     },
     { label: 'Interrupt current turn', shortcut: 'Escape Escape', group: 'Session' },
@@ -841,11 +841,11 @@ function Dashboard() {
       {canAdmin && showSwitcher && (
         <CommandPalette
           onSelect={handleSwitcherSelect}
-          onFileSelect={(sessionId, path) => {
+          onFileSelect={(convId, path) => {
             const store = useConversationsStore.getState()
-            store.selectConversation(sessionId)
+            store.selectConversation(convId)
             store.setShowSwitcher(false)
-            store.openTab(sessionId, 'files')
+            store.openTab(convId, 'files')
             store.setPendingFilePath(path)
           }}
           onClose={() => useConversationsStore.getState().setShowSwitcher(false)}
@@ -976,8 +976,8 @@ function ShareGate({ token }: { token: string }) {
           fetch(`/api/share-resolve/${encodeURIComponent(token)}`)
             .then(r => (r.ok ? r.json() : null))
             .then(resolved => {
-              const sessionId = resolved?.conversationId
-              window.location.hash = sessionId ? `session/${sessionId}` : ''
+              const convId = resolved?.conversationId
+              window.location.hash = convId ? `session/${convId}` : ''
               setMode('redirect')
             })
         } else {
