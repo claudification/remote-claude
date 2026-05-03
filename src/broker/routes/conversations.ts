@@ -324,12 +324,12 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
   app.get('/api/share-resolve/:token', c => {
     const share = validateShare(c.req.param('token'))
     if (!share) return c.json({ error: 'Invalid or expired share' }, 404)
-    const sessions = sessionStore.getAllSessions().filter(s => s.project === share.sessionCwd)
-    sessions.sort((a, b) => b.lastActivity - a.lastActivity)
-    const best = sessions[0]
+    const conversations = conversationStore.getAllConversations().filter(s => s.project === share.sessionCwd)
+    conversations.sort((a, b) => b.lastActivity - a.lastActivity)
+    const best = conversations[0]
     return c.json({
       project: share.sessionCwd,
-      sessionId: best?.id || null,
+      conversationId: best?.id || null,
     })
   })
 

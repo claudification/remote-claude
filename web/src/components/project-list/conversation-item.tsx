@@ -1128,7 +1128,7 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
           title={`${session.description}\n(click to edit)`}
           onClick={e => {
             e.stopPropagation()
-            useSessionsStore.getState().setEditingDescriptionSessionId(session.id)
+            useConversationsStore.getState().setEditingDescriptionConversationId(session.id)
           }}
         >
           {session.description}

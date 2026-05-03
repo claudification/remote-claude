@@ -376,7 +376,7 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
     // Already lingering from a previous stop() call
     if (utteranceTimerRef.current) return
 
-    const lingerMs = useSessionsStore.getState().controlPanelPrefs.voiceLingerMs ?? 0
+    const lingerMs = useConversationsStore.getState().controlPanelPrefs.voiceLingerMs ?? 0
     if (lingerMs > 0) {
       console.log(`[voice] ${elapsed()} lingering ${lingerMs}ms before stop`)
       utteranceTimerRef.current = setTimeout(() => {

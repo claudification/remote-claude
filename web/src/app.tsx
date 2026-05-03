@@ -976,7 +976,7 @@ function ShareGate({ token }: { token: string }) {
           fetch(`/api/share-resolve/${encodeURIComponent(token)}`)
             .then(r => (r.ok ? r.json() : null))
             .then(resolved => {
-              const sessionId = resolved?.sessionId
+              const sessionId = resolved?.conversationId
               window.location.hash = sessionId ? `session/${sessionId}` : ''
               setMode('redirect')
             })
