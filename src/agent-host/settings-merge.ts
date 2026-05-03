@@ -150,13 +150,13 @@ async function readUserSettings(): Promise<ClaudeSettings> {
  * are command-only. Since rclaude needs SessionStart for session_id + transcript_path,
  * we use command+curl for all hooks.
  */
-function createHookMatcher(hookEvent: string, port: number, sessionId: string): HookMatcher {
+function createHookMatcher(hookEvent: string, port: number, conversationId: string): HookMatcher {
   return {
     matcher: '', // Match all
     hooks: [
       {
         type: 'command',
-        command: `curl -sf --max-time 3 -X POST "http://127.0.0.1:${port}/hook/${hookEvent}" -H "Content-Type: application/json" -H "X-Session-Id: ${sessionId}" -d @- 2>/dev/null || true`,
+        command: `curl -sf --max-time 3 -X POST "http://127.0.0.1:${port}/hook/${hookEvent}" -H "Content-Type: application/json" -H "X-Session-Id: ${conversationId}" -d @- 2>/dev/null || true`,
       },
     ],
   }
@@ -199,7 +199,7 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Partial
  * Generate merged settings with hook injection
  */
 export async function generateMergedSettings(
-  sessionId: string,
+  conversationId: string,
   port: number,
   claudeVersion?: string,
 ): Promise<ClaudeSettings> {
@@ -209,7 +209,7 @@ export async function generateMergedSettings(
   const supportedEvents = getSupportedHookEvents(claudeVersion)
   const ourHooks: ClaudeSettings['hooks'] = {}
   for (const event of supportedEvents) {
-    ourHooks[event as keyof ClaudeSettings['hooks']] = [createHookMatcher(event, port, sessionId)]
+    ourHooks[event as keyof ClaudeSettings['hooks']] = [createHookMatcher(event, port, conversationId)]
   }
 
   // WorktreeCreate: custom hook that branches from local HEAD instead of origin/HEAD.
@@ -249,7 +249,7 @@ export async function generateMergedSettings(
       hooks: [
         {
           type: 'command',
-          command: `curl -sf --max-time 120 -X POST "http://127.0.0.1:${port}/hook/AskUserQuestion" -H "Content-Type: application/json" -H "X-Session-Id: ${sessionId}" -d @- 2>/dev/null || true`,
+          command: `curl -sf --max-time 120 -X POST "http://127.0.0.1:${port}/hook/AskUserQuestion" -H "Content-Type: application/json" -H "X-Session-Id: ${conversationId}" -d @- 2>/dev/null || true`,
         },
       ],
     }
@@ -285,17 +285,19 @@ export async function generateMergedSettings(
  * Write merged settings to a temp file and return the path
  */
 export async function writeMergedSettings(
-  sessionId: string,
+  conversationId: string,
   port: number,
   claudeVersion?: string,
   dir?: string,
 ): Promise<string> {
-  const settings = await generateMergedSettings(sessionId, port, claudeVersion)
-  const settingsPath = dir ? `${dir}/settings/settings-${sessionId}.json` : `/tmp/rclaude-settings-${sessionId}.json`
+  const settings = await generateMergedSettings(conversationId, port, claudeVersion)
+  const settingsPath = dir
+    ? `${dir}/settings/settings-${conversationId}.json`
+    : `/tmp/rclaude-settings-${conversationId}.json`
 
   await Bun.write(settingsPath, JSON.stringify(settings, null, 2))
   console.log(
-    `[settings] Written ${settingsPath} (port=${port} session=${sessionId.slice(0, 8)} hooks=${Object.keys(settings.hooks || {}).length})`,
+    `[settings] Written ${settingsPath} (port=${port} conversation=${conversationId.slice(0, 8)} hooks=${Object.keys(settings.hooks || {}).length})`,
   )
 
   return settingsPath
@@ -348,8 +350,10 @@ export async function cleanupMcpConfig(cwd: string): Promise<void> {
 /**
  * Clean up the temp settings file
  */
-export async function cleanupSettings(sessionId: string, dir?: string): Promise<void> {
-  const settingsPath = dir ? `${dir}/settings/settings-${sessionId}.json` : `/tmp/rclaude-settings-${sessionId}.json`
+export async function cleanupSettings(conversationId: string, dir?: string): Promise<void> {
+  const settingsPath = dir
+    ? `${dir}/settings/settings-${conversationId}.json`
+    : `/tmp/rclaude-settings-${conversationId}.json`
   try {
     ;(await Bun.file(settingsPath).exists()) && (await Bun.$`rm ${settingsPath}`.quiet())
   } catch {

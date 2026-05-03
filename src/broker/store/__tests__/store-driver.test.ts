@@ -247,7 +247,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         expect(remaining[0].uuid).toBe('pr-2')
       })
 
-      it('append is idempotent on (sessionId, uuid)', () => {
+      it('append is idempotent on (ccSessionId, uuid)', () => {
         const entry = makeTranscriptEntry('user', 'idem-1')
         store.transcripts.append(SESSION, EPOCH, [entry])
         store.transcripts.append(SESSION, EPOCH, [entry])
@@ -457,7 +457,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
       it('create + get', () => {
         const share = store.shares.create({
           token: 'tok-1',
-          sessionId: 'sess-1',
+          conversationId: 'sess-1',
           permissions: { read: true },
           expiresAt: Date.now() + 60_000,
         })
@@ -466,7 +466,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
 
         const fetched = store.shares.get('tok-1')
         expect(fetched).not.toBeNull()
-        expect(fetched!.sessionId).toBe('sess-1')
+        expect(fetched!.conversationId).toBe('sess-1')
       })
 
       it('get returns null for missing token', () => {
@@ -476,19 +476,19 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
       it('getForConversation', () => {
         store.shares.create({
           token: 'ts-1',
-          sessionId: 'shared-sess',
+          conversationId: 'shared-sess',
           permissions: { read: true },
           expiresAt: Date.now() + 60_000,
         })
         store.shares.create({
           token: 'ts-2',
-          sessionId: 'shared-sess',
+          conversationId: 'shared-sess',
           permissions: { read: true, write: true },
           expiresAt: Date.now() + 60_000,
         })
         store.shares.create({
           token: 'ts-3',
-          sessionId: 'other-sess',
+          conversationId: 'other-sess',
           permissions: { read: true },
           expiresAt: Date.now() + 60_000,
         })
@@ -501,7 +501,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
       it('incrementViewerCount', () => {
         store.shares.create({
           token: 'vc-tok',
-          sessionId: 's',
+          conversationId: 's',
           permissions: {},
           expiresAt: Date.now() + 60_000,
         })
@@ -515,7 +515,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
       it('delete removes share', () => {
         store.shares.create({
           token: 'del-tok',
-          sessionId: 's',
+          conversationId: 's',
           permissions: {},
           expiresAt: Date.now() + 60_000,
         })
@@ -526,13 +526,13 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
       it('deleteExpired removes expired shares', () => {
         store.shares.create({
           token: 'expired-tok',
-          sessionId: 's',
+          conversationId: 's',
           permissions: {},
           expiresAt: Date.now() - 1000,
         })
         store.shares.create({
           token: 'fresh-tok',
-          sessionId: 's',
+          conversationId: 's',
           permissions: {},
           expiresAt: Date.now() + 60_000,
         })
@@ -655,7 +655,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
       it('upsert + getForConversation', () => {
         store.tasks.upsert('task-sess', {
           id: 't1',
-          sessionId: 'task-sess',
+          conversationId: 'task-sess',
           kind: 'task',
           status: 'pending',
           name: 'Do stuff',
@@ -672,14 +672,14 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         const now = Date.now()
         store.tasks.upsert('ts', {
           id: 'u1',
-          sessionId: 'ts',
+          conversationId: 'ts',
           kind: 'task',
           status: 'pending',
           createdAt: now,
         })
         store.tasks.upsert('ts', {
           id: 'u1',
-          sessionId: 'ts',
+          conversationId: 'ts',
           kind: 'task',
           status: 'completed',
           createdAt: now,
@@ -695,14 +695,14 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         const now = Date.now()
         store.tasks.upsert('ks', {
           id: 'k1',
-          sessionId: 'ks',
+          conversationId: 'ks',
           kind: 'task',
           status: 'pending',
           createdAt: now,
         })
         store.tasks.upsert('ks', {
           id: 'k2',
-          sessionId: 'ks',
+          conversationId: 'ks',
           kind: 'bg_task',
           status: 'running',
           createdAt: now,
@@ -716,7 +716,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
       it('delete removes a specific task', () => {
         store.tasks.upsert('ds', {
           id: 'd1',
-          sessionId: 'ds',
+          conversationId: 'ds',
           kind: 'task',
           status: 'pending',
           createdAt: Date.now(),
@@ -733,14 +733,14 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         const now = Date.now()
         store.tasks.upsert('bulk', {
           id: 'b1',
-          sessionId: 'bulk',
+          conversationId: 'bulk',
           kind: 'task',
           status: 'a',
           createdAt: now,
         })
         store.tasks.upsert('bulk', {
           id: 'b2',
-          sessionId: 'bulk',
+          conversationId: 'bulk',
           kind: 'task',
           status: 'b',
           createdAt: now,
@@ -760,7 +760,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
       function baseTurn(overrides: Partial<import('../types').TurnRecord> = {}): import('../types').TurnRecord {
         return {
           timestamp: Date.now(),
-          sessionId: 's1',
+          conversationId: 's1',
           projectUri: 'claude://default/proj-a',
           account: 'alice@example.com',
           orgId: 'org-1',
@@ -779,18 +779,18 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         store.costs.recordTurn(baseTurn({ timestamp: 1_700_000_000_000 }))
         const { rows, total } = store.costs.queryTurns({})
         expect(total).toBe(1)
-        expect(rows[0].sessionId).toBe('s1')
+        expect(rows[0].conversationId).toBe('s1')
         expect(rows[0].projectUri).toBe('claude://default/proj-a')
         expect(rows[0].inputTokens).toBe(100)
         expect(rows[0].exactCost).toBe(true)
       })
 
       it('queryTurns sorts by timestamp descending', () => {
-        store.costs.recordTurn(baseTurn({ timestamp: 1000, sessionId: 'a' }))
-        store.costs.recordTurn(baseTurn({ timestamp: 3000, sessionId: 'c' }))
-        store.costs.recordTurn(baseTurn({ timestamp: 2000, sessionId: 'b' }))
+        store.costs.recordTurn(baseTurn({ timestamp: 1000, conversationId: 'a' }))
+        store.costs.recordTurn(baseTurn({ timestamp: 3000, conversationId: 'c' }))
+        store.costs.recordTurn(baseTurn({ timestamp: 2000, conversationId: 'b' }))
         const { rows } = store.costs.queryTurns({})
-        expect(rows.map(r => r.sessionId)).toEqual(['c', 'b', 'a'])
+        expect(rows.map(r => r.conversationId)).toEqual(['c', 'b', 'a'])
       })
 
       it('queryTurns filters by projectUri / account / model / timestamp', () => {

@@ -40,7 +40,7 @@ export interface WsClientOptions {
   /** null means we don't have a CC session id yet -- the client will send
    *  `wrapper_boot` on connect instead of `meta` and must have `initialBoot`
    *  populated. Once the session id arrives, call `setSessionId()`. */
-  sessionId: string | null
+  ccSessionId: string | null
   conversationId: string
   cwd: string
   model?: string
@@ -163,7 +163,7 @@ export interface WsClient {
   /** Called once the real CC session id is known. Sends `meta` (so the
    *  broker can resume/create the real session) and `session_promote`
    *  so the booting entry gets merged into the real session. */
-  setSessionId: (sessionId: string, source: 'stream_json' | 'hook') => void
+  setSessionId: (ccSessionId: string, source: 'stream_json' | 'hook') => void
   close: () => void
   isConnected: () => boolean
 }
@@ -175,7 +175,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
   const {
     brokerUrl = DEFAULT_BROKER_URL,
     brokerSecret,
-    sessionId: initialSessionId,
+    ccSessionId: initialCcSessionId,
     conversationId,
     cwd,
     model,
@@ -235,7 +235,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
 
   const project = cwdToProjectUri(cwd)
 
-  let sessionId: string | null = initialSessionId
+  let ccSessionId: string | null = initialCcSessionId
   let ws: WebSocket | null = null
   let connected = false
   let shouldReconnect = true
@@ -250,7 +250,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
    *  wrapper id so the broker can route messages to the booting
    *  session. Once setSessionId() is called, real session id takes over. */
   function routeId(): string {
-    return sessionId ?? conversationId
+    return ccSessionId ?? conversationId
   }
 
   function connect() {
@@ -267,12 +267,12 @@ export function createWsClient(options: WsClientOptions): WsClient {
           reconnectAttempts = 0
           debug('WebSocket connected')
 
-          if (sessionId) {
+          if (ccSessionId) {
             // Normal flow: CC session id already known -> `meta` creates/resumes
             // the real session on the broker.
             const meta: ConversationMeta = {
               type: 'meta',
-              ccSessionId: sessionId,
+              ccSessionId: ccSessionId,
               conversationId,
               project,
               startedAt: Date.now(),
@@ -639,10 +639,10 @@ export function createWsClient(options: WsClientOptions): WsClient {
     // internal id before the real rekey landed. Log loudly so the regression
     // is obvious in diag. Still short-circuit: emitting session_clear with
     // oldId === newId destroys channel subscribers on the broker.
-    if (sessionId === newSessionId) {
+    if (ccSessionId === newSessionId) {
       const warn = `WARN: same-id session_clear suppressed (${prev.slice(0, 8)}) -- observer race?`
       debug(warn)
-      onDiag?.('session', warn, { conversationId, sessionId })
+      onDiag?.('session', warn, { conversationId, ccSessionId })
       return
     }
     const msg: ConversationRekey = {
@@ -654,8 +654,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
       model: newModel,
     }
     send(msg)
-    // Update local session ID so subsequent messages use the new ID
-    sessionId = newSessionId
+    // Update local CC session ID so subsequent messages use the new ID
+    ccSessionId = newSessionId
   }
 
   function sendTerminalData(data: string) {
@@ -723,8 +723,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
   }
 
   function setSessionId(newSessionId: string, source: 'stream_json' | 'hook') {
-    const wasBoot = !sessionId
-    sessionId = newSessionId
+    const wasBoot = !ccSessionId
+    ccSessionId = newSessionId
     if (!wasBoot) return // already had a session id, nothing to promote
     // Tell the broker to migrate the booting session to the real one.
     const promote: ConversationPromote = {

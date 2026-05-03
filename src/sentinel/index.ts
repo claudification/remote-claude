@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 /**
- * sentinel - Host-side sentinel for session revival and spawning
+ * sentinel - Host-side sentinel for conversation revival and spawning
  *
  * Connects to broker via WebSocket, listens for revive/spawn commands.
- * Headless sessions are spawned directly via Bun.spawn() with PID tracking.
- * PTY/interactive sessions still use tmux via revive-session.sh.
+ * Headless conversations are spawned directly via Bun.spawn() with PID tracking.
+ * PTY/interactive conversations still use tmux via revive-session.sh.
  *
  * Only one sentinel can be connected at a time. If another agent is already
  * connected, this process exits immediately.
@@ -186,13 +186,13 @@ function reportDeadPids(ws: WebSocket) {
 
 // ─── CC Transcript Discovery ─────────────────────────────────────────
 
-/** Check if a CC transcript file exists for the given session ID and CWD.
- *  CC stores transcripts at ~/.claude/projects/{mangled-cwd}/{conversation-id}.jsonl
+/** Check if a CC transcript file exists for the given CC session ID and CWD.
+ *  CC stores transcripts at ~/.claude/projects/{mangled-cwd}/{ccSessionId}.jsonl
  *  where mangled-cwd replaces all / with - in the absolute path. */
-function ccTranscriptExists(sessionId: string, cwd: string): boolean {
+function ccTranscriptExists(ccSessionId: string, cwd: string): boolean {
   const home = process.env.HOME || '/root'
   const mangledCwd = cwd.replace(/\//g, '-')
-  const transcriptPath = join(home, '.claude', 'projects', mangledCwd, `${sessionId}.jsonl`)
+  const transcriptPath = join(home, '.claude', 'projects', mangledCwd, `${ccSessionId}.jsonl`)
   return existsSync(transcriptPath)
 }
 
@@ -214,11 +214,11 @@ function findRclaudeBinary(): string | null {
 
 // ─── Env Sanitization ──────────────────────────────────────────────
 
-/** Session-scoped RCLAUDE_* vars that must NOT leak from the sentinel's own
+/** Conversation-scoped RCLAUDE_* vars that must NOT leak from the sentinel's own
  *  environment into spawned child conversations. The sentinel may have inherited
- *  these from the rclaude process that launched it. Each spawned session
+ *  these from the rclaude process that launched it. Each spawned conversation
  *  gets its own values set explicitly. */
-const RCLAUDE_SESSION_VARS = new Set([
+const RCLAUDE_CONVERSATION_VARS = new Set([
   'RCLAUDE_HEADLESS',
   'RCLAUDE_CONVERSATION_ID',
   'RCLAUDE_SESSION_ID',
@@ -248,7 +248,7 @@ const RCLAUDE_SESSION_VARS = new Set([
 function cleanSentinelEnv(): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = { ...process.env }
   for (const key of Object.keys(env)) {
-    if (key === 'CLAUDECODE' || key.startsWith('CLAUDE_CODE_') || RCLAUDE_SESSION_VARS.has(key)) {
+    if (key === 'CLAUDECODE' || key.startsWith('CLAUDE_CODE_') || RCLAUDE_CONVERSATION_VARS.has(key)) {
       delete env[key]
     }
   }
@@ -264,7 +264,7 @@ function cleanSentinelEnv(): Record<string, string | undefined> {
 function buildHeadlessEnv(opts: {
   secret: string
   conversationId: string
-  sessionId?: string
+  ccSessionId?: string
   sessionName?: string
   sessionDescription?: string
   permissionMode?: string
@@ -292,7 +292,7 @@ function buildHeadlessEnv(opts: {
   env.RCLAUDE_HEADLESS = '1'
 
   // Optional
-  if (opts.sessionId) env.RCLAUDE_SESSION_ID = opts.sessionId
+  if (opts.ccSessionId) env.RCLAUDE_SESSION_ID = opts.ccSessionId
   if (opts.sessionName) env.CLAUDWERK_CONVERSATION_NAME = opts.sessionName
   if (opts.sessionDescription) env.CLAUDWERK_CONVERSATION_DESCRIPTION = opts.sessionDescription
   if (opts.permissionMode) env.RCLAUDE_PERMISSION_MODE = opts.permissionMode
@@ -341,7 +341,7 @@ function buildHeadlessArgs(opts: {
 }
 
 /**
- * Spawn a headless rclaude session directly via Bun.spawn().
+ * Spawn a headless rclaude conversation directly via Bun.spawn().
  * Returns immediately after process starts. Monitors exit asynchronously.
  */
 function spawnHeadlessDirect(
@@ -539,11 +539,11 @@ function parseArgs() {
 
 function printHelp() {
   console.log(`
-sentinel - Host-side sentinel for session revival and spawning
+sentinel - Host-side sentinel for conversation revival and spawning
 
 Connects to broker and listens for revive/spawn commands.
-Headless sessions are spawned directly (Bun.spawn + PID tracking).
-PTY/interactive sessions use tmux via revive-session.sh.
+Headless conversations are spawned directly (Bun.spawn + PID tracking).
+PTY/interactive conversations use tmux via revive-session.sh.
 
 USAGE:
   sentinel [OPTIONS]
@@ -598,14 +598,14 @@ function launchLog(jobId: string | undefined, step: string, status: 'info' | 'ok
 }
 
 /**
- * Revive a conversation. Headless sessions are spawned directly via Bun.spawn(),
- * PTY sessions use the external revive-session.sh script for tmux.
+ * Revive a conversation. Headless conversations are spawned directly via Bun.spawn(),
+ * PTY conversations use the external revive-session.sh script for tmux.
  *
- * Script exit codes: 0=continued, 1=fresh session, 2=dir not found, 3=tmux failed
+ * Script exit codes: 0=continued, 1=fresh conversation, 2=dir not found, 3=tmux failed
  * Script stdout: TMUX_SESSION=<name> and CONTINUED=<true|false>
  */
 async function reviveConversation(
-  sessionId: string,
+  ccSessionId: string,
   cwd: string,
   conversationId: string,
   reviveScript: string,
@@ -625,7 +625,7 @@ async function reviveConversation(
 ): Promise<ReviveResult & { tmuxPaneId?: string }> {
   const result: ReviveResult = {
     type: 'revive_result',
-    ccSessionId: sessionId,
+    ccSessionId,
     conversationId,
     project: cwdToProjectUri(cwd),
     jobId,
@@ -645,20 +645,20 @@ async function reviveConversation(
     // Check if CC transcript exists before attempting --resume.
     // If missing, fall back to fresh start to avoid immediate exit code 1.
     let effectiveMode = mode
-    if (mode === 'resume' && !ccTranscriptExists(sessionId, cwd)) {
-      log(`CC transcript missing for ${sessionId.slice(0, 8)} - falling back to fresh start`)
+    if (mode === 'resume' && !ccTranscriptExists(ccSessionId, cwd)) {
+      log(`CC transcript missing for ${ccSessionId.slice(0, 8)} - falling back to fresh start`)
       launchLog(
         jobId,
         'CC transcript missing, starting fresh',
         'info',
-        `session ${sessionId.slice(0, 8)} has no JSONL file`,
+        `ccSession ${ccSessionId.slice(0, 8)} has no JSONL file`,
       )
       effectiveMode = 'fresh'
     }
 
     const args = buildHeadlessArgs({
       mode: effectiveMode,
-      resumeId: sessionId,
+      resumeId: ccSessionId,
       resumeName: sessionName,
       effort,
       model,
@@ -668,7 +668,7 @@ async function reviveConversation(
     const spawnEnv = buildHeadlessEnv({
       secret,
       conversationId,
-      sessionId,
+      ccSessionId,
       sessionName,
       autocompactPct,
       maxBudgetUsd,
@@ -690,20 +690,20 @@ async function reviveConversation(
   // ─── tmux path for PTY sessions ────────────────────────────
   // Same transcript check as headless path
   let effectiveTmuxMode = mode
-  if (mode === 'resume' && !ccTranscriptExists(sessionId, cwd)) {
-    log(`CC transcript missing for ${sessionId.slice(0, 8)} - falling back to fresh start (tmux)`)
+  if (mode === 'resume' && !ccTranscriptExists(ccSessionId, cwd)) {
+    log(`CC transcript missing for ${ccSessionId.slice(0, 8)} - falling back to fresh start (tmux)`)
     launchLog(
       jobId,
       'CC transcript missing, starting fresh',
       'info',
-      `session ${sessionId.slice(0, 8)} has no JSONL file`,
+      `ccSession ${ccSessionId.slice(0, 8)} has no JSONL file`,
     )
     effectiveTmuxMode = 'fresh'
   }
 
-  const scriptArgs = [reviveScript, sessionId, cwd]
+  const scriptArgs = [reviveScript, ccSessionId, cwd]
   if (effectiveTmuxMode) scriptArgs.push('--mode', effectiveTmuxMode)
-  if (effectiveTmuxMode === 'resume') scriptArgs.push('--resume-id', sessionId)
+  if (effectiveTmuxMode === 'resume') scriptArgs.push('--resume-id', ccSessionId)
 
   launchLog(jobId, 'Running revive script (tmux)', 'info', `mode=${mode || 'default'}`)
   debug(`Running: ${scriptArgs.join(' ')}`, verbose)
@@ -715,7 +715,7 @@ async function reviveConversation(
       ...cleanSentinelEnv(),
       RCLAUDE_SECRET: secret,
       RCLAUDE_CONVERSATION_ID: conversationId,
-      RCLAUDE_SESSION_ID: sessionId,
+      RCLAUDE_SESSION_ID: ccSessionId,
       ...(effort ? { RCLAUDE_EFFORT: effort } : {}),
       ...(model ? { RCLAUDE_MODEL: model } : {}),
       ...(sessionName ? { CLAUDWERK_CONVERSATION_NAME: sessionName } : {}),
@@ -744,15 +744,15 @@ async function reviveConversation(
   }
 
   switch (exitCode) {
-    case 0: // success, continued existing session
+    case 0: // success, continued existing conversation
       result.success = true
       result.continued = true
-      launchLog(jobId, 'Session revived', 'ok', `continued=true tmux=${result.tmuxSession}`)
+      launchLog(jobId, 'Conversation revived', 'ok', `continued=true tmux=${result.tmuxSession}`)
       break
-    case 1: // success, fresh session (resume failed or not requested)
+    case 1: // success, fresh conversation (resume failed or not requested)
       result.success = true
       result.continued = false
-      launchLog(jobId, 'Fresh session started', 'ok', `tmux=${result.tmuxSession}`)
+      launchLog(jobId, 'Fresh conversation started', 'ok', `tmux=${result.tmuxSession}`)
       break
     case 2: // directory not found
       result.error = stderr || `Directory not found: ${cwd}`
@@ -798,8 +798,8 @@ function isSpawnApproved(cwd: string): boolean {
 }
 
 /**
- * Spawn a new rclaude session at the given cwd.
- * Headless sessions use direct Bun.spawn(), PTY sessions use tmux via revive-session.sh.
+ * Spawn a new rclaude conversation at the given cwd.
+ * Headless conversations use direct Bun.spawn(), PTY conversations use tmux via revive-session.sh.
  */
 async function spawnConversation(
   cwd: string,
@@ -938,7 +938,7 @@ async function spawnConversation(
 
     const spawnRes = spawnHeadlessDirect(rclaudeBin, cwd, conversationId, args, spawnEnv, jobId)
     if (spawnRes.success) {
-      launchLog(jobId, 'Waiting for session to connect', 'info')
+      launchLog(jobId, 'Waiting for conversation to connect', 'info')
     }
     return { success: spawnRes.success, error: spawnRes.error }
   }
@@ -951,7 +951,7 @@ async function spawnConversation(
   // backticks, backslashes, and dollar signs break the quoting chain.
   const shellSafe = (s: string) => s.replace(/['"\\`$]/g, '')
 
-  // Use "spawn-<timestamp>" as synthetic sessionId (revive-session.sh uses it for tmux window naming)
+  // Use "spawn-<timestamp>" as synthetic ID (revive-session.sh uses it for tmux window naming)
   const syntheticId = `spawn-${Date.now()}`
   const scriptArgs = [reviveScript, syntheticId, cwd]
   if (mode) scriptArgs.push('--mode', mode)
@@ -1309,7 +1309,7 @@ function connect(
           const { tmuxPaneId, ...reviveResult } = result
           ws.send(JSON.stringify(reviveResult))
           if (result.success) {
-            launchLog(reviveMsg.jobId, 'Waiting for session to connect', 'info')
+            launchLog(reviveMsg.jobId, 'Waiting for conversation to connect', 'info')
             if (result.tmuxSession) {
               log(
                 `Revived in tmux session "${result.tmuxSession}" pane=${tmuxPaneId || 'n/a'} (continued: ${result.continued})`,
@@ -1422,7 +1422,7 @@ function connect(
           }
           ws.send(JSON.stringify(response))
           if (spawnRes.success) {
-            launchLog(spawnMsg.jobId, 'Waiting for session to connect', 'info')
+            launchLog(spawnMsg.jobId, 'Waiting for conversation to connect', 'info')
 
             // Async tmux pane health check (same as revive path)
             if (spawnRes.tmuxPaneId) {

@@ -95,7 +95,7 @@ export interface McpChannelCallbacks {
   onPermissionRequest?: (data: PermissionRequestData) => void
   onDisconnect?: () => void
   onTogglePlanMode?: () => void
-  onReviveConversation?: (sessionId: string) => Promise<{ ok: boolean; error?: string; name?: string }>
+  onReviveConversation?: (conversationId: string) => Promise<{ ok: boolean; error?: string; name?: string }>
   /**
    * Unified session control: clear | quit | interrupt | set_model | set_effort.
    * Dashboards and the MCP `control_session` tool both route through here. The
@@ -103,13 +103,13 @@ export interface McpChannelCallbacks {
    * routes to the target's wrapper for backend-specific dispatch.
    */
   onControlSession?: (params: {
-    sessionId: string
+    conversationId: string
     action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode'
     model?: string
     effort?: string
     permissionMode?: string
   }) => Promise<{ ok: boolean; error?: string; name?: string }>
-  onRestartConversation?: (sessionId: string) => Promise<{
+  onRestartConversation?: (conversationId: string) => Promise<{
     ok: boolean
     error?: string
     name?: string
@@ -126,7 +126,7 @@ export interface McpChannelCallbacks {
     jobId: string,
   ) => Promise<{ ok: boolean; error?: string; diagnostics?: Record<string, unknown> }>
   onConfigureConversation?: (params: {
-    sessionId: string
+    conversationId: string
     label?: string
     icon?: string
     color?: string
@@ -616,7 +616,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
         required: ['session_id', 'action'],
       },
       async handle(params) {
-        const sessionId = params.session_id
+        const targetConversationId = params.session_id
         const action = params.action as
           | 'clear'
           | 'quit'
@@ -627,7 +627,8 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
         const model = typeof params.model === 'string' ? params.model : undefined
         const effort = typeof params.effort === 'string' ? params.effort : undefined
         const permissionMode = typeof params.permissionMode === 'string' ? params.permissionMode : undefined
-        if (!sessionId) return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
+        if (!targetConversationId)
+          return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
         if (
           !action ||
           !['clear', 'quit', 'interrupt', 'set_model', 'set_effort', 'set_permission_mode'].includes(action)
@@ -660,7 +661,13 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
             isError: true,
           }
         }
-        const result = await callbacks.onControlSession?.({ sessionId, action, model, effort, permissionMode })
+        const result = await callbacks.onControlSession?.({
+          conversationId: targetConversationId,
+          action,
+          model,
+          effort,
+          permissionMode,
+        })
         if (!result?.ok) {
           debug(`[channel] control_session(${action}) failed: ${result?.error}`)
           return {
@@ -669,9 +676,9 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
           }
         }
         debug(
-          `[channel] control_session(${action}): ${sessionId.slice(0, 8)}${model ? ` model=${model}` : ''}${effort ? ` effort=${effort}` : ''}${permissionMode ? ` mode=${permissionMode}` : ''}`,
+          `[channel] control_session(${action}): ${targetConversationId.slice(0, 8)}${model ? ` model=${model}` : ''}${effort ? ` effort=${effort}` : ''}${permissionMode ? ` mode=${permissionMode}` : ''}`,
         )
-        const label = result.name || sessionId.slice(0, 8)
+        const label = result.name || targetConversationId.slice(0, 8)
         const verbText =
           action === 'clear'
             ? `Clear requested on ${label}. Context will reset in a few seconds.`
@@ -697,20 +704,20 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
 
         // --- REVIVE ---
         if (action === 'revive') {
-          const sessionId = params.session_id
-          if (!sessionId)
+          const targetConversationId = params.session_id
+          if (!targetConversationId)
             return { content: [{ type: 'text', text: 'Error: session_id is required for revive' }], isError: true }
-          const result = await callbacks.onReviveConversation?.(sessionId)
+          const result = await callbacks.onReviveConversation?.(targetConversationId)
           if (!result?.ok) {
             debug(`[channel] spawn_session(revive) failed: ${result?.error}`)
             return { content: [{ type: 'text', text: result?.error || 'Failed to revive session' }], isError: true }
           }
-          debug(`[channel] spawn_session(revive): ${sessionId.slice(0, 8)} (${result.name})`)
+          debug(`[channel] spawn_session(revive): ${targetConversationId.slice(0, 8)} (${result.name})`)
           return {
             content: [
               {
                 type: 'text',
-                text: `Reviving session ${result.name || sessionId.slice(0, 8)}. This is async - the session takes 10-30 seconds to start. Use list_sessions to check when status changes to "live".`,
+                text: `Reviving session ${result.name || targetConversationId.slice(0, 8)}. This is async - the session takes 10-30 seconds to start. Use list_sessions to check when status changes to "live".`,
               },
             ],
           }
@@ -718,23 +725,23 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
 
         // --- RESTART ---
         if (action === 'restart') {
-          const sessionId = params.session_id
-          if (!sessionId)
+          const targetConversationId = params.session_id
+          if (!targetConversationId)
             return { content: [{ type: 'text', text: 'Error: session_id is required for restart' }], isError: true }
-          const result = await callbacks.onRestartConversation?.(sessionId)
+          const result = await callbacks.onRestartConversation?.(targetConversationId)
           if (!result?.ok) {
             debug(`[channel] spawn_session(restart) failed: ${result?.error}`)
             return { content: [{ type: 'text', text: result?.error || 'Failed to restart session' }], isError: true }
           }
           debug(
-            `[channel] spawn_session(restart): ${sessionId.slice(0, 8)} (${result.name}) self=${result.selfRestart}`,
+            `[channel] spawn_session(restart): ${targetConversationId.slice(0, 8)} (${result.name}) self=${result.selfRestart}`,
           )
           if (result.selfRestart) {
             return {
               content: [
                 {
                   type: 'text',
-                  text: `Self-restart initiated for ${result.name || sessionId.slice(0, 8)}. This session will terminate and automatically revive. You may not receive this response.`,
+                  text: `Self-restart initiated for ${result.name || targetConversationId.slice(0, 8)}. This session will terminate and automatically revive. You may not receive this response.`,
                 },
               ],
             }
@@ -744,7 +751,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
               content: [
                 {
                   type: 'text',
-                  text: `Session ${result.name || sessionId.slice(0, 8)} was already ended - reviving instead. Use list_sessions to check when ready.`,
+                  text: `Session ${result.name || targetConversationId.slice(0, 8)} was already ended - reviving instead. Use list_sessions to check when ready.`,
                 },
               ],
             }
@@ -753,7 +760,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
             content: [
               {
                 type: 'text',
-                text: `Restarting session ${result.name || sessionId.slice(0, 8)}. The session will terminate and automatically revive. Use list_sessions to check when ready (10-30 seconds).`,
+                text: `Restarting session ${result.name || targetConversationId.slice(0, 8)}. The session will terminate and automatically revive. Use list_sessions to check when ready (10-30 seconds).`,
               },
             ],
           }
@@ -993,8 +1000,9 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
         required: ['session_id'],
       },
       async handle(params) {
-        const sessionId = params.session_id
-        if (!sessionId) return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
+        const targetConversationId = params.session_id
+        if (!targetConversationId)
+          return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
         const update: Record<string, unknown> = {}
         if (params.label !== undefined) update.label = params.label
         if (params.icon !== undefined) update.icon = params.icon
@@ -1005,7 +1013,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
           return { content: [{ type: 'text', text: 'Error: at least one setting is required' }], isError: true }
         }
         const result = await callbacks.onConfigureConversation?.({
-          sessionId,
+          conversationId: targetConversationId,
           ...update,
         } as Parameters<NonNullable<McpChannelCallbacks['onConfigureConversation']>>[0])
         if (!result?.ok) {
@@ -1015,7 +1023,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
             isError: true,
           }
         }
-        debug(`[channel] configure_session: ${sessionId.slice(0, 8)} ${Object.keys(update).join(',')}`)
+        debug(`[channel] configure_session: ${targetConversationId.slice(0, 8)} ${Object.keys(update).join(',')}`)
         return { content: [{ type: 'text', text: `Session configured: ${Object.keys(update).join(', ')} updated` }] }
       },
     },
@@ -1341,9 +1349,10 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
         required: ['session_id'],
       },
       async handle(params) {
-        const sessionId = params.session_id
-        if (!sessionId) return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
-        const result = await callbacks.onReviveConversation?.(sessionId)
+        const targetConversationId = params.session_id
+        if (!targetConversationId)
+          return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
+        const result = await callbacks.onReviveConversation?.(targetConversationId)
         if (!result?.ok) {
           return { content: [{ type: 'text', text: result?.error || 'Failed to revive session' }], isError: true }
         }
@@ -1351,7 +1360,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
           content: [
             {
               type: 'text',
-              text: `Reviving session ${result.name || sessionId.slice(0, 8)}. Use list_sessions to check when ready.`,
+              text: `Reviving session ${result.name || targetConversationId.slice(0, 8)}. Use list_sessions to check when ready.`,
             },
           ],
         }

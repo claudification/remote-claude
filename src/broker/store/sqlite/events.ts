@@ -6,7 +6,7 @@ type Params = Record<string, string | number | bigint | boolean | null>
 function rowToEvent(row: Params): EventRecord {
   return {
     id: row.id as number,
-    sessionId: row.session_id as string,
+    ccSessionId: row.session_id as string,
     type: row.type as string,
     data: row.data ? JSON.parse(row.data as string) : undefined,
     createdAt: row.created_at as number,
@@ -20,18 +20,18 @@ export function createSqliteEventStore(db: Database): EventStore {
   `)
 
   return {
-    append(sessionId, event: EventInput) {
+    append(ccSessionId, event: EventInput) {
       stmtInsert.run({
-        sessionId,
+        sessionId: ccSessionId,
         type: event.type,
         data: event.data ? JSON.stringify(event.data) : null,
         createdAt: Date.now(),
       })
     },
 
-    getForConversation(sessionId, opts) {
+    getForConversation(ccSessionId, opts) {
       let sql = 'SELECT * FROM events WHERE session_id = $sessionId'
-      const params: Params = { sessionId }
+      const params: Params = { sessionId: ccSessionId }
 
       if (opts?.types?.length) {
         const placeholders = opts.types.map((_, i) => `$type${i}`)

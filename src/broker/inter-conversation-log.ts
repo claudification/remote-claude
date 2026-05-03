@@ -1,6 +1,6 @@
 /**
- * Inter-Session Message Log - append log for messages between sessions.
- * Each entry stores a 200-char preview, session IDs, wrapper IDs, and projects.
+ * Inter-Conversation Message Log - append log for messages between conversations.
+ * Each entry stores a 200-char preview, conversation IDs, and projects.
  * Backed by StoreDriver KVStore (replaces JSONL file persistence).
  */
 
@@ -8,8 +8,8 @@ import type { KVStore } from './store/types'
 
 export interface InterSessionLogEntry {
   ts: number
-  from: { sessionId: string; conversationId?: string; project: string; name: string }
-  to: { sessionId: string; conversationId?: string; project: string; name: string }
+  from: { conversationId: string; project: string; name: string }
+  to: { conversationId: string; project: string; name: string }
   intent: string
   conversationId: string
   preview: string // first 200 chars
@@ -30,12 +30,15 @@ export function initInterSessionLog(store: KVStore): void {
   const raw = kv.get<InterSessionLogEntry[]>(KV_KEY)
   if (raw && Array.isArray(raw)) {
     entries = raw
-    // Migrate legacy `cwd` field to `project`
+    // Migrate legacy fields
     for (const entry of entries) {
       const from = entry.from as Record<string, unknown>
       const to = entry.to as Record<string, unknown>
       if (from.cwd && !from.project) from.project = from.cwd
       if (to.cwd && !to.project) to.project = to.cwd
+      // Migrate legacy `sessionId` to `conversationId`
+      if (from.sessionId && !from.conversationId) from.conversationId = from.sessionId
+      if (to.sessionId && !to.conversationId) to.conversationId = to.sessionId
     }
     compact()
   } else {

@@ -126,13 +126,13 @@ export function formatAmbiguityError(canonicalProject: string, candidates: Conve
 
 // ─── Shared target resolution ──────────────────────────────────────
 
-export type ResolveSessionResult =
+export type ResolveConversationResult =
   | { kind: 'resolved'; session: ConversationLike }
   | { kind: 'not_found'; error: string }
   | { kind: 'ambiguous'; error: string }
 
-export interface ResolveSessionDeps {
-  callerSessionId: string | undefined
+export interface ResolveConversationDeps {
+  callerConversationId: string | undefined
   getAllConversations: () => ConversationLike[]
   getConversation: (id: string) => ConversationLike | undefined
   findConversationByConversationId: (id: string) => ConversationLike | undefined
@@ -153,7 +153,7 @@ export interface ResolveSessionDeps {
  * channel_send to consistently handle the compound ID format returned
  * by list_sessions.
  */
-export function resolveConversationTarget(targetId: string, deps: ResolveSessionDeps): ResolveSessionResult {
+export function resolveConversationTarget(targetId: string, deps: ResolveConversationDeps): ResolveConversationResult {
   const colonIdx = targetId.indexOf(':')
   const hasCompound = colonIdx >= 0
   const projectSlug = hasCompound ? targetId.slice(0, colonIdx) : targetId
@@ -163,7 +163,7 @@ export function resolveConversationTarget(targetId: string, deps: ResolveSession
 
   if (!targetProject && deps.callerProject) {
     for (const s of deps.getAllConversations()) {
-      if (s.id === deps.callerSessionId) continue
+      if (s.id === deps.callerConversationId) continue
       const projSettings = deps.getProjectSettings(s.project)
       const projectName = projSettings?.label || extractProjectLabel(s.project)
       deps.addressBook.getOrAssign(deps.callerProject, s.project, projectName)

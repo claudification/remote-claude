@@ -54,7 +54,7 @@ export type SpawnDispatchDeps = {
   /** Caller context for the unified permission gate. */
   callerContext: SpawnCallerContext
   /** If set, register a rendezvous so the caller session is notified when the spawned wrapper connects. */
-  rendezvousCallerSessionId?: string | null
+  rendezvousCallerConversationId?: string | null
 }
 
 export type SpawnDispatchResult =
@@ -257,18 +257,18 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
   emitProgress(deps.sessions, jobId, 'agent_acked', 'done', { detail: result.tmuxSession })
   if (req.adHoc) console.log(`[ad-hoc] Spawn OK: conv=${conversationId.slice(0, 8)} tmux=${result.tmuxSession}`)
 
-  const callerSessionId = deps.rendezvousCallerSessionId
-  if (callerSessionId) {
+  const callerConversationId = deps.rendezvousCallerConversationId
+  if (callerConversationId) {
     // Don't block the response -- caller gets immediate success + conversationId.
     // Rendezvous resolves async and pushes spawn_ready / spawn_timeout.
     deps.sessions
-      .addRendezvous(conversationId, callerSessionId, req.cwd, 'spawn')
+      .addRendezvous(conversationId, callerConversationId, req.cwd, 'spawn')
       .then(session => {
         emitProgress(deps.sessions, jobId, 'session_connected', 'done', {
           ccSessionId: session.id,
           conversationId,
         })
-        const callerWs = deps.sessions.getConversationSocket(callerSessionId)
+        const callerWs = deps.sessions.getConversationSocket(callerConversationId)
         callerWs?.send(
           JSON.stringify({
             type: 'spawn_ready',
@@ -282,7 +282,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
       .catch(err => {
         const errMsg = typeof err === 'string' ? err : 'Spawn rendezvous timed out'
         emitProgress(deps.sessions, jobId, 'failed', 'error', { error: errMsg })
-        const callerWs = deps.sessions.getConversationSocket(callerSessionId)
+        const callerWs = deps.sessions.getConversationSocket(callerConversationId)
         callerWs?.send(
           JSON.stringify({
             type: 'spawn_timeout',

@@ -51,7 +51,7 @@ const handleSpawnRequest: MessageHandler = (ctx, data) => {
     getProjectSettings,
     getGlobalSettings,
     callerContext,
-    rendezvousCallerSessionId: null,
+    rendezvousCallerConversationId: null,
   })
     .then(result => {
       if (result.ok) {

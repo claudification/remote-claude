@@ -10,7 +10,7 @@ import type { Permission, UserGrant } from './permissions'
 import type { StoreDriver } from './store/types'
 
 export interface WsData {
-  sessionId?: string
+  ccSessionId?: string
   conversationId?: string
   isControlPanel?: boolean
   isSentinel?: boolean
@@ -40,7 +40,7 @@ export interface HandlerContext {
   conversations: ConversationStore
   /** Unified StoreDriver (SQLite-backed domain stores: costs, kv, transcripts, etc.) */
   store: StoreDriver
-  /** Resolved caller session (from ws.data.sessionId) */
+  /** Resolved caller session (from ws.data.ccSessionId) */
   caller?: ReturnType<ConversationStore['getConversation']>
   /** Caller's project settings */
   callerSettings?: ProjectSettings | null
@@ -95,8 +95,8 @@ export interface HandlerContext {
   /** Log an inter-conversation message for history */
   logMessage(entry: {
     ts: number
-    from: { sessionId: string; conversationId?: string; project: string; name: string }
-    to: { sessionId: string; project: string; name: string }
+    from: { conversationId: string; project: string; name: string }
+    to: { conversationId: string; project: string; name: string }
     intent: string
     conversationId: string
     preview: string
@@ -150,7 +150,7 @@ export type MessageHandler = (ctx: HandlerContext, data: MessageData) => void | 
 
 /** Create a log prefix from WS connection data */
 export function logPrefix(ws: { data: WsData }): string {
-  const id = ws.data.sessionId?.slice(0, 8)
+  const id = ws.data.ccSessionId?.slice(0, 8)
   if (ws.data.isSentinel) return '[sentinel]'
   if (ws.data.isControlPanel) return `[dash${ws.data.userName ? `:${ws.data.userName}` : ''}]`
   return id ? `[${id}]` : '[unknown]'

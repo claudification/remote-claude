@@ -6,7 +6,7 @@ type Params = Record<string, string | number | bigint | boolean | null>
 function rowToEntry(row: Params): TranscriptEntryRecord {
   return {
     id: row.id as number,
-    sessionId: row.session_id as string,
+    ccSessionId: row.session_id as string,
     sessionSeq: row.session_seq as number,
     syncEpoch: row.sync_epoch as string,
     type: row.type as string,
@@ -39,14 +39,14 @@ export function createSqliteTranscriptStore(db: Database): TranscriptStore {
   )
 
   return {
-    append(sessionId, syncEpoch, entries: TranscriptEntryInput[]) {
+    append(ccSessionId, syncEpoch, entries: TranscriptEntryInput[]) {
       const doAppend = db.transaction(() => {
-        let seq = (stmtMaxSeq.get({ sessionId }) as { max_seq: number }).max_seq
+        let seq = (stmtMaxSeq.get({ sessionId: ccSessionId }) as { max_seq: number }).max_seq
         const now = Date.now()
         for (const e of entries) {
           seq++
           stmtInsert.run({
-            sessionId,
+            sessionId: ccSessionId,
             sessionSeq: seq,
             syncEpoch,
             type: e.type,
@@ -62,12 +62,12 @@ export function createSqliteTranscriptStore(db: Database): TranscriptStore {
       doAppend()
     },
 
-    getPage(sessionId, opts) {
+    getPage(ccSessionId, opts) {
       const limit = opts.limit ?? 50
       const direction = opts.direction ?? 'forward'
 
       let totalSql = 'SELECT COUNT(*) as cnt FROM transcript_entries WHERE session_id = $sessionId'
-      const totalParams: Params = { sessionId }
+      const totalParams: Params = { sessionId: ccSessionId }
       if (opts.agentId !== undefined) {
         if (opts.agentId === null) {
           totalSql += ' AND agent_id IS NULL'
@@ -79,7 +79,7 @@ export function createSqliteTranscriptStore(db: Database): TranscriptStore {
       const totalCount = (db.prepare(totalSql).get(totalParams) as { cnt: number }).cnt
 
       let sql = 'SELECT * FROM transcript_entries WHERE session_id = $sessionId'
-      const params: Params = { sessionId, limit }
+      const params: Params = { sessionId: ccSessionId, limit }
 
       if (opts.agentId !== undefined) {
         if (opts.agentId === null) {
@@ -106,8 +106,8 @@ export function createSqliteTranscriptStore(db: Database): TranscriptStore {
         const entries = rows.map(rowToEntry)
 
         const nextCursor =
-          entries.length > 0 ? getNextId(db, sessionId, entries[entries.length - 1].id, opts.agentId) : null
-        const prevCursor = entries.length > 0 ? getPrevId(db, sessionId, entries[0].id, opts.agentId) : null
+          entries.length > 0 ? getNextId(db, ccSessionId, entries[entries.length - 1].id, opts.agentId) : null
+        const prevCursor = entries.length > 0 ? getPrevId(db, ccSessionId, entries[0].id, opts.agentId) : null
 
         return { entries, nextCursor, prevCursor, totalCount }
       }
@@ -117,15 +117,15 @@ export function createSqliteTranscriptStore(db: Database): TranscriptStore {
       const entries = rows.map(rowToEntry)
 
       const nextCursor =
-        entries.length > 0 ? getNextId(db, sessionId, entries[entries.length - 1].id, opts.agentId) : null
-      const prevCursor = entries.length > 0 ? getPrevId(db, sessionId, entries[0].id, opts.agentId) : null
+        entries.length > 0 ? getNextId(db, ccSessionId, entries[entries.length - 1].id, opts.agentId) : null
+      const prevCursor = entries.length > 0 ? getPrevId(db, ccSessionId, entries[0].id, opts.agentId) : null
 
       return { entries, nextCursor, prevCursor, totalCount }
     },
 
-    getLatest(sessionId, limit, agentId) {
+    getLatest(ccSessionId, limit, agentId) {
       let sql = 'SELECT * FROM transcript_entries WHERE session_id = $sessionId'
-      const params: Params = { sessionId, limit }
+      const params: Params = { sessionId: ccSessionId, limit }
 
       if (agentId !== undefined) {
         if (agentId === null) {
@@ -141,20 +141,20 @@ export function createSqliteTranscriptStore(db: Database): TranscriptStore {
       return rows.map(rowToEntry)
     },
 
-    getSinceSeq(sessionId, sinceSeq, limit) {
-      const maxSeq = (stmtMaxSeq.get({ sessionId }) as { max_seq: number }).max_seq
+    getSinceSeq(ccSessionId, sinceSeq, limit) {
+      const maxSeq = (stmtMaxSeq.get({ sessionId: ccSessionId }) as { max_seq: number }).max_seq
 
       let gap = false
       if (sinceSeq > 0) {
         const check = db
           .prepare('SELECT 1 FROM transcript_entries WHERE session_id = $sessionId AND session_seq = $sinceSeq')
-          .get({ sessionId, sinceSeq })
+          .get({ sessionId: ccSessionId, sinceSeq })
         gap = !check
       }
 
       let sql =
         'SELECT * FROM transcript_entries WHERE session_id = $sessionId AND session_seq > $sinceSeq ORDER BY session_seq ASC'
-      const params: Params = { sessionId, sinceSeq }
+      const params: Params = { sessionId: ccSessionId, sinceSeq }
       if (limit) {
         sql += ' LIMIT $limit'
         params.limit = limit
@@ -167,13 +167,13 @@ export function createSqliteTranscriptStore(db: Database): TranscriptStore {
       return { entries, lastSeq, gap }
     },
 
-    getLastSeq(sessionId) {
-      return (stmtMaxSeq.get({ sessionId }) as { max_seq: number }).max_seq
+    getLastSeq(ccSessionId) {
+      return (stmtMaxSeq.get({ sessionId: ccSessionId }) as { max_seq: number }).max_seq
     },
 
-    find(sessionId, filter) {
+    find(ccSessionId, filter) {
       let sql = 'SELECT * FROM transcript_entries WHERE session_id = $sessionId'
-      const params: Params = { sessionId }
+      const params: Params = { sessionId: ccSessionId }
 
       if (filter.types?.length) {
         const placeholders = filter.types.map((_, i) => `$type${i}`)
@@ -223,14 +223,14 @@ export function createSqliteTranscriptStore(db: Database): TranscriptStore {
       throw new Error('FTS not configured')
     },
 
-    count(sessionId, agentId) {
+    count(ccSessionId, agentId) {
       if (agentId !== undefined) {
         if (agentId === null) {
-          return (stmtCountNoAgent.get({ sessionId }) as { cnt: number }).cnt
+          return (stmtCountNoAgent.get({ sessionId: ccSessionId }) as { cnt: number }).cnt
         }
-        return (stmtCountAgent.get({ sessionId, agentId }) as { cnt: number }).cnt
+        return (stmtCountAgent.get({ sessionId: ccSessionId, agentId }) as { cnt: number }).cnt
       }
-      return (stmtCount.get({ sessionId }) as { cnt: number }).cnt
+      return (stmtCount.get({ sessionId: ccSessionId }) as { cnt: number }).cnt
     },
 
     pruneOlderThan(cutoffMs) {
@@ -242,12 +242,12 @@ export function createSqliteTranscriptStore(db: Database): TranscriptStore {
 
 function getNextId(
   db: Database,
-  sessionId: string,
+  ccSessionId: string,
   afterId: number,
   agentId: string | null | undefined,
 ): number | null {
   let sql = 'SELECT id FROM transcript_entries WHERE session_id = $sessionId AND id > $afterId'
-  const params: Params = { sessionId, afterId }
+  const params: Params = { sessionId: ccSessionId, afterId }
   if (agentId !== undefined) {
     if (agentId === null) {
       sql += ' AND agent_id IS NULL'
@@ -263,12 +263,12 @@ function getNextId(
 
 function getPrevId(
   db: Database,
-  sessionId: string,
+  ccSessionId: string,
   beforeId: number,
   agentId: string | null | undefined,
 ): number | null {
   let sql = 'SELECT id FROM transcript_entries WHERE session_id = $sessionId AND id < $beforeId'
-  const params: Params = { sessionId, beforeId }
+  const params: Params = { sessionId: ccSessionId, beforeId }
   if (agentId !== undefined) {
     if (agentId === null) {
       sql += ' AND agent_id IS NULL'

@@ -63,7 +63,7 @@ const debug = (msg: string) => _debug(`[stream] ${msg}`)
 export interface StreamBackendOptions {
   args: string[]
   settingsPath: string
-  sessionId: string
+  conversationId: string
   localServerPort: number
   brokerUrl?: string
   brokerSecret?: string
@@ -152,7 +152,7 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
   const {
     args,
     settingsPath,
-    sessionId,
+    conversationId,
     localServerPort,
     brokerUrl,
     brokerSecret,
@@ -209,11 +209,11 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
     env: {
       ...process.env,
       ...env,
-      RCLAUDE_SESSION_ID: sessionId,
+      RCLAUDE_SESSION_ID: conversationId,
       RCLAUDE_PORT: String(localServerPort),
       ...(brokerUrl ? { RCLAUDE_BROKER: brokerUrl } : {}),
       ...(brokerSecret ? { RCLAUDE_SECRET: brokerSecret } : {}),
-      CLAUDE_CODE_TASK_LIST_ID: sessionId,
+      CLAUDE_CODE_TASK_LIST_ID: conversationId,
       // No FORCE_COLOR, no TERM, no SSH_TTY - headless mode
     },
     onExit(_proc, exitCode) {
@@ -224,7 +224,7 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
 
   // Diagnostic log - raw capture of everything from stdout/stderr for post-mortem analysis
   const diagDir = join(cwd || process.cwd(), '.rclaude', 'settings')
-  const diagPath = join(diagDir, `headless-${sessionId}.ndjsonl`)
+  const diagPath = join(diagDir, `headless-${conversationId}.ndjsonl`)
   try {
     mkdirSync(diagDir, { recursive: true })
     writeFileSync(diagPath, `# headless stream log - ${new Date().toISOString()}\n# pid=${proc.pid}\n`)

@@ -667,7 +667,7 @@ async function main() {
         },
         close(ws, code, reason) {
           if (verbose) {
-            const id = ws.data.sessionId?.slice(0, 8) || (ws.data.isControlPanel ? 'dashboard' : 'unknown')
+            const id = ws.data.ccSessionId?.slice(0, 8) || (ws.data.isControlPanel ? 'dashboard' : 'unknown')
             console.log(`[ws] Connection closed: ${id} code=${code} reason=${reason || 'none'}`)
           }
 
@@ -697,9 +697,9 @@ async function main() {
           }
 
           // Handle rclaude session disconnection
-          const sessionId = ws.data.sessionId
+          const ccSessionId = ws.data.ccSessionId
           const closeWrapperId = ws.data.conversationId
-          if (sessionId && closeWrapperId) {
+          if (ccSessionId && closeWrapperId) {
             // Notify terminal viewers attached to this wrapper's PTY
             const viewers = conversationStore.getTerminalViewers(closeWrapperId)
             if (viewers.size > 0) {
@@ -738,15 +738,15 @@ async function main() {
             }
 
             // Remove this wrapper's socket
-            conversationStore.removeConversationSocket(sessionId, closeWrapperId)
-            const remaining = conversationStore.getActiveConversationCount(sessionId)
+            conversationStore.removeConversationSocket(closeWrapperId, ccSessionId)
+            const remaining = conversationStore.getActiveConversationCount(closeWrapperId)
 
-            const session = conversationStore.getConversation(sessionId)
+            const session = conversationStore.getConversation(closeWrapperId)
             if (session && session.status !== 'ended' && remaining === 0) {
               // Last wrapper disconnected - end the conversation
-              conversationStore.endConversation(sessionId, 'connection_closed')
+              conversationStore.endConversation(closeWrapperId, 'connection_closed')
               if (verbose) {
-                console.log(`[-] Session ended: ${sessionId.slice(0, 8)}... (connection_closed, last wrapper)`)
+                console.log(`[-] Session ended: ${closeWrapperId.slice(0, 8)}... (connection_closed, last wrapper)`)
               }
 
               // Check for pending restart (terminate + auto-revive)
@@ -771,9 +771,14 @@ async function main() {
                   // Register rendezvous for caller (if not self-restart)
                   if (!pendingRestart.isSelfRestart) {
                     conversationStore
-                      .addRendezvous(conversationId, pendingRestart.callerSessionId, pendingRestart.project, 'restart')
+                      .addRendezvous(
+                        conversationId,
+                        pendingRestart.callerConversationId,
+                        pendingRestart.project,
+                        'restart',
+                      )
                       .then(revived => {
-                        const callerWs = conversationStore.getConversationSocket(pendingRestart.callerSessionId)
+                        const callerWs = conversationStore.getConversationSocket(pendingRestart.callerConversationId)
                         callerWs?.send(
                           JSON.stringify({
                             type: 'restart_ready',
@@ -785,7 +790,7 @@ async function main() {
                         )
                       })
                       .catch(err => {
-                        const callerWs = conversationStore.getConversationSocket(pendingRestart.callerSessionId)
+                        const callerWs = conversationStore.getConversationSocket(pendingRestart.callerConversationId)
                         callerWs?.send(
                           JSON.stringify({
                             type: 'restart_timeout',
@@ -802,7 +807,7 @@ async function main() {
               }
             } else if (verbose && remaining > 0) {
               console.log(
-                `[~] Wrapper ${closeWrapperId.slice(0, 8)} disconnected from session ${sessionId.slice(0, 8)}... (${remaining} conversation(s) remaining)`,
+                `[~] Wrapper ${closeWrapperId.slice(0, 8)} disconnected from conversation ${closeWrapperId.slice(0, 8)}... (${remaining} wrappers remaining)`,
               )
             }
           }

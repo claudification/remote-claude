@@ -8,7 +8,7 @@ import type { Subprocess } from 'bun'
 export interface PtyOptions {
   args: string[]
   settingsPath: string
-  sessionId: string
+  conversationId: string
   localServerPort: number
   brokerUrl?: string
   brokerSecret?: string
@@ -40,7 +40,8 @@ export function getTerminalSize(): { cols: number; rows: number } {
  * Spawn claude process with PTY
  */
 export function spawnClaude(options: PtyOptions): PtyProcess {
-  const { args, settingsPath, sessionId, localServerPort, brokerUrl, brokerSecret, cwd, env, onData, onExit } = options
+  const { args, settingsPath, conversationId, localServerPort, brokerUrl, brokerSecret, cwd, env, onData, onExit } =
+    options
 
   const { cols, rows } = getTerminalSize()
   const utf8Decoder = new TextDecoder('utf-8', { fatal: false })
@@ -53,12 +54,12 @@ export function spawnClaude(options: PtyOptions): PtyProcess {
     env: {
       ...process.env,
       ...env,
-      RCLAUDE_SESSION_ID: sessionId,
+      RCLAUDE_SESSION_ID: conversationId,
       RCLAUDE_PORT: String(localServerPort),
       ...(brokerUrl ? { RCLAUDE_BROKER: brokerUrl } : {}),
       ...(brokerSecret ? { RCLAUDE_SECRET: brokerSecret } : {}),
-      // Pin task list to session ID so tasks persist to ~/.claude/tasks/{sessionId}/
-      CLAUDE_CODE_TASK_LIST_ID: sessionId,
+      // Pin task list to conversation ID so tasks persist to ~/.claude/tasks/{conversationId}/
+      CLAUDE_CODE_TASK_LIST_ID: conversationId,
       // Ensure color output
       FORCE_COLOR: '1',
       // Force xterm-256color regardless of outer shell (tmux sets screen-256color)

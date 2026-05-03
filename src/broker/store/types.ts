@@ -107,7 +107,7 @@ export interface ConversationStore {
 
 export interface TranscriptEntryRecord {
   id: number
-  sessionId: string
+  ccSessionId: string
   sessionSeq: number
   syncEpoch: string
   type: string
@@ -142,7 +142,7 @@ export interface TranscriptFilter {
 }
 
 export interface SearchHit {
-  sessionId: string
+  ccSessionId: string
   entryId: number
   snippet: string
   score: number
@@ -150,18 +150,18 @@ export interface SearchHit {
 }
 
 export interface TranscriptStore {
-  append(sessionId: string, syncEpoch: string, entries: TranscriptEntryInput[]): void
-  getPage(sessionId: string, opts: PageOpts & { agentId?: string | null }): TranscriptPage
-  getLatest(sessionId: string, limit: number, agentId?: string | null): TranscriptEntryRecord[]
+  append(ccSessionId: string, syncEpoch: string, entries: TranscriptEntryInput[]): void
+  getPage(ccSessionId: string, opts: PageOpts & { agentId?: string | null }): TranscriptPage
+  getLatest(ccSessionId: string, limit: number, agentId?: string | null): TranscriptEntryRecord[]
   getSinceSeq(
-    sessionId: string,
+    ccSessionId: string,
     sinceSeq: number,
     limit?: number,
   ): { entries: TranscriptEntryRecord[]; lastSeq: number; gap: boolean }
-  getLastSeq(sessionId: string): number
-  find(sessionId: string, filter: TranscriptFilter): TranscriptEntryRecord[]
+  getLastSeq(ccSessionId: string): number
+  find(ccSessionId: string, filter: TranscriptFilter): TranscriptEntryRecord[]
   search(query: string, opts?: { scope?: string; limit?: number }): SearchHit[]
-  count(sessionId: string, agentId?: string | null): number
+  count(ccSessionId: string, agentId?: string | null): number
   pruneOlderThan(cutoffMs: number): number
 }
 
@@ -180,15 +180,15 @@ export interface TranscriptEntryInput {
 
 export interface EventRecord {
   id: number
-  sessionId: string
+  ccSessionId: string
   type: string
   data?: Record<string, unknown>
   createdAt: number
 }
 
 export interface EventStore {
-  append(sessionId: string, event: EventInput): void
-  getForConversation(sessionId: string, opts?: { types?: string[]; limit?: number; afterId?: number }): EventRecord[]
+  append(ccSessionId: string, event: EventInput): void
+  getForConversation(ccSessionId: string, opts?: { types?: string[]; limit?: number; afterId?: number }): EventRecord[]
   pruneOlderThan(cutoffMs: number): number
 }
 
@@ -259,14 +259,14 @@ export interface MessageStore {
 
 export interface ShareCreate {
   token: string
-  sessionId: string
+  conversationId: string
   permissions: Record<string, boolean>
   expiresAt: number
 }
 
 export interface ShareRecord {
   token: string
-  sessionId: string
+  conversationId: string
   permissions: Record<string, boolean>
   createdAt: number
   expiresAt: number
@@ -276,7 +276,7 @@ export interface ShareRecord {
 export interface ShareStore {
   create(share: ShareCreate): ShareRecord
   get(token: string): ShareRecord | null
-  getForConversation(sessionId: string): ShareRecord[]
+  getForConversation(conversationId: string): ShareRecord[]
   incrementViewerCount(token: string): void
   delete(token: string): boolean
   deleteExpired(): number
@@ -329,7 +329,7 @@ export interface ScopeLinkStore {
 
 export interface TaskRecord {
   id: string
-  sessionId: string
+  conversationId: string
   kind: 'task' | 'bg_task' | 'archived'
   status: string
   name?: string
@@ -339,10 +339,10 @@ export interface TaskRecord {
 }
 
 export interface TaskStore {
-  upsert(sessionId: string, task: TaskRecord): void
-  getForConversation(sessionId: string, kind?: string): TaskRecord[]
-  delete(sessionId: string, taskId: string): boolean
-  deleteForConversation(sessionId: string): number
+  upsert(conversationId: string, task: TaskRecord): void
+  getForConversation(conversationId: string, kind?: string): TaskRecord[]
+  delete(conversationId: string, taskId: string): boolean
+  deleteForConversation(conversationId: string): number
 }
 
 // ---------------------------------------------------------------------------
@@ -351,7 +351,7 @@ export interface TaskStore {
 
 export interface TurnRecord {
   timestamp: number
-  sessionId: string
+  conversationId: string
   projectUri: string
   account: string
   orgId: string

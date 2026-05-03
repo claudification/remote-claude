@@ -6,444 +6,444 @@
 <title>rclaude config</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-                                                                                          :root {
-                                                                                            --bg: #1a1b26;
-                                                                                            --bg-surface: #24283b;
-                                                                                            --bg-hover: #292e42;
-                                                                                            --bg-input: #1e2030;
-                                                                                            --border: #3b4261;
-                                                                                            --border-focus: #7aa2f7;
-                                                                                            --text: #c0caf5;
-                                                                                            --text-muted: #565f89;
-                                                                                            --text-dim: #414868;
-                                                                                            --accent: #7aa2f7;
-                                                                                            --accent-hover: #89b4fa;
-                                                                                            --green: #9ece6a;
-                                                                                            --green-dim: #9ece6a33;
-                                                                                            --red: #f7768e;
-                                                                                            --red-dim: #f7768e33;
-                                                                                            --amber: #e0af68;
-                                                                                            --amber-dim: #e0af6833;
-                                                                                            --purple: #bb9af7;
-                                                                                            --purple-dim: #bb9af733;
-                                                                                            --cyan: #7dcfff;
-                                                                                            --orange: #ff9e64;
-                                                                                          }
+                                                                                            :root {
+                                                                                              --bg: #1a1b26;
+                                                                                              --bg-surface: #24283b;
+                                                                                              --bg-hover: #292e42;
+                                                                                              --bg-input: #1e2030;
+                                                                                              --border: #3b4261;
+                                                                                              --border-focus: #7aa2f7;
+                                                                                              --text: #c0caf5;
+                                                                                              --text-muted: #565f89;
+                                                                                              --text-dim: #414868;
+                                                                                              --accent: #7aa2f7;
+                                                                                              --accent-hover: #89b4fa;
+                                                                                              --green: #9ece6a;
+                                                                                              --green-dim: #9ece6a33;
+                                                                                              --red: #f7768e;
+                                                                                              --red-dim: #f7768e33;
+                                                                                              --amber: #e0af68;
+                                                                                              --amber-dim: #e0af6833;
+                                                                                              --purple: #bb9af7;
+                                                                                              --purple-dim: #bb9af733;
+                                                                                              --cyan: #7dcfff;
+                                                                                              --orange: #ff9e64;
+                                                                                            }
 
-                                                                                          body {
-                                                                                            background: var(--bg);
-                                                                                            color: var(--text);
-                                                                                            font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', monospace;
-                                                                                            font-size: 13px;
-                                                                                            line-height: 1.6;
-                                                                                            min-height: 100vh;
-                                                                                          }
+                                                                                            body {
+                                                                                              background: var(--bg);
+                                                                                              color: var(--text);
+                                                                                              font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', monospace;
+                                                                                              font-size: 13px;
+                                                                                              line-height: 1.6;
+                                                                                              min-height: 100vh;
+                                                                                            }
 
-                                                                                          .container {
-                                                                                            max-width: 960px;
-                                                                                            margin: 0 auto;
-                                                                                            padding: 2rem 1.5rem;
-                                                                                          }
+                                                                                            .container {
+                                                                                              max-width: 960px;
+                                                                                              margin: 0 auto;
+                                                                                              padding: 2rem 1.5rem;
+                                                                                            }
 
-                                                                                          /* ── Header ─────────────────────────────────────── */
-                                                                                          .header {
-                                                                                            margin-bottom: 2rem;
-                                                                                            padding-bottom: 1rem;
-                                                                                            border-bottom: 1px solid var(--border);
-                                                                                          }
-                                                                                          .header h1 {
-                                                                                            font-size: 14px;
-                                                                                            font-weight: 700;
-                                                                                            text-transform: uppercase;
-                                                                                            letter-spacing: 0.15em;
-                                                                                            color: var(--accent);
-                                                                                            margin-bottom: 0.5rem;
-                                                                                          }
-                                                                                          .header .meta {
-                                                                                            font-size: 11px;
-                                                                                            color: var(--text-muted);
-                                                                                          }
-                                                                                          .header .meta span {
-                                                                                            color: var(--text-dim);
-                                                                                          }
-                                                                                          .header .meta .path {
-                                                                                            color: var(--text);
-                                                                                          }
+                                                                                            /* ── Header ─────────────────────────────────────── */
+                                                                                            .header {
+                                                                                              margin-bottom: 2rem;
+                                                                                              padding-bottom: 1rem;
+                                                                                              border-bottom: 1px solid var(--border);
+                                                                                            }
+                                                                                            .header h1 {
+                                                                                              font-size: 14px;
+                                                                                              font-weight: 700;
+                                                                                              text-transform: uppercase;
+                                                                                              letter-spacing: 0.15em;
+                                                                                              color: var(--accent);
+                                                                                              margin-bottom: 0.5rem;
+                                                                                            }
+                                                                                            .header .meta {
+                                                                                              font-size: 11px;
+                                                                                              color: var(--text-muted);
+                                                                                            }
+                                                                                            .header .meta span {
+                                                                                              color: var(--text-dim);
+                                                                                            }
+                                                                                            .header .meta .path {
+                                                                                              color: var(--text);
+                                                                                            }
 
-                                                                                          /* ── Presets ─────────────────────────────────────── */
-                                                                                          .presets {
-                                                                                            margin-bottom: 1.5rem;
-                                                                                          }
-                                                                                          .presets-label {
-                                                                                            font-size: 10px;
-                                                                                            font-weight: 700;
-                                                                                            text-transform: uppercase;
-                                                                                            letter-spacing: 0.15em;
-                                                                                            color: var(--text-muted);
-                                                                                            margin-bottom: 0.5rem;
-                                                                                          }
-                                                                                          .presets-grid {
-                                                                                            display: flex;
-                                                                                            flex-wrap: wrap;
-                                                                                            gap: 0.5rem;
-                                                                                          }
-                                                                                          .preset-btn {
-                                                                                            font-family: inherit;
-                                                                                            font-size: 11px;
-                                                                                            font-weight: 600;
-                                                                                            padding: 0.4rem 0.75rem;
-                                                                                            border: 1px solid var(--border);
-                                                                                            background: var(--bg-surface);
-                                                                                            color: var(--text);
-                                                                                            cursor: pointer;
-                                                                                            transition: all 0.15s;
-                                                                                          }
-                                                                                          .preset-btn:hover {
-                                                                                            border-color: var(--accent);
-                                                                                            color: var(--accent);
-                                                                                            background: var(--bg-hover);
-                                                                                          }
-                                                                                          .preset-btn.hero {
-                                                                                            border-color: var(--green);
-                                                                                            color: var(--green);
-                                                                                            background: var(--green-dim);
-                                                                                            font-size: 12px;
-                                                                                            padding: 0.5rem 1rem;
-                                                                                          }
-                                                                                          .preset-btn.hero:hover {
-                                                                                            background: #9ece6a44;
-                                                                                            border-color: var(--green);
-                                                                                          }
-                                                                                          .preset-btn.danger {
-                                                                                            border-color: var(--red);
-                                                                                            color: var(--red);
-                                                                                            background: var(--red-dim);
-                                                                                          }
-                                                                                          .preset-btn.danger:hover {
-                                                                                            background: #f7768e44;
-                                                                                          }
+                                                                                            /* ── Presets ─────────────────────────────────────── */
+                                                                                            .presets {
+                                                                                              margin-bottom: 1.5rem;
+                                                                                            }
+                                                                                            .presets-label {
+                                                                                              font-size: 10px;
+                                                                                              font-weight: 700;
+                                                                                              text-transform: uppercase;
+                                                                                              letter-spacing: 0.15em;
+                                                                                              color: var(--text-muted);
+                                                                                              margin-bottom: 0.5rem;
+                                                                                            }
+                                                                                            .presets-grid {
+                                                                                              display: flex;
+                                                                                              flex-wrap: wrap;
+                                                                                              gap: 0.5rem;
+                                                                                            }
+                                                                                            .preset-btn {
+                                                                                              font-family: inherit;
+                                                                                              font-size: 11px;
+                                                                                              font-weight: 600;
+                                                                                              padding: 0.4rem 0.75rem;
+                                                                                              border: 1px solid var(--border);
+                                                                                              background: var(--bg-surface);
+                                                                                              color: var(--text);
+                                                                                              cursor: pointer;
+                                                                                              transition: all 0.15s;
+                                                                                            }
+                                                                                            .preset-btn:hover {
+                                                                                              border-color: var(--accent);
+                                                                                              color: var(--accent);
+                                                                                              background: var(--bg-hover);
+                                                                                            }
+                                                                                            .preset-btn.hero {
+                                                                                              border-color: var(--green);
+                                                                                              color: var(--green);
+                                                                                              background: var(--green-dim);
+                                                                                              font-size: 12px;
+                                                                                              padding: 0.5rem 1rem;
+                                                                                            }
+                                                                                            .preset-btn.hero:hover {
+                                                                                              background: #9ece6a44;
+                                                                                              border-color: var(--green);
+                                                                                            }
+                                                                                            .preset-btn.danger {
+                                                                                              border-color: var(--red);
+                                                                                              color: var(--red);
+                                                                                              background: var(--red-dim);
+                                                                                            }
+                                                                                            .preset-btn.danger:hover {
+                                                                                              background: #f7768e44;
+                                                                                            }
 
-                                                                                          /* ── Layout ──────────────────────────────────────── */
-                                                                                          .main {
-                                                                                            display: grid;
-                                                                                            grid-template-columns: 1fr 1fr;
-                                                                                            gap: 1.5rem;
-                                                                                          }
-                                                                                          @media (max-width: 700px) {
-                                                                                            .main { grid-template-columns: 1fr; }
-                                                                                          }
+                                                                                            /* ── Layout ──────────────────────────────────────── */
+                                                                                            .main {
+                                                                                              display: grid;
+                                                                                              grid-template-columns: 1fr 1fr;
+                                                                                              gap: 1.5rem;
+                                                                                            }
+                                                                                            @media (max-width: 700px) {
+                                                                                              .main { grid-template-columns: 1fr; }
+                                                                                            }
 
-                                                                                          /* ── Sections ────────────────────────────────────── */
-                                                                                          .section {
-                                                                                            margin-bottom: 1.25rem;
-                                                                                          }
-                                                                                          .section-header {
-                                                                                            display: flex;
-                                                                                            align-items: center;
-                                                                                            gap: 0.5rem;
-                                                                                            margin-bottom: 0.5rem;
-                                                                                          }
-                                                                                          .section-title {
-                                                                                            font-size: 10px;
-                                                                                            font-weight: 700;
-                                                                                            text-transform: uppercase;
-                                                                                            letter-spacing: 0.15em;
-                                                                                            color: var(--text-muted);
-                                                                                          }
-                                                                                          .section-line {
-                                                                                            flex: 1;
-                                                                                            height: 1px;
-                                                                                            background: var(--border);
-                                                                                          }
-                                                                                          .section-count {
-                                                                                            font-size: 10px;
-                                                                                            color: var(--text-dim);
-                                                                                          }
+                                                                                            /* ── Sections ────────────────────────────────────── */
+                                                                                            .section {
+                                                                                              margin-bottom: 1.25rem;
+                                                                                            }
+                                                                                            .section-header {
+                                                                                              display: flex;
+                                                                                              align-items: center;
+                                                                                              gap: 0.5rem;
+                                                                                              margin-bottom: 0.5rem;
+                                                                                            }
+                                                                                            .section-title {
+                                                                                              font-size: 10px;
+                                                                                              font-weight: 700;
+                                                                                              text-transform: uppercase;
+                                                                                              letter-spacing: 0.15em;
+                                                                                              color: var(--text-muted);
+                                                                                            }
+                                                                                            .section-line {
+                                                                                              flex: 1;
+                                                                                              height: 1px;
+                                                                                              background: var(--border);
+                                                                                            }
+                                                                                            .section-count {
+                                                                                              font-size: 10px;
+                                                                                              color: var(--text-dim);
+                                                                                            }
 
-                                                                                          /* ── Glob list ───────────────────────────────────── */
-                                                                                          .glob-list {
-                                                                                            list-style: none;
-                                                                                            margin-bottom: 0.5rem;
-                                                                                          }
-                                                                                          .glob-item {
-                                                                                            display: flex;
-                                                                                            align-items: center;
-                                                                                            gap: 0.5rem;
-                                                                                            padding: 0.3rem 0.5rem;
-                                                                                            border: 1px solid transparent;
-                                                                                            transition: all 0.1s;
-                                                                                          }
-                                                                                          .glob-item:hover {
-                                                                                            background: var(--bg-hover);
-                                                                                            border-color: var(--border);
-                                                                                          }
-                                                                                          .glob-item .pattern {
-                                                                                            flex: 1;
-                                                                                            font-size: 12px;
-                                                                                          }
-                                                                                          .glob-item.builtin .pattern {
-                                                                                            color: var(--text-dim);
-                                                                                          }
-                                                                                          .glob-item .badge {
-                                                                                            font-size: 9px;
-                                                                                            padding: 0.1rem 0.4rem;
-                                                                                            color: var(--text-dim);
-                                                                                            border: 1px solid var(--border);
-                                                                                            text-transform: uppercase;
-                                                                                            letter-spacing: 0.05em;
-                                                                                          }
-                                                                                          .glob-item .remove-btn {
-                                                                                            font-family: inherit;
-                                                                                            font-size: 14px;
-                                                                                            background: none;
-                                                                                            border: none;
-                                                                                            color: var(--text-dim);
-                                                                                            cursor: pointer;
-                                                                                            padding: 0 0.25rem;
-                                                                                            line-height: 1;
-                                                                                            transition: color 0.1s;
-                                                                                            visibility: hidden;
-                                                                                          }
-                                                                                          .glob-item:hover .remove-btn {
-                                                                                            visibility: visible;
-                                                                                          }
-                                                                                          .glob-item .remove-btn:hover {
-                                                                                            color: var(--red);
-                                                                                          }
+                                                                                            /* ── Glob list ───────────────────────────────────── */
+                                                                                            .glob-list {
+                                                                                              list-style: none;
+                                                                                              margin-bottom: 0.5rem;
+                                                                                            }
+                                                                                            .glob-item {
+                                                                                              display: flex;
+                                                                                              align-items: center;
+                                                                                              gap: 0.5rem;
+                                                                                              padding: 0.3rem 0.5rem;
+                                                                                              border: 1px solid transparent;
+                                                                                              transition: all 0.1s;
+                                                                                            }
+                                                                                            .glob-item:hover {
+                                                                                              background: var(--bg-hover);
+                                                                                              border-color: var(--border);
+                                                                                            }
+                                                                                            .glob-item .pattern {
+                                                                                              flex: 1;
+                                                                                              font-size: 12px;
+                                                                                            }
+                                                                                            .glob-item.builtin .pattern {
+                                                                                              color: var(--text-dim);
+                                                                                            }
+                                                                                            .glob-item .badge {
+                                                                                              font-size: 9px;
+                                                                                              padding: 0.1rem 0.4rem;
+                                                                                              color: var(--text-dim);
+                                                                                              border: 1px solid var(--border);
+                                                                                              text-transform: uppercase;
+                                                                                              letter-spacing: 0.05em;
+                                                                                            }
+                                                                                            .glob-item .remove-btn {
+                                                                                              font-family: inherit;
+                                                                                              font-size: 14px;
+                                                                                              background: none;
+                                                                                              border: none;
+                                                                                              color: var(--text-dim);
+                                                                                              cursor: pointer;
+                                                                                              padding: 0 0.25rem;
+                                                                                              line-height: 1;
+                                                                                              transition: color 0.1s;
+                                                                                              visibility: hidden;
+                                                                                            }
+                                                                                            .glob-item:hover .remove-btn {
+                                                                                              visibility: visible;
+                                                                                            }
+                                                                                            .glob-item .remove-btn:hover {
+                                                                                              color: var(--red);
+                                                                                            }
 
-                                                                                          .empty-state {
-                                                                                            font-size: 11px;
-                                                                                            color: var(--text-dim);
-                                                                                            padding: 0.3rem 0.5rem;
-                                                                                            font-style: italic;
-                                                                                          }
+                                                                                            .empty-state {
+                                                                                              font-size: 11px;
+                                                                                              color: var(--text-dim);
+                                                                                              padding: 0.3rem 0.5rem;
+                                                                                              font-style: italic;
+                                                                                            }
 
-                                                                                          /* ── Add input ───────────────────────────────────── */
-                                                                                          .add-row {
-                                                                                            display: flex;
-                                                                                            gap: 0.25rem;
-                                                                                          }
-                                                                                          .add-input {
-                                                                                            flex: 1;
-                                                                                            font-family: inherit;
-                                                                                            font-size: 12px;
-                                                                                            padding: 0.35rem 0.5rem;
-                                                                                            background: var(--bg-input);
-                                                                                            border: 1px solid var(--border);
-                                                                                            color: var(--text);
-                                                                                            outline: none;
-                                                                                            transition: border-color 0.15s;
-                                                                                          }
-                                                                                          .add-input:focus {
-                                                                                            border-color: var(--border-focus);
-                                                                                          }
-                                                                                          .add-input::placeholder {
-                                                                                            color: var(--text-dim);
-                                                                                          }
-                                                                                          .add-btn {
-                                                                                            font-family: inherit;
-                                                                                            font-size: 12px;
-                                                                                            font-weight: 700;
-                                                                                            padding: 0.35rem 0.75rem;
-                                                                                            background: var(--bg-surface);
-                                                                                            border: 1px solid var(--border);
-                                                                                            color: var(--text-muted);
-                                                                                            cursor: pointer;
-                                                                                            transition: all 0.1s;
-                                                                                          }
-                                                                                          .add-btn:hover {
-                                                                                            border-color: var(--accent);
-                                                                                            color: var(--accent);
-                                                                                          }
-                                                                                          .add-btn:disabled {
-                                                                                            opacity: 0.3;
-                                                                                            cursor: not-allowed;
-                                                                                          }
+                                                                                            /* ── Add input ───────────────────────────────────── */
+                                                                                            .add-row {
+                                                                                              display: flex;
+                                                                                              gap: 0.25rem;
+                                                                                            }
+                                                                                            .add-input {
+                                                                                              flex: 1;
+                                                                                              font-family: inherit;
+                                                                                              font-size: 12px;
+                                                                                              padding: 0.35rem 0.5rem;
+                                                                                              background: var(--bg-input);
+                                                                                              border: 1px solid var(--border);
+                                                                                              color: var(--text);
+                                                                                              outline: none;
+                                                                                              transition: border-color 0.15s;
+                                                                                            }
+                                                                                            .add-input:focus {
+                                                                                              border-color: var(--border-focus);
+                                                                                            }
+                                                                                            .add-input::placeholder {
+                                                                                              color: var(--text-dim);
+                                                                                            }
+                                                                                            .add-btn {
+                                                                                              font-family: inherit;
+                                                                                              font-size: 12px;
+                                                                                              font-weight: 700;
+                                                                                              padding: 0.35rem 0.75rem;
+                                                                                              background: var(--bg-surface);
+                                                                                              border: 1px solid var(--border);
+                                                                                              color: var(--text-muted);
+                                                                                              cursor: pointer;
+                                                                                              transition: all 0.1s;
+                                                                                            }
+                                                                                            .add-btn:hover {
+                                                                                              border-color: var(--accent);
+                                                                                              color: var(--accent);
+                                                                                            }
+                                                                                            .add-btn:disabled {
+                                                                                              opacity: 0.3;
+                                                                                              cursor: not-allowed;
+                                                                                            }
 
-                                                                                          /* ── Link toggle ─────────────────────────────────── */
-                                                                                          .link-row {
-                                                                                            display: flex;
-                                                                                            align-items: center;
-                                                                                            gap: 0.5rem;
-                                                                                            margin-bottom: 1rem;
-                                                                                            padding: 0.4rem 0.5rem;
-                                                                                            background: var(--bg-surface);
-                                                                                            border: 1px solid var(--border);
-                                                                                          }
-                                                                                          .link-row label {
-                                                                                            font-size: 11px;
-                                                                                            color: var(--text-muted);
-                                                                                            cursor: pointer;
-                                                                                            user-select: none;
-                                                                                          }
-                                                                                          .link-row input[type="checkbox"] {
-                                                                                            accent-color: var(--accent);
-                                                                                            cursor: pointer;
-                                                                                          }
+                                                                                            /* ── Link toggle ─────────────────────────────────── */
+                                                                                            .link-row {
+                                                                                              display: flex;
+                                                                                              align-items: center;
+                                                                                              gap: 0.5rem;
+                                                                                              margin-bottom: 1rem;
+                                                                                              padding: 0.4rem 0.5rem;
+                                                                                              background: var(--bg-surface);
+                                                                                              border: 1px solid var(--border);
+                                                                                            }
+                                                                                            .link-row label {
+                                                                                              font-size: 11px;
+                                                                                              color: var(--text-muted);
+                                                                                              cursor: pointer;
+                                                                                              user-select: none;
+                                                                                            }
+                                                                                            .link-row input[type="checkbox"] {
+                                                                                              accent-color: var(--accent);
+                                                                                              cursor: pointer;
+                                                                                            }
 
-                                                                                          /* ── Options ─────────────────────────────────────── */
-                                                                                          .option-row {
-                                                                                            display: flex;
-                                                                                            align-items: center;
-                                                                                            gap: 0.5rem;
-                                                                                            padding: 0.4rem 0.5rem;
-                                                                                            margin-bottom: 0.25rem;
-                                                                                          }
-                                                                                          .option-row label {
-                                                                                            font-size: 11px;
-                                                                                            color: var(--text);
-                                                                                            cursor: pointer;
-                                                                                            user-select: none;
-                                                                                          }
-                                                                                          .option-row input[type="checkbox"] {
-                                                                                            accent-color: var(--accent);
-                                                                                            cursor: pointer;
-                                                                                          }
-                                                                                          .option-desc {
-                                                                                            font-size: 10px;
-                                                                                            color: var(--text-dim);
-                                                                                            padding-left: 0.5rem;
-                                                                                          }
+                                                                                            /* ── Options ─────────────────────────────────────── */
+                                                                                            .option-row {
+                                                                                              display: flex;
+                                                                                              align-items: center;
+                                                                                              gap: 0.5rem;
+                                                                                              padding: 0.4rem 0.5rem;
+                                                                                              margin-bottom: 0.25rem;
+                                                                                            }
+                                                                                            .option-row label {
+                                                                                              font-size: 11px;
+                                                                                              color: var(--text);
+                                                                                              cursor: pointer;
+                                                                                              user-select: none;
+                                                                                            }
+                                                                                            .option-row input[type="checkbox"] {
+                                                                                              accent-color: var(--accent);
+                                                                                              cursor: pointer;
+                                                                                            }
+                                                                                            .option-desc {
+                                                                                              font-size: 10px;
+                                                                                              color: var(--text-dim);
+                                                                                              padding-left: 0.5rem;
+                                                                                            }
 
-                                                                                          /* ── Preview panel ───────────────────────────────── */
-                                                                                          .preview-panel {
-                                                                                            position: sticky;
-                                                                                            top: 2rem;
-                                                                                          }
-                                                                                          .preview-header {
-                                                                                            display: flex;
-                                                                                            align-items: center;
-                                                                                            justify-content: space-between;
-                                                                                            margin-bottom: 0.5rem;
-                                                                                          }
-                                                                                          .preview-title {
-                                                                                            font-size: 10px;
-                                                                                            font-weight: 700;
-                                                                                            text-transform: uppercase;
-                                                                                            letter-spacing: 0.15em;
-                                                                                            color: var(--text-muted);
-                                                                                          }
-                                                                                          .preview-code {
-                                                                                            background: var(--bg-surface);
-                                                                                            border: 1px solid var(--border);
-                                                                                            padding: 1rem;
-                                                                                            font-size: 11px;
-                                                                                            line-height: 1.5;
-                                                                                            overflow-x: auto;
-                                                                                            white-space: pre;
-                                                                                            color: var(--text);
-                                                                                            margin-bottom: 1rem;
-                                                                                            max-height: 400px;
-                                                                                            overflow-y: auto;
-                                                                                          }
+                                                                                            /* ── Preview panel ───────────────────────────────── */
+                                                                                            .preview-panel {
+                                                                                              position: sticky;
+                                                                                              top: 2rem;
+                                                                                            }
+                                                                                            .preview-header {
+                                                                                              display: flex;
+                                                                                              align-items: center;
+                                                                                              justify-content: space-between;
+                                                                                              margin-bottom: 0.5rem;
+                                                                                            }
+                                                                                            .preview-title {
+                                                                                              font-size: 10px;
+                                                                                              font-weight: 700;
+                                                                                              text-transform: uppercase;
+                                                                                              letter-spacing: 0.15em;
+                                                                                              color: var(--text-muted);
+                                                                                            }
+                                                                                            .preview-code {
+                                                                                              background: var(--bg-surface);
+                                                                                              border: 1px solid var(--border);
+                                                                                              padding: 1rem;
+                                                                                              font-size: 11px;
+                                                                                              line-height: 1.5;
+                                                                                              overflow-x: auto;
+                                                                                              white-space: pre;
+                                                                                              color: var(--text);
+                                                                                              margin-bottom: 1rem;
+                                                                                              max-height: 400px;
+                                                                                              overflow-y: auto;
+                                                                                            }
 
-                                                                                          /* ── Actions ─────────────────────────────────────── */
-                                                                                          .actions {
-                                                                                            display: flex;
-                                                                                            gap: 0.5rem;
-                                                                                            flex-wrap: wrap;
-                                                                                          }
-                                                                                          .action-btn {
-                                                                                            font-family: inherit;
-                                                                                            font-size: 11px;
-                                                                                            font-weight: 700;
-                                                                                            text-transform: uppercase;
-                                                                                            letter-spacing: 0.1em;
-                                                                                            padding: 0.5rem 1rem;
-                                                                                            border: 1px solid var(--border);
-                                                                                            background: var(--bg-surface);
-                                                                                            color: var(--text);
-                                                                                            cursor: pointer;
-                                                                                            transition: all 0.15s;
-                                                                                          }
-                                                                                          .action-btn:hover {
-                                                                                            border-color: var(--accent);
-                                                                                            color: var(--accent);
-                                                                                            background: var(--bg-hover);
-                                                                                          }
-                                                                                          .action-btn.primary {
-                                                                                            border-color: var(--accent);
-                                                                                            background: #7aa2f733;
-                                                                                            color: var(--accent);
-                                                                                          }
-                                                                                          .action-btn.primary:hover {
-                                                                                            background: #7aa2f755;
-                                                                                          }
-                                                                                          .action-btn:disabled {
-                                                                                            opacity: 0.4;
-                                                                                            cursor: not-allowed;
-                                                                                          }
+                                                                                            /* ── Actions ─────────────────────────────────────── */
+                                                                                            .actions {
+                                                                                              display: flex;
+                                                                                              gap: 0.5rem;
+                                                                                              flex-wrap: wrap;
+                                                                                            }
+                                                                                            .action-btn {
+                                                                                              font-family: inherit;
+                                                                                              font-size: 11px;
+                                                                                              font-weight: 700;
+                                                                                              text-transform: uppercase;
+                                                                                              letter-spacing: 0.1em;
+                                                                                              padding: 0.5rem 1rem;
+                                                                                              border: 1px solid var(--border);
+                                                                                              background: var(--bg-surface);
+                                                                                              color: var(--text);
+                                                                                              cursor: pointer;
+                                                                                              transition: all 0.15s;
+                                                                                            }
+                                                                                            .action-btn:hover {
+                                                                                              border-color: var(--accent);
+                                                                                              color: var(--accent);
+                                                                                              background: var(--bg-hover);
+                                                                                            }
+                                                                                            .action-btn.primary {
+                                                                                              border-color: var(--accent);
+                                                                                              background: #7aa2f733;
+                                                                                              color: var(--accent);
+                                                                                            }
+                                                                                            .action-btn.primary:hover {
+                                                                                              background: #7aa2f755;
+                                                                                            }
+                                                                                            .action-btn:disabled {
+                                                                                              opacity: 0.4;
+                                                                                              cursor: not-allowed;
+                                                                                            }
 
-                                                                                          /* ── Toast ───────────────────────────────────────── */
-                                                                                          .toast {
-                                                                                            position: fixed;
-                                                                                            bottom: 1.5rem;
-                                                                                            right: 1.5rem;
-                                                                                            padding: 0.6rem 1rem;
-                                                                                            font-family: inherit;
-                                                                                            font-size: 11px;
-                                                                                            font-weight: 600;
-                                                                                            border: 1px solid;
-                                                                                            opacity: 0;
-                                                                                            transform: translateY(10px);
-                                                                                            transition: all 0.2s;
-                                                                                            pointer-events: none;
-                                                                                            z-index: 100;
-                                                                                          }
-                                                                                          .toast.visible {
-                                                                                            opacity: 1;
-                                                                                            transform: translateY(0);
-                                                                                          }
-                                                                                          .toast.success {
-                                                                                            background: var(--green-dim);
-                                                                                            border-color: var(--green);
-                                                                                            color: var(--green);
-                                                                                          }
-                                                                                          .toast.error {
-                                                                                            background: var(--red-dim);
-                                                                                            border-color: var(--red);
-                                                                                            color: var(--red);
-                                                                                          }
-                                                                                          .toast.info {
-                                                                                            background: #7aa2f733;
-                                                                                            border-color: var(--accent);
-                                                                                            color: var(--accent);
-                                                                                          }
+                                                                                            /* ── Toast ───────────────────────────────────────── */
+                                                                                            .toast {
+                                                                                              position: fixed;
+                                                                                              bottom: 1.5rem;
+                                                                                              right: 1.5rem;
+                                                                                              padding: 0.6rem 1rem;
+                                                                                              font-family: inherit;
+                                                                                              font-size: 11px;
+                                                                                              font-weight: 600;
+                                                                                              border: 1px solid;
+                                                                                              opacity: 0;
+                                                                                              transform: translateY(10px);
+                                                                                              transition: all 0.2s;
+                                                                                              pointer-events: none;
+                                                                                              z-index: 100;
+                                                                                            }
+                                                                                            .toast.visible {
+                                                                                              opacity: 1;
+                                                                                              transform: translateY(0);
+                                                                                            }
+                                                                                            .toast.success {
+                                                                                              background: var(--green-dim);
+                                                                                              border-color: var(--green);
+                                                                                              color: var(--green);
+                                                                                            }
+                                                                                            .toast.error {
+                                                                                              background: var(--red-dim);
+                                                                                              border-color: var(--red);
+                                                                                              color: var(--red);
+                                                                                            }
+                                                                                            .toast.info {
+                                                                                              background: #7aa2f733;
+                                                                                              border-color: var(--accent);
+                                                                                              color: var(--accent);
+                                                                                            }
 
-                                                                                          /* ── Dirty indicator ─────────────────────────────── */
-                                                                                          .dirty-dot {
-                                                                                            display: inline-block;
-                                                                                            width: 6px;
-                                                                                            height: 6px;
-                                                                                            border-radius: 50%;
-                                                                                            background: var(--amber);
-                                                                                            margin-left: 0.5rem;
-                                                                                            opacity: 0;
-                                                                                            transition: opacity 0.2s;
-                                                                                          }
-                                                                                          .dirty-dot.visible { opacity: 1; }
+                                                                                            /* ── Dirty indicator ─────────────────────────────── */
+                                                                                            .dirty-dot {
+                                                                                              display: inline-block;
+                                                                                              width: 6px;
+                                                                                              height: 6px;
+                                                                                              border-radius: 50%;
+                                                                                              background: var(--amber);
+                                                                                              margin-left: 0.5rem;
+                                                                                              opacity: 0;
+                                                                                              transition: opacity 0.2s;
+                                                                                            }
+                                                                                            .dirty-dot.visible { opacity: 1; }
 
-                                                                                          /* ── Suggestions ─────────────────────────────────── */
-                                                                                          .suggestions {
-                                                                                            display: flex;
-                                                                                            flex-wrap: wrap;
-                                                                                            gap: 0.25rem;
-                                                                                            margin-top: 0.25rem;
-                                                                                          }
-                                                                                          .suggestion {
-                                                                                            font-family: inherit;
-                                                                                            font-size: 10px;
-                                                                                            padding: 0.15rem 0.5rem;
-                                                                                            background: none;
-                                                                                            border: 1px solid var(--border);
-                                                                                            color: var(--text-dim);
-                                                                                            cursor: pointer;
-                                                                                            transition: all 0.1s;
-                                                                                          }
-                                                                                          .suggestion:hover {
-                                                                                            border-color: var(--accent);
-                                                                                            color: var(--accent);
-                                                                                          }
+                                                                                            /* ── Suggestions ─────────────────────────────────── */
+                                                                                            .suggestions {
+                                                                                              display: flex;
+                                                                                              flex-wrap: wrap;
+                                                                                              gap: 0.25rem;
+                                                                                              margin-top: 0.25rem;
+                                                                                            }
+                                                                                            .suggestion {
+                                                                                              font-family: inherit;
+                                                                                              font-size: 10px;
+                                                                                              padding: 0.15rem 0.5rem;
+                                                                                              background: none;
+                                                                                              border: 1px solid var(--border);
+                                                                                              color: var(--text-dim);
+                                                                                              cursor: pointer;
+                                                                                              transition: all 0.1s;
+                                                                                            }
+                                                                                            .suggestion:hover {
+                                                                                              border-color: var(--accent);
+                                                                                              color: var(--accent);
+                                                                                            }
 </style>
 </head>
 <body>

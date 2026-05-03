@@ -9,10 +9,10 @@
  *
  * In headless mode with hooks enabled both fire, in non-deterministic order.
  * Historically each tried to emit the right `session_promote` / `session_clear`
- * message on its own, with state (ctx.claudeSessionId, wsClient.sessionId,
+ * message on its own, with state (ctx.claudeSessionId, wsClient.ccSessionId,
  * ctx.pendingClearFromId) spread across three places. That produced a race
  * where the first observer promoted a post-/clear respawn as a boot, silently
- * advancing wsClient.sessionId, and the second observer's rekey was then
+ * advancing wsClient.ccSessionId, and the second observer's rekey was then
  * eaten by the "same-ID" guard in sendConversationRekey -- leaving the
  * broker pinned to the old session id. See diag log 2026-04-17
  * for the incident.

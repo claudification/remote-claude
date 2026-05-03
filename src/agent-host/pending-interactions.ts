@@ -35,7 +35,7 @@ export function clearInteraction(ctx: AgentHostContext, id: string): void {
 /**
  * Re-send every outstanding interaction. Called from onConnected so that a
  * broker restart between request and response is a non-event.
- * Broker handlers are idempotent (keyed by sessionId + requestId/toolUseId),
+ * Broker handlers are idempotent (keyed by conversationId + requestId/toolUseId),
  * so a spurious replay after a dashboard-only reconnect is harmless.
  */
 export function replayInteractions(ctx: AgentHostContext): void {

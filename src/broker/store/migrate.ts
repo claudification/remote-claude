@@ -189,7 +189,7 @@ function migrateTranscripts(store: StoreDriver, cacheDir: string, result: Migrat
   }
 
   for (const file of files) {
-    const sessionId = file.slice(0, -6)
+    const ccSessionId = file.slice(0, -6)
     const filePath = join(dir, file)
     let entryCount = 0
 
@@ -219,7 +219,7 @@ function migrateTranscripts(store: StoreDriver, cacheDir: string, result: Migrat
         const BATCH_SIZE = 500
         for (let i = 0; i < entries.length; i += BATCH_SIZE) {
           const batch = entries.slice(i, i + BATCH_SIZE)
-          store.transcripts.append(sessionId, 'migration', batch)
+          store.transcripts.append(ccSessionId, 'migration', batch)
         }
         entryCount = entries.length
       }
@@ -317,7 +317,7 @@ function migrateShares(store: StoreDriver, cacheDir: string, result: MigrationRe
 
       const create: ShareCreate = {
         token: s.token as string,
-        sessionId: (s.sessionCwd as string) || (s.sessionId as string) || '',
+        conversationId: (s.sessionCwd as string) || (s.sessionId as string) || '',
         permissions: permObj,
         expiresAt: s.expiresAt as number,
       }
@@ -541,7 +541,7 @@ function migrateCostData(store: StoreDriver, cacheDir: string, result: Migration
     for (const r of rows) {
       const rec: TurnRecord = {
         timestamp: (r.timestamp as number) ?? 0,
-        sessionId: (r.session_id as string) ?? '',
+        conversationId: (r.session_id as string) ?? '',
         projectUri: (r.project_uri as string) || '',
         account: (r.account as string) ?? '',
         orgId: (r.org_id as string) ?? '',

@@ -56,7 +56,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
   const opts: StreamBackendOptions = {
     args: finalClaudeArgs,
     settingsPath: deps.settingsPath,
-    sessionId: ctx.conversationId,
+    conversationId: ctx.conversationId,
     localServerPort: deps.localServerPort,
     includePartialMessages: deps.includePartialMessages,
     env: deps.env,

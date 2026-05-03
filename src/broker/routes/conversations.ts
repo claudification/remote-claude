@@ -209,9 +209,9 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
     if (session.status === 'active') return c.json({ error: 'Session is already active' }, 400)
 
     // If called with X-Caller-Session header, check benevolent trust
-    const callerSessionId = c.req.header('X-Caller-Session')
-    if (callerSessionId) {
-      const callerSess = conversationStore.getConversation(callerSessionId)
+    const callerConversationId = c.req.header('X-Caller-Session')
+    if (callerConversationId) {
+      const callerSess = conversationStore.getConversation(callerConversationId)
       const callerTrust = callerSess?.project ? getProjectSettings(callerSess.project)?.trustLevel : undefined
       if (callerTrust !== 'benevolent') {
         return c.json({ error: 'Requires benevolent trust level' }, 403)
@@ -271,11 +271,11 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
     )
 
     // Register rendezvous for MCP callers
-    if (callerSessionId) {
+    if (callerConversationId) {
       conversationStore
-        .addRendezvous(conversationId, callerSessionId, session.project, 'revive')
+        .addRendezvous(conversationId, callerConversationId, session.project, 'revive')
         .then(revived => {
-          const callerWs = conversationStore.getConversationSocket(callerSessionId)
+          const callerWs = conversationStore.getConversationSocket(callerConversationId)
           if (callerWs) {
             callerWs.send(
               JSON.stringify({
@@ -289,7 +289,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
           }
         })
         .catch(err => {
-          const callerWs = conversationStore.getConversationSocket(callerSessionId)
+          const callerWs = conversationStore.getConversationSocket(callerConversationId)
           if (callerWs) {
             callerWs.send(
               JSON.stringify({

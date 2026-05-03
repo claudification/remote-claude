@@ -19,7 +19,7 @@ interface LaunchJob {
   completed: boolean
   failed: boolean
   error: string | null
-  sessionId: string | null
+  ccSessionId: string | null
   config: Record<string, unknown> | null
   endedAt: number | null
 }
@@ -27,7 +27,7 @@ interface LaunchJob {
 export interface SpawnJobDiagnostics {
   jobId: string
   conversationId: string
-  sessionId: string | null
+  ccSessionId: string | null
   completed: boolean
   failed: boolean
   error: string | null
@@ -46,7 +46,7 @@ export interface SpawnJobRegistry {
   subscribeJob: (jobId: string, ws: ServerWebSocket<unknown>) => boolean
   unsubscribeJob: (jobId: string, ws: ServerWebSocket<unknown>) => void
   forwardJobEvent: (jobId: string, msg: Record<string, unknown>) => void
-  completeJob: (conversationId: string, sessionId: string) => void
+  completeJob: (conversationId: string, ccSessionId: string) => void
   failJob: (jobId: string, error: string) => void
   getJobByConversation: (conversationId: string) => string | undefined
   getJobDiagnostics: (jobId: string) => SpawnJobDiagnostics | null
@@ -54,13 +54,13 @@ export interface SpawnJobRegistry {
 }
 
 export interface RendezvousInfo {
-  callerSessionId: string
+  callerConversationId: string
   action: string
 }
 
 export interface PendingRestartInfo {
-  callerSessionId: string
-  targetSessionId: string
+  callerConversationId: string
+  targetConversationId: string
   project: string
   isSelfRestart: boolean
 }
@@ -68,13 +68,13 @@ export interface PendingRestartInfo {
 export interface RendezvousRegistry {
   addRendezvous: (
     conversationId: string,
-    callerSessionId: string,
+    callerConversationId: string,
     project: string,
     action: 'spawn' | 'revive' | 'restart',
   ) => Promise<ConversationSummary>
   resolveRendezvous: (
     conversationId: string,
-    sessionId: string,
+    ccSessionId: string,
     toConversationSummary: (id: string) => ConversationSummary | undefined,
   ) => boolean
   getRendezvousInfo: (conversationId: string) => RendezvousInfo | undefined
@@ -131,7 +131,7 @@ export function createSpawnJobRegistry(): SpawnJobRegistry {
           completed: false,
           failed: false,
           error: null,
-          sessionId: null,
+          ccSessionId: null,
           config: null,
           endedAt: null,
         })
@@ -156,7 +156,7 @@ export function createSpawnJobRegistry(): SpawnJobRegistry {
           completed: false,
           failed: false,
           error: null,
-          sessionId: null,
+          ccSessionId: null,
           config: null,
           endedAt: null,
         })
@@ -173,15 +173,15 @@ export function createSpawnJobRegistry(): SpawnJobRegistry {
 
     forwardJobEvent,
 
-    completeJob(conversationId, sessionId) {
+    completeJob(conversationId, ccSessionId) {
       const jobId = conversationToJob.get(conversationId)
       if (!jobId) return
       const job = launchJobs.get(jobId)
       if (!job) return
       job.completed = true
-      job.sessionId = sessionId
+      job.ccSessionId = ccSessionId
       job.endedAt = Date.now()
-      forwardJobEvent(jobId, { type: 'job_complete', jobId, sessionId, conversationId })
+      forwardJobEvent(jobId, { type: 'job_complete', jobId, sessionId: ccSessionId, conversationId })
       setTimeout(() => {
         launchJobs.delete(jobId)
         conversationToJob.delete(conversationId)
@@ -215,7 +215,7 @@ export function createSpawnJobRegistry(): SpawnJobRegistry {
       return {
         jobId: job.jobId,
         conversationId: job.conversationId,
-        sessionId: job.sessionId,
+        ccSessionId: job.ccSessionId,
         completed: job.completed,
         failed: job.failed,
         error: job.error,
@@ -239,7 +239,7 @@ export function createRendezvousRegistry(): RendezvousRegistry {
   const RENDEZVOUS_TIMEOUT_MS = 120_000
 
   interface ConversationRendezvous {
-    callerSessionId: string
+    callerConversationId: string
     conversationId: string
     project: string
     action: 'spawn' | 'revive' | 'restart'
@@ -253,18 +253,18 @@ export function createRendezvousRegistry(): RendezvousRegistry {
   const pendingRestarts = new Map<string, PendingRestartInfo>()
 
   return {
-    addRendezvous(conversationId, callerSessionId, project, action) {
+    addRendezvous(conversationId, callerConversationId, project, action) {
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           conversationRendezvous.delete(conversationId)
           reject(`Session did not connect within ${RENDEZVOUS_TIMEOUT_MS / 1000}s`)
           console.log(
-            `[rendezvous] TIMEOUT: ${action} conversationId=${conversationId.slice(0, 8)} project=${extractProjectLabel(project)} caller=${callerSessionId.slice(0, 8)}`,
+            `[rendezvous] TIMEOUT: ${action} conversationId=${conversationId.slice(0, 8)} project=${extractProjectLabel(project)} caller=${callerConversationId.slice(0, 8)}`,
           )
         }, RENDEZVOUS_TIMEOUT_MS)
 
         conversationRendezvous.set(conversationId, {
-          callerSessionId,
+          callerConversationId,
           conversationId,
           project,
           action,
@@ -274,17 +274,17 @@ export function createRendezvousRegistry(): RendezvousRegistry {
           registeredAt: Date.now(),
         })
         console.log(
-          `[rendezvous] REGISTERED: ${action} conversationId=${conversationId.slice(0, 8)} project=${extractProjectLabel(project)} caller=${callerSessionId.slice(0, 8)}`,
+          `[rendezvous] REGISTERED: ${action} conversationId=${conversationId.slice(0, 8)} project=${extractProjectLabel(project)} caller=${callerConversationId.slice(0, 8)}`,
         )
       })
     },
 
-    resolveRendezvous(conversationId, sessionId, toConversationSummary) {
+    resolveRendezvous(conversationId, ccSessionId, toConversationSummary) {
       const rv = conversationRendezvous.get(conversationId)
       if (!rv) return false
       conversationRendezvous.delete(conversationId)
       clearTimeout(rv.timer)
-      const summary = toConversationSummary(sessionId)
+      const summary = toConversationSummary(ccSessionId)
       if (!summary) {
         rv.reject('Session created but not found in store')
         return false
@@ -292,7 +292,7 @@ export function createRendezvousRegistry(): RendezvousRegistry {
       rv.resolve(summary)
       const elapsed = Date.now() - rv.registeredAt
       console.log(
-        `[rendezvous] RESOLVED: ${rv.action} session=${sessionId.slice(0, 8)} conversationId=${conversationId.slice(0, 8)} elapsed=${elapsed}ms caller=${rv.callerSessionId.slice(0, 8)}`,
+        `[rendezvous] RESOLVED: ${rv.action} ccSessionId=${ccSessionId.slice(0, 8)} conversationId=${conversationId.slice(0, 8)} elapsed=${elapsed}ms caller=${rv.callerConversationId.slice(0, 8)}`,
       )
       return true
     },
@@ -300,7 +300,7 @@ export function createRendezvousRegistry(): RendezvousRegistry {
     getRendezvousInfo(conversationId) {
       const rv = conversationRendezvous.get(conversationId)
       if (!rv) return undefined
-      return { callerSessionId: rv.callerSessionId, action: rv.action }
+      return { callerConversationId: rv.callerConversationId, action: rv.action }
     },
 
     addPendingRestart(conversationId, info) {

@@ -30,12 +30,12 @@ export function createSpawnRouter(conversationStore: ConversationStore, helpers:
 
     // Build caller context for the unified permission gate. MCP callers
     // identify themselves via X-Caller-Session; everything else is dashboard HTTP.
-    const callerSessionId = c.req.header('X-Caller-Session')
-    const callerSess = callerSessionId ? conversationStore.getConversation(callerSessionId) : null
+    const callerConversationId = c.req.header('X-Caller-Session')
+    const callerSess = callerConversationId ? conversationStore.getConversation(callerConversationId) : null
     const callerProject = callerSess?.project ?? null
     const callerTrust = callerProject ? mapProjectTrust(getProjectSettings(callerProject)?.trustLevel) : 'trusted'
     const callerContext: SpawnCallerContext = {
-      kind: callerSessionId ? 'mcp' : 'http',
+      kind: callerConversationId ? 'mcp' : 'http',
       hasSpawnPermission: true, // already validated by httpHasPermission above
       trustLevel: callerTrust,
       callerProject,
@@ -46,7 +46,7 @@ export function createSpawnRouter(conversationStore: ConversationStore, helpers:
       getProjectSettings,
       getGlobalSettings,
       callerContext,
-      rendezvousCallerSessionId: callerSessionId ?? null,
+      rendezvousCallerConversationId: callerConversationId ?? null,
     })
 
     if (!result.ok) {

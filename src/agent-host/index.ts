@@ -576,7 +576,7 @@ async function main() {
   function readAndSendTasks() {
     if (!ctx.wsClient?.isConnected() || !ctx.claudeSessionId) {
       debug(
-        `readAndSendTasks: skipped (connected=${ctx.wsClient?.isConnected()}, sessionId=${ctx.claudeSessionId?.slice(0, 8)})`,
+        `readAndSendTasks: skipped (connected=${ctx.wsClient?.isConnected()}, ccSessionId=${ctx.claudeSessionId?.slice(0, 8)})`,
       )
       return
     }
@@ -726,7 +726,7 @@ async function main() {
   ctx.startProjectWatching = startProjectWatching
   ctx.sendProjectChanged = sendProjectChanged
 
-  function connectToBroker(sessionId: string | null) {
+  function connectToBroker(ccSessionId: string | null) {
     if (noBroker || ctx.wsClient) return
 
     // Build capabilities list -- boot_stream advertises that we send early
@@ -850,7 +850,7 @@ async function main() {
     ctx.wsClient = createWsClient({
       brokerUrl,
       brokerSecret,
-      sessionId,
+      ccSessionId: ccSessionId,
       conversationId: conversationId,
       cwd,
       configuredModel,
@@ -865,7 +865,7 @@ async function main() {
       adHocTaskId,
       adHocWorktree,
       capabilities,
-      initialBoot: sessionId
+      initialBoot: ccSessionId
         ? undefined
         : {
             claudeArgs,
@@ -876,12 +876,12 @@ async function main() {
             // promote, so we don't need to duplicate it here.
           },
       onConnected() {
-        diag('ws', 'Connected to broker', { sessionId: sessionId ?? 'boot' })
+        diag('ws', 'Connected to broker', { ccSessionId: ccSessionId ?? 'boot' })
         // Flush buffered diag entries
         flushDiag()
         // Flush queued events (drop if still no session id -- hooks don't fire
         // during boot phase, but defensive)
-        if (sessionId) {
+        if (ccSessionId) {
           for (const event of ctx.eventQueue) {
             ctx.wsClient?.sendHookEvent({ ...event, conversationId })
           }
@@ -1330,14 +1330,14 @@ async function main() {
       },
       onRendezvousResult(message: Record<string, unknown>) {
         const msgType = message.type as string
-        const sessionId = message.sessionId as string | undefined
+        const ccSessionId = message.sessionId as string | undefined
         const cwd = message.cwd as string | undefined
         const error = message.error as string | undefined
         const isReady = msgType === 'spawn_ready' || msgType === 'revive_ready' || msgType === 'restart_ready'
         const action = msgType.startsWith('spawn') ? 'spawn' : msgType.startsWith('restart') ? 'restart' : 'revive'
 
         if (isReady) {
-          diag('rendezvous', `${action} ready: session=${sessionId?.slice(0, 8)} cwd=${cwd}`)
+          diag('rendezvous', `${action} ready: session=${ccSessionId?.slice(0, 8)} cwd=${cwd}`)
         } else {
           diag('rendezvous', `${action} timeout: ${error || 'unknown'}`)
         }
@@ -1356,12 +1356,12 @@ async function main() {
         // Also push to channel so Claude sees the result
         if (channelEnabled && isMcpChannelReady()) {
           const text = isReady
-            ? `Session ${action === 'spawn' ? 'spawned' : 'revived'}: ${cwd?.split('/').pop() || sessionId?.slice(0, 8)} (${sessionId?.slice(0, 8)})`
+            ? `Session ${action === 'spawn' ? 'spawned' : 'revived'}: ${cwd?.split('/').pop() || ccSessionId?.slice(0, 8)} (${ccSessionId?.slice(0, 8)})`
             : `Session ${action} timed out: ${error || 'no response within timeout'}`
           pushChannelMessage(text, {
             sender: 'system',
             [`${action}_result`]: isReady ? 'ready' : 'timeout',
-            ...(sessionId ? { target_session: sessionId } : {}),
+            ...(ccSessionId ? { target_session: ccSessionId } : {}),
           }).catch(() => {})
         }
       },
@@ -1565,7 +1565,7 @@ async function main() {
           if (ctx.ptyProcess) ctx.ptyProcess.write('/plan\r')
         }
       },
-      async onReviveConversation(sessionId) {
+      async onReviveConversation(targetConversationId) {
         if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to broker' }
         return new Promise(resolve => {
           const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
@@ -1576,7 +1576,7 @@ async function main() {
           }
           ctx.wsClient?.send({
             type: 'channel_revive',
-            sessionId,
+            sessionId: targetConversationId,
           } as unknown as AgentHostMessage)
         })
       },
@@ -1711,7 +1711,7 @@ async function main() {
           } as unknown as AgentHostMessage)
         })
       },
-      async onRestartConversation(sessionId) {
+      async onRestartConversation(targetConversationId) {
         if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to broker' }
         return new Promise(resolve => {
           const timeout = setTimeout(
@@ -1725,11 +1725,11 @@ async function main() {
           }
           ctx.wsClient?.send({
             type: 'channel_restart',
-            sessionId,
+            sessionId: targetConversationId,
           } as unknown as AgentHostMessage)
         })
       },
-      async onControlSession({ sessionId, action, model, effort }) {
+      async onControlSession({ conversationId: targetConversationId, action, model, effort }) {
         if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to broker' }
         return new Promise(resolve => {
           const timeout = setTimeout(
@@ -1743,7 +1743,7 @@ async function main() {
           }
           ctx.wsClient?.send({
             type: 'conversation_control',
-            targetSession: sessionId,
+            targetSession: targetConversationId,
             action,
             ...(model && { model }),
             ...(effort && { effort }),
@@ -1751,7 +1751,14 @@ async function main() {
           } as unknown as AgentHostMessage)
         })
       },
-      async onConfigureConversation({ sessionId, label, icon, color, description, keyterms }) {
+      async onConfigureConversation({
+        conversationId: targetConversationId,
+        label,
+        icon,
+        color,
+        description,
+        keyterms,
+      }) {
         if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to broker' }
         return new Promise(resolve => {
           const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)
@@ -1762,7 +1769,7 @@ async function main() {
           }
           ctx.wsClient?.send({
             type: 'channel_configure',
-            sessionId,
+            sessionId: targetConversationId,
             label,
             icon,
             color,
@@ -1856,7 +1863,7 @@ async function main() {
 
   // Start local HTTP server for hook callbacks + MCP endpoint (always enabled)
   const { server: localServer, port: localServerPort } = await startLocalServer({
-    sessionId: conversationId,
+    conversationId: conversationId,
     mcpEnabled: true,
     onHookEvent(event: HookEvent) {
       processHookEvent(ctx, event)
@@ -2038,7 +2045,7 @@ async function main() {
       ctx.ptyProcess = spawnClaude({
         args: finalClaudeArgs,
         settingsPath,
-        sessionId: conversationId,
+        conversationId: conversationId,
         localServerPort,
         brokerUrl: brokerHttpUrl,
         brokerSecret,

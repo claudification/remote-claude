@@ -25,14 +25,14 @@ function resolveEffort(
 }
 
 const handleChannelRevive: MessageHandler = (ctx, data) => {
-  const targetSessionId = data.sessionId as string
+  const targetConversationId = data.sessionId as string
   const callerSession = ctx.ws.data.conversationId
-  if (!targetSessionId || !callerSession) return
+  if (!targetConversationId || !callerSession) return
 
   ctx.requireBenevolent()
   const sentinel = ctx.requireSentinel()
 
-  const target = ctx.conversations.getConversation(targetSessionId)
+  const target = ctx.conversations.getConversation(targetConversationId)
   if (!target) {
     ctx.reply({
       type: 'channel_revive_result',
@@ -53,7 +53,7 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
   sentinel.send(
     JSON.stringify({
       type: 'revive',
-      sessionId: targetSessionId,
+      sessionId: targetConversationId,
       project: target.project,
       conversationId,
       mode: 'resume',
@@ -87,7 +87,7 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
           JSON.stringify({
             type: 'revive_timeout',
             conversationId,
-            sessionId: targetSessionId,
+            sessionId: targetConversationId,
             project: target.project,
             error: typeof err === 'string' ? err : 'Revive rendezvous timed out',
           }),
@@ -96,7 +96,7 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
     })
 
   ctx.reply({ type: 'channel_revive_result', ok: true, name })
-  ctx.log.debug(`Benevolent revive: -> ${targetSessionId.slice(0, 8)}`)
+  ctx.log.debug(`Benevolent revive: -> ${targetConversationId.slice(0, 8)}`)
 }
 
 const handleChannelSpawn: MessageHandler = (ctx, data) => {
@@ -141,7 +141,7 @@ const handleChannelSpawn: MessageHandler = (ctx, data) => {
     getProjectSettings,
     getGlobalSettings,
     callerContext,
-    rendezvousCallerSessionId: callerSession,
+    rendezvousCallerConversationId: callerSession,
   })
     .then(result => {
       if (result.ok) {
@@ -176,7 +176,7 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
 
   const callerSess = ctx.conversations.getConversation(callerSession)
   const resolved = resolveConversationTarget(targetId, {
-    callerSessionId: callerSession,
+    callerConversationId: callerSession,
     getAllConversations: () => Array.from(ctx.conversations.getAllConversations()),
     getConversation: id => ctx.conversations.getConversation(id),
     findConversationByConversationId: id => ctx.conversations.findConversationByConversationId(id),
@@ -252,15 +252,15 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
   }
 
   // Target is active -- determine if self-restart
-  const callerWrapper = ctx.ws.data.conversationId as string
+  const callerCcSessionId = ctx.ws.data.conversationId as string
   const targetCcSessionIds = ctx.conversations.getCcSessionIds(target.id)
-  const targetWrapper = targetCcSessionIds[0] || ''
-  const isSelfRestart = targetCcSessionIds.includes(callerWrapper) || target.id === callerSession
+  const targetCcSessionId = targetCcSessionIds[0] || ''
+  const isSelfRestart = targetCcSessionIds.includes(callerCcSessionId) || target.id === callerSession
 
   // Store pending restart for the close handler to pick up
-  ctx.conversations.addPendingRestart(targetWrapper, {
-    callerSessionId: callerSession,
-    targetSessionId: target.id,
+  ctx.conversations.addPendingRestart(targetCcSessionId, {
+    callerConversationId: callerSession,
+    targetConversationId: target.id,
     project: target.project,
     isSelfRestart,
   })
@@ -286,7 +286,7 @@ const handleChannelConfigure: MessageHandler = (ctx, data) => {
   const callerSession = ctx.ws.data.conversationId
   const callerSess = callerSession ? ctx.conversations.getConversation(callerSession) : undefined
   const resolved = resolveConversationTarget(targetId, {
-    callerSessionId: callerSession,
+    callerConversationId: callerSession,
     getAllConversations: () => Array.from(ctx.conversations.getAllConversations()),
     getConversation: id => ctx.conversations.getConversation(id),
     findConversationByConversationId: id => ctx.conversations.findConversationByConversationId(id),
@@ -365,7 +365,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
   const callerSession = ctx.ws.data.conversationId
   const callerSess = callerSession ? ctx.conversations.getConversation(callerSession) : undefined
   const resolved = resolveConversationTarget(targetId, {
-    callerSessionId: callerSession,
+    callerConversationId: callerSession,
     getAllConversations: () => Array.from(ctx.conversations.getAllConversations()),
     getConversation: id => ctx.conversations.getConversation(id),
     findConversationByConversationId: id => ctx.conversations.findConversationByConversationId(id),

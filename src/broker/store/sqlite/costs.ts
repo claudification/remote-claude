@@ -117,7 +117,7 @@ export function createSqliteCostStore(db: Database): CostStore {
   function recordTurn(record: TurnRecord): void {
     stmtInsertTurn.run({
       timestamp: record.timestamp,
-      sessionId: record.sessionId,
+      sessionId: record.conversationId,
       projectUri: normalizeUri(record.projectUri),
       account: record.account,
       orgId: record.orgId,
@@ -150,7 +150,7 @@ export function createSqliteCostStore(db: Database): CostStore {
 
     recordTurn({
       timestamp: params.timestamp,
-      sessionId: params.conversationId,
+      conversationId: params.conversationId,
       projectUri: normalizeUri(params.projectUri),
       account: params.account,
       orgId: params.orgId,
@@ -217,7 +217,7 @@ export function createSqliteCostStore(db: Database): CostStore {
       total: countRow.n,
       rows: rows.map(r => ({
         timestamp: r.timestamp as number,
-        sessionId: r.session_id as string,
+        conversationId: r.session_id as string,
         projectUri: (r.project_uri as string) || '',
         account: r.account as string,
         orgId: r.org_id as string,

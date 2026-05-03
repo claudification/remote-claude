@@ -101,7 +101,7 @@ export interface AgentHostContext {
   diag: (type: string, msg: string, args?: unknown) => void
   flushDiag: () => void
   debug: (msg: string) => void
-  connectToBroker: (sessionId: string | null) => void
+  connectToBroker: (ccSessionId: string | null) => void
   startTaskWatching: () => void
   readTasks: () => void
   startProjectWatching: () => void

@@ -73,7 +73,7 @@ export function resolveAskRequest(
 const ASK_TIMEOUT_MS = 90_000 // 90s -- must be under curl's 120s --max-time
 
 export interface LocalServerOptions {
-  sessionId: string
+  conversationId: string
   mcpEnabled: boolean
   onHookEvent: (event: HookEvent) => void
   onNotify?: (message: string, title?: string) => void
@@ -110,16 +110,17 @@ async function findAvailablePort(startPort: number): Promise<number> {
  * Create and start the local HTTP server for hook callbacks
  */
 export async function startLocalServer(options: LocalServerOptions): Promise<{ server: HttpServer; port: number }> {
-  const { sessionId, mcpEnabled, onHookEvent, onNotify, onAskQuestion, onAskTimeout, hasDashboardSubscribers } = options
+  const { conversationId, mcpEnabled, onHookEvent, onNotify, onAskQuestion, onAskTimeout, hasDashboardSubscribers } =
+    options
 
-  // Derive port deterministically from session/wrapper ID so it survives restarts.
+  // Derive port deterministically from conversation/wrapper ID so it survives restarts.
   // CC's hook settings bake in the port at launch time - if the wrapper restarts
   // with a different port, hooks silently fail (curl to dead port, || true hides it).
-  const hash = sessionId.split('').reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0)
+  const hash = conversationId.split('').reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0)
   const port = await findAvailablePort(19000 + (Math.abs(hash) % 900))
 
   debugFn(
-    `[server] Starting local server on port ${port} (sessionId=${sessionId.slice(0, 8)}, hash=${Math.abs(hash) % 900})`,
+    `[server] Starting local server on port ${port} (conversationId=${conversationId.slice(0, 8)}, hash=${Math.abs(hash) % 900})`,
   )
 
   const server = Bun.serve({
@@ -209,7 +210,7 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
               // Notify the wrapper to forward to broker -> dashboard
               onAskQuestion?.({
                 type: 'ask_question',
-                conversationId: sessionId,
+                conversationId,
                 toolUseId,
                 questions,
               })
@@ -233,8 +234,8 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
           const eventType = url.pathname.slice(6) as HookEventType // Remove "/hook/"
           const reqSessionId = req.headers.get('X-Session-Id')
 
-          // Validate session ID
-          if (reqSessionId && reqSessionId !== sessionId) {
+          // Validate conversation ID (X-Session-Id header carries the conversation ID)
+          if (reqSessionId && reqSessionId !== conversationId) {
             return new Response('Session ID mismatch', { status: 403 })
           }
 
@@ -245,12 +246,12 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
             if (body.trim()) {
               data = JSON.parse(body) as HookEventData
             } else {
-              data = { session_id: sessionId }
+              data = { session_id: conversationId }
             }
 
-            // Extract Claude's session_id from data if present, otherwise use internal
+            // Extract Claude's session_id from data if present, otherwise use conversation ID
             const claudeSessionId = (data as Record<string, unknown>).session_id
-            const effectiveSessionId = typeof claudeSessionId === 'string' ? claudeSessionId : sessionId
+            const effectiveSessionId = typeof claudeSessionId === 'string' ? claudeSessionId : conversationId
 
             const event: HookEvent = {
               type: 'hook',

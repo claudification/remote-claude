@@ -40,7 +40,12 @@ import {
   setSentinel as setSentinelImpl,
   setUsage as setUsageImpl,
 } from './conversation-store/sentinel'
-import { createRendezvousRegistry, createSpawnJobRegistry } from './conversation-store/spawn-jobs'
+import {
+  createRendezvousRegistry,
+  createSpawnJobRegistry,
+  type PendingRestartInfo,
+  type RendezvousInfo,
+} from './conversation-store/spawn-jobs'
 import {
   createSyncState,
   handleSyncCheck as handleSyncCheckImpl,
@@ -80,8 +85,8 @@ export interface ConversationStore {
   ) => Conversation
   resumeConversation: (id: string) => void
   rekeyConversation: (
-    oldId: string,
-    newId: string,
+    oldCcSessionId: string,
+    newCcSessionId: string,
     conversationId: string,
     newProject: string,
     model?: string,
@@ -95,11 +100,11 @@ export interface ConversationStore {
   removeConversation: (conversationId: string) => void
   getConversationEvents: (conversationId: string, limit?: number, since?: number) => HookEvent[]
   updateTasks: (conversationId: string, tasks: TaskInfo[]) => void
-  setConversationSocket: (id: string, conversationId: string, ws: ServerWebSocket<unknown>) => void
+  setConversationSocket: (conversationId: string, ccSessionId: string, ws: ServerWebSocket<unknown>) => void
   getConversationSocket: (conversationId: string) => ServerWebSocket<unknown> | undefined
-  findSocketByConversationId: (conversationId: string) => ServerWebSocket<unknown> | undefined
-  findConversationByConversationId: (conversationId: string) => Conversation | undefined
-  removeConversationSocket: (id: string, conversationId: string) => void
+  findSocketByConversationId: (ccSessionId: string) => ServerWebSocket<unknown> | undefined
+  findConversationByConversationId: (ccSessionId: string) => Conversation | undefined
+  removeConversationSocket: (conversationId: string, ccSessionId: string) => void
   getActiveConversationCount: (conversationId: string) => number
   getCcSessionIds: (conversationId: string) => string[]
   // Transcript cache methods
@@ -149,22 +154,22 @@ export interface ConversationStore {
   subscribeChannel: (
     ws: ServerWebSocket<unknown>,
     channel: SubscriptionChannel,
-    sessionId: string,
+    conversationId: string,
     agentId?: string,
   ) => void
   unsubscribeChannel: (
     ws: ServerWebSocket<unknown>,
     channel: SubscriptionChannel,
-    sessionId: string,
+    conversationId: string,
     agentId?: string,
   ) => void
   unsubscribeAllChannels: (ws: ServerWebSocket<unknown>) => void
   getChannelSubscribers: (
     channel: SubscriptionChannel,
-    sessionId: string,
+    conversationId: string,
     agentId?: string,
   ) => Set<ServerWebSocket<unknown>>
-  broadcastToChannel: (channel: SubscriptionChannel, sessionId: string, message: unknown, agentId?: string) => void
+  broadcastToChannel: (channel: SubscriptionChannel, conversationId: string, message: unknown, agentId?: string) => void
   isV2Subscriber: (ws: ServerWebSocket<unknown>) => boolean
   getSubscriptionsDiag: () => SubscriptionsDiag
   // Sentinel methods (sentinels Map internally)
@@ -202,13 +207,13 @@ export interface ConversationStore {
   subscribeJob: (jobId: string, ws: ServerWebSocket<unknown>) => boolean
   unsubscribeJob: (jobId: string, ws: ServerWebSocket<unknown>) => void
   forwardJobEvent: (jobId: string, msg: Record<string, unknown>) => void
-  completeJob: (conversationId: string, sessionId: string) => void
+  completeJob: (conversationId: string, ccSessionId: string) => void
   failJob: (jobId: string, error: string) => void
   getJobByConversation: (conversationId: string) => string | undefined
   getJobDiagnostics: (jobId: string) => {
     jobId: string
     conversationId: string
-    sessionId: string | null
+    ccSessionId: string | null
     completed: boolean
     failed: boolean
     error: string | null
@@ -228,20 +233,15 @@ export interface ConversationStore {
   // Session rendezvous (spawn/revive callback)
   addRendezvous: (
     conversationId: string,
-    callerSessionId: string,
+    callerConversationId: string,
     project: string,
     action: 'spawn' | 'revive' | 'restart',
   ) => Promise<ConversationSummary>
   // Pending restart (terminate + auto-revive on disconnect)
-  addPendingRestart: (
-    conversationId: string,
-    info: { callerSessionId: string; targetSessionId: string; project: string; isSelfRestart: boolean },
-  ) => void
-  consumePendingRestart: (
-    conversationId: string,
-  ) => { callerSessionId: string; targetSessionId: string; project: string; isSelfRestart: boolean } | undefined
-  resolveRendezvous: (conversationId: string, sessionId: string) => boolean
-  getRendezvousInfo: (conversationId: string) => { callerSessionId: string; action: string } | undefined
+  addPendingRestart: (conversationId: string, info: PendingRestartInfo) => void
+  consumePendingRestart: (conversationId: string) => PendingRestartInfo | undefined
+  resolveRendezvous: (conversationId: string, ccSessionId: string) => boolean
+  getRendezvousInfo: (conversationId: string) => RendezvousInfo | undefined
   // Pending launch configs (set at spawn, consumed on connect to restore on revive)
   setPendingLaunchConfig: (conversationId: string, config: LaunchConfig) => void
   consumePendingLaunchConfig: (conversationId: string) => LaunchConfig | undefined
@@ -250,7 +250,7 @@ export interface ConversationStore {
   consumePendingConversationName: (conversationId: string) => string | undefined
   // Inter-project link management
   checkProjectLink: (from: string, to: string) => 'linked' | 'blocked' | 'unknown'
-  getLinkedProjects: (sessionId: string) => Array<{ project: string; name: string }>
+  getLinkedProjects: (conversationId: string) => Array<{ project: string; name: string }>
   linkProjects: (a: string, b: string) => void
   unlinkProjects: (a: string, b: string) => void
   blockProject: (blocker: string, blocked: string) => void
@@ -276,7 +276,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   const { store, sentinelRegistry } = options
 
   const conversations = new Map<string, Conversation>()
-  // sessionId -> (conversationId -> socket): multiple rclaude instances can share a Claude session
+  // conversationId -> (ccSessionId -> socket): multiple rclaude instances can serve a conversation
   const conversationSockets = new Map<string, Map<string, ServerWebSocket<unknown>>>()
   // Terminal viewers keyed by conversationId (each PTY is on a specific conversation)
   const terminalRegistry = createTerminalRegistry()
@@ -352,7 +352,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   ])
   const MAX_EVENTS = 1000
 
-  // Transcript cache: sessionId -> entries (ring buffer, max 1000 per session)
+  // Transcript cache: conversationId -> entries (ring buffer, max 1000 per conversation)
   const MAX_TRANSCRIPT_ENTRIES = 1000
   const transcriptCache = new Map<string, TranscriptEntry[]>()
   // Dirty tracking for transcript persistence: sessions modified since last flush
@@ -380,12 +380,12 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
    */
   const transcriptSeqCounters = new Map<string, number>()
 
-  // Subagent transcript cache: `${sessionId}:${agentId}` -> entries
+  // Subagent transcript cache: `${conversationId}:${agentId}` -> entries
   const subagentTranscriptCache = new Map<string, TranscriptEntry[]>()
   /** Per-subagent transcript seq counter. Same semantics as
-   *  `transcriptSeqCounters` above, but keyed by `${sessionId}:${agentId}`. */
+   *  `transcriptSeqCounters` above, but keyed by `${conversationId}:${agentId}`. */
   const subagentTranscriptSeqCounters = new Map<string, number>()
-  // Transcript kick tracking: sessionId -> last kick timestamp (debounce 60s)
+  // Transcript kick tracking: conversationId -> last kick timestamp (debounce 60s)
   const lastTranscriptKick = new Map<string, number>()
   const TRANSCRIPT_KICK_DEBOUNCE_MS = 60_000
   const TRANSCRIPT_KICK_EVENT_THRESHOLD = 5
@@ -530,8 +530,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   const pendingConversationUpdates = new Set<string>()
   let sessionUpdateScheduled = false
 
-  function scheduleConversationUpdate(sessionId: string): void {
-    pendingConversationUpdates.add(sessionId)
+  function scheduleConversationUpdate(conversationId: string): void {
+    pendingConversationUpdates.add(conversationId)
     if (!sessionUpdateScheduled) {
       sessionUpdateScheduled = true
       queueMicrotask(flushConversationUpdates)
@@ -1009,14 +1009,14 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       }
     }
 
-    // Clear transcript caches + seq counters for old session ID.
+    // Clear transcript caches + seq counters for old conversation ID.
     // Rekey creates a new conversation identity; the new conversation gets a fresh
     // counter starting at 0. Client's lastAppliedSeq for the old id is no
-    // longer compared against (sessionId is the key).
+    // longer compared against (conversationId is the key).
     transcriptCache.delete(oldId)
     transcriptSeqCounters.delete(oldId)
     dirtyTranscripts.delete(oldId)
-    // Clear subagent transcript caches (keyed as "sessionId:agentId")
+    // Clear subagent transcript caches (keyed as "conversationId:agentId")
     for (const key of subagentTranscriptCache.keys()) {
       if (key.startsWith(`${oldId}:`)) {
         subagentTranscriptCache.delete(key)
@@ -1657,22 +1657,22 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return events
   }
 
-  function setConversationSocket(id: string, conversationId: string, ws: ServerWebSocket<unknown>): void {
-    // Remove conversationId from any OTHER session first (wrapper reconnected to different session)
-    for (const [sid, wrappers] of conversationSockets.entries()) {
-      if (sid !== id && wrappers.has(conversationId)) {
-        wrappers.delete(conversationId)
-        if (wrappers.size === 0) conversationSockets.delete(sid)
-        // Broadcast so dashboard drops the stale conversationId from the old session
-        broadcastConversationUpdate(sid)
+  function setConversationSocket(conversationId: string, ccSessionId: string, ws: ServerWebSocket<unknown>): void {
+    // Remove ccSessionId from any OTHER conversation first (wrapper reconnected to different conversation)
+    for (const [convId, wrappers] of conversationSockets.entries()) {
+      if (convId !== conversationId && wrappers.has(ccSessionId)) {
+        wrappers.delete(ccSessionId)
+        if (wrappers.size === 0) conversationSockets.delete(convId)
+        // Broadcast so dashboard drops the stale ccSessionId from the old conversation
+        broadcastConversationUpdate(convId)
       }
     }
-    let wrappers = conversationSockets.get(id)
+    let wrappers = conversationSockets.get(conversationId)
     if (!wrappers) {
       wrappers = new Map()
-      conversationSockets.set(id, wrappers)
+      conversationSockets.set(conversationId, wrappers)
     }
-    wrappers.set(conversationId, ws)
+    wrappers.set(ccSessionId, ws)
   }
 
   function getConversationSocket(conversationId: string): ServerWebSocket<unknown> | undefined {
@@ -1684,26 +1684,26 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return last
   }
 
-  function findSocketByConversationId(conversationId: string): ServerWebSocket<unknown> | undefined {
+  function findSocketByConversationId(ccSessionId: string): ServerWebSocket<unknown> | undefined {
     for (const wrappers of conversationSockets.values()) {
-      const ws = wrappers.get(conversationId)
+      const ws = wrappers.get(ccSessionId)
       if (ws) return ws
     }
     return undefined
   }
 
-  function findConversationByConversationId(conversationId: string): Conversation | undefined {
-    for (const [sessionId, wrappers] of conversationSockets.entries()) {
-      if (wrappers.has(conversationId)) return conversations.get(sessionId)
+  function findConversationByConversationId(ccSessionId: string): Conversation | undefined {
+    for (const [convId, wrappers] of conversationSockets.entries()) {
+      if (wrappers.has(ccSessionId)) return conversations.get(convId)
     }
     return undefined
   }
 
-  function removeConversationSocket(id: string, conversationId: string): void {
-    const wrappers = conversationSockets.get(id)
+  function removeConversationSocket(conversationId: string, ccSessionId: string): void {
+    const wrappers = conversationSockets.get(conversationId)
     if (wrappers) {
-      wrappers.delete(conversationId)
-      if (wrappers.size === 0) conversationSockets.delete(id)
+      wrappers.delete(ccSessionId)
+      if (wrappers.size === 0) conversationSockets.delete(conversationId)
     }
   }
 
@@ -2549,15 +2549,15 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
 
   function addRendezvous(
     conversationId: string,
-    callerSessionId: string,
+    callerConversationId: string,
     project: string,
     action: 'spawn' | 'revive' | 'restart',
   ): Promise<ConversationSummary> {
-    return rendezvous.addRendezvous(conversationId, callerSessionId, project, action)
+    return rendezvous.addRendezvous(conversationId, callerConversationId, project, action)
   }
 
-  function resolveRendezvous(conversationId: string, sessionId: string): boolean {
-    return rendezvous.resolveRendezvous(conversationId, sessionId, id => {
+  function resolveRendezvous(conversationId: string, ccSessionId: string): boolean {
+    return rendezvous.resolveRendezvous(conversationId, ccSessionId, id => {
       const session = conversations.get(id)
       return session ? toConversationSummary(session) : undefined
     })
@@ -2596,8 +2596,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     broadcastToConversationsForProject,
   } = projectLinkReg
 
-  function getLinkedProjects(sessionId: string): Array<{ project: string; name: string }> {
-    return projectLinkReg.getLinkedProjects(sessionId)
+  function getLinkedProjects(conversationId: string): Array<{ project: string; name: string }> {
+    return projectLinkReg.getLinkedProjects(conversationId)
   }
 
   function broadcastForProject(projectOrCwd: string): void {

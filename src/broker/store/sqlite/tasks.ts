@@ -4,7 +4,7 @@ import type { TaskRecord, TaskStore } from '../types'
 function rowToTask(row: Record<string, string | number | null>): TaskRecord {
   return {
     id: row.id as string,
-    sessionId: row.session_id as string,
+    conversationId: row.session_id as string,
     kind: row.kind as TaskRecord['kind'],
     status: row.status as string,
     name: (row.name as string) ?? undefined,
@@ -21,16 +21,16 @@ export function createSqliteTaskStore(db: Database): TaskStore {
     ON CONFLICT(session_id, id) DO UPDATE SET
       kind = $kind, status = $status, name = $name, data = $data, updated_at = $updatedAt
   `)
-  const stmtForConversation = db.prepare('SELECT * FROM tasks WHERE session_id = $sessionId')
-  const stmtForSessionKind = db.prepare('SELECT * FROM tasks WHERE session_id = $sessionId AND kind = $kind')
-  const stmtDelete = db.prepare('DELETE FROM tasks WHERE session_id = $sessionId AND id = $id')
-  const stmtDeleteAll = db.prepare('DELETE FROM tasks WHERE session_id = $sessionId')
+  const stmtForConversation = db.prepare('SELECT * FROM tasks WHERE session_id = $conversationId')
+  const stmtForSessionKind = db.prepare('SELECT * FROM tasks WHERE session_id = $conversationId AND kind = $kind')
+  const stmtDelete = db.prepare('DELETE FROM tasks WHERE session_id = $conversationId AND id = $id')
+  const stmtDeleteAll = db.prepare('DELETE FROM tasks WHERE session_id = $conversationId')
 
   return {
-    upsert(sessionId, task) {
+    upsert(conversationId, task) {
       stmtUpsert.run({
         id: task.id,
-        sessionId,
+        sessionId: conversationId,
         kind: task.kind,
         status: task.status,
         name: task.name ?? null,
@@ -40,22 +40,22 @@ export function createSqliteTaskStore(db: Database): TaskStore {
       })
     },
 
-    getForConversation(sessionId, kind?) {
+    getForConversation(conversationId, kind?) {
       if (kind) {
-        const rows = stmtForSessionKind.all({ sessionId, kind }) as Record<string, string | number | null>[]
+        const rows = stmtForSessionKind.all({ conversationId, kind }) as Record<string, string | number | null>[]
         return rows.map(rowToTask)
       }
-      const rows = stmtForConversation.all({ sessionId }) as Record<string, string | number | null>[]
+      const rows = stmtForConversation.all({ conversationId }) as Record<string, string | number | null>[]
       return rows.map(rowToTask)
     },
 
-    delete(sessionId, taskId) {
-      const result = stmtDelete.run({ sessionId, id: taskId })
+    delete(conversationId, taskId) {
+      const result = stmtDelete.run({ conversationId, id: taskId })
       return result.changes > 0
     },
 
-    deleteForConversation(sessionId) {
-      const result = stmtDeleteAll.run({ sessionId })
+    deleteForConversation(conversationId) {
+      const result = stmtDeleteAll.run({ conversationId })
       return result.changes
     },
   }

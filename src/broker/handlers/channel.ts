@@ -468,12 +468,11 @@ const channelSend: MessageHandler = (ctx, data) => {
         ctx.logMessage({
           ts: Date.now(),
           from: {
-            sessionId: fromSession,
-            conversationId: ctx.ws.data.conversationId,
+            conversationId: fromSession,
             project: fromSess.project,
             name: fromProjectName,
           },
-          to: { sessionId: toSession, project: toSess.project, name: toProjectName },
+          to: { conversationId: toSession, project: toSess.project, name: toProjectName },
           intent: (data.intent as string) || 'notify',
           conversationId,
           preview: ((data.message as string) || '').slice(0, 200),
