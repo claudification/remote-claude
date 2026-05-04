@@ -12,19 +12,14 @@ import { rejectBadMessage, requireProtocolVersion, requireStrings } from './vali
 // ─── Session meta (agent host connecting) ─────────────────────────────
 
 const meta: MessageHandler = (ctx, data) => {
-  // Gate 1: protocol version. Old agent hosts (v1) used `sessionId` where
-  // v2 expects `ccSessionId`; even if ccSessionId happened to be present
-  // their other fields are wrong. Reject before parsing further.
   if (!requireProtocolVersion(ctx, data, 'meta')) return
 
-  // Gate 2: meta is the broker's most consequential message -- it creates or
-  // resumes a conversation. If a sender provides bad data here we MUST
-  // reject loudly before anything reads ccSessionId/conversationId, or the
-  // conversation Map gets keyed by `undefined` and every subsequent
-  // `.id.slice(0, 8)` blows up. (Deploy incident 2026-05-04.)
+  // Wire boundary: read ccSessionId from wire (CC's ID), use as sessionId internally.
+  // conversationId is the agent-host's correlation ID (socket sub-key).
   const required = requireStrings(ctx, data, ['conversationId', 'ccSessionId'] as const, 'meta')
   if (!required) return
-  const { conversationId, ccSessionId } = required
+  const { conversationId } = required
+  const sessionId = required.ccSessionId
 
   // Project is best-effort: we accept either an explicit project URI or a
   // cwd we can derive one from. Reject if we got neither.
@@ -40,15 +35,16 @@ const meta: MessageHandler = (ctx, data) => {
     return
   }
   const project = (projectField as string | undefined) ?? cwdToProjectUri(cwdField as string)
-  ctx.ws.data.conversationId = conversationId
-  ctx.ws.data.ccSessionId = ccSessionId
+  ctx.ws.data.conversationId = sessionId
+  ctx.ws.data.ccSessionId = sessionId
+  ctx.ws.data.connectionId = conversationId
 
   // Consume pending launch config (stored at spawn time, keyed by conversationId)
   const pendingLaunchConfig = ctx.conversations.consumePendingLaunchConfig(conversationId)
 
-  const existing = ctx.conversations.getConversation(ccSessionId)
+  const existing = ctx.conversations.getConversation(sessionId)
   if (existing) {
-    ctx.conversations.resumeConversation(ccSessionId)
+    ctx.conversations.resumeConversation(sessionId)
     existing.project = project
     if (data.capabilities) existing.capabilities = data.capabilities
     if (data.version) existing.version = data.version as string
@@ -67,11 +63,11 @@ const meta: MessageHandler = (ctx, data) => {
       if (pendingLaunchConfig.agent) existing.agentName = pendingLaunchConfig.agent
     }
     ctx.log.debug(
-      `Conversation resumed: ${ccSessionId.slice(0, 8)}... conv=${conversationId.slice(0, 8)} (${data.cwd}) [${ctx.conversations.getActiveConversationCount(ccSessionId) + 1} conversation(s)]${data.version ? ` [${data.version}]` : ''}`,
+      `Conversation resumed: ${sessionId.slice(0, 8)}... conn=${conversationId.slice(0, 8)} (${data.cwd}) [${ctx.conversations.getActiveConversationCount(sessionId) + 1} connection(s)]${data.version ? ` [${data.version}]` : ''}`,
     )
   } else {
     const newConversation = ctx.conversations.createConversation(
-      ccSessionId,
+      sessionId,
       project,
       data.model as string,
       data.args,
@@ -92,59 +88,56 @@ const meta: MessageHandler = (ctx, data) => {
     }
     const isAdHoc = (data.capabilities as string[] | undefined)?.includes('ad-hoc')
     ctx.log.debug(
-      `Conversation started: ${ccSessionId.slice(0, 8)}... conv=${conversationId.slice(0, 8)} (${data.cwd})${data.version ? ` [${data.version}]` : ''}`,
+      `Conversation started: ${sessionId.slice(0, 8)}... conn=${conversationId.slice(0, 8)} (${data.cwd})${data.version ? ` [${data.version}]` : ''}`,
     )
     if (isAdHoc) {
       ctx.log.info(
-        `[ad-hoc] Conversation connected: ${ccSessionId.slice(0, 8)} task=${data.adHocTaskId || 'none'} worktree=${data.adHocWorktree || 'none'} caps=[${(data.capabilities as string[])?.join(',') || ''}]`,
+        `[ad-hoc] Conversation connected: ${sessionId.slice(0, 8)} task=${data.adHocTaskId || 'none'} worktree=${data.adHocWorktree || 'none'} caps=[${(data.capabilities as string[])?.join(',') || ''}]`,
       )
     }
   }
 
-  ctx.conversations.setConversationSocket(ccSessionId, conversationId, ctx.ws)
+  ctx.conversations.setConversationSocket(sessionId, conversationId, ctx.ws)
 
   // Auto-restore persisted links for this conversation's project
-  const convProject = (existing || ctx.conversations.getConversation(ccSessionId))?.project
+  const convProject = (existing || ctx.conversations.getConversation(sessionId))?.project
   if (convProject) {
     const persistedLinks = ctx.getLinksForProject(convProject)
     for (const pl of persistedLinks) {
       const otherProject = pl.projectA === convProject ? pl.projectB : pl.projectA
       for (const s of ctx.conversations.getActiveConversations()) {
-        if (s.project === otherProject && s.id !== ccSessionId) {
-          ctx.conversations.linkProjects(ccSessionId, s.id)
+        if (s.project === otherProject && s.id !== sessionId) {
+          ctx.conversations.linkProjects(sessionId, s.id)
           ctx.log.debug(
-            `[links] Auto-restored: ${ccSessionId.slice(0, 8)} (${extractProjectLabel(convProject)}) <-> ${s.id.slice(0, 8)} (${extractProjectLabel(otherProject)})`,
+            `[links] Auto-restored: ${sessionId.slice(0, 8)} (${extractProjectLabel(convProject)}) <-> ${s.id.slice(0, 8)} (${extractProjectLabel(otherProject)})`,
           )
         }
       }
     }
   }
 
-  ctx.conversations.broadcastConversationUpdate(ccSessionId)
+  ctx.conversations.broadcastConversationUpdate(sessionId)
 
   // Complete launch job if this conversationId is tracked
-  ctx.conversations.completeJob(conversationId, ccSessionId)
+  ctx.conversations.completeJob(conversationId, sessionId)
 
   // Check rendezvous: someone may be waiting for this agent host to connect
-  const rvResolved = ctx.conversations.resolveRendezvous(conversationId, ccSessionId)
+  const rvResolved = ctx.conversations.resolveRendezvous(conversationId, sessionId)
   if (!rvResolved) {
     const rvInfo = ctx.conversations.getRendezvousInfo(conversationId)
     if (rvInfo) ctx.log.debug(`[rendezvous] conversationId matched but resolve failed: ${conversationId.slice(0, 8)}`)
   }
 
-  ctx.reply({ type: 'ack', eventId: ccSessionId, origins: ctx.origins })
+  ctx.reply({ type: 'ack', eventId: sessionId, origins: ctx.origins })
 
   // Drain queued messages for this project (sent while conversation was offline)
-  // Pass conversation title so only messages targeted at this specific conversation
-  // (or project-level messages with no target) are drained. Messages for other
-  // conversations at the same project stay queued.
-  const drainConversation = existing || ctx.conversations.getConversation(ccSessionId)
+  const drainConversation = existing || ctx.conversations.getConversation(sessionId)
   const drainProject = drainConversation?.project
   if (drainProject) {
     const nameSlug = drainConversation?.title ? slugify(drainConversation.title) : undefined
     const queued = ctx.messageQueue.drain(drainProject, nameSlug)
     if (queued.length > 0) {
-      const targetWs = ctx.conversations.getConversationSocket(ccSessionId)
+      const targetWs = ctx.conversations.getConversationSocket(sessionId)
       if (targetWs) {
         for (const item of queued) {
           targetWs.send(JSON.stringify(item.message))
@@ -191,6 +184,7 @@ const sessionClear: MessageHandler = (ctx, data) => {
     data.model as string,
   )
   if (conversation) {
+    ctx.ws.data.conversationId = newId
     ctx.ws.data.ccSessionId = newId
     ctx.log.debug(
       `Conversation re-keyed: ${oldId.slice(0, 8)} -> ${newId.slice(0, 8)} conv=${clearConversationId.slice(0, 8)} (${extractProjectLabel(clearProject)})`,
@@ -198,6 +192,7 @@ const sessionClear: MessageHandler = (ctx, data) => {
   } else {
     ctx.log.debug(`session_clear: old conversation ${oldId.slice(0, 8)} not found, creating new`)
     ctx.conversations.createConversation(newId, clearProject, data.model as string)
+    ctx.ws.data.conversationId = newId
     ctx.ws.data.ccSessionId = newId
     ctx.conversations.setConversationSocket(newId, clearConversationId, ctx.ws)
   }
@@ -229,13 +224,13 @@ const notify: MessageHandler = (ctx, data) => {
 
 const end: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
-  const endConversationId = ctx.ws.data.conversationId as string
-  if (!conversationId || !endConversationId) return
+  const connectionId = ctx.ws.data.connectionId || (ctx.ws.data.conversationId as string)
+  if (!conversationId || !connectionId) return
 
   // Capture conversation before ending (for ad-hoc notification)
   const conversation = ctx.conversations.getConversation(conversationId)
 
-  ctx.conversations.removeConversationSocket(conversationId, endConversationId)
+  ctx.conversations.removeConversationSocket(conversationId, connectionId)
   const remaining = ctx.conversations.getActiveConversationCount(conversationId)
   if (remaining === 0) {
     ctx.conversations.endConversation(conversationId, (data.reason as string) || '')
@@ -270,7 +265,7 @@ const end: MessageHandler = (ctx, data) => {
     }
   } else {
     ctx.log.debug(
-      `ConversationId ${endConversationId.slice(0, 8)} ended for conversation ${conversationId.slice(0, 8)}... (${remaining} conversation(s) remaining)`,
+      `Connection ${connectionId.slice(0, 8)} ended for conversation ${conversationId.slice(0, 8)}... (${remaining} connection(s) remaining)`,
     )
   }
 }

@@ -31,8 +31,8 @@ export type SpawnDiagnostics = {
   time: string
   source: DiagnosticsSource
   jobId: string | null
+  connectionId: string | null
   conversationId: string | null
-  ccSessionId: string | null
   elapsed: string
   error: string | null
   config: Partial<SpawnRequest>
@@ -45,8 +45,8 @@ export type SpawnDiagnostics = {
 export type BuildDiagnosticsInput = {
   source: DiagnosticsSource
   jobId?: string | null
+  connectionId?: string | null
   conversationId?: string | null
-  ccSessionId?: string | null
   elapsedSec: number
   error?: string | null
   config: Partial<SpawnRequest>
@@ -85,8 +85,8 @@ export function buildSpawnDiagnostics(input: BuildDiagnosticsInput): SpawnDiagno
     time: new Date().toISOString(),
     source: input.source,
     jobId: input.jobId ?? null,
+    connectionId: input.connectionId ?? null,
     conversationId: input.conversationId ?? null,
-    ccSessionId: input.ccSessionId ?? null,
     elapsed: `${input.elapsedSec}s`,
     error: input.error ?? null,
     config,

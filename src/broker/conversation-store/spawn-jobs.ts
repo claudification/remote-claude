@@ -1,4 +1,5 @@
 import type { ServerWebSocket } from 'bun'
+import type { ConnectionId, ConversationId, JobId } from '../../shared/identity'
 import { extractProjectLabel } from '../../shared/project-uri'
 import type { ConversationSummary } from '../../shared/protocol'
 
@@ -11,23 +12,23 @@ interface LaunchJobEvent {
 }
 
 interface LaunchJob {
-  jobId: string
-  conversationId: string
+  jobId: JobId
+  connectionId: ConnectionId
   subscribers: Set<ServerWebSocket<unknown>>
   createdAt: number
   events: LaunchJobEvent[]
   completed: boolean
   failed: boolean
   error: string | null
-  ccSessionId: string | null
+  conversationId: ConversationId | null
   config: Record<string, unknown> | null
   endedAt: number | null
 }
 
 export interface SpawnJobDiagnostics {
-  jobId: string
-  conversationId: string
-  ccSessionId: string | null
+  jobId: JobId
+  connectionId: ConnectionId
+  conversationId: ConversationId | null
   completed: boolean
   failed: boolean
   error: string | null
@@ -41,15 +42,15 @@ export interface SpawnJobDiagnostics {
 const JOB_EXPIRY_MS = 5 * 60 * 1000
 
 export interface SpawnJobRegistry {
-  createJob: (jobId: string, conversationId: string) => void
-  recordJobConfig: (jobId: string, config: Record<string, unknown>) => void
-  subscribeJob: (jobId: string, ws: ServerWebSocket<unknown>) => boolean
-  unsubscribeJob: (jobId: string, ws: ServerWebSocket<unknown>) => void
-  forwardJobEvent: (jobId: string, msg: Record<string, unknown>) => void
-  completeJob: (conversationId: string, ccSessionId: string) => void
-  failJob: (jobId: string, error: string) => void
-  getJobByConversation: (conversationId: string) => string | undefined
-  getJobDiagnostics: (jobId: string) => SpawnJobDiagnostics | null
+  createJob: (jobId: JobId, connectionId: ConnectionId) => void
+  recordJobConfig: (jobId: JobId, config: Record<string, unknown>) => void
+  subscribeJob: (jobId: JobId, ws: ServerWebSocket<unknown>) => boolean
+  unsubscribeJob: (jobId: JobId, ws: ServerWebSocket<unknown>) => void
+  forwardJobEvent: (jobId: JobId, msg: Record<string, unknown>) => void
+  completeJob: (connectionId: ConnectionId, conversationId: ConversationId) => void
+  failJob: (jobId: JobId, error: string) => void
+  getJobByConversation: (connectionId: ConnectionId) => JobId | undefined
+  getJobDiagnostics: (jobId: JobId) => SpawnJobDiagnostics | null
   cleanupJobSubscriber: (ws: ServerWebSocket<unknown>) => void
 }
 
@@ -67,19 +68,19 @@ export interface PendingRestartInfo {
 
 export interface RendezvousRegistry {
   addRendezvous: (
-    conversationId: string,
-    callerConversationId: string,
+    connectionId: ConnectionId,
+    callerConversationId: ConversationId,
     project: string,
     action: 'spawn' | 'revive' | 'restart',
   ) => Promise<ConversationSummary>
   resolveRendezvous: (
-    conversationId: string,
-    ccSessionId: string,
-    toConversationSummary: (id: string) => ConversationSummary | undefined,
+    connectionId: ConnectionId,
+    conversationId: ConversationId,
+    toConversationSummary: (id: ConversationId) => ConversationSummary | undefined,
   ) => boolean
-  getRendezvousInfo: (conversationId: string) => RendezvousInfo | undefined
-  addPendingRestart: (conversationId: string, info: PendingRestartInfo) => void
-  consumePendingRestart: (conversationId: string) => PendingRestartInfo | undefined
+  getRendezvousInfo: (connectionId: ConnectionId) => RendezvousInfo | undefined
+  addPendingRestart: (connectionId: ConnectionId, info: PendingRestartInfo) => void
+  consumePendingRestart: (connectionId: ConnectionId) => PendingRestartInfo | undefined
 }
 
 export function createSpawnJobRegistry(): SpawnJobRegistry {
@@ -92,7 +93,7 @@ export function createSpawnJobRegistry(): SpawnJobRegistry {
     for (const [jobId, job] of launchJobs) {
       if (now - job.createdAt > JOB_EXPIRY_MS) {
         launchJobs.delete(jobId)
-        if (job.conversationId) conversationToJob.delete(job.conversationId)
+        if (job.connectionId) conversationToJob.delete(job.connectionId)
       }
     }
   }, 60_000)
@@ -117,26 +118,26 @@ export function createSpawnJobRegistry(): SpawnJobRegistry {
   }
 
   return {
-    createJob(jobId, conversationId) {
+    createJob(jobId, connectionId) {
       const existing = launchJobs.get(jobId)
       if (existing) {
-        existing.conversationId = conversationId
+        existing.connectionId = connectionId
       } else {
         launchJobs.set(jobId, {
           jobId,
-          conversationId,
+          connectionId,
           subscribers: new Set(),
           createdAt: Date.now(),
           events: [],
           completed: false,
           failed: false,
           error: null,
-          ccSessionId: null,
+          conversationId: null,
           config: null,
           endedAt: null,
         })
       }
-      conversationToJob.set(conversationId, jobId)
+      conversationToJob.set(connectionId, jobId)
     },
 
     recordJobConfig(jobId, config) {
@@ -149,14 +150,14 @@ export function createSpawnJobRegistry(): SpawnJobRegistry {
       if (!job) {
         launchJobs.set(jobId, {
           jobId,
-          conversationId: '',
+          connectionId: '',
           subscribers: new Set([ws]),
           createdAt: Date.now(),
           events: [],
           completed: false,
           failed: false,
           error: null,
-          ccSessionId: null,
+          conversationId: null,
           config: null,
           endedAt: null,
         })
@@ -173,18 +174,18 @@ export function createSpawnJobRegistry(): SpawnJobRegistry {
 
     forwardJobEvent,
 
-    completeJob(conversationId, ccSessionId) {
-      const jobId = conversationToJob.get(conversationId)
+    completeJob(connectionId, conversationId) {
+      const jobId = conversationToJob.get(connectionId)
       if (!jobId) return
       const job = launchJobs.get(jobId)
       if (!job) return
       job.completed = true
-      job.ccSessionId = ccSessionId
+      job.conversationId = conversationId
       job.endedAt = Date.now()
-      forwardJobEvent(jobId, { type: 'job_complete', jobId, ccSessionId, conversationId })
+      forwardJobEvent(jobId, { type: 'job_complete', jobId, conversationId, connectionId })
       setTimeout(() => {
         launchJobs.delete(jobId)
-        conversationToJob.delete(conversationId)
+        conversationToJob.delete(connectionId)
       }, 30_000)
     },
 
@@ -199,13 +200,13 @@ export function createSpawnJobRegistry(): SpawnJobRegistry {
       if (job) {
         setTimeout(() => {
           launchJobs.delete(jobId)
-          if (job.conversationId) conversationToJob.delete(job.conversationId)
+          if (job.connectionId) conversationToJob.delete(job.connectionId)
         }, 30_000)
       }
     },
 
-    getJobByConversation(conversationId) {
-      return conversationToJob.get(conversationId)
+    getJobByConversation(connectionId) {
+      return conversationToJob.get(connectionId)
     },
 
     getJobDiagnostics(jobId) {
@@ -214,8 +215,8 @@ export function createSpawnJobRegistry(): SpawnJobRegistry {
       const now = Date.now()
       return {
         jobId: job.jobId,
+        connectionId: job.connectionId,
         conversationId: job.conversationId,
-        ccSessionId: job.ccSessionId,
         completed: job.completed,
         failed: job.failed,
         error: job.error,
@@ -279,20 +280,20 @@ export function createRendezvousRegistry(): RendezvousRegistry {
       })
     },
 
-    resolveRendezvous(conversationId, ccSessionId, toConversationSummary) {
-      const rv = conversationRendezvous.get(conversationId)
+    resolveRendezvous(connectionId, conversationId, toConversationSummary) {
+      const rv = conversationRendezvous.get(connectionId)
       if (!rv) return false
-      conversationRendezvous.delete(conversationId)
+      conversationRendezvous.delete(connectionId)
       clearTimeout(rv.timer)
-      const summary = toConversationSummary(ccSessionId)
+      const summary = toConversationSummary(conversationId)
       if (!summary) {
-        rv.reject('Session created but not found in store')
+        rv.reject('Conversation created but not found in store')
         return false
       }
       rv.resolve(summary)
       const elapsed = Date.now() - rv.registeredAt
       console.log(
-        `[rendezvous] RESOLVED: ${rv.action} ccSessionId=${ccSessionId.slice(0, 8)} conversationId=${conversationId.slice(0, 8)} elapsed=${elapsed}ms caller=${rv.callerConversationId.slice(0, 8)}`,
+        `[rendezvous] RESOLVED: ${rv.action} conversation=${conversationId.slice(0, 8)} connection=${connectionId.slice(0, 8)} elapsed=${elapsed}ms caller=${rv.callerConversationId.slice(0, 8)}`,
       )
       return true
     },

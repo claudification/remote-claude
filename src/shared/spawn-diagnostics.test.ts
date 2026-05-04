@@ -5,8 +5,8 @@ function makeInput(over: Partial<BuildDiagnosticsInput> = {}): BuildDiagnosticsI
   return {
     source: 'run-task-dialog',
     jobId: 'job-1',
-    conversationId: 'wrap-1',
-    ccSessionId: 'sess-1',
+    connectionId: 'conn-1',
+    conversationId: 'conv-1',
     elapsedSec: 12,
     error: null,
     config: { cwd: '/tmp/p', model: 'opus' },
@@ -26,8 +26,8 @@ describe('buildSpawnDiagnostics', () => {
     expect(Number.isNaN(Date.parse(d.time))).toBe(false)
     expect(d.source).toBe('run-task-dialog')
     expect(d.jobId).toBe('job-1')
-    expect(d.conversationId).toBe('wrap-1')
-    expect(d.ccSessionId).toBe('sess-1')
+    expect(d.connectionId).toBe('conn-1')
+    expect(d.conversationId).toBe('conv-1')
     expect(d.elapsed).toBe('12s')
     expect(d.launchState).toEqual({ completed: true, failed: false })
     expect(d.steps).toHaveLength(1)
@@ -36,11 +36,11 @@ describe('buildSpawnDiagnostics', () => {
 
   it('coerces null-ish ids when omitted', () => {
     const d = buildSpawnDiagnostics(
-      makeInput({ jobId: undefined, conversationId: undefined, ccSessionId: undefined, error: undefined }),
+      makeInput({ jobId: undefined, connectionId: undefined, conversationId: undefined, error: undefined }),
     )
     expect(d.jobId).toBeNull()
+    expect(d.connectionId).toBeNull()
     expect(d.conversationId).toBeNull()
-    expect(d.ccSessionId).toBeNull()
     expect(d.error).toBeNull()
   })
 

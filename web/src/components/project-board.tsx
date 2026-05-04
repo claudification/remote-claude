@@ -664,7 +664,7 @@ export function RunTaskDialog({
   // Auto-redirect when countdown reaches 0
   useEffect(() => {
     if (progress.viewCountdown !== 0) return
-    const sid = progress.launch.ccSessionId || progress.spawnedConversation?.id
+    const sid = progress.launch.conversationId || progress.spawnedConversation?.id
     if (!sid) return
     const currentId = useConversationsStore.getState().selectedConversationId
     const userNavigatedAway = currentId !== sessionAtLaunchRef.current && currentId !== null
@@ -676,7 +676,7 @@ export function RunTaskDialog({
       )
     }
     onClose()
-  }, [progress.viewCountdown, progress.launch.ccSessionId, progress.spawnedConversation, onClose])
+  }, [progress.viewCountdown, progress.launch.conversationId, progress.spawnedConversation, onClose])
 
   async function handleRun() {
     if (phase !== 'config' || !spawnPath) return
@@ -740,7 +740,7 @@ export function RunTaskDialog({
   }
 
   function handleViewConversation() {
-    const sid = progress.launch.ccSessionId || progress.spawnedConversation?.id
+    const sid = progress.launch.conversationId || progress.spawnedConversation?.id
     if (sid) {
       useConversationsStore.getState().selectConversation(sid, 'project-board-view-session')
       progress.setViewCountdown(null)
@@ -752,8 +752,8 @@ export function RunTaskDialog({
     const diag = buildSpawnDiagnostics({
       source: 'run-task-dialog',
       jobId,
-      conversationId: spawnedConversationId || progress.launch.conversationId || null,
-      ccSessionId: progress.launch.ccSessionId ?? null,
+      connectionId: spawnedConversationId || progress.launch.conversationId || null,
+      conversationId: progress.launch.conversationId ?? null,
       elapsedSec: progress.elapsed,
       error: progress.error || progress.launch.error || null,
       config: {

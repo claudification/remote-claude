@@ -87,7 +87,7 @@ export function useLaunchProgress({
     useCallback(
       state => {
         if (!effectiveWrapperId) return null
-        return state.sessions.find(s => s.ccSessionIds?.includes(effectiveWrapperId)) || null
+        return state.sessions.find(s => s.connectionIds?.includes(effectiveWrapperId)) || null
       },
       [effectiveWrapperId],
     ),

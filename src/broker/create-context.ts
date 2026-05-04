@@ -60,8 +60,8 @@ export interface ContextDeps {
 }
 
 export function createContext(ws: ServerWebSocket<WsData>, deps: ContextDeps): HandlerContext {
-  const ccSessionId = ws.data.ccSessionId
-  const caller = ccSessionId ? deps.conversations.getConversation(ccSessionId) : undefined
+  const conversationId = ws.data.conversationId
+  const caller = conversationId ? deps.conversations.getConversation(conversationId) : undefined
   const callerSettings = caller?.project ? deps.getProjectSettings(caller.project) : null
   const prefix = logPrefix(ws)
 

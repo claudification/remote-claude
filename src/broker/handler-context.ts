@@ -4,6 +4,7 @@
  */
 
 import type { ServerWebSocket } from 'bun'
+import type { ConnectionId, ConversationId } from '../shared/identity'
 import type { ProjectSettings } from '../shared/protocol'
 import type { ConversationStore } from './conversation-store'
 import type { Permission, UserGrant } from './permissions'
@@ -11,7 +12,8 @@ import type { StoreDriver } from './store/types'
 
 export interface WsData {
   ccSessionId?: string
-  conversationId?: string
+  conversationId?: ConversationId
+  connectionId?: ConnectionId
   isControlPanel?: boolean
   isSentinel?: boolean
   sentinelId?: string
@@ -40,7 +42,7 @@ export interface HandlerContext {
   conversations: ConversationStore
   /** Unified StoreDriver (SQLite-backed domain stores: costs, kv, transcripts, etc.) */
   store: StoreDriver
-  /** Resolved caller session (from ws.data.ccSessionId) */
+  /** Resolved caller conversation (from ws.data.conversationId) */
   caller?: ReturnType<ConversationStore['getConversation']>
   /** Caller's project settings */
   callerSettings?: ProjectSettings | null
@@ -150,7 +152,7 @@ export type MessageHandler = (ctx: HandlerContext, data: MessageData) => void | 
 
 /** Create a log prefix from WS connection data */
 export function logPrefix(ws: { data: WsData }): string {
-  const id = ws.data.ccSessionId?.slice(0, 8)
+  const id = ws.data.conversationId?.slice(0, 8)
   if (ws.data.isSentinel) return '[sentinel]'
   if (ws.data.isControlPanel) return `[dash${ws.data.userName ? `:${ws.data.userName}` : ''}]`
   return id ? `[${id}]` : '[unknown]'

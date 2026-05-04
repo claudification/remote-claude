@@ -40,7 +40,6 @@ interface BadDataReport {
  */
 export function rejectBadMessage(ctx: HandlerContext, report: BadDataReport): void {
   const sender =
-    ctx.ws.data.ccSessionId ||
     ctx.ws.data.conversationId ||
     (ctx.ws.data.isSentinel ? `sentinel:${ctx.ws.data.sentinelAlias || ctx.ws.data.sentinelId || '?'}` : null) ||
     (ctx.ws.data.isControlPanel ? `dashboard:${ctx.ws.data.userName || '?'}` : null) ||
@@ -72,8 +71,8 @@ export function rejectBadMessage(ctx: HandlerContext, report: BadDataReport): vo
  * Validate that `data[field]` is a non-empty string. Returns the value on
  * success, or rejects + returns null on failure. Always early-return on null:
  *
- *   const ccSessionId = requireString(ctx, data, 'ccSessionId', 'meta')
- *   if (ccSessionId === null) return
+ *   const sessionId = requireString(ctx, data, 'ccSessionId', 'meta')
+ *   if (sessionId === null) return
  */
 export function requireString(ctx: HandlerContext, data: MessageData, field: string, type: string): string | null {
   const value = data[field]

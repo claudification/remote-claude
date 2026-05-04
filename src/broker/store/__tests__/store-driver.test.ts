@@ -247,7 +247,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         expect(remaining[0].uuid).toBe('pr-2')
       })
 
-      it('append is idempotent on (ccSessionId, uuid)', () => {
+      it('append is idempotent on (conversationId, uuid)', () => {
         const entry = makeTranscriptEntry('user', 'idem-1')
         store.transcripts.append(SESSION, EPOCH, [entry])
         store.transcripts.append(SESSION, EPOCH, [entry])

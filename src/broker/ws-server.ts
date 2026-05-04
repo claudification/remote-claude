@@ -64,6 +64,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
           switch (data.type) {
             case 'meta': {
               const meta = data as ConversationMeta
+              // Wire boundary: prefer conversationId, fall back to ccSessionId
               const conversationId = meta.conversationId || meta.ccSessionId
               ws.data.conversationId = conversationId
 

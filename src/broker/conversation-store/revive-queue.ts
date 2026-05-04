@@ -9,11 +9,13 @@
 
 const REVIVE_QUEUE_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 
+import type { ConnectionId, ConversationId } from '../../shared/identity'
+
 export interface QueuedRevive {
   sentinelId: string
   sentinelAlias: string
-  ccSessionId: string
-  conversationId: string
+  conversationId: ConversationId
+  connectionId: ConnectionId
   jobId?: string
   payload: Record<string, unknown>
   queuedAt: number

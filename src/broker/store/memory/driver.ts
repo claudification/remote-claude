@@ -145,31 +145,31 @@ function createTranscriptStore(): TranscriptStore {
   const entries = new Map<string, TranscriptEntryRecord[]>()
   const seqCounters = new Map<string, number>()
 
-  function getEntries(ccSessionId: string): TranscriptEntryRecord[] {
-    let arr = entries.get(ccSessionId)
+  function getEntries(conversationId: string): TranscriptEntryRecord[] {
+    let arr = entries.get(conversationId)
     if (!arr) {
       arr = []
-      entries.set(ccSessionId, arr)
+      entries.set(conversationId, arr)
     }
     return arr
   }
 
-  function nextSeq(ccSessionId: string): number {
-    const cur = seqCounters.get(ccSessionId) ?? 0
+  function nextSeq(conversationId: string): number {
+    const cur = seqCounters.get(conversationId) ?? 0
     const next = cur + 1
-    seqCounters.set(ccSessionId, next)
+    seqCounters.set(conversationId, next)
     return next
   }
 
   return {
-    append(ccSessionId, syncEpoch, inputEntries) {
-      const arr = getEntries(ccSessionId)
+    append(conversationId, syncEpoch, inputEntries) {
+      const arr = getEntries(conversationId)
       for (const e of inputEntries) {
         if (arr.some(x => x.uuid === e.uuid)) continue
         arr.push({
           id: nextId(),
-          ccSessionId,
-          sessionSeq: nextSeq(ccSessionId),
+          conversationId,
+          sessionSeq: nextSeq(conversationId),
           syncEpoch,
           type: e.type,
           subtype: e.subtype,
@@ -182,8 +182,8 @@ function createTranscriptStore(): TranscriptStore {
       }
     },
 
-    getPage(ccSessionId, opts) {
-      let arr = getEntries(ccSessionId)
+    getPage(conversationId, opts) {
+      let arr = getEntries(conversationId)
       if (opts.agentId !== undefined) {
         arr = arr.filter(e => (opts.agentId === null ? !e.agentId : e.agentId === opts.agentId))
       }
@@ -210,17 +210,17 @@ function createTranscriptStore(): TranscriptStore {
       }
     },
 
-    getLatest(ccSessionId, limit, agentId) {
-      let arr = getEntries(ccSessionId)
+    getLatest(conversationId, limit, agentId) {
+      let arr = getEntries(conversationId)
       if (agentId !== undefined) {
         arr = arr.filter(e => (agentId === null ? !e.agentId : e.agentId === agentId))
       }
       return arr.slice(-limit)
     },
 
-    getSinceSeq(ccSessionId, sinceSeq, limit) {
-      const arr = getEntries(ccSessionId)
-      const maxSeq = seqCounters.get(ccSessionId) ?? 0
+    getSinceSeq(conversationId, sinceSeq, limit) {
+      const arr = getEntries(conversationId)
+      const maxSeq = seqCounters.get(conversationId) ?? 0
       const gap = sinceSeq > 0 && !arr.some(e => e.sessionSeq === sinceSeq)
       const filtered = arr.filter(e => e.sessionSeq > sinceSeq)
       const sliced = limit ? filtered.slice(0, limit) : filtered
@@ -231,12 +231,12 @@ function createTranscriptStore(): TranscriptStore {
       }
     },
 
-    getLastSeq(ccSessionId) {
-      return seqCounters.get(ccSessionId) ?? 0
+    getLastSeq(conversationId) {
+      return seqCounters.get(conversationId) ?? 0
     },
 
-    find(ccSessionId, filter) {
-      let arr = getEntries(ccSessionId)
+    find(conversationId, filter) {
+      let arr = getEntries(conversationId)
       const { types, subtypes, after, before } = filter
       if (types?.length) arr = arr.filter(e => types.includes(e.type))
       if (subtypes?.length) arr = arr.filter(e => e.subtype != null && subtypes.includes(e.subtype))
@@ -252,7 +252,7 @@ function createTranscriptStore(): TranscriptStore {
     search(query, opts) {
       const q = query.toLowerCase()
       const hits: SearchHit[] = []
-      for (const [ccSessionId, arr] of entries) {
+      for (const [conversationId, arr] of entries) {
         if (opts?.scope) {
           continue // no scope info in transcript entries; caller should pre-filter
         }
@@ -263,7 +263,7 @@ function createTranscriptStore(): TranscriptStore {
             const start = Math.max(0, idx - 40)
             const end = Math.min(text.length, idx + q.length + 40)
             hits.push({
-              ccSessionId,
+              conversationId,
               entryId: e.id,
               snippet: text.slice(start, end),
               score: 1,
@@ -276,8 +276,8 @@ function createTranscriptStore(): TranscriptStore {
       return hits.slice(0, opts?.limit ?? 50)
     },
 
-    count(ccSessionId, agentId) {
-      let arr = getEntries(ccSessionId)
+    count(conversationId, agentId) {
+      let arr = getEntries(conversationId)
       if (agentId !== undefined) {
         arr = arr.filter(e => (agentId === null ? !e.agentId : e.agentId === agentId))
       }
@@ -301,23 +301,23 @@ function createEventStore(): EventStore {
   const events = new Map<string, EventRecord[]>()
 
   return {
-    append(ccSessionId, event: EventInput) {
-      let arr = events.get(ccSessionId)
+    append(conversationId, event: EventInput) {
+      let arr = events.get(conversationId)
       if (!arr) {
         arr = []
-        events.set(ccSessionId, arr)
+        events.set(conversationId, arr)
       }
       arr.push({
         id: nextId(),
-        ccSessionId,
+        conversationId,
         type: event.type,
         data: event.data,
         createdAt: Date.now(),
       })
     },
 
-    getForConversation(ccSessionId, opts) {
-      let arr = events.get(ccSessionId) ?? []
+    getForConversation(conversationId, opts) {
+      let arr = events.get(conversationId) ?? []
       const types = opts?.types
       if (types?.length) arr = arr.filter(e => types.includes(e.type))
       const afterId = opts?.afterId

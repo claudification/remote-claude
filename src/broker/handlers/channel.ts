@@ -284,7 +284,7 @@ const channelSend: MessageHandler = (ctx, data) => {
   if (!fromSession || !toTarget) return
 
   const fromSess = ctx.conversations.getConversation(fromSession)
-  const callerProject = fromSess?.project
+  const callerProject = fromSess?.project || ctx.caller?.project
 
   // Parse compound target: "project:session-name" or bare "project"
   const colonIdx = toTarget.indexOf(':')

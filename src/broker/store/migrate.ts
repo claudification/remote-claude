@@ -189,7 +189,7 @@ function migrateTranscripts(store: StoreDriver, cacheDir: string, result: Migrat
   }
 
   for (const file of files) {
-    const ccSessionId = file.slice(0, -6)
+    const conversationId = file.slice(0, -6)
     const filePath = join(dir, file)
     let entryCount = 0
 
@@ -219,7 +219,7 @@ function migrateTranscripts(store: StoreDriver, cacheDir: string, result: Migrat
         const BATCH_SIZE = 500
         for (let i = 0; i < entries.length; i += BATCH_SIZE) {
           const batch = entries.slice(i, i + BATCH_SIZE)
-          store.transcripts.append(ccSessionId, 'migration', batch)
+          store.transcripts.append(conversationId, 'migration', batch)
         }
         entryCount = entries.length
       }

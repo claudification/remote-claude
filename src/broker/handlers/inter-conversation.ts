@@ -250,13 +250,13 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
   }
 
   // Target is active -- determine if self-restart
-  const callerCcSessionId = ctx.ws.data.conversationId as string
-  const targetCcSessionIds = ctx.conversations.getCcSessionIds(target.id)
-  const targetCcSessionId = targetCcSessionIds[0] || ''
-  const isSelfRestart = targetCcSessionIds.includes(callerCcSessionId) || target.id === callerSession
+  const callerConnectionId = ctx.ws.data.conversationId as string
+  const targetConnectionIds = ctx.conversations.getConnectionIds(target.id)
+  const targetConnectionId = targetConnectionIds[0] || ''
+  const isSelfRestart = targetConnectionIds.includes(callerConnectionId) || target.id === callerSession
 
   // Store pending restart for the close handler to pick up
-  ctx.conversations.addPendingRestart(targetCcSessionId, {
+  ctx.conversations.addPendingRestart(targetConnectionId, {
     callerConversationId: callerSession,
     targetConversationId: target.id,
     project: target.project,

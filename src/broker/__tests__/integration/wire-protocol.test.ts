@@ -442,8 +442,8 @@ describe('wire protocol shape', () => {
       // Every session in the list has an 'id' field (the conversationId)
       expect(s.id).toBeDefined()
       expect(typeof s.id).toBe('string')
-      // ccSessionIds is an array (separate from the primary ID)
-      expect(Array.isArray(s.ccSessionIds)).toBe(true)
+      // connectionIds is an array (separate from the primary ID)
+      expect(Array.isArray(s.connectionIds)).toBe(true)
     }
   })
 

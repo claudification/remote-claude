@@ -80,7 +80,7 @@ export interface ConversationOverview {
   project: string
   model?: string
   status: Conversation['status']
-  ccSessionIds: string[]
+  connectionIds: string[]
   startedAt: number
   lastActivity: number
   eventCount: number
@@ -104,7 +104,7 @@ export function conversationToOverview(
     project: session.project,
     model: session.model,
     status: session.status,
-    ccSessionIds: conversationStore.getCcSessionIds(session.id),
+    connectionIds: conversationStore.getConnectionIds(session.id),
     startedAt: session.startedAt,
     lastActivity: session.lastActivity,
     eventCount: session.events.length,

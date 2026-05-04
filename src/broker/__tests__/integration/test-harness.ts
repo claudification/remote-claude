@@ -199,6 +199,45 @@ function createMockStoreDriver(): StoreDriver {
 }
 
 // ---------------------------------------------------------------------------
+// Mock Address Book (functional in-memory implementation)
+// ---------------------------------------------------------------------------
+
+function createMockAddressBook() {
+  const books: Record<string, Record<string, string>> = {}
+
+  function slugify(name: string): string {
+    return (
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 24) || 'project'
+    )
+  }
+
+  return {
+    getOrAssign(callerProject: string, targetProject: string, targetName: string): string {
+      if (!books[callerProject]) books[callerProject] = {}
+      const book = books[callerProject]
+      for (const [id, proj] of Object.entries(book)) {
+        if (proj === targetProject) return id
+      }
+      let slug = slugify(targetName)
+      if (book[slug]) {
+        let i = 2
+        while (book[`${slug}-${i}`]) i++
+        slug = `${slug}-${i}`
+      }
+      book[slug] = targetProject
+      return slug
+    },
+    resolve(callerProject: string, localId: string): string | undefined {
+      return books[callerProject]?.[localId]
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Test Harness
 // ---------------------------------------------------------------------------
 
@@ -235,6 +274,9 @@ export interface TestHarness {
     capabilities?: string[]
   }): MockWs
 
+  /** Set project settings (e.g. trustLevel) */
+  setProjectSettings(project: string, settings: Record<string, unknown>): void
+
   /** Flush coalesced microtask broadcasts (session_update) */
   flushUpdates(): Promise<void>
 
@@ -252,14 +294,19 @@ export function createTestHarness(): TestHarness {
     enablePersistence: false,
   })
 
+  const projectSettings: Record<string, Record<string, unknown>> = {}
+
   const contextDeps: ContextDeps = {
     conversations: conversationStore,
     store,
     verbose: false,
     origins: ['http://localhost:0'],
-    getProjectSettings: () => null,
-    setProjectSettings: () => {},
-    getAllProjectSettings: () => ({}),
+    getProjectSettings: (project: string) =>
+      (projectSettings[project] as ReturnType<ContextDeps['getProjectSettings']>) ?? null,
+    setProjectSettings: (project: string, update: Record<string, unknown>) => {
+      projectSettings[project] = { ...projectSettings[project], ...update }
+    },
+    getAllProjectSettings: () => projectSettings as ReturnType<ContextDeps['getAllProjectSettings']>,
     pushConfigured: false,
     pushSendToAll: () => {},
     getLinksForProject: () => [],
@@ -268,10 +315,7 @@ export function createTestHarness(): TestHarness {
     removeLink: () => {},
     touchLink: () => {},
     logMessage: () => {},
-    addressBook: {
-      getOrAssign: (_caller, _target, name) => name,
-      resolve: () => undefined,
-    },
+    addressBook: createMockAddressBook(),
     messageQueue: {
       enqueue: () => {},
       drain: () => [],
@@ -356,6 +400,9 @@ export function createTestHarness(): TestHarness {
     createDashboardWs,
     connectDashboard,
     bootAgentHost,
+    setProjectSettings(project: string, settings: Record<string, unknown>) {
+      projectSettings[project] = { ...projectSettings[project], ...settings }
+    },
     flushUpdates,
     cleanup,
   }

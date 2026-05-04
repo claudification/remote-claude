@@ -1598,7 +1598,7 @@ export interface ConversationSummary {
   buildTime?: string
   claudeVersion?: string
   claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
-  ccSessionIds: string[]
+  connectionIds: string[]
   startedAt: number
   lastActivity: number
   status: Conversation['status']

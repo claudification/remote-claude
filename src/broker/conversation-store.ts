@@ -100,13 +100,13 @@ export interface ConversationStore {
   removeConversation: (conversationId: string) => void
   getConversationEvents: (conversationId: string, limit?: number, since?: number) => HookEvent[]
   updateTasks: (conversationId: string, tasks: TaskInfo[]) => void
-  setConversationSocket: (conversationId: string, ccSessionId: string, ws: ServerWebSocket<unknown>) => void
+  setConversationSocket: (conversationId: string, connectionId: string, ws: ServerWebSocket<unknown>) => void
   getConversationSocket: (conversationId: string) => ServerWebSocket<unknown> | undefined
-  findSocketByConversationId: (ccSessionId: string) => ServerWebSocket<unknown> | undefined
-  findConversationByConversationId: (ccSessionId: string) => Conversation | undefined
-  removeConversationSocket: (conversationId: string, ccSessionId: string) => void
+  findSocketByConversationId: (connectionId: string) => ServerWebSocket<unknown> | undefined
+  findConversationByConversationId: (connectionId: string) => Conversation | undefined
+  removeConversationSocket: (conversationId: string, connectionId: string) => void
   getActiveConversationCount: (conversationId: string) => number
-  getCcSessionIds: (conversationId: string) => string[]
+  getConnectionIds: (conversationId: string) => string[]
   // Transcript cache methods
   addTranscriptEntries: (conversationId: string, entries: TranscriptEntry[], isInitial: boolean) => void
   getTranscriptEntries: (conversationId: string, limit?: number) => TranscriptEntry[]
@@ -207,13 +207,13 @@ export interface ConversationStore {
   subscribeJob: (jobId: string, ws: ServerWebSocket<unknown>) => boolean
   unsubscribeJob: (jobId: string, ws: ServerWebSocket<unknown>) => void
   forwardJobEvent: (jobId: string, msg: Record<string, unknown>) => void
-  completeJob: (conversationId: string, ccSessionId: string) => void
+  completeJob: (connectionId: string, conversationId: string) => void
   failJob: (jobId: string, error: string) => void
-  getJobByConversation: (conversationId: string) => string | undefined
+  getJobByConversation: (connectionId: string) => string | undefined
   getJobDiagnostics: (jobId: string) => {
     jobId: string
-    conversationId: string
-    ccSessionId: string | null
+    connectionId: string
+    conversationId: string | null
     completed: boolean
     failed: boolean
     error: string | null
@@ -240,7 +240,7 @@ export interface ConversationStore {
   // Pending restart (terminate + auto-revive on disconnect)
   addPendingRestart: (conversationId: string, info: PendingRestartInfo) => void
   consumePendingRestart: (conversationId: string) => PendingRestartInfo | undefined
-  resolveRendezvous: (conversationId: string, ccSessionId: string) => boolean
+  resolveRendezvous: (conversationId: string, connectionId: string) => boolean
   getRendezvousInfo: (conversationId: string) => RendezvousInfo | undefined
   // Pending launch configs (set at spawn, consumed on connect to restore on revive)
   setPendingLaunchConfig: (conversationId: string, config: LaunchConfig) => void
@@ -276,7 +276,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   const { store, sentinelRegistry } = options
 
   const conversations = new Map<string, Conversation>()
-  // conversationId -> (ccSessionId -> socket): multiple rclaude instances can serve a conversation
+  // conversationId -> (connectionId -> socket): multiple rclaude instances can serve a conversation
   const conversationSockets = new Map<string, Map<string, ServerWebSocket<unknown>>>()
   // Terminal viewers keyed by conversationId (each PTY is on a specific conversation)
   const terminalRegistry = createTerminalRegistry()
@@ -407,7 +407,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       spinnerVerbs: session.spinnerVerbs,
       autocompactPct: session.autocompactPct,
       maxBudgetUsd: session.maxBudgetUsd,
-      ccSessionIds: wrappers ? Array.from(wrappers.keys()) : [],
+      connectionIds: wrappers ? Array.from(wrappers.keys()) : [],
       startedAt: session.startedAt,
       lastActivity: session.lastActivity,
       status: session.status,
@@ -1682,13 +1682,13 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return events
   }
 
-  function setConversationSocket(conversationId: string, ccSessionId: string, ws: ServerWebSocket<unknown>): void {
-    // Remove ccSessionId from any OTHER conversation first (agent host reconnected to different conversation)
+  function setConversationSocket(conversationId: string, connectionId: string, ws: ServerWebSocket<unknown>): void {
+    // Remove connectionId from any OTHER conversation first (agent host reconnected to different conversation)
     for (const [convId, wrappers] of conversationSockets.entries()) {
-      if (convId !== conversationId && wrappers.has(ccSessionId)) {
-        wrappers.delete(ccSessionId)
+      if (convId !== conversationId && wrappers.has(connectionId)) {
+        wrappers.delete(connectionId)
         if (wrappers.size === 0) conversationSockets.delete(convId)
-        // Broadcast so dashboard drops the stale ccSessionId from the old conversation
+        // Broadcast so dashboard drops the stale connectionId from the old conversation
         broadcastConversationUpdate(convId)
       }
     }
@@ -1697,7 +1697,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       wrappers = new Map()
       conversationSockets.set(conversationId, wrappers)
     }
-    wrappers.set(ccSessionId, ws)
+    wrappers.set(connectionId, ws)
   }
 
   function getConversationSocket(conversationId: string): ServerWebSocket<unknown> | undefined {
@@ -1709,25 +1709,25 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return last
   }
 
-  function findSocketByConversationId(ccSessionId: string): ServerWebSocket<unknown> | undefined {
+  function findSocketByConversationId(connectionId: string): ServerWebSocket<unknown> | undefined {
     for (const wrappers of conversationSockets.values()) {
-      const ws = wrappers.get(ccSessionId)
+      const ws = wrappers.get(connectionId)
       if (ws) return ws
     }
     return undefined
   }
 
-  function findConversationByConversationId(ccSessionId: string): Conversation | undefined {
+  function findConversationByConversationId(connectionId: string): Conversation | undefined {
     for (const [convId, wrappers] of conversationSockets.entries()) {
-      if (wrappers.has(ccSessionId)) return conversations.get(convId)
+      if (wrappers.has(connectionId)) return conversations.get(convId)
     }
     return undefined
   }
 
-  function removeConversationSocket(conversationId: string, ccSessionId: string): void {
+  function removeConversationSocket(conversationId: string, connectionId: string): void {
     const wrappers = conversationSockets.get(conversationId)
     if (wrappers) {
-      wrappers.delete(ccSessionId)
+      wrappers.delete(connectionId)
       if (wrappers.size === 0) conversationSockets.delete(conversationId)
     }
   }
@@ -1736,7 +1736,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return conversationSockets.get(conversationId)?.size ?? 0
   }
 
-  function getCcSessionIds(conversationId: string): string[] {
+  function getConnectionIds(conversationId: string): string[] {
     const wrappers = conversationSockets.get(conversationId)
     return wrappers ? Array.from(wrappers.keys()) : []
   }
@@ -2581,8 +2581,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return rendezvous.addRendezvous(conversationId, callerConversationId, project, action)
   }
 
-  function resolveRendezvous(conversationId: string, ccSessionId: string): boolean {
-    return rendezvous.resolveRendezvous(conversationId, ccSessionId, id => {
+  function resolveRendezvous(conversationId: string, connectionId: string): boolean {
+    return rendezvous.resolveRendezvous(conversationId, connectionId, id => {
       const session = conversations.get(id)
       return session ? toConversationSummary(session) : undefined
     })
@@ -2651,7 +2651,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     findConversationByConversationId,
     removeConversationSocket,
     getActiveConversationCount,
-    getCcSessionIds,
+    getConnectionIds,
     addTerminalViewer,
     getTerminalViewers,
     removeTerminalViewer,

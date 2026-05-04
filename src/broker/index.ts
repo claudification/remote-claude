@@ -667,7 +667,7 @@ async function main() {
         },
         close(ws, code, reason) {
           if (verbose) {
-            const id = ws.data.ccSessionId?.slice(0, 8) || (ws.data.isControlPanel ? 'dashboard' : 'unknown')
+            const id = ws.data.conversationId?.slice(0, 8) || (ws.data.isControlPanel ? 'dashboard' : 'unknown')
             console.log(`[ws] Connection closed: ${id} code=${code} reason=${reason || 'none'}`)
           }
 
@@ -697,9 +697,9 @@ async function main() {
           }
 
           // Handle rclaude session disconnection
-          const ccSessionId = ws.data.ccSessionId
           const closeConversationId = ws.data.conversationId
-          if (ccSessionId && closeConversationId) {
+          const closeConnectionId = ws.data.connectionId || ws.data.conversationId
+          if (closeConversationId) {
             // Notify terminal viewers attached to this agent host's PTY
             const viewers = conversationStore.getTerminalViewers(closeConversationId)
             if (viewers.size > 0) {
@@ -738,7 +738,7 @@ async function main() {
             }
 
             // Remove this agent host's socket
-            conversationStore.removeConversationSocket(closeConversationId, ccSessionId)
+            conversationStore.removeConversationSocket(closeConversationId, closeConnectionId || closeConversationId)
             const remaining = conversationStore.getActiveConversationCount(closeConversationId)
 
             const session = conversationStore.getConversation(closeConversationId)

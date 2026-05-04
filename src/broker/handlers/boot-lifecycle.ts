@@ -157,6 +157,7 @@ const launchEvent: MessageHandler = (ctx, data) => {
 
 const sessionPromote: MessageHandler = (ctx, data) => {
   const conversationId = data.conversationId as string
+  // Wire boundary: ccSessionId from agent-host becomes the session ID
   const newSessionId = data.ccSessionId as string
   if (!conversationId || !newSessionId) return
 

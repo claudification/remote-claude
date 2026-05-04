@@ -107,7 +107,7 @@ export interface ConversationStore {
 
 export interface TranscriptEntryRecord {
   id: number
-  ccSessionId: string
+  conversationId: string
   sessionSeq: number
   syncEpoch: string
   type: string
@@ -142,7 +142,7 @@ export interface TranscriptFilter {
 }
 
 export interface SearchHit {
-  ccSessionId: string
+  conversationId: string
   entryId: number
   snippet: string
   score: number
@@ -150,18 +150,18 @@ export interface SearchHit {
 }
 
 export interface TranscriptStore {
-  append(ccSessionId: string, syncEpoch: string, entries: TranscriptEntryInput[]): void
-  getPage(ccSessionId: string, opts: PageOpts & { agentId?: string | null }): TranscriptPage
-  getLatest(ccSessionId: string, limit: number, agentId?: string | null): TranscriptEntryRecord[]
+  append(conversationId: string, syncEpoch: string, entries: TranscriptEntryInput[]): void
+  getPage(conversationId: string, opts: PageOpts & { agentId?: string | null }): TranscriptPage
+  getLatest(conversationId: string, limit: number, agentId?: string | null): TranscriptEntryRecord[]
   getSinceSeq(
-    ccSessionId: string,
+    conversationId: string,
     sinceSeq: number,
     limit?: number,
   ): { entries: TranscriptEntryRecord[]; lastSeq: number; gap: boolean }
-  getLastSeq(ccSessionId: string): number
-  find(ccSessionId: string, filter: TranscriptFilter): TranscriptEntryRecord[]
+  getLastSeq(conversationId: string): number
+  find(conversationId: string, filter: TranscriptFilter): TranscriptEntryRecord[]
   search(query: string, opts?: { scope?: string; limit?: number }): SearchHit[]
-  count(ccSessionId: string, agentId?: string | null): number
+  count(conversationId: string, agentId?: string | null): number
   pruneOlderThan(cutoffMs: number): number
 }
 
@@ -180,15 +180,18 @@ export interface TranscriptEntryInput {
 
 export interface EventRecord {
   id: number
-  ccSessionId: string
+  conversationId: string
   type: string
   data?: Record<string, unknown>
   createdAt: number
 }
 
 export interface EventStore {
-  append(ccSessionId: string, event: EventInput): void
-  getForConversation(ccSessionId: string, opts?: { types?: string[]; limit?: number; afterId?: number }): EventRecord[]
+  append(conversationId: string, event: EventInput): void
+  getForConversation(
+    conversationId: string,
+    opts?: { types?: string[]; limit?: number; afterId?: number },
+  ): EventRecord[]
   pruneOlderThan(cutoffMs: number): number
 }
 

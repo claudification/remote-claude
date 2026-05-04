@@ -757,7 +757,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   toggleDebugConsole: () => set(state => ({ showDebugConsole: !state.showDebugConsole })),
   openTerminal: conversationId => {
     // Find the conversation that owns this agent host so we can select it in the main panel too
-    const ownerConversation = get().sessions.find(s => s.ccSessionIds?.includes(conversationId))
+    const ownerConversation = get().sessions.find(s => s.connectionIds?.includes(conversationId))
     const prev = get().selectedConversationId
     const next = ownerConversation?.id ?? null
     if (next !== prev) {
