@@ -503,7 +503,7 @@ const channelSend: MessageHandler = (ctx, data) => {
   )
 }
 
-// ─── Quit session relay (dashboard -> wrapper) ─────────────────────
+// ─── Quit session relay (dashboard -> agent host) ─────────────────────
 
 const quitConversation: MessageHandler = (ctx, data) => {
   const conversationId = data.conversationId as string

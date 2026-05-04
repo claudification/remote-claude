@@ -167,7 +167,7 @@ const effortKeywordPlugin = ViewPlugin.fromClass(
 
 // ---------------------------------------------------------------------------
 // Dark mode base -- replaces @uiw/react-codemirror's built-in "dark" theme
-// which injects an opaque background on its wrapper div. This signals dark
+// which injects an opaque background on its agent host div. This signals dark
 // mode to CM6 without adding any visual styling of its own.
 // ---------------------------------------------------------------------------
 
@@ -353,7 +353,7 @@ export function buildInputExtensions(opts: InputExtensionOptions): Extension[] {
     emacsKeymap, // before defaultKeymap so our Ctrl-* bindings take priority
     keymap.of([...defaultKeymap, ...historyKeymap]),
     // Portal tooltips (autocomplete popup, etc.) to <body> so the input
-    // wrapper's overflow:hidden / rounded corners don't clip them.
+    // agent host's overflow:hidden / rounded corners don't clip them.
     tooltips({ parent: document.body }),
     inputTheme(fontSize, minHeight, maxHeight),
     // Lightweight regex-based markdown decorator (replaces the heavy

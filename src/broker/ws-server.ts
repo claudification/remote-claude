@@ -1,6 +1,6 @@
 /**
  * WebSocket Server
- * Accepts connections from wrapper instances
+ * Accepts connections from agent host instances
  */
 
 import type { Server, ServerWebSocket } from 'bun'

@@ -78,7 +78,7 @@ export interface HandlerContext {
   /** Get all project settings */
   getAllProjectSettings(): Record<string, ProjectSettings>
 
-  /** Contextual logger -- auto-prefixes with session/wrapper info */
+  /** Contextual logger -- auto-prefixes with session/agent host info */
   log: {
     info(msg: string): void
     error(msg: string, err?: unknown): void
@@ -138,7 +138,7 @@ export interface HandlerContext {
   requireConversation(): NonNullable<ReturnType<ConversationStore['getConversation']>>
   /**
    * Guard: throws GuardError if dashboard user lacks the required permission
-   * for the given project. Wrappers/sentinels bypass all permission checks.
+   * for the given project. Agent Hosts/sentinels bypass all permission checks.
    */
   requirePermission(permission: Permission, project?: string): void
 }

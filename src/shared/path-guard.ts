@@ -1,8 +1,8 @@
 /**
- * Path Guard - Validates file paths against a conversation's CWD before forwarding to wrappers.
+ * Path Guard - Validates file paths against a conversation's CWD before forwarding to agent hosts.
  *
  * Uses path.resolve for normalization (handles ../, ./, etc) without filesystem access.
- * The broker doesn't have the wrapper's filesystem - this is pure string validation.
+ * The broker doesn't have the agent host's filesystem - this is pure string validation.
  */
 
 import { resolve } from 'node:path'

@@ -680,7 +680,7 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
         // First stream_event = live API activity, replay is definitely over
         if (!replayDone) flushReplayBuffer()
         // Raw API SSE deltas - token-by-token streaming
-        // Send the inner event (content_block_delta, message_stop, etc.), not the CC wrapper
+        // Send the inner event (content_block_delta, message_stop, etc.), not the CC agent host
         onStreamEvent?.((msg.event as Record<string, unknown>) || msg)
         break
       }

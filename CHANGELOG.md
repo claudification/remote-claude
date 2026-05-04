@@ -1,5 +1,68 @@
 # Changelog
 
+## 2026-05-04 -- v1.0.0 / Wire Protocol v2 (BREAKING)
+
+**This is a hard break. v1 agent hosts cannot talk to a v2 broker, and a
+v2 agent host cannot talk to a v1 broker. Upgrade both sides at the same
+time. Old binaries get a `protocol_upgrade_required` reply with a copy-
+pastable upgrade command.**
+
+### Wire protocol changes
+
+- **`session` -> `conversation` everywhere** in the wire protocol. The
+  identity that survives `/clear`, reconnect, and revival is a
+  *conversation*, not a session. Every field carrying that id is now
+  `conversationId`. The CC-internal session id is now `ccSessionId`.
+- **`wrapper` -> `agent_host`** for every wire-visible name. The process
+  hosting the Agent (Claude Code) is the *Agent Host*, per
+  `.claude/docs/plan-fabric.md`. Renamed types: `WrapperBoot` ->
+  `AgentHostBoot`, `WrapperNotify` -> `AgentHostNotify`,
+  `WrapperLaunchEvent`/`Phase`/`Step` -> `AgentHostLaunchEvent`/`Phase`/`Step`,
+  `WrapperRateLimit` -> `AgentHostRateLimit`. Renamed message-type
+  strings: `wrapper_boot` -> `agent_host_boot`, `wrapper_started` ->
+  `agent_host_started`, `wrapper_booted` -> `agent_host_booted`.
+- **New `protocolVersion` field** on `meta` and `agent_host_boot`. The
+  broker rejects any client below `AGENT_HOST_PROTOCOL_VERSION` (2) and
+  replies with `protocol_upgrade_required` containing the install
+  command. Dashboards show the rejection as a persistent toast with a
+  copy-command button.
+
+### Resilience
+
+- New `requireString` / `requireStrings` / `requireProtocolVersion`
+  helpers (`src/broker/handlers/validate.ts`). Every input-receiving
+  handler validates required wire fields BEFORE touching state. Bad data
+  gets a structured `[bad-data]` log warn + a typed `bad_message` reply
+  to the sender naming the offending field.
+- `createConversation()` now throws if called with a non-string id.
+- The conversation store's loader drops null-id rows on startup (defense
+  in depth against legacy persistence).
+- The verbose periodic logger is wrapped in try/catch and filters bad
+  rows so a single malformed conversation cannot crash the broker.
+- The dashboard's Zustand entry point drops conversations with invalid
+  ids before they reach renderers.
+
+### Upgrading
+
+```bash
+bun install -g @claudewerk/agent-host @claudewerk/sentinel
+```
+
+Restart any running agent hosts and your sentinel after upgrading. The
+broker auto-rejects v1 binaries on connect; restarting cleans them up.
+
+### Background
+
+This release was triggered by a 2026-05-04 deploy incident where a
+single legacy wrapper sent a meta with `sessionId` (the v1 field name).
+The broker accepted it, created an in-memory conversation keyed by
+`undefined`, persisted it as a NULL-id row, and entered a 60s crash
+loop. v2 closes the door at the handler boundary so a future bad-data
+event gets rejected with a clear message instead of taking the broker
+down.
+
+---
+
 ## 2026-04-14
 
 ### Features

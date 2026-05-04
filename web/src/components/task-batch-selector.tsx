@@ -296,7 +296,7 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
   const searchRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Get a conversation ID for useProject -- use the first active conversations's wrapper
+  // Get a conversation ID for useProject -- use the first active conversations's agent host
   const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
   const sessions = useConversationsStore(s => s.sessions)
   // Find a connected session to relay project requests through

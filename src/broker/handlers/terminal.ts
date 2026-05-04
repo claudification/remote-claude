@@ -50,7 +50,7 @@ const terminalData: MessageHandler = (ctx, data) => {
       targetSocket.send(JSON.stringify(data))
     }
   } else if (ctx.ws.data.conversationId) {
-    // rclaude -> dashboard (PTY output) - broadcast to all viewers of this wrapper
+    // rclaude -> dashboard (PTY output) - broadcast to all viewers of this agent host
     const viewers = ctx.conversations.getTerminalViewers(wid || ctx.ws.data.conversationId)
     const msg = JSON.stringify(data)
     for (const viewer of viewers) {
@@ -71,7 +71,7 @@ const terminalResize: MessageHandler = (ctx, data) => {
 }
 
 const terminalError: MessageHandler = (ctx, data) => {
-  // rclaude -> dashboard - broadcast to all viewers of this wrapper
+  // rclaude -> dashboard - broadcast to all viewers of this agent host
   const viewers = ctx.conversations.getTerminalViewers(
     (data.conversationId as string) || ctx.ws.data.conversationId || '',
   )

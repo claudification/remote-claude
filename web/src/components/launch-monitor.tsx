@@ -1,7 +1,7 @@
 /**
  * LaunchMonitor - Shared launch monitoring UI primitives used by
  * SpawnDialog and ReviveDialog. Each dialog hosts its own Dialog/phase
- * wrapper; this file just exports the pieces they share.
+ * agent host; this file just exports the pieces they share.
  *
  * Exports:
  *   LaunchStepList    - Step rendering with status icons

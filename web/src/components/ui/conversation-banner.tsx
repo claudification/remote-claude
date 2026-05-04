@@ -121,7 +121,7 @@ export function BannerButton({ accent, label, onClick, disabled, size = 'md', cl
 }
 
 /**
- * Wrapper for a list of banners -- consistent outer container across all banner types.
+ * Agent Host for a list of banners -- consistent outer container across all banner types.
  * Renders nothing when `items` is empty.
  */
 export function BannerStack<T>({

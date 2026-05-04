@@ -45,7 +45,7 @@ export function ReviveDialog() {
   const [effort, setEffort] = useState('')
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [jobId, setJobId] = useState<string | null>(null)
-  const [conversationId, setWrapperId] = useState<string | null>(null)
+  const [conversationId, setConversationId] = useState<string | null>(null)
   const sessionAtReviveRef = useRef<string | null>(null)
 
   const sessionsById = useConversationsStore(s => s.sessionsById)
@@ -87,7 +87,7 @@ export function ReviveDialog() {
 
       setPhase('config')
       setJobId(null)
-      setWrapperId(null)
+      setConversationId(null)
       progressReset()
       setState({ open: true, options })
     }
@@ -132,11 +132,15 @@ export function ReviveDialog() {
         return
       }
       const wid = detail.conversationId as string
-      setWrapperId(wid)
+      setConversationId(wid)
       progress.setSteps(prev => [
         ...prev.map(s =>
           s.status === 'active'
-            ? { ...s, status: 'done' as const, detail: detail.name ? `${detail.name}` : `wrapper=${wid?.slice(0, 8)}` }
+            ? {
+                ...s,
+                status: 'done' as const,
+                detail: detail.name ? `${detail.name}` : `agent-host=${wid?.slice(0, 8)}`,
+              }
             : s,
         ),
         { label: 'Sentinel processing...', status: 'active', ts: Date.now() },

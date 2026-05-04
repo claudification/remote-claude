@@ -22,7 +22,8 @@ if (typeof globalThis.window === 'undefined') {
   const listeners: Record<string, Function[]> = {}
   globalThis.window = {
     addEventListener(type: string, fn: Function) {
-      ;(listeners[type] ??= []).push(fn)
+      if (!listeners[type]) listeners[type] = []
+      listeners[type].push(fn)
     },
     removeEventListener(type: string, fn: Function) {
       const arr = listeners[type]

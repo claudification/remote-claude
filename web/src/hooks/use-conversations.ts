@@ -756,13 +756,13 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   openSwitcherWithFilter: (filter: string) => set({ showSwitcher: true, switcherInitialFilter: filter }),
   toggleDebugConsole: () => set(state => ({ showDebugConsole: !state.showDebugConsole })),
   openTerminal: conversationId => {
-    // Find the conversation that owns this wrapper so we can select it in the main panel too
+    // Find the conversation that owns this agent host so we can select it in the main panel too
     const ownerConversation = get().sessions.find(s => s.ccSessionIds?.includes(conversationId))
     const prev = get().selectedConversationId
     const next = ownerConversation?.id ?? null
     if (next !== prev) {
       console.log(
-        `[nav] openTerminal: ${prev?.slice(0, 8) || 'none'} -> ${next?.slice(0, 8) || 'none'} wrapper=${conversationId.slice(0, 8)}`,
+        `[nav] openTerminal: ${prev?.slice(0, 8) || 'none'} -> ${next?.slice(0, 8) || 'none'} conv=${conversationId.slice(0, 8)}`,
       )
     }
     set({
@@ -957,7 +957,7 @@ export function reviveConversation(conversationId: string, options: ReviveSessio
 
 /**
  * Detect a bare control command typed on its own line and route it to the
- * `session_control` channel instead of `send_input`. The wrapper interprets
+ * `session_control` channel instead of `send_input`. The agent host interprets
  * these verbs backend-specifically (headless vs PTY) rather than letting the
  * text reach the model. Returns the verb + args when matched, null otherwise.
  */
@@ -997,7 +997,7 @@ function sendConversationControl(
 
 export function sendInput(conversationId: string, input: string): boolean {
   // Bare control commands (/clear, /quit, :q, /model X, /effort X) bypass the
-  // model and go straight to the wrapper's control channel. Everything else
+  // model and go straight to the agent host's control channel. Everything else
   // flows through send_input as before.
   const control = detectControlCommand(input)
   if (control) {
@@ -1009,7 +1009,7 @@ export function sendInput(conversationId: string, input: string): boolean {
   }
   const crDelay = (useConversationsStore.getState().globalSettings.carriageReturnDelay as number) || 0
   const ok = wsSend('send_input', { conversationId, input, ...(crDelay > 0 && { crDelay }) })
-  // User messages for headless sessions are emitted by the wrapper's
+  // User messages for headless sessions are emitted by the agent host's
   // sendUserMessage() directly to the broker, which persists + broadcasts.
   // No optimistic entry needed -- the broker round-trip is fast enough,
   // and a single source of truth avoids duplication + survives refresh.

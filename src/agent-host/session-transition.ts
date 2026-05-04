@@ -3,7 +3,7 @@
  *
  * Single source of truth for "Claude Code just reported a session id".
  *
- * Two observers see session ids in the wrapper:
+ * Two observers see session ids in the agent host:
  *   1. SessionStart hook    -> hook-processor.ts
  *   2. stream-json init     -> headless-lifecycle.ts onInit
  *

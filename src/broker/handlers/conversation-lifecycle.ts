@@ -7,12 +7,17 @@ import { cwdToProjectUri, extractProjectLabel } from '../../shared/project-uri'
 import { slugify } from '../address-book'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
-import { rejectBadMessage, requireStrings } from './validate'
+import { rejectBadMessage, requireProtocolVersion, requireStrings } from './validate'
 
-// ─── Session meta (wrapper connecting) ─────────────────────────────
+// ─── Session meta (agent host connecting) ─────────────────────────────
 
 const meta: MessageHandler = (ctx, data) => {
-  // Gate: meta is the broker's most consequential message -- it creates or
+  // Gate 1: protocol version. Old agent hosts (v1) used `sessionId` where
+  // v2 expects `ccSessionId`; even if ccSessionId happened to be present
+  // their other fields are wrong. Reject before parsing further.
+  if (!requireProtocolVersion(ctx, data, 'meta')) return
+
+  // Gate 2: meta is the broker's most consequential message -- it creates or
   // resumes a conversation. If a sender provides bad data here we MUST
   // reject loudly before anything reads ccSessionId/conversationId, or the
   // conversation Map gets keyed by `undefined` and every subsequent
@@ -120,7 +125,7 @@ const meta: MessageHandler = (ctx, data) => {
   // Complete launch job if this conversationId is tracked
   ctx.conversations.completeJob(conversationId, ccSessionId)
 
-  // Check rendezvous: someone may be waiting for this wrapper to connect
+  // Check rendezvous: someone may be waiting for this agent host to connect
   const rvResolved = ctx.conversations.resolveRendezvous(conversationId, ccSessionId)
   if (!rvResolved) {
     const rvInfo = ctx.conversations.getRendezvousInfo(conversationId)
@@ -198,7 +203,7 @@ const sessionClear: MessageHandler = (ctx, data) => {
   }
 }
 
-// ─── Notify (push notification from wrapper) ───────────────────────
+// ─── Notify (push notification from agent host) ───────────────────────
 
 const notify: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string

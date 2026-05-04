@@ -599,7 +599,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         toEvict.push(session.id)
       }
 
-      // Evict zombie sessions: STARTING with 0 events, idle > 24h, no active wrapper
+      // Evict zombie sessions: STARTING with 0 events, idle > 24h, no active agent host
       if (session.status === 'starting' && session.events.length === 0) {
         const idleMs = now - session.lastActivity
         if (idleMs > ZOMBIE_EVICTION_TTL_MS && !conversationSockets.has(session.id)) {
@@ -972,7 +972,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   }
 
   // Re-key a conversation from oldId to newId (e.g. /clear changes Claude's session ID)
-  // Preserves the conversation entry and wrapper socket, resets ephemeral state
+  // Preserves the conversation entry and agent host socket, resets ephemeral state
   function rekeyConversation(
     oldId: string,
     newId: string,
@@ -1548,7 +1548,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         event,
       })
 
-      // Transcript kick: if events are flowing but no transcript entries, nudge the wrapper
+      // Transcript kick: if events are flowing but no transcript entries, nudge the agent host
       if (
         session.events.length >= TRANSCRIPT_KICK_EVENT_THRESHOLD &&
         !transcriptCache.has(conversationId) &&
@@ -1558,7 +1558,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         const lastKick = lastTranscriptKick.get(conversationId) || 0
         if (now - lastKick > TRANSCRIPT_KICK_DEBOUNCE_MS) {
           lastTranscriptKick.set(conversationId, now)
-          // Find the wrapper socket for this conversation and send kick
+          // Find the agent host socket for this conversation and send kick
           const wrappers = conversationSockets.get(conversationId)
           if (wrappers) {
             for (const ws of wrappers.values()) {
@@ -1683,7 +1683,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   }
 
   function setConversationSocket(conversationId: string, ccSessionId: string, ws: ServerWebSocket<unknown>): void {
-    // Remove ccSessionId from any OTHER conversation first (wrapper reconnected to different conversation)
+    // Remove ccSessionId from any OTHER conversation first (agent host reconnected to different conversation)
     for (const [convId, wrappers] of conversationSockets.entries()) {
       if (convId !== conversationId && wrappers.has(ccSessionId)) {
         wrappers.delete(ccSessionId)
@@ -1703,7 +1703,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   function getConversationSocket(conversationId: string): ServerWebSocket<unknown> | undefined {
     const wrappers = conversationSockets.get(conversationId)
     if (!wrappers || wrappers.size === 0) return undefined
-    // Return the most recently added wrapper socket
+    // Return the most recently added agent host socket
     let last: ServerWebSocket<unknown> | undefined
     for (const ws of wrappers.values()) last = ws
     return last
@@ -2269,7 +2269,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         }
 
         // Extract model from assistant messages as a fallback only.
-        // configuredModel (from stream-json init / wrapper --model arg) is the
+        // configuredModel (from stream-json init / agent host --model arg) is the
         // authoritative source. Assistant messages strip context-window suffixes
         // like [1m], so only use them when we have nothing better.
         const assistantModel = assistantEntry.message?.model

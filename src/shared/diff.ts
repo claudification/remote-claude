@@ -1,6 +1,6 @@
 /**
  * Diff/Patch/Merge utilities for file editor
- * Thin wrapper around the `diff` npm package
+ * Thin agent host around the `diff` npm package
  */
 
 import { applyPatch, createPatch, structuredPatch } from 'diff'

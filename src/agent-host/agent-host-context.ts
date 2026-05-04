@@ -1,5 +1,5 @@
 /**
- * Shared context object passed to extracted wrapper modules.
+ * Shared context object passed to extracted agent host modules.
  * Holds mutable references to shared state so modules can read/write
  * without needing globals or circular imports.
  */
@@ -14,7 +14,7 @@ import type { WsClient } from './ws-client'
 
 /**
  * An outstanding user-facing interaction whose response is held in broker
- * memory. Stored on the wrapper so we can re-send on every (re)connect — a
+ * memory. Stored on the agent host so we can re-send on every (re)connect — a
  * broker restart mid-interaction would otherwise strand CC/MCP forever.
  * Kinds: permission_request, ask_question, dialog_show, plan_approval.
  */
@@ -44,13 +44,13 @@ export interface AgentHostContext {
   currentLaunchId: string
   /** Phase of the current launch. 'initial' on first spawn, flips to 'reboot'
    *  when a /clear starts a new launch. The 'live' phase is never used by
-   *  the wrapper itself -- it's reserved for broker-synthesized
+   *  the agent host itself -- it's reserved for broker-synthesized
    *  change events (model_changed, mcp_servers_changed, etc.) that are
    *  appended directly to the transcript server-side. */
-  currentLaunchPhase: import('../shared/protocol').WrapperLaunchPhase
+  currentLaunchPhase: import('../shared/protocol').AgentHostLaunchPhase
   /** Persistent, append-only log of every launch event emitted so far.
    *  Re-sent on WS reconnect so the dashboard catches up. */
-  readonly launchEvents: Array<import('../shared/protocol').WrapperLaunchEvent>
+  readonly launchEvents: Array<import('../shared/protocol').AgentHostLaunchEvent>
   terminalAttached: boolean
   jsonStreamAttached: boolean
   readonly jsonStreamBuffer: string[]

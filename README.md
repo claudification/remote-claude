@@ -11,6 +11,18 @@
 
 ---
 
+> **v1.0.0 / Wire Protocol v2 (2026-05-04) is a HARD BREAK.**\
+> Old agent hosts can't talk to a new broker, and vice versa. Upgrade
+> both sides at the same time:
+> ```bash
+> bun install -g @claudewerk/agent-host @claudewerk/sentinel
+> ```
+> See [CHANGELOG.md](./CHANGELOG.md) for what changed and why. Old
+> binaries that try to connect get a `protocol_upgrade_required` reply
+> + a copy-pastable upgrade command in the dashboard.
+
+---
+
 ## What is this?
 
 **CLAUDEWERK** turns Claude Code from a local-only CLI tool into a remotely

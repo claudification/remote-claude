@@ -53,7 +53,7 @@ export type SpawnDispatchDeps = {
   getGlobalSettings: () => GlobalSettings
   /** Caller context for the unified permission gate. */
   callerContext: SpawnCallerContext
-  /** If set, register a rendezvous so the caller session is notified when the spawned wrapper connects. */
+  /** If set, register a rendezvous so the caller session is notified when the spawned agent host connects. */
   rendezvousCallerConversationId?: string | null
 }
 

@@ -15,20 +15,20 @@
  *     -> launch_started -> init_received -> rekeyed -> ready
  *
  * Env filtering: only RCLAUDE_* / CLAUDE_* / ANTHROPIC_* vars plus a few
- * terminal basics (CI, TERM) and any customEnv explicitly set by the wrapper
+ * terminal basics (CI, TERM) and any customEnv explicitly set by the agent host
  * make it into `raw`. Shell noise (HOMEBREW_PREFIX, PATH, ...) is stripped
  * so the (i) inspector stays readable.
  */
 
 import { randomUUID } from 'node:crypto'
-import type { WrapperLaunchEvent, WrapperLaunchPhase, WrapperLaunchStep } from '../shared/protocol'
+import type { AgentHostLaunchEvent, AgentHostLaunchPhase, AgentHostLaunchStep } from '../shared/protocol'
 import type { AgentHostContext } from './agent-host-context'
 
 const RELEVANT_ENV_PREFIXES = ['RCLAUDE_', 'CLAUDE_', 'ANTHROPIC_']
 const RELEVANT_ENV_NAMES = new Set(['CI', 'TERM', 'NODE_ENV', 'TZ', 'LANG'])
 
 /** Filter a full env map down to rclaude/claude/anthropic-relevant keys.
- *  `customEnv` keys (explicitly set by wrapper) are always included. */
+ *  `customEnv` keys (explicitly set by agent host) are always included. */
 export function filterRelevantEnv(
   fullEnv: Record<string, string | undefined>,
   customEnv?: Record<string, string>,
@@ -59,7 +59,7 @@ export function filterRelevantEnv(
  * Start a fresh launch. Generates a new launchId and updates ctx state.
  * Returns the new launchId so callers can correlate events if needed.
  */
-export function beginLaunch(ctx: AgentHostContext, phase: WrapperLaunchPhase): string {
+export function beginLaunch(ctx: AgentHostContext, phase: AgentHostLaunchPhase): string {
   ctx.currentLaunchId = randomUUID()
   ctx.currentLaunchPhase = phase
   return ctx.currentLaunchId
@@ -71,10 +71,10 @@ export function beginLaunch(ctx: AgentHostContext, phase: WrapperLaunchPhase): s
  */
 export function emitLaunchEvent(
   ctx: AgentHostContext,
-  step: WrapperLaunchStep,
+  step: AgentHostLaunchStep,
   opts: { detail?: string; raw?: Record<string, unknown> } = {},
 ): void {
-  const evt: WrapperLaunchEvent = {
+  const evt: AgentHostLaunchEvent = {
     type: 'launch_event',
     conversationId: ctx.conversationId,
     launchId: ctx.currentLaunchId,
@@ -86,7 +86,7 @@ export function emitLaunchEvent(
     t: Date.now(),
   }
   ctx.launchEvents.push(evt)
-  // Cap to 500 events across all launches in this wrapper lifetime -- lets us
+  // Cap to 500 events across all launches in this agent host lifetime -- lets us
   // replay on reconnect without memory growth in very long-running sessions.
   if (ctx.launchEvents.length > 500) {
     ctx.launchEvents.splice(0, ctx.launchEvents.length - 500)

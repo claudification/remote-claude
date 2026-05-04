@@ -447,7 +447,7 @@ function processMessage(msg: DashboardMessage) {
         const initial = msg.isInitial
         useConversationsStore.setState(state => {
           const existing = state.transcripts[sid] || []
-          // isInitial=true REPLACES the cache. The wrapper fires this on WS
+          // isInitial=true REPLACES the cache. The agent host fires this on WS
           // reconnect (resendTranscriptFromFile in headless) and on PTY
           // truncation. If the snapshot is SMALLER than what we already have
           // AND the first entry matches, the snapshot was taken before CC
@@ -766,7 +766,7 @@ function processMessage(msg: DashboardMessage) {
       const exId = msg.dialogId as string
       const exLayout = msg.layout as import('@shared/dialog-schema').DialogLayout
       if (exSid && exId && exLayout) {
-        // Dedup: the wrapper replays dialog_show on reconnect. If we already
+        // Dedup: the agent host replays dialog_show on reconnect. If we already
         // have this exact dialog open, preserve any in-progress user input.
         const existing = useConversationsStore.getState().pendingDialogs[exSid]
         if (existing?.dialogId === exId) break
@@ -801,7 +801,7 @@ function processMessage(msg: DashboardMessage) {
       const paSid = pa.conversationId
       if (paSid && pa.requestId && pa.plan) {
         const dialogId = `plan_${pa.requestId}`
-        // Dedup: wrapper replays plan_approval on reconnect so the broker
+        // Dedup: agent host replays plan_approval on reconnect so the broker
         // can rebuild pending state. If we already have this exact dialog open,
         // don't overwrite -- would wipe any feedback the user has typed.
         const existing = useConversationsStore.getState().pendingDialogs[paSid]
@@ -1171,6 +1171,27 @@ export function useWebSocket() {
                 done: msg.done || false,
               })
             }
+            return
+          }
+
+          // Agent host outdated: an old binary tried to connect and the broker
+          // rejected it. Surface as a persistent warning toast so the user
+          // notices even when the agent host's terminal isn't visible.
+          if (msg.type === 'agent_host_outdated') {
+            const project = (msg.project as string | null) || 'unknown project'
+            const upgradeCommand = (msg.upgradeCommand as string) || ''
+            const reason = (msg.reason as string) || 'Outdated wire protocol'
+            window.dispatchEvent(
+              new CustomEvent('rclaude-toast', {
+                detail: {
+                  title: 'Agent host upgrade required',
+                  body: `${project}\n${reason}\n\nRun: ${upgradeCommand}`,
+                  variant: 'warning',
+                  persistent: true,
+                  copyText: upgradeCommand,
+                },
+              }),
+            )
             return
           }
 

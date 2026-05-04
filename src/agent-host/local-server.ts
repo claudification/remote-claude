@@ -78,7 +78,7 @@ export interface LocalServerOptions {
   onHookEvent: (event: HookEvent) => void
   onNotify?: (message: string, title?: string) => void
   onAskQuestion?: (request: AskQuestionRequest) => void
-  /** Fired when a queued ask request times out -- gives the wrapper a chance
+  /** Fired when a queued ask request times out -- gives the agent host a chance
    *  to clear it from the reconnect registry so a stale prompt isn't re-shown. */
   onAskTimeout?: (toolUseId: string) => void
   hasDashboardSubscribers?: () => boolean
@@ -113,8 +113,8 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
   const { conversationId, mcpEnabled, onHookEvent, onNotify, onAskQuestion, onAskTimeout, hasDashboardSubscribers } =
     options
 
-  // Derive port deterministically from conversation/wrapper ID so it survives restarts.
-  // CC's hook settings bake in the port at launch time - if the wrapper restarts
+  // Derive port deterministically from conversation/agent host ID so it survives restarts.
+  // CC's hook settings bake in the port at launch time - if the agent host restarts
   // with a different port, hooks silently fail (curl to dead port, || true hides it).
   const hash = conversationId.split('').reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0)
   const port = await findAvailablePort(19000 + (Math.abs(hash) % 900))
@@ -207,7 +207,7 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
 
               pendingAskRequests.set(toolUseId, { resolve, timer, questions })
 
-              // Notify the wrapper to forward to broker -> dashboard
+              // Notify the agent host to forward to broker -> dashboard
               onAskQuestion?.({
                 type: 'ask_question',
                 conversationId,

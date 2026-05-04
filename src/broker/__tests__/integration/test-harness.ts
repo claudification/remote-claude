@@ -10,6 +10,7 @@
  */
 
 import type { ServerWebSocket } from 'bun'
+import { AGENT_HOST_PROTOCOL_VERSION } from '../../../shared/protocol'
 import type { ConversationStore } from '../../conversation-store'
 import { createConversationStore } from '../../conversation-store'
 import { type ContextDeps, createContext } from '../../create-context'
@@ -287,6 +288,12 @@ export function createTestHarness(): TestHarness {
   }
 
   function agentSend(mockWs: MockWs, message: Record<string, unknown>): void {
+    // Auto-inject protocolVersion for the two messages that gate on it. Tests
+    // that exercise the gate explicitly can override by setting it themselves
+    // (we don't overwrite an explicit value).
+    if ((message.type === 'meta' || message.type === 'agent_host_boot') && message.protocolVersion === undefined) {
+      message = { ...message, protocolVersion: AGENT_HOST_PROTOCOL_VERSION }
+    }
     routeToHandlers(mockWs.ws, message)
   }
 
@@ -317,7 +324,8 @@ export function createTestHarness(): TestHarness {
     const mock = createAgentHostWs()
 
     agentSend(mock, {
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
+      protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
       conversationId: opts.conversationId,
       project: opts.project,
       capabilities: opts.capabilities || [],

@@ -392,7 +392,7 @@ export function GroupView({
             const systemKind = getAttr('spawn_result') || getAttr('event') || getAttr('kind') || undefined
             items.push({ kind: 'channel', text: msg, source: 'system', isSystem: true, systemKind })
           } else if (source === 'rclaude') {
-            // Our own dashboard input -- strip wrapper, check for project-task tag
+            // Our own dashboard input -- strip agent host, check for project-task tag
             const pt = parseProjectTask(msg)
             items.push(pt || { kind: 'text', text: msg })
           } else {

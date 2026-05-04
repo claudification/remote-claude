@@ -4,12 +4,12 @@
  * Used by:
  * - Dashboard RunTaskDialog (web/src/components/project-board.tsx)
  * - web/src/lib/task-scoring.ts (re-exports buildTaskPrompt)
- * - Wrapper /workon slash command (when applicable)
+ * - Agent Host /workon slash command (when applicable)
  *
  * Single source of truth for:
  * - AUTO_COMMIT_INSTRUCTIONS (auto-commit suffix)
  * - WORKTREE_MERGEBACK_INSTRUCTIONS (worktree merge-back suffix)
- * - <project-task> wrapper format
+ * - <project-task> agent host format
  */
 
 export type TaskMeta = {
@@ -34,7 +34,7 @@ export type PromptOptions = {
 }
 
 /**
- * Wrap a base prompt with optional task wrapper and lifecycle suffixes.
+ * Wrap a base prompt with optional task agent host and lifecycle suffixes.
  * Order: taskWrapper(base + suffixes) OR base + suffixes.
  */
 export function composeSpawnPrompt(basePrompt: string, opts: PromptOptions = {}): string {

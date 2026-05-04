@@ -54,7 +54,7 @@ export interface ConversationInfo {
   session_id?: string // CC session ID (for transcript/task context)
   name: string
   status: 'live' | 'inactive'
-  ccSessionIds?: string[] // only present when multiple wrappers share a session
+  ccSessionIds?: string[] // only present when multiple agent hosts share a session
   label?: string
   description?: string
   title?: string
@@ -99,8 +99,8 @@ export interface McpChannelCallbacks {
   /**
    * Unified session control: clear | quit | interrupt | set_model | set_effort.
    * Dashboards and the MCP `control_session` tool both route through here. The
-   * wrapper forwards to the target via WS `session_control` and the broker
-   * routes to the target's wrapper for backend-specific dispatch.
+   * agent host forwards to the target via WS `session_control` and the broker
+   * routes to the target's agent host for backend-specific dispatch.
    */
   onControlSession?: (params: {
     conversationId: string
@@ -794,7 +794,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
             job_created: 5,
             spawn_sent: 15,
             agent_acked: 30,
-            wrapper_booted: 60,
+            agent_host_booted: 60,
             session_connected: 95,
             completed: 100,
           }

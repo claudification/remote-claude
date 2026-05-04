@@ -1,9 +1,25 @@
 /**
  * WebSocket Protocol Types
- * Defines the message format between wrapper and broker
+ * Defines the message format between agent host and broker
  */
 
 import type { SpawnRequest } from './spawn-schema'
+
+/**
+ * Wire protocol version.
+ *
+ * Bumped to 2 on 2026-05-04 with the session->conversation rename. Old
+ * agent hosts (v1) sent `sessionId` where v2 expects `ccSessionId`. The
+ * broker rejects any meta/wrapper_boot with a missing or older version
+ * field, replies with a `protocol_upgrade_required` message naming the
+ * current version + a copy-pastable upgrade command, and broadcasts an
+ * `agent_host_outdated` toast so dashboards can surface the issue.
+ *
+ * Bump this any time a wire-level breaking change ships -- field renames,
+ * removals, or incompatible value changes. The broker assumes the latest
+ * version it knows about; any client below it gets rejected.
+ */
+export const AGENT_HOST_PROTOCOL_VERSION = 2
 
 // Control Panel -> Broker: spawn request (WS equivalent of POST /api/spawn)
 export type SpawnRequestMessage = { type: 'spawn_request' } & SpawnRequest
@@ -18,7 +34,7 @@ export interface SpawnRequestAck {
   error?: string
 }
 
-// Wrapper -> Broker messages
+// Agent Host -> Broker messages
 export interface HookEvent {
   type: 'hook'
   conversationId: string
@@ -38,10 +54,10 @@ export type AgentHostCapability =
   | 'repl'
   | 'config_rw'
 
-/** Discrete lifecycle steps the wrapper reports while booting, before CC
+/** Discrete lifecycle steps the agent host reports while booting, before CC
  *  has a real session id. Rendered inline in the transcript as BootEntry. */
 export type BootStep =
-  | 'wrapper_started'
+  | 'agent_host_started'
   | 'settings_merged'
   | 'mcp_prepared'
   | 'broker_connected'
@@ -55,6 +71,8 @@ export type BootStep =
 
 export interface ConversationMeta {
   type: 'meta'
+  /** Wire protocol version this client speaks. See AGENT_HOST_PROTOCOL_VERSION. */
+  protocolVersion: number
   ccSessionId: string
   conversationId: string // stable identity that survives /clear, reconnect, and revival
   project: string
@@ -86,8 +104,8 @@ export interface ConversationEnd {
   endedAt: number
 }
 
-// Wrapper tells broker the Claude session ID changed (e.g. /clear)
-// Same wrapper, same PTY, just a new Claude session -- re-key without ending
+// Agent Host tells broker the Claude session ID changed (e.g. /clear)
+// Same agent host, same PTY, just a new Claude session -- re-key without ending
 export interface ConversationRekey {
   type: 'session_clear'
   oldCcSessionId: string
@@ -262,7 +280,7 @@ export interface TranscriptProgressEntry extends TranscriptEntryBase {
   parentToolUseID?: string
 }
 
-/** Wrapper-generated boot timeline entry. Rendered above real CC messages
+/** Agent Host-generated boot timeline entry. Rendered above real CC messages
  *  during the pre-session-id phase. `raw` holds the full underlying payload
  *  (init message, exit info, etc.) for click-to-expand in the UI. */
 export interface TranscriptBootEntry extends TranscriptEntryBase {
@@ -272,14 +290,14 @@ export interface TranscriptBootEntry extends TranscriptEntryBase {
   raw?: unknown
 }
 
-/** Wrapper-generated CC launch lifecycle entry. Like TranscriptBootEntry but
+/** Agent Host-generated CC launch lifecycle entry. Like TranscriptBootEntry but
  *  covers the full lifecycle including /clear reboots. launchId groups all
  *  steps of a single launch so the UI can render them as one card. */
 export interface TranscriptLaunchEntry extends TranscriptEntryBase {
   type: 'launch'
   launchId: string
-  phase: WrapperLaunchPhase
-  step: WrapperLaunchStep
+  phase: AgentHostLaunchPhase
+  step: AgentHostLaunchStep
   detail?: string
   raw?: Record<string, unknown>
 }
@@ -345,18 +363,20 @@ export interface BgTaskOutput {
   done: boolean // true when task has completed and file is fully read
 }
 
-export interface WrapperNotify {
+export interface AgentHostNotify {
   type: 'notify'
   conversationId: string
   message: string
   title?: string
 }
 
-/** First frame from the wrapper after the WS handshake, sent BEFORE CC has
+/** First frame from the agent host after the WS handshake, sent BEFORE CC has
  *  produced a session id. Gives the broker enough to create a
  *  placeholder "booting" session so the dashboard shows progress from t=0. */
-export interface WrapperBoot {
-  type: 'wrapper_boot'
+export interface AgentHostBoot {
+  type: 'agent_host_boot'
+  /** Wire protocol version this client speaks. See AGENT_HOST_PROTOCOL_VERSION. */
+  protocolVersion: number
   conversationId: string
   project: string
   capabilities: AgentHostCapability[]
@@ -370,7 +390,7 @@ export interface WrapperBoot {
   configuredModel?: string // the --model value passed to CC (CC strips [1m] from API responses)
 }
 
-/** Structured wrapper-side boot progress. Broker appends each one as a
+/** Structured agent host-side boot progress. Broker appends each one as a
  *  TranscriptBootEntry and broadcasts it as a transcript update, so the user
  *  sees the boot timeline live. `raw` is optional -- present for events with
  *  a rich payload (init message, exit info). */
@@ -396,9 +416,9 @@ export interface BootEvent {
  *     was it launched?". The full args/env/init payloads go in `raw` for the
  *     (i) JSON inspector.
  */
-export type WrapperLaunchPhase = 'initial' | 'reboot' | 'live'
+export type AgentHostLaunchPhase = 'initial' | 'reboot' | 'live'
 
-export type WrapperLaunchStep =
+export type AgentHostLaunchStep =
   | 'launch_started' // process about to be spawned. raw: { args, env, cwd, headless, channelEnabled, mcpConfigPath, settingsPath }
   | 'clear_requested' // /clear dispatched. detail: source. Only on reboot phase.
   | 'process_killed' // CC exited during reboot. raw: { code }
@@ -422,17 +442,17 @@ export type WrapperLaunchStep =
   | 'conversation_exit' // self-termination via exit_session MCP tool. raw: { status, message }
 
 /**
- * Wrapper -> broker -> dashboard: CC process launch lifecycle event.
+ * Agent Host -> broker -> dashboard: CC process launch lifecycle event.
  * Separate from `LaunchProgressEvent` (broker-initiated spawn jobs):
- * WrapperLaunchEvent is emitted by the wrapper itself and covers its local
+ * WrapperLaunchEvent is emitted by the agent host itself and covers its local
  * CC process launching, re-launching on /clear, and settling on a session id.
  */
-export interface WrapperLaunchEvent {
+export interface AgentHostLaunchEvent {
   type: 'launch_event'
   conversationId: string
   launchId: string
-  phase: WrapperLaunchPhase
-  step: WrapperLaunchStep
+  phase: AgentHostLaunchPhase
+  step: AgentHostLaunchStep
   /** CC session id at the time of the step. null before init_received. */
   ccSessionId: string | null
   detail?: string
@@ -455,9 +475,9 @@ export type AgentHostMessage =
   | ConversationMeta
   | ConversationEnd
   | ConversationRekey
-  | WrapperBoot
+  | AgentHostBoot
   | BootEvent
-  | WrapperLaunchEvent
+  | AgentHostLaunchEvent
   | ConversationPromote
   | Heartbeat
   | TerminalData
@@ -467,7 +487,7 @@ export type AgentHostMessage =
   | SubagentTranscript
   | FileResponse
   | BgTaskOutput
-  | WrapperNotify
+  | AgentHostNotify
   | InterSessionMessage
   | ProjectLinkResponse
   | InterSessionListRequest
@@ -479,7 +499,7 @@ export type AgentHostMessage =
   | PlanApprovalRequest
   | PlanModeChanged
   | StreamDelta
-  | WrapperRateLimit
+  | AgentHostRateLimit
   | ConversationInfoUpdate
   | ConversationNameUpdate
   | SpawnFailed
@@ -511,9 +531,9 @@ export interface ConversationInfoUpdate {
   fastModeState: string
 }
 
-// Backend-agnostic session status signal (wrapper -> broker)
+// Backend-agnostic session status signal (agent host -> broker)
 // Works for any backend (headless stream-json, PTY, future transports).
-// Fired when the wrapper detects work starting/stopping, independent of CC hooks.
+// Fired when the agent host detects work starting/stopping, independent of CC hooks.
 export interface ConversationStatusSignal {
   type: 'conversation_status'
   conversationId: string
@@ -528,7 +548,7 @@ export interface StreamDelta {
 }
 
 // Raw NDJSON stream (headless sessions only -- dashboard tails raw CC output)
-// Mirrors terminal_attach/detach pattern: wrapper only sends when viewers are attached.
+// Mirrors terminal_attach/detach pattern: agent host only sends when viewers are attached.
 export interface JsonStreamAttach {
   type: 'json_stream_attach'
   conversationId: string
@@ -547,7 +567,7 @@ export interface JsonStreamData {
 }
 
 // Rate limit notification from headless stream-json backend
-export interface WrapperRateLimit {
+export interface AgentHostRateLimit {
   type: 'rate_limit'
   conversationId: string
   retryAfterMs: number
@@ -565,7 +585,7 @@ export interface ClipboardCapture {
   timestamp: number
 }
 
-// Broker -> Wrapper messages
+// Broker -> Agent Host messages
 export interface Ack {
   type: 'ack'
   eventId: string
@@ -575,6 +595,52 @@ export interface Ack {
 export interface BrokerError {
   type: 'error'
   message: string
+}
+
+/**
+ * Broker -> agent host: the agent host's protocol version is too old.
+ *
+ * Sent when meta/wrapper_boot arrives without a `protocolVersion` field, or
+ * with a version below what the broker speaks. The agent host MUST treat
+ * this as fatal -- print the message + upgrade command to its terminal,
+ * close the WS, and exit (or bail out of the connect loop). Reconnecting
+ * with the same binary will just hit the same rejection.
+ */
+export interface ProtocolUpgradeRequired {
+  type: 'protocol_upgrade_required'
+  /** What the broker speaks (current version). */
+  serverProtocolVersion: number
+  /** What the client sent. `null` means the field was missing entirely (legacy v1). */
+  clientProtocolVersion: number | null
+  /** Plain-English explanation of why the connection was rejected. */
+  reason: string
+  /** Copy-pastable shell command to upgrade. Safe to print verbatim. */
+  upgradeCommand: string
+  /** Optional secondary detail (e.g. which fields renamed). */
+  details?: string
+}
+
+/**
+ * Broker -> dashboard: surface that an outdated agent host tried to connect.
+ *
+ * Broadcast alongside the `protocol_upgrade_required` reply so that dashboard
+ * users see the problem even if the agent host's terminal is hidden (running
+ * under a tmux session, in a daemon, etc).
+ */
+export interface AgentHostOutdated {
+  type: 'agent_host_outdated'
+  /** Connection identifier that tried to connect (best-effort, may be null). */
+  conversationId: string | null
+  /** Project URI / cwd if we could parse one out of the malformed meta. */
+  project: string | null
+  /** What the broker speaks. */
+  serverProtocolVersion: number
+  /** What the client sent. `null` if missing entirely. */
+  clientProtocolVersion: number | null
+  /** Copy-pastable upgrade command to display in the toast. */
+  upgradeCommand: string
+  /** Plain-English reason. */
+  reason: string
 }
 
 export interface SendInput {
@@ -739,7 +805,7 @@ export interface DialogDismissMessage {
   dialogId: string
 }
 
-// Plan approval relay (headless: ExitPlanMode -> wrapper -> broker -> dashboard -> back)
+// Plan approval relay (headless: ExitPlanMode -> agent host -> broker -> dashboard -> back)
 export interface PlanApprovalRequest {
   type: 'plan_approval'
   conversationId: string
@@ -788,6 +854,7 @@ export interface PermissionResponse {
 export type BrokerMessage =
   | Ack
   | BrokerError
+  | ProtocolUpgradeRequired
   | SendInput
   | TerminalAttach
   | TerminalDetach
@@ -829,7 +896,7 @@ export interface QuitConversation {
 }
 
 /**
- * Higher-level control verbs routed to a target session's wrapper. The wrapper
+ * Higher-level control verbs routed to a target session's agent host. The agent host
  * interprets these backend-specifically (headless vs PTY) instead of letting
  * the text reach the model. Used by:
  *   - dashboard input: when user types a bare `/clear`, `/quit`, `:q`, etc.
@@ -861,7 +928,7 @@ export interface ConversationControlResult {
   error?: string
 }
 
-/** Broker -> wrapper: execute a control verb against the local CC. */
+/** Broker -> agent host: execute a control verb against the local CC. */
 export interface ControlDeliver {
   type: 'control'
   action: ConversationControlAction
@@ -1074,14 +1141,14 @@ export interface MonitorInfo {
   eventCount: number
 }
 
-// Monitor lifecycle events (wrapper -> broker)
+// Monitor lifecycle events (agent host -> broker)
 export interface MonitorUpdate {
   type: 'monitor_update'
   conversationId: string
   monitor: MonitorInfo
 }
 
-// Scheduled task fire event (wrapper -> broker, distinct from transcript entry)
+// Scheduled task fire event (agent host -> broker, distinct from transcript entry)
 export interface ScheduledTaskFire {
   type: 'scheduled_task_fire'
   conversationId: string
@@ -1273,7 +1340,7 @@ export type LaunchStep =
   | 'job_created'
   | 'spawn_sent'
   | 'agent_acked'
-  | 'wrapper_booted'
+  | 'agent_host_booted'
   | 'session_connected'
   | 'prompt_submitted'
   | 'running'
@@ -1351,7 +1418,7 @@ export interface ListDirsResult {
   error?: string
 }
 
-/** Agent or wrapper reports a spawn failure (headless child exit, PTY crash, or early exit) */
+/** Agent or agent host reports a spawn failure (headless child exit, PTY crash, or early exit) */
 export interface SpawnFailed {
   type: 'spawn_failed'
   conversationId: string

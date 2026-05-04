@@ -44,7 +44,7 @@ function useCommitToPaintTimer(id: string) {
 
 /**
  * Read showPerfMonitor inline so callers don't have to pass it down. The
- * subscription is cheap (single boolean) and only the wrapper re-renders
+ * subscription is cheap (single boolean) and only the agent host re-renders
  * when the toggle flips, not its children.
  *
  * Records two complementary metrics per render:

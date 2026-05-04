@@ -378,7 +378,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       }
 
       // AskUserQuestion: route to dashboard ask_question UI, respond with answers.
-      // pendingAskRequests is the in-wrapper map used to route the answer back to
+      // pendingAskRequests is the in-agent host map used to route the answer back to
       // CC's control_response; outstandingInteractions is the reconnect-recovery
       // registry replayed to the broker on (re)connect. Both required.
       if (request.toolName === 'AskUserQuestion' && toolUseId) {

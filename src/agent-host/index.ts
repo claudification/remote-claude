@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * rclaude - Claude Code Session Wrapper
+ * rclaude - Claude Code Session Agent Host
  * Wraps claude CLI with hook injection and broker forwarding
  */
 
@@ -277,7 +277,7 @@ function extToMediaType(ext: string): string {
   return map[ext] || 'application/octet-stream'
 }
 
-// Claude CLI subcommands that should be passed through directly (no wrapper logic)
+// Claude CLI subcommands that should be passed through directly (no agent host logic)
 const CLAUDE_PASSTHROUGH_SUBCOMMANDS = new Set([
   'agents',
   'auth',
@@ -297,8 +297,8 @@ async function main() {
   const args = process.argv.slice(2)
 
   // Detect Claude CLI subcommands and pass them through directly — these are
-  // management commands that don't need the rclaude wrapper (broker, MCP,
-  // system prompt, PTY, etc.). Passing them through the wrapper causes spurious
+  // management commands that don't need the rclaude agent host (broker, MCP,
+  // system prompt, PTY, etc.). Passing them through the agent host causes spurious
   // errors like "unknown option '--append-system-prompt-file'".
   const firstNonFlag = args.find(a => !a.startsWith('-'))
   if (firstNonFlag && CLAUDE_PASSTHROUGH_SUBCOMMANDS.has(firstNonFlag)) {
@@ -902,7 +902,7 @@ async function main() {
         // Replay buffered launch events so late subscribers see the full timeline.
         replayLaunchEvents(ctx)
         // Replay every outstanding user interaction (permission / ask / dialog / plan).
-        // Broker in-memory pending* state is lost on restart; the wrapper is
+        // Broker in-memory pending* state is lost on restart; the agent host is
         // the authoritative holder, so a reconnect rehydrates the broker.
         replayInteractions(ctx)
         // Start polling task files + watching task notes
@@ -1220,7 +1220,7 @@ async function main() {
       },
       onChannelDeliver(delivery) {
         if (headless && ctx.streamProc) {
-          // Headless mode: deliver inter-session messages via stdin as <channel> tags (no conduit wrapper)
+          // Headless mode: deliver inter-session messages via stdin as <channel> tags (no conduit agent host)
           const attrs = [
             `sender="session"`,
             `from_session="${delivery.fromSession}"`,
@@ -1897,7 +1897,7 @@ async function main() {
   // try/catch so a flaky WS never blocks the CC spawn.
   try {
     ctx.connectToBroker(null)
-    ctx.wsClient?.sendBootEvent('wrapper_started', `cwd=${cwd} headless=${headless}`)
+    ctx.wsClient?.sendBootEvent('agent_host_started', `cwd=${cwd} headless=${headless}`)
     ctx.wsClient?.sendBootEvent('settings_merged', settingsPath)
   } catch (err) {
     debug(`early connect failed: ${err instanceof Error ? err.message : err}`)
@@ -2156,7 +2156,7 @@ async function main() {
     cleanupSettings(conversationId, rclaudeDir).catch(() => {})
     closeMcpChannel().catch(() => {})
     // NOTE: Do NOT delete mcpConfigPath here. CC reads it asynchronously and
-    // another wrapper with the same RCLAUDE_CONVERSATION_ID may still need it.
+    // another agent host with the same RCLAUDE_CONVERSATION_ID may still need it.
     // The 25-day stale reaper handles cleanup. (77 bytes per file.)
     try {
       unlinkSync(promptFile)

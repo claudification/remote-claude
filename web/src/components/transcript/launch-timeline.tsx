@@ -9,12 +9,12 @@
  * launched + what changed on each reboot.
  */
 
-import type { TranscriptLaunchEntry, WrapperLaunchStep } from '@shared/protocol'
+import type { AgentHostLaunchStep, TranscriptLaunchEntry } from '@shared/protocol'
 import { cn } from '@/lib/utils'
 import { JsonInspector } from '../json-inspector'
 import type { DisplayGroup } from './grouping'
 
-const STEP_LABEL: Record<WrapperLaunchStep, string> = {
+const STEP_LABEL: Record<AgentHostLaunchStep, string> = {
   launch_started: 'launching claude',
   clear_requested: '/clear requested',
   process_killed: 'process killed',
@@ -35,7 +35,7 @@ const STEP_LABEL: Record<WrapperLaunchStep, string> = {
   conversation_exit: 'session exit',
 }
 
-const LIVE_STEPS = new Set<WrapperLaunchStep>([
+const LIVE_STEPS = new Set<AgentHostLaunchStep>([
   'model_changed',
   'permission_mode_changed',
   'fast_mode_changed',
@@ -47,7 +47,7 @@ const LIVE_STEPS = new Set<WrapperLaunchStep>([
   'plugins_changed',
 ])
 
-function stepColor(step: WrapperLaunchStep): string {
+function stepColor(step: AgentHostLaunchStep): string {
   if (step === 'clear_requested') return 'text-amber-400'
   if (step === 'process_killed' || step === 'conversation_exit') return 'text-red-400'
   if (step === 'init_received' || step === 'ready') return 'text-emerald-400'

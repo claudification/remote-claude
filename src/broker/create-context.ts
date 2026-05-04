@@ -144,7 +144,7 @@ export function createContext(ws: ServerWebSocket<WsData>, deps: ContextDeps): H
     },
 
     requirePermission(permission: Permission, project?: string) {
-      // Wrappers and sentinels bypass all permission checks (trusted infrastructure)
+      // Agent Hosts and sentinels bypass all permission checks (trusted infrastructure)
       if (!ws.data.isControlPanel) return
       // No grants on WS data = legacy connection or bearer auth (treat as admin)
       const grants = ws.data.grants

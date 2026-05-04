@@ -72,11 +72,11 @@ const spawnResult: MessageHandler = (ctx, data) => {
   const jobId = data.jobId as string | undefined
   if (jobId) {
     if (data.success) {
-      // Sentinel confirmed the wrapper process has started (tmux session is up)
+      // Sentinel confirmed the agent host process has started (tmux session is up)
       ctx.conversations.forwardJobEvent(jobId, {
         type: 'launch_progress',
         jobId,
-        step: 'wrapper_booted',
+        step: 'agent_host_booted',
         status: 'done',
         t: Date.now(),
         detail: typeof data.tmuxSession === 'string' ? data.tmuxSession : undefined,

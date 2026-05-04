@@ -17,7 +17,11 @@
  * truth.
  */
 
+import { AGENT_HOST_PROTOCOL_VERSION } from '../../shared/protocol'
 import type { HandlerContext, MessageData } from '../handler-context'
+
+/** Copy-pastable shell command we tell stale agent hosts to run. */
+const UPGRADE_COMMAND = 'bun install -g @claudewerk/agent-host @claudewerk/sentinel'
 
 interface BadDataReport {
   /** Wire message type (e.g. "meta") */
@@ -113,4 +117,63 @@ export function requireStrings<F extends string>(
     result[field] = value
   }
   return result
+}
+
+/**
+ * Gate the connection on protocol version compatibility. Call FIRST in any
+ * handler that creates or resumes a conversation (currently meta and
+ * wrapper_boot). On mismatch: replies with `protocol_upgrade_required`,
+ * broadcasts `agent_host_outdated` to dashboard subscribers, logs a
+ * structured warn, and returns false so the handler can early-out without
+ * touching state.
+ *
+ * The required version is hardcoded to AGENT_HOST_PROTOCOL_VERSION (the
+ * latest the broker speaks). We do NOT support negotiating older versions
+ * -- the wire shape changed in a way that can't be losslessly translated.
+ */
+export function requireProtocolVersion(ctx: HandlerContext, data: MessageData, type: string): boolean {
+  const raw = data.protocolVersion
+  const clientVersion: number | null = typeof raw === 'number' && Number.isFinite(raw) ? raw : null
+
+  if (clientVersion !== null && clientVersion >= AGENT_HOST_PROTOCOL_VERSION) {
+    return true
+  }
+
+  // Best-effort identity for the dashboard toast. The handler hasn't
+  // populated ws.data yet (validation runs before any state is set), so
+  // we read directly from the message.
+  const conversationId = typeof data.conversationId === 'string' ? data.conversationId : null
+  const project = typeof data.project === 'string' ? data.project : typeof data.cwd === 'string' ? data.cwd : null
+
+  const reason =
+    clientVersion === null
+      ? `agent host did not send 'protocolVersion' field. Broker requires v${AGENT_HOST_PROTOCOL_VERSION} or newer.`
+      : `agent host speaks protocol v${clientVersion}; broker requires v${AGENT_HOST_PROTOCOL_VERSION}.`
+
+  console.warn(`[protocol] Rejected '${type}' from ${conversationId ?? 'unknown'}: ${reason} project=${project ?? '?'}`)
+
+  ctx.reply({
+    type: 'protocol_upgrade_required',
+    serverProtocolVersion: AGENT_HOST_PROTOCOL_VERSION,
+    clientProtocolVersion: clientVersion,
+    reason,
+    upgradeCommand: UPGRADE_COMMAND,
+    details:
+      'The session->conversation rename (2026-05-04) renamed every wire field carrying a session id. ' +
+      'Old field names like "sessionId" are no longer accepted. Upgrade to pick up the new protocol.',
+  })
+
+  // Broadcast to all dashboard subscribers so users see the issue even when
+  // the agent host's terminal isn't visible (daemon, tmux, headless).
+  ctx.broadcast({
+    type: 'agent_host_outdated',
+    conversationId,
+    project,
+    serverProtocolVersion: AGENT_HOST_PROTOCOL_VERSION,
+    clientProtocolVersion: clientVersion,
+    upgradeCommand: UPGRADE_COMMAND,
+    reason,
+  })
+
+  return false
 }

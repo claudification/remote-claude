@@ -1,5 +1,5 @@
 /**
- * Plan approval handlers: relay between wrapper and dashboard for
+ * Plan approval handlers: relay between agent host and dashboard for
  * plan mode approval flow (ExitPlanMode -> review -> approve/reject/feedback).
  * Also handles plan_mode_changed to update conversation state.
  */
@@ -7,7 +7,7 @@
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
-// Plan approval request: wrapper -> broker -> dashboard
+// Plan approval request: agent host -> broker -> dashboard
 const planApproval: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
@@ -48,7 +48,7 @@ const planApproval: MessageHandler = (ctx, data) => {
   )
 }
 
-// Plan approval response: dashboard -> broker -> wrapper
+// Plan approval response: dashboard -> broker -> agent host
 const planApprovalResponse: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId) as string
   if (!conversationId) return
@@ -87,7 +87,7 @@ const planApprovalResponse: MessageHandler = (ctx, data) => {
   }
 }
 
-// Plan mode state change: wrapper -> broker -> dashboard
+// Plan mode state change: agent host -> broker -> dashboard
 const planModeChanged: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return

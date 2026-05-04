@@ -20,7 +20,7 @@ const handleSpawnRequest: MessageHandler = (ctx, data) => {
   const jobIdFromClient = typeof data.jobId === 'string' ? data.jobId : undefined
 
   // Permission first -- dashboard users must hold `spawn` permission.
-  // Wrappers/agents bypass (not applicable here; spawn_request is dashboard-only).
+  // Agent Hosts/agents bypass (not applicable here; spawn_request is dashboard-only).
   ctx.requirePermission('spawn', '*')
 
   const parsed = spawnRequestSchema.safeParse(data)

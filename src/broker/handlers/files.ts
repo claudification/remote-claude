@@ -1,14 +1,14 @@
 /**
  * File editor relay handlers.
  * Bidirectional proxy between dashboard and rclaude for file operations.
- * Dashboard sends requests (with conversationId), broker forwards to wrapper.
- * Wrapper sends responses (with requestId), broker forwards to subscribers.
+ * Dashboard sends requests (with conversationId), broker forwards to agent host.
+ * Agent Host sends responses (with requestId), broker forwards to subscribers.
  */
 
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
-// Wrapper -> dashboard: file response (also handles server-side requests like keyterms)
+// Agent Host -> dashboard: file response (also handles server-side requests like keyterms)
 const fileResponse: MessageHandler = (ctx, data) => {
   if (data.requestId && ctx.conversations.resolveFile(data.requestId as string, data)) {
     return // Handled server-side, don't broadcast
@@ -19,7 +19,7 @@ const fileResponse: MessageHandler = (ctx, data) => {
   else ctx.broadcast(data)
 }
 
-// Dashboard -> wrapper: file operation requests
+// Dashboard -> agent host: file operation requests
 const fileEditorRequest: MessageHandler = (ctx, data) => {
   const targetId = (data.conversationId || data.conversationId) as string
   if (!ctx.ws.data.isControlPanel || !targetId) return
@@ -47,7 +47,7 @@ const fileEditorRequest: MessageHandler = (ctx, data) => {
   }
 }
 
-// Wrapper -> dashboard: file operation responses (forward to subscribers with access)
+// Agent Host -> dashboard: file operation responses (forward to subscribers with access)
 const fileEditorResponse: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
@@ -55,7 +55,7 @@ const fileEditorResponse: MessageHandler = (ctx, data) => {
   else ctx.broadcast(data)
 }
 
-// Dashboard -> wrapper: file request (proxy to rclaude)
+// Dashboard -> agent host: file request (proxy to rclaude)
 const fileRequest: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId) as string
   if (!conversationId) return
@@ -72,7 +72,7 @@ const fileRequest: MessageHandler = (ctx, data) => {
 export function registerFileHandlers(): void {
   registerHandlers({
     file_response: fileResponse,
-    // Dashboard -> wrapper requests (all share the same handler)
+    // Dashboard -> agent host requests (all share the same handler)
     file_list_request: fileEditorRequest,
     file_content_request: fileEditorRequest,
     file_save: fileEditorRequest,
@@ -81,14 +81,14 @@ export function registerFileHandlers(): void {
     file_history_request: fileEditorRequest,
     file_restore: fileEditorRequest,
     project_quick_add: fileEditorRequest,
-    // Project board (dashboard -> wrapper)
+    // Project board (dashboard -> agent host)
     project_list: fileEditorRequest,
     project_create: fileEditorRequest,
     project_move: fileEditorRequest,
     project_delete: fileEditorRequest,
     project_read: fileEditorRequest,
     project_update: fileEditorRequest,
-    // Wrapper -> dashboard responses (all share the same handler)
+    // Agent Host -> dashboard responses (all share the same handler)
     file_list_response: fileEditorResponse,
     file_content_response: fileEditorResponse,
     file_save_response: fileEditorResponse,
@@ -96,14 +96,14 @@ export function registerFileHandlers(): void {
     file_restore_response: fileEditorResponse,
     project_quick_add_response: fileEditorResponse,
     file_changed: fileEditorResponse,
-    // Project board responses (wrapper -> dashboard)
+    // Project board responses (agent host -> dashboard)
     project_list_response: fileEditorResponse,
     project_create_response: fileEditorResponse,
     project_move_response: fileEditorResponse,
     project_delete_response: fileEditorResponse,
     project_read_response: fileEditorResponse,
     project_update_response: fileEditorResponse,
-    // Project board filesystem change notification (wrapper -> dashboard)
+    // Project board filesystem change notification (agent host -> dashboard)
     project_changed: fileEditorResponse,
     // File proxy
     file_request: fileRequest,

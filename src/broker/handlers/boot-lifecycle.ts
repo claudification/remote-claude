@@ -1,26 +1,32 @@
 /**
  * Boot lifecycle handlers (wrapper_boot / boot_event / session_promote).
  *
- * The wrapper opens its WS to the broker BEFORE Claude Code is spawned
+ * The agent host opens its WS to the broker BEFORE Claude Code is spawned
  * so the dashboard shows "booting" state and receives live progress events.
  * Once CC produces a conversation id (via stream-json `init` or SessionStart hook),
- * the wrapper sends `session_promote` to migrate the booting session into the
+ * the agent host sends `session_promote` to migrate the booting session into the
  * real one.
  */
 
 import { cwdToProjectUri, parseProjectUri } from '../../shared/project-uri'
 import type {
   AgentHostCapability,
+  AgentHostLaunchPhase,
+  AgentHostLaunchStep,
   BootStep,
   TranscriptBootEntry,
   TranscriptLaunchEntry,
-  WrapperLaunchPhase,
-  WrapperLaunchStep,
 } from '../../shared/protocol'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
+import { requireProtocolVersion } from './validate'
 
-const wrapperBoot: MessageHandler = (ctx, data) => {
+const agentHostBoot: MessageHandler = (ctx, data) => {
+  // Gate: protocol version. wrapper_boot is the very first frame from a
+  // newly-spawned agent host -- if it speaks an older protocol, reject
+  // before creating any placeholder conversation.
+  if (!requireProtocolVersion(ctx, data, 'agent_host_boot')) return
+
   const conversationId = data.conversationId as string
   const project = data.project as string | undefined
   const bootPath = data.cwd as string | undefined
@@ -31,7 +37,7 @@ const wrapperBoot: MessageHandler = (ctx, data) => {
 
   const resolvedProject = project ?? cwdToProjectUri(bootPath!)
 
-  // Track the WS so subsequent messages from this wrapper are routed here.
+  // Track the WS so subsequent messages from this agent host are routed here.
   ctx.ws.data.conversationId = conversationId
 
   // Merge any pending launch config stored at spawn time (keyed by conversationId).
@@ -114,9 +120,9 @@ const bootEvent: MessageHandler = (ctx, data) => {
 
 const launchEvent: MessageHandler = (ctx, data) => {
   const conversationId = data.conversationId as string
-  const step = data.step as WrapperLaunchStep
+  const step = data.step as AgentHostLaunchStep
   const launchId = data.launchId as string
-  const phase = data.phase as WrapperLaunchPhase
+  const phase = data.phase as AgentHostLaunchPhase
   if (!conversationId || !step || !launchId || !phase) return
 
   // Route via conversationId (stable across rekeys) or the conversation id on the event.
@@ -193,7 +199,7 @@ const sessionPromote: MessageHandler = (ctx, data) => {
 
 export function registerBootLifecycleHandlers(): void {
   registerHandlers({
-    wrapper_boot: wrapperBoot,
+    agent_host_boot: agentHostBoot,
     boot_event: bootEvent,
     launch_event: launchEvent,
     session_promote: sessionPromote,

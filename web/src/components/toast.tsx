@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { Copy, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { haptic } from '@/lib/utils'
@@ -10,6 +10,10 @@ interface Toast {
   conversationId?: string
   taskId?: string
   variant?: string
+  /** When true, the toast does not auto-dismiss -- the user must close it. */
+  persistent?: boolean
+  /** When set, the toast renders a copy-to-clipboard button for this string. */
+  copyText?: string
 }
 
 let nextId = 0
@@ -19,11 +23,13 @@ export function ToastContainer() {
 
   useEffect(() => {
     function handleToast(e: Event) {
-      const { title, body, conversationId, taskId, variant } = (e as CustomEvent).detail
+      const { title, body, conversationId, taskId, variant, persistent, copyText } = (e as CustomEvent).detail
       const id = nextId++
       haptic('double')
-      setToasts(prev => [...prev, { id, title, body, conversationId, taskId, variant }])
-      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 8000)
+      setToasts(prev => [...prev, { id, title, body, conversationId, taskId, variant, persistent, copyText }])
+      if (!persistent) {
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 8000)
+      }
     }
     window.addEventListener('rclaude-toast', handleToast)
     return () => window.removeEventListener('rclaude-toast', handleToast)
@@ -64,7 +70,21 @@ export function ToastContainer() {
               >
                 {t.title}
               </div>
-              <div className="text-sm text-foreground mt-1">{t.body}</div>
+              <div className="text-sm text-foreground mt-1 whitespace-pre-line">{t.body}</div>
+              {t.copyText ? (
+                <button
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation()
+                    navigator.clipboard?.writeText(t.copyText!).catch(() => {})
+                    haptic('tap')
+                  }}
+                  className="mt-2 inline-flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded bg-muted hover:bg-muted/70 text-foreground"
+                >
+                  <Copy className="w-3 h-3" />
+                  copy command
+                </button>
+              ) : null}
             </div>
             <button
               type="button"

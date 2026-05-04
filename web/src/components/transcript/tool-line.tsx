@@ -11,6 +11,7 @@ import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/control-panel-pre
 import { projectPath, type TranscriptContentBlock } from '@/lib/types'
 import { cn, truncate } from '@/lib/utils'
 import { JsonInspector } from '../json-inspector'
+import { ConversationTag } from './conversation-tag'
 import {
   GmailDraftResult,
   GmailLabelResult,
@@ -19,7 +20,6 @@ import {
   GmailThreadView,
 } from './gmail-renderers'
 import { FileListResults, GlobSummary, GrepContentResults, GrepCountResults, GrepSummary } from './grep-results'
-import { ConversationTag } from './conversation-tag'
 import { Collapsible, cleanCdPrefix, extractMcpText, getToolStyle, shortPath, TruncatedPre } from './shared'
 import { BashOutput, DiffView, ReplResult, ReplView, ShellCommand, WritePreview } from './tool-renderers'
 

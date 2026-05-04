@@ -136,7 +136,7 @@ function tryParseContentBlocks(raw: string): string | null {
  * Resilient MCP result text extractor. Tries multiple strategies in order:
  * 1. `extra` as already-parsed content blocks array (fastest, no JSON parsing)
  * 2. `result` string as JSON content blocks array
- * 3. `result` string as `{result: "[...]"}` wrapper around content blocks
+ * 3. `result` string as `{result: "[...]"}` agent host around content blocks
  * 4. `result` as plain text (if it doesn't look like content blocks)
  *
  * Returns the concatenated text or null if nothing extractable.

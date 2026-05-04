@@ -225,7 +225,7 @@ export function SpawnDialog() {
       progress.setSteps(prev => [
         ...prev.map(s =>
           s.status === 'active'
-            ? { ...s, status: 'done' as const, detail: `wrapper=${result.conversationId.slice(0, 8)}` }
+            ? { ...s, status: 'done' as const, detail: `agent-host=${result.conversationId.slice(0, 8)}` }
             : s,
         ),
         { label: 'Waiting for session...', status: 'active' as const, ts: Date.now() },

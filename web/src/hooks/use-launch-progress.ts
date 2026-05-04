@@ -22,7 +22,7 @@ export type LaunchStep = {
 interface UseLaunchProgressOptions {
   /** Job ID for launch channel subscription */
   jobId: string | null
-  /** Wrapper ID for session detection in store */
+  /** Agent Host ID for session detection in store */
   conversationId: string | null
   /** Timeout in ms (default 30000) */
   timeoutMs?: number

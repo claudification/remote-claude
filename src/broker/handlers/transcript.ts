@@ -6,7 +6,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { resolveModelFamily } from '../../shared/models'
-import type { TranscriptLaunchEntry, WrapperLaunchStep } from '../../shared/protocol'
+import type { AgentHostLaunchStep, TranscriptLaunchEntry } from '../../shared/protocol'
 import { filterDisplayEntries } from '../../shared/transcript-filter'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
@@ -50,7 +50,7 @@ function setDiff(prev: string[], next: string[]): { added: string[]; removed: st
 
 /**
  * Compare two session_info snapshots and return structured launch entries for
- * every meaningful change. The wrapper sends raw session_info every turn; the
+ * every meaningful change. The agent host sends raw session_info every turn; the
  * broker is the single brain that decides "something changed, notify
  * the user." Each change becomes its own TranscriptLaunchEntry (phase: 'live',
  * fresh launchId) so they render as separate cards.
@@ -58,7 +58,7 @@ function setDiff(prev: string[], next: string[]): { added: string[]; removed: st
 function diffSessionInfo(prev: ConversationInfoSnapshot, next: ConversationInfoSnapshot): TranscriptLaunchEntry[] {
   const out: TranscriptLaunchEntry[] = []
   const ts = () => new Date().toISOString()
-  const mkEntry = (step: WrapperLaunchStep, detail: string, raw: Record<string, unknown>): TranscriptLaunchEntry => ({
+  const mkEntry = (step: AgentHostLaunchStep, detail: string, raw: Record<string, unknown>): TranscriptLaunchEntry => ({
     type: 'launch',
     launchId: randomUUID(),
     phase: 'live',
@@ -89,7 +89,7 @@ function diffSessionInfo(prev: ConversationInfoSnapshot, next: ConversationInfoS
   }
 
   // Collection diffs (names/identities, not identity-by-reference).
-  const cases: Array<{ key: keyof ConversationInfoSnapshot; step: WrapperLaunchStep }> = [
+  const cases: Array<{ key: keyof ConversationInfoSnapshot; step: AgentHostLaunchStep }> = [
     { key: 'mcpServers', step: 'mcp_servers_changed' },
     { key: 'tools', step: 'tools_changed' },
     { key: 'slashCommands', step: 'slash_commands_changed' },
@@ -288,7 +288,7 @@ const sessionInfo: MessageHandler = (ctx, data) => {
     }
   }
 
-  // Broadcast with canonical conversation ID (not whatever the wrapper sent)
+  // Broadcast with canonical conversation ID (not whatever the agent host sent)
   if (conversation.project) {
     ctx.broadcastScoped({ ...data, type: 'conversation_info', conversationId }, conversation.project)
   }

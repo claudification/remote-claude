@@ -22,7 +22,7 @@ export type AlertIntent = 'info' | 'warning' | 'error' | 'success'
 export interface MarkdownComponent {
   type: 'Markdown'
   content?: string // inline markdown text
-  file?: string // path to a markdown/text file (resolved by wrapper, mutually exclusive with content)
+  file?: string // path to a markdown/text file (resolved by agent host, mutually exclusive with content)
   color?: DialogColor
 }
 
@@ -186,7 +186,7 @@ export interface DialogResult {
 
 // ─── WS Message Types ──────────────────────────────────────────────
 
-/** Wrapper -> Broker: show dialog to dashboard */
+/** Agent Host -> Broker: show dialog to dashboard */
 export interface DialogShow {
   type: 'dialog_show'
   conversationId: string
@@ -194,7 +194,7 @@ export interface DialogShow {
   layout: DialogLayout
 }
 
-/** Dashboard -> Broker -> Wrapper: user submitted/cancelled/timed out */
+/** Dashboard -> Broker -> Agent Host: user submitted/cancelled/timed out */
 export interface DialogResponse {
   type: 'dialog_result'
   conversationId: string
@@ -202,7 +202,7 @@ export interface DialogResponse {
   result: DialogResult
 }
 
-/** Wrapper -> Broker -> Control Panel: dismiss active dialog */
+/** Agent Host -> Broker -> Control Panel: dismiss active dialog */
 export interface DialogDismiss {
   type: 'dialog_dismiss'
   conversationId: string

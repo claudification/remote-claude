@@ -1,6 +1,6 @@
 /**
  * Permission and question relay handlers.
- * Bidirectional relay between wrapper (rclaude) and dashboard for:
+ * Bidirectional relay between agent host (rclaude) and dashboard for:
  * - Tool permission requests/responses
  * - Session-scoped auto-approve rules
  * - AskUserQuestion flow
@@ -10,7 +10,7 @@
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
-// Permission relay: wrapper -> dashboard (broadcast + store for reconnect recovery)
+// Permission relay: agent host -> dashboard (broadcast + store for reconnect recovery)
 const permissionRequest: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
@@ -48,7 +48,7 @@ const permissionRequest: MessageHandler = (ctx, data) => {
   ctx.log.debug(`[permission] Request: ${data.requestId} ${data.toolName}`)
 }
 
-// Permission relay: dashboard -> wrapper (forward + clear stored state)
+// Permission relay: dashboard -> agent host (forward + clear stored state)
 const permissionResponse: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
@@ -76,7 +76,7 @@ const permissionResponse: MessageHandler = (ctx, data) => {
   }
 }
 
-// Permission rule: dashboard -> wrapper (conversation-scoped auto-approve)
+// Permission rule: dashboard -> agent host (conversation-scoped auto-approve)
 const permissionRule: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
@@ -94,7 +94,7 @@ const permissionRule: MessageHandler = (ctx, data) => {
   }
 }
 
-// Permission auto-approved: wrapper -> dashboard (notification)
+// Permission auto-approved: agent host -> dashboard (notification)
 const permissionAutoApproved: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
@@ -110,7 +110,7 @@ const permissionAutoApproved: MessageHandler = (ctx, data) => {
   else ctx.broadcast(msg)
 }
 
-// Clipboard capture: wrapper -> dashboard (broadcast)
+// Clipboard capture: agent host -> dashboard (broadcast)
 const clipboardCapture: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
@@ -129,7 +129,7 @@ const clipboardCapture: MessageHandler = (ctx, data) => {
   ctx.log.debug(`[clipboard] ${data.contentType}${data.mimeType ? ` (${data.mimeType})` : ''}`)
 }
 
-// AskUserQuestion relay: wrapper -> dashboard (broadcast + store for reconnect recovery)
+// AskUserQuestion relay: agent host -> dashboard (broadcast + store for reconnect recovery)
 const askQuestion: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
@@ -163,7 +163,7 @@ const askQuestion: MessageHandler = (ctx, data) => {
   )
 }
 
-// AskUserQuestion relay: dashboard -> wrapper (forward + clear stored state)
+// AskUserQuestion relay: dashboard -> agent host (forward + clear stored state)
 const askAnswer: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined

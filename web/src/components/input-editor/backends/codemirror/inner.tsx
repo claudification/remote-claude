@@ -4,7 +4,7 @@
  *
  * Mobile compose:
  *   When the editor is focused on a mobile viewport (and the caller hasn't
- *   set `inline`), the SAME wrapper div -- still containing the SAME React-
+ *   set `inline`), the SAME agent host div -- still containing the SAME React-
  *   rendered CM instance -- gets restyled to a full-viewport overlay with a
  *   toolbar appended below. Crucially, the <CodeMirror> component stays at
  *   the same React tree position, so CM does NOT unmount and the editor
@@ -267,10 +267,10 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
   const overlayHeight = visibleHeight ? `${visibleHeight}px` : '100dvh'
   const overlayTop = visibleHeight ? 'var(--vv-offset, 0px)' : '0px'
 
-  // iOS Safari composite-layer ghost fix. When the wrapper flips from
+  // iOS Safari composite-layer ghost fix. When the agent host flips from
   // position:fixed (overlay) back to position:relative (inline), iOS Safari
   // can keep the promoted composite layer around, showing a stale copy of
-  // the wrapper at its old overlay coordinates (top-left of viewport) until
+  // the agent host at its old overlay coordinates (top-left of viewport) until
   // something forces the node to repaint. The one-frame `visibility: hidden`
   // pulse on the collapse transition forces iOS to re-composite.
   const wasExpandedRef = useRef(false)

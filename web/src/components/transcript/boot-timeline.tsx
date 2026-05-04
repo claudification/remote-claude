@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogTitle } from '../ui/dialog'
 import type { DisplayGroup } from './grouping'
 
 const STEP_LABEL: Record<BootStep, string> = {
-  wrapper_started: 'wrapper started',
+  agent_host_started: 'agent host started',
   settings_merged: 'settings merged',
   mcp_prepared: 'mcp config prepared',
   broker_connected: 'broker connected',

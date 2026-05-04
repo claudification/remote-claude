@@ -1,5 +1,5 @@
 /**
- * useProject - Hook for project board task CRUD via WS relay to wrapper
+ * useProject - Hook for project board task CRUD via WS relay to agent host
  */
 
 import type { TaskStatus } from '@shared/task-statuses'

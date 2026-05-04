@@ -434,7 +434,7 @@ describe('sync state', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 6. Wrapper socket tracking
+// 6. Agent Host socket tracking
 // ---------------------------------------------------------------------------
 
 describe('conversation socket tracking', () => {
@@ -727,7 +727,7 @@ describe('broadcast scoping (project URI)', () => {
   it('broadcastToConversationsAtCwd accepts bare CWD (backward compat)', () => {
     store.createConversation('bw-1', '/projects/wrap')
     const count = store.broadcastToConversationsAtCwd('/projects/wrap', { type: 'test' })
-    // No wrappers registered, so count is 0 but shouldn't throw
+    // No agent hosts registered, so count is 0 but shouldn't throw
     expect(count).toBe(0)
   })
 

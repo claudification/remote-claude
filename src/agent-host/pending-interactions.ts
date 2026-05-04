@@ -1,7 +1,7 @@
 /**
  * Thin helpers over ctx.outstandingInteractions -- the registry of user-facing
  * interactions (permission_request / ask_question / dialog_show / plan_approval)
- * whose response is held in broker memory. The wrapper keeps the
+ * whose response is held in broker memory. The agent host keeps the
  * authoritative copy so a broker restart can't strand CC/MCP.
  *
  * Usage:

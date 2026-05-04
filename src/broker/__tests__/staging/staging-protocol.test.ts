@@ -57,7 +57,7 @@ run('agent host lifecycle', () => {
     const convId = testId('conv')
 
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -82,7 +82,7 @@ run('agent host lifecycle', () => {
     const ccSessionId = testId('cc')
 
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -128,7 +128,7 @@ run('agent host lifecycle', () => {
 
     // Boot + promote + meta
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -194,7 +194,7 @@ run('dashboard subscription', () => {
     const convId = testId('conv')
 
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -219,7 +219,7 @@ run('dashboard subscription', () => {
 
     // Full boot sequence
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -275,7 +275,7 @@ run('channel subscriptions', () => {
 
     // Boot + promote + meta
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -340,7 +340,7 @@ run('channel subscriptions', () => {
     const convId = testId('conv')
 
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -390,7 +390,7 @@ run('session status', () => {
 
     // Full boot sequence
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -455,7 +455,7 @@ run('HTTP API', () => {
 
     // Boot + promote + meta
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -525,7 +525,7 @@ run('wire protocol shape', () => {
     const ccSessionId = testId('cc')
 
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -574,7 +574,7 @@ run('wire protocol shape', () => {
     const convId = testId('conv')
 
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -594,7 +594,7 @@ run('wire protocol shape', () => {
     const ccSessionId = testId('cc')
 
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -640,7 +640,7 @@ run('wire protocol shape', () => {
     const ccSessionId = testId('cc')
 
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -685,7 +685,7 @@ run('session clear (rekey)', () => {
 
     // Boot + promote + meta with old session
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -746,7 +746,7 @@ run('dashboard to agent relay', () => {
 
     // Full boot sequence
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -797,7 +797,7 @@ run('dashboard to agent relay', () => {
 
     // Full boot sequence
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],
@@ -856,7 +856,7 @@ run('agent host disconnect', () => {
 
     // Full boot sequence
     agent.send({
-      type: 'wrapper_boot',
+      type: 'agent_host_boot',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
       capabilities: [],

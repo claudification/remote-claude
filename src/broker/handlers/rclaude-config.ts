@@ -1,12 +1,12 @@
 /**
- * Handlers for .rclaude/rclaude.json config read/write via the wrapper.
+ * Handlers for .rclaude/rclaude.json config read/write via the agent host.
  *
  * Follows the same pattern as file_request/file_save:
- *   dashboard -> broker -> wrapper (by project) -> filesystem
- *   wrapper response -> broker -> broadcastScoped to dashboard
+ *   dashboard -> broker -> agent host (by project) -> filesystem
+ *   agent host response -> broker -> broadcastScoped to dashboard
  *
  * After a successful save, broadcasts notify_config_updated to all
- * wrappers at the target project so they hot-reload permission rules.
+ * agent hosts at the target project so they hot-reload permission rules.
  */
 
 import type { MessageHandler } from '../handler-context'

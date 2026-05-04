@@ -631,7 +631,7 @@ function InlineDescription({ session }: { session: Session }) {
   )
 }
 
-// ─── Session card outer wrapper (shared by Full + Compact) ────────
+// ─── Session card outer agent host (shared by Full + Compact) ────────
 
 function ConversationItemShell({
   session,

@@ -1,7 +1,7 @@
 /**
  * Persistent message queue: stores messages for offline/disconnected sessions.
  *
- * Keyed by target project (not session/wrapper ID) so messages survive
+ * Keyed by target project (not session/agent host ID) so messages survive
  * session restarts. Backed by StoreDriver KVStore (replaces JSON file persistence).
  */
 

@@ -698,14 +698,14 @@ async function main() {
 
           // Handle rclaude session disconnection
           const ccSessionId = ws.data.ccSessionId
-          const closeWrapperId = ws.data.conversationId
-          if (ccSessionId && closeWrapperId) {
-            // Notify terminal viewers attached to this wrapper's PTY
-            const viewers = conversationStore.getTerminalViewers(closeWrapperId)
+          const closeConversationId = ws.data.conversationId
+          if (ccSessionId && closeConversationId) {
+            // Notify terminal viewers attached to this agent host's PTY
+            const viewers = conversationStore.getTerminalViewers(closeConversationId)
             if (viewers.size > 0) {
               const msg = JSON.stringify({
                 type: 'terminal_error',
-                conversationId: closeWrapperId,
+                conversationId: closeConversationId,
                 error: 'Wrapper disconnected',
               })
               for (const viewer of viewers) {
@@ -714,16 +714,16 @@ async function main() {
                 } catch {}
               }
               for (const viewer of viewers) {
-                conversationStore.removeTerminalViewer(closeWrapperId, viewer)
+                conversationStore.removeTerminalViewer(closeConversationId, viewer)
               }
             }
 
-            // Notify json-stream viewers attached to this wrapper
-            const jsViewers = conversationStore.getJsonStreamViewers(closeWrapperId)
+            // Notify json-stream viewers attached to this agent host
+            const jsViewers = conversationStore.getJsonStreamViewers(closeConversationId)
             if (jsViewers.size > 0) {
               const msg = JSON.stringify({
                 type: 'json_stream_data',
-                conversationId: closeWrapperId,
+                conversationId: closeConversationId,
                 lines: [],
                 isBackfill: false,
               })
@@ -733,24 +733,26 @@ async function main() {
                 } catch {}
               }
               for (const viewer of jsViewers) {
-                conversationStore.removeJsonStreamViewer(closeWrapperId, viewer)
+                conversationStore.removeJsonStreamViewer(closeConversationId, viewer)
               }
             }
 
-            // Remove this wrapper's socket
-            conversationStore.removeConversationSocket(closeWrapperId, ccSessionId)
-            const remaining = conversationStore.getActiveConversationCount(closeWrapperId)
+            // Remove this agent host's socket
+            conversationStore.removeConversationSocket(closeConversationId, ccSessionId)
+            const remaining = conversationStore.getActiveConversationCount(closeConversationId)
 
-            const session = conversationStore.getConversation(closeWrapperId)
+            const session = conversationStore.getConversation(closeConversationId)
             if (session && session.status !== 'ended' && remaining === 0) {
-              // Last wrapper disconnected - end the conversation
-              conversationStore.endConversation(closeWrapperId, 'connection_closed')
+              // Last agent host disconnected - end the conversation
+              conversationStore.endConversation(closeConversationId, 'connection_closed')
               if (verbose) {
-                console.log(`[-] Session ended: ${closeWrapperId.slice(0, 8)}... (connection_closed, last wrapper)`)
+                console.log(
+                  `[-] Session ended: ${closeConversationId.slice(0, 8)}... (connection_closed, last wrapper)`,
+                )
               }
 
               // Check for pending restart (terminate + auto-revive)
-              const pendingRestart = conversationStore.consumePendingRestart(closeWrapperId)
+              const pendingRestart = conversationStore.consumePendingRestart(closeConversationId)
               if (pendingRestart) {
                 const sentinel = conversationStore.getSentinel()
                 if (sentinel) {
@@ -806,7 +808,7 @@ async function main() {
               }
             } else if (verbose && remaining > 0) {
               console.log(
-                `[~] Wrapper ${closeWrapperId.slice(0, 8)} disconnected from conversation ${closeWrapperId.slice(0, 8)}... (${remaining} wrappers remaining)`,
+                `[~] Wrapper ${closeConversationId.slice(0, 8)} disconnected from conversation ${closeConversationId.slice(0, 8)}... (${remaining} wrappers remaining)`,
               )
             }
           }

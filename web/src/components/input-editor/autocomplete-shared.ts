@@ -64,7 +64,7 @@ export function fuzzyScore(query: string, candidate: string): number {
 export const BUILTIN_SCORE_BOOST = 1.3
 
 /**
- * Names of builtin slash commands the wrapper handles itself
+ * Names of builtin slash commands the agent host handles itself
  * (independent of CC's reported slashCommands list).
  *
  * Source of truth lives in markdown-input.tsx's SUB_COMMANDS registry --

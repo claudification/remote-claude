@@ -122,7 +122,7 @@ export function ServerIcon() {
   )
 }
 
-// --- Setting row wrapper ---
+// --- Setting row agent host ---
 
 export function SettingRow({
   label,

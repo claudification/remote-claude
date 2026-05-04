@@ -1,6 +1,6 @@
 /**
  * Raw JSON stream handlers: dashboard tails raw CC NDJSON output from headless sessions.
- * Mirrors terminal_attach/detach pattern -- wrapper only relays when viewers are attached.
+ * Mirrors terminal_attach/detach pattern -- agent host only relays when viewers are attached.
  */
 
 import type { MessageHandler } from '../handler-context'

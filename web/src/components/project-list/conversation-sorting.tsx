@@ -5,7 +5,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type { ProjectOrderGroup, Session } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 
-// ─── Sortable wrapper ──────────────────────────────────────────────
+// ─── Sortable agent host ──────────────────────────────────────────────
 
 export function SortableNode({ id, children }: { id: string; children: ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })

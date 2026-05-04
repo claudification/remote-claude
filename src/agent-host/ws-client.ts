@@ -5,6 +5,7 @@
 
 import { cwdToProjectUri } from '../shared/project-uri'
 import type {
+  AgentHostBoot,
   AgentHostCapability,
   AgentHostMessage,
   BgTaskOutput,
@@ -26,9 +27,8 @@ import type {
   TerminalData,
   TranscriptEntries,
   TranscriptEntry,
-  WrapperBoot,
 } from '../shared/protocol'
-import { DEFAULT_BROKER_URL } from '../shared/protocol'
+import { AGENT_HOST_PROTOCOL_VERSION, DEFAULT_BROKER_URL } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
 import { debug as _debug } from './debug'
 
@@ -103,7 +103,7 @@ export interface WsClientOptions {
     diagnostics?: Record<string, unknown>
   }) => void
   /**
-   * Launch job events for jobs this wrapper subscribed to. Fires on
+   * Launch job events for jobs this agent host subscribed to. Fires on
    * launch_progress / launch_log / job_complete / job_failed -- the shape
    * matches what the broker forwards verbatim via forwardJobEvent.
    */
@@ -132,7 +132,7 @@ export interface WsClientOptions {
   onConfigSet?: (requestId: string, config: import('../shared/protocol').RclaudePermissionConfig) => void
   /**
    * Control verb delivered by broker (dashboard self-control or inter-session MCP).
-   * Backend-specific dispatch lives in the wrapper -- this callback is just the entry point.
+   * Backend-specific dispatch lives in the agent host -- this callback is just the entry point.
    */
   onControl?: (
     action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode',
@@ -247,7 +247,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
 
   /** Identifier used for messages that require a session id. During the
    *  boot phase (before CC produces a session id) we fall back to the
-   *  wrapper id so the broker can route messages to the booting
+   *  agent host id so the broker can route messages to the booting
    *  session. Once setSessionId() is called, real session id takes over. */
   function routeId(): string {
     return ccSessionId ?? conversationId
@@ -272,6 +272,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
             // the real session on the broker.
             const meta: ConversationMeta = {
               type: 'meta',
+              protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
               ccSessionId: ccSessionId,
               conversationId,
               project,
@@ -294,8 +295,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
           } else {
             // Early-connect: no CC session id yet. Tell the broker we're
             // booting so a placeholder session shows up in the dashboard.
-            const boot: WrapperBoot = {
-              type: 'wrapper_boot',
+            const boot: AgentHostBoot = {
+              type: 'agent_host_boot',
+              protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
               conversationId,
               project,
               capabilities: capabilities || [],
@@ -387,6 +389,36 @@ export function createWsClient(options: WsClientOptions): WsClient {
             case 'error':
               onError?.(new Error(message.message))
               break
+            case 'protocol_upgrade_required': {
+              // Fatal: this binary cannot talk to this broker. Print a
+              // visible block to stderr so the user sees it even if the
+              // process gets restarted by tmux/sentinel/Bun.spawn -- and
+              // exit so we don't burn reconnect attempts forever.
+              const banner = [
+                '',
+                '════════════════════════════════════════════════════════════════════',
+                '  rclaude is OUT OF DATE -- broker rejected the connection',
+                '════════════════════════════════════════════════════════════════════',
+                `  reason:   ${message.reason}`,
+                `  broker:   v${message.serverProtocolVersion}`,
+                `  this CLI: v${message.clientProtocolVersion ?? '<missing>'}`,
+                '',
+                '  Upgrade with:',
+                '',
+                `      ${message.upgradeCommand}`,
+                '',
+                ...(message.details ? [`  Details: ${message.details}`, ''] : []),
+                '════════════════════════════════════════════════════════════════════',
+                '',
+              ].join('\n')
+              process.stderr.write(banner)
+              onError?.(new Error(`protocol upgrade required: ${message.reason}`))
+              try {
+                ws?.close(1002, 'protocol upgrade required')
+              } catch {}
+              process.exit(2)
+              break
+            }
             case 'input':
               // Forward input to PTY
               onInput?.(message.input, message.crDelay)
@@ -733,6 +765,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     // full metadata (the boot payload only had a subset of fields).
     const meta: ConversationMeta = {
       type: 'meta',
+      protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
       ccSessionId: newSessionId,
       conversationId,
       project,

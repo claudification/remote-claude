@@ -1,16 +1,16 @@
 /**
- * Dialog handlers: rich UI dialog relay between wrapper and dashboard.
+ * Dialog handlers: rich UI dialog relay between agent host and dashboard.
  *
  * Flow:
- *   Claude -> mcp__rclaude__dialog(layout) -> wrapper -> dialog_show -> broker
+ *   Claude -> mcp__rclaude__dialog(layout) -> agent host -> dialog_show -> broker
  *   -> broadcast to dashboard subscribers -> user interacts -> dialog_result
- *   -> broker -> forward to wrapper -> resolve MCP tool call
+ *   -> broker -> forward to agent host -> resolve MCP tool call
  */
 
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
-// Dialog show: wrapper -> broker -> dashboard (broadcast)
+// Dialog show: agent host -> broker -> dashboard (broadcast)
 const dialogShow: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
@@ -50,7 +50,7 @@ const dialogShow: MessageHandler = (ctx, data) => {
   )
 }
 
-// Dialog result: dashboard -> broker -> wrapper (forward)
+// Dialog result: dashboard -> broker -> agent host (forward)
 const dialogResult: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId) as string
   const dialogId = data.dialogId as string
@@ -71,7 +71,7 @@ const dialogResult: MessageHandler = (ctx, data) => {
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
-  // Forward to the wrapper that owns this conversation
+  // Forward to the agent host that owns this conversation
   const targetWs = ctx.conversations.getConversationSocket(conversationId)
   if (targetWs) {
     targetWs.send(
@@ -95,8 +95,8 @@ const dialogResult: MessageHandler = (ctx, data) => {
   else ctx.broadcast(dismissMsg)
 }
 
-// Dialog dismiss: wrapper -> broker -> dashboard
-// (e.g. timeout on wrapper side, session ended)
+// Dialog dismiss: agent host -> broker -> dashboard
+// (e.g. timeout on agent host side, session ended)
 const dialogDismiss: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   const dialogId = data.dialogId as string
@@ -119,7 +119,7 @@ const dialogDismiss: MessageHandler = (ctx, data) => {
   ctx.log.debug(`[dialog] Dismiss: ${dialogId.slice(0, 8)} conversation=${conversationId.slice(0, 8)}`)
 }
 
-// Dialog keepalive: dashboard -> broker -> wrapper (extend timeout)
+// Dialog keepalive: dashboard -> broker -> agent host (extend timeout)
 const dialogKeepalive: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId) as string
   const dialogId = data.dialogId as string

@@ -2,7 +2,7 @@
  * Terminal viewer registry.
  * Tracks which dashboard WebSocket connections are viewing each PTY terminal.
  * Keyed by conversationId (one PTY per rclaude instance).
- * Thin wrapper over ViewerRegistry for backwards-compatible API.
+ * Thin agent host over ViewerRegistry for backwards-compatible API.
  */
 
 import type { ServerWebSocket } from 'bun'
