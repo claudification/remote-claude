@@ -5,6 +5,7 @@
 
 import type { ServerWebSocket } from 'bun'
 import { resolveContextWindow } from '../shared/context-window'
+import { deriveModelName } from '../shared/models'
 import {
   buildProjectUri,
   cwdToProjectUri,
@@ -398,7 +399,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return {
       id: session.id,
       project: session.project,
-      model: session.configuredModel || session.model,
+      model: deriveModelName(session.model, session.configuredModel),
       capabilities: session.capabilities,
       version: session.version,
       buildTime: session.buildTime,
@@ -470,7 +471,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       prLinks: session.prLinks,
       linkedProjects: getLinkedProjects(session.id),
       tokenUsage: session.tokenUsage,
-      contextWindow: resolveContextWindow(session.configuredModel || session.model, session.contextMode),
+      contextWindow: resolveContextWindow(deriveModelName(session.model, session.configuredModel), session.contextMode),
       cacheTtl: session.cacheTtl,
       lastTurnEndedAt: session.lastTurnEndedAt,
       stats: session.stats,
@@ -1222,7 +1223,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         if (data.transcript_path && typeof data.transcript_path === 'string') {
           session.transcriptPath = data.transcript_path
         }
-        if (data.model && typeof data.model === 'string' && !session.model) {
+        if (data.model && typeof data.model === 'string') {
           session.model = data.model
         }
         // Clear stale error from previous run (belt and suspenders with resumeConversation)
@@ -2268,10 +2269,10 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           session.stats.toolCallCount += content.filter(c => c.type === 'tool_use').length
         }
 
-        // Extract model from assistant messages as a fallback only.
-        // configuredModel (from stream-json init / agent host --model arg) is the
-        // authoritative source. Assistant messages strip context-window suffixes
-        // like [1m], so only use them when we have nothing better.
+        // Extract model from assistant messages as last-resort fallback.
+        // Init message (session.model) is ground truth. Assistant messages
+        // strip context-window suffixes like [1m], so only use when nothing
+        // better is available.
         const assistantModel = assistantEntry.message?.model
         if (
           assistantModel &&

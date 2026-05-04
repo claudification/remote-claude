@@ -231,12 +231,11 @@ const sessionInfo: MessageHandler = (ctx, data) => {
   }
   ;(conversation as unknown as Record<string, unknown>).sessionInfo = nextSnapshot
 
-  // CC's stream-json init reports the full model ID including [1m] suffix,
-  // but assistant message `model` fields strip it. Use init as the
-  // authoritative source for configuredModel (context window detection).
+  // The init message is ground truth for model identity -- it's what CC
+  // is actually running, not what was requested via --model.
   const initModel = data.model as string | undefined
   if (initModel) {
-    conversation.configuredModel = initModel
+    conversation.model = initModel
 
     const requestedModel = conversation.launchConfig?.model
     const requestedFamily = requestedModel ? resolveModelFamily(requestedModel)?.familyId : undefined

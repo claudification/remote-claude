@@ -3,6 +3,7 @@
  * channel subscriptions, dashboard subscriptions, and session quit relay.
  */
 
+import { deriveModelName } from '../../shared/models'
 import { extractProjectLabel, isSameProject, parseProjectUri } from '../../shared/project-uri'
 import type { SubscriptionChannel } from '../../shared/protocol'
 import { slugify } from '../address-book'
@@ -237,7 +238,7 @@ const channelListSessions: MessageHandler = (ctx, data) => {
         name: s.title || projSettings?.label || extractProjectLabel(s.project),
         projectUri: s.project,
         cwd: parseProjectUri(s.project).path, // backward compat for MCP consumers
-        model: s.configuredModel || s.model,
+        model: deriveModelName(s.model, s.configuredModel),
         permissionMode: s.permissionMode,
         effortLevel: s.effortLevel,
         status: 'live' as const,

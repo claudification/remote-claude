@@ -189,6 +189,50 @@ export function resolveModelFamily(slug: string): CCModelFamily | undefined {
   return CC_MODELS.find(m => m.acceptedSlugs.some(s => s.toLowerCase() === lower))
 }
 
+/**
+ * Score a model name by specificity. Higher = more informative.
+ *
+ *   "opus"                  -> 1  (bare alias)
+ *   "claude-opus-4-7"       -> 3  (qualified family ID)
+ *   "claude-opus-4-6-fast"  -> 4  (qualified + variant)
+ *   "claude-opus-4-7[1m]"   -> 4  (qualified + context window)
+ *   "claude-opus-4-5-20251101"      -> 4  (qualified + date pin)
+ *   "claude-opus-4-6-20251101[1m]"  -> 5  (qualified + date + context)
+ */
+function modelSpecificity(name: string): number {
+  if (!name) return 0
+  let score = 0
+  // Qualified ID (has version numbers like X-Y or X-Y-Z)
+  if (/claude-\w+-\d+-\d/.test(name)) score += 3
+  // Bare alias ("opus", "sonnet", "haiku") -- recognized but lossy
+  else if (resolveModelFamily(name)) score += 1
+  // Unknown string -- still better than nothing
+  else score += 2
+  // Context window suffix [1m] / [200k]
+  if (/\[\d+[km]?\]/.test(name)) score += 1
+  // Date pin (-20251001)
+  if (/-\d{8}/.test(name)) score += 1
+  // Variant suffix (-fast)
+  if (/-fast\b/.test(name)) score += 1
+  return score
+}
+
+/**
+ * Given two model names, return the most informative one.
+ * Init message is ground truth -- pass it as `a` (preferred on tie).
+ * Falls back to `b` (typically --model flag) only when it's strictly
+ * more specific (e.g. preserves [1m] suffix that init stripped).
+ */
+export function deriveModelName(a: string | undefined, b: string | undefined): string | undefined {
+  if (!a && !b) return undefined
+  if (!a) return b
+  if (!b) return a
+  const scoreA = modelSpecificity(a)
+  const scoreB = modelSpecificity(b)
+  // a wins ties -- it's the init/ground-truth value
+  return scoreB > scoreA ? b : a
+}
+
 export interface ModelValidationResult {
   valid: boolean
   family?: CCModelFamily

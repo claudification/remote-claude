@@ -10,6 +10,7 @@
 
 import type { ServerWebSocket } from 'bun'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { deriveModelName } from '../../shared/models'
 import type { HookEvent, TaskInfo, TranscriptEntry } from '../../shared/protocol'
 import type { ConversationStore } from '../conversation-store'
 import { createConversationStore } from '../conversation-store'
@@ -489,7 +490,7 @@ describe('conversation.model derivation', () => {
     expect(store.getConversation('model-1')!.model).toBe('claude-opus-4-7')
   })
 
-  it('second SessionStart does NOT overwrite an already-set model', () => {
+  it('second SessionStart DOES overwrite model (init is ground truth)', () => {
     store.createConversation('model-2', '/cwd')
     store.addEvent(
       'model-2',
@@ -497,12 +498,12 @@ describe('conversation.model derivation', () => {
     )
     expect(store.getConversation('model-2')!.model).toBe('claude-opus-4-7')
 
-    // Re-emission (e.g. post /clear) arrives with a different model -- must not clobber
+    // Re-emission (e.g. /model switch) arrives with a different model -- must update
     store.addEvent(
       'model-2',
       makeHookEvent('model-2', 'SessionStart', { data: { session_id: 'model-2', model: 'claude-sonnet-4-6' } }),
     )
-    expect(store.getConversation('model-2')!.model).toBe('claude-opus-4-7')
+    expect(store.getConversation('model-2')!.model).toBe('claude-sonnet-4-6')
   })
 
   it('assistant transcript entry sets conversation.model when absent', () => {
@@ -526,8 +527,7 @@ describe('conversation.model derivation', () => {
       [{ type: 'assistant', message: { model: 'claude-sonnet-4-6' } } as TranscriptEntry],
       true,
     )
-    // Assistant messages are fallback only -- they strip context-window suffixes
-    // like [1m], so configuredModel / SessionStart is the authoritative source
+    // Assistant messages are fallback only -- init/SessionStart is ground truth
     expect(store.getConversation('model-4')!.model).toBe('claude-opus-4-7')
   })
 
@@ -555,6 +555,52 @@ describe('conversation.model derivation', () => {
     // <synthetic> entries are auto-compact summaries / hook-injected messages,
     // not real API turns -- never use them for model tracking
     expect(store.getConversation('model-6')!.model).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 7b. deriveModelName specificity scoring
+// ---------------------------------------------------------------------------
+
+describe('deriveModelName', () => {
+  it('qualified init beats bare alias', () => {
+    expect(deriveModelName('claude-opus-4-7', 'opus')).toBe('claude-opus-4-7')
+  })
+
+  it('qualified+suffix beats qualified without', () => {
+    expect(deriveModelName('claude-opus-4-6', 'claude-opus-4-6[1m]')).toBe('claude-opus-4-6[1m]')
+  })
+
+  it('init wins on tie (same specificity)', () => {
+    expect(deriveModelName('claude-opus-4-7', 'claude-sonnet-4-6')).toBe('claude-opus-4-7')
+  })
+
+  it('init with suffix beats configuredModel without', () => {
+    expect(deriveModelName('claude-opus-4-6[1m]', 'claude-opus-4-6')).toBe('claude-opus-4-6[1m]')
+  })
+
+  it('configuredModel with [1m] beats init without (preserves context window info)', () => {
+    expect(deriveModelName('claude-opus-4-6', 'claude-opus-4-6[1m]')).toBe('claude-opus-4-6[1m]')
+  })
+
+  it('returns a when b is undefined', () => {
+    expect(deriveModelName('claude-opus-4-7', undefined)).toBe('claude-opus-4-7')
+  })
+
+  it('returns b when a is undefined', () => {
+    expect(deriveModelName(undefined, 'opus')).toBe('opus')
+  })
+
+  it('returns undefined when both are undefined', () => {
+    expect(deriveModelName(undefined, undefined)).toBeUndefined()
+  })
+
+  it('dated pin beats plain qualified', () => {
+    expect(deriveModelName('claude-opus-4-6', 'claude-opus-4-6-20251101')).toBe('claude-opus-4-6-20251101')
+  })
+
+  it('init qualified beats configuredModel bare alias', () => {
+    expect(deriveModelName('claude-sonnet-4-6', 'sonnet')).toBe('claude-sonnet-4-6')
   })
 })
 
