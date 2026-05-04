@@ -185,6 +185,7 @@ const sessionPromote: MessageHandler = (ctx, data) => {
   rekeyed.status = 'starting'
   rekeyed.project = bootProject
   ctx.ws.data.conversationId = newSessionId
+  ctx.ws.data.ccSessionId = newSessionId
   ctx.log.debug(
     `[boot] promoted ${conversationId.slice(0, 8)} -> ${newSessionId.slice(0, 8)} (source=${data.source || 'unknown'})`,
   )

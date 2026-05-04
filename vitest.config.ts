@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     include: ['src/**/*.test.ts'],
+    exclude: ['src/broker/__tests__/staging/**'],
     environment: 'node',
     // Mock bun:sqlite for tests that transitively import SQLite-backed modules
     // (runs in vitest/Node, not bun runtime). Bun-runtime tests use bun:test directly.

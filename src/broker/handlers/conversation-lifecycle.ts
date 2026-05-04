@@ -15,6 +15,7 @@ const meta: MessageHandler = (ctx, data) => {
   const ccSessionId = data.ccSessionId as string
   const project = (data.project as string) ?? cwdToProjectUri(data.cwd as string)
   ctx.ws.data.conversationId = conversationId
+  ctx.ws.data.ccSessionId = ccSessionId
 
   // Consume pending launch config (stored at spawn time, keyed by conversationId)
   const pendingLaunchConfig = ctx.conversations.consumePendingLaunchConfig(conversationId)
@@ -164,14 +165,14 @@ const sessionClear: MessageHandler = (ctx, data) => {
     data.model as string,
   )
   if (conversation) {
-    ctx.ws.data.conversationId = newId
+    ctx.ws.data.ccSessionId = newId
     ctx.log.debug(
       `Conversation re-keyed: ${oldId.slice(0, 8)} -> ${newId.slice(0, 8)} conv=${clearConversationId.slice(0, 8)} (${extractProjectLabel(clearProject)})`,
     )
   } else {
     ctx.log.debug(`session_clear: old conversation ${oldId.slice(0, 8)} not found, creating new`)
     ctx.conversations.createConversation(newId, clearProject, data.model as string)
-    ctx.ws.data.conversationId = newId
+    ctx.ws.data.ccSessionId = newId
     ctx.conversations.setConversationSocket(newId, clearConversationId, ctx.ws)
   }
 }
