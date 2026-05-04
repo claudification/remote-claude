@@ -23,6 +23,7 @@ import {
   Gauge,
   Globe,
   ListTodo,
+  Mail,
   Notebook,
   Pencil,
   Play,
@@ -94,6 +95,84 @@ export function AnsiText({ text, highlight }: { text: string; highlight?: RegExp
 
 export function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+interface ContentBlock {
+  type: string
+  text: string
+}
+
+function isContentBlocks(v: unknown): v is ContentBlock[] {
+  return Array.isArray(v) && v.length > 0 && v.every(b => b?.type === 'text' && typeof b?.text === 'string')
+}
+
+function textFromBlocks(blocks: ContentBlock[]): string {
+  return blocks
+    .map(b => b.text)
+    .join('\n\n')
+    .trim()
+}
+
+function tryParseContentBlocks(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) return null
+  try {
+    let parsed = JSON.parse(trimmed)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && typeof parsed.result === 'string') {
+      try {
+        parsed = JSON.parse(parsed.result)
+      } catch {
+        return null
+      }
+    }
+    if (isContentBlocks(parsed)) return textFromBlocks(parsed)
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Resilient MCP result text extractor. Tries multiple strategies in order:
+ * 1. `extra` as already-parsed content blocks array (fastest, no JSON parsing)
+ * 2. `result` string as JSON content blocks array
+ * 3. `result` string as `{result: "[...]"}` wrapper around content blocks
+ * 4. `result` as plain text (if it doesn't look like content blocks)
+ *
+ * Returns the concatenated text or null if nothing extractable.
+ */
+export function extractMcpText(result?: string, extra?: unknown): string | null {
+  if (isContentBlocks(extra)) {
+    const text = textFromBlocks(extra)
+    if (text) return text
+  }
+  if (Array.isArray(extra)) {
+    for (const item of extra) {
+      if (isContentBlocks(item)) {
+        const text = textFromBlocks(item)
+        if (text) return text
+      }
+    }
+  }
+  if (result && typeof result === 'string') {
+    const fromBlocks = tryParseContentBlocks(result)
+    if (fromBlocks) return fromBlocks
+  }
+  return null
+}
+
+/**
+ * Extract MCP result text and try to parse it as typed JSON.
+ * Returns the parsed object or null. Falls through all extraction strategies.
+ */
+export function extractMcpJson<T>(result?: string, extra?: unknown): T | null {
+  const text = extractMcpText(result, extra)
+  if (!text) return null
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    return null
+  }
 }
 
 // Strip common home/project prefixes to show a useful relative-ish path
@@ -192,9 +271,15 @@ const TOOL_STYLES: Record<string, { color: string; Icon: LucideIcon }> = {
 
 const DEFAULT_TOOL_STYLE = { color: 'text-event-tool', Icon: Play }
 const MCP_TOOL_STYLE = { color: 'text-teal-400', Icon: Plug }
+const GMAIL_TOOL_STYLE = { color: 'text-red-400', Icon: Mail }
+const CALENDAR_TOOL_STYLE = { color: 'text-blue-400', Icon: Clock }
 
 export function getToolStyle(name: string) {
-  return TOOL_STYLES[name] || (name.startsWith('mcp__') ? MCP_TOOL_STYLE : DEFAULT_TOOL_STYLE)
+  if (TOOL_STYLES[name]) return TOOL_STYLES[name]
+  if (name.startsWith('mcp__gmail__')) return GMAIL_TOOL_STYLE
+  if (name.startsWith('mcp__claude_ai_Google_Calendar__')) return CALENDAR_TOOL_STYLE
+  if (name.startsWith('mcp__')) return MCP_TOOL_STYLE
+  return DEFAULT_TOOL_STYLE
 }
 
 // Collapsible section with persistent expanded state across virtualizer remounts

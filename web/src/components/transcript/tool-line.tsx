@@ -11,44 +11,17 @@ import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/control-panel-pre
 import { projectPath, type TranscriptContentBlock } from '@/lib/types'
 import { cn, truncate } from '@/lib/utils'
 import { JsonInspector } from '../json-inspector'
+import {
+  GmailDraftResult,
+  GmailLabelResult,
+  GmailSearchResults,
+  GmailSendResult,
+  GmailThreadView,
+} from './gmail-renderers'
 import { FileListResults, GlobSummary, GrepContentResults, GrepCountResults, GrepSummary } from './grep-results'
 import { SessionTag } from './session-tag'
-import { Collapsible, cleanCdPrefix, getToolStyle, shortPath, TruncatedPre } from './shared'
+import { Collapsible, cleanCdPrefix, extractMcpText, getToolStyle, shortPath, TruncatedPre } from './shared'
 import { BashOutput, DiffView, ReplResult, ReplView, ShellCommand, WritePreview } from './tool-renderers'
-
-/**
- * Try to extract readable text from an MCP tool result.
- * MCP results are often JSON-encoded arrays of content blocks: [{"type":"text","text":"..."}]
- * or a JSON string wrapping such an array in a `result` field.
- * Returns the concatenated text if detected, or null if the result isn't MCP-shaped.
- */
-function extractMcpResultText(result: string): string | null {
-  if (!result || typeof result !== 'string') return null
-  const trimmed = result.trim()
-  // Must look like JSON
-  if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) return null
-  try {
-    let parsed = JSON.parse(trimmed)
-    // Handle { result: "[{\"type\":\"text\",...}]" } wrapper
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && typeof parsed.result === 'string') {
-      try {
-        parsed = JSON.parse(parsed.result)
-      } catch {
-        return null
-      }
-    }
-    // Must be an array of content blocks
-    if (!Array.isArray(parsed) || parsed.length === 0) return null
-    // Every element must have type === 'text' and a text field
-    if (!parsed.every((b: { type?: string; text?: string }) => b.type === 'text' && typeof b.text === 'string'))
-      return null
-    const text = parsed.map((b: { text: string }) => b.text).join('\n\n')
-    // Only worth rendering as markdown if there's actual content
-    return text.trim() || null
-  } catch {
-    return null
-  }
-}
 
 function formatTokenCount(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M tok`
@@ -78,6 +51,31 @@ function TaskStatusBadge({ status }: { status: string }) {
       {label}
     </span>
   )
+}
+
+function parseTriggerResult(result?: string): { id: string; nextRun?: string } | null {
+  if (!result) return null
+  const jsonStart = result.indexOf('{')
+  if (jsonStart < 0) return null
+  try {
+    const parsed = JSON.parse(result.slice(jsonStart))
+    const trigger = parsed?.trigger || parsed
+    const id = trigger?.id as string
+    if (!id) return null
+    const nextRunRaw = trigger?.next_run_at as string
+    let nextRun: string | undefined
+    if (nextRunRaw) {
+      try {
+        const d = new Date(nextRunRaw)
+        if (!Number.isNaN(d.getTime())) {
+          nextRun = d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+        }
+      } catch {}
+    }
+    return { id, nextRun }
+  } catch {
+    return null
+  }
 }
 
 function parseTaskSubjectFromResult(result: string | undefined): string {
@@ -700,16 +698,74 @@ export function ToolLine({
       break
     }
     case 'CronCreate': {
-      const cronExpr = input.cron as string
-      const prompt = input.prompt as string
-      const recurring = input.recurring as boolean
-      summary = `${cronExpr}${recurring ? ' (recurring)' : ''}`
-      if (prompt) {
-        details = (
-          <pre className="text-[10px] text-muted-foreground overflow-x-auto whitespace-pre-wrap">
-            {truncate(prompt, 500)}
-          </pre>
+      const body = input.body as Record<string, unknown> | undefined
+      if (body?.name && body?.cron_expression) {
+        const triggerResult = parseTriggerResult(result)
+        summary = (
+          <span className="flex items-center gap-1.5">
+            <span className="text-sky-400 font-bold">{body.name as string}</span>
+            <span className="text-muted-foreground/60 text-[10px]">{body.cron_expression as string}</span>
+            {body.enabled === false && <span className="text-red-400/60 text-[9px] font-bold uppercase">disabled</span>}
+          </span>
         )
+        const jobConfig = body.job_config as Record<string, unknown> | undefined
+        const ccr = jobConfig?.ccr as Record<string, unknown> | undefined
+        const sessionCtx = ccr?.session_context as Record<string, unknown> | undefined
+        const events = ccr?.events as Array<{ data?: { message?: { content?: string } } }> | undefined
+        const prompt = events?.[0]?.data?.message?.content || ''
+        const mcpConns = body.mcp_connections as Array<{ name: string; url?: string }> | undefined
+        const model = sessionCtx?.model as string | undefined
+        const allowedTools = sessionCtx?.allowed_tools as string[] | undefined
+
+        details = (
+          <div className="text-[10px] font-mono space-y-1.5">
+            <div className="px-2 py-1.5 rounded bg-muted/20 border border-border/20 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                {model && (
+                  <span className="bg-sky-400/10 text-sky-400/80 border border-sky-400/20 rounded px-1 py-0.5 text-[9px]">
+                    {model}
+                  </span>
+                )}
+                {mcpConns?.map(c => (
+                  <span
+                    key={c.name}
+                    className="bg-teal-400/10 text-teal-400/80 border border-teal-400/20 rounded px-1 py-0.5 text-[9px]"
+                  >
+                    {c.name}
+                  </span>
+                ))}
+                {allowedTools && allowedTools.length > 0 && (
+                  <span className="text-muted-foreground/40 text-[9px]">+{allowedTools.length} tools</span>
+                )}
+              </div>
+              {prompt && (
+                <div className="text-foreground/70 whitespace-pre-wrap break-words border-t border-border/20 pt-1 mt-1 max-h-48 overflow-y-auto">
+                  {prompt.length > 800 ? `${prompt.slice(0, 800)}...` : prompt}
+                </div>
+              )}
+            </div>
+            {triggerResult && (
+              <div className="text-green-400/80 bg-green-400/5 border border-green-400/20 rounded px-2.5 py-1.5 flex items-center gap-2">
+                <span className="font-bold">{triggerResult.id}</span>
+                {triggerResult.nextRun && (
+                  <span className="text-muted-foreground/50">next: {triggerResult.nextRun}</span>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      } else {
+        const cronExpr = input.cron as string
+        const prompt = input.prompt as string
+        const recurring = input.recurring as boolean
+        summary = `${cronExpr}${recurring ? ' (recurring)' : ''}`
+        if (prompt) {
+          details = (
+            <pre className="text-[10px] text-muted-foreground overflow-x-auto whitespace-pre-wrap">
+              {truncate(prompt, 500)}
+            </pre>
+          )
+        }
       }
       break
     }
@@ -903,7 +959,7 @@ export function ToolLine({
       const spawnAdHoc = input.adHoc as boolean | undefined
       const spawnDescription = input.description as string | undefined
 
-      const resultText = result ? extractMcpResultText(result) || result : undefined
+      const resultText = result ? extractMcpText(result, toolUseResult) || result : undefined
 
       summary = (
         <span className="flex items-center gap-1.5 flex-wrap">
@@ -990,7 +1046,7 @@ export function ToolLine({
       const ctrlModel = input.model as string | undefined
       const ctrlEffort = input.effort as string | undefined
       const ctrlPermMode = input.permissionMode as string | undefined
-      const resultText = result ? extractMcpResultText(result) || result : undefined
+      const resultText = result ? extractMcpText(result, toolUseResult) || result : undefined
 
       const actionColors: Record<string, string> = {
         quit: 'text-red-400',
@@ -1058,6 +1114,78 @@ export function ToolLine({
       )
       break
     }
+    // Gmail MCP tools
+    case 'mcp__gmail__search_emails': {
+      const q = (input.query as string) || ''
+      const max = input.maxResults as number | undefined
+      summary = (
+        <span className="flex items-center gap-1.5">
+          <span className="truncate">{q || 'search'}</span>
+          {max && <span className="text-muted-foreground/50 text-[10px]">max {max}</span>}
+        </span>
+      )
+      if (result) details = <GmailSearchResults result={result} extra={toolUseResult} />
+      break
+    }
+    case 'mcp__gmail__get_thread': {
+      const tid = (input.threadId as string) || ''
+      const fmt = (input.format as string) || 'full'
+      summary = (
+        <span className="flex items-center gap-1.5">
+          <span className="text-muted-foreground/60 font-mono text-[10px]">{tid.slice(0, 10)}</span>
+          <span className="text-muted-foreground/40 text-[10px]">{fmt}</span>
+        </span>
+      )
+      if (result) details = <GmailThreadView result={result} extra={toolUseResult} />
+      break
+    }
+    case 'mcp__gmail__draft_email': {
+      const to = (input.to as string) || ''
+      const subj = (input.subject as string) || ''
+      summary = to ? `${to} -- ${subj || '(no subject)'}` : 'drafts'
+      if (result) details = <GmailDraftResult result={result} extra={toolUseResult} />
+      break
+    }
+    case 'mcp__gmail__modify_email':
+    case 'mcp__gmail__batch_modify_emails':
+    case 'mcp__gmail__create_label':
+    case 'mcp__gmail__update_label':
+    case 'mcp__gmail__get_or_create_label': {
+      const labelName = (input.labelName as string) || (input.label as string) || ''
+      const msgId = (input.messageId as string) || (input.threadId as string) || ''
+      summary = (
+        <span className="flex items-center gap-1.5">
+          {labelName && <span className="text-amber-400/80">{labelName}</span>}
+          {msgId && <span className="text-muted-foreground/50 font-mono text-[10px]">{msgId.slice(0, 10)}</span>}
+        </span>
+      )
+      if (result) details = <GmailLabelResult result={result} extra={toolUseResult} />
+      break
+    }
+    case 'mcp__gmail__list_email_labels': {
+      summary = 'list labels'
+      if (result) details = <GmailLabelResult result={result} extra={toolUseResult} />
+      break
+    }
+    case 'mcp__gmail__list_inbox_threads':
+    case 'mcp__gmail__get_inbox_with_threads': {
+      summary = name.includes('list') ? 'list inbox' : 'inbox with threads'
+      if (result) details = <GmailSearchResults result={result} extra={toolUseResult} />
+      break
+    }
+    case 'mcp__gmail__send_email':
+    case 'mcp__gmail__reply_all': {
+      const to = Array.isArray(input.to) ? (input.to as string[]).join(', ') : (input.to as string) || ''
+      const subj = (input.subject as string) || ''
+      summary = (
+        <span className="flex items-center gap-1.5">
+          <span className="text-blue-400/80 truncate">{to}</span>
+          {subj && <span className="text-foreground/60 truncate">{subj}</span>}
+        </span>
+      )
+      if (result) details = <GmailSendResult input={input} result={result} extra={toolUseResult} />
+      break
+    }
     // mcp__rclaude__terminate_session + quit_session handled above (line ~473)
     default: {
       if (name.startsWith('mcp__')) {
@@ -1075,7 +1203,7 @@ export function ToolLine({
         summary = inputSummary || `${server}/${toolName}`
         // Show result as expandable output - render as markdown if it's MCP content blocks
         if (result && typeof result === 'string' && result.trim()) {
-          const mcpText = extractMcpResultText(result)
+          const mcpText = extractMcpText(result, toolUseResult)
           if (mcpText) {
             details = (
               <div className="text-xs prose-sm max-h-96 overflow-y-auto">
