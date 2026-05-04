@@ -4,7 +4,7 @@
 
 | Identity | Stability | Use for |
 |---|---|---|
-| **Address book slug** | Permanent (persisted) | Routing -- `list_sessions` ID, `send_message` target |
+| **Address book slug** | Permanent (persisted) | Routing -- `list_conversations` ID, `send_message` target |
 | **Agent Host ID** | Process lifetime (survives `/clear`) | Internal -- socket routing, terminal attachment |
 | **Session ID** | Ephemeral (changes on `/clear`) | Context -- transcripts, tasks, conversation history |
 | **CWD** | Permanent | Linking -- trust relationships, address book keys |

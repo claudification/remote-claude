@@ -5,7 +5,7 @@
  * context (sessions store, address book, sockets, etc).
  *
  * Stable-ID rule (the whole point of this file):
- *   - `list_sessions` ALWAYS returns compound `project:session-slug` ids.
+ *   - `list_conversations` ALWAYS returns compound `project:session-slug` ids.
  *   - The bare `project` form is NEVER produced. This guarantees the id a
  *     caller sees today does not silently change shape tomorrow when a
  *     second session spawns at the same project.
@@ -42,7 +42,7 @@ export function computeConversationSlug(target: ConversationLike, siblingConvers
 /**
  * Always-compound local id: `project:session-slug`.
  *
- * Use for both `list_sessions` output and the from-id stamped on outgoing
+ * Use for both `list_conversations` output and the from-id stamped on outgoing
  * messages so a recipient can replay it verbatim as `to`.
  */
 export function computeLocalId(
@@ -151,7 +151,7 @@ export interface ResolveConversationDeps {
  *
  * Used by session_control, channel_restart, channel_configure, and
  * channel_send to consistently handle the compound ID format returned
- * by list_sessions.
+ * by list_conversations.
  */
 export function resolveConversationTarget(targetId: string, deps: ResolveConversationDeps): ResolveConversationResult {
   const colonIdx = targetId.indexOf(':')
@@ -194,5 +194,5 @@ export function resolveConversationTarget(targetId: string, deps: ResolveConvers
   // Fallback: try raw internal ID / conversation ID
   const fallback = deps.findConversationByConversationId(targetId) || deps.getConversation(targetId)
   if (fallback) return { kind: 'resolved', session: fallback }
-  return { kind: 'not_found', error: 'Target not connected. Use list_sessions to find current sessions.' }
+  return { kind: 'not_found', error: 'Target not connected. Use list_conversations to find current sessions.' }
 }

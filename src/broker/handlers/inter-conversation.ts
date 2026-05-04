@@ -37,7 +37,7 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
     ctx.reply({
       type: 'channel_revive_result',
       ok: false,
-      error: 'Session not found. Use list_sessions to discover current sessions.',
+      error: 'Session not found. Use list_conversations to discover current sessions.',
     })
     return
   }
@@ -385,7 +385,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
       type: 'conversation_control_result',
       ok: false,
       action,
-      error: 'Target not connected. Use list_sessions to find current sessions.',
+      error: 'Target not connected. Use list_conversations to find current sessions.',
     })
     return
   }

@@ -1,9 +1,9 @@
 /**
- * Integration tests for inter-session messaging (channel_list_sessions + channel_send).
+ * Integration tests for inter-session messaging (channel_list_conversations + channel_send).
  *
  * These tests verify that:
- * 1. Sessions can discover each other via list_sessions
- * 2. send_message works WITHOUT a prior list_sessions call
+ * 1. Sessions can discover each other via list_conversations
+ * 2. send_message works WITHOUT a prior list_conversations call
  * 3. send_message survives session_clear (rekey) -- the exact regression
  * 4. Compound project:session-slug routing works
  * 5. Unknown targets produce clean errors
@@ -39,7 +39,7 @@ describe('inter-session messaging', () => {
     return agent
   }
 
-  describe('channel_list_sessions', () => {
+  describe('channel_list_conversations', () => {
     it('returns other conversations', async () => {
       const sessionA = testId('sess-a')
       const sessionB = testId('sess-b')
@@ -59,8 +59,8 @@ describe('inter-session messaging', () => {
 
       await h.flushUpdates()
 
-      h.agentSend(agentA, { type: 'channel_list_sessions' })
-      const result = agentA.messagesOfType('channel_sessions_list')
+      h.agentSend(agentA, { type: 'channel_list_conversations' })
+      const result = agentA.messagesOfType('channel_conversations_list')
       expect(result.length).toBe(1)
 
       const sessions = result[0].sessions as Array<{ id: string; project: string }>
@@ -83,8 +83,8 @@ describe('inter-session messaging', () => {
 
       await h.flushUpdates()
 
-      h.agentSend(agentA, { type: 'channel_list_sessions' })
-      const result = agentA.messagesOfType('channel_sessions_list')
+      h.agentSend(agentA, { type: 'channel_list_conversations' })
+      const result = agentA.messagesOfType('channel_conversations_list')
       expect(result.length).toBe(1)
 
       const sessions = result[0].sessions as Array<{ id: string }>
@@ -94,7 +94,7 @@ describe('inter-session messaging', () => {
   })
 
   describe('channel_send', () => {
-    it('delivers message without prior list_sessions', async () => {
+    it('delivers message without prior list_conversations', async () => {
       const sessionA = testId('sess-a')
       const sessionB = testId('sess-b')
       const convA = testId('conv-a')
@@ -113,7 +113,7 @@ describe('inter-session messaging', () => {
 
       await h.flushUpdates()
 
-      // A sends to B using the project slug -- NO list_sessions first
+      // A sends to B using the project slug -- NO list_conversations first
       h.agentSend(agentA, {
         type: 'channel_send',
         toSession: 'project-beta',
@@ -227,14 +227,14 @@ describe('inter-session messaging', () => {
 
       await h.flushUpdates()
 
-      // First, list_sessions to get the compound ID
-      h.agentSend(agentA, { type: 'channel_list_sessions' })
-      const listResult = agentA.messagesOfType('channel_sessions_list')
+      // First, list_conversations to get the compound ID
+      h.agentSend(agentA, { type: 'channel_list_conversations' })
+      const listResult = agentA.messagesOfType('channel_conversations_list')
       const sessions = listResult[0].sessions as Array<{ id: string }>
       const betaSession = sessions.find(s => s.id?.includes('project-beta'))
       expect(betaSession).toBeDefined()
 
-      // Send using the compound ID from list_sessions
+      // Send using the compound ID from list_conversations
       h.agentSend(agentA, {
         type: 'channel_send',
         toSession: betaSession!.id,

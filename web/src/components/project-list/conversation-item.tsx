@@ -863,10 +863,7 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
           <InlineDescription session={session} />
         </div>
       ) : session.description ? (
-        <div
-          className="mt-0.5 text-[10px] text-muted-foreground/60 truncate pl-1 italic"
-          title={session.description}
-        >
+        <div className="mt-0.5 text-[10px] text-muted-foreground/60 truncate pl-1 italic" title={session.description}>
           {session.description}
         </div>
       ) : null}
@@ -1119,10 +1116,7 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
           <InlineDescription session={session} />
         </div>
       ) : session.description ? (
-        <div
-          className="mt-0.5 pl-4 text-[9px] text-muted-foreground/70 truncate"
-          title={session.description}
-        >
+        <div className="mt-0.5 pl-4 text-[9px] text-muted-foreground/70 truncate" title={session.description}>
           {session.description}
         </div>
       ) : null}

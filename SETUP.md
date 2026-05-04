@@ -424,7 +424,7 @@ rclaude
 |------|---------|
 | `notify` | Send push notification to user's devices |
 | `share_file` | Upload a file, get a public URL |
-| `list_sessions` | Discover other channel-capable sessions |
+| `list_conversations` | Discover other channel-capable sessions |
 | `send_message` | Send a message to another session |
 
 ### Slash command handling
@@ -437,7 +437,7 @@ layer, which channel messages bypass.
 
 Sessions with channels can discover and message each other:
 
-1. Claude calls `list_sessions` to see other sessions
+1. Claude calls `list_conversations` to see other sessions
 2. Claude calls `send_message` to reach another session
 3. First contact requires dashboard user approval (ALLOW/BLOCK)
 4. Approved links are bidirectional and persistent (per concentrator lifetime)

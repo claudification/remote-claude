@@ -228,7 +228,7 @@ with the control panel:
 |------|-------------|
 | `notify` | Send push notification to user's devices |
 | `share_file` | Upload a file and get a public URL |
-| `list_sessions` | Discover sessions (returns stable address book IDs) |
+| `list_conversations` | Discover sessions (returns stable address book IDs) |
 | `send_message` | Message a session by ID (delivers or queues if offline) |
 | `configure_session` | Update project label/icon/color/keyterms |
 | `spawn_session` | Launch a new session in a project |
@@ -238,7 +238,7 @@ with the control panel:
 
 ### Inter-Session Communication
 
-Sessions can discover and message each other. `list_sessions` returns stable,
+Sessions can discover and message each other. `list_conversations` returns stable,
 human-readable IDs that persist forever. Use these IDs with `send_message`
 to talk to other sessions.
 

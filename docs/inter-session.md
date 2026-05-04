@@ -5,7 +5,7 @@ All routing uses existing WS connections. Offline messages queued for reconnect 
 
 ## MCP Tools
 
-- `list_sessions` - discover sessions, returns address book slug as `id`
+- `list_conversations` - discover conversations, returns address book slug as `id`
 - `send_message` - send to slug (resolves via address book -> CWD -> session)
 
 ## Permission Gating

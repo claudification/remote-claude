@@ -466,7 +466,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
             case 'rclaude_config_set':
               onConfigSet?.(message.requestId, message.config)
               break
-            case 'channel_sessions_list':
+            case 'channel_conversations_list':
               onChannelConversationsList?.(message.sessions, message.self)
               break
             case 'channel_deliver':

@@ -900,7 +900,7 @@ export function ToolLine({
       if (result) details = <TruncatedPre text={result} tool="MCP" />
       break
     }
-    case 'mcp__rclaude__list_sessions': {
+    case 'mcp__rclaude__list_conversations': {
       const parts: string[] = []
       if (input.filter) parts.push(`glob=${input.filter}`)
       if (input.status) parts.push(`status=${input.status}`)

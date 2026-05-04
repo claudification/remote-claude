@@ -133,7 +133,7 @@ const channelUnsubscribeAll: MessageHandler = ctx => {
   ctx.log.debug('[channel] unsubscribed all')
 }
 
-// ─── Session discovery (list_sessions) ─────────────────────────────
+// ─── Session discovery (list_conversations) ─────────────────────────────
 
 const channelListSessions: MessageHandler = (ctx, data) => {
   const status = (data.status as string) || 'live'
@@ -246,7 +246,7 @@ const channelListSessions: MessageHandler = (ctx, data) => {
     }
   }
 
-  ctx.reply({ type: 'channel_sessions_list', sessions: result, self })
+  ctx.reply({ type: 'channel_conversations_list', sessions: result, self })
 }
 
 // ─── Inter-session messaging (channel_send) ────────────────────────
@@ -254,9 +254,9 @@ const channelListSessions: MessageHandler = (ctx, data) => {
 /**
  * Compute the sender's routable ID from the receiver's perspective.
  *
- * Must match the ID shape produced by `list_sessions` so a recipient can
+ * Must match the ID shape produced by `list_conversations` so a recipient can
  * pass `from_session` straight back as `to` without a round-trip through
- * list_sessions. When the sender's project hosts multiple sessions, the ID
+ * list_conversations. When the sender's project hosts multiple sessions, the ID
  * is compounded `project:session-slug` -- bare project slugs would be
  * ambiguous and rejected by the send resolver.
  */
@@ -274,7 +274,7 @@ function computeSenderRoutableId(
   const sessionsAtProject = Array.from(ctx.conversations.getAllConversations()).filter(s =>
     isSameProject(s.project, fromSess.project),
   )
-  // Always compound -- list_sessions must be able to round-trip the from-id.
+  // Always compound -- list_conversations must be able to round-trip the from-id.
   const projGroup = sessionsAtProject.length > 0 ? sessionsAtProject : [fromSess]
   return { routable: computeLocalId(fromSess, projectSlug, projGroup), project: projectSlug }
 }
@@ -295,8 +295,8 @@ const channelSend: MessageHandler = (ctx, data) => {
   // Resolve target: address book first, auto-populate on miss, then raw ID fallback
   let targetProject = callerProject ? ctx.addressBook.resolve(callerProject, projectSlug) : undefined
 
-  // Address book miss -- populate from all known sessions (same as list_sessions),
-  // then retry. This makes send_message work on first call without a prior list_sessions.
+  // Address book miss -- populate from all known sessions (same as list_conversations),
+  // then retry. This makes send_message work on first call without a prior list_conversations.
   if (!targetProject && callerProject) {
     for (const s of ctx.conversations.getAllConversations()) {
       if (s.id === fromSession) continue
@@ -344,7 +344,7 @@ const channelSend: MessageHandler = (ctx, data) => {
       ctx.getProjectSettings(callerProject || '')?.label ||
       (callerProject ? extractProjectLabel(callerProject) : fromSession.slice(0, 8))
     // Resolve sender ID from receiver's address book perspective (works even when target is offline).
-    // `routable` is a list_sessions-compatible ID the recipient can pass straight back as `to`;
+    // `routable` is a list_conversations-compatible ID the recipient can pass straight back as `to`;
     // `project` is the bare project slug for grouping/context.
     const { routable: fromSlug, project: fromProjectSlug } = computeSenderRoutableId(
       ctx,
@@ -389,7 +389,7 @@ const channelSend: MessageHandler = (ctx, data) => {
     ctx.reply({
       type: 'channel_send_result',
       ok: false,
-      error: 'Target not found. Use list_sessions to discover current sessions.',
+      error: 'Target not found. Use list_conversations to discover current sessions.',
     })
     return
   }
@@ -407,7 +407,7 @@ const channelSend: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId as string) || `conv_${Date.now().toString(36)}`
 
   // Resolve sender ID from the RECEIVER's address book perspective.
-  // `routable` matches what list_sessions would return for this sender,
+  // `routable` matches what list_conversations would return for this sender,
   // so the recipient can pass `from_session` straight back as `to`.
   const { routable: fromSlug, project: fromProjectSlug } = computeSenderRoutableId(
     ctx,
@@ -484,7 +484,7 @@ const channelSend: MessageHandler = (ctx, data) => {
       ctx.reply({
         type: 'channel_send_result',
         ok: false,
-        error: 'Target session not connected. It may have restarted. Use list_sessions to resolve current IDs.',
+        error: 'Target session not connected. It may have restarted. Use list_conversations to resolve current IDs.',
       })
     }
   } else {
@@ -611,8 +611,8 @@ export function registerChannelHandlers(): void {
     channel_subscribe: channelSubscribe,
     channel_unsubscribe: channelUnsubscribe,
     channel_unsubscribe_all: channelUnsubscribeAll,
-    // Session discovery
-    channel_list_sessions: channelListSessions,
+    // Conversation discovery
+    channel_list_conversations: channelListSessions,
     // Inter-session messaging
     channel_send: channelSend,
     // Conversation terminate relay

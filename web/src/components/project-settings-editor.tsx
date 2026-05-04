@@ -748,7 +748,7 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
             </SettingRow>
 
             <div>
-              <SettingRow label="Description" description="Visible to other sessions via list_sessions">
+              <SettingRow label="Description" description="Visible to other conversations via list_conversations">
                 <span />
               </SettingRow>
               <textarea

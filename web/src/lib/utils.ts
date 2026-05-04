@@ -84,7 +84,7 @@ export function slugify(name: string): string {
 }
 
 /**
- * Mirror of the addressable ID produced by list_sessions. ALWAYS compound
+ * Mirror of the addressable ID produced by list_conversations. ALWAYS compound
  * `project:session-slug` so the inserted id stays stable when a second
  * session spawns at the same project later. Server logic + rationale live in
  * `src/broker/handlers/channel-id.ts` (the canonical implementation

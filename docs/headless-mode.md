@@ -137,7 +137,7 @@ Dashboard input -> concentrator WS -> rclaude -> MCP notification
 Requires `--dangerously-load-development-channels server:rclaude` (auto-confirmed).
 MCP config: `.claude/.rclaude/mcp-{id}.json`.
 
-**MCP tools:** `notify`, `share_file`, `list_sessions`, `send_message`,
+**MCP tools:** `notify`, `share_file`, `list_conversations`, `send_message`,
 `toggle_plan_mode`, `tasks`, `set_task_status`, `dialog` -- always available
 regardless of channel state.
 

@@ -1456,7 +1456,7 @@ async function main() {
             resolve({ sessions, self })
           }
           ctx.wsClient?.send({
-            type: 'channel_list_sessions',
+            type: 'channel_list_conversations',
             status,
             show_metadata: showMetadata,
           } as unknown as AgentHostMessage)
@@ -1922,7 +1922,7 @@ async function main() {
   // Convert WS URL to HTTP for tools/scripts that need to call the broker REST API
   const brokerHttpUrl = noBroker ? undefined : wsToHttpUrl(brokerUrl)
 
-  // Always inject MCP config (tools: notify, share_file, list_sessions, send_message, toggle_plan_mode)
+  // Always inject MCP config (tools: notify, share_file, list_conversations, send_message, toggle_plan_mode)
   // Channel input (--dangerously-load-development-channels) only when channels enabled
   const mcpConfigPath = join(rclaudeDir, 'settings', `mcp-${conversationId}.json`)
   await Bun.write(

@@ -361,7 +361,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
       session_id: z
         .string()
         .optional()
-        .describe('Target session ID from list_sessions. Required for revive and restart actions.'),
+        .describe('Target session ID from list_conversations. Required for revive and restart actions.'),
       resume_id: z.string().optional().describe('Claude Code session ID to resume (alias for resumeId).'),
       host: z.string().optional().describe('Target sentinel alias (from list_hosts). Maps to sentinel field.'),
     })
@@ -472,9 +472,9 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
       },
     },
 
-    list_sessions: {
+    list_conversations: {
       description:
-        'List other Claude Code sessions. Returns a stable addressable ID per session in the compound format "project:session-name" (e.g. "rclaude:fuzzy-rabbit"). The ID is always compound -- it does NOT change shape when the number of sessions at a cwd grows or shrinks. Each entry also has a "project" field showing the project-level grouping (the bare project slug, useful for grouping but only safe to use as a `to` target when exactly one session lives at that cwd). Use the returned `id` for send_message, control_session, configure_session. Messages to offline sessions are queued for delivery on reconnect. Ad-hoc sessions are hidden unless they have an established link. HINT: When the user says "tell X to Y", "ask X to Y", or "use X to Y", consider that X may be a session name -- call list_sessions to check.',
+        'List other Claude Code conversations. Returns a stable addressable ID per conversation in the compound format "project:conversation-name" (e.g. "rclaude:fuzzy-rabbit"). The ID is always compound -- it does NOT change shape when the number of conversations at a cwd grows or shrinks. Each entry also has a "project" field showing the project-level grouping (the bare project slug, useful for grouping but only safe to use as a `to` target when exactly one conversation lives at that cwd). Use the returned `id` for send_message, control_session, configure_session. Messages to offline conversations are queued for delivery on reconnect. Ad-hoc conversations are hidden unless they have an established link. HINT: When the user says "tell X to Y", "ask X to Y", or "use X to Y", consider that X may be a conversation name -- call list_conversations to check.',
       inputSchema: {
         type: 'object' as const,
         properties: {
@@ -521,7 +521,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
           )
         }
         debug(
-          `[channel] list_sessions: ${sessions.length} results (metadata=${showMeta}, filter=${params.filter ?? 'none'})`,
+          `[channel] list_conversations: ${sessions.length} results (metadata=${showMeta}, filter=${params.filter ?? 'none'})`,
         )
         const output = self ? { self, sessions } : sessions
         return { content: [{ type: 'text', text: JSON.stringify(output, null, 2) }] }
@@ -530,14 +530,14 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
 
     send_message: {
       description:
-        'Send a message to another Claude Code session. The `to` parameter MUST be the exact `id` field returned by `list_sessions` -- do not invent, abbreviate, or guess. The canonical form is compound "project:session-name" (e.g. "arr:blazing-igloo") and is ALWAYS accepted. A bare project slug (e.g. "arr") is also accepted ONLY when exactly one session lives at that cwd; if two or more sessions share the project, the bare form is rejected as ambiguous and the error lists the compound IDs to retry with. Always call `list_sessions` first if you are not certain. Messages to offline sessions are queued and delivered on reconnect. Returns status: "delivered" or "queued". First contact triggers an approval prompt. Include conversation_id in replies to maintain thread context.',
+        'Send a message to another Claude Code session. The `to` parameter MUST be the exact `id` field returned by `list_conversations` -- do not invent, abbreviate, or guess. The canonical form is compound "project:session-name" (e.g. "arr:blazing-igloo") and is ALWAYS accepted. A bare project slug (e.g. "arr") is also accepted ONLY when exactly one session lives at that cwd; if two or more sessions share the project, the bare form is rejected as ambiguous and the error lists the compound IDs to retry with. Always call `list_conversations` first if you are not certain. Messages to offline sessions are queued and delivered on reconnect. Returns status: "delivered" or "queued". First contact triggers an approval prompt. Include conversation_id in replies to maintain thread context.',
       inputSchema: {
         type: 'object' as const,
         properties: {
           to: {
             type: 'string',
             description:
-              'Target session ID. MUST be the exact `id` field from `list_sessions` output (always compound "project:session-name", e.g. "arr:blazing-igloo"). A bare project slug ("arr") is also accepted but only when one session lives at that cwd -- otherwise the resolver returns an "ambiguous" error listing the compound IDs to retry with. Do not pass the `name`, `title`, `label`, or any other field -- only `id`. When in doubt, call list_sessions first.',
+              'Target session ID. MUST be the exact `id` field from `list_conversations` output (always compound "project:session-name", e.g. "arr:blazing-igloo"). A bare project slug ("arr") is also accepted but only when one session lives at that cwd -- otherwise the resolver returns an "ambiguous" error listing the compound IDs to retry with. Do not pass the `name`, `title`, `label`, or any other field -- only `id`. When in doubt, call list_conversations first.',
           },
           intent: {
             type: 'string',
@@ -592,7 +592,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
       inputSchema: {
         type: 'object' as const,
         properties: {
-          session_id: { type: 'string', description: 'Target ID from list_sessions' },
+          session_id: { type: 'string', description: 'Target ID from list_conversations' },
           action: {
             type: 'string',
             enum: ['clear', 'quit', 'interrupt', 'set_model', 'set_effort', 'set_permission_mode'],
@@ -697,7 +697,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
 
     spawn_session: {
       description:
-        'Unified session lifecycle tool. Spawn new sessions, revive ended ones, or restart active sessions (terminate + auto-revive). Requires benevolent trust level. Sessions boot in tmux on the host - takes 10-30 seconds. Use list_sessions to poll for status.\n\nWhen spawning: ALWAYS provide a short `description` (1-2 sentences) explaining what the session will do. This is shown in the dashboard and helps the user understand each session at a glance. Also provide a `name` when you have a meaningful label.\n\nActions:\n- spawn (default): Start a new session at a directory\n- revive: Bring back an ended/inactive session\n- restart: Terminate an active session and automatically revive it. For self-restart, the MCP response may not arrive (your process dies and reboots).',
+        'Unified session lifecycle tool. Spawn new sessions, revive ended ones, or restart active sessions (terminate + auto-revive). Requires benevolent trust level. Sessions boot in tmux on the host - takes 10-30 seconds. Use list_conversations to poll for status.\n\nWhen spawning: ALWAYS provide a short `description` (1-2 sentences) explaining what the session will do. This is shown in the dashboard and helps the user understand each session at a glance. Also provide a `name` when you have a meaningful label.\n\nActions:\n- spawn (default): Start a new session at a directory\n- revive: Bring back an ended/inactive session\n- restart: Terminate an active session and automatically revive it. For self-restart, the MCP response may not arrive (your process dies and reboots).',
       inputSchema: spawnToolInputSchema,
       async handle(params, ctx) {
         const action = (params.action as 'spawn' | 'revive' | 'restart') || 'spawn'
@@ -717,7 +717,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
             content: [
               {
                 type: 'text',
-                text: `Reviving session ${result.name || targetConversationId.slice(0, 8)}. This is async - the session takes 10-30 seconds to start. Use list_sessions to check when status changes to "live".`,
+                text: `Reviving session ${result.name || targetConversationId.slice(0, 8)}. This is async - the session takes 10-30 seconds to start. Use list_conversations to check when status changes to "live".`,
               },
             ],
           }
@@ -751,7 +751,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
               content: [
                 {
                   type: 'text',
-                  text: `Session ${result.name || targetConversationId.slice(0, 8)} was already ended - reviving instead. Use list_sessions to check when ready.`,
+                  text: `Session ${result.name || targetConversationId.slice(0, 8)} was already ended - reviving instead. Use list_conversations to check when ready.`,
                 },
               ],
             }
@@ -760,7 +760,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
             content: [
               {
                 type: 'text',
-                text: `Restarting session ${result.name || targetConversationId.slice(0, 8)}. The session will terminate and automatically revive. Use list_sessions to check when ready (10-30 seconds).`,
+                text: `Restarting session ${result.name || targetConversationId.slice(0, 8)}. The session will terminate and automatically revive. Use list_conversations to check when ready (10-30 seconds).`,
               },
             ],
           }
@@ -888,8 +888,8 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
             {
               type: 'text',
               text: result.timedOut
-                ? `Session spawn sent to ${cwd} (${modeDesc}) but session did not connect within the rendezvous timeout. It may still be booting - use list_sessions to check.${result.jobId ? ` jobId=${result.jobId}` : ''}`
-                : `Session spawning at ${cwd} (${modeDesc}). Use list_sessions to check when ready.${result.jobId ? ` jobId=${result.jobId}` : ''}`,
+                ? `Session spawn sent to ${cwd} (${modeDesc}) but session did not connect within the rendezvous timeout. It may still be booting - use list_conversations to check.${result.jobId ? ` jobId=${result.jobId}` : ''}`
+                : `Session spawning at ${cwd} (${modeDesc}). Use list_conversations to check when ready.${result.jobId ? ` jobId=${result.jobId}` : ''}`,
             },
           ],
         }
@@ -986,7 +986,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
       inputSchema: {
         type: 'object' as const,
         properties: {
-          session_id: { type: 'string', description: 'Target ID from list_sessions' },
+          session_id: { type: 'string', description: 'Target ID from list_conversations' },
           label: { type: 'string', description: 'Display name for the project' },
           icon: { type: 'string', description: 'Lucide icon ID (e.g. "rocket", "database", "globe")' },
           color: { type: 'string', description: 'Hex color (e.g. "#ff6600")' },
@@ -1030,7 +1030,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
 
     rename_session: {
       description:
-        'Rename the current session and/or set its description. The title is visible in the dashboard sidebar. Use slug-formatted names for consistency (e.g. "refactor-auth-middleware"). Pass empty name to clear and revert to auto-generated name. Description is a short line shown in sidebar and list_sessions -- use it to explain what this session is working on.',
+        'Rename the current session and/or set its description. The title is visible in the dashboard sidebar. Use slug-formatted names for consistency (e.g. "refactor-auth-middleware"). Pass empty name to clear and revert to auto-generated name. Description is a short line shown in sidebar and list_conversations -- use it to explain what this session is working on.',
       inputSchema: {
         type: 'object' as const,
         properties: {
@@ -1041,7 +1041,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
           description: {
             type: 'string',
             description:
-              'Short description of what this session is working on. Shown in dashboard and list_sessions. Empty string clears.',
+              'Short description of what this session is working on. Shown in dashboard and list_conversations. Empty string clears.',
           },
         },
         required: ['name'],
@@ -1344,7 +1344,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
       inputSchema: {
         type: 'object' as const,
         properties: {
-          session_id: { type: 'string', description: 'Target session ID from list_sessions' },
+          session_id: { type: 'string', description: 'Target session ID from list_conversations' },
         },
         required: ['session_id'],
       },
@@ -1360,7 +1360,7 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
           content: [
             {
               type: 'text',
-              text: `Reviving session ${result.name || targetConversationId.slice(0, 8)}. Use list_sessions to check when ready.`,
+              text: `Reviving session ${result.name || targetConversationId.slice(0, 8)}. Use list_conversations to check when ready.`,
             },
           ],
         }

@@ -249,7 +249,7 @@ function sessionCompletions(query: string): ConversationCompletion[] {
     const displayLabel = projectDisplayName(session.project, projectSettings[session.project]?.label)
     const name = session.title || session.agentName || ''
     // The insertable slug -- always compound `project:session-slug` to mirror
-    // list_sessions and stay stable across spawn/end churn at the project.
+    // list_conversations and stay stable across spawn/end churn at the project.
     const slug = sessionAddressableSlug(session, projectSettings, projectGroups[session.project] || [session])
     // Match against display name, the slug, and agent/title so "ola",
     // "OLA", "raccoon", and "arr:viral" all find the expected session.

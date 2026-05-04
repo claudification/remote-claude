@@ -724,12 +724,12 @@ export interface ProjectLinkResponse {
 }
 
 export interface InterSessionListRequest {
-  type: 'channel_list_sessions'
+  type: 'channel_list_conversations'
   status?: 'live' | 'inactive' | 'all'
 }
 
 export interface InterConversationListResponse {
-  type: 'channel_sessions_list'
+  type: 'channel_conversations_list'
   sessions: Array<{
     id: string
     name: string
@@ -1161,7 +1161,7 @@ export interface ProjectSettings {
   label?: string
   icon?: string
   color?: string
-  description?: string // user-provided purpose, shown in list_sessions for routing
+  description?: string // user-provided purpose, shown in list_conversations for routing
   keyterms?: string[]
   trustLevel?: 'default' | 'open' | 'benevolent' // open = accepts from anyone, benevolent = can message anyone
   defaultLaunchMode?: 'headless' | 'pty'
