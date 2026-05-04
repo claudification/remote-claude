@@ -9,6 +9,7 @@ package-lock.json
 *.tgz
 .env
 *.pid
+concentrator-data-backup-*.tar.gz
 src/shared/version.ts
 NOTES.md
 .rclaude/
