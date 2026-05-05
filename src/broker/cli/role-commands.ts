@@ -44,10 +44,8 @@ export function handleRemoveRole(args: ParsedArgs): void {
     console.error(`User "${name}" does not have role "${role}"`)
     process.exit(1)
   }
-  const newRoles = currentRoles.filter((r) => r !== role)
+  const newRoles = currentRoles.filter(r => r !== role)
   setServerRoles(name, newRoles)
-  console.log(
-    `Removed role "${role}" from "${name}"${newRoles.length ? ` (remaining: ${newRoles.join(', ')})` : ''}`,
-  )
+  console.log(`Removed role "${role}" from "${name}"${newRoles.length ? ` (remaining: ${newRoles.join(', ')})` : ''}`)
   notifyServer(args.cacheDir)
 }

@@ -1,5 +1,5 @@
 import type { TranscriptContentBlock } from '@/lib/types'
-import type { RenderItem, RenderableTranscriptEntry, ResultLookup } from './group-view-types'
+import type { RenderableTranscriptEntry, RenderItem, ResultLookup } from './group-view-types'
 
 const PROJECT_TASK_RE = /^<project-task\s+([^>]*)>([\s\S]*?)<\/project-task>$/
 
@@ -87,11 +87,7 @@ function parseChannelContent(channelMatch: RegExpMatchArray, items: RenderItem[]
   }
 }
 
-function parseArrayContent(
-  content: TranscriptContentBlock[],
-  items: RenderItem[],
-  getResult: ResultLookup,
-): void {
+function parseArrayContent(content: TranscriptContentBlock[], items: RenderItem[], getResult: ResultLookup): void {
   for (const block of content) {
     if (block.type === 'text' && block.text) {
       const text = typeof block.text === 'string' ? block.text : JSON.stringify(block.text)

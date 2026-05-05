@@ -17,9 +17,7 @@ export function ChannelItem({ item }: { item: ChannelRenderItem }) {
   }
   return (
     <div className="text-sm border-l-2 border-teal-400/40 pl-3 py-1">
-      <div className="text-[10px] text-teal-400/70 uppercase font-bold tracking-wider mb-1">
-        channel: {item.source}
-      </div>
+      <div className="text-[10px] text-teal-400/70 uppercase font-bold tracking-wider mb-1">channel: {item.source}</div>
       <Markdown>{item.text}</Markdown>
     </div>
   )
@@ -40,12 +38,7 @@ function InterConversationChannel({ item }: { item: ChannelRenderItem }) {
         <span className="text-[10px] font-mono text-teal-400/60">from</span>
         <ConversationTag idOrSlug={item.conversationId || item.source || ''} className="text-xs" />
         {item.intent && (
-          <span
-            className={cn(
-              'px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider border rounded',
-              iStyle,
-            )}
-          >
+          <span className={cn('px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider border rounded', iStyle)}>
             {item.intent}
           </span>
         )}
@@ -79,12 +72,7 @@ function DialogChannel({ item }: { item: ChannelRenderItem }) {
     <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-2.5 my-1">
       <div className="flex items-center gap-2 mb-1.5">
         <span className="text-[10px] font-mono text-violet-400/60">dialog</span>
-        <span
-          className={cn(
-            'px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider border rounded',
-            sStyle,
-          )}
-        >
+        <span className={cn('px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider border rounded', sStyle)}>
           {item.dialogStatus || 'submitted'}
         </span>
         {item.dialogAction && (

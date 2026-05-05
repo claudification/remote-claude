@@ -34,7 +34,7 @@ export function flushReplayBuffer(
     const tail = entries.slice(-MAX_INITIAL_ENTRIES)
     const tailSet = new Set(tail)
     const metadata = entries.filter(
-      (e) => METADATA_TYPES.has((e as Record<string, unknown>).type as string) && !tailSet.has(e),
+      e => METADATA_TYPES.has((e as Record<string, unknown>).type as string) && !tailSet.has(e),
     )
     entries = [...metadata, ...tail]
   }

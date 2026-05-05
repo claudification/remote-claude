@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import type { ToolDisplayKey } from '@/lib/control-panel-prefs'
 import { Markdown } from '@/components/markdown'
+import type { ToolDisplayKey } from '@/lib/control-panel-prefs'
 import { FileListResults, GlobSummary, GrepContentResults, GrepCountResults, GrepSummary } from './grep-results'
 import { TruncatedPre } from './shared'
 import type { ToolCaseInput, ToolCaseResult } from './tool-case-types'

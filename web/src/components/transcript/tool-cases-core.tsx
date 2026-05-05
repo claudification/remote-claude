@@ -1,6 +1,6 @@
 import { structuredPatch } from 'diff'
-import type { ToolCaseInput, ToolCaseResult } from './tool-case-types'
 import { cleanCdPrefix, shortPath } from './shared'
+import type { ToolCaseInput, ToolCaseResult } from './tool-case-types'
 import { BashOutput, DiffView, ReplResult, ReplView, ShellCommand, WritePreview } from './tool-renderers'
 
 export function renderBash({ input, result, toolUseResult, sessionPath, expandAll }: ToolCaseInput): ToolCaseResult {
@@ -46,11 +46,7 @@ export function renderRead({ input, result, toolUseResult }: ToolCaseInput): Too
   return renderTextRead(path, readPath, input, result, toolUseResult)
 }
 
-function renderBinaryRead(
-  path: string,
-  readPath: string,
-  toolUseResult: Record<string, unknown>,
-): ToolCaseResult {
+function renderBinaryRead(path: string, readPath: string, toolUseResult: Record<string, unknown>): ToolCaseResult {
   const binFile = toolUseResult.file as
     | {
         url?: string

@@ -41,7 +41,9 @@ export type SubagentRef = Array<{
   tokenUsage?: { totalInput: number; totalOutput: number; cacheCreation: number; cacheRead: number }
 }>
 
-export type ResultLookup = (id: string) => { result: string; extra?: Record<string, unknown>; isError?: boolean } | undefined
+export type ResultLookup = (
+  id: string,
+) => { result: string; extra?: Record<string, unknown>; isError?: boolean } | undefined
 
 export type RenderItem =
   | { kind: 'text'; text: string }

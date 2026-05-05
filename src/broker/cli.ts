@@ -11,7 +11,14 @@ import { handleDeletePasskey, handleListPasskeys } from './cli/passkey-commands'
 import { handleRemoveRole, handleSetRole } from './cli/role-commands'
 import { handleSentinel } from './cli/sentinel-commands'
 import { DEFAULT_CACHE_DIR, printUsage } from './cli/shared'
-import { handleCreateInvite, handleGrant, handleListUsers, handleRevoke, handleRevokeGrant, handleUnrevoke } from './cli/user-commands'
+import {
+  handleCreateInvite,
+  handleGrant,
+  handleListUsers,
+  handleRevoke,
+  handleRevokeGrant,
+  handleUnrevoke,
+} from './cli/user-commands'
 import { addAllowedRoot, addPathMapping, resolveInJail } from './path-jail'
 import { runMigrateCli } from './store/migrate-cli'
 import { parseDbName, runQueryCli } from './store/query-cli'
@@ -54,7 +61,12 @@ function main(): void {
       console.error('ERROR: provide a SQL string, e.g. broker-cli query "SELECT COUNT(*) FROM turns"')
       process.exit(1)
     }
-    runQueryCli({ cacheDir: args.cacheDir, dbName: parseDbName(args.dbArg || undefined), sql: args.queryArg, json: args.jsonFlag })
+    runQueryCli({
+      cacheDir: args.cacheDir,
+      dbName: parseDbName(args.dbArg || undefined),
+      sql: args.queryArg,
+      json: args.jsonFlag,
+    })
     process.exit(0)
   }
 

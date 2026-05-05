@@ -144,9 +144,7 @@ export function renderMcpControlSession({ input, result, toolUseResult, isError 
 
 export function renderMcpConfigureSession({ input }: ToolCaseInput): ToolCaseResult {
   const cfgTarget = input.session_id as string
-  const cfgFields = ['label', 'icon', 'color', 'description', 'keyterms']
-    .filter(k => input[k] !== undefined)
-    .join(', ')
+  const cfgFields = ['label', 'icon', 'color', 'description', 'keyterms'].filter(k => input[k] !== undefined).join(', ')
   const summary = (
     <span className="flex items-center gap-1.5">
       <span className="text-blue-400">configure</span>

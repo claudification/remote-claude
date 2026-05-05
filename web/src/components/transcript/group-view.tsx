@@ -2,24 +2,16 @@ import { memo } from 'react'
 import { cn } from '@/lib/utils'
 import { BootTimeline } from './boot-timeline'
 import { ChatBubble } from './chat-bubble'
-import type { DisplayGroup } from './grouping'
 import type { RenderItem, ResultLookup, SubagentRef, TranscriptSettings } from './group-view-types'
-import {
-  BashItem,
-  ChannelItem,
-  ImagesItem,
-  ProjectTaskItem,
-  TextItem,
-  ThinkingItem,
-  ToolItem,
-} from './item-renderers'
+import type { DisplayGroup } from './grouping'
+import { BashItem, ChannelItem, ImagesItem, ProjectTaskItem, TextItem, ThinkingItem, ToolItem } from './item-renderers'
 import { LaunchTimeline } from './launch-timeline'
 import { parseGroupEntries } from './parse-entries'
 import { SystemLine } from './system-line'
 import { TaskNotificationLine } from './task-notification-line'
 
-export { BUBBLE_COLOR_OPTIONS } from './group-view-types'
 export { CompactedDivider, CompactingBanner } from './compacted-divider'
+export { BUBBLE_COLOR_OPTIONS } from './group-view-types'
 export { SkillDivider } from './skill-divider'
 
 function GroupView({

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import type { TaskNotification } from './grouping'
 import { formatDuration } from './group-view-types'
+import type { TaskNotification } from './grouping'
 
 export function TaskNotificationLine({ notification: n, time }: { notification: TaskNotification; time: string }) {
   const [expanded, setExpanded] = useState(false)

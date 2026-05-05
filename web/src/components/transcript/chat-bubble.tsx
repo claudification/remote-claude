@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import { Markdown } from '../markdown'
-import { BUBBLE_COLORS } from './group-view-types'
 import type { RenderItem } from './group-view-types'
+import { BUBBLE_COLORS } from './group-view-types'
 
 export function ChatBubble({
   items,

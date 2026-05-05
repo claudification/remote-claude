@@ -1,4 +1,4 @@
-import { type SentinelRegistry, createSentinelRegistry, isValidSentinelAlias } from '../sentinel-registry'
+import { createSentinelRegistry, isValidSentinelAlias, type SentinelRegistry } from '../sentinel-registry'
 import type { ParsedArgs } from './parse-args'
 import { notifyServer } from './shared'
 

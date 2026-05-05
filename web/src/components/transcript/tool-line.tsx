@@ -4,16 +4,44 @@ import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/control-panel-pre
 import { projectPath, type TranscriptContentBlock } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { JsonInspector } from '../json-inspector'
-import { renderAgentTask, renderAskUserQuestion } from './tool-cases-agent'
-import { renderTaskCreate, renderTaskMisc, renderTaskUpdate, renderTodoWrite } from './tool-cases-tasks'
-import type { ToolCaseInput, ToolCaseResult } from './tool-case-types'
-import { renderBash, renderEdit, renderRead, renderRepl, renderWrite } from './tool-cases-core'
-import { renderGmailDraftEmail, renderGmailGetThread, renderGmailInbox, renderGmailLabelOp, renderGmailListLabels, renderGmailSearchEmails, renderGmailSend } from './tool-cases-gmail'
-import { renderMcpConfigureSession, renderMcpControlSession, renderMcpDefault, renderMcpDialog, renderMcpListConversations, renderMcpNotify, renderMcpSendMessage, renderMcpSessionLifecycle, renderPlanMode } from './tool-cases-mcp'
-import { renderMcpSpawnSession } from './tool-cases-mcp-spawn'
-import { renderCronCreate, renderCronDelete, renderCronList, renderMonitor, renderNotebookEdit, renderScheduleWakeup, renderSendMessage, renderSkill, renderTeam } from './tool-cases-misc'
-import { renderGlobGrep, renderWebFetch, renderWebSearch } from './tool-cases-search'
 import { Collapsible, getToolStyle } from './shared'
+import type { ToolCaseInput, ToolCaseResult } from './tool-case-types'
+import { renderAgentTask, renderAskUserQuestion } from './tool-cases-agent'
+import { renderBash, renderEdit, renderRead, renderRepl, renderWrite } from './tool-cases-core'
+import {
+  renderGmailDraftEmail,
+  renderGmailGetThread,
+  renderGmailInbox,
+  renderGmailLabelOp,
+  renderGmailListLabels,
+  renderGmailSearchEmails,
+  renderGmailSend,
+} from './tool-cases-gmail'
+import {
+  renderMcpConfigureSession,
+  renderMcpControlSession,
+  renderMcpDefault,
+  renderMcpDialog,
+  renderMcpListConversations,
+  renderMcpNotify,
+  renderMcpSendMessage,
+  renderMcpSessionLifecycle,
+  renderPlanMode,
+} from './tool-cases-mcp'
+import { renderMcpSpawnSession } from './tool-cases-mcp-spawn'
+import {
+  renderCronCreate,
+  renderCronDelete,
+  renderCronList,
+  renderMonitor,
+  renderNotebookEdit,
+  renderScheduleWakeup,
+  renderSendMessage,
+  renderSkill,
+  renderTeam,
+} from './tool-cases-misc'
+import { renderGlobGrep, renderWebFetch, renderWebSearch } from './tool-cases-search'
+import { renderTaskCreate, renderTaskMisc, renderTaskUpdate, renderTodoWrite } from './tool-cases-tasks'
 
 function dispatchToolCase(name: string, ctx: ToolCaseInput): ToolCaseResult {
   switch (name) {

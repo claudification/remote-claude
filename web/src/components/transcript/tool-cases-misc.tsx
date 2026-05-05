@@ -67,10 +67,7 @@ export function renderCronCreate({ input, result }: ToolCaseInput): ToolCaseResu
   return { summary, details }
 }
 
-function renderCronCreateRich(
-  body: Record<string, unknown>,
-  result?: string,
-): ToolCaseResult {
+function renderCronCreateRich(body: Record<string, unknown>, result?: string): ToolCaseResult {
   const triggerResult = parseTriggerResult(result)
   const summary = (
     <span className="flex items-center gap-1.5">

@@ -238,7 +238,11 @@ function spawnProcess(options: StreamBackendOptions) {
   })
 }
 
-function initDiagLog(cwd: string | undefined, conversationId: string, pid: number): (prefix: string, line: string) => void {
+function initDiagLog(
+  cwd: string | undefined,
+  conversationId: string,
+  pid: number,
+): (prefix: string, line: string) => void {
   const diagDir = join(cwd || process.cwd(), '.rclaude', 'settings')
   const diagPath = join(diagDir, `headless-${conversationId}.ndjsonl`)
   try {

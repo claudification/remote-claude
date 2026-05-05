@@ -1,11 +1,4 @@
-import {
-  addUserGrant,
-  createInvite,
-  getAllUsers,
-  removeUserGrant,
-  revokeUser,
-  unrevokeUser,
-} from '../auth'
+import { addUserGrant, createInvite, getAllUsers, removeUserGrant, revokeUser, unrevokeUser } from '../auth'
 import type { UserGrant } from '../permissions'
 import type { ParsedArgs } from './parse-args'
 import { notifyServer, parseGrants, parsePermissionItems } from './shared'
@@ -20,12 +13,11 @@ function requireName(name: string): void {
 export function handleCreateInvite(args: ParsedArgs): void {
   requireName(args.name)
 
-  const grants = args.grantArgs.length > 0
-    ? parseGrants(args.grantArgs, args.notBeforeArg, args.notAfterArg)
-    : undefined
+  const grants =
+    args.grantArgs.length > 0 ? parseGrants(args.grantArgs, args.notBeforeArg, args.notAfterArg) : undefined
   const grantLabel = grants
     ? grants
-        .map((g) => `${g.scope || g.legacyCwd || '*'}: ${[...(g.roles || []), ...(g.permissions || [])].join(', ')}`)
+        .map(g => `${g.scope || g.legacyCwd || '*'}: ${[...(g.roles || []), ...(g.permissions || [])].join(', ')}`)
         .join('\n           ')
     : '* (admin -- full access)'
 
@@ -62,7 +54,7 @@ export function handleListUsers(): void {
     const keys = user.credentials.length
     const lastUsed = user.lastUsedAt ? new Date(user.lastUsedAt).toLocaleString() : 'never'
     const grants = (user.grants || [])
-      .map((g) => {
+      .map(g => {
         const parts = [...(g.roles || []), ...(g.permissions || [])]
         let label = `${g.scope || g.legacyCwd || '*'}: ${parts.join(', ')}`
         if (g.notBefore) label += ` [from ${new Date(g.notBefore).toLocaleDateString()}]`
@@ -89,7 +81,7 @@ export function handleGrant(args: ParsedArgs): void {
   }
 
   const { roles, permissions: perms } = parsePermissionItems(args.permissionsArg)
-  const items = args.permissionsArg.split(',').map((p) => p.trim())
+  const items = args.permissionsArg.split(',').map(p => p.trim())
   const grant: UserGrant = {
     scope: args.cwdArg,
     ...(roles && roles.length > 0 && { roles }),

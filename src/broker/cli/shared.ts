@@ -24,7 +24,7 @@ export function notifyServer(cacheDir: string): void {
 }
 
 export function parseGrants(grantStrs: string[], notBeforeArg: string, notAfterArg: string): UserGrant[] {
-  return grantStrs.map((s) => {
+  return grantStrs.map(s => {
     const colonIdx = s.indexOf(':')
     if (colonIdx <= 0) {
       console.error(`Invalid grant format: "${s}" (expected "scope:permission,permission")`)
@@ -34,9 +34,9 @@ export function parseGrants(grantStrs: string[], notBeforeArg: string, notAfterA
     const items = s
       .slice(colonIdx + 1)
       .split(',')
-      .map((p) => p.trim())
-    const roles = items.filter((i) => KNOWN_ROLES.has(i)) as UserGrant['roles']
-    const permissions = items.filter((i) => !KNOWN_ROLES.has(i)) as UserGrant['permissions']
+      .map(p => p.trim())
+    const roles = items.filter(i => KNOWN_ROLES.has(i)) as UserGrant['roles']
+    const permissions = items.filter(i => !KNOWN_ROLES.has(i)) as UserGrant['permissions']
     return {
       scope,
       ...(roles && roles.length > 0 && { roles }),
@@ -47,10 +47,13 @@ export function parseGrants(grantStrs: string[], notBeforeArg: string, notAfterA
   })
 }
 
-export function parsePermissionItems(permissionsArg: string): { roles: UserGrant['roles']; permissions: UserGrant['permissions'] } {
-  const items = permissionsArg.split(',').map((p) => p.trim())
-  const roles = items.filter((i) => KNOWN_ROLES.has(i)) as UserGrant['roles']
-  const permissions = items.filter((i) => !KNOWN_ROLES.has(i)) as UserGrant['permissions']
+export function parsePermissionItems(permissionsArg: string): {
+  roles: UserGrant['roles']
+  permissions: UserGrant['permissions']
+} {
+  const items = permissionsArg.split(',').map(p => p.trim())
+  const roles = items.filter(i => KNOWN_ROLES.has(i)) as UserGrant['roles']
+  const permissions = items.filter(i => !KNOWN_ROLES.has(i)) as UserGrant['permissions']
   return { roles, permissions }
 }
 

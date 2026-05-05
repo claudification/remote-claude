@@ -1,7 +1,7 @@
 import { JsonInspector } from '../json-inspector'
 import { Markdown } from '../markdown'
-import type { DisplayGroup } from './grouping'
 import { formatDuration } from './group-view-types'
+import type { DisplayGroup } from './grouping'
 
 export function SystemLine({ group, time }: { group: DisplayGroup; time: string }) {
   const entry = group.entries[0] as Record<string, unknown>

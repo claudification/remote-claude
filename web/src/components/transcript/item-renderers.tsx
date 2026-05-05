@@ -9,11 +9,7 @@ import { BashOutput } from './tool-renderers'
 
 export { ChannelItem } from './channel-renderers'
 
-export function ThinkingItem({
-  item,
-}: {
-  item: Extract<RenderItem, { kind: 'thinking' }>
-}) {
+export function ThinkingItem({ item }: { item: Extract<RenderItem, { kind: 'thinking' }> }) {
   const isEncrypted = !item.text && typeof item.encryptedBytes === 'number'
   const estBytes = isEncrypted ? Math.round((item.encryptedBytes as number) * 0.75) : 0
 
@@ -23,9 +19,7 @@ export function ThinkingItem({
         <span>thinking</span>
         {isEncrypted && (
           <>
-            <span className="text-purple-400/40 normal-case font-normal tracking-normal">
-              encrypted, ~{estBytes}b
-            </span>
+            <span className="text-purple-400/40 normal-case font-normal tracking-normal">encrypted, ~{estBytes}b</span>
             {item.rawBlock && (
               <JsonInspector
                 title="encrypted thinking block"
@@ -48,11 +42,7 @@ export function ThinkingItem({
   )
 }
 
-export function ProjectTaskItem({
-  item,
-}: {
-  item: Extract<RenderItem, { kind: 'project-task' }>
-}) {
+export function ProjectTaskItem({ item }: { item: Extract<RenderItem, { kind: 'project-task' }> }) {
   const prioColors: Record<string, string> = {
     high: 'border-l-red-500',
     medium: 'border-l-amber-500',
@@ -70,10 +60,7 @@ export function ProjectTaskItem({
 
   return (
     <div
-      className={cn(
-        'rounded-lg border border-[#33467c]/40 bg-[#0d1b3e]/60 border-l-[3px] overflow-hidden',
-        prioColor,
-      )}
+      className={cn('rounded-lg border border-[#33467c]/40 bg-[#0d1b3e]/60 border-l-[3px] overflow-hidden', prioColor)}
     >
       <div className="px-3 py-2 flex items-center gap-2 border-b border-[#33467c]/30">
         <span className="text-xs font-mono text-muted-foreground/50">TASK</span>
@@ -90,10 +77,7 @@ export function ProjectTaskItem({
       {item.tags && item.tags.length > 0 && (
         <div className="px-3 pt-1.5 flex gap-1 flex-wrap">
           {item.tags.map(tag => (
-            <span
-              key={tag}
-              className="px-1.5 py-0.5 text-[9px] font-mono bg-indigo-500/15 text-indigo-400/80 rounded"
-            >
+            <span key={tag} className="px-1.5 py-0.5 text-[9px] font-mono bg-indigo-500/15 text-indigo-400/80 rounded">
               {tag}
             </span>
           ))}
