@@ -673,17 +673,16 @@ run('wire protocol shape', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 8. Session clear (rekey)
+// 8. Session reset (/clear)
 // ---------------------------------------------------------------------------
 
-run('session clear (rekey)', () => {
-  it('conversation_clear migrates conversation to new ccSessionId', async () => {
+run('session reset', () => {
+  it('conversation_reset wipes ephemeral state, keeps conversation under same key', async () => {
     const agent = await connectAgentHost()
     const convId = testId('conv')
-    const oldCcSessionId = testId('old-cc')
-    const newCcSessionId = testId('new-cc')
+    const ccSessionId = testId('cc')
 
-    // Boot + promote + meta with old conversation
+    // Boot + promote + meta
     agent.send({
       type: 'agent_host_boot',
       conversationId: convId,
@@ -697,7 +696,7 @@ run('session clear (rekey)', () => {
     agent.send({
       type: 'conversation_promote',
       conversationId: convId,
-      ccSessionId: oldCcSessionId,
+      ccSessionId,
       source: 'staging-test',
     })
     await sleep(100)
@@ -705,32 +704,26 @@ run('session clear (rekey)', () => {
     agent.send({
       type: 'meta',
       conversationId: convId,
-      ccSessionId: oldCcSessionId,
+      ccSessionId,
       project: 'claude:///tmp/staging-test',
       cwd: '/tmp/staging-test',
       startedAt: Date.now(),
     })
     await waitForMessage(agent, 'ack')
 
-    // Rekey
+    // Reset
     agent.send({
-      type: 'conversation_clear',
-      oldCcSessionId: oldCcSessionId,
-      newCcSessionId: newCcSessionId,
+      type: 'conversation_reset',
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
     })
     await sleep(300)
 
-    // Conversation stays under the same key (conversationId), not ccSessionId
+    // Conversation stays under the same key (conversationId)
     const convRes = await httpGet(`/conversations/${convId}`, { bearer: getBrokerSecret() })
     expect(convRes.status).toBe(200)
     const data = (await convRes.json()) as Record<string, unknown>
     expect(data.id).toBe(convId)
-
-    // Old ccSessionId is NOT a store key (broker never uses it as an identifier)
-    const oldRes = await httpGet(`/conversations/${oldCcSessionId}`, { bearer: getBrokerSecret() })
-    expect(oldRes.status).toBe(404)
   })
 })
 

@@ -144,9 +144,8 @@ describe('conversation lifecycle', () => {
     expect(store.getConversation('ghost-session')).toBeUndefined()
   })
 
-  it('clearConversation resets ephemeral state and updates ccSessionId metadata', () => {
+  it('clearConversation resets ephemeral state', () => {
     const conv = store.createConversation('conv-1', '/cwd')
-    conv.agentHostMeta = { ccSessionId: 'old-cc-id' }
     conv.events.push({
       type: 'hook',
       hookEvent: 'SessionStart',
@@ -155,12 +154,11 @@ describe('conversation lifecycle', () => {
       timestamp: Date.now(),
     })
 
-    store.clearConversation('conv-1', 'new-cc-id', '/cwd')
+    store.clearConversation('conv-1', '/cwd')
 
     const cleared = store.getConversation('conv-1')
     expect(cleared).toBeDefined()
     expect(cleared!.id).toBe('conv-1')
-    expect(cleared!.agentHostMeta?.ccSessionId).toBe('new-cc-id')
     expect(cleared!.events).toEqual([])
     expect(cleared!.status).toBe('idle')
   })
@@ -633,10 +631,9 @@ describe('project URI field', () => {
 
   it('clearConversation updates project from new cwd', () => {
     store.createConversation('proj-clear', '/old/path')
-    store.clearConversation('proj-clear', 'new-cc-id', '/new/path')
+    store.clearConversation('proj-clear', '/new/path')
     const conv = store.getConversation('proj-clear')!
     expect(conv.id).toBe('proj-clear')
-    expect(conv.agentHostMeta?.ccSessionId).toBe('new-cc-id')
     expect(conv.project).toBe('claude://default/new/path')
   })
 

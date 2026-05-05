@@ -83,6 +83,7 @@ export interface ConversationMeta {
   capabilities?: AgentHostCapability[]
   version?: string
   buildTime?: string
+  agentHostType?: string
   claudeVersion?: string
   claudeAuth?: {
     email?: string
@@ -105,15 +106,22 @@ export interface ConversationEnd {
   endedAt: number
 }
 
-// Agent Host tells broker the Claude session ID changed (e.g. /clear)
-// Same agent host, same PTY, just a new Claude session -- re-key without ending
-export interface ConversationRekey {
-  type: 'conversation_clear'
-  oldCcSessionId: string
-  newCcSessionId: string
+// Agent host tells broker to wipe ephemeral state (e.g. /clear).
+// conversationId is stable -- CC session ID transitions are internal to the agent host.
+export interface ConversationReset {
+  type: 'conversation_reset'
   conversationId: string
   project: string
   model?: string
+}
+
+// Upsert opaque metadata on a conversation. The broker stores it without interpreting it.
+// Used by agent host type 'claude' to persist ccSessionId (needed for revival via --resume)
+// and by the sentinel for any host-specific state.
+export interface UpdateConversationMetadata {
+  type: 'update_conversation_metadata'
+  conversationId: string
+  metadata: Record<string, unknown>
 }
 
 export interface Heartbeat {
@@ -400,6 +408,9 @@ export interface AgentHostBoot {
   project: string
   capabilities: AgentHostCapability[]
   claudeArgs: string[]
+  version?: string
+  buildTime?: string
+  agentHostType?: string
   claudeVersion?: string
   claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
   launchConfig?: LaunchConfig
@@ -444,7 +455,6 @@ export type AgentHostLaunchStep =
   | 'mcp_reset' // MCP channel torn down (reboot only)
   | 'settings_regenerated' // settings + mcp config re-written (reboot only)
   | 'init_received' // CC reported a session id. raw: { session_id, model, tools, slash_commands, skills, agents, mcp_servers, plugins, ... }
-  | 'rekeyed' // observeClaudeSessionId completed the rekey. detail: from -> to
   | 'ready' // launch settled; session usable
   // Mid-session state changes -- broker emits these by diffing conversation_info
   // across turns. Phase is 'live' (not initial/reboot). Each gets its own launchId
@@ -493,7 +503,8 @@ export type AgentHostMessage =
   | HookEvent
   | ConversationMeta
   | ConversationEnd
-  | ConversationRekey
+  | ConversationReset
+  | UpdateConversationMetadata
   | AgentHostBoot
   | BootEvent
   | AgentHostLaunchEvent
@@ -1373,6 +1384,7 @@ export interface Conversation {
   transcriptPath?: string
   version?: string
   buildTime?: string
+  agentHostType?: string
   claudeVersion?: string
   claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
   startedAt: number

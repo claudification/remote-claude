@@ -48,11 +48,17 @@ const agentHostBoot: MessageHandler = (ctx, data) => {
   const claudeArgs = (data.claudeArgs as string[] | undefined) || []
 
   const bootConfiguredModel = data.configuredModel as string | undefined
+  const agentHostVersion = data.version as string | undefined
+  const agentHostBuildTime = data.buildTime as string | undefined
+  const agentHostType = (data.agentHostType as string | undefined) || 'claude'
 
   if (existing) {
     existing.status = 'booting'
     existing.lastActivity = Date.now()
     existing.project = resolvedProject
+    if (agentHostVersion) existing.version = agentHostVersion
+    if (agentHostBuildTime) existing.buildTime = agentHostBuildTime
+    existing.agentHostType = agentHostType
     if (pendingLaunchConfig && !existing.launchConfig) {
       existing.launchConfig = pendingLaunchConfig
       if (pendingLaunchConfig.effort) existing.effortLevel = pendingLaunchConfig.effort
@@ -78,13 +84,17 @@ const agentHostBoot: MessageHandler = (ctx, data) => {
     if (data.title) placeholder.title = data.title as string
     if (data.description) placeholder.description = data.description as string
     if (bootConfiguredModel) placeholder.configuredModel = bootConfiguredModel
+    if (agentHostVersion) placeholder.version = agentHostVersion
+    if (agentHostBuildTime) placeholder.buildTime = agentHostBuildTime
+    placeholder.agentHostType = agentHostType
   }
 
   // Register the WS as this conversation's socket so messages (including boot
   // events) can be tagged with it.
   ctx.conversations.setConversationSocket(conversationId, conversationId, ctx.ws)
   ctx.conversations.broadcastConversationUpdate(conversationId)
-  ctx.log.debug(`[boot] wrapper_boot: ${conversationId.slice(0, 8)} project=${resolvedProject}`)
+  const versionInfo = agentHostVersion ? ` version=${agentHostVersion}` : ''
+  ctx.log.info(`[boot] ${conversationId.slice(0, 8)} type=${agentHostType}${versionInfo} project=${resolvedProject}`)
 }
 
 const bootEvent: MessageHandler = (ctx, data) => {

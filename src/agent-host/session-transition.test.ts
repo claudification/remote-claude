@@ -5,14 +5,14 @@ import { observeClaudeSessionId, type SessionTransition } from './session-transi
 /**
  * Behavioural tests for observeClaudeSessionId. Every known call ordering
  * from the two observers (SessionStart hook + stream-json onInit) is
- * exercised so regressions of the 2026-04-17 race (rekey eaten by same-id
- * guard after observer-order shuffle) become impossible.
+ * exercised so regressions of the 2026-04-17 race become impossible.
  */
 
 type WsCall =
   | { fn: 'setSessionId'; id: string; source: 'hook' | 'stream_json' }
   | { fn: 'sendBootEvent'; step: string; detail?: string; raw?: unknown }
-  | { fn: 'sendConversationRekey'; id: string; project: string; model?: string }
+  | { fn: 'sendConversationReset'; project: string; model?: string }
+  | { fn: 'sendMetadataUpdate'; metadata: Record<string, unknown> }
 
 interface DiagCall {
   type: string
@@ -39,17 +39,13 @@ function makeCtx(init: { claudeSessionId?: string | null; pendingClearFromId?: s
             wsCalls.push({ fn: 'setSessionId', id, source }),
           sendBootEvent: (step: string, detail?: string, raw?: unknown) =>
             wsCalls.push({ fn: 'sendBootEvent', step, detail, raw }),
-          sendConversationRekey: (id: string, project: string, model?: string) =>
-            wsCalls.push({ fn: 'sendConversationRekey', id, project, model }),
-          // observeClaudeSessionId now also emits launch events, which call
-          // wsClient.send() if connected. Swallow them in the stub -- they
-          // are verified indirectly via the kind/reason of the transition.
+          sendConversationReset: (project: string, model?: string) =>
+            wsCalls.push({ fn: 'sendConversationReset', project, model }),
+          sendMetadataUpdate: (metadata: Record<string, unknown>) =>
+            wsCalls.push({ fn: 'sendMetadataUpdate', metadata }),
           send: () => {},
         }
 
-  // Partial<AgentHostContext> cast -- only the fields observeClaudeSessionId
-  // touches are populated. Unused fields remain undefined and would throw if
-  // accessed, which is the desired failure mode for a test.
   const ctx = {
     conversationId: 'internal-xyz',
     cwd: '/test/cwd',
@@ -110,10 +106,7 @@ describe('observeClaudeSessionId', () => {
     expect(wsCalls).toEqual([])
   })
 
-  test('post-clear rekey (hook fires first): emits conversation_clear with old->new', () => {
-    // Scenario from the 2026-04-17 incident. onExit left claudeSessionId intact
-    // and set pendingClearFromId. Hook sees the new id first and MUST rekey,
-    // not promote-as-boot.
+  test('post-clear reset (hook fires first): sends conversation_reset, no CC session IDs', () => {
     const { ctx, wsCalls, diagCalls } = makeCtx({
       claudeSessionId: 'sess-old',
       pendingClearFromId: 'sess-old',
@@ -130,15 +123,14 @@ describe('observeClaudeSessionId', () => {
     expect(ctx.claudeSessionId).toBe('sess-new')
     expect(ctx.pendingClearFromId).toBe(null)
     expect(wsCalls).toEqual([
-      { fn: 'sendConversationRekey', id: 'sess-new', project: 'claude://default/test/cwd', model: 'claude-opus-4-7' },
+      { fn: 'sendConversationReset', project: 'claude://default/test/cwd', model: 'claude-opus-4-7' },
+      { fn: 'sendMetadataUpdate', metadata: { ccSessionId: 'sess-new' } },
+      { fn: 'setSessionId', id: 'sess-new', source: 'hook' },
     ])
     expect(diagCalls.at(-1)).toMatchObject({ type: 'conversation', msg: 'transition: rekey (post-clear)' })
   })
 
-  test('post-clear: onInit fires AFTER hook already rekeyed -> confirm no-op', () => {
-    // Hook ran first, updated claudeSessionId to the new id, cleared pending.
-    // onInit now fires with the same id -- must classify as duplicate confirm,
-    // NOT emit another conversation_clear (would hit the same-id guard regression).
+  test('post-clear: onInit fires AFTER hook already reset -> confirm no-op', () => {
     const { ctx, wsCalls, diagCalls } = makeCtx({
       claudeSessionId: 'sess-new',
       pendingClearFromId: null,
@@ -156,7 +148,7 @@ describe('observeClaudeSessionId', () => {
     expect(diagCalls.at(-1)).toMatchObject({ type: 'conversation', msg: 'transition: confirm (duplicate)' })
   })
 
-  test('post-clear: onInit fires BEFORE hook -> onInit does the rekey', () => {
+  test('post-clear: onInit fires BEFORE hook -> onInit does the reset', () => {
     const { ctx, wsCalls } = makeCtx({
       claudeSessionId: 'sess-old',
       pendingClearFromId: 'sess-old',
@@ -166,16 +158,18 @@ describe('observeClaudeSessionId', () => {
     expect(t1.kind).toBe('rekey')
     expect(t1.reason).toBe('post-clear')
     expect(wsCalls).toEqual([
-      { fn: 'sendConversationRekey', id: 'sess-new', project: 'claude://default/test/cwd', model: undefined },
+      { fn: 'sendConversationReset', project: 'claude://default/test/cwd', model: undefined },
+      { fn: 'sendMetadataUpdate', metadata: { ccSessionId: 'sess-new' } },
+      { fn: 'setSessionId', id: 'sess-new', source: 'stream_json' },
     ])
 
     // Hook then fires with the same id -- must no-op.
     const t2 = observeClaudeSessionId(ctx, 'sess-new', 'hook')
     expect(t2.kind).toBe('confirm')
-    expect(wsCalls).toHaveLength(1) // no additional calls
+    expect(wsCalls).toHaveLength(3) // no additional calls
   })
 
-  test('unexpected rekey (no pendingClearFromId, e.g. /resume or compaction)', () => {
+  test('unexpected reset (no pendingClearFromId, e.g. /resume or compaction)', () => {
     const { ctx, wsCalls } = makeCtx({ claudeSessionId: 'sess-old' })
 
     const t = observeClaudeSessionId(ctx, 'sess-new', 'hook')
@@ -187,11 +181,13 @@ describe('observeClaudeSessionId', () => {
       to: 'sess-new',
     })
     expect(wsCalls).toEqual([
-      { fn: 'sendConversationRekey', id: 'sess-new', project: 'claude://default/test/cwd', model: undefined },
+      { fn: 'sendConversationReset', project: 'claude://default/test/cwd', model: undefined },
+      { fn: 'sendMetadataUpdate', metadata: { ccSessionId: 'sess-new' } },
+      { fn: 'setSessionId', id: 'sess-new', source: 'hook' },
     ])
   })
 
-  test('rekey tears down subagent watchers and resets task watcher', () => {
+  test('reset tears down subagent watchers and resets task watcher', () => {
     const stoppedAgents: string[] = []
     const { ctx, wsCalls } = makeCtx({
       claudeSessionId: 'sess-old',
@@ -224,26 +220,18 @@ describe('observeClaudeSessionId', () => {
     expect(ctx.taskWatcher).toBe(null)
     expect(taskRestart).toBe(1)
     expect(projectRestart).toBe(1)
-    expect(wsCalls).toHaveLength(1) // sendConversationRekey
+    expect(wsCalls).toHaveLength(3) // sendConversationReset + sendMetadataUpdate + setSessionId
   })
 
-  test('rekey with disconnected wsClient: skips send but still updates state', () => {
+  test('reset with disconnected wsClient: skips send but still updates state', () => {
     const { ctx } = makeCtx({ claudeSessionId: 'sess-old', pendingClearFromId: 'sess-old' })
-    // Override isConnected to simulate disconnected ws
     ;(ctx.wsClient as { isConnected: () => boolean }).isConnected = () => false
-    const wsCallsOverride: WsCall[] = []
-    ;(
-      ctx.wsClient as unknown as { sendConversationRekey: (id: string, project: string) => void }
-    ).sendConversationRekey = (id: string, project: string) => {
-      wsCallsOverride.push({ fn: 'sendConversationRekey', id, project })
-    }
 
     const t = observeClaudeSessionId(ctx, 'sess-new', 'hook')
 
     expect(t.kind).toBe('rekey')
     expect(ctx.claudeSessionId).toBe('sess-new')
     expect(ctx.pendingClearFromId).toBe(null)
-    expect(wsCallsOverride).toEqual([]) // nothing sent (not connected)
   })
 
   test('same id observed twice in a row on cold start: second call is confirm', () => {

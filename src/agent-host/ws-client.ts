@@ -15,7 +15,7 @@ import type {
   ConversationEnd,
   ConversationMeta,
   ConversationPromote,
-  ConversationRekey,
+  ConversationReset,
   FileResponse,
   Heartbeat,
   HookEvent,
@@ -148,7 +148,8 @@ export interface WsClient {
   send: (message: AgentHostMessage) => void
   sendHookEvent: (event: HookEvent) => void
   sendConversationEnd: (reason: string) => void
-  sendConversationRekey: (newSessionId: string, project: string, model?: string) => void
+  sendConversationReset: (project: string, model?: string) => void
+  sendMetadataUpdate: (metadata: Record<string, unknown>) => void
   sendTerminalData: (data: string) => void
   sendTranscriptEntries: (entries: TranscriptEntry[], isInitial: boolean) => void
   sendSubagentTranscript: (agentId: string, entries: TranscriptEntry[], isInitial: boolean) => void
@@ -282,6 +283,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
               args,
               version: `rclaude/${BUILD_VERSION.gitHashShort}`,
               buildTime: BUILD_VERSION.buildTime,
+              agentHostType: 'claude',
               claudeVersion,
               claudeAuth,
               spinnerVerbs,
@@ -301,6 +303,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
               project,
               capabilities: capabilities || [],
               claudeArgs: options.initialBoot?.claudeArgs || args || [],
+              version: `rclaude/${BUILD_VERSION.gitHashShort}`,
+              buildTime: BUILD_VERSION.buildTime,
+              agentHostType: 'claude',
               claudeVersion,
               claudeAuth,
               launchConfig: options.initialBoot?.launchConfig,
@@ -658,31 +663,18 @@ export function createWsClient(options: WsClientOptions): WsClient {
     send(endMsg)
   }
 
-  function sendConversationRekey(newSessionId: string, newProject: string, newModel?: string) {
-    const prev = routeId()
-    // Same-id short-circuit. With session-transition.ts as the single source
-    // of truth this should NEVER fire in normal operation -- if it does, an
-    // observer raced around observeClaudeSessionId and advanced wsClient's
-    // internal id before the real rekey landed. Log loudly so the regression
-    // is obvious in diag. Still short-circuit: emitting conversation_clear with
-    // oldId === newId destroys channel subscribers on the broker.
-    if (ccSessionId === newSessionId) {
-      const warn = `WARN: same-id conversation_clear suppressed (${prev.slice(0, 8)}) -- observer race?`
-      debug(warn)
-      onDiag?.('session', warn, { conversationId, ccSessionId })
-      return
-    }
-    const msg: ConversationRekey = {
-      type: 'conversation_clear',
-      oldCcSessionId: prev,
-      newCcSessionId: newSessionId,
+  function sendConversationReset(newProject: string, newModel?: string) {
+    const msg: ConversationReset = {
+      type: 'conversation_reset',
       conversationId,
       project: newProject,
       model: newModel,
     }
     send(msg)
-    // Update local CC session ID so subsequent messages use the new ID
-    ccSessionId = newSessionId
+  }
+
+  function sendMetadataUpdate(metadata: Record<string, unknown>) {
+    send({ type: 'update_conversation_metadata', conversationId, metadata } as AgentHostMessage)
   }
 
   function sendTerminalData(data: string) {
@@ -775,6 +767,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
       args,
       version: `rclaude/${BUILD_VERSION.gitHashShort}`,
       buildTime: BUILD_VERSION.buildTime,
+      agentHostType: 'claude',
       claudeVersion,
       claudeAuth,
       spinnerVerbs,
@@ -810,7 +803,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
     send,
     sendHookEvent,
     sendConversationEnd,
-    sendConversationRekey,
+    sendConversationReset,
+    sendMetadataUpdate,
     sendTerminalData,
     sendTranscriptEntries,
     sendSubagentTranscript,

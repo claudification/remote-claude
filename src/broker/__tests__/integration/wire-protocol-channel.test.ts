@@ -133,7 +133,7 @@ describe('inter-session messaging', () => {
       expect(delivered[0].intent).toBe('request')
     })
 
-    it('works after conversation_clear (rekey) -- the regression', async () => {
+    it('works after conversation_reset -- the regression', async () => {
       const sessionA = testId('sess-a')
       const sessionB = testId('sess-b')
       const convA = testId('conv-a')
@@ -152,15 +152,11 @@ describe('inter-session messaging', () => {
 
       await h.flushUpdates()
 
-      // Simulate /clear on conversation A -- rekeys to a new conversation ID
-      const newSessionA = testId('sess-a-new')
+      // Simulate /clear on conversation A -- resets ephemeral state
       h.agentSend(agentA, {
-        type: 'conversation_clear',
-        oldCcSessionId: sessionA,
-        newCcSessionId: newSessionA,
+        type: 'conversation_reset',
         conversationId: convA,
         project: 'claude:///home/user/project-alpha',
-        cwd: '/home/user/project-alpha',
       })
 
       await h.flushUpdates()

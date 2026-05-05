@@ -8,20 +8,14 @@
  *   2. stream-json init     -> headless-lifecycle.ts onInit
  *
  * In headless mode with hooks enabled both fire, in non-deterministic order.
- * Historically each tried to emit the right `conversation_promote` / `conversation_clear`
- * message on its own, with state (ctx.claudeSessionId, wsClient.ccSessionId,
- * ctx.pendingClearFromId) spread across three places. That produced a race
- * where the first observer promoted a post-/clear respawn as a boot, silently
- * advancing wsClient.ccSessionId, and the second observer's rekey was then
- * eaten by the "same-ID" guard in sendConversationRekey -- leaving the
- * broker pinned to the old session id. See diag log 2026-04-17
- * for the incident.
+ * Both delegate to `observeClaudeSessionId`, which classifies the transition
+ * (boot / rekey / confirm) and performs the right action exactly once.
+ * Idempotent on session id -- whichever observer fires first does the work;
+ * subsequent calls with the same id return `confirm` and no-op.
  *
- * The rule now: both observers delegate to `observeClaudeSessionId`, which
- * classifies the transition (boot / rekey / confirm) and performs the right
- * action exactly once. Idempotent on session id -- whichever observer fires
- * first does the work; subsequent calls with the same id return `confirm`
- * and no-op. One diag line per transition for easy debugging.
+ * CC session IDs are internal to the agent host. The broker receives
+ * `conversation_reset` (no CC session IDs) when /clear happens. The broker
+ * only ever sees ccSessionId as opaque metadata in `agentHostMeta`.
  */
 
 import { cwdToProjectUri } from '../shared/project-uri'
@@ -103,15 +97,8 @@ export function observeClaudeSessionId(
   if (kind === 'boot') {
     handleBoot(ctx, newSessionId, source, model)
   } else {
-    // Effective "from" is pendingClearFromId for post-clear (onExit cleared
-    // claudeSessionId in earlier code paths; we no longer do, but keep the
-    // fallback so a missed update still produces a valid rekey message).
     const fromId = pendingClearFromId || prevSessionId || newSessionId
-    handleRekey(ctx, fromId, newSessionId, model)
-    emitLaunchEvent(ctx, 'rekeyed', {
-      detail: `${fromId.slice(0, 8)} -> ${newSessionId.slice(0, 8)}`,
-      raw: { from: fromId, to: newSessionId, reason },
-    })
+    handleRekey(ctx, fromId, newSessionId, source, model)
   }
 
   // Launch is now fully settled on this session id.
@@ -146,17 +133,24 @@ function handleBoot(ctx: AgentHostContext, newId: string, source: SessionTransit
   ctx.wsClient.sendBootEvent('session_ready')
 }
 
-function handleRekey(ctx: AgentHostContext, fromId: string, newId: string, model?: string): void {
-  // Tell broker to migrate session from old id to new id.
-  // If wsClient is disconnected, the message drops on the floor -- acceptable
-  // since a reconnect will send fresh meta with the new id anyway.
+function handleRekey(
+  ctx: AgentHostContext,
+  fromId: string,
+  newId: string,
+  source: SessionTransitionSource,
+  model?: string,
+): void {
   if (ctx.wsClient?.isConnected()) {
-    ctx.wsClient.sendConversationRekey(newId, cwdToProjectUri(ctx.cwd), model)
+    ctx.wsClient.sendConversationReset(cwdToProjectUri(ctx.cwd), model)
+    ctx.wsClient.sendMetadataUpdate({ ccSessionId: newId })
   }
+
+  // Update ws-client's internal ccSessionId for metadata messages (reconnect).
+  ctx.wsClient?.setSessionId(newId, source)
 
   // Stop all subagent watchers -- they reference the old session's transcript dir.
   for (const [agentId, watcher] of ctx.subagentWatchers) {
-    ctx.debug(`[rekey] Stopping subagent watcher: ${agentId.slice(0, 7)}`)
+    ctx.debug(`[reset] Stopping subagent watcher: ${agentId.slice(0, 7)}`)
     watcher.stop()
   }
   ctx.subagentWatchers.clear()
@@ -171,9 +165,7 @@ function handleRekey(ctx: AgentHostContext, fromId: string, newId: string, model
   ctx.startTaskWatching()
   ctx.startProjectWatching()
 
-  // Caller is responsible for source-specific work (e.g. restarting the
-  // transcript watcher from SessionStart's data.transcript_path).
-  void fromId // retained in transition diag for debugging
+  void fromId
 }
 
 function emitTransition(ctx: AgentHostContext, t: SessionTransition): SessionTransition {

@@ -123,10 +123,8 @@ describe('conversation lifecycle', () => {
     expect(conv?.status).toBe('ended')
   })
 
-  it('conversation_clear updates ccSessionId metadata, keeps conversation under same key', async () => {
+  it('conversation_reset wipes ephemeral state, keeps conversation under same key', async () => {
     const convId = testId('conv')
-    const oldCcSessionId = testId('old-cc')
-    const newCcSessionId = testId('new-cc')
 
     const agent = h.bootAgentHost({
       conversationId: convId,
@@ -135,16 +133,14 @@ describe('conversation lifecycle', () => {
     h.agentSend(agent, {
       type: 'meta',
       conversationId: convId,
-      ccSessionId: oldCcSessionId,
+      ccSessionId: testId('cc'),
       project: 'claude:///home/user/project',
       cwd: '/home/user/project',
       startedAt: Date.now(),
     })
 
     h.agentSend(agent, {
-      type: 'conversation_clear',
-      oldCcSessionId: oldCcSessionId,
-      newCcSessionId: newCcSessionId,
+      type: 'conversation_reset',
       conversationId: convId,
       project: 'claude:///home/user/project',
     })
@@ -155,12 +151,8 @@ describe('conversation lifecycle', () => {
     const conv = h.conversationStore.getConversation(convId)
     expect(conv).toBeDefined()
     expect(conv?.id).toBe(convId)
-    expect(conv?.agentHostMeta?.ccSessionId).toBe(newCcSessionId)
     expect(conv?.project).toBe('claude:///home/user/project')
-
-    // Old ccSessionId is NOT a store key
-    const ghost = h.conversationStore.getConversation(oldCcSessionId)
-    expect(ghost).toBeUndefined()
+    expect(conv?.events).toEqual([])
   })
 })
 

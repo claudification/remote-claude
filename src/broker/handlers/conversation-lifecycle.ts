@@ -158,34 +158,40 @@ const heartbeat: MessageHandler = () => {
   // Heartbeats keep the WS alive but do NOT count as activity.
 }
 
-// ─── Conversation clear (/clear resets ephemeral state, updates ccSessionId metadata) ──
+// ─── Conversation reset (/clear wipes ephemeral state) ──
 
-const conversationClear: MessageHandler = (ctx, data) => {
+const conversationReset: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId as string) || ctx.ws.data.conversationId
-  const newCcSessionId = data.newCcSessionId as string
-  if (!conversationId || !newCcSessionId) return
+  if (!conversationId) return
 
-  const clearProject = (data.project as string) ?? cwdToProjectUri(data.cwd as string)
+  const resetProject = (data.project as string) ?? cwdToProjectUri(data.cwd as string)
 
-  const conversation = ctx.conversations.clearConversation(
-    conversationId,
-    newCcSessionId,
-    clearProject,
-    data.model as string,
-  )
+  const conversation = ctx.conversations.clearConversation(conversationId, resetProject, data.model as string)
   if (conversation) {
-    ctx.ws.data.ccSessionId = newCcSessionId
-    ctx.log.debug(
-      `Conversation cleared: ${conversationId.slice(0, 8)} cc=${newCcSessionId.slice(0, 8)} (${extractProjectLabel(clearProject)})`,
-    )
+    ctx.log.info(`Conversation reset: ${conversationId.slice(0, 8)} (${extractProjectLabel(resetProject)})`)
   } else {
-    ctx.log.debug(`conversation_clear: conversation ${conversationId.slice(0, 8)} not found, creating new`)
-    const newConv = ctx.conversations.createConversation(conversationId, clearProject, data.model as string)
-    if (!newConv.agentHostMeta) newConv.agentHostMeta = {}
-    newConv.agentHostMeta.ccSessionId = newCcSessionId
-    ctx.ws.data.ccSessionId = newCcSessionId
+    ctx.log.debug(`conversation_reset: conversation ${conversationId.slice(0, 8)} not found, creating new`)
+    ctx.conversations.createConversation(conversationId, resetProject, data.model as string)
     ctx.conversations.setConversationSocket(conversationId, conversationId, ctx.ws)
   }
+}
+
+// ─── Metadata upsert (opaque bag, broker never reads it) ──────────────
+
+const updateMetadata: MessageHandler = (ctx, data) => {
+  const conversationId = (data.conversationId as string) || ctx.ws.data.conversationId
+  const metadata = data.metadata as Record<string, unknown> | undefined
+  if (!conversationId || !metadata) return
+
+  const conv = ctx.conversations.getConversation(conversationId)
+  if (!conv) {
+    ctx.log.debug(`update_conversation_metadata: ${conversationId.slice(0, 8)} not found`)
+    return
+  }
+
+  if (!conv.agentHostMeta) conv.agentHostMeta = {}
+  Object.assign(conv.agentHostMeta, metadata)
+  ctx.log.debug(`Metadata updated: ${conversationId.slice(0, 8)} keys=[${Object.keys(metadata).join(',')}]`)
 }
 
 // ─── Notify (push notification from agent host) ───────────────────────
@@ -288,7 +294,8 @@ export function registerConversationLifecycleHandlers(): void {
     meta,
     hook,
     heartbeat,
-    conversation_clear: conversationClear,
+    conversation_reset: conversationReset,
+    update_conversation_metadata: updateMetadata,
     conversation_status: conversationStatus,
     notify,
     end,

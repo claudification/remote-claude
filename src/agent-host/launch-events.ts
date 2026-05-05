@@ -9,10 +9,10 @@
  *
  * Emit flow:
  *   Initial spawn:
- *     launch_started -> init_received -> rekeyed (boot) -> ready
+ *     launch_started -> init_received -> ready
  *   /clear reboot:
  *     clear_requested -> process_killed -> mcp_reset -> settings_regenerated
- *     -> launch_started -> init_received -> rekeyed -> ready
+ *     -> launch_started -> init_received -> ready
  *
  * Env filtering: only RCLAUDE_* / CLAUDE_* / ANTHROPIC_* vars plus a few
  * terminal basics (CI, TERM) and any customEnv explicitly set by the agent host

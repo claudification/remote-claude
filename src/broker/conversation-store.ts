@@ -77,12 +77,7 @@ export interface ConversationStore {
     capabilities?: AgentHostCapability[],
   ) => Conversation
   resumeConversation: (id: string) => void
-  clearConversation: (
-    conversationId: string,
-    newCcSessionId: string,
-    newProject: string,
-    model?: string,
-  ) => Conversation | undefined
+  clearConversation: (conversationId: string, newProject: string, model?: string) => Conversation | undefined
   getConversation: (id: string) => Conversation | undefined
   getAllConversations: () => Conversation[]
   getActiveConversations: () => Conversation[]
@@ -966,7 +961,6 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   // The conversation key (conversationId) does NOT change.
   function clearConversation(
     conversationId: string,
-    newCcSessionId: string,
     newProjectOrCwd: string,
     newModel?: string,
   ): Conversation | undefined {
@@ -974,8 +968,6 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     const conv = conversations.get(conversationId)
     if (!conv) return undefined
 
-    if (!conv.agentHostMeta) conv.agentHostMeta = {}
-    conv.agentHostMeta.ccSessionId = newCcSessionId
     conv.project = newProject
     if (newModel) conv.model = newModel
     conv.status = 'idle'
@@ -1018,6 +1010,15 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     // No socket or channel migration needed -- conversationId didn't change.
     // Clear subagent channel subscriptions (subagents are gone after /clear).
     clearSubagentChannels(conversationId)
+
+    // Tell dashboard subscribers to wipe their local transcript cache.
+    // Without this, the dashboard keeps showing stale entries from before /clear.
+    broadcastToChannel('conversation:transcript', conversationId, {
+      type: 'transcript_entries',
+      conversationId,
+      entries: [],
+      isInitial: true,
+    })
 
     broadcastConversationScoped(
       {

@@ -21,7 +21,6 @@ const STEP_LABEL: Record<AgentHostLaunchStep, string> = {
   mcp_reset: 'mcp reset',
   settings_regenerated: 'settings regenerated',
   init_received: 'init received',
-  rekeyed: 'rekeyed',
   ready: 'ready',
   model_changed: 'model changed',
   permission_mode_changed: 'permission mode changed',
@@ -51,7 +50,6 @@ function stepColor(step: AgentHostLaunchStep): string {
   if (step === 'clear_requested') return 'text-amber-400'
   if (step === 'process_killed' || step === 'conversation_exit') return 'text-red-400'
   if (step === 'init_received' || step === 'ready') return 'text-emerald-400'
-  if (step === 'rekeyed') return 'text-violet-400'
   if (LIVE_STEPS.has(step)) return 'text-cyan-400'
   return 'text-sky-400'
 }
