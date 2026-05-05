@@ -1,0 +1,819 @@
+/**
+ * WS message handlers for the dashboard.
+ *
+ * Each named function corresponds to one DashboardMessage `type`. Pulled out
+ * of use-websocket.ts (was a 700-line switch in processMessage). The exported
+ * `handlers` table is a Record<type, fn> consumed by the dispatcher.
+ *
+ * NOTE on Zustand stability: every state mutation here goes through
+ * `useConversationsStore.setState` or `.getState()` -- never through a
+ * subscribed selector -- so handler reorganization has no React #310 risk.
+ */
+
+import type { ConversationSummary } from '@shared/protocol'
+import type { ProjectOrder, Session, TaskInfo, TranscriptEntry } from '@/lib/types'
+import { haptic } from '@/lib/utils'
+import {
+  applyHashRoute,
+  buildConversationsById,
+  fetchTranscript,
+  type ProjectSettingsMap,
+  useConversationsStore,
+} from './use-conversations'
+import { handleSpawnRequestAck } from './use-spawn'
+
+// Loose WS message type (mirror of use-websocket.ts -- intentionally duplicated
+// to keep this module standalone; the canonical source lives in use-websocket.ts).
+export interface DashboardMessage {
+  type: string
+  conversationId?: string
+  previousConversationId?: string
+  session?: ConversationSummary
+  sessions?: ConversationSummary[]
+  // biome-ignore lint/suspicious/noExplicitAny: pass-through for unknown server fields
+  [key: string]: any
+}
+
+function toSession(summary: ConversationSummary): Session {
+  return {
+    id: summary.id,
+    project: summary.project,
+    model: summary.model,
+    capabilities: summary.capabilities,
+    connectionIds: summary.connectionIds,
+    startedAt: summary.startedAt,
+    lastActivity: summary.lastActivity,
+    status: summary.status,
+    compacting: summary.compacting,
+    compactedAt: summary.compactedAt,
+    eventCount: summary.eventCount,
+    activeSubagentCount: summary.activeSubagentCount ?? 0,
+    totalSubagentCount: summary.totalSubagentCount ?? 0,
+    subagents: summary.subagents ?? [],
+    taskCount: summary.taskCount ?? 0,
+    pendingTaskCount: summary.pendingTaskCount ?? 0,
+    activeTasks: summary.activeTasks ?? [],
+    pendingTasks: summary.pendingTasks ?? [],
+    archivedTaskCount: summary.archivedTaskCount ?? 0,
+    archivedTasks: summary.archivedTasks ?? [],
+    runningBgTaskCount: summary.runningBgTaskCount ?? 0,
+    bgTasks: summary.bgTasks ?? [],
+    monitors: summary.monitors ?? [],
+    runningMonitorCount: summary.runningMonitorCount ?? 0,
+    teammates: summary.teammates ?? [],
+    team: summary.team,
+    effortLevel: summary.effortLevel,
+    permissionMode: summary.permissionMode,
+    lastError: summary.lastError,
+    rateLimit: summary.rateLimit,
+    planMode: summary.planMode,
+    pendingAttention: summary.pendingAttention,
+    hasNotification: summary.hasNotification,
+    summary: summary.summary,
+    title: summary.title,
+    description: summary.description,
+    agentName: summary.agentName,
+    prLinks: summary.prLinks,
+    linkedProjects: summary.linkedProjects,
+    tokenUsage: summary.tokenUsage,
+    contextWindow: summary.contextWindow,
+    cacheTtl: summary.cacheTtl,
+    lastTurnEndedAt: summary.lastTurnEndedAt,
+    stats: summary.stats,
+    costTimeline: summary.costTimeline,
+    gitBranch: summary.gitBranch,
+    adHocTaskId: summary.adHocTaskId,
+    adHocWorktree: summary.adHocWorktree,
+    resultText: summary.resultText,
+    recap: summary.recap,
+    recapFresh: summary.recapFresh,
+    hostSentinelId: summary.hostSentinelId,
+    hostSentinelAlias: summary.hostSentinelAlias,
+    version: summary.version,
+    buildTime: summary.buildTime,
+    claudeVersion: summary.claudeVersion,
+    claudeAuth: summary.claudeAuth,
+    spinnerVerbs: summary.spinnerVerbs,
+    autocompactPct: summary.autocompactPct,
+  }
+}
+
+// ─── sync protocol ─────────────────────────────────────────────────────────
+
+function handleSyncOk(msg: DashboardMessage) {
+  const ok = msg as DashboardMessage & { epoch?: string; seq?: number }
+  const stale = (msg as DashboardMessage & { staleTranscripts?: Record<string, number> }).staleTranscripts
+  const staleInfo = stale ? ` staleTranscripts=${Object.keys(stale).length}` : ''
+  console.log(`[sync] <- sync_ok (epoch=${ok.epoch?.slice(0, 8)} seq=${ok.seq})${staleInfo}`)
+}
+
+function handleSyncCatchup(msg: DashboardMessage) {
+  const cu = msg as DashboardMessage & { count?: number; epoch?: string; seq?: number }
+  const stale = (msg as DashboardMessage & { staleTranscripts?: Record<string, number> }).staleTranscripts
+  const staleInfo = stale ? ` staleTranscripts=${Object.keys(stale).length}` : ''
+  console.log(`[sync] <- sync_catchup: ${cu.count} missed (epoch=${cu.epoch?.slice(0, 8)} seq=${cu.seq})${staleInfo}`)
+}
+
+function handleSyncStale(msg: DashboardMessage) {
+  const stale = msg as DashboardMessage & { reason?: string; missed?: number; epoch?: string; seq?: number }
+  const staleTranscripts = (msg as DashboardMessage & { staleTranscripts?: Record<string, number> }).staleTranscripts
+  const staleInfo = staleTranscripts ? ` staleTranscripts=${Object.keys(staleTranscripts).length}` : ''
+  console.log(`[sync] <- sync_stale: ${stale.reason || 'unknown'} missed=${stale.missed || '?'}${staleInfo}`)
+  // Full resync needed - bump connectSeq (triggers LIFO eviction + re-fetch in onopen).
+  // Clear lastAppliedTranscriptSeq: epoch changed means server's per-conversation
+  // seq counters reset, so our stored seqs are from the previous generation
+  // and would false-negative a future sync_check. The upcoming initial
+  // transcript_entries broadcasts will reseed from fresh seqs.
+  useConversationsStore.setState(s => ({
+    connectSeq: s.connectSeq + 1,
+    syncEpoch: stale.epoch || '',
+    syncSeq: stale.seq || 0,
+    lastAppliedTranscriptSeq: {},
+  }))
+}
+
+// ─── conversation lifecycle ────────────────────────────────────────────────
+
+function handleConversationsList(msg: DashboardMessage) {
+  if (msg.sessions) {
+    useConversationsStore.getState().setConversations(msg.sessions.map(toSession))
+    applyHashRoute()
+  }
+  // Version mismatch detection removed -- SW lifecycle handles update detection.
+  // When sw.js changes, browser installs new SW and sends 'sw-updated' postMessage.
+}
+
+function handleConversationCreated(msg: DashboardMessage) {
+  if (!msg.session) return
+  const newConversation = toSession(msg.session)
+  useConversationsStore.setState(state => {
+    let sessions: Session[]
+    if (state.sessions.some(s => s.id === newConversation.id)) {
+      sessions = state.sessions.map(s => (s.id === newConversation.id ? { ...s, ...newConversation } : s))
+    } else {
+      sessions = [...state.sessions, newConversation]
+    }
+    return { sessions, sessionsById: buildConversationsById(sessions) }
+  })
+}
+
+function handleConversationUpdate(msg: DashboardMessage) {
+  if (!(msg.session && msg.conversationId)) return
+  const conversationId = msg.conversationId
+  const session = msg.session
+  const prevId = msg.previousConversationId
+  const matchId = prevId || conversationId
+  useConversationsStore.setState(state => {
+    const updated = toSession(session)
+    // Rekey collision: if two booting placeholders (different conversationIds)
+    // both get rekeyed to the same real session id, the map-replace leaves
+    // two entries in the array with identical `updated.id`. Dedupe by id
+    // (merge any duplicates into the first occurrence) so the sidebar
+    // doesn't render ghost rows. Without dedupe, a double-spawn shows as
+    // two identical session rows sharing a short-id.
+    const replaced = state.sessions.map(s => (s.id === matchId ? { ...s, ...updated } : s))
+    const seen = new Set<string>()
+    const sessions: Session[] = []
+    for (const s of replaced) {
+      if (seen.has(s.id)) continue
+      seen.add(s.id)
+      sessions.push(s)
+    }
+    const newState: Partial<typeof state> = {
+      sessions,
+      sessionsById: buildConversationsById(sessions),
+    }
+    // Clear stale streaming text when session goes idle or ends
+    if ((updated.status === 'idle' || updated.status === 'ended') && state.streamingText[conversationId]) {
+      const { [conversationId]: _, ...rest } = state.streamingText
+      newState.streamingText = rest
+    }
+    if (prevId && state.selectedConversationId === prevId) {
+      console.log(
+        `[nav] session rekey: ${prevId.slice(0, 8)} -> ${conversationId.slice(0, 8)} (selected session rekeyed)`,
+      )
+      newState.selectedConversationId = conversationId
+      const oldEvents = state.events[prevId]
+      const oldTranscripts = state.transcripts[prevId]
+      if (oldEvents || oldTranscripts) {
+        const events = { ...state.events }
+        const transcripts = { ...state.transcripts }
+        delete events[prevId]
+        delete transcripts[prevId]
+        // Preserve any data already received for the new conversation ID
+        // (e.g. compacting marker broadcast during rekey)
+        if (!events[conversationId]) events[conversationId] = []
+        if (!transcripts[conversationId]) transcripts[conversationId] = []
+        newState.events = events
+        newState.transcripts = transcripts
+      }
+    }
+    return newState
+  })
+  // Rekey: transcript moved from old-id to new-id locally, but we may have
+  // missed channel entries under new-id while backgrounded. Re-fetch.
+  if (prevId) {
+    console.log(
+      `[sync] session_update: REKEY ${prevId.slice(0, 8)} -> ${conversationId.slice(0, 8)} status=${session.status}`,
+    )
+    // Delay: broker processes rekey and re-receives transcript from rclaude.
+    // 500ms gives the transcript watcher time to stream initial entries to the new ID.
+    setTimeout(() => {
+      fetchTranscript(conversationId).then(transcript => {
+        console.log(
+          `[sync] rekey refetch ${conversationId.slice(0, 8)}: ${transcript?.entries.length ?? 'null'} entries lastSeq=${transcript?.lastSeq ?? '-'}`,
+        )
+        if (transcript) useConversationsStore.getState().setTranscript(conversationId, transcript.entries)
+      })
+    }, 500)
+  } else if (session.status === 'starting') {
+    const state = useConversationsStore.getState()
+    const cached = state.transcripts[conversationId]?.length ?? 0
+    const isSelected = state.selectedConversationId === conversationId
+    console.log(`[sync] session_update: RESUME ${conversationId.slice(0, 8)} selected=${isSelected} cached=${cached}`)
+    if (isSelected) {
+      // Always refetch on resume -- transcript may have been corrupted by a
+      // same-ID rekey or the conversation may have new data from a restart.
+      setTimeout(() => {
+        fetchTranscript(conversationId).then(transcript => {
+          console.log(
+            `[sync] resume refetch ${conversationId.slice(0, 8)}: ${transcript?.entries.length ?? 'null'} entries lastSeq=${transcript?.lastSeq ?? '-'}`,
+          )
+          if (transcript) useConversationsStore.getState().setTranscript(conversationId, transcript.entries)
+        })
+      }, 1000)
+    }
+  }
+}
+
+function handleChannelAck(msg: DashboardMessage) {
+  // Channel subscription acknowledgment - log for debugging
+  const ack = msg as DashboardMessage & { channel?: string; previousConversationId?: string }
+  if (ack.previousConversationId) {
+    console.log(
+      `[ws] Channel ${ack.channel} rolled over: ${ack.previousConversationId.slice(0, 8)} -> ${ack.conversationId?.slice(0, 8)}`,
+    )
+  }
+}
+
+function handleEvent(msg: DashboardMessage) {
+  if (!(msg.event && msg.conversationId)) return
+  const sid = msg.conversationId
+  const evt = msg.event
+  useConversationsStore.setState(state => {
+    const currentEvents = state.events[sid] || []
+    return {
+      events: {
+        ...state.events,
+        [sid]: [...currentEvents, evt],
+      },
+    }
+  })
+}
+
+// ─── transcripts + streaming ───────────────────────────────────────────────
+
+function handleTranscriptEntries(msg: DashboardMessage) {
+  if (!(msg.conversationId && msg.entries?.length)) return
+  const sid = msg.conversationId
+  const newEntries = msg.entries as TranscriptEntry[]
+  const initial = msg.isInitial as boolean
+  useConversationsStore.setState(state => {
+    const existing = state.transcripts[sid] || []
+    // isInitial=true REPLACES the cache. The agent host fires this on WS
+    // reconnect (resendTranscriptFromFile in headless) and on PTY
+    // truncation. If the snapshot is SMALLER than what we already have
+    // AND the first entry matches, the snapshot was taken before CC
+    // flushed the newest entries -- swallowing the replace would wipe
+    // live entries the client already displayed. Skip in that case
+    // (mirrors setTranscript's guard). When first entries differ
+    // (e.g. /clear created a new conversation, or compaction rewrote
+    // the prefix) the replace is legitimate -- proceed.
+    let result: TranscriptEntry[]
+    let skipped = false
+    if (initial && existing.length > newEntries.length && existing.length > 0 && newEntries.length > 0) {
+      const fp = (e: TranscriptEntry) => {
+        const m = (e as { message?: { content?: unknown } }).message
+        const c = m?.content
+        return JSON.stringify(c ?? e.type)?.slice(0, 100)
+      }
+      if (fp(existing[0]) === fp(newEntries[0])) {
+        result = existing
+        skipped = true
+      } else {
+        result = newEntries
+      }
+    } else if (initial) {
+      result = newEntries
+    } else {
+      // Incremental append -- dedup by seq against our last-applied.
+      // Guards the race where a sync_check delta fetch raced with a live
+      // WS broadcast and we applied the delta first. Without this guard,
+      // the broadcast would re-append entries we already have.
+      const localMax = state.lastAppliedTranscriptSeq[sid] ?? 0
+      const fresh = newEntries.filter(e => e.seq === undefined || e.seq > localMax)
+      if (fresh.length === 0) {
+        return {}
+      }
+      result = [...existing, ...fresh]
+    }
+    if (initial || newEntries.length > 2) {
+      console.log(
+        `[ws] transcript ${sid.slice(0, 8)}: +${newEntries.length} ${initial ? (skipped ? 'INITIAL-SKIP' : 'INITIAL') : 'incremental'} (total=${result.length})`,
+      )
+    }
+    // Clear streaming text when an assistant entry arrives (defensive cleanup
+    // in case message_stop was lost or arrived after the transcript entry)
+    const hasAssistant = newEntries.some(e => e.type === 'assistant')
+    const streamingText =
+      hasAssistant && state.streamingText[sid]
+        ? (() => {
+            const { [sid]: _, ...rest } = state.streamingText
+            return rest
+          })()
+        : state.streamingText
+    // Update lastAppliedTranscriptSeq to max(existing, max-in-result).
+    // Skipped initial snapshots don't move the marker (result === existing).
+    const maxSeqInResult = result.length > 0 ? (result[result.length - 1].seq ?? 0) : 0
+    const prevSeq = state.lastAppliedTranscriptSeq[sid] ?? 0
+    const newSeq = Math.max(prevSeq, maxSeqInResult)
+    return {
+      transcripts: {
+        ...state.transcripts,
+        [sid]: result,
+      },
+      lastAppliedTranscriptSeq:
+        newSeq !== prevSeq ? { ...state.lastAppliedTranscriptSeq, [sid]: newSeq } : state.lastAppliedTranscriptSeq,
+      streamingText,
+      newDataSeq: state.newDataSeq + 1,
+    }
+  })
+}
+
+function handleConversationInfo(msg: DashboardMessage) {
+  // Session metadata from headless init - store for autocomplete
+  const sid = msg.conversationId as string
+  if (!sid) return
+  useConversationsStore.setState(state => ({
+    sessionInfo: {
+      ...state.sessionInfo,
+      [sid]: {
+        tools: (msg.tools as string[]) || [],
+        slashCommands: (msg.slashCommands as string[]) || [],
+        skills: (msg.skills as string[]) || [],
+        agents: (msg.agents as string[]) || [],
+        mcpServers: (msg.mcpServers as Array<{ name: string; status?: string }>) || [],
+        model: (msg.model as string) || '',
+        permissionMode: (msg.permissionMode as string) || '',
+        claudeCodeVersion: (msg.claudeCodeVersion as string) || '',
+      },
+    },
+  }))
+  console.log(
+    `[ws] session_info ${sid.slice(0, 8)}: ${(msg.tools as unknown[])?.length} tools, ${(msg.skills as unknown[])?.length} skills`,
+  )
+}
+
+function handleStreamDelta(msg: DashboardMessage) {
+  // Headless token streaming - accumulate text deltas
+  const sid = msg.conversationId as string
+  const event = msg.event as Record<string, unknown> | undefined
+  if (!(sid && event)) return
+  const eventType = event.type as string
+  if (eventType === 'content_block_delta') {
+    const delta = event.delta as Record<string, unknown> | undefined
+    if (delta?.type === 'text_delta' && typeof delta.text === 'string') {
+      useConversationsStore.setState(state => {
+        const updated = (state.streamingText[sid] || '') + delta.text
+        // Bump newDataSeq every ~500 chars to trigger auto-scroll without thrashing
+        const prevLen = (state.streamingText[sid] || '').length
+        const bumpScroll = Math.floor(updated.length / 500) > Math.floor(prevLen / 500)
+        return {
+          streamingText: { ...state.streamingText, [sid]: updated },
+          ...(bumpScroll ? { newDataSeq: state.newDataSeq + 1 } : {}),
+        }
+      })
+    }
+  } else if (eventType === 'message_start') {
+    // New turn -- reset streaming buffer. Do NOT reset on content_block_start:
+    // a single assistant message can have multiple text blocks (interleaved with
+    // tool_use / thinking) and resetting on each block wipes earlier text_deltas
+    // before message_stop flushes the final assistant entry, making the first
+    // block look "missed" to the viewer.
+    useConversationsStore.setState(state => {
+      if (!state.streamingText[sid]) return state
+      return { streamingText: { ...state.streamingText, [sid]: '' } }
+    })
+  } else if (eventType === 'message_stop') {
+    // Turn complete -- clear streaming buffer entirely
+    useConversationsStore.setState(state => {
+      if (!state.streamingText[sid]) return state
+      const { [sid]: _, ...rest } = state.streamingText
+      return { streamingText: rest }
+    })
+  }
+}
+
+function handleSubagentTranscript(msg: DashboardMessage) {
+  if (!(msg.conversationId && msg.entries?.length)) return
+  const subMsg = msg as DashboardMessage & { agentId?: string }
+  const agentId = subMsg.agentId
+  if (!agentId) return
+  const sid = msg.conversationId
+  const newEntries = msg.entries as TranscriptEntry[]
+  const initial = msg.isInitial as boolean
+  const key = `${sid}:${agentId}`
+  useConversationsStore.setState(state => {
+    const existing = state.subagentTranscripts[key] || []
+    return {
+      subagentTranscripts: {
+        ...state.subagentTranscripts,
+        [key]: initial ? newEntries : [...existing, ...newEntries],
+      },
+    }
+  })
+}
+
+// ─── tasks / sentinel / settings ───────────────────────────────────────────
+
+function handleTasksUpdate(msg: DashboardMessage) {
+  if (!(msg.conversationId && msg.tasks)) return
+  const sid = msg.conversationId
+  const taskList = msg.tasks as TaskInfo[]
+  useConversationsStore.setState(state => ({
+    tasks: { ...state.tasks, [sid]: taskList },
+  }))
+}
+
+function handleSentinelStatus(msg: DashboardMessage) {
+  if (msg.connected !== undefined) {
+    useConversationsStore.getState().setSentinelConnected(msg.connected, msg.sentinels)
+  }
+}
+
+function handleUsageUpdate(msg: DashboardMessage) {
+  if (msg.usage) {
+    useConversationsStore.getState().setPlanUsage(msg.usage)
+  }
+}
+
+function handleSettingsUpdated(msg: DashboardMessage) {
+  if (msg.settings) {
+    useConversationsStore.setState({ globalSettings: msg.settings as Record<string, unknown> })
+  }
+}
+
+function handleProjectSettingsUpdated(msg: DashboardMessage) {
+  if (msg.settings) {
+    useConversationsStore.getState().setProjectSettings(msg.settings as ProjectSettingsMap)
+  }
+}
+
+function handleProjectOrderUpdated(msg: DashboardMessage) {
+  if (msg.order) {
+    useConversationsStore.getState().setProjectOrder(msg.order as ProjectOrder)
+  }
+}
+
+function handleSharesUpdated(msg: DashboardMessage) {
+  if (msg.shares) {
+    useConversationsStore.getState().setShares(msg.shares)
+  }
+}
+
+// ─── prompts / dialogs ─────────────────────────────────────────────────────
+
+function handleChannelLinkRequest(msg: DashboardMessage) {
+  const req = msg as DashboardMessage & {
+    fromSession?: string
+    fromProject?: string
+    toSession?: string
+    toProject?: string
+  }
+  const fromSession = req.fromSession
+  const toSession = req.toSession
+  if (!(fromSession && toSession)) return
+  useConversationsStore.setState(state => {
+    // Deduplicate
+    if (state.pendingProjectLinks.some(r => r.fromSession === fromSession && r.toSession === toSession)) {
+      return state
+    }
+    return {
+      pendingProjectLinks: [
+        ...state.pendingProjectLinks,
+        {
+          fromSession,
+          fromProject: req.fromProject || fromSession.slice(0, 8),
+          toSession,
+          toProject: req.toProject || toSession.slice(0, 8),
+        },
+      ],
+    }
+  })
+}
+
+function handlePermissionRequest(msg: DashboardMessage) {
+  const req = msg as DashboardMessage & {
+    requestId?: string
+    toolName?: string
+    description?: string
+    inputPreview?: string
+  }
+  const permSid = req.conversationId
+  const permRid = req.requestId
+  if (!(permSid && permRid)) return
+  useConversationsStore.setState(state => {
+    if (state.pendingPermissions.some(p => p.requestId === permRid)) return state
+    return {
+      pendingPermissions: [
+        ...state.pendingPermissions,
+        {
+          conversationId: permSid,
+          requestId: permRid,
+          toolName: req.toolName || 'Unknown',
+          description: req.description || '',
+          inputPreview: req.inputPreview || '',
+          timestamp: Date.now(),
+        },
+      ],
+    }
+  })
+  // Haptic + visual alert for permission requests (haptic may be silent on iOS outside gestures)
+  haptic('double')
+}
+
+function handlePermissionAutoApproved(msg: DashboardMessage) {
+  const auto = msg as DashboardMessage & {
+    requestId?: string
+    toolName?: string
+    description?: string
+  }
+  if (!(auto.conversationId && auto.toolName)) return
+  // Emit a custom event that the conversation-detail can pick up for a brief toast
+  window.dispatchEvent(
+    new CustomEvent('permission-auto-approved', {
+      detail: { conversationId: auto.conversationId, toolName: auto.toolName, description: auto.description },
+    }),
+  )
+}
+
+function handleAskQuestion(msg: DashboardMessage) {
+  const askMsg = msg as DashboardMessage & {
+    toolUseId?: string
+    questions?: Array<{
+      question: string
+      header: string
+      options: Array<{ label: string; description: string; preview?: string }>
+      multiSelect?: boolean
+    }>
+  }
+  const askSid = askMsg.conversationId
+  const askTuid = askMsg.toolUseId
+  if (!(askSid && askTuid && askMsg.questions)) return
+  useConversationsStore.setState(state => {
+    if (state.pendingAskQuestions.some(q => q.toolUseId === askTuid)) return state
+    return {
+      pendingAskQuestions: [
+        ...state.pendingAskQuestions,
+        {
+          conversationId: askSid,
+          toolUseId: askTuid,
+          questions: askMsg.questions || [],
+          timestamp: Date.now(),
+        },
+      ],
+    }
+  })
+}
+
+function handleDialogShow(msg: DashboardMessage) {
+  const exSid = msg.conversationId as string
+  const exId = msg.dialogId as string
+  const exLayout = msg.layout as import('@shared/dialog-schema').DialogLayout
+  if (!(exSid && exId && exLayout)) return
+  // Dedup: the agent host replays dialog_show on reconnect. If we already
+  // have this exact dialog open, preserve any in-progress user input.
+  const existing = useConversationsStore.getState().pendingDialogs[exSid]
+  if (existing?.dialogId === exId) return
+  useConversationsStore.setState(state => ({
+    pendingDialogs: {
+      ...state.pendingDialogs,
+      [exSid]: { dialogId: exId, layout: exLayout, timestamp: Date.now() },
+    },
+  }))
+}
+
+function handleDialogDismiss(msg: DashboardMessage) {
+  const exSid = msg.conversationId as string
+  if (!exSid) return
+  useConversationsStore.setState(state => {
+    const updated = { ...state.pendingDialogs }
+    delete updated[exSid]
+    return { pendingDialogs: updated }
+  })
+}
+
+function handlePlanApproval(msg: DashboardMessage) {
+  const pa = msg as DashboardMessage & {
+    requestId?: string
+    toolUseId?: string
+    plan?: string
+    planFilePath?: string
+    allowedPrompts?: string[]
+  }
+  const paSid = pa.conversationId
+  if (!(paSid && pa.requestId && pa.plan)) return
+  const dialogId = `plan_${pa.requestId}`
+  // Dedup: agent host replays plan_approval on reconnect so the broker
+  // can rebuild pending state. If we already have this exact dialog open,
+  // don't overwrite -- would wipe any feedback the user has typed.
+  const existing = useConversationsStore.getState().pendingDialogs[paSid]
+  if (existing?.dialogId === dialogId && existing.source === 'plan_approval') return
+  // Build a dialog layout from the plan content
+  const layout: import('@shared/dialog-schema').DialogLayout = {
+    title: 'Plan Approval',
+    timeout: 600,
+    submitLabel: 'Approve',
+    cancelLabel: 'Reject',
+    body: [
+      { type: 'Markdown', content: pa.plan },
+      { type: 'Divider' },
+      {
+        type: 'TextInput',
+        id: 'feedback',
+        label: 'Feedback (optional)',
+        placeholder: 'Changes or additional instructions...',
+        multiline: true,
+      },
+    ],
+  }
+  useConversationsStore.setState(state => ({
+    pendingDialogs: {
+      ...state.pendingDialogs,
+      [paSid]: {
+        dialogId,
+        layout,
+        timestamp: Date.now(),
+        source: 'plan_approval',
+        meta: { requestId: pa.requestId, toolUseId: pa.toolUseId },
+      },
+    },
+  }))
+  haptic('double')
+}
+
+function handlePlanApprovalDismissed(msg: DashboardMessage) {
+  const sid = msg.conversationId
+  if (!sid) return
+  useConversationsStore.setState(state => {
+    const pending = state.pendingDialogs[sid]
+    if (pending?.source === 'plan_approval') {
+      const { [sid]: _, ...rest } = state.pendingDialogs
+      return { pendingDialogs: rest }
+    }
+    return state
+  })
+}
+
+function handleClipboardCapture(msg: DashboardMessage) {
+  const clipMsg = msg as DashboardMessage & {
+    contentType?: 'text' | 'image'
+    text?: string
+    base64?: string
+    mimeType?: string
+    timestamp?: number
+  }
+  if (!(clipMsg.conversationId && clipMsg.contentType)) return
+  useConversationsStore.setState(state => {
+    const capture = {
+      id: `clip_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      conversationId: clipMsg.conversationId || '',
+      contentType: clipMsg.contentType || ('text' as const),
+      text: clipMsg.text,
+      base64: clipMsg.base64,
+      mimeType: clipMsg.mimeType,
+      timestamp: clipMsg.timestamp || Date.now(),
+    }
+    // Stack max 4, drop oldest
+    const next = [capture, ...state.clipboardCaptures].slice(0, 4)
+    return { clipboardCaptures: next }
+  })
+}
+
+function handleConversationDismissed(msg: DashboardMessage) {
+  if (!msg.conversationId) return
+  useConversationsStore.setState(state => {
+    const sessions = state.sessions.filter(s => s.id !== msg.conversationId)
+    if (state.selectedConversationId === msg.conversationId) {
+      console.log(`[nav] session_dismissed: clearing selection (WS dismissed ${msg.conversationId.slice(0, 8)})`)
+    }
+    return {
+      sessions,
+      sessionsById: buildConversationsById(sessions),
+      selectedConversationId: state.selectedConversationId === msg.conversationId ? null : state.selectedConversationId,
+    }
+  })
+}
+
+// Server-pushed permissions (resolved from grants)
+function handlePermissions(msg: DashboardMessage) {
+  const update: Record<string, unknown> = {}
+  if (msg.global) update.permissions = msg.global
+  if (msg.sessions) {
+    // Merge into existing sessionPermissions (incremental updates for new conversation)
+    update.sessionPermissions = { ...useConversationsStore.getState().sessionPermissions, ...msg.sessions }
+  }
+  if (Object.keys(update).length > 0) useConversationsStore.setState(update)
+}
+
+// ─── results + job events ──────────────────────────────────────────────────
+
+function handleActionResult(msg: DashboardMessage) {
+  // WS action results (fire-and-forget error feedback)
+  if (msg.ok === false) {
+    console.error(`[ws] ${msg.type}: ${msg.error}`)
+  }
+  // Dispatch for LaunchMonitor to pick up
+  window.dispatchEvent(new CustomEvent('revive-session-result', { detail: msg }))
+}
+
+function handleReviveResult(msg: DashboardMessage) {
+  // Agent's revive result -- forwarded by broker for pipeline tracking
+  window.dispatchEvent(new CustomEvent('revive-agent-result', { detail: msg }))
+}
+
+function handleLaunchJobEvent(msg: DashboardMessage) {
+  window.dispatchEvent(new CustomEvent('launch-job-event', { detail: msg }))
+}
+
+function handleSpawnRequestAckMsg(msg: DashboardMessage) {
+  handleSpawnRequestAck(
+    msg as unknown as {
+      type: 'spawn_request_ack'
+      ok: boolean
+      jobId?: string
+      conversationId?: string
+      tmuxSession?: string
+      error?: string
+    },
+  )
+}
+
+// ─── dispatch table ────────────────────────────────────────────────────────
+
+export type MessageHandler = (msg: DashboardMessage) => void
+
+export const handlers: Record<string, MessageHandler> = {
+  // sync
+  sync_ok: handleSyncOk,
+  sync_catchup: handleSyncCatchup,
+  sync_stale: handleSyncStale,
+  // conversation lifecycle
+  conversations_list: handleConversationsList,
+  conversation_created: handleConversationCreated,
+  conversation_ended: handleConversationUpdate,
+  conversation_update: handleConversationUpdate,
+  channel_ack: handleChannelAck,
+  event: handleEvent,
+  // transcripts + streaming
+  transcript_entries: handleTranscriptEntries,
+  conversation_info: handleConversationInfo,
+  stream_delta: handleStreamDelta,
+  subagent_transcript: handleSubagentTranscript,
+  // tasks / sentinel / settings
+  tasks_update: handleTasksUpdate,
+  sentinel_status: handleSentinelStatus,
+  usage_update: handleUsageUpdate,
+  settings_updated: handleSettingsUpdated,
+  project_settings_updated: handleProjectSettingsUpdated,
+  project_order_updated: handleProjectOrderUpdated,
+  shares_updated: handleSharesUpdated,
+  // prompts + dialogs
+  channel_link_request: handleChannelLinkRequest,
+  permission_request: handlePermissionRequest,
+  permission_auto_approved: handlePermissionAutoApproved,
+  ask_question: handleAskQuestion,
+  dialog_show: handleDialogShow,
+  dialog_dismiss: handleDialogDismiss,
+  plan_approval: handlePlanApproval,
+  plan_approval_dismissed: handlePlanApprovalDismissed,
+  clipboard_capture: handleClipboardCapture,
+  conversation_dismissed: handleConversationDismissed,
+  permissions: handlePermissions,
+  // results + job events
+  send_input_result: handleActionResult,
+  dismiss_conversation_result: handleActionResult,
+  dismiss_session_result: handleActionResult, // backward compat
+  update_settings_result: handleActionResult,
+  update_project_settings_result: handleActionResult,
+  delete_project_settings_result: handleActionResult,
+  update_project_order_result: handleActionResult,
+  revive_conversation_result: handleActionResult,
+  revive_session_result: handleActionResult, // backward compat
+  revive_result: handleReviveResult,
+  launch_log: handleLaunchJobEvent,
+  launch_progress: handleLaunchJobEvent,
+  job_complete: handleLaunchJobEvent,
+  job_failed: handleLaunchJobEvent,
+  spawn_request_ack: handleSpawnRequestAckMsg,
+}
