@@ -133,7 +133,7 @@ export const DiffView = memo(function DiffView({
               </div>
             )
           }
-          const syntaxHtml = !line.wordDiffs ? highlighted?.get(line.content) : undefined
+          const syntaxHtml = highlighted?.get(line.content)
           return (
             <div
               // biome-ignore lint/suspicious/noArrayIndexKey: diff lines are positional, no stable IDs
@@ -150,7 +150,11 @@ export const DiffView = memo(function DiffView({
                 {line.prefix}
               </span>
               {line.wordDiffs ? (
-                <WordDiffLine parts={line.wordDiffs} mode={line.prefix === '+' ? 'add' : 'remove'} />
+                <WordDiffLine
+                  parts={line.wordDiffs}
+                  mode={line.prefix === '+' ? 'add' : 'remove'}
+                  syntaxHtml={syntaxHtml}
+                />
               ) : syntaxHtml ? (
                 <span dangerouslySetInnerHTML={{ __html: syntaxHtml }} />
               ) : (
@@ -181,13 +185,105 @@ export const DiffView = memo(function DiffView({
   )
 })
 
+interface SyntaxToken {
+  text: string
+  color?: string
+}
+
+function parseSyntaxHtml(html: string): SyntaxToken[] {
+  const tokens: SyntaxToken[] = []
+  const re = /<span style="color:(#[0-9A-Fa-f]+)">(.*?)<\/span>/g
+  let lastIdx = 0
+  for (let m = re.exec(html); m !== null; m = re.exec(html)) {
+    if (m.index > lastIdx) {
+      tokens.push({ text: unescapeHtml(html.slice(lastIdx, m.index)) })
+    }
+    tokens.push({ text: unescapeHtml(m[2]), color: m[1] })
+    lastIdx = re.lastIndex
+  }
+  if (lastIdx < html.length) {
+    tokens.push({ text: unescapeHtml(html.slice(lastIdx)) })
+  }
+  return tokens
+}
+
+function unescapeHtml(s: string): string {
+  return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+}
+
+interface MergedSegment {
+  text: string
+  color?: string
+  highlight: boolean
+}
+
+function mergeSyntaxAndDiffs(
+  syntaxTokens: SyntaxToken[],
+  diffParts: Array<{ value: string; added?: boolean; removed?: boolean }>,
+  mode: 'add' | 'remove',
+): MergedSegment[] {
+  const result: MergedSegment[] = []
+  let si = 0
+  let sOff = 0
+  let di = 0
+  let dOff = 0
+
+  while (si < syntaxTokens.length && di < diffParts.length) {
+    const sRemain = syntaxTokens[si].text.length - sOff
+    const dRemain = diffParts[di].value.length - dOff
+    const take = Math.min(sRemain, dRemain)
+
+    result.push({
+      text: syntaxTokens[si].text.slice(sOff, sOff + take),
+      color: syntaxTokens[si].color,
+      highlight: mode === 'add' ? !!diffParts[di].added : !!diffParts[di].removed,
+    })
+
+    sOff += take
+    dOff += take
+    if (sOff >= syntaxTokens[si].text.length) {
+      si++
+      sOff = 0
+    }
+    if (dOff >= diffParts[di].value.length) {
+      di++
+      dOff = 0
+    }
+  }
+
+  return result
+}
+
 const WordDiffLine = memo(function WordDiffLine({
   parts,
   mode,
+  syntaxHtml,
 }: {
   parts: Array<{ value: string; added?: boolean; removed?: boolean }>
   mode: 'add' | 'remove'
+  syntaxHtml?: string
 }) {
+  if (syntaxHtml) {
+    const syntaxTokens = parseSyntaxHtml(syntaxHtml)
+    const merged = mergeSyntaxAndDiffs(syntaxTokens, parts, mode)
+    return (
+      <span>
+        {merged.map((seg, i) => (
+          <span
+            // biome-ignore lint/suspicious/noArrayIndexKey: merged segments are positional
+            key={i}
+            style={seg.color ? { color: seg.color } : undefined}
+            className={
+              seg.highlight ? (mode === 'add' ? 'bg-green-500/30 rounded-sm' : 'bg-red-500/30 rounded-sm') : undefined
+            }
+          >
+            {seg.text}
+          </span>
+        ))}
+      </span>
+    )
+  }
+
   return (
     <span className={mode === 'add' ? 'text-green-400' : 'text-red-400'}>
       {parts.map((part, i) => {
