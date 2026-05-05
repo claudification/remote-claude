@@ -46,7 +46,6 @@ export function clearEntries() {
   notify()
 }
 
-// fallow-ignore-next-line duplicate-export
 export function subscribe(fn: () => void): () => void {
   listeners.add(fn)
   return () => listeners.delete(fn)

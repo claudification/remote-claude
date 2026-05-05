@@ -17,7 +17,6 @@ export { detectImageMime }
 
 const MAX_PAYLOAD_SIZE = 10_000_000 // 10MB (matches xterm.js limit)
 
-// fallow-ignore-next-line duplicate-export
 export interface ClipboardCapture {
   targets: string // e.g. 'c', 'p', 'cp'
   base64: string // raw base64 payload

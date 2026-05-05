@@ -9,58 +9,75 @@ import type { Conversation, HookEventOf } from '../../../shared/protocol'
  * names mark the corresponding bgTask done/killed).
  */
 export function handlePostToolUseTracking(session: Conversation, event: HookEventOf<'PostToolUse'>): void {
-  const data = event.data
-  const toolName = data.tool_name
-  const input = data.tool_input
-  const responseObj = data.tool_response
-  // tool_response can be string OR object - normalize to string for pattern matching
-  const responseText =
-    typeof responseObj === 'object' && responseObj !== null ? JSON.stringify(responseObj) : String(responseObj ?? '')
+  const { tool_name: toolName } = event.data
 
-  // TaskStop correlation: kills a background agent that didn't fire SubagentStop.
-  // task_id IS the agent_id.
-  if (toolName === 'TaskStop') {
-    const taskId = input.task_id
-    if (typeof taskId === 'string') {
-      const agent = session.subagents.find(a => a.agentId === taskId && a.status === 'running')
-      if (agent) {
-        agent.status = 'stopped'
-        agent.stoppedAt = event.timestamp
-      }
-    }
-  }
-
-  if (toolName === 'Bash') {
-    // Background command detection. Two channels:
-    //   1) tool_response is an object with backgroundTaskId
-    //   2) string response includes "with ID: xxx" (user pressed Ctrl+B)
-    const bgTaskId =
-      typeof responseObj === 'object' && responseObj !== null
-        ? (responseObj as Record<string, unknown>).backgroundTaskId
-        : undefined
-    const idMatch = typeof bgTaskId !== 'string' ? responseText.match(/with ID: (\S+)/) : null
-    const taskId = typeof bgTaskId === 'string' ? bgTaskId : idMatch?.[1]
-
-    if (taskId) {
-      const command = typeof input.command === 'string' ? input.command : ''
-      const description = typeof input.description === 'string' ? input.description : ''
-      session.bgTasks.push({
-        taskId,
-        command: command.slice(0, 100),
-        description,
-        startedAt: event.timestamp,
-        status: 'running',
-      })
-    }
-  }
-
+  if (toolName === 'TaskStop') correlateTaskStopWithSubagent(session, event)
+  if (toolName === 'Bash') registerBgTaskFromBash(session, event)
   if (toolName === 'TaskOutput' || toolName === 'TaskStop') {
-    const rawTaskId = input.task_id ?? input.taskId
-    const taskId = typeof rawTaskId === 'string' ? rawTaskId : ''
-    const bgTask = session.bgTasks.find(t => t.taskId === taskId)
-    if (bgTask && bgTask.status === 'running') {
-      bgTask.completedAt = event.timestamp
-      bgTask.status = toolName === 'TaskStop' ? 'killed' : 'completed'
-    }
+    completeBgTask(session, event, toolName)
   }
+}
+
+/**
+ * TaskStop tool kills a background subagent that didn't fire SubagentStop
+ * on its own. task_id IS the agent_id.
+ */
+function correlateTaskStopWithSubagent(session: Conversation, event: HookEventOf<'PostToolUse'>): void {
+  const taskId = event.data.tool_input.task_id
+  if (typeof taskId !== 'string') return
+  const agent = session.subagents.find(a => a.agentId === taskId && a.status === 'running')
+  if (!agent) return
+  agent.status = 'stopped'
+  agent.stoppedAt = event.timestamp
+}
+
+/**
+ * Bash with a backgroundTaskId in the response (or user-triggered Ctrl+B
+ * with the legacy "with ID: xxx" string format) registers a new bgTask.
+ */
+function registerBgTaskFromBash(session: Conversation, event: HookEventOf<'PostToolUse'>): void {
+  const responseObj = event.data.tool_response
+  const bgTaskId =
+    typeof responseObj === 'object' && responseObj !== null
+      ? (responseObj as Record<string, unknown>).backgroundTaskId
+      : undefined
+
+  let taskId: string | undefined
+  if (typeof bgTaskId === 'string') {
+    taskId = bgTaskId
+  } else {
+    const responseText = typeof responseObj === 'string' ? responseObj : ''
+    taskId = responseText.match(/with ID: (\S+)/)?.[1]
+  }
+  if (!taskId) return
+
+  const input = event.data.tool_input
+  const command = typeof input.command === 'string' ? input.command : ''
+  const description = typeof input.description === 'string' ? input.description : ''
+  session.bgTasks.push({
+    taskId,
+    command: command.slice(0, 100),
+    description,
+    startedAt: event.timestamp,
+    status: 'running',
+  })
+}
+
+/**
+ * TaskOutput / TaskStop tool calls mark the matching running bgTask done
+ * (TaskOutput = completed, TaskStop = killed). No-op when the task is
+ * already in a terminal state or unknown.
+ */
+function completeBgTask(
+  session: Conversation,
+  event: HookEventOf<'PostToolUse'>,
+  toolName: 'TaskOutput' | 'TaskStop',
+): void {
+  const input = event.data.tool_input
+  const rawTaskId = input.task_id ?? input.taskId
+  if (typeof rawTaskId !== 'string') return
+  const bgTask = session.bgTasks.find(t => t.taskId === rawTaskId)
+  if (!bgTask || bgTask.status !== 'running') return
+  bgTask.completedAt = event.timestamp
+  bgTask.status = toolName === 'TaskStop' ? 'killed' : 'completed'
 }

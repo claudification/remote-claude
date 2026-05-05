@@ -46,7 +46,6 @@ export interface AgentHostIdentity {
   claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
 }
 
-// fallow-ignore-next-line duplicate-export
 export interface PermissionRequestData {
   requestId: string
   toolName: string

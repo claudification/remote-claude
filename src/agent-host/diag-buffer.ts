@@ -9,7 +9,7 @@ import { debug } from './debug'
 
 const MAX_DIAG_BUFFER = 500
 
-export function flushDiag(ctx: AgentHostContext) {
+function flushDiag(ctx: AgentHostContext) {
   ctx.diagFlushTimer = null
   if (ctx.diagBuffer.length === 0) return
   if (!ctx.wsClient?.isConnected() || !ctx.claudeSessionId) return
@@ -17,7 +17,7 @@ export function flushDiag(ctx: AgentHostContext) {
   ctx.wsClient.send({ type: 'diag', conversationId: ctx.conversationId, entries } as unknown as AgentHostMessage)
 }
 
-export function diag(ctx: AgentHostContext, type: string, msg: string, args?: unknown) {
+function diag(ctx: AgentHostContext, type: string, msg: string, args?: unknown) {
   debug(`[diag] ${type}: ${msg}${args ? ` ${JSON.stringify(args)}` : ''}`)
   if (ctx.diagBuffer.length >= MAX_DIAG_BUFFER) {
     ctx.diagBuffer.splice(0, Math.floor(MAX_DIAG_BUFFER / 4))

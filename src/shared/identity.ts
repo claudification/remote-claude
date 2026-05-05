@@ -25,5 +25,4 @@ export type JobId = string
 /** Project URI (e.g. claude:///home/user/project). Identifies a project across conversations.
  * Canonical structured type lives in project-uri.ts (ProjectUri interface).
  * This is the plain string alias -- use when a raw URI string is sufficient. */
-// fallow-ignore-next-line duplicate-export
 export type ProjectUri = string
