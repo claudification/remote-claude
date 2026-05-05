@@ -341,6 +341,21 @@ export interface TranscriptPrLinkEntry extends TranscriptEntryBase {
   prUrl?: string
 }
 
+export interface TranscriptSummaryEntry extends TranscriptEntryBase {
+  type: 'summary'
+  summary?: string
+}
+
+export interface TranscriptCustomTitleEntry extends TranscriptEntryBase {
+  type: 'custom-title'
+  customTitle?: string
+}
+
+export interface TranscriptAgentNameEntry extends TranscriptEntryBase {
+  type: 'agent-name'
+  agentName?: string
+}
+
 export type TranscriptEntry =
   | TranscriptUserEntry
   | TranscriptAssistantEntry
@@ -350,6 +365,9 @@ export type TranscriptEntry =
   | TranscriptCompactingEntry
   | TranscriptLastPromptEntry
   | TranscriptPrLinkEntry
+  | TranscriptSummaryEntry
+  | TranscriptCustomTitleEntry
+  | TranscriptAgentNameEntry
   | TranscriptBootEntry
   | TranscriptLaunchEntry
   | (TranscriptEntryBase & Record<string, unknown>) // fallback for unknown types
