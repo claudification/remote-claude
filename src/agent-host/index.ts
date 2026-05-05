@@ -21,7 +21,6 @@ checkBunVersion()
 import { randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { generateFunnyName } from '../shared/funny-names'
 import { cwdToProjectUri } from '../shared/project-uri'
 import type { AgentHostMessage, HookEvent, TranscriptEntry } from '../shared/protocol'
 import type { AgentHostContext } from './agent-host-context'
@@ -324,8 +323,12 @@ async function main() {
   )
   ctx.wsClient?.sendBootEvent('mcp_prepared', mcpConfigPath)
 
-  const sessionName = resolveSessionName(cli.claudeArgs)
-  const resolvedConversationName = process.env.CLAUDWERK_CONVERSATION_NAME || sessionName
+  // Naming is the broker's job. Agent-host only honors a name supplied by
+  // the user (--name/-n in claudeArgs) or injected by the spawn pipeline via
+  // CLAUDWERK_CONVERSATION_NAME (which cli-args.ts already converted to --name
+  // before we reach here). Direct CLI launches without --name stay nameless --
+  // unique slugs are reserved for control-panel-initiated spawns.
+  const resolvedConversationName = process.env.CLAUDWERK_CONVERSATION_NAME || extractClaudeArgsName(cli.claudeArgs)
   debug(`Session name: ${resolvedConversationName || '(none)'} (user=${!!process.env.CLAUDWERK_CONVERSATION_NAME})`)
 
   const sessionDescription = process.env.CLAUDWERK_CONVERSATION_DESCRIPTION || undefined
@@ -353,7 +356,6 @@ async function main() {
     '--disallowed-tools',
     'SendMessage',
     ...(cli.channelEnabled ? ['--dangerously-load-development-channels', 'server:rclaude'] : []),
-    ...(sessionName ? ['--name', sessionName] : []),
     ...cli.claudeArgs,
   ]
 
@@ -407,12 +409,12 @@ async function main() {
   registerSignalHandlers(cleanup)
 }
 
-function resolveSessionName(claudeArgs: string[]): string | undefined {
-  const hasUserName = claudeArgs.includes('--name') || claudeArgs.includes('-n')
-  const isResuming = claudeArgs.includes('--resume') || claudeArgs.includes('-c')
-  const isManagedSession = !!(process.env.RCLAUDE_CONVERSATION_ID || process.env.RCLAUDE_WRAPPER_ID)
-  if (hasUserName || (isResuming && !isManagedSession)) return undefined
-  return generateFunnyName()
+/** Pull `--name X` / `-n X` out of claudeArgs, if present. */
+function extractClaudeArgsName(claudeArgs: string[]): string | undefined {
+  for (let i = 0; i < claudeArgs.length - 1; i++) {
+    if (claudeArgs[i] === '--name' || claudeArgs[i] === '-n') return claudeArgs[i + 1]
+  }
+  return undefined
 }
 
 interface HeadlessSpawnDeps {
