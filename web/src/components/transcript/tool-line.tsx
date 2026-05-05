@@ -43,7 +43,7 @@ import {
 import { renderGlobGrep, renderWebFetch, renderWebSearch } from './tool-cases-search'
 import { renderTaskCreate, renderTaskMisc, renderTaskUpdate, renderTodoWrite } from './tool-cases-tasks'
 
-function dispatchToolCase(name: string, ctx: ToolCaseInput): ToolCaseResult {
+export function dispatchToolCase(name: string, ctx: ToolCaseInput): ToolCaseResult {
   switch (name) {
     case 'Bash':
       return renderBash(ctx)
@@ -147,7 +147,7 @@ function dispatchToolCase(name: string, ctx: ToolCaseInput): ToolCaseResult {
   }
 }
 
-function renderErrorFallback(result: string): ReactNode {
+export function renderErrorFallback(result: string): ReactNode {
   const errorMatch = result.match(/<tool_use_error>([\s\S]*?)<\/tool_use_error>/)
   const errorMsg = errorMatch ? errorMatch[1].trim() : result
   return (
@@ -157,7 +157,7 @@ function renderErrorFallback(result: string): ReactNode {
   )
 }
 
-function renderPersistedOutput(result: string): ReactNode | null {
+export function renderPersistedOutput(result: string): ReactNode | null {
   const persistedMatch = result.match(/<persisted-output>\s*([\s\S]*?)\s*<\/persisted-output>/)
   if (!persistedMatch) return null
   const inner = persistedMatch[1]

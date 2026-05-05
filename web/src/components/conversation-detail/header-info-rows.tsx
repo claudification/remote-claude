@@ -135,9 +135,7 @@ export function LinkedProjects({
             onClick={() => {
               haptic('tap')
               const myName =
-                projectSettings?.label ||
-                projectPath(session.project).split('/').pop() ||
-                session.id.slice(0, 8)
+                projectSettings?.label || projectPath(session.project).split('/').pop() || session.id.slice(0, 8)
               onSetConversationTarget({
                 projectA: session.project,
                 projectB: lp.project,

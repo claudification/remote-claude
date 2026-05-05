@@ -11,8 +11,8 @@ import {
   wsSend,
 } from '@/hooks/use-conversations'
 import { useWebSocket } from '@/hooks/use-websocket'
-import { fetchModelDb } from '@/lib/model-db'
 import { setChordTimeout } from '@/lib/key-layers'
+import { fetchModelDb } from '@/lib/model-db'
 import { flattenProjectOrderTree, projectOrderTreesEqual } from '@/lib/types'
 
 // Fetch sidebar metadata (project settings, capabilities, global settings, session order).

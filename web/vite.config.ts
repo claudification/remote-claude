@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
@@ -94,6 +94,14 @@ export default defineConfig(({ mode }) => {
             }
           },
         },
+      },
+    },
+    test: {
+      environment: 'jsdom',
+      setupFiles: ['./src/test-setup.ts'],
+      alias: {
+        '@/': resolve(__dirname, 'src') + '/',
+        '@shared/': resolve(__dirname, '../src/shared') + '/',
       },
     },
     server: {

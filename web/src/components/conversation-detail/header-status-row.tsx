@@ -39,9 +39,7 @@ export function StatusRow({ session, model }: { session: Session; model: string 
           </span>
         )
       })()}
-      {session.claudeVersion && (
-        <span className="text-muted-foreground text-[10px]">cc/{session.claudeVersion}</span>
-      )}
+      {session.claudeVersion && <span className="text-muted-foreground text-[10px]">cc/{session.claudeVersion}</span>}
       {session.claudeAuth?.email && (
         <span className="text-cyan-400/70 text-[10px]">
           {session.claudeAuth.email.split('@')[0]}
@@ -57,9 +55,7 @@ export function StatusRow({ session, model }: { session: Session; model: string 
         </span>
       )}
       {session.adHocWorktree && (
-        <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-orange-400/20 text-orange-400">
-          worktree
-        </span>
+        <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-orange-400/20 text-orange-400">worktree</span>
       )}
       {(session.title || session.agentName) && (
         <span className="text-foreground text-[10px]">{session.title || session.agentName}</span>

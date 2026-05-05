@@ -1,5 +1,5 @@
 import type React from 'react'
-import { NO_ARG_COMMANDS, matchSubCommand } from '../input-editor/sub-commands'
+import { matchSubCommand, NO_ARG_COMMANDS } from '../input-editor/sub-commands'
 import type { AutocompleteItem } from './use-autocomplete'
 
 interface KeyDownContext {

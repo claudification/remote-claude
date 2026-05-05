@@ -81,7 +81,16 @@ export function MarkdownInput({
     handleVoiceClose,
     handleSendPointerDown,
     handleSendPointerUp,
-  } = useVoiceInput({ value, onChange, onSubmit, showVoice, textareaRef, setExpanded, composeTimeout, composeTimersRef })
+  } = useVoiceInput({
+    value,
+    onChange,
+    onSubmit,
+    showVoice,
+    textareaRef,
+    setExpanded,
+    composeTimeout,
+    composeTimersRef,
+  })
 
   // --- Scroll + resize ---
 
@@ -277,9 +286,7 @@ export function MarkdownInput({
     ? 'font-mono whitespace-pre-wrap break-words'
     : 'text-xs font-mono whitespace-pre-wrap break-words'
 
-  const expandedFontSize = expanded
-    ? { fontSize: '19px', lineHeight: '1.5' }
-    : { fontSize: '16px', lineHeight: '1.4' }
+  const expandedFontSize = expanded ? { fontSize: '19px', lineHeight: '1.5' } : { fontSize: '16px', lineHeight: '1.4' }
 
   // --- Expanded (mobile compose) ---
 

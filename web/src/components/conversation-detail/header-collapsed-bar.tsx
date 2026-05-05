@@ -1,7 +1,7 @@
 import type { ProjectSettings } from '@shared/protocol'
-import { renderProjectIcon } from '@/components/project-settings-editor'
 import { CacheTimer } from '@/components/cache-timer'
-import { formatCost, getCostColor, getConversationCost } from '@/lib/cost-utils'
+import { renderProjectIcon } from '@/components/project-settings-editor'
+import { formatCost, getConversationCost, getCostColor } from '@/lib/cost-utils'
 import type { Session } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import { cn, contextWindowSize, formatEffort, formatModel, formatPermissionMode } from '@/lib/utils'
@@ -58,15 +58,10 @@ function EffortIndicator({ effortLevel }: { effortLevel: string | undefined }) {
   )
 }
 
-function PermissionBadge({
-  permissionMode,
-  inPlanMode,
-}: { permissionMode: string | undefined; inPlanMode: boolean }) {
+function PermissionBadge({ permissionMode, inPlanMode }: { permissionMode: string | undefined; inPlanMode: boolean }) {
   const pm = formatPermissionMode(permissionMode)
   if (!pm && inPlanMode) {
-    return (
-      <span className="text-[10px] text-blue-400 font-bold px-1 py-0.5 bg-blue-500/10 rounded">PLAN</span>
-    )
+    return <span className="text-[10px] text-blue-400 font-bold px-1 py-0.5 bg-blue-500/10 rounded">PLAN</span>
   }
   if (!pm) return null
   return (

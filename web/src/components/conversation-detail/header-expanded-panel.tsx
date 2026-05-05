@@ -1,12 +1,6 @@
 import type { ProjectSettings } from '@shared/protocol'
 import { CostSparkline } from '@/components/cost-sparkline'
-import {
-  formatCost,
-  getBurnRate,
-  getCacheEfficiency,
-  getConversationCost,
-  getCostColor,
-} from '@/lib/cost-utils'
+import { formatCost, getBurnRate, getCacheEfficiency, getConversationCost, getCostColor } from '@/lib/cost-utils'
 import type { Session } from '@/lib/types'
 import { cn, contextWindowSize, formatAge, formatTime } from '@/lib/utils'
 import type { ConversationTarget } from './conversation-header'
@@ -30,7 +24,12 @@ interface HeaderExpandedPanelProps {
   onSetConversationTarget: (target: ConversationTarget | null) => void
 }
 
-export function HeaderExpandedPanel({ session, projectSettings, model, onSetConversationTarget }: HeaderExpandedPanelProps) {
+export function HeaderExpandedPanel({
+  session,
+  projectSettings,
+  model,
+  onSetConversationTarget,
+}: HeaderExpandedPanelProps) {
   const s = session.stats
   const tu = session.tokenUsage
   const contextTotal = tu ? tu.input + tu.cacheCreation + tu.cacheRead : 0
@@ -55,9 +54,7 @@ export function HeaderExpandedPanel({ session, projectSettings, model, onSetConv
         compactWarnAt={compactWarnAt}
       />
       <TokenStats stats={s} sessionCost={sessionCost} burnRate={burnRate} cacheEff={cacheEff} />
-      {session.costTimeline && session.costTimeline.length >= 2 && (
-        <CostSparkline timeline={session.costTimeline} />
-      )}
+      {session.costTimeline && session.costTimeline.length >= 2 && <CostSparkline timeline={session.costTimeline} />}
       <SessionStats session={session} stats={s} />
       <ErrorBanner lastError={session.lastError} />
       <RateLimitBanner rateLimit={session.rateLimit} />
@@ -85,7 +82,14 @@ interface ContextBarProps {
   compactWarnAt: number
 }
 
-function ContextBar({ tokenUsage, contextPct, contextTotal, ctxWindow, compactThreshold, compactWarnAt }: ContextBarProps) {
+function ContextBar({
+  tokenUsage,
+  contextPct,
+  contextTotal,
+  ctxWindow,
+  compactThreshold,
+  compactWarnAt,
+}: ContextBarProps) {
   if (!tokenUsage) return null
   return (
     <div className="space-y-0.5">
@@ -122,8 +126,8 @@ function ContextBar({ tokenUsage, contextPct, contextTotal, ctxWindow, compactTh
                 : 'text-red-400/70',
           )}
         >
-          {Math.round(contextTotal / 1000).toLocaleString()}K /{' '}
-          {Math.round(ctxWindow / 1000).toLocaleString()}K ({contextPct}%)
+          {Math.round(contextTotal / 1000).toLocaleString()}K / {Math.round(ctxWindow / 1000).toLocaleString()}K (
+          {contextPct}%)
           {contextPct >= compactWarnAt && contextPct < compactThreshold && (
             <span className="text-amber-400/50 ml-1">-- compaction at {compactThreshold}%</span>
           )}
@@ -168,9 +172,7 @@ function TokenStats({ stats: s, sessionCost, burnRate, cacheEff }: TokenStatsPro
       </div>
       <div>
         <span className="text-muted-foreground">cost </span>
-        <span className={getCostColor(sessionCost.cost)}>
-          {formatCost(sessionCost.cost, sessionCost.exact)}
-        </span>
+        <span className={getCostColor(sessionCost.cost)}>{formatCost(sessionCost.cost, sessionCost.exact)}</span>
         {burnRate != null && burnRate >= 0.1 && (
           <span className="text-muted-foreground ml-1">({burnRate.toFixed(1)}/hr)</span>
         )}

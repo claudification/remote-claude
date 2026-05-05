@@ -5,7 +5,11 @@ interface TaskEditorOverlayProps {
   conversationId: string
   taskEditorTask: ProjectTask | null
   runTaskFromEditor: ProjectTask | null
-  onUpdateTask: (slug: string, status: TaskStatus, patch: { title?: string; body?: string; priority?: string; tags?: string[] }) => Promise<unknown>
+  onUpdateTask: (
+    slug: string,
+    status: TaskStatus,
+    patch: { title?: string; body?: string; priority?: string; tags?: string[] },
+  ) => Promise<unknown>
   onMoveTask: (slug: string, from: TaskStatus, to: TaskStatus) => Promise<string | false>
   onRunTask: (task: ProjectTask) => void
   onCloseEditor: () => void

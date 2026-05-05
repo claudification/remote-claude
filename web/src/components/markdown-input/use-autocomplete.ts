@@ -4,7 +4,7 @@ import { useConversationsStore } from '@/hooks/use-conversations'
 import { useProject } from '@/hooks/use-project'
 import { haptic } from '@/lib/utils'
 import { fuzzyScore } from '../input-editor/autocomplete-shared'
-import { BUILTIN_NAMES, NO_ARG_COMMANDS, matchSubCommand, type SubCommandContext } from '../input-editor/sub-commands'
+import { BUILTIN_NAMES, matchSubCommand, NO_ARG_COMMANDS, type SubCommandContext } from '../input-editor/sub-commands'
 
 const EMPTY_INFO: { slashCommands: string[]; skills: string[]; agents: string[] } = {
   slashCommands: [],
