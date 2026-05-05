@@ -3,7 +3,8 @@
  * DiffView (Edit), WritePreview (Write), ShellCommand (Bash), BashOutput (structured)
  */
 
-import { useEffect, useState } from 'react'
+import { diffWords } from 'diff'
+import { memo, useEffect, useMemo, useState } from 'react'
 import JsonHighlight from '@/components/json-highlight'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/control-panel-prefs'
@@ -23,8 +24,54 @@ function useConversationPath(): string | undefined {
   })
 }
 
+interface DiffLine {
+  prefix: string
+  content: string
+  hunkHeader?: string
+  wordDiffs?: Array<{ value: string; added?: boolean; removed?: boolean }>
+}
+
+function buildDiffLines(patches: Array<{ oldStart: number; lines: string[] }>): DiffLine[] {
+  const allLines: DiffLine[] = []
+  for (const patch of patches) {
+    allLines.push({ prefix: '', content: '', hunkHeader: `@@ ${patch.oldStart} @@` })
+    for (const line of patch.lines) {
+      allLines.push({ prefix: line[0] || ' ', content: line.slice(1) })
+    }
+  }
+
+  // Pair consecutive -/+ runs and compute word-level diffs
+  let i = 0
+  while (i < allLines.length) {
+    if (allLines[i].prefix !== '-') {
+      i++
+      continue
+    }
+    const removeStart = i
+    while (i < allLines.length && allLines[i].prefix === '-') i++
+    const addStart = i
+    while (i < allLines.length && allLines[i].prefix === '+') i++
+    const addEnd = i
+
+    const removeCount = addStart - removeStart
+    const addCount = addEnd - addStart
+    if (removeCount === 0 || addCount === 0) continue
+
+    const pairCount = Math.min(removeCount, addCount)
+    for (let p = 0; p < pairCount; p++) {
+      const oldLine = allLines[removeStart + p]
+      const newLine = allLines[addStart + p]
+      const diffs = diffWords(oldLine.content, newLine.content)
+      oldLine.wordDiffs = diffs.filter(d => !d.added).map(d => ({ value: d.value, removed: d.removed }))
+      newLine.wordDiffs = diffs.filter(d => !d.removed).map(d => ({ value: d.value, added: d.added }))
+    }
+  }
+
+  return allLines
+}
+
 // Syntax-highlighted diff view for Edit operations
-export function DiffView({
+export const DiffView = memo(function DiffView({
   patches,
   filePath,
 }: {
@@ -69,14 +116,7 @@ export function DiffView({
       .catch(() => {})
   }, [patches, filePath])
 
-  // Flatten all diff lines for truncation
-  const allLines: Array<{ patchIdx: number; prefix: string; content: string; hunkHeader?: string }> = []
-  for (let i = 0; i < patches.length; i++) {
-    allLines.push({ patchIdx: i, prefix: '', content: '', hunkHeader: `@@ ${patches[i].oldStart} @@` })
-    for (const line of patches[i].lines) {
-      allLines.push({ patchIdx: i, prefix: line[0] || ' ', content: line.slice(1) })
-    }
-  }
+  const allLines = useMemo(() => buildDiffLines(patches), [patches])
   const totalLines = allLines.length
   const needsTruncation = limit > 0 && totalLines > limit && !revealed
   const visibleLines = needsTruncation ? allLines.slice(0, limit) : allLines
@@ -93,7 +133,7 @@ export function DiffView({
               </div>
             )
           }
-          const syntaxHtml = highlighted?.get(line.content)
+          const syntaxHtml = !line.wordDiffs ? highlighted?.get(line.content) : undefined
           return (
             <div
               // biome-ignore lint/suspicious/noArrayIndexKey: diff lines are positional, no stable IDs
@@ -109,7 +149,9 @@ export function DiffView({
               >
                 {line.prefix}
               </span>
-              {syntaxHtml ? (
+              {line.wordDiffs ? (
+                <WordDiffLine parts={line.wordDiffs} mode={line.prefix === '+' ? 'add' : 'remove'} />
+              ) : syntaxHtml ? (
                 <span dangerouslySetInnerHTML={{ __html: syntaxHtml }} />
               ) : (
                 <span
@@ -137,7 +179,34 @@ export function DiffView({
       )}
     </div>
   )
-}
+})
+
+const WordDiffLine = memo(function WordDiffLine({
+  parts,
+  mode,
+}: {
+  parts: Array<{ value: string; added?: boolean; removed?: boolean }>
+  mode: 'add' | 'remove'
+}) {
+  return (
+    <span className={mode === 'add' ? 'text-green-400' : 'text-red-400'}>
+      {parts.map((part, i) => {
+        const isHighlighted = mode === 'add' ? part.added : part.removed
+        return (
+          <span
+            // biome-ignore lint/suspicious/noArrayIndexKey: word diff parts are positional
+            key={i}
+            className={
+              isHighlighted ? (mode === 'add' ? 'bg-green-500/30 rounded-sm' : 'bg-red-500/30 rounded-sm') : undefined
+            }
+          >
+            {part.value}
+          </span>
+        )
+      })}
+    </span>
+  )
+})
 
 /** Strip leading `# comment` line from shell commands -- redundant with the description field */
 function stripLeadingComment(cmd: string): string {
@@ -428,15 +497,7 @@ export function ReplView({ code, isError }: { code: string; isError?: boolean })
 }
 
 // REPL result/stdout/stderr - shown inside Collapsible (hidden by default)
-export function ReplResult({
-  result,
-  extra,
-  isError,
-}: {
-  result?: string
-  extra?: Record<string, unknown>
-  isError?: boolean
-}) {
+export function ReplResult({ result, extra }: { result?: string; extra?: Record<string, unknown> }) {
   const structuredResult = extra?.result
   const stdout = extra?.stdout as string | undefined
   const stderr = extra?.stderr as string | undefined

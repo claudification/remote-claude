@@ -29,7 +29,7 @@ export function renderRepl({ input, result, toolUseResult, isError }: ToolCaseIn
     const hasStdout = toolUseResult?.stdout && (toolUseResult.stdout as string).trim()
     const hasStderr = toolUseResult?.stderr && (toolUseResult.stderr as string).trim()
     if (hasResult || hasStdout || hasStderr) {
-      details = <ReplResult result={result} extra={toolUseResult} isError={isError} />
+      details = <ReplResult result={result} extra={toolUseResult} />
     }
   }
   return { summary, details, inlineContent }
@@ -157,7 +157,7 @@ function renderTextRead(
   return { summary, details }
 }
 
-export function renderEdit({ input, result, toolUseResult, isError }: ToolCaseInput): ToolCaseResult {
+export function renderEdit({ input, toolUseResult, isError }: ToolCaseInput): ToolCaseResult {
   const path = input.file_path as string
   const summary = shortPath(path) || path
   let details = null
