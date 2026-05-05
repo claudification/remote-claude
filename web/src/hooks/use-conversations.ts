@@ -957,7 +957,7 @@ export function reviveConversation(conversationId: string, options: ReviveSessio
 
 /**
  * Detect a bare control command typed on its own line and route it to the
- * `session_control` channel instead of `send_input`. The agent host interprets
+ * `conversation_control` channel instead of `send_input`. The agent host interprets
  * these verbs backend-specifically (headless vs PTY) rather than letting the
  * text reach the model. Returns the verb + args when matched, null otherwise.
  */

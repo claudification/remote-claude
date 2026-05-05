@@ -78,9 +78,9 @@ describe('conversation lifecycle', () => {
     const acks = agent.messagesOfType('ack')
     expect(acks.length).toBeGreaterThanOrEqual(1)
     const ack = acks[acks.length - 1]
-    expect(ack.eventId).toBe(ccSessionId)
+    expect(ack.eventId).toBe(convId)
 
-    const conv = h.conversationStore.getConversation(ccSessionId)
+    const conv = h.conversationStore.getConversation(convId)
     expect(conv).toBeDefined()
     expect(conv?.project).toBe('claude:///home/user/project')
 
@@ -111,19 +111,19 @@ describe('conversation lifecycle', () => {
 
     h.agentSend(agent, {
       type: 'end',
-      conversationId: ccSessionId,
+      conversationId: convId,
       reason: 'user_quit',
       endedAt: Date.now(),
     })
 
     await h.flushUpdates()
 
-    const conv = h.conversationStore.getConversation(ccSessionId)
+    const conv = h.conversationStore.getConversation(convId)
     expect(conv).toBeDefined()
     expect(conv?.status).toBe('ended')
   })
 
-  it('session_clear (rekey) migrates conversation to new ccSessionId', async () => {
+  it('session_clear updates ccSessionId metadata, keeps conversation under same key', async () => {
     const convId = testId('conv')
     const oldCcSessionId = testId('old-cc')
     const newCcSessionId = testId('new-cc')
@@ -143,22 +143,24 @@ describe('conversation lifecycle', () => {
 
     h.agentSend(agent, {
       type: 'session_clear',
-      oldSessionId: oldCcSessionId,
-      newSessionId: newCcSessionId,
+      oldCcSessionId: oldCcSessionId,
+      newCcSessionId: newCcSessionId,
       conversationId: convId,
       project: 'claude:///home/user/project',
     })
 
     await h.flushUpdates()
 
-    // Old session should be gone (rekeyed)
-    const oldConv = h.conversationStore.getConversation(oldCcSessionId)
-    expect(oldConv).toBeUndefined()
+    // Conversation stays under the same key (conversationId)
+    const conv = h.conversationStore.getConversation(convId)
+    expect(conv).toBeDefined()
+    expect(conv?.id).toBe(convId)
+    expect(conv?.ccSessionId).toBe(newCcSessionId)
+    expect(conv?.project).toBe('claude:///home/user/project')
 
-    // New session should exist
-    const newConv = h.conversationStore.getConversation(newCcSessionId)
-    expect(newConv).toBeDefined()
-    expect(newConv?.project).toBe('claude:///home/user/project')
+    // Old ccSessionId is NOT a store key
+    const ghost = h.conversationStore.getConversation(oldCcSessionId)
+    expect(ghost).toBeUndefined()
   })
 })
 
@@ -186,13 +188,13 @@ describe('message routing', () => {
 
     h.agentSend(agent, {
       type: 'hook',
-      conversationId: ccSessionId,
+      conversationId: convId,
       hookEvent: 'UserPromptSubmit',
       timestamp: Date.now(),
       data: { session_id: ccSessionId, prompt: 'Hello world' },
     })
 
-    const events = h.conversationStore.getConversationEvents(ccSessionId)
+    const events = h.conversationStore.getConversationEvents(convId)
     expect(events.length).toBe(1)
     expect(events[0].hookEvent).toBe('UserPromptSubmit')
   })
@@ -219,14 +221,14 @@ describe('message routing', () => {
     const dashboard = h.connectDashboard()
     h.dashboardSend(dashboard, {
       type: 'send_input',
-      conversationId: ccSessionId,
+      conversationId: convId,
       input: 'test input message',
     })
 
     const inputMsgs = agent.messagesOfType('input')
     expect(inputMsgs.length).toBe(1)
     expect(inputMsgs[0].input).toBe('test input message')
-    expect(inputMsgs[0].conversationId).toBe(ccSessionId)
+    expect(inputMsgs[0].conversationId).toBe(convId)
   })
 
   it('send_interrupt from dashboard is forwarded to agent host', async () => {
@@ -251,12 +253,12 @@ describe('message routing', () => {
     const dashboard = h.connectDashboard()
     h.dashboardSend(dashboard, {
       type: 'send_interrupt',
-      conversationId: ccSessionId,
+      conversationId: convId,
     })
 
     const interruptMsgs = agent.messagesOfType('interrupt')
     expect(interruptMsgs.length).toBe(1)
-    expect(interruptMsgs[0].conversationId).toBe(ccSessionId)
+    expect(interruptMsgs[0].conversationId).toBe(convId)
 
     // Verify dashboard gets a result
     const results = dashboard.messagesOfType('send_interrupt_result')
@@ -317,18 +319,18 @@ describe('message routing', () => {
     h.dashboardSend(dashboard, {
       type: 'channel_subscribe',
       channel: 'conversation:transcript',
-      conversationId: ccSessionId,
+      conversationId: convId,
     })
     dashboard.clearMessages()
 
     h.agentSend(agent, {
       type: 'transcript_entries',
-      conversationId: ccSessionId,
+      conversationId: convId,
       entries: [{ type: 'user', message: { role: 'user', content: 'Hello' }, timestamp: new Date().toISOString() }],
       isInitial: false,
     })
 
-    const cached = h.conversationStore.getTranscriptEntries(ccSessionId)
+    const cached = h.conversationStore.getTranscriptEntries(convId)
     expect(cached.length).toBe(1)
 
     const transcriptMsgs = dashboard.messagesOfType('transcript_entries')
@@ -337,11 +339,11 @@ describe('message routing', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 3. Session status signal
+// 3. Conversation status signal
 // ---------------------------------------------------------------------------
 
-describe('session status signal', () => {
-  it('session_status changes conversation status and broadcasts', async () => {
+describe('conversation status signal', () => {
+  it('conversation_status changes conversation status and broadcasts', async () => {
     const convId = testId('conv')
     const ccSessionId = testId('cc')
 
@@ -362,14 +364,14 @@ describe('session status signal', () => {
     dashboard.clearMessages()
 
     h.agentSend(agent, {
-      type: 'session_status',
-      conversationId: ccSessionId,
+      type: 'conversation_status',
+      conversationId: convId,
       status: 'active',
     })
 
     await h.flushUpdates()
 
-    const conv = h.conversationStore.getConversation(ccSessionId)
+    const conv = h.conversationStore.getConversation(convId)
     expect(conv?.status).toBe('active')
 
     const updates = dashboard.messagesOfType('conversation_update')
@@ -378,7 +380,7 @@ describe('session status signal', () => {
     expect(session.status).toBe('active')
   })
 
-  it('session_status idle -> active clears stale error', async () => {
+  it('conversation_status idle -> active clears stale error', async () => {
     const convId = testId('conv')
     const ccSessionId = testId('cc')
 
@@ -396,12 +398,12 @@ describe('session status signal', () => {
     })
 
     // Manually inject a lastError
-    const conv = h.conversationStore.getConversation(ccSessionId)!
+    const conv = h.conversationStore.getConversation(convId)!
     conv.lastError = { stopReason: 'error', errorType: 'test', timestamp: Date.now() }
 
     h.agentSend(agent, {
-      type: 'session_status',
-      conversationId: ccSessionId,
+      type: 'conversation_status',
+      conversationId: convId,
       status: 'active',
     })
 
@@ -486,16 +488,16 @@ describe('wire protocol shape', () => {
 
     h.agentSend(agent, {
       type: 'hook',
-      conversationId: ccSessionId,
+      conversationId: convId,
       hookEvent: 'Stop',
       timestamp: Date.now(),
       data: { session_id: ccSessionId, reason: 'completed' },
     })
 
-    // Hook events are stored against the ccSessionId (which is the routing key)
-    const events = h.conversationStore.getConversationEvents(ccSessionId)
+    // Hook events are stored against the conversationId (the store's primary key)
+    const events = h.conversationStore.getConversationEvents(convId)
     expect(events.length).toBe(1)
-    expect(events[0].conversationId).toBe(ccSessionId)
+    expect(events[0].conversationId).toBe(convId)
   })
 
   it('meta ack includes origins array', () => {
@@ -542,7 +544,7 @@ describe('wire protocol shape', () => {
     const dashboard = h.connectDashboard()
     const listMsgs = dashboard.messagesOfType('conversations_list')
     const sessions = listMsgs[0].sessions as Array<Record<string, unknown>>
-    const session = sessions.find(s => s.id === ccSessionId)
+    const session = sessions.find(s => s.id === convId)
     expect(session).toBeDefined()
     expect(session?.stats).toBeDefined()
     const stats = session?.stats as Record<string, unknown>

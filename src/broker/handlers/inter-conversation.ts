@@ -9,6 +9,7 @@ import type { ConversationControlAction } from '../../shared/protocol'
 import { resolveSpawnConfig } from '../../shared/spawn-defaults'
 import { mapProjectTrust, type SpawnCallerContext } from '../../shared/spawn-permissions'
 import { type SpawnRequest, spawnRequestSchema } from '../../shared/spawn-schema'
+import { buildReviveMessage } from '../build-revive'
 import { getGlobalSettings } from '../global-settings'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
@@ -51,16 +52,11 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
   const name = target.title || projSettings?.label || extractProjectLabel(target.project)
 
   sentinel.send(
-    JSON.stringify({
-      type: 'revive',
-      ccSessionId: targetConversationId,
-      project: target.project,
-      conversationId,
-      mode: 'resume',
-      effort: resolveEffort(target.project, ctx.getProjectSettings),
-      sessionName: target.title || undefined,
-      adHocWorktree: target.adHocWorktree || undefined,
-    }),
+    JSON.stringify(
+      buildReviveMessage(target, conversationId, {
+        effort: resolveEffort(target.project, ctx.getProjectSettings),
+      }),
+    ),
   )
 
   // Register rendezvous
@@ -208,15 +204,11 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
     const name = target.title || projSettings?.label || extractProjectLabel(target.project)
 
     sentinel.send(
-      JSON.stringify({
-        type: 'revive',
-        ccSessionId: target.id,
-        project: target.project,
-        conversationId,
-        mode: 'resume',
-        effort: resolveEffort(target.project, ctx.getProjectSettings),
-        sessionName: target.title || undefined,
-      }),
+      JSON.stringify(
+        buildReviveMessage(target, conversationId, {
+          effort: resolveEffort(target.project, ctx.getProjectSettings),
+        }),
+      ),
     )
 
     ctx.conversations
@@ -438,6 +430,6 @@ export function registerInterConversationHandlers(): void {
     channel_spawn: handleChannelSpawn,
     channel_restart: handleChannelRestart,
     channel_configure: handleChannelConfigure,
-    session_control: handleSessionControl,
+    conversation_control: handleSessionControl,
   })
 }

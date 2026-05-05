@@ -99,7 +99,8 @@ export interface ConversationMeta {
 
 export interface ConversationEnd {
   type: 'end'
-  ccSessionId: string
+  conversationId: string
+  ccSessionId?: string
   reason: string
   endedAt: number
 }
@@ -1361,7 +1362,8 @@ export interface ArchivedTaskGroup {
 }
 
 export interface Conversation {
-  id: string
+  id: string // conversationId -- stable primary key, survives /clear
+  ccSessionId?: string // CC's internal session ID -- metadata only, NEVER used as key or in logic
   project: string // project URI identity (e.g. "claude:///Users/jonas/projects/foo")
   currentPath?: string // where Claude is currently working (CwdChanged hook)
   model?: string
@@ -1747,6 +1749,7 @@ export interface SentinelStatus {
 // Session summary: broker -> dashboard wire format
 export interface ConversationSummary {
   id: string
+  ccSessionId?: string
   project: string
   model?: string
   capabilities?: AgentHostCapability[]

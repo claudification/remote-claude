@@ -77,10 +77,9 @@ export interface ConversationStore {
     capabilities?: AgentHostCapability[],
   ) => Conversation
   resumeConversation: (id: string) => void
-  rekeyConversation: (
-    oldCcSessionId: string,
-    newCcSessionId: string,
+  clearConversation: (
     conversationId: string,
+    newCcSessionId: string,
     newProject: string,
     model?: string,
   ) => Conversation | undefined
@@ -306,7 +305,6 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     broadcastToChannel,
     isV2Subscriber,
     getSubscriptionsDiag,
-    migrateChannels,
     clearSubagentChannels,
   } = channelRegistry
 
@@ -388,6 +386,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     const wrappers = conversationSockets.get(session.id)
     return {
       id: session.id,
+      ccSessionId: session.ccSessionId,
       project: session.project,
       model: deriveModelName(session.model, session.configuredModel),
       capabilities: session.capabilities,
@@ -962,45 +961,23 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
   }
 
-  // Re-key a conversation from oldId to newId (e.g. /clear changes Claude's session ID)
-  // Preserves the conversation entry and agent host socket, resets ephemeral state
-  function rekeyConversation(
-    oldId: string,
-    newId: string,
-    _conversationId: string,
+  // Handle /clear: reset ephemeral state, update ccSessionId metadata.
+  // The conversation key (conversationId) does NOT change -- ccSessionId is metadata only.
+  function clearConversation(
+    conversationId: string,
+    newCcSessionId: string,
     newProjectOrCwd: string,
     newModel?: string,
   ): Conversation | undefined {
     const newProject = newProjectOrCwd.includes('://') ? newProjectOrCwd : cwdToProjectUri(newProjectOrCwd)
-    const session = conversations.get(oldId)
+    const session = conversations.get(conversationId)
     if (!session) return undefined
 
-    // Same-ID rekey: just update metadata, skip the destructive migration
-    if (oldId === newId) {
-      session.project = newProject
-      if (newModel) session.model = newModel
-      session.lastActivity = Date.now()
-      persistConversation(session)
-      broadcastConversationScoped(
-        { type: 'conversation_update', conversationId: newId, session: toConversationSummary(session) },
-        session.project,
-      )
-      return session
-    }
-
-    // Re-key in sessions map
-    conversations.delete(oldId)
-    if (store) {
-      try {
-        store.sessions.delete(oldId)
-      } catch {}
-    }
-    session.id = newId
+    session.ccSessionId = newCcSessionId
     session.project = newProject
     if (newModel) session.model = newModel
     session.status = 'idle'
     session.lastActivity = Date.now()
-    conversations.set(newId, session)
     persistConversation(session)
 
     // Reset ephemeral state (preserve compacting flag - processEvent handles the transition)
@@ -1009,8 +986,6 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     session.subagents = []
     session.teammates = []
     session.team = undefined
-    // Don't reset session.compacting here - let processEvent clear it on SessionStart
-    // so the compacted marker gets properly injected into the new transcript
     session.tasks = []
     session.archivedTasks = []
     session.diagLog = []
@@ -1025,56 +1000,38 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       }
     }
 
-    // Clear transcript caches + seq counters for old conversation ID.
-    // Rekey creates a new conversation identity; the new conversation gets a fresh
-    // counter starting at 0. Client's lastAppliedSeq for the old id is no
-    // longer compared against (conversationId is the key).
-    transcriptCache.delete(oldId)
-    transcriptSeqCounters.delete(oldId)
-    dirtyTranscripts.delete(oldId)
-    // Clear subagent transcript caches (keyed as "conversationId:agentId")
+    // Clear transcript caches + seq counters. Key is stable (conversationId), but
+    // the transcript content is stale after /clear -- wipe it so the fresh session
+    // starts with a clean slate.
+    transcriptCache.delete(conversationId)
+    transcriptSeqCounters.delete(conversationId)
+    dirtyTranscripts.delete(conversationId)
     for (const key of subagentTranscriptCache.keys()) {
-      if (key.startsWith(`${oldId}:`)) {
+      if (key.startsWith(`${conversationId}:`)) {
         subagentTranscriptCache.delete(key)
         subagentTranscriptSeqCounters.delete(key)
       }
     }
 
-    // Re-key socket map
-    const wrappers = conversationSockets.get(oldId)
-    if (wrappers) {
-      conversationSockets.delete(oldId)
-      conversationSockets.set(newId, wrappers)
-    }
+    // No socket or channel migration needed -- conversationId didn't change.
+    // Clear subagent channel subscriptions (subagents are gone after /clear).
+    clearSubagentChannels(conversationId)
 
-    // Migrate channel subscriptions from oldId to newId
-    migrateChannels(oldId, newId)
-
-    // Project links are URI-based, no migration needed on rekey.
-
-    // Clear subagent transcript subscriptions (subagents are reset on rekey)
-    clearSubagentChannels(oldId)
-
-    // Broadcast update (not end+create) so dashboard stays on this conversation
     broadcastConversationScoped(
       {
         type: 'conversation_update',
-        conversationId: newId,
-        previousConversationId: oldId,
+        conversationId,
         session: toConversationSummary(session),
       },
       session.project,
     )
 
-    // If compaction was in progress, re-inject the compacting marker into the new transcript.
-    // Sent AFTER session_update so dashboard has already switched to newId and won't wipe it.
-    // Sent AFTER channel migration so broadcastToChannel reaches the migrated subscribers.
     if (wasCompacting) {
       const marker = { type: 'compacting' as const, timestamp: new Date().toISOString() }
-      addTranscriptEntries(newId, [marker], false)
-      broadcastToChannel('conversation:transcript', newId, {
+      addTranscriptEntries(conversationId, [marker], false)
+      broadcastToChannel('conversation:transcript', conversationId, {
         type: 'transcript_entries',
-        conversationId: newId,
+        conversationId,
         entries: [marker],
         isInitial: false,
       })
@@ -1711,7 +1668,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   return {
     createConversation,
     resumeConversation,
-    rekeyConversation,
+    clearConversation,
     getConversation,
     getAllConversations,
     getActiveConversations,

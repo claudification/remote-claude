@@ -34,20 +34,21 @@ const sentinelIdentify: MessageHandler = (ctx, data) => {
 
 const reviveResult: MessageHandler = (ctx, data) => {
   const ok = data.success ? 'OK' : 'FAIL'
-  // Wire boundary: sentinel sends ccSessionId
-  const sessionId = data.ccSessionId as string
+  const ccSessionId = data.ccSessionId as string
   const conversationId = data.conversationId as string | undefined
   const jobId = data.jobId as string | undefined
-  ctx.log.debug(`Revive session=${sessionId?.slice(0, 8)} ${ok}${data.error ? ` (${data.error})` : ''}`)
+  ctx.log.debug(
+    `Revive cc=${ccSessionId?.slice(0, 8)} conv=${conversationId?.slice(0, 8)} ${ok}${data.error ? ` (${data.error})` : ''}`,
+  )
 
-  // Forward to dashboard so the launch monitor can show step-by-step progress.
-  const conversation = sessionId ? ctx.conversations.getConversation(sessionId) : null
+  // Look up by conversationId (stable key), not ccSessionId
+  const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : null
   const project = conversation?.project || (data.project as string)
   if (project) {
     ctx.broadcastScoped(
       {
         type: 'revive_result',
-        ccSessionId: sessionId,
+        ccSessionId: ccSessionId,
         conversationId,
         jobId,
         success: data.success,

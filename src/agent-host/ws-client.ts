@@ -245,12 +245,11 @@ export function createWsClient(options: WsClientOptions): WsClient {
   const MAX_QUEUE_SIZE = 500
   let heartbeatInterval: Timer | null = null
 
-  /** Identifier used for messages that require a session id. During the
-   *  boot phase (before CC produces a session id) we fall back to the
-   *  agent host id so the broker can route messages to the booting
-   *  session. Once setSessionId() is called, real session id takes over. */
+  /** Stable conversation identity for all outbound messages. Always returns
+   *  the agent host's conversationId (the broker's primary key). ccSessionId
+   *  is metadata only and never used as a routing key. */
   function routeId(): string {
-    return ccSessionId ?? conversationId
+    return conversationId
   }
 
   function connect() {
@@ -651,7 +650,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
   function sendConversationEnd(reason: string) {
     const endMsg: ConversationEnd = {
       type: 'end',
-      ccSessionId: routeId(),
+      conversationId,
+      ccSessionId: ccSessionId || undefined,
       reason,
       endedAt: Date.now(),
     }

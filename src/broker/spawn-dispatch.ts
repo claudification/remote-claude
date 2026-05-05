@@ -265,14 +265,14 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
       .addRendezvous(conversationId, callerConversationId, req.cwd, 'spawn')
       .then(session => {
         emitProgress(deps.sessions, jobId, 'session_connected', 'done', {
-          ccSessionId: session.id,
+          ccSessionId: session.ccSessionId || session.id,
           conversationId,
         })
         const callerWs = deps.sessions.getConversationSocket(callerConversationId)
         callerWs?.send(
           JSON.stringify({
             type: 'spawn_ready',
-            ccSessionId: session.id,
+            ccSessionId: session.ccSessionId || session.id,
             project: session.project,
             conversationId,
             session,

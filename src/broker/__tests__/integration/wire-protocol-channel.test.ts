@@ -156,8 +156,8 @@ describe('inter-session messaging', () => {
       const newSessionA = testId('sess-a-new')
       h.agentSend(agentA, {
         type: 'session_clear',
-        oldSessionId: sessionA,
-        newSessionId: newSessionA,
+        oldCcSessionId: sessionA,
+        newCcSessionId: newSessionA,
         conversationId: convA,
         project: 'claude:///home/user/project-alpha',
         cwd: '/home/user/project-alpha',

@@ -23,6 +23,7 @@ import {
   setSentinelRegistry,
   setShareValidator,
 } from './auth-routes'
+import { buildReviveMessage } from './build-revive'
 import { createConversationStore } from './conversation-store'
 import { type ContextDeps, createContext } from './create-context'
 import { initGlobalSettings } from './global-settings'
@@ -760,15 +761,7 @@ async function main() {
                   console.log(
                     `[restart] Reviving after disconnect: ${extractProjectLabel(pendingRestart.project)} conversationId=${conversationId.slice(0, 8)}`,
                   )
-                  sentinel.send(
-                    JSON.stringify({
-                      type: 'revive',
-                      ccSessionId: session.id,
-                      project: pendingRestart.project,
-                      conversationId,
-                      mode: 'resume',
-                    }),
-                  )
+                  sentinel.send(JSON.stringify(buildReviveMessage(session, conversationId)))
 
                   // Register rendezvous for caller (if not self-restart)
                   if (!pendingRestart.isSelfRestart) {

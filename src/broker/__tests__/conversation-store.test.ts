@@ -144,14 +144,25 @@ describe('conversation lifecycle', () => {
     expect(store.getConversation('ghost-session')).toBeUndefined()
   })
 
-  it('rekeyConversation makes conversation accessible under new id, old id is gone', () => {
-    store.createConversation('old-id', '/cwd')
-    store.rekeyConversation('old-id', 'new-id', 'conv-1', '/cwd')
+  it('clearConversation resets ephemeral state and updates ccSessionId metadata', () => {
+    const conv = store.createConversation('conv-1', '/cwd')
+    conv.ccSessionId = 'old-cc-id'
+    conv.events.push({
+      type: 'hook',
+      hookEvent: 'SessionStart',
+      conversationId: 'conv-1',
+      data: {},
+      timestamp: Date.now(),
+    })
 
-    expect(store.getConversation('old-id')).toBeUndefined()
-    const session = store.getConversation('new-id')
-    expect(session).toBeDefined()
-    expect(session!.id).toBe('new-id')
+    store.clearConversation('conv-1', 'new-cc-id', '/cwd')
+
+    const cleared = store.getConversation('conv-1')
+    expect(cleared).toBeDefined()
+    expect(cleared!.id).toBe('conv-1')
+    expect(cleared!.ccSessionId).toBe('new-cc-id')
+    expect(cleared!.events).toEqual([])
+    expect(cleared!.status).toBe('idle')
   })
 
   it('updateActivity updates conversation lastActivity timestamp', async () => {
@@ -620,18 +631,13 @@ describe('project URI field', () => {
     expect(store.getConversation('proj-2')!.project).toBe('claude://default/tmp/test')
   })
 
-  it('rekey (different ID) recomputes project from new cwd', () => {
-    store.createConversation('proj-old', '/old/path')
-    store.rekeyConversation('proj-old', 'proj-new', 'w1', '/new/path')
-    const session = store.getConversation('proj-new')!
+  it('clearConversation updates project from new cwd', () => {
+    store.createConversation('proj-clear', '/old/path')
+    store.clearConversation('proj-clear', 'new-cc-id', '/new/path')
+    const session = store.getConversation('proj-clear')!
+    expect(session.id).toBe('proj-clear')
+    expect(session.ccSessionId).toBe('new-cc-id')
     expect(session.project).toBe('claude://default/new/path')
-  })
-
-  it('same-ID rekey updates project from new cwd', () => {
-    store.createConversation('proj-same', '/original/path')
-    store.rekeyConversation('proj-same', 'proj-same', 'w1', '/updated/path')
-    const session = store.getConversation('proj-same')!
-    expect(session.project).toBe('claude://default/updated/path')
   })
 
   it('project field survives conversation resume', () => {

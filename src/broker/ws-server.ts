@@ -64,29 +64,27 @@ export function createWsServer(options: WsServerOptions): WsServer {
           switch (data.type) {
             case 'meta': {
               const meta = data as ConversationMeta
-              // Wire boundary: prefer conversationId, fall back to ccSessionId
-              const conversationId = meta.conversationId || meta.ccSessionId
+              // conversationId is the stable primary key
+              const conversationId = meta.conversationId
               ws.data.conversationId = conversationId
 
-              // Check if conversation already exists (resume case)
               const existingConversation = conversationStore.getConversation(conversationId)
               if (existingConversation) {
-                // Resume existing conversation
                 conversationStore.resumeConversation(conversationId)
+                existingConversation.ccSessionId = meta.ccSessionId
                 if (meta.configuredModel) existingConversation.configuredModel = meta.configuredModel
               } else {
-                // Create new conversation
                 const conversation = conversationStore.createConversation(
                   conversationId,
                   parseProjectUri(meta.project).path,
                   meta.model,
                   meta.args,
                 )
+                conversation.ccSessionId = meta.ccSessionId
                 if (meta.configuredModel) conversation.configuredModel = meta.configuredModel
               }
 
-              // Track socket for this conversation (for sending input)
-              conversationStore.setConversationSocket(conversationId, meta.conversationId || meta.ccSessionId, ws)
+              conversationStore.setConversationSocket(conversationId, conversationId, ws)
 
               onConversationStart?.(conversationId, meta)
 
@@ -115,7 +113,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
 
             case 'end': {
               const end = data as ConversationEnd
-              const conversationId = ws.data.conversationId || end.ccSessionId
+              const conversationId = ws.data.conversationId || end.conversationId
 
               if (conversationId) {
                 conversationStore.endConversation(conversationId, end.reason)

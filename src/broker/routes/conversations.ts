@@ -251,25 +251,20 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
     )
     const { headless, model, effort, bare, repl, permissionMode, autocompactPct, maxBudgetUsd } = resolved
 
+    const { buildReviveMessage } = await import('../build-revive')
     sentinel.send(
-      JSON.stringify({
-        type: 'revive',
-        ccSessionId: targetId,
-        project: session.project,
-        conversationId,
-        mode: 'resume',
-        headless,
-        effort,
-        model,
-        sessionName: session.title || undefined,
-        bare: bare || undefined,
-        repl: repl || undefined,
-        permissionMode,
-        autocompactPct: autocompactPct ?? session.autocompactPct,
-        maxBudgetUsd: maxBudgetUsd ?? session.maxBudgetUsd,
-        adHocWorktree: session.adHocWorktree || undefined,
-        env: lc?.env || undefined,
-      }),
+      JSON.stringify(
+        buildReviveMessage(session, conversationId, {
+          headless,
+          effort,
+          model,
+          bare: bare || undefined,
+          repl: repl || undefined,
+          permissionMode,
+          autocompactPct,
+          maxBudgetUsd,
+        }),
+      ),
     )
 
     // Register rendezvous for MCP callers

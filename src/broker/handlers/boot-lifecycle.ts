@@ -3,12 +3,12 @@
  *
  * The agent host opens its WS to the broker BEFORE Claude Code is spawned
  * so the dashboard shows "booting" state and receives live progress events.
- * Once CC produces a conversation id (via stream-json `init` or SessionStart hook),
- * the agent host sends `session_promote` to migrate the booting session into the
- * real one.
+ * Once CC produces a session id (via stream-json `init` or SessionStart hook),
+ * the agent host sends `session_promote` to store the ccSessionId as metadata
+ * on the conversation (the conversationId store key stays the same).
  */
 
-import { cwdToProjectUri, parseProjectUri } from '../../shared/project-uri'
+import { cwdToProjectUri } from '../../shared/project-uri'
 import type {
   AgentHostCapability,
   AgentHostLaunchPhase,
@@ -157,44 +157,22 @@ const launchEvent: MessageHandler = (ctx, data) => {
 
 const sessionPromote: MessageHandler = (ctx, data) => {
   const conversationId = data.conversationId as string
-  // Wire boundary: ccSessionId from agent-host becomes the session ID
-  const newSessionId = data.ccSessionId as string
-  if (!conversationId || !newSessionId) return
+  const ccSessionId = data.ccSessionId as string
+  if (!conversationId || !ccSessionId) return
 
   const bootConversation = ctx.conversations.getConversation(conversationId)
   if (!bootConversation) {
-    ctx.log.debug(`[boot] session_promote for unknown wrapper: ${conversationId.slice(0, 8)}`)
+    ctx.log.debug(`[boot] session_promote for unknown conversation: ${conversationId.slice(0, 8)}`)
     return
   }
 
-  if (conversationId === newSessionId) {
-    // Nothing to migrate -- just flip status out of booting; meta handler
-    // will take over with full metadata.
-    bootConversation.status = 'starting'
-    ctx.conversations.broadcastConversationUpdate(newSessionId)
-    return
-  }
-
-  // Re-key the booting session to the real session id. This moves the
-  // transcript (including boot entries), sockets, subscriptions, etc.
-  const bootProject = bootConversation.project
-  const rekeyed = ctx.conversations.rekeyConversation(
-    conversationId,
-    newSessionId,
-    conversationId,
-    parseProjectUri(bootConversation.project).path,
-    undefined,
-  )
-  if (!rekeyed) {
-    ctx.log.debug(`[boot] rekey failed for ${conversationId.slice(0, 8)} -> ${newSessionId.slice(0, 8)}`)
-    return
-  }
-  rekeyed.status = 'starting'
-  rekeyed.project = bootProject
-  ctx.ws.data.conversationId = newSessionId
-  ctx.ws.data.ccSessionId = newSessionId
+  // Store ccSessionId as metadata -- conversationId (the store key) stays the same.
+  bootConversation.ccSessionId = ccSessionId
+  bootConversation.status = 'starting'
+  ctx.ws.data.ccSessionId = ccSessionId
+  ctx.conversations.broadcastConversationUpdate(conversationId)
   ctx.log.debug(
-    `[boot] promoted ${conversationId.slice(0, 8)} -> ${newSessionId.slice(0, 8)} (source=${data.source || 'unknown'})`,
+    `[boot] promoted ${conversationId.slice(0, 8)} cc=${ccSessionId.slice(0, 8)} (source=${data.source || 'unknown'})`,
   )
 }
 

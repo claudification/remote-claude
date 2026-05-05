@@ -14,15 +14,12 @@ import { rejectBadMessage, requireProtocolVersion, requireStrings } from './vali
 const meta: MessageHandler = (ctx, data) => {
   if (!requireProtocolVersion(ctx, data, 'meta')) return
 
-  // Wire boundary: read ccSessionId from wire (CC's ID), use as sessionId internally.
-  // conversationId is the agent-host's correlation ID (socket sub-key).
+  // Wire boundary: conversationId is the stable primary key. ccSessionId is CC metadata.
   const required = requireStrings(ctx, data, ['conversationId', 'ccSessionId'] as const, 'meta')
   if (!required) return
   const { conversationId } = required
-  const sessionId = required.ccSessionId
+  const ccSessionId = required.ccSessionId
 
-  // Project is best-effort: we accept either an explicit project URI or a
-  // cwd we can derive one from. Reject if we got neither.
   const projectField = data.project
   const cwdField = data.cwd
   if (typeof projectField !== 'string' && typeof cwdField !== 'string') {
@@ -35,52 +32,50 @@ const meta: MessageHandler = (ctx, data) => {
     return
   }
   const project = (projectField as string | undefined) ?? cwdToProjectUri(cwdField as string)
-  ctx.ws.data.conversationId = sessionId
-  ctx.ws.data.ccSessionId = sessionId
+  ctx.ws.data.conversationId = conversationId
+  ctx.ws.data.ccSessionId = ccSessionId
   ctx.ws.data.connectionId = conversationId
 
-  // Consume pending launch config (stored at spawn time, keyed by conversationId)
   const pendingLaunchConfig = ctx.conversations.consumePendingLaunchConfig(conversationId)
 
-  const existing = ctx.conversations.getConversation(sessionId)
+  const existing = ctx.conversations.getConversation(conversationId)
+
+  function applyMetadata(conv: import('../../shared/protocol').Conversation) {
+    conv.ccSessionId = ccSessionId
+    conv.project = project
+    if (data.model) conv.model = data.model as string
+    if (data.capabilities) conv.capabilities = data.capabilities
+    if (data.version) conv.version = data.version as string
+    if (data.buildTime) conv.buildTime = data.buildTime as string
+    if (data.claudeVersion) conv.claudeVersion = data.claudeVersion as string
+    if (data.claudeAuth) conv.claudeAuth = data.claudeAuth as Record<string, unknown>
+    if (data.spinnerVerbs) conv.spinnerVerbs = data.spinnerVerbs as string[]
+    if (data.autocompactPct) conv.autocompactPct = data.autocompactPct as number
+    if (data.maxBudgetUsd) conv.maxBudgetUsd = data.maxBudgetUsd as number
+    if (data.adHocTaskId) conv.adHocTaskId = data.adHocTaskId as string
+    if (data.adHocWorktree) conv.adHocWorktree = data.adHocWorktree as string
+  }
+
   if (existing) {
-    ctx.conversations.resumeConversation(sessionId)
-    existing.project = project
-    if (data.capabilities) existing.capabilities = data.capabilities
-    if (data.version) existing.version = data.version as string
-    if (data.buildTime) existing.buildTime = data.buildTime as string
-    if (data.claudeVersion) existing.claudeVersion = data.claudeVersion as string
-    if (data.claudeAuth) existing.claudeAuth = data.claudeAuth as Record<string, unknown>
-    if (data.spinnerVerbs) existing.spinnerVerbs = data.spinnerVerbs as string[]
-    if (data.autocompactPct) existing.autocompactPct = data.autocompactPct as number
-    if (data.maxBudgetUsd) existing.maxBudgetUsd = data.maxBudgetUsd as number
-    if (data.adHocTaskId) existing.adHocTaskId = data.adHocTaskId as string
-    if (data.adHocWorktree) existing.adHocWorktree = data.adHocWorktree as string
-    // Only set launchConfig on first connect (spawn), don't overwrite on revive
+    ctx.conversations.resumeConversation(conversationId)
+    applyMetadata(existing)
     if (pendingLaunchConfig && !existing.launchConfig) {
       existing.launchConfig = pendingLaunchConfig
       if (pendingLaunchConfig.effort) existing.effortLevel = pendingLaunchConfig.effort
       if (pendingLaunchConfig.agent) existing.agentName = pendingLaunchConfig.agent
     }
     ctx.log.debug(
-      `Conversation resumed: ${sessionId.slice(0, 8)}... conn=${conversationId.slice(0, 8)} (${data.cwd}) [${ctx.conversations.getActiveConversationCount(sessionId) + 1} connection(s)]${data.version ? ` [${data.version}]` : ''}`,
+      `Conversation resumed: ${conversationId.slice(0, 8)} cc=${ccSessionId.slice(0, 8)} (${data.cwd}) [${ctx.conversations.getActiveConversationCount(conversationId) + 1} connection(s)]${data.version ? ` [${data.version}]` : ''}`,
     )
   } else {
     const newConversation = ctx.conversations.createConversation(
-      sessionId,
+      conversationId,
       project,
       data.model as string,
       data.args,
       data.capabilities,
     )
-    if (data.version) newConversation.version = data.version as string
-    if (data.buildTime) newConversation.buildTime = data.buildTime as string
-    if (data.claudeVersion) newConversation.claudeVersion = data.claudeVersion as string
-    if (data.spinnerVerbs) newConversation.spinnerVerbs = data.spinnerVerbs as string[]
-    if (data.autocompactPct) newConversation.autocompactPct = data.autocompactPct as number
-    if (data.maxBudgetUsd) newConversation.maxBudgetUsd = data.maxBudgetUsd as number
-    if (data.adHocTaskId) newConversation.adHocTaskId = data.adHocTaskId as string
-    if (data.adHocWorktree) newConversation.adHocWorktree = data.adHocWorktree as string
+    applyMetadata(newConversation)
     if (pendingLaunchConfig) {
       newConversation.launchConfig = pendingLaunchConfig
       if (pendingLaunchConfig.effort) newConversation.effortLevel = pendingLaunchConfig.effort
@@ -88,56 +83,52 @@ const meta: MessageHandler = (ctx, data) => {
     }
     const isAdHoc = (data.capabilities as string[] | undefined)?.includes('ad-hoc')
     ctx.log.debug(
-      `Conversation started: ${sessionId.slice(0, 8)}... conn=${conversationId.slice(0, 8)} (${data.cwd})${data.version ? ` [${data.version}]` : ''}`,
+      `Conversation started: ${conversationId.slice(0, 8)} cc=${ccSessionId.slice(0, 8)} (${data.cwd})${data.version ? ` [${data.version}]` : ''}`,
     )
     if (isAdHoc) {
       ctx.log.info(
-        `[ad-hoc] Conversation connected: ${sessionId.slice(0, 8)} task=${data.adHocTaskId || 'none'} worktree=${data.adHocWorktree || 'none'} caps=[${(data.capabilities as string[])?.join(',') || ''}]`,
+        `[ad-hoc] Conversation connected: ${conversationId.slice(0, 8)} cc=${ccSessionId.slice(0, 8)} task=${data.adHocTaskId || 'none'} worktree=${data.adHocWorktree || 'none'} caps=[${(data.capabilities as string[])?.join(',') || ''}]`,
       )
     }
   }
 
-  ctx.conversations.setConversationSocket(sessionId, conversationId, ctx.ws)
+  ctx.conversations.setConversationSocket(conversationId, conversationId, ctx.ws)
 
-  // Auto-restore persisted links for this conversation's project
-  const convProject = (existing || ctx.conversations.getConversation(sessionId))?.project
+  const convProject = (existing || ctx.conversations.getConversation(conversationId))?.project
   if (convProject) {
     const persistedLinks = ctx.getLinksForProject(convProject)
     for (const pl of persistedLinks) {
       const otherProject = pl.projectA === convProject ? pl.projectB : pl.projectA
       for (const s of ctx.conversations.getActiveConversations()) {
-        if (s.project === otherProject && s.id !== sessionId) {
-          ctx.conversations.linkProjects(sessionId, s.id)
+        if (s.project === otherProject && s.id !== conversationId) {
+          ctx.conversations.linkProjects(conversationId, s.id)
           ctx.log.debug(
-            `[links] Auto-restored: ${sessionId.slice(0, 8)} (${extractProjectLabel(convProject)}) <-> ${s.id.slice(0, 8)} (${extractProjectLabel(otherProject)})`,
+            `[links] Auto-restored: ${conversationId.slice(0, 8)} (${extractProjectLabel(convProject)}) <-> ${s.id.slice(0, 8)} (${extractProjectLabel(otherProject)})`,
           )
         }
       }
     }
   }
 
-  ctx.conversations.broadcastConversationUpdate(sessionId)
+  ctx.conversations.broadcastConversationUpdate(conversationId)
 
-  // Complete launch job if this conversationId is tracked
-  ctx.conversations.completeJob(conversationId, sessionId)
+  ctx.conversations.completeJob(conversationId, conversationId)
 
-  // Check rendezvous: someone may be waiting for this agent host to connect
-  const rvResolved = ctx.conversations.resolveRendezvous(conversationId, sessionId)
+  const rvResolved = ctx.conversations.resolveRendezvous(conversationId, conversationId)
   if (!rvResolved) {
     const rvInfo = ctx.conversations.getRendezvousInfo(conversationId)
     if (rvInfo) ctx.log.debug(`[rendezvous] conversationId matched but resolve failed: ${conversationId.slice(0, 8)}`)
   }
 
-  ctx.reply({ type: 'ack', eventId: sessionId, origins: ctx.origins })
+  ctx.reply({ type: 'ack', eventId: conversationId, origins: ctx.origins })
 
-  // Drain queued messages for this project (sent while conversation was offline)
-  const drainConversation = existing || ctx.conversations.getConversation(sessionId)
+  const drainConversation = existing || ctx.conversations.getConversation(conversationId)
   const drainProject = drainConversation?.project
   if (drainProject) {
     const nameSlug = drainConversation?.title ? slugify(drainConversation.title) : undefined
     const queued = ctx.messageQueue.drain(drainProject, nameSlug)
     if (queued.length > 0) {
-      const targetWs = ctx.conversations.getConversationSocket(sessionId)
+      const targetWs = ctx.conversations.getConversationSocket(conversationId)
       if (targetWs) {
         for (const item of queued) {
           targetWs.send(JSON.stringify(item.message))
@@ -166,35 +157,32 @@ const heartbeat: MessageHandler = () => {
   // Heartbeats keep the WS alive but do NOT count as activity.
 }
 
-// ─── Session clear (re-key on /clear) ──────────────────────────────
+// ─── Session clear (/clear resets ephemeral state, updates ccSessionId metadata) ──
 
 const sessionClear: MessageHandler = (ctx, data) => {
-  const oldId = (data.oldSessionId as string) || ctx.ws.data.conversationId
-  const newId = data.newSessionId as string
-  const clearConversationId = (data.conversationId as string) || ctx.ws.data.conversationId
-  if (!oldId || !newId || !clearConversationId) return
+  const conversationId = (data.conversationId as string) || ctx.ws.data.conversationId
+  const newCcSessionId = data.newCcSessionId as string
+  if (!conversationId || !newCcSessionId) return
 
   const clearProject = (data.project as string) ?? cwdToProjectUri(data.cwd as string)
 
-  const conversation = ctx.conversations.rekeyConversation(
-    oldId,
-    newId,
-    clearConversationId,
+  const conversation = ctx.conversations.clearConversation(
+    conversationId,
+    newCcSessionId,
     clearProject,
     data.model as string,
   )
   if (conversation) {
-    ctx.ws.data.conversationId = newId
-    ctx.ws.data.ccSessionId = newId
+    ctx.ws.data.ccSessionId = newCcSessionId
     ctx.log.debug(
-      `Conversation re-keyed: ${oldId.slice(0, 8)} -> ${newId.slice(0, 8)} conv=${clearConversationId.slice(0, 8)} (${extractProjectLabel(clearProject)})`,
+      `Conversation cleared: ${conversationId.slice(0, 8)} cc=${newCcSessionId.slice(0, 8)} (${extractProjectLabel(clearProject)})`,
     )
   } else {
-    ctx.log.debug(`session_clear: old conversation ${oldId.slice(0, 8)} not found, creating new`)
-    ctx.conversations.createConversation(newId, clearProject, data.model as string)
-    ctx.ws.data.conversationId = newId
-    ctx.ws.data.ccSessionId = newId
-    ctx.conversations.setConversationSocket(newId, clearConversationId, ctx.ws)
+    ctx.log.debug(`session_clear: conversation ${conversationId.slice(0, 8)} not found, creating new`)
+    const newConv = ctx.conversations.createConversation(conversationId, clearProject, data.model as string)
+    newConv.ccSessionId = newCcSessionId
+    ctx.ws.data.ccSessionId = newCcSessionId
+    ctx.conversations.setConversationSocket(conversationId, conversationId, ctx.ws)
   }
 }
 
@@ -299,7 +287,7 @@ export function registerConversationLifecycleHandlers(): void {
     hook,
     heartbeat,
     session_clear: sessionClear,
-    session_status: sessionStatus,
+    conversation_status: sessionStatus,
     notify,
     end,
   })

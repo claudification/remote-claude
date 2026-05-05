@@ -110,14 +110,14 @@ run('agent host lifecycle', () => {
     })
 
     const ack = await waitForMessage(agent, 'ack')
-    expect(ack.eventId).toBe(ccSessionId)
+    expect(ack.eventId).toBe(convId)
     expect(Array.isArray(ack.origins)).toBe(true)
 
-    // Verify promoted conversation exists via HTTP
-    const res = await httpGet(`/conversations/${ccSessionId}`, { bearer: getBrokerSecret() })
+    // Verify conversation exists under conversationId (stable key), not ccSessionId
+    const res = await httpGet(`/conversations/${convId}`, { bearer: getBrokerSecret() })
     expect(res.status).toBe(200)
     const data = (await res.json()) as Record<string, unknown>
-    expect(data.id).toBe(ccSessionId)
+    expect(data.id).toBe(convId)
     expect(data.project).toContain('/tmp/staging-test')
   })
 
@@ -158,13 +158,13 @@ run('agent host lifecycle', () => {
     // End the conversation
     agent.send({
       type: 'end',
-      conversationId: ccSessionId,
+      conversationId: convId,
       reason: 'staging_test_done',
       endedAt: Date.now(),
     })
     await sleep(200)
 
-    const res = await httpGet(`/conversations/${ccSessionId}`, { bearer: getBrokerSecret() })
+    const res = await httpGet(`/conversations/${convId}`, { bearer: getBrokerSecret() })
     expect(res.status).toBe(200)
     const data = (await res.json()) as Record<string, unknown>
     expect(data.status).toBe('ended')
@@ -419,13 +419,13 @@ run('session status', () => {
 
     // Set status to active
     agent.send({
-      type: 'session_status',
-      conversationId: ccSessionId,
+      type: 'conversation_status',
+      conversationId: convId,
       status: 'active',
     })
     await sleep(200)
 
-    const res = await httpGet(`/conversations/${ccSessionId}`, { bearer: getBrokerSecret() })
+    const res = await httpGet(`/conversations/${convId}`, { bearer: getBrokerSecret() })
     const data = (await res.json()) as Record<string, unknown>
     expect(data.status).toBe('active')
   })
@@ -485,14 +485,14 @@ run('HTTP API', () => {
     // Send a hook event
     agent.send({
       type: 'hook',
-      conversationId: ccSessionId,
+      conversationId: convId,
       hookEvent: 'UserPromptSubmit',
       timestamp: Date.now(),
       data: { session_id: ccSessionId, prompt: 'staging test prompt' },
     })
     await sleep(200)
 
-    const res = await httpGet(`/conversations/${ccSessionId}/events`, { bearer: getBrokerSecret() })
+    const res = await httpGet(`/conversations/${convId}/events`, { bearer: getBrokerSecret() })
     expect(res.status).toBe(200)
     const events = (await res.json()) as Array<Record<string, unknown>>
     expect(Array.isArray(events)).toBe(true)
@@ -715,22 +715,23 @@ run('session clear (rekey)', () => {
     // Rekey
     agent.send({
       type: 'session_clear',
-      oldSessionId: oldCcSessionId,
-      newSessionId: newCcSessionId,
+      oldCcSessionId: oldCcSessionId,
+      newCcSessionId: newCcSessionId,
       conversationId: convId,
       project: 'claude:///tmp/staging-test',
     })
     await sleep(300)
 
-    // Old session should be gone
+    // Conversation stays under the same key (conversationId), not ccSessionId
+    const convRes = await httpGet(`/conversations/${convId}`, { bearer: getBrokerSecret() })
+    expect(convRes.status).toBe(200)
+    const data = (await convRes.json()) as Record<string, unknown>
+    expect(data.id).toBe(convId)
+    expect(data.ccSessionId).toBe(newCcSessionId)
+
+    // Old ccSessionId is NOT a store key
     const oldRes = await httpGet(`/conversations/${oldCcSessionId}`, { bearer: getBrokerSecret() })
     expect(oldRes.status).toBe(404)
-
-    // New session should exist
-    const newRes = await httpGet(`/conversations/${newCcSessionId}`, { bearer: getBrokerSecret() })
-    expect(newRes.status).toBe(200)
-    const data = (await newRes.json()) as Record<string, unknown>
-    expect(data.id).toBe(newCcSessionId)
   })
 })
 
@@ -891,14 +892,11 @@ run('agent host disconnect', () => {
     const healthRes = await httpGet('/health')
     expect(healthRes.status).toBe(200)
 
-    // The conversation should still be accessible
-    const res = await httpGet(`/conversations/${ccSessionId}`, { bearer: getBrokerSecret() })
+    // The conversation should still be accessible under conversationId (stable key)
+    const res = await httpGet(`/conversations/${convId}`, { bearer: getBrokerSecret() })
     expect(res.status).toBe(200)
 
-    // NOTE: The WS close handler currently requires ws.data.ccSessionId to be set
-    // for cleanup to trigger, but no handler sets it (rename branch gap).
-    // Once fixed, this should assert status === 'ended'.
     const data = (await res.json()) as Record<string, unknown>
-    expect(data.id).toBe(ccSessionId)
+    expect(data.id).toBe(convId)
   })
 })

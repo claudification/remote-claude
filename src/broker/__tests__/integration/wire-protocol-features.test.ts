@@ -123,7 +123,7 @@ describe('heartbeat', () => {
       startedAt: Date.now(),
     })
 
-    const conv = h.conversationStore.getConversation(ccSessionId)!
+    const conv = h.conversationStore.getConversation(convId)!
     const activityBefore = conv.lastActivity
 
     // Small delay to ensure timestamp would differ
@@ -163,28 +163,28 @@ describe('dismiss conversation', () => {
     })
     h.agentSend(agent, {
       type: 'end',
-      conversationId: ccSessionId,
+      conversationId: convId,
       reason: 'done',
       endedAt: Date.now(),
     })
 
     await h.flushUpdates()
 
-    expect(h.conversationStore.getConversation(ccSessionId)?.status).toBe('ended')
+    expect(h.conversationStore.getConversation(convId)?.status).toBe('ended')
 
     const dashboard = h.connectDashboard()
     dashboard.clearMessages()
 
     h.dashboardSend(dashboard, {
       type: 'dismiss_conversation',
-      conversationId: ccSessionId,
+      conversationId: convId,
     })
 
     const result = dashboard.messagesOfType('dismiss_conversation_result')
     expect(result.length).toBe(1)
     expect(result[0].ok).toBe(true)
 
-    expect(h.conversationStore.getConversation(ccSessionId)).toBeUndefined()
+    expect(h.conversationStore.getConversation(convId)).toBeUndefined()
   })
 
   it('dismiss_conversation rejects active conversations', () => {
@@ -207,7 +207,7 @@ describe('dismiss conversation', () => {
     const dashboard = h.connectDashboard()
     h.dashboardSend(dashboard, {
       type: 'dismiss_conversation',
-      conversationId: ccSessionId,
+      conversationId: convId,
     })
 
     // GuardError replies use the message type directly (not _result suffix)
@@ -285,9 +285,9 @@ describe('HTTP API data contracts', () => {
     const all = h.conversationStore.getAllConversations()
     expect(all.length).toBeGreaterThan(0)
 
-    const conv = all.find(s => s.id === ccSessionId)
+    const conv = all.find(s => s.id === convId)
     expect(conv).toBeDefined()
-    expect(conv?.id).toBe(ccSessionId)
+    expect(conv?.id).toBe(convId)
     expect(conv?.project).toBe('claude:///home/user/project')
     expect(conv?.model).toBe('claude-sonnet-4-20250514')
     expect(typeof conv?.startedAt).toBe('number')
@@ -312,9 +312,9 @@ describe('HTTP API data contracts', () => {
       startedAt: Date.now(),
     })
 
-    const conv = h.conversationStore.getConversation(ccSessionId)
+    const conv = h.conversationStore.getConversation(convId)
     expect(conv).toBeDefined()
-    expect(conv?.id).toBe(ccSessionId)
+    expect(conv?.id).toBe(convId)
     expect(Array.isArray(conv?.events)).toBe(true)
     expect(Array.isArray(conv?.subagents)).toBe(true)
     expect(Array.isArray(conv?.tasks)).toBe(true)
@@ -342,7 +342,7 @@ describe('HTTP API data contracts', () => {
 
     h.agentSend(agent, {
       type: 'hook',
-      conversationId: ccSessionId,
+      conversationId: convId,
       hookEvent: 'UserPromptSubmit',
       timestamp: Date.now(),
       data: { session_id: ccSessionId, prompt: 'Hello' },
@@ -350,17 +350,17 @@ describe('HTTP API data contracts', () => {
 
     h.agentSend(agent, {
       type: 'hook',
-      conversationId: ccSessionId,
+      conversationId: convId,
       hookEvent: 'Stop',
       timestamp: Date.now(),
       data: { session_id: ccSessionId, reason: 'completed' },
     })
 
-    const events = h.conversationStore.getConversationEvents(ccSessionId)
+    const events = h.conversationStore.getConversationEvents(convId)
     expect(events.length).toBe(2)
     expect(events[0].hookEvent).toBe('UserPromptSubmit')
     expect(events[1].hookEvent).toBe('Stop')
-    expect(events[0].conversationId).toBe(ccSessionId)
+    expect(events[0].conversationId).toBe(convId)
   })
 
   it('getActiveConversations returns only non-ended conversations', () => {
@@ -394,15 +394,15 @@ describe('HTTP API data contracts', () => {
 
     h.agentSend(agent2, {
       type: 'end',
-      conversationId: cc2,
+      conversationId: agent2.ws.data.conversationId!,
       reason: 'done',
       endedAt: Date.now(),
     })
 
     const active = h.conversationStore.getActiveConversations()
     const activeIds = active.map(s => s.id)
-    expect(activeIds).toContain(cc1)
-    expect(activeIds).not.toContain(cc2)
+    expect(activeIds).toContain(agent1.ws.data.conversationId!)
+    expect(activeIds).not.toContain(agent2.ws.data.conversationId!)
   })
 })
 
@@ -430,14 +430,14 @@ describe('conversation metadata updates', () => {
 
     h.agentSend(agent, {
       type: 'session_name',
-      conversationId: ccSessionId,
+      conversationId: convId,
       name: 'My Test Session',
       description: 'Testing things',
     })
 
     await h.flushUpdates()
 
-    const conv = h.conversationStore.getConversation(ccSessionId)
+    const conv = h.conversationStore.getConversation(convId)
     expect(conv?.title).toBe('My Test Session')
     expect(conv?.description).toBe('Testing things')
   })
@@ -461,18 +461,18 @@ describe('conversation metadata updates', () => {
 
     h.agentSend(agent, {
       type: 'session_name',
-      conversationId: ccSessionId,
+      conversationId: convId,
       name: 'User Title',
       userSet: true,
     })
 
     h.agentSend(agent, {
       type: 'session_name',
-      conversationId: ccSessionId,
+      conversationId: convId,
       name: 'Auto Generated Title',
     })
 
-    const conv = h.conversationStore.getConversation(ccSessionId)
+    const conv = h.conversationStore.getConversation(convId)
     expect(conv?.title).toBe('User Title')
     expect(conv?.titleUserSet).toBe(true)
   })

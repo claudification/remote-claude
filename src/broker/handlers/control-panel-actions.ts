@@ -9,6 +9,7 @@
 import { generateConversationName } from '../../shared/conversation-names'
 import { extractProjectLabel, parseProjectUri } from '../../shared/project-uri'
 import type { SendInput } from '../../shared/protocol'
+import { buildReviveMessage } from '../build-revive'
 import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
 import { GuardError, type MessageHandler, type WsData } from '../handler-context'
 import { registerHandlers } from '../message-router'
@@ -261,26 +262,17 @@ const reviveConversation: MessageHandler = (ctx, data) => {
   }
 
   sentinel.send(
-    JSON.stringify({
-      type: 'revive',
-      ccSessionId: conversationId,
-      project: conversation.project,
-      conversationId: newConversationId,
-      jobId,
-      mode: 'resume',
-      headless,
-      effort,
-      model,
-      sessionName: convName,
-      agent: lc?.agent || undefined,
-      bare: lc?.bare || undefined,
-      repl: lc?.repl || undefined,
-      permissionMode: lc?.permissionMode || undefined,
-      autocompactPct: (data.autocompactPct as number | undefined) || lc?.autocompactPct || conversation.autocompactPct,
-      maxBudgetUsd: (data.maxBudgetUsd as number | undefined) || lc?.maxBudgetUsd || conversation.maxBudgetUsd,
-      adHocWorktree: conversation.adHocWorktree || undefined,
-      env: (data.env as Record<string, string>) || lc?.env || undefined,
-    }),
+    JSON.stringify(
+      buildReviveMessage(conversation, newConversationId, {
+        jobId,
+        headless,
+        effort,
+        model,
+        autocompactPct: (data.autocompactPct as number | undefined) || undefined,
+        maxBudgetUsd: (data.maxBudgetUsd as number | undefined) || undefined,
+        env: (data.env as Record<string, string>) || undefined,
+      }),
+    ),
   )
 
   ctx.log.info(

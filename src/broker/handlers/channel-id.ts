@@ -149,7 +149,7 @@ export interface ResolveConversationDeps {
  * Resolve a target ID (compound "project:session-slug", bare project slug,
  * or raw internal session/conversation ID) to a conversation.
  *
- * Used by session_control, channel_restart, channel_configure, and
+ * Used by conversation_control, channel_restart, channel_configure, and
  * channel_send to consistently handle the compound ID format returned
  * by list_conversations.
  */
