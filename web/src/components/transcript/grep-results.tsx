@@ -20,13 +20,21 @@ const FILE_LIST_DEFAULT_LIMIT = 30
 const CONTENT_LINE_DEFAULT_LIMIT = 40
 const COUNT_BAR_DEFAULT_LIMIT = 25
 
-function useConversationPath(): string | undefined {
-  return useConversationsStore(s => {
-    if (s.controlPanelPrefs.sanitizePaths === false) return undefined
+const EMPTY_ROOTS: string[] = []
+
+function useProjectRoots(): string[] {
+  const key = useConversationsStore(s => {
+    if (s.controlPanelPrefs.sanitizePaths === false) return ''
     const sid = s.selectedConversationId
     const session = sid ? s.sessionsById[sid] : undefined
-    return session ? projectPath(session.project) : undefined
+    if (!session) return ''
+    let k = projectPath(session.project)
+    if (session.linkedProjects) {
+      for (const lp of session.linkedProjects) k += `\n${projectPath(lp.project)}`
+    }
+    return k
   })
+  return useMemo(() => (key ? key.split('\n') : EMPTY_ROOTS), [key])
 }
 
 function useToolLineLimit(tool: 'Grep' | 'Glob', fallback: number): number {
@@ -36,12 +44,24 @@ function useToolLineLimit(tool: 'Grep' | 'Glob', fallback: number): number {
   })
 }
 
-/** Make a path relative to root when it lives under root, else keep absolute. */
-function relToRoot(path: string, root?: string): string {
-  if (!root) return path
-  const normRoot = root.replace(/\/$/, '')
-  if (path === normRoot) return '.'
-  if (path.startsWith(`${normRoot}/`)) return path.slice(normRoot.length + 1)
+/**
+ * Make a path relative to the best-matching root. Falls back to ~/... shortening
+ * when no root matches (e.g. worktree paths from sub-agents).
+ */
+function relToRoot(path: string, roots: string[]): string {
+  for (const root of roots) {
+    const normRoot = root.replace(/\/$/, '')
+    if (path === normRoot) return '.'
+    if (path.startsWith(`${normRoot}/`)) return path.slice(normRoot.length + 1)
+  }
+  // Infer home dir from primary root (e.g. /Users/jonas/projects/foo -> /Users/jonas)
+  if (roots.length > 0) {
+    const primary = roots[0]
+    const homeMatch = primary.match(/^(\/(?:Users|home)\/[^/]+)/)
+    if (homeMatch && path.startsWith(`${homeMatch[1]}/`)) {
+      return `~${path.slice(homeMatch[1].length)}`
+    }
+  }
   return path
 }
 
@@ -51,10 +71,10 @@ function splitDirAndName(path: string): { dir: string; name: string } {
   return { dir: path.slice(0, idx), name: path.slice(idx + 1) }
 }
 
-function groupByDir(filenames: string[], root?: string): Array<{ dir: string; files: string[] }> {
+function groupByDir(filenames: string[], roots: string[]): Array<{ dir: string; files: string[] }> {
   const groups = new Map<string, string[]>()
   for (const raw of filenames) {
-    const rel = relToRoot(raw, root)
+    const rel = relToRoot(raw, roots)
     const { dir, name } = splitDirAndName(rel)
     const list = groups.get(dir) ?? []
     list.push(name)
@@ -97,11 +117,11 @@ export function FileListResults({
   truncated?: boolean
   emptyLabel?: string
 }) {
-  const root = useConversationPath()
+  const roots = useProjectRoots()
   const limit = useToolLineLimit('Grep', FILE_LIST_DEFAULT_LIMIT)
   const [revealed, setRevealed] = useState(false)
 
-  const groups = useMemo(() => groupByDir(filenames, root), [filenames, root])
+  const groups = useMemo(() => groupByDir(filenames, roots), [filenames, roots])
   const total = numFiles ?? filenames.length
 
   if (total === 0) {
@@ -267,7 +287,7 @@ export function GrepContentResults({
   numFiles?: number
   highlight?: RegExp
 }) {
-  const root = useConversationPath()
+  const roots = useProjectRoots()
   const limit = useToolLineLimit('Grep', CONTENT_LINE_DEFAULT_LIMIT)
   const [revealed, setRevealed] = useState(false)
 
@@ -295,7 +315,7 @@ export function GrepContentResults({
   return (
     <div className="text-[10px] font-mono space-y-2">
       {visibleGroups.map(g => {
-        const rel = relToRoot(g.file, root)
+        const rel = relToRoot(g.file, roots)
         const { dir, name } = splitDirAndName(rel)
         return (
           <div key={g.file || '_unnamed'}>
@@ -373,7 +393,7 @@ export function GrepCountResults({
   numMatches?: number
   numFiles?: number
 }) {
-  const root = useConversationPath()
+  const roots = useProjectRoots()
   const limit = useToolLineLimit('Grep', COUNT_BAR_DEFAULT_LIMIT)
   const [revealed, setRevealed] = useState(false)
 
@@ -394,7 +414,7 @@ export function GrepCountResults({
   return (
     <div className="text-[10px] font-mono space-y-0.5">
       {visible.map(r => {
-        const rel = relToRoot(r.file, root)
+        const rel = relToRoot(r.file, roots)
         const { dir, name } = splitDirAndName(rel)
         const pct = (r.count / max) * 100
         return (
@@ -460,8 +480,8 @@ export function GrepSummary({
   mode?: string
   isError?: boolean
 }) {
-  const root = useConversationPath()
-  const relPath = path ? relToRoot(path, root) : undefined
+  const roots = useProjectRoots()
+  const relPath = path ? relToRoot(path, roots) : undefined
   const totalMatches = mode === 'count' ? numMatches : numLines
   return (
     <span className="flex items-center gap-1.5 min-w-0 flex-wrap">
@@ -507,8 +527,8 @@ export function GlobSummary({
   truncated?: boolean
   isError?: boolean
 }) {
-  const root = useConversationPath()
-  const relPath = path ? relToRoot(path, root) : undefined
+  const roots = useProjectRoots()
+  const relPath = path ? relToRoot(path, roots) : undefined
   return (
     <span className="flex items-center gap-1.5 min-w-0 flex-wrap">
       <code className="px-1 py-0 rounded bg-purple-500/10 text-purple-300/90 text-[10px] font-mono break-all">
