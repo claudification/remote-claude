@@ -39,5 +39,3 @@ export function TogglePill({ active, onClick, label, small, shortcut, title }: T
     </button>
   )
 }
-
-export default TogglePill

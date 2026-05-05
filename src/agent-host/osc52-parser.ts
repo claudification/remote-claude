@@ -11,6 +11,10 @@
  * Non-OSC-52 data passes through unchanged.
  */
 
+import { detectImageMime } from '../shared/mime-detect'
+
+export { detectImageMime }
+
 const MAX_PAYLOAD_SIZE = 10_000_000 // 10MB (matches xterm.js limit)
 
 // fallow-ignore-next-line duplicate-export
@@ -29,14 +33,6 @@ enum State {
   IN_OSC_TARGETS, // past "52;", accumulating target chars
   IN_OSC_PAYLOAD, // past second ";", accumulating base64
   SAW_ESC_IN_PAYLOAD, // saw \x1b inside payload (potential ST)
-}
-
-export function detectImageMime(base64: string): string | null {
-  if (base64.startsWith('iVBORw0K')) return 'image/png'
-  if (base64.startsWith('/9j/')) return 'image/jpeg'
-  if (base64.startsWith('R0lGOD')) return 'image/gif'
-  if (base64.startsWith('UklGR')) return 'image/webp'
-  return null
 }
 
 export class Osc52Parser {

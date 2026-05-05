@@ -246,11 +246,7 @@ function handleTaskNotification(
   return routedToSubagent
 }
 
-function handleTaskProgress(
-  hctx: HandlerContext,
-  msg: Record<string, unknown>,
-  systemEntry: TranscriptEntry,
-): boolean {
+function handleTaskProgress(hctx: HandlerContext, msg: Record<string, unknown>, systemEntry: TranscriptEntry): boolean {
   const { monitors, callbacks } = hctx
   const progressTaskId = msg.task_id as string
   debug(`task_progress: task=${progressTaskId} tokens=${(msg.usage as Record<string, unknown>)?.total_tokens}`)
@@ -280,6 +276,28 @@ function handleStatusSubtype(hctx: HandlerContext, msg: Record<string, unknown>)
   }
 }
 
+/**
+ * Routes a transcript entry through subagent, replay, or live emission.
+ * Shared by handleAssistant and handleUser to avoid duplicating the
+ * three-branch routing conditional.
+ */
+function routeEntry(
+  replay: ReplayBuffer,
+  callbacks: HandlerContext['callbacks'],
+  msg: Record<string, unknown>,
+  parentToolUseId: string | null,
+  entry: TranscriptEntry,
+) {
+  if (parentToolUseId && callbacks.onSubagentEntry) {
+    callbacks.onSubagentEntry(parentToolUseId, entry)
+  } else if (msg.isReplay) {
+    if (!replay.done) replay.entries.push(entry)
+  } else {
+    if (!replay.done) flushReplayBuffer(replay, callbacks.onTranscriptEntries)
+    callbacks.onTranscriptEntries?.([entry], false)
+  }
+}
+
 function handleAssistant(hctx: HandlerContext, msg: Record<string, unknown>) {
   const { monitors, replay, callbacks } = hctx
   const parentToolUseId = msg.parent_tool_use_id as string | null
@@ -293,14 +311,7 @@ function handleAssistant(hctx: HandlerContext, msg: Record<string, unknown>) {
     ...(msg.uuid ? { uuid: msg.uuid as string } : {}),
   } as TranscriptEntry
 
-  if (parentToolUseId && callbacks.onSubagentEntry) {
-    callbacks.onSubagentEntry(parentToolUseId, entry)
-  } else if (msg.isReplay) {
-    if (!replay.done) replay.entries.push(entry)
-  } else {
-    if (!replay.done) flushReplayBuffer(replay, callbacks.onTranscriptEntries)
-    callbacks.onTranscriptEntries?.([entry], false)
-  }
+  routeEntry(replay, callbacks, msg, parentToolUseId, entry)
 }
 
 function cacheMonitorInputs(monitors: MonitorTracker, msg: Record<string, unknown>) {
@@ -340,14 +351,7 @@ function handleUser(hctx: HandlerContext, msg: Record<string, unknown>) {
     ;(entry as Record<string, unknown>).toolUseResult = msg.tool_use_result
   }
 
-  if (parentToolUseId && callbacks.onSubagentEntry) {
-    callbacks.onSubagentEntry(parentToolUseId, entry)
-  } else if (msg.isReplay) {
-    if (!replay.done) replay.entries.push(entry)
-  } else {
-    if (!replay.done) flushReplayBuffer(replay, callbacks.onTranscriptEntries)
-    callbacks.onTranscriptEntries?.([entry], false)
-  }
+  routeEntry(replay, callbacks, msg, parentToolUseId, entry)
 }
 
 function extractMonitorFromToolResult(
@@ -403,7 +407,7 @@ function detectMonitorNotifications(
       : Array.isArray(userMsg?.content)
         ? userMsg.content
             .filter((b): b is { text: string } => typeof (b as Record<string, unknown>).text === 'string')
-            .map((b) => b.text)
+            .map(b => b.text)
             .join('')
         : ''
 

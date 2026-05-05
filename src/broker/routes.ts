@@ -21,15 +21,7 @@ import { createStatsRouter } from './routes/stats'
 import type { StoreDriver } from './store/types'
 
 // Re-export blob/file helpers for external consumers (session-store, handlers, etc.)
-export {
-  appendSharedFile,
-  dismissSharedFile,
-  mediaTypeToExt,
-  processImagesInEntry,
-  readSharedFiles,
-  type SharedFileEntry,
-  storeBlobStreaming,
-} from './routes/blob-store'
+export { appendSharedFile, type SharedFileEntry } from './routes/blob-store'
 
 // ─── MIME types ────────────────────────────────────────────────────────
 

@@ -63,5 +63,3 @@ export function TileToggleRow({
     </div>
   )
 }
-
-export default TileToggleRow

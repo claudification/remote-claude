@@ -368,5 +368,3 @@ export class FileEditor {
     return version
   }
 }
-
-export default FileEditor

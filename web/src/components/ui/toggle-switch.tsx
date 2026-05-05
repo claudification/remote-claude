@@ -23,5 +23,3 @@ export function ToggleSwitch({ on }: { on: boolean }) {
     </div>
   )
 }
-
-export default ToggleSwitch
