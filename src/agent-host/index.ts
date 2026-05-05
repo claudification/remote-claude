@@ -22,10 +22,10 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { generateFunnyName } from '../shared/funny-names'
-import type { AgentHostMessage, HookEvent, TranscriptEntry } from '../shared/protocol'
 import { cwdToProjectUri } from '../shared/project-uri'
+import type { AgentHostMessage, HookEvent, TranscriptEntry } from '../shared/protocol'
 import type { AgentHostContext } from './agent-host-context'
-import { connectToBroker, type BrokerConnectionDeps } from './broker-connection'
+import { type BrokerConnectionDeps, connectToBroker } from './broker-connection'
 import { createCleanup, registerSignalHandlers } from './cleanup'
 import {
   detectClaudeAuth,
@@ -40,14 +40,14 @@ import {
 import { debug, setDebugStderr } from './debug'
 import { wireDiag } from './diag-buffer'
 import { ensureRclaudeDir } from './ensure-rclaude-dir'
-import { emitLaunchEvent, filterRelevantEnv } from './launch-events'
 import { buildHeadlessSpawnOptions, sendAdHocPrompt } from './headless-lifecycle'
 import { processHookEvent } from './hook-processor'
+import { emitLaunchEvent, filterRelevantEnv } from './launch-events'
 import { setLocalServerDebug, startLocalServer } from './local-server'
-import { initMcpChannel, setClaudeCodeVersion, setDialogCwd } from './mcp-channel'
 import { buildMcpCallbacksWithRules } from './mcp-callbacks'
+import { initMcpChannel, setClaudeCodeVersion, setDialogCwd } from './mcp-channel'
 import { Osc52Parser } from './osc52-parser'
-import { sendInteraction, clearInteraction } from './pending-interactions'
+import { clearInteraction, sendInteraction } from './pending-interactions'
 import { createRulesEngine } from './permission-rules'
 import { buildSystemPrompt } from './prompt-builder'
 import { type PtyProcess, setupTerminalPassthrough, spawnClaude } from './pty-spawn'
@@ -302,7 +302,13 @@ async function main() {
     buildSystemPrompt({
       channelEnabled: cli.channelEnabled,
       headless: cli.headless,
-      identity: { ccSessionId: conversationId, conversationId, cwd, configuredModel: cli.configuredModel, headless: cli.headless },
+      identity: {
+        ccSessionId: conversationId,
+        conversationId,
+        cwd,
+        configuredModel: cli.configuredModel,
+        headless: cli.headless,
+      },
     }),
   )
   cli.claudeArgs.push('--append-system-prompt', readFileSync(promptFile, 'utf-8'))
@@ -485,10 +491,7 @@ interface PtySpawnDeps {
   cleanup: () => void
 }
 
-function spawnPty(
-  ctx: AgentHostContext,
-  deps: PtySpawnDeps,
-): { cleanupTerminal: () => void } | null {
+function spawnPty(ctx: AgentHostContext, deps: PtySpawnDeps): { cleanupTerminal: () => void } | null {
   ctx.wsClient?.sendBootEvent('claude_spawning', `pty ${deps.finalClaudeArgs.length} args`)
   emitLaunchEvent(ctx, 'launch_started', {
     detail: `pty (${deps.finalClaudeArgs.length} args)`,
@@ -545,11 +548,7 @@ function spawnPty(
   }
 }
 
-function handlePtyData(
-  ctx: AgentHostContext,
-  deps: PtySpawnDeps,
-  data: string,
-) {
+function handlePtyData(ctx: AgentHostContext, deps: PtySpawnDeps, data: string) {
   if (deps.channelEnabled && !deps.devChannelConfirmed.value) {
     const plain = data.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b[=>?][0-9]*[a-zA-Z]/g, '')
     if (plain.includes('Entertoconfirm')) {
@@ -586,12 +585,7 @@ function handlePtyData(
   }
 }
 
-function handlePtyExit(
-  ctx: AgentHostContext,
-  deps: PtySpawnDeps,
-  code: number | null,
-  ptySpawnedAt: number,
-) {
+function handlePtyExit(ctx: AgentHostContext, deps: PtySpawnDeps, code: number | null, ptySpawnedAt: number) {
   const elapsedMs = Date.now() - ptySpawnedAt
   if (elapsedMs < 10_000 && code !== 0) {
     debug(`PTY early exit: code=${code} elapsed=${elapsedMs}ms - reporting spawn_failed`)

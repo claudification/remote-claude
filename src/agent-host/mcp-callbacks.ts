@@ -309,14 +309,7 @@ export function buildMcpCallbacksWithRules(
       })
     },
 
-    async onConfigureConversation({
-      conversationId: targetConversationId,
-      label,
-      icon,
-      color,
-      description,
-      keyterms,
-    }) {
+    async onConfigureConversation({ conversationId: targetConversationId, label, icon, color, description, keyterms }) {
       if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to broker' }
       return new Promise(resolve => {
         const timeout = setTimeout(() => resolve({ ok: false, error: 'Timeout' }), 10000)

@@ -80,12 +80,7 @@ async function resolveDialogFiles(
       }
 
       if (Array.isArray(comp.children)) {
-        const err = await resolveDialogFiles(
-          comp.children as Array<Record<string, unknown>>,
-          uploadFile,
-          cwd,
-          elog,
-        )
+        const err = await resolveDialogFiles(comp.children as Array<Record<string, unknown>>, uploadFile, cwd, elog)
         if (err) return err
       }
     } catch (err) {

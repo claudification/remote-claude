@@ -15,13 +15,19 @@ import { executeControl } from './execute-control'
 import { handleFileEditorMessage } from './file-editor-handler'
 import { replayLaunchEvents } from './launch-events'
 import { resolveAskRequest } from './local-server'
-import { isMcpChannelReady, keepaliveDialog, pushChannelMessage, resolveDialog, sendPermissionResponse } from './mcp-channel'
+import type { ConversationInfo } from './mcp-channel'
+import {
+  isMcpChannelReady,
+  keepaliveDialog,
+  pushChannelMessage,
+  resolveDialog,
+  sendPermissionResponse,
+} from './mcp-channel'
 import { clearInteraction, replayInteractions } from './pending-interactions'
 import type { RulesEngine } from './permission-rules'
 import { getTerminalSize } from './pty-spawn'
-import { resendTranscriptFromFile, startTranscriptWatcher } from './transcript-manager'
 import { readAndSendTasks, startProjectWatching, startTaskWatching } from './task-watcher'
-import type { ConversationInfo } from './mcp-channel'
+import { resendTranscriptFromFile, startTranscriptWatcher } from './transcript-manager'
 import { createWsClient } from './ws-client'
 
 export interface BrokerConnectionDeps {
@@ -74,26 +80,62 @@ const pendingRendezvous = new Map<
  */
 export function getPendingCallbacks() {
   return {
-    get pendingListConversations() { return pendingListConversations },
-    set pendingListConversations(v) { pendingListConversations = v },
-    get pendingSendResult() { return pendingSendResult },
-    set pendingSendResult(v) { pendingSendResult = v },
-    get pendingReviveResult() { return pendingReviveResult },
-    set pendingReviveResult(v) { pendingReviveResult = v },
-    get pendingRestartResult() { return pendingRestartResult },
-    set pendingRestartResult(v) { pendingRestartResult = v },
-    get pendingSpawnResult() { return pendingSpawnResult },
-    set pendingSpawnResult(v) { pendingSpawnResult = v },
-    get pendingSpawnRequestId() { return pendingSpawnRequestId },
-    set pendingSpawnRequestId(v) { pendingSpawnRequestId = v },
+    get pendingListConversations() {
+      return pendingListConversations
+    },
+    set pendingListConversations(v) {
+      pendingListConversations = v
+    },
+    get pendingSendResult() {
+      return pendingSendResult
+    },
+    set pendingSendResult(v) {
+      pendingSendResult = v
+    },
+    get pendingReviveResult() {
+      return pendingReviveResult
+    },
+    set pendingReviveResult(v) {
+      pendingReviveResult = v
+    },
+    get pendingRestartResult() {
+      return pendingRestartResult
+    },
+    set pendingRestartResult(v) {
+      pendingRestartResult = v
+    },
+    get pendingSpawnResult() {
+      return pendingSpawnResult
+    },
+    set pendingSpawnResult(v) {
+      pendingSpawnResult = v
+    },
+    get pendingSpawnRequestId() {
+      return pendingSpawnRequestId
+    },
+    set pendingSpawnRequestId(v) {
+      pendingSpawnRequestId = v
+    },
     pendingSpawnDiagnostics,
     launchJobListeners,
-    get pendingConfigureResult() { return pendingConfigureResult },
-    set pendingConfigureResult(v) { pendingConfigureResult = v },
-    get pendingRenameResult() { return pendingRenameResult },
-    set pendingRenameResult(v) { pendingRenameResult = v },
-    get pendingControlResult() { return pendingControlResult },
-    set pendingControlResult(v) { pendingControlResult = v },
+    get pendingConfigureResult() {
+      return pendingConfigureResult
+    },
+    set pendingConfigureResult(v) {
+      pendingConfigureResult = v
+    },
+    get pendingRenameResult() {
+      return pendingRenameResult
+    },
+    set pendingRenameResult(v) {
+      pendingRenameResult = v
+    },
+    get pendingControlResult() {
+      return pendingControlResult
+    },
+    set pendingControlResult(v) {
+      pendingControlResult = v
+    },
     pendingRendezvous,
   }
 }
@@ -247,9 +289,7 @@ export function connectToBroker(ctx: AgentHostContext, deps: BrokerConnectionDep
       pendingListConversations?.(sessions, self)
     },
     onChannelSendResult(result) {
-      pendingSendResult?.(
-        result as { ok: boolean; error?: string; conversationId?: string; targetSessionId?: string },
-      )
+      pendingSendResult?.(result as { ok: boolean; error?: string; conversationId?: string; targetSessionId?: string })
     },
     onChannelReviveResult(result) {
       pendingReviveResult?.(result)
@@ -369,12 +409,7 @@ function handleConnected(ctx: AgentHostContext, deps: BrokerConnectionDeps, ccSe
   startProjectWatching(ctx)
 }
 
-function handleInput(
-  ctx: AgentHostContext,
-  deps: BrokerConnectionDeps,
-  input: string,
-  crDelay?: number,
-) {
+function handleInput(ctx: AgentHostContext, deps: BrokerConnectionDeps, input: string, crDelay?: number) {
   if (deps.headless) {
     if (!ctx.streamProc || !input) return
     const trimmed = input.trimEnd()
@@ -466,12 +501,7 @@ function writeToPty(ctx: AgentHostContext, input: string, crDelay?: number) {
   )
 }
 
-function handleFileRequest(
-  ctx: AgentHostContext,
-  deps: BrokerConnectionDeps,
-  requestId: string,
-  path: string,
-) {
+function handleFileRequest(ctx: AgentHostContext, deps: BrokerConnectionDeps, requestId: string, path: string) {
   readFile(path)
     .then(buf => {
       const ext = path.split('.').pop()?.toLowerCase() || ''
@@ -694,11 +724,7 @@ function handlePlanApproval(
   }
 }
 
-function handleRendezvousResult(
-  ctx: AgentHostContext,
-  deps: BrokerConnectionDeps,
-  message: Record<string, unknown>,
-) {
+function handleRendezvousResult(ctx: AgentHostContext, deps: BrokerConnectionDeps, message: Record<string, unknown>) {
   const msgType = message.type as string
   const ccSessionId = message.ccSessionId as string | undefined
   const cwd = message.cwd as string | undefined

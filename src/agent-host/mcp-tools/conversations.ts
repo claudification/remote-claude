@@ -176,9 +176,7 @@ export function registerConversationTools(ctx: McpToolContext): Record<string, T
         }
         if (action === 'set_permission_mode' && !permissionMode) {
           return {
-            content: [
-              { type: 'text', text: 'Error: permissionMode is required when action is "set_permission_mode"' },
-            ],
+            content: [{ type: 'text', text: 'Error: permissionMode is required when action is "set_permission_mode"' }],
             isError: true,
           }
         }
