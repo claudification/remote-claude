@@ -7,6 +7,7 @@ import { createSqliteCostStore } from './costs'
 import { createSqliteEventStore } from './events'
 import { createSqliteKVStore } from './kv'
 import { createSqliteMessageStore } from './messages'
+import { migrateSessionColumns } from './migrate-session-columns'
 import { createSchema } from './schema'
 import { createSqliteScopeLinkStore } from './scope-links'
 import { createSqliteShareStore } from './shares'
@@ -16,6 +17,7 @@ import { createSqliteTranscriptStore } from './transcripts'
 export function createSqliteDriver(config: StoreConfig): StoreDriver {
   const filename = config.filename ?? join(config.dataDir ?? '.', 'store.db')
   const db = new Database(filename, { strict: true })
+  migrateSessionColumns(db)
   createSchema(db)
 
   return {

@@ -5,7 +5,13 @@ import type { Database } from 'bun:sqlite'
  * in all tables. Uses ALTER TABLE RENAME COLUMN (SQLite 3.25+).
  */
 export function migrateSessionColumns(db: Database) {
-  // Check if migration already applied (conversation_id exists in transcript_entries)
+  // Check if the old `sessions` table exists (needs migration)
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'").all()
+  if (tables.length === 0) {
+    return // fresh DB or already migrated
+  }
+
+  // Double-check: if conversation_id already exists in transcript_entries, skip
   const cols = db.prepare('PRAGMA table_info(transcript_entries)').all() as Array<{ name: string }>
   if (cols.some(c => c.name === 'conversation_id')) {
     return // already migrated
