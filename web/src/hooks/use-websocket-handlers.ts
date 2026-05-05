@@ -370,7 +370,7 @@ function handleConversationInfo(msg: DashboardMessage) {
     },
   }))
   console.log(
-    `[ws] session_info ${sid.slice(0, 8)}: ${(msg.tools as unknown[])?.length} tools, ${(msg.skills as unknown[])?.length} skills`,
+    `[ws] conversation_info ${sid.slice(0, 8)}: ${(msg.tools as unknown[])?.length} tools, ${(msg.skills as unknown[])?.length} skills`,
   )
 }
 
@@ -728,12 +728,32 @@ function handlePermissions(msg: DashboardMessage) {
 
 // ─── results + job events ──────────────────────────────────────────────────
 
+const ACTION_TITLES: Record<string, string> = {
+  send_input_result: 'Message not delivered',
+  dismiss_conversation_result: 'Dismiss failed',
+  dismiss_session_result: 'Dismiss failed',
+  update_settings_result: 'Settings update failed',
+  update_project_settings_result: 'Project settings update failed',
+  delete_project_settings_result: 'Project settings delete failed',
+  update_project_order_result: 'Reorder failed',
+  revive_conversation_result: 'Revive failed',
+  revive_session_result: 'Revive failed',
+  rename_conversation_result: 'Rename failed',
+  conversation_control_result: 'Control action failed',
+}
+
 function handleActionResult(msg: DashboardMessage) {
-  // WS action results (fire-and-forget error feedback)
   if (msg.ok === false) {
-    console.error(`[ws] ${msg.type}: ${msg.error}`)
+    const type = (msg.type as string) || 'action'
+    const error = (msg.error as string) || 'unknown error'
+    console.error(`[ws] ${type}: ${error}`)
+    const title = ACTION_TITLES[type] ?? `Action failed: ${type}`
+    window.dispatchEvent(
+      new CustomEvent('rclaude-toast', {
+        detail: { title, body: error, variant: 'warning' },
+      }),
+    )
   }
-  // Dispatch for LaunchMonitor to pick up
   window.dispatchEvent(new CustomEvent('revive-session-result', { detail: msg }))
 }
 

@@ -8,11 +8,6 @@ import { GuardError, type HandlerContext, type MessageData, type MessageHandler 
 
 const handlers = new Map<string, MessageHandler>()
 
-/** Register a handler for a message type */
-function registerHandler(type: string, handler: MessageHandler): void {
-  handlers.set(type, handler)
-}
-
 /** Register multiple handlers at once */
 export function registerHandlers(map: Record<string, MessageHandler>): void {
   for (const [type, handler] of Object.entries(map)) {
@@ -35,20 +30,12 @@ export function routeMessage(ctx: HandlerContext, type: string, data: MessageDat
     }
   } catch (err) {
     if (err instanceof GuardError) {
-      // Guard failures: send error reply with the conventional _result suffix
-      const replyType = type.includes('channel_') ? `${type}_result` : type
-      ctx.reply({ type: replyType, ok: false, error: err.message })
+      ctx.reply({ type: `${type}_result`, ok: false, error: err.message })
     } else {
-      // Unexpected errors: log and send generic error
       console.error(`[router] Handler error for ${type}:`, err)
       ctx.reply({ type: `${type}_result`, ok: false, error: 'Internal error' })
     }
   }
 
   return true
-}
-
-/** Check if a handler is registered for a type */
-function hasHandler(type: string): boolean {
-  return handlers.has(type)
 }

@@ -97,8 +97,10 @@ export interface ConversationStore {
   findSocketByConversationId: (connectionId: string) => ServerWebSocket<unknown> | undefined
   findConversationByConversationId: (connectionId: string) => Conversation | undefined
   removeConversationSocket: (conversationId: string, connectionId: string) => void
+  removeConversationSocketsByRef: (ws: ServerWebSocket<unknown>) => string[]
   getActiveConversationCount: (conversationId: string) => number
   getConnectionIds: (conversationId: string) => string[]
+  reapPhantomConversations: () => string[]
   // Transcript cache methods
   addTranscriptEntries: (conversationId: string, entries: TranscriptEntry[], isInitial: boolean) => void
   getTranscriptEntries: (conversationId: string, limit?: number) => TranscriptEntry[]
@@ -1178,7 +1180,24 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     wrappers.set(connectionId, ws)
   }
 
+  /** Drop sockets that are not OPEN. Returns the post-prune size. */
+  function pruneDeadSockets(conversationId: string): number {
+    const wrappers = conversationSockets.get(conversationId)
+    if (!wrappers) return 0
+    for (const [connId, ws] of wrappers.entries()) {
+      if ((ws as { readyState?: number }).readyState !== WebSocket.OPEN) {
+        wrappers.delete(connId)
+      }
+    }
+    if (wrappers.size === 0) {
+      conversationSockets.delete(conversationId)
+      return 0
+    }
+    return wrappers.size
+  }
+
   function getConversationSocket(conversationId: string): ServerWebSocket<unknown> | undefined {
+    pruneDeadSockets(conversationId)
     const wrappers = conversationSockets.get(conversationId)
     if (!wrappers || wrappers.size === 0) return undefined
     // Return the most recently added agent host socket
@@ -1190,7 +1209,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   function findSocketByConversationId(connectionId: string): ServerWebSocket<unknown> | undefined {
     for (const wrappers of conversationSockets.values()) {
       const ws = wrappers.get(connectionId)
-      if (ws) return ws
+      if (ws && (ws as { readyState?: number }).readyState === WebSocket.OPEN) return ws
     }
     return undefined
   }
@@ -1210,13 +1229,55 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
   }
 
+  /**
+   * Remove every entry in the socket map whose value === ws (identity).
+   * Authoritative cleanup that doesn't rely on ws.data fields. Returns the
+   * conversation IDs that lost a socket so the caller can end empty ones.
+   */
+  function removeConversationSocketsByRef(ws: ServerWebSocket<unknown>): string[] {
+    const touched: string[] = []
+    for (const [convId, wrappers] of conversationSockets.entries()) {
+      let removedHere = false
+      for (const [connId, candidate] of wrappers.entries()) {
+        if (candidate === ws) {
+          wrappers.delete(connId)
+          removedHere = true
+        }
+      }
+      if (removedHere) {
+        touched.push(convId)
+        if (wrappers.size === 0) conversationSockets.delete(convId)
+      }
+    }
+    return touched
+  }
+
   function getActiveConversationCount(conversationId: string): number {
-    return conversationSockets.get(conversationId)?.size ?? 0
+    return pruneDeadSockets(conversationId)
   }
 
   function getConnectionIds(conversationId: string): string[] {
+    pruneDeadSockets(conversationId)
     const wrappers = conversationSockets.get(conversationId)
     return wrappers ? Array.from(wrappers.keys()) : []
+  }
+
+  /**
+   * Reap conversations whose sockets have all closed without firing the WS
+   * close handler (network blip, OS sleep, half-open TCP). Returns the list
+   * of conversation IDs that were ended so the caller can broadcast / log.
+   */
+  function reapPhantomConversations(): string[] {
+    const ended: string[] = []
+    for (const [convId, conversation] of conversations.entries()) {
+      if (conversation.status === 'ended') continue
+      const live = pruneDeadSockets(convId)
+      if (live === 0) {
+        endConversation(convId, 'connection_closed')
+        ended.push(convId)
+      }
+    }
+    return ended
   }
 
   // Terminal viewer management (multiple viewers per session) -- delegated to terminal-registry
@@ -1683,8 +1744,10 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     findSocketByConversationId,
     findConversationByConversationId,
     removeConversationSocket,
+    removeConversationSocketsByRef,
     getActiveConversationCount,
     getConnectionIds,
+    reapPhantomConversations,
     addTerminalViewer,
     getTerminalViewers,
     removeTerminalViewer,

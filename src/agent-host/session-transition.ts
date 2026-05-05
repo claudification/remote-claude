@@ -8,7 +8,7 @@
  *   2. stream-json init     -> headless-lifecycle.ts onInit
  *
  * In headless mode with hooks enabled both fire, in non-deterministic order.
- * Historically each tried to emit the right `session_promote` / `session_clear`
+ * Historically each tried to emit the right `conversation_promote` / `conversation_clear`
  * message on its own, with state (ctx.claudeSessionId, wsClient.ccSessionId,
  * ctx.pendingClearFromId) spread across three places. That produced a race
  * where the first observer promoted a post-/clear respawn as a boot, silently
@@ -61,9 +61,9 @@ export interface SessionTransition {
  *
  * Broker messages sent:
  *   - boot + no wsClient     -> connectToBroker opens a fresh socket
- *   - boot + booting wsClient -> session_promote + meta (via setSessionId)
+ *   - boot + booting wsClient -> conversation_promote + meta (via setSessionId)
  *                                + session_ready boot_event
- *   - rekey                  -> session_clear (oldId, newId) on same socket
+ *   - rekey                  -> conversation_clear (oldId, newId) on same socket
  *   - confirm                -> nothing
  */
 export function observeClaudeSessionId(
@@ -177,7 +177,7 @@ function handleRekey(ctx: AgentHostContext, fromId: string, newId: string, model
 }
 
 function emitTransition(ctx: AgentHostContext, t: SessionTransition): SessionTransition {
-  ctx.diag('session', `transition: ${t.kind} (${t.reason})`, {
+  ctx.diag('conversation', `transition: ${t.kind} (${t.reason})`, {
     source: t.source,
     from: t.from?.slice(0, 8) ?? null,
     to: t.to.slice(0, 8),

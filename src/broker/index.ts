@@ -697,62 +697,82 @@ async function main() {
             return
           }
 
-          // Handle rclaude session disconnection
-          const closeConversationId = ws.data.conversationId
-          const closeConnectionId = ws.data.connectionId || ws.data.conversationId
-          if (closeConversationId) {
-            // Notify terminal viewers attached to this agent host's PTY
-            const viewers = conversationStore.getTerminalViewers(closeConversationId)
-            if (viewers.size > 0) {
-              const msg = JSON.stringify({
-                type: 'terminal_error',
-                conversationId: closeConversationId,
-                error: 'Wrapper disconnected',
-              })
-              for (const viewer of viewers) {
-                try {
-                  viewer.send(msg)
-                } catch {}
+          // Handle agent host disconnection. Authoritative cleanup is by socket
+          // identity, NOT ws.data.conversationId -- a socket can land in the map
+          // before agent_host_boot/meta tags ws.data, and we must still end the
+          // conversation when it dies. ws.data.conversationId is only a hint
+          // for viewer notifications.
+          const touchedConversationIds = conversationStore.removeConversationSocketsByRef(ws)
+          const hintConversationId = ws.data.conversationId
+          // Make sure the hint id is in the set even if the by-ref pass didn't
+          // find it (e.g. socket was never registered).
+          const conversationIdsToCheck = new Set<string>(touchedConversationIds)
+          if (hintConversationId) conversationIdsToCheck.add(hintConversationId)
+
+          if (conversationIdsToCheck.size > 0) {
+            // Notify any terminal/json-stream viewers attached to these conversations.
+            for (const cid of conversationIdsToCheck) {
+              const viewers = conversationStore.getTerminalViewers(cid)
+              if (viewers.size > 0) {
+                const msg = JSON.stringify({
+                  type: 'terminal_error',
+                  conversationId: cid,
+                  error: 'Wrapper disconnected',
+                })
+                for (const viewer of viewers) {
+                  try {
+                    viewer.send(msg)
+                  } catch {}
+                }
+                for (const viewer of viewers) {
+                  conversationStore.removeTerminalViewer(cid, viewer)
+                }
               }
-              for (const viewer of viewers) {
-                conversationStore.removeTerminalViewer(closeConversationId, viewer)
+
+              const jsViewers = conversationStore.getJsonStreamViewers(cid)
+              if (jsViewers.size > 0) {
+                const msg = JSON.stringify({
+                  type: 'json_stream_data',
+                  conversationId: cid,
+                  lines: [],
+                  isBackfill: false,
+                })
+                for (const viewer of jsViewers) {
+                  try {
+                    viewer.send(msg)
+                  } catch {}
+                }
+                for (const viewer of jsViewers) {
+                  conversationStore.removeJsonStreamViewer(cid, viewer)
+                }
               }
             }
 
-            // Notify json-stream viewers attached to this agent host
-            const jsViewers = conversationStore.getJsonStreamViewers(closeConversationId)
-            if (jsViewers.size > 0) {
-              const msg = JSON.stringify({
-                type: 'json_stream_data',
-                conversationId: closeConversationId,
-                lines: [],
-                isBackfill: false,
-              })
-              for (const viewer of jsViewers) {
-                try {
-                  viewer.send(msg)
-                } catch {}
+            // End every conversation that has no live socket left. Use the
+            // hint id (set by meta/agent_host_boot) when present so restart
+            // semantics target the conversation the user actually started.
+            const primaryConversationId = hintConversationId ?? touchedConversationIds[0]
+            for (const cid of conversationIdsToCheck) {
+              const remaining = conversationStore.getActiveConversationCount(cid)
+              const session = conversationStore.getConversation(cid)
+              if (!session || session.status === 'ended' || remaining > 0) {
+                if (verbose && remaining > 0) {
+                  console.log(
+                    `[~] Wrapper disconnected from conversation ${cid.slice(0, 8)}... (${remaining} wrappers remaining)`,
+                  )
+                }
+                continue
               }
-              for (const viewer of jsViewers) {
-                conversationStore.removeJsonStreamViewer(closeConversationId, viewer)
-              }
-            }
-
-            // Remove this agent host's socket
-            conversationStore.removeConversationSocket(closeConversationId, closeConnectionId || closeConversationId)
-            const remaining = conversationStore.getActiveConversationCount(closeConversationId)
-
-            const session = conversationStore.getConversation(closeConversationId)
-            if (session && session.status !== 'ended' && remaining === 0) {
-              // Last agent host disconnected - end the conversation
-              conversationStore.endConversation(closeConversationId, 'connection_closed')
+              conversationStore.endConversation(cid, 'connection_closed')
+              conversationStore.broadcastConversationUpdate(cid)
               if (verbose) {
-                console.log(
-                  `[-] Session ended: ${closeConversationId.slice(0, 8)}... (connection_closed, last wrapper)`,
-                )
+                console.log(`[-] Session ended: ${cid.slice(0, 8)}... (connection_closed, last wrapper)`)
               }
+              if (cid !== primaryConversationId) continue
 
-              // Check for pending restart (terminate + auto-revive)
+              // Check for pending restart (terminate + auto-revive). Only runs
+              // for the primary conversation (the one named in ws.data).
+              const closeConversationId = cid
               const pendingRestart = conversationStore.consumePendingRestart(closeConversationId)
               if (pendingRestart) {
                 const sentinel = conversationStore.getSentinel()
@@ -799,10 +819,6 @@ async function main() {
                   console.log('[restart] No sentinel connected - cannot revive after restart')
                 }
               }
-            } else if (verbose && remaining > 0) {
-              console.log(
-                `[~] Wrapper ${closeConversationId.slice(0, 8)} disconnected from conversation ${closeConversationId.slice(0, 8)}... (${remaining} wrappers remaining)`,
-              )
             }
           }
         },
@@ -821,6 +837,22 @@ async function main() {
 │  Verbose:    ${verbose ? 'ON ' : 'OFF'}                                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 `)
+
+  // Reap conversations whose sockets all died without a clean WS close
+  // (network blip, OS sleep, half-open TCP). Runs every 30s.
+  setInterval(() => {
+    try {
+      const ended = conversationStore.reapPhantomConversations()
+      if (ended.length > 0) {
+        for (const id of ended) {
+          console.log(`[reaper] ended phantom conversation ${id.slice(0, 8)}... (no live sockets)`)
+          conversationStore.broadcastConversationUpdate(id)
+        }
+      }
+    } catch (err) {
+      console.error('[broker] Phantom reaper crashed -- swallowing:', err)
+    }
+  }, 30_000)
 
   // Print status periodically
   if (verbose) {

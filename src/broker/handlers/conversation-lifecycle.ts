@@ -157,9 +157,9 @@ const heartbeat: MessageHandler = () => {
   // Heartbeats keep the WS alive but do NOT count as activity.
 }
 
-// ─── Session clear (/clear resets ephemeral state, updates ccSessionId metadata) ──
+// ─── Conversation clear (/clear resets ephemeral state, updates ccSessionId metadata) ──
 
-const sessionClear: MessageHandler = (ctx, data) => {
+const conversationClear: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId as string) || ctx.ws.data.conversationId
   const newCcSessionId = data.newCcSessionId as string
   if (!conversationId || !newCcSessionId) return
@@ -178,7 +178,7 @@ const sessionClear: MessageHandler = (ctx, data) => {
       `Conversation cleared: ${conversationId.slice(0, 8)} cc=${newCcSessionId.slice(0, 8)} (${extractProjectLabel(clearProject)})`,
     )
   } else {
-    ctx.log.debug(`session_clear: conversation ${conversationId.slice(0, 8)} not found, creating new`)
+    ctx.log.debug(`conversation_clear: conversation ${conversationId.slice(0, 8)} not found, creating new`)
     const newConv = ctx.conversations.createConversation(conversationId, clearProject, data.model as string)
     newConv.ccSessionId = newCcSessionId
     ctx.ws.data.ccSessionId = newCcSessionId
@@ -258,9 +258,9 @@ const end: MessageHandler = (ctx, data) => {
   }
 }
 
-// ─── Session status signal (backend-agnostic active/idle) ──────────
+// ─── Conversation status signal (backend-agnostic active/idle) ──────────
 
-const sessionStatus: MessageHandler = (ctx, data) => {
+const conversationStatus: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
@@ -278,7 +278,7 @@ const sessionStatus: MessageHandler = (ctx, data) => {
     if (conversation.rateLimit) conversation.rateLimit = undefined
   }
   ctx.conversations.broadcastConversationUpdate(conversationId)
-  ctx.log.debug(`session_status: ${conversationId.slice(0, 8)} -> ${status}`)
+  ctx.log.debug(`conversation_status: ${conversationId.slice(0, 8)} -> ${status}`)
 }
 
 export function registerConversationLifecycleHandlers(): void {
@@ -286,8 +286,8 @@ export function registerConversationLifecycleHandlers(): void {
     meta,
     hook,
     heartbeat,
-    session_clear: sessionClear,
-    conversation_status: sessionStatus,
+    conversation_clear: conversationClear,
+    conversation_status: conversationStatus,
     notify,
     end,
   })

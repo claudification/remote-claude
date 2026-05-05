@@ -4,7 +4,7 @@
  * These tests verify that:
  * 1. Sessions can discover each other via list_conversations
  * 2. send_message works WITHOUT a prior list_conversations call
- * 3. send_message survives session_clear (rekey) -- the exact regression
+ * 3. send_message survives conversation_clear (rekey) -- the exact regression
  * 4. Compound project:session-slug routing works
  * 5. Unknown targets produce clean errors
  */
@@ -133,7 +133,7 @@ describe('inter-session messaging', () => {
       expect(delivered[0].intent).toBe('request')
     })
 
-    it('works after session_clear (rekey) -- the regression', async () => {
+    it('works after conversation_clear (rekey) -- the regression', async () => {
       const sessionA = testId('sess-a')
       const sessionB = testId('sess-b')
       const convA = testId('conv-a')
@@ -155,7 +155,7 @@ describe('inter-session messaging', () => {
       // Simulate /clear on session A -- rekeys to a new session ID
       const newSessionA = testId('sess-a-new')
       h.agentSend(agentA, {
-        type: 'session_clear',
+        type: 'conversation_clear',
         oldCcSessionId: sessionA,
         newCcSessionId: newSessionA,
         conversationId: convA,

@@ -140,7 +140,7 @@ export interface WsClientOptions {
   ) => void
   /** Optional sink for structured diagnostics from inside the ws client.
    *  Wired to ctx.diag by index.ts so the dashboard's diag endpoint can
-   *  surface warnings (e.g. suppressed same-id session_clear). */
+   *  surface warnings (e.g. suppressed same-id conversation_clear). */
   onDiag?: (type: string, msg: string, args?: unknown) => void
 }
 
@@ -161,7 +161,7 @@ export interface WsClient {
   /** Emit a structured boot-phase event. Queued if not yet connected. */
   sendBootEvent: (step: BootStep, detail?: string, raw?: unknown) => void
   /** Called once the real CC session id is known. Sends `meta` (so the
-   *  broker can resume/create the real session) and `session_promote`
+   *  broker can resume/create the real session) and `conversation_promote`
    *  so the booting entry gets merged into the real session. */
   setSessionId: (ccSessionId: string, source: 'stream_json' | 'hook') => void
   close: () => void
@@ -664,16 +664,16 @@ export function createWsClient(options: WsClientOptions): WsClient {
     // of truth this should NEVER fire in normal operation -- if it does, an
     // observer raced around observeClaudeSessionId and advanced wsClient's
     // internal id before the real rekey landed. Log loudly so the regression
-    // is obvious in diag. Still short-circuit: emitting session_clear with
+    // is obvious in diag. Still short-circuit: emitting conversation_clear with
     // oldId === newId destroys channel subscribers on the broker.
     if (ccSessionId === newSessionId) {
-      const warn = `WARN: same-id session_clear suppressed (${prev.slice(0, 8)}) -- observer race?`
+      const warn = `WARN: same-id conversation_clear suppressed (${prev.slice(0, 8)}) -- observer race?`
       debug(warn)
       onDiag?.('session', warn, { conversationId, ccSessionId })
       return
     }
     const msg: ConversationRekey = {
-      type: 'session_clear',
+      type: 'conversation_clear',
       oldCcSessionId: prev,
       newCcSessionId: newSessionId,
       conversationId,
@@ -755,7 +755,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     if (!wasBoot) return // already had a session id, nothing to promote
     // Tell the broker to migrate the booting session to the real one.
     const promote: ConversationPromote = {
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId,
       ccSessionId: newSessionId,
       source,

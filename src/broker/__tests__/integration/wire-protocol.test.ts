@@ -123,7 +123,7 @@ describe('conversation lifecycle', () => {
     expect(conv?.status).toBe('ended')
   })
 
-  it('session_clear updates ccSessionId metadata, keeps conversation under same key', async () => {
+  it('conversation_clear updates ccSessionId metadata, keeps conversation under same key', async () => {
     const convId = testId('conv')
     const oldCcSessionId = testId('old-cc')
     const newCcSessionId = testId('new-cc')
@@ -142,7 +142,7 @@ describe('conversation lifecycle', () => {
     })
 
     h.agentSend(agent, {
-      type: 'session_clear',
+      type: 'conversation_clear',
       oldCcSessionId: oldCcSessionId,
       newCcSessionId: newCcSessionId,
       conversationId: convId,

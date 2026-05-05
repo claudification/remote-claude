@@ -92,7 +92,7 @@ run('agent host lifecycle', () => {
     await sleep(100)
 
     agent.send({
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId: convId,
       ccSessionId,
       source: 'staging-test',
@@ -138,7 +138,7 @@ run('agent host lifecycle', () => {
     await sleep(100)
 
     agent.send({
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId: convId,
       ccSessionId,
       source: 'staging-test',
@@ -229,7 +229,7 @@ run('dashboard subscription', () => {
     await sleep(100)
 
     agent.send({
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId: convId,
       ccSessionId,
       source: 'staging-test',
@@ -285,7 +285,7 @@ run('channel subscriptions', () => {
     await sleep(100)
 
     agent.send({
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId: convId,
       ccSessionId,
       source: 'staging-test',
@@ -400,7 +400,7 @@ run('session status', () => {
     await sleep(100)
 
     agent.send({
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId: convId,
       ccSessionId,
       source: 'staging-test',
@@ -465,7 +465,7 @@ run('HTTP API', () => {
     await sleep(100)
 
     agent.send({
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId: convId,
       ccSessionId,
       source: 'staging-test',
@@ -535,7 +535,7 @@ run('wire protocol shape', () => {
     await sleep(100)
 
     agent.send({
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId: convId,
       ccSessionId,
       source: 'staging-test',
@@ -604,7 +604,7 @@ run('wire protocol shape', () => {
     await sleep(100)
 
     agent.send({
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId: convId,
       ccSessionId,
       source: 'staging-test',
@@ -650,7 +650,7 @@ run('wire protocol shape', () => {
     await sleep(100)
 
     agent.send({
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId: convId,
       ccSessionId,
       source: 'staging-test',
@@ -677,7 +677,7 @@ run('wire protocol shape', () => {
 // ---------------------------------------------------------------------------
 
 run('session clear (rekey)', () => {
-  it('session_clear migrates conversation to new ccSessionId', async () => {
+  it('conversation_clear migrates conversation to new ccSessionId', async () => {
     const agent = await connectAgentHost()
     const convId = testId('conv')
     const oldCcSessionId = testId('old-cc')
@@ -695,7 +695,7 @@ run('session clear (rekey)', () => {
     await sleep(100)
 
     agent.send({
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId: convId,
       ccSessionId: oldCcSessionId,
       source: 'staging-test',
@@ -714,7 +714,7 @@ run('session clear (rekey)', () => {
 
     // Rekey
     agent.send({
-      type: 'session_clear',
+      type: 'conversation_clear',
       oldCcSessionId: oldCcSessionId,
       newCcSessionId: newCcSessionId,
       conversationId: convId,
@@ -757,7 +757,7 @@ run('dashboard to agent relay', () => {
     await sleep(100)
 
     agent.send({
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId: convId,
       ccSessionId,
       source: 'staging-test',
@@ -808,7 +808,7 @@ run('dashboard to agent relay', () => {
     await sleep(100)
 
     agent.send({
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId: convId,
       ccSessionId,
       source: 'staging-test',
@@ -867,7 +867,7 @@ run('agent host disconnect', () => {
     await sleep(100)
 
     agent.send({
-      type: 'session_promote',
+      type: 'conversation_promote',
       conversationId: convId,
       ccSessionId,
       source: 'staging-test',

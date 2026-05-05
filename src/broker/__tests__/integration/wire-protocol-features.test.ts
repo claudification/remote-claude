@@ -210,8 +210,9 @@ describe('dismiss conversation', () => {
       conversationId: convId,
     })
 
-    // GuardError replies use the message type directly (not _result suffix)
-    const result = dashboard.messagesOfType('dismiss_conversation')
+    // GuardError replies always use the _result suffix so the dashboard
+    // (which only listens for *_result) actually surfaces the error.
+    const result = dashboard.messagesOfType('dismiss_conversation_result')
     expect(result.length).toBe(1)
     expect(result[0].ok).toBe(false)
     expect(result[0].error).toBe('Only ended conversations can be dismissed')
@@ -411,7 +412,7 @@ describe('HTTP API data contracts', () => {
 // ---------------------------------------------------------------------------
 
 describe('conversation metadata updates', () => {
-  it('session_name updates session title', async () => {
+  it('conversation_name updates session title', async () => {
     const convId = testId('conv')
     const ccSessionId = testId('cc')
 
@@ -429,7 +430,7 @@ describe('conversation metadata updates', () => {
     })
 
     h.agentSend(agent, {
-      type: 'session_name',
+      type: 'conversation_name',
       conversationId: convId,
       name: 'My Test Session',
       description: 'Testing things',
@@ -442,7 +443,7 @@ describe('conversation metadata updates', () => {
     expect(conv?.description).toBe('Testing things')
   })
 
-  it('session_name with userSet prevents auto-name overwrite', async () => {
+  it('conversation_name with userSet prevents auto-name overwrite', async () => {
     const convId = testId('conv')
     const ccSessionId = testId('cc')
 
@@ -460,14 +461,14 @@ describe('conversation metadata updates', () => {
     })
 
     h.agentSend(agent, {
-      type: 'session_name',
+      type: 'conversation_name',
       conversationId: convId,
       name: 'User Title',
       userSet: true,
     })
 
     h.agentSend(agent, {
-      type: 'session_name',
+      type: 'conversation_name',
       conversationId: convId,
       name: 'Auto Generated Title',
     })

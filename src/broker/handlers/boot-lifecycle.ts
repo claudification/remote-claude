@@ -1,10 +1,10 @@
 /**
- * Boot lifecycle handlers (wrapper_boot / boot_event / session_promote).
+ * Boot lifecycle handlers (wrapper_boot / boot_event / conversation_promote).
  *
  * The agent host opens its WS to the broker BEFORE Claude Code is spawned
  * so the dashboard shows "booting" state and receives live progress events.
  * Once CC produces a session id (via stream-json `init` or SessionStart hook),
- * the agent host sends `session_promote` to store the ccSessionId as metadata
+ * the agent host sends `conversation_promote` to store the ccSessionId as metadata
  * on the conversation (the conversationId store key stays the same).
  */
 
@@ -60,7 +60,7 @@ const agentHostBoot: MessageHandler = (ctx, data) => {
     if (bootConfiguredModel) existing.configuredModel = bootConfiguredModel
   } else {
     // Create a placeholder session keyed by conversationId -- the real conversationId
-    // replaces this once session_promote arrives.
+    // replaces this once conversation_promote arrives.
     const placeholder = ctx.conversations.createConversation(
       conversationId,
       resolvedProject,
@@ -155,14 +155,14 @@ const launchEvent: MessageHandler = (ctx, data) => {
   })
 }
 
-const sessionPromote: MessageHandler = (ctx, data) => {
+const conversationPromote: MessageHandler = (ctx, data) => {
   const conversationId = data.conversationId as string
   const ccSessionId = data.ccSessionId as string
   if (!conversationId || !ccSessionId) return
 
   const bootConversation = ctx.conversations.getConversation(conversationId)
   if (!bootConversation) {
-    ctx.log.debug(`[boot] session_promote for unknown conversation: ${conversationId.slice(0, 8)}`)
+    ctx.log.debug(`[boot] conversation_promote for unknown conversation: ${conversationId.slice(0, 8)}`)
     return
   }
 
@@ -181,6 +181,6 @@ export function registerBootLifecycleHandlers(): void {
     agent_host_boot: agentHostBoot,
     boot_event: bootEvent,
     launch_event: launchEvent,
-    session_promote: sessionPromote,
+    conversation_promote: conversationPromote,
   })
 }

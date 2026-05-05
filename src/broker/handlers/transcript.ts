@@ -11,7 +11,7 @@ import { filterDisplayEntries } from '../../shared/transcript-filter'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 
-/** Stored session_info snapshot shape used for cross-turn diffing. */
+/** Stored conversation_info snapshot shape used for cross-turn diffing. */
 interface ConversationInfoSnapshot {
   tools?: unknown[]
   slashCommands?: unknown[]
@@ -49,13 +49,13 @@ function setDiff(prev: string[], next: string[]): { added: string[]; removed: st
 }
 
 /**
- * Compare two session_info snapshots and return structured launch entries for
- * every meaningful change. The agent host sends raw session_info every turn; the
+ * Compare two conversation_info snapshots and return structured launch entries for
+ * every meaningful change. The agent host sends raw conversation_info every turn; the
  * broker is the single brain that decides "something changed, notify
  * the user." Each change becomes its own TranscriptLaunchEntry (phase: 'live',
  * fresh launchId) so they render as separate cards.
  */
-function diffSessionInfo(prev: ConversationInfoSnapshot, next: ConversationInfoSnapshot): TranscriptLaunchEntry[] {
+function diffConversationInfo(prev: ConversationInfoSnapshot, next: ConversationInfoSnapshot): TranscriptLaunchEntry[] {
   const out: TranscriptLaunchEntry[] = []
   const ts = () => new Date().toISOString()
   const mkEntry = (step: AgentHostLaunchStep, detail: string, raw: Record<string, unknown>): TranscriptLaunchEntry => ({
@@ -203,20 +203,21 @@ const subagentTranscriptRequest: MessageHandler = (ctx, data) => {
   }
 }
 
-// Session info from headless init - store on session and broadcast to dashboard
-const sessionInfo: MessageHandler = (ctx, data) => {
+// Conversation info from headless init - store on conversation and broadcast to dashboard
+const conversationInfo: MessageHandler = (ctx, data) => {
   const wsConversationId = ctx.ws.data.conversationId as string | undefined
-  // Resolve conversation: try conversationId first, then find by conversationId routing key
   const conversation =
     (wsConversationId ? ctx.conversations.getConversation(wsConversationId) : null) ||
     (wsConversationId ? ctx.conversations.findConversationByConversationId(wsConversationId) : null)
   if (!conversation) {
-    ctx.log.debug(`session_info: no conversation found (conversationId=${wsConversationId?.slice(0, 8)})`)
+    ctx.log.debug(`conversation_info: no conversation found (conversationId=${wsConversationId?.slice(0, 8)})`)
     return
   }
   const conversationId = conversation.id
   const prevSnapshot =
-    ((conversation as unknown as Record<string, unknown>).sessionInfo as ConversationInfoSnapshot | undefined) || {}
+    ((conversation as unknown as Record<string, unknown>).conversationInfoSnapshot as
+      | ConversationInfoSnapshot
+      | undefined) || {}
   const nextSnapshot: ConversationInfoSnapshot = {
     tools: data.tools as unknown[] | undefined,
     slashCommands: data.slashCommands as unknown[] | undefined,
@@ -229,7 +230,7 @@ const sessionInfo: MessageHandler = (ctx, data) => {
     claudeCodeVersion: data.claudeCodeVersion as string | undefined,
     fastModeState: data.fastModeState as string | undefined,
   }
-  ;(conversation as unknown as Record<string, unknown>).sessionInfo = nextSnapshot
+  ;(conversation as unknown as Record<string, unknown>).conversationInfoSnapshot = nextSnapshot
 
   // The init message is ground truth for model identity -- it's what CC
   // is actually running, not what was requested via --model.
@@ -270,11 +271,11 @@ const sessionInfo: MessageHandler = (ctx, data) => {
 
   // Diff against the previous snapshot (if any) and emit one transcript entry
   // per meaningful change. Only on subsequent snapshots -- the first
-  // session_info is the initial state captured already by launch_event init_received,
+  // conversation_info is the initial state captured already by launch_event init_received,
   // so we skip it (prev is empty object => all fields look "new" which is noise).
   const hadPrevious = Object.keys(prevSnapshot).length > 0
   if (hadPrevious) {
-    const changes = diffSessionInfo(prevSnapshot, nextSnapshot)
+    const changes = diffConversationInfo(prevSnapshot, nextSnapshot)
     if (changes.length > 0) {
       ctx.conversations.addTranscriptEntries(conversationId, changes, false)
       ctx.conversations.broadcastToChannel('conversation:transcript', conversationId, {
@@ -283,7 +284,7 @@ const sessionInfo: MessageHandler = (ctx, data) => {
         entries: changes,
         isInitial: false,
       })
-      ctx.log.info(`session_info diff: ${changes.map(c => c.step).join(', ')} (${conversationId.slice(0, 8)})`)
+      ctx.log.info(`conversation_info diff: ${changes.map(c => c.step).join(', ')} (${conversationId.slice(0, 8)})`)
     }
   }
 
@@ -292,7 +293,7 @@ const sessionInfo: MessageHandler = (ctx, data) => {
     ctx.broadcastScoped({ ...data, type: 'conversation_info', conversationId }, conversation.project)
   }
   ctx.log.debug(
-    `session_info: ${(data.tools as unknown[])?.length} tools, ${(data.skills as unknown[])?.length} skills, ${(data.agents as unknown[])?.length} agents`,
+    `conversation_info: ${(data.tools as unknown[])?.length} tools, ${(data.skills as unknown[])?.length} skills, ${(data.agents as unknown[])?.length} agents`,
   )
 }
 
@@ -367,7 +368,7 @@ const turnCost: MessageHandler = (ctx, data) => {
   }
 }
 
-const sessionName: MessageHandler = (ctx, data) => {
+const conversationName: MessageHandler = (ctx, data) => {
   const conversationId = data.conversationId as string
   const name = data.name as string
   const description = typeof data.description === 'string' ? data.description : undefined
@@ -469,7 +470,7 @@ const resultText: MessageHandler = (ctx, data) => {
 
 export function registerTranscriptHandlers(): void {
   registerHandlers({
-    session_name: sessionName,
+    conversation_name: conversationName,
     turn_cost: turnCost,
     tasks_update: tasksUpdate,
     diag: diagHandler,
@@ -480,7 +481,7 @@ export function registerTranscriptHandlers(): void {
     subagent_transcript_request: subagentTranscriptRequest,
     stream_delta: streamDelta,
     rate_limit: rateLimitHandler,
-    session_info: sessionInfo,
+    conversation_info: conversationInfo,
     result_text: resultText,
     monitor_update: monitorUpdate,
     scheduled_task_fire: scheduledTaskFire,

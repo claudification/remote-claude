@@ -33,46 +33,46 @@ function executeHeadlessControl(
   if (!ctx.streamProc) return false
   switch (action) {
     case 'clear':
-      ctx.diag('session', `Clear requested (${source}) - killing CC and respawning fresh`)
+      ctx.diag('conversation', `Clear requested (${source}) - killing CC and respawning fresh`)
       beginLaunch(ctx, 'reboot')
       emitLaunchEvent(ctx, 'clear_requested', { detail: source })
       ctx.streamProc.kill()
       ctx.clearRequested = true
       return true
     case 'quit': {
-      ctx.diag('session', `Quit requested (${source}) - closing stdin for graceful shutdown`)
+      ctx.diag('conversation', `Quit requested (${source}) - closing stdin for graceful shutdown`)
       const closed = ctx.streamProc.closeStdin()
       if (closed) {
         const proc = ctx.streamProc
         setTimeout(() => {
           if (!proc.proc.killed) {
-            ctx.diag('session', 'CC still alive 10s after stdin close - sending SIGTERM')
+            ctx.diag('conversation', 'CC still alive 10s after stdin close - sending SIGTERM')
             proc.kill()
           }
         }, 10_000)
       } else {
-        ctx.diag('session', 'Stdin close failed - falling back to SIGTERM')
+        ctx.diag('conversation', 'Stdin close failed - falling back to SIGTERM')
         ctx.streamProc.kill()
       }
       return true
     }
     case 'interrupt':
-      ctx.diag('session', `Interrupt requested (${source})`)
+      ctx.diag('conversation', `Interrupt requested (${source})`)
       ctx.streamProc.sendInterrupt()
       return true
     case 'set_model':
       if (!args.model) return false
-      ctx.diag('session', `Set model requested (${source}): ${args.model}`)
+      ctx.diag('conversation', `Set model requested (${source}): ${args.model}`)
       ctx.streamProc.sendSetModel(args.model)
       return true
     case 'set_effort':
       if (!args.effort) return false
-      ctx.diag('session', `Set effort requested (${source}): ${args.effort}`)
+      ctx.diag('conversation', `Set effort requested (${source}): ${args.effort}`)
       ctx.streamProc.sendSetEffort(args.effort)
       return true
     case 'set_permission_mode':
       if (!args.permissionMode) return false
-      ctx.diag('session', `Set permission mode requested (${source}): ${args.permissionMode}`)
+      ctx.diag('conversation', `Set permission mode requested (${source}): ${args.permissionMode}`)
       ctx.streamProc.sendSetPermissionMode(args.permissionMode)
       return true
     default:
@@ -89,32 +89,32 @@ function executePtyControl(
   if (!ctx.ptyProcess) return false
   switch (action) {
     case 'clear':
-      ctx.diag('session', `Clear requested (${source}) - injecting /clear via PTY`)
+      ctx.diag('conversation', `Clear requested (${source}) - injecting /clear via PTY`)
       beginLaunch(ctx, 'reboot')
       emitLaunchEvent(ctx, 'clear_requested', { detail: `${source} (pty)` })
       ctx.ptyProcess.write('/clear\r')
       return true
     case 'quit':
-      ctx.diag('session', `Quit requested (${source}) - sending SIGTERM to PTY`)
+      ctx.diag('conversation', `Quit requested (${source}) - sending SIGTERM to PTY`)
       ctx.ptyProcess.kill('SIGTERM')
       return true
     case 'interrupt':
-      ctx.diag('session', `Interrupt requested (${source}) - sending Ctrl+C to PTY`)
+      ctx.diag('conversation', `Interrupt requested (${source}) - sending Ctrl+C to PTY`)
       ctx.ptyProcess.write('\x03')
       return true
     case 'set_model':
       if (!args.model) return false
-      ctx.diag('session', `Set model requested (${source}): ${args.model}`)
+      ctx.diag('conversation', `Set model requested (${source}): ${args.model}`)
       ctx.ptyProcess.write(`/model ${args.model}\r`)
       return true
     case 'set_effort':
       if (!args.effort) return false
-      ctx.diag('session', `Set effort requested (${source}): ${args.effort}`)
+      ctx.diag('conversation', `Set effort requested (${source}): ${args.effort}`)
       ctx.ptyProcess.write(`/effort ${args.effort}\r`)
       return true
     case 'set_permission_mode':
       if (!args.permissionMode) return false
-      ctx.diag('session', `Set permission mode not supported in PTY mode (${source}): ${args.permissionMode}`)
+      ctx.diag('conversation', `Set permission mode not supported in PTY mode (${source}): ${args.permissionMode}`)
       return false
     default:
       return false

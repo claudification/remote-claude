@@ -97,7 +97,7 @@ describe('observeClaudeSessionId', () => {
       },
       { fn: 'sendBootEvent', step: 'session_ready', detail: undefined, raw: undefined },
     ])
-    expect(diagCalls[0]).toMatchObject({ type: 'session', msg: 'transition: boot (first-init)' })
+    expect(diagCalls[0]).toMatchObject({ type: 'conversation', msg: 'transition: boot (first-init)' })
   })
 
   test('first-init boot: no wsClient, opens a fresh connection', () => {
@@ -110,7 +110,7 @@ describe('observeClaudeSessionId', () => {
     expect(wsCalls).toEqual([])
   })
 
-  test('post-clear rekey (hook fires first): emits session_clear with old->new', () => {
+  test('post-clear rekey (hook fires first): emits conversation_clear with old->new', () => {
     // Scenario from the 2026-04-17 incident. onExit left claudeSessionId intact
     // and set pendingClearFromId. Hook sees the new id first and MUST rekey,
     // not promote-as-boot.
@@ -132,13 +132,13 @@ describe('observeClaudeSessionId', () => {
     expect(wsCalls).toEqual([
       { fn: 'sendConversationRekey', id: 'sess-new', project: 'claude://default/test/cwd', model: 'claude-opus-4-7' },
     ])
-    expect(diagCalls.at(-1)).toMatchObject({ type: 'session', msg: 'transition: rekey (post-clear)' })
+    expect(diagCalls.at(-1)).toMatchObject({ type: 'conversation', msg: 'transition: rekey (post-clear)' })
   })
 
   test('post-clear: onInit fires AFTER hook already rekeyed -> confirm no-op', () => {
     // Hook ran first, updated claudeSessionId to the new id, cleared pending.
     // onInit now fires with the same id -- must classify as duplicate confirm,
-    // NOT emit another session_clear (would hit the same-id guard regression).
+    // NOT emit another conversation_clear (would hit the same-id guard regression).
     const { ctx, wsCalls, diagCalls } = makeCtx({
       claudeSessionId: 'sess-new',
       pendingClearFromId: null,
@@ -153,7 +153,7 @@ describe('observeClaudeSessionId', () => {
       to: 'sess-new',
     })
     expect(wsCalls).toEqual([])
-    expect(diagCalls.at(-1)).toMatchObject({ type: 'session', msg: 'transition: confirm (duplicate)' })
+    expect(diagCalls.at(-1)).toMatchObject({ type: 'conversation', msg: 'transition: confirm (duplicate)' })
   })
 
   test('post-clear: onInit fires BEFORE hook -> onInit does the rekey', () => {

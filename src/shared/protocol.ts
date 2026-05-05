@@ -108,7 +108,7 @@ export interface ConversationEnd {
 // Agent Host tells broker the Claude session ID changed (e.g. /clear)
 // Same agent host, same PTY, just a new Claude session -- re-key without ending
 export interface ConversationRekey {
-  type: 'session_clear'
+  type: 'conversation_clear'
   oldCcSessionId: string
   newCcSessionId: string
   conversationId: string
@@ -446,7 +446,7 @@ export type AgentHostLaunchStep =
   | 'init_received' // CC reported a session id. raw: { session_id, model, tools, slash_commands, skills, agents, mcp_servers, plugins, ... }
   | 'rekeyed' // observeClaudeSessionId completed the rekey. detail: from -> to
   | 'ready' // launch settled; session usable
-  // Mid-session state changes -- broker emits these by diffing session_info
+  // Mid-session state changes -- broker emits these by diffing conversation_info
   // across turns. Phase is 'live' (not initial/reboot). Each gets its own launchId
   // so they render as separate cards in the transcript.
   | 'model_changed' // detail: "old -> new". raw: { from, to }
@@ -483,7 +483,7 @@ export interface AgentHostLaunchEvent {
  *  CC has produced a session id. Source indicates which channel won the race
  *  (stream-json init in headless, SessionStart hook in PTY). */
 export interface ConversationPromote {
-  type: 'session_promote'
+  type: 'conversation_promote'
   conversationId: string
   ccSessionId: string
   source: 'stream_json' | 'hook'

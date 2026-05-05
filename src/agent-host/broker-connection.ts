@@ -375,7 +375,7 @@ export function connectToBroker(ctx: AgentHostContext, deps: BrokerConnectionDep
         permissionMode: args.permissionMode,
         source,
       })
-      if (!ok) ctx.diag('session', `Control ignored: ${action} (backend not ready or missing args)`)
+      if (!ok) ctx.diag('conversation', `Control ignored: ${action} (backend not ready or missing args)`)
     },
     onDiag(type, msg, args) {
       ctx.diag(type, msg, args)
