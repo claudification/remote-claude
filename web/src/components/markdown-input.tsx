@@ -27,7 +27,7 @@ interface MarkdownInputProps {
   inline?: boolean
   enableAutocomplete?: boolean
   enableEffortKeywords?: boolean
-  onStash?: () => void
+  onStash?: (text: string) => void
 }
 
 export function MarkdownInput({

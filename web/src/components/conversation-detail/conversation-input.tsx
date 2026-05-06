@@ -81,10 +81,10 @@ export const InputBar = memo(function InputBar({ conversationId }: { conversatio
     requestAnimationFrame(() => containerRef.current && focusInputEditor(containerRef.current))
   }
 
-  function handleStash() {
-    const text = inputRef.current.trim()
-    if (text) {
-      useConversationsStore.getState().pushStash(conversationId, text)
+  function handleStash(text: string) {
+    const trimmed = text.trim()
+    if (trimmed) {
+      useConversationsStore.getState().pushStash(conversationId, trimmed)
       setInputValue('')
       useConversationsStore.getState().setInputDraft(conversationId, '')
       haptic('tick')

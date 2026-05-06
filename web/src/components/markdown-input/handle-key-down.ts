@@ -18,7 +18,7 @@ interface KeyDownContext {
   ) => void
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   handleSubmit: () => void
-  onStash?: () => void
+  onStash?: (text: string) => void
 }
 
 export function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>, ctx: KeyDownContext) {
@@ -39,7 +39,7 @@ export function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>, ctx: 
 
   if (e.ctrlKey && e.key === 's' && ctx.onStash) {
     e.preventDefault()
-    ctx.onStash()
+    ctx.onStash(ctx.value)
     return
   }
 

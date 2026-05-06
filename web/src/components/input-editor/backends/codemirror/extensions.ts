@@ -250,7 +250,7 @@ function inputTheme(fontSize: number, minHeight: string, maxHeight: string): Ext
 
 interface InputExtensionOptions {
   onSubmit: () => void
-  onStash?: () => void
+  onStash?: (text: string) => void
   fontSize?: number
   minHeight?: string
   maxHeight?: string
@@ -320,8 +320,13 @@ export function buildInputExtensions(opts: InputExtensionOptions): Extension[] {
     ? keymap.of([
         {
           key: 'Ctrl-s',
-          run: () => {
-            opts.onStash?.()
+          run: view => {
+            const text = view.state.doc.toString()
+            const len = view.state.doc.length
+            if (len > 0) {
+              view.dispatch({ changes: { from: 0, to: len, insert: '' } })
+            }
+            opts.onStash?.(text)
             return true
           },
           preventDefault: true,

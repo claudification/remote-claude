@@ -76,7 +76,7 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
     () =>
       buildInputExtensions({
         onSubmit: () => onSubmitRef.current(),
-        onStash: props.onStash ? () => onStashRef.current?.() : undefined,
+        onStash: props.onStash ? (text: string) => onStashRef.current?.(text) : undefined,
         // Larger font on mobile for thumb typing; bumped further in the
         // expanded panel (see scoped CSS override below).
         fontSize: isMobile ? 16 : 14,
