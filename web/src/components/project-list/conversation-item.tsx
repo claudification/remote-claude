@@ -1009,15 +1009,26 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
         {session.compacting && <span className="text-[9px] text-amber-400 font-bold animate-pulse">COMPACT</span>}
         {session.lastError && <span className="text-[9px] text-destructive font-bold">ERROR</span>}
         {session.rateLimit && !session.lastError && (
-          <span title={`Rate limited: ${session.rateLimit.message}${session.rateLimit.retryAfterMs ? ` (retry in ${Math.ceil(session.rateLimit.retryAfterMs / 1000)}s)` : ''}`}>
+          <span
+            title={`Rate limited: ${session.rateLimit.message}${session.rateLimit.retryAfterMs ? ` (retry in ${Math.ceil(session.rateLimit.retryAfterMs / 1000)}s)` : ''}`}
+          >
             <Clock size={11} className="text-amber-400" />
           </span>
         )}
         {(() => {
           const pm = formatPermissionMode(session.permissionMode)
-          if (!pm && session.planMode) return <span className="text-[9px] text-blue-400 font-bold" title="Plan mode -- requires plan approval">P</span>
+          if (!pm && session.planMode)
+            return (
+              <span className="text-[9px] text-blue-400 font-bold" title="Plan mode -- requires plan approval">
+                P
+              </span>
+            )
           if (!pm) return null
-          return <span className={cn('text-[9px] font-bold', pm.color)} title={pm.title}>{pm.label}</span>
+          return (
+            <span className={cn('text-[9px] font-bold', pm.color)} title={pm.title}>
+              {pm.label}
+            </span>
+          )
         })()}
         {session.status === 'idle' &&
           (() => {

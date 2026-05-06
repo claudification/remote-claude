@@ -31,10 +31,7 @@ export function StatusRow({ session, model }: { session: Session; model: string 
         const pm = formatPermissionMode(session.permissionMode)
         if (!pm) return null
         return (
-          <span
-            className={cn('px-1.5 py-0.5 text-[9px] font-bold uppercase', pm.color, pm.bgColor)}
-            title={pm.title}
-          >
+          <span className={cn('px-1.5 py-0.5 text-[9px] font-bold uppercase', pm.color, pm.bgColor)} title={pm.title}>
             {pm.label}
           </span>
         )

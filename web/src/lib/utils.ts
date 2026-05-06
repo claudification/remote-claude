@@ -151,15 +151,40 @@ export function formatPermissionMode(
   if (!mode || mode === 'default') return null
   switch (mode) {
     case 'plan':
-      return { label: 'P', title: 'Plan mode -- requires plan approval', color: 'text-blue-400', bgColor: 'bg-blue-500/10' }
+      return {
+        label: 'P',
+        title: 'Plan mode -- requires plan approval',
+        color: 'text-blue-400',
+        bgColor: 'bg-blue-500/10',
+      }
     case 'acceptEdits':
-      return { label: 'E', title: 'Accept edits -- auto-accept file changes', color: 'text-cyan-400', bgColor: 'bg-cyan-500/10' }
+      return {
+        label: 'E',
+        title: 'Accept edits -- auto-accept file changes',
+        color: 'text-cyan-400',
+        bgColor: 'bg-cyan-500/10',
+      }
     case 'auto':
-      return { label: 'A', title: 'Auto mode -- accept all actions', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10' }
+      return {
+        label: 'A',
+        title: 'Auto mode -- accept all actions',
+        color: 'text-emerald-400',
+        bgColor: 'bg-emerald-500/10',
+      }
     case 'bypassPermissions':
-      return { label: 'B', title: 'Bypass -- dangerously skip all permissions', color: 'text-red-400', bgColor: 'bg-red-500/10' }
+      return {
+        label: 'B',
+        title: 'Bypass -- dangerously skip all permissions',
+        color: 'text-red-400',
+        bgColor: 'bg-red-500/10',
+      }
     default:
-      return { label: mode[0]?.toUpperCase() || '?', title: `Permission mode: ${mode}`, color: 'text-muted-foreground', bgColor: 'bg-muted/30' }
+      return {
+        label: mode[0]?.toUpperCase() || '?',
+        title: `Permission mode: ${mode}`,
+        color: 'text-muted-foreground',
+        bgColor: 'bg-muted/30',
+      }
   }
 }
 

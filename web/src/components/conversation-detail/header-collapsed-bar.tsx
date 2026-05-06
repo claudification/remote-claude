@@ -61,14 +61,18 @@ function EffortIndicator({ effortLevel }: { effortLevel: string | undefined }) {
 function PermissionBadge({ permissionMode, inPlanMode }: { permissionMode: string | undefined; inPlanMode: boolean }) {
   const pm = formatPermissionMode(permissionMode)
   if (!pm && inPlanMode) {
-    return <span className="text-[10px] text-blue-400 font-bold px-1 py-0.5 bg-blue-500/10 rounded" title="Plan mode -- requires plan approval">P</span>
+    return (
+      <span
+        className="text-[10px] text-blue-400 font-bold px-1 py-0.5 bg-blue-500/10 rounded"
+        title="Plan mode -- requires plan approval"
+      >
+        P
+      </span>
+    )
   }
   if (!pm) return null
   return (
-    <span
-      className={cn('text-[10px] font-bold px-1 py-0.5 rounded', pm.color, pm.bgColor)}
-      title={pm.title}
-    >
+    <span className={cn('text-[10px] font-bold px-1 py-0.5 rounded', pm.color, pm.bgColor)} title={pm.title}>
       {pm.label}
     </span>
   )
