@@ -1,10 +1,10 @@
 /**
  * Inter-Conversation Message Log - append log for messages between conversations.
  * Each entry stores a 200-char preview, conversation IDs, and projects.
- * Backed by StoreDriver KVStore (replaces JSONL file persistence).
+ * Backed by StoreDriver.messages (SQLite message_log table).
  */
 
-import type { KVStore } from './store/types'
+import type { MessageStore } from './store/types'
 
 export interface InterSessionLogEntry {
   ts: number
@@ -17,41 +17,30 @@ export interface InterSessionLogEntry {
 }
 
 const MAX_ENTRIES = 10_000
-const RETENTION_DAYS = 30
-const AGGRESSIVE_RETENTION_DAYS = 7
+const RETENTION_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
-const KV_KEY = 'inter-session-log'
+let store: MessageStore | null = null
 
-let kv: KVStore | null = null
-let entries: InterSessionLogEntry[] = []
-
-export function initInterSessionLog(store: KVStore): void {
-  kv = store
-  const raw = kv.get<InterSessionLogEntry[]>(KV_KEY)
-  if (raw && Array.isArray(raw)) {
-    entries = raw
-    // Migrate legacy fields
-    for (const entry of entries) {
-      const from = entry.from as Record<string, unknown>
-      const to = entry.to as Record<string, unknown>
-      if (from.cwd && !from.project) from.project = from.cwd
-      if (to.cwd && !to.project) to.project = to.cwd
-      // Legacy migration removed (breaking change branch)
-    }
-    compact()
-  } else {
-    entries = []
-  }
-}
-
-function save(): void {
-  if (!kv) return
-  kv.set(KV_KEY, entries)
+export function initInterSessionLog(messageStore: MessageStore): void {
+  store = messageStore
+  store.compactLog(RETENTION_MS, MAX_ENTRIES)
 }
 
 export function appendMessage(entry: InterSessionLogEntry): void {
-  entries.push(entry)
-  save()
+  if (!store) return
+  store.log({
+    fromScope: entry.from.project,
+    toScope: entry.to.project,
+    fromConversationId: entry.from.conversationId,
+    toConversationId: entry.to.conversationId,
+    fromName: entry.from.name,
+    toName: entry.to.name,
+    content: entry.preview,
+    intent: entry.intent,
+    conversationId: entry.conversationId,
+    fullLength: entry.fullLength,
+    createdAt: entry.ts,
+  })
 }
 
 export function queryMessages(opts: {
@@ -64,60 +53,53 @@ export function queryMessages(opts: {
   messages: InterSessionLogEntry[]
   hasMore: boolean
 } {
+  if (!store) return { messages: [], hasMore: false }
+
   const limit = Math.min(opts.limit || 50, 200)
 
+  // Use scope filter for single-project or conversation-pair queries
+  const scope = opts.projectA || opts.project
+  const entries = store.queryLog({
+    scope,
+    limit: limit + 1, // fetch one extra to detect hasMore
+    before: opts.before,
+  })
+
+  // Post-filter for project pair (SQLite only does single-scope filter)
   let filtered = entries
   if (opts.projectA && opts.projectB) {
     filtered = entries.filter(
       e =>
-        (e.from.project === opts.projectA && e.to.project === opts.projectB) ||
-        (e.from.project === opts.projectB && e.to.project === opts.projectA),
+        (e.fromScope === opts.projectA && e.toScope === opts.projectB) ||
+        (e.fromScope === opts.projectB && e.toScope === opts.projectA),
     )
-  } else if (opts.project) {
-    filtered = entries.filter(e => e.from.project === opts.project || e.to.project === opts.project)
   }
 
-  if (opts.before) {
-    filtered = filtered.filter(e => e.ts < (opts.before as number))
-  }
-
-  // Return most recent, paginated
   const hasMore = filtered.length > limit
-  const messages = filtered.slice(-limit)
+  const messages = filtered.slice(0, limit).map(
+    (e): InterSessionLogEntry => ({
+      ts: e.createdAt,
+      from: {
+        conversationId: e.fromConversationId || '',
+        project: e.fromScope,
+        name: e.fromName || e.fromScope,
+      },
+      to: {
+        conversationId: e.toConversationId || '',
+        project: e.toScope,
+        name: e.toName || e.toScope,
+      },
+      intent: e.intent || '',
+      conversationId: e.conversationId || '',
+      preview: e.content || '',
+      fullLength: e.fullLength || (e.content?.length ?? 0),
+    }),
+  )
+
   return { messages, hasMore }
 }
 
 export function purgeMessages(projectA: string, projectB: string): number {
-  const before = entries.length
-  entries = entries.filter(
-    e =>
-      !(
-        (e.from.project === projectA && e.to.project === projectB) ||
-        (e.from.project === projectB && e.to.project === projectA)
-      ),
-  )
-  if (entries.length < before) {
-    save()
-  }
-  return before - entries.length
-}
-
-function compact(): void {
-  const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000
-  let compacted = entries.filter(e => e.ts > cutoff)
-
-  // If still too large, use aggressive retention
-  if (compacted.length > MAX_ENTRIES) {
-    const aggressiveCutoff = Date.now() - AGGRESSIVE_RETENTION_DAYS * 24 * 60 * 60 * 1000
-    compacted = compacted.filter(e => e.ts > aggressiveCutoff)
-  }
-
-  if (compacted.length < entries.length) {
-    const removed = entries.length - compacted.length
-    entries = compacted
-    save()
-    console.log(`[inter-conversation-log] Compacted: removed ${removed} entries, ${entries.length} remaining`)
-  } else if (entries.length > 0) {
-    console.log(`[inter-conversation-log] ${entries.length} entries (no compaction needed)`)
-  }
+  if (!store) return 0
+  return store.purgeLog(projectA, projectB)
 }

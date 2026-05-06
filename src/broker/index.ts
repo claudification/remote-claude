@@ -341,9 +341,9 @@ async function main() {
   initGlobalSettings(store.kv)
   initProjectOrder(store.kv)
   initProjectLinks(store.kv)
-  initInterSessionLog(store.kv)
+  initInterSessionLog(store.messages)
   initAddressBook(store.kv)
-  initMessageQueue(store.kv)
+  initMessageQueue(store.messages)
   initShares({ kv: store.kv })
   setShareValidator(token => validateShareToken(token) !== null)
 

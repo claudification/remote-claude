@@ -1,79 +1,22 @@
 /**
- * Persistent message queue: stores messages for offline/disconnected sessions.
+ * Persistent message queue: stores messages for offline/disconnected conversations.
  *
- * Keyed by target project (not session/agent host ID) so messages survive
- * session restarts. Backed by StoreDriver KVStore (replaces JSON file persistence).
+ * Keyed by target project (not conversation ID) so messages survive
+ * session restarts. Backed by StoreDriver.messages (SQLite).
  */
 
-import type { KVStore } from './store/types'
-
-interface QueuedMessage {
-  ts: number
-  senderProject: string
-  senderName: string
-  message: Record<string, unknown> // the delivery payload
-  targetName?: string // conversation name slug for compound-addressed delivery
-}
-
-// targetProject -> queued messages
-type QueueMap = Record<string, QueuedMessage[]>
+import type { MessageStore } from './store/types'
 
 const MESSAGE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 const MAX_QUEUE_PER_TARGET = 100
 
-const KV_KEY = 'message-queue'
+let store: MessageStore | null = null
 
-let kv: KVStore | null = null
-let queues: QueueMap = {}
-
-export function initMessageQueue(store: KVStore): void {
-  kv = store
-  const raw = kv.get<QueueMap>(KV_KEY)
-  if (raw && typeof raw === 'object') {
-    queues = raw
-    // Backward compat: migrate legacy fromCwd/fromProject -> senderProject/senderName
-    for (const msgs of Object.values(queues)) {
-      for (const m of msgs) {
-        const legacy = m as unknown as Record<string, unknown>
-        if ('fromCwd' in legacy && !('senderProject' in legacy)) {
-          legacy.senderProject = legacy.fromCwd
-          delete legacy.fromCwd
-        }
-        if ('fromProject' in legacy && !('senderName' in legacy)) {
-          legacy.senderName = legacy.fromProject
-          delete legacy.fromProject
-        }
-      }
-    }
-    // Purge expired on load
-    purgeExpired()
-  } else {
-    queues = {}
-  }
+export function initMessageQueue(messageStore: MessageStore): void {
+  store = messageStore
+  store.pruneExpired()
 }
 
-function save(): void {
-  if (!kv) return
-  kv.set(KV_KEY, queues)
-}
-
-function purgeExpired(): void {
-  const now = Date.now()
-  let changed = false
-  for (const [project, messages] of Object.entries(queues)) {
-    const before = messages.length
-    queues[project] = messages.filter(m => now - m.ts < MESSAGE_TTL_MS)
-    if (queues[project].length === 0) {
-      delete queues[project]
-      changed = true
-    } else if (queues[project].length !== before) {
-      changed = true
-    }
-  }
-  if (changed) save()
-}
-
-/** Queue a message for delivery when the target project's session connects. */
 export function enqueue(
   targetProject: string,
   senderProject: string,
@@ -81,68 +24,67 @@ export function enqueue(
   message: Record<string, unknown>,
   targetName?: string,
 ): void {
-  if (!queues[targetProject]) queues[targetProject] = []
-  const queue = queues[targetProject]
+  if (!store) return
 
-  // Cap queue size per target
-  if (queue.length >= MAX_QUEUE_PER_TARGET) {
-    queue.shift() // drop oldest
-  }
-
-  queue.push({ ts: Date.now(), senderProject, senderName, message, ...(targetName ? { targetName } : {}) })
-  save()
-}
-
-/**
- * Drain pending messages for a target project. Purges expired. Returns messages in order.
- * If sessionName is provided, only drains messages targeted at that session name
- * (or messages with no targetName -- project-level messages). Messages targeted at
- * other session names stay in the queue.
- */
-export function drain(targetProject: string, sessionName?: string): QueuedMessage[] {
-  const queue = queues[targetProject]
-  if (!queue || queue.length === 0) return []
-
-  const now = Date.now()
-  const valid = queue.filter(m => now - m.ts < MESSAGE_TTL_MS)
-
-  if (!sessionName) {
-    // No conversation name filter -- drain everything (backward compat)
-    delete queues[targetProject]
-    save()
-    return valid
-  }
-
-  // Partition: take messages for this conversation (or project-level), leave the rest
-  const forMe: QueuedMessage[] = []
-  const forOthers: QueuedMessage[] = []
-  for (const m of valid) {
-    if (!m.targetName || m.targetName === sessionName) {
-      forMe.push(m)
-    } else {
-      forOthers.push(m)
+  // Cap queue size per target -- drop oldest if over limit
+  const count = store.countFor(targetProject)
+  if (count >= MAX_QUEUE_PER_TARGET) {
+    const oldest = store.dequeueFor(targetProject)
+    if (oldest.length > 0) {
+      // Re-enqueue all but the oldest
+      for (let i = 1; i < oldest.length; i++) {
+        store.enqueue({
+          fromScope: oldest[i].fromScope,
+          toScope: oldest[i].toScope,
+          fromName: oldest[i].fromName,
+          targetName: oldest[i].targetName,
+          content: oldest[i].content,
+          intent: oldest[i].intent,
+          conversationId: oldest[i].conversationId,
+          expiresAt: oldest[i].createdAt + MESSAGE_TTL_MS,
+        })
+      }
     }
   }
 
-  if (forOthers.length === 0) {
-    delete queues[targetProject]
-  } else {
-    queues[targetProject] = forOthers
-  }
-  save()
-  return forMe
+  store.enqueue({
+    fromScope: senderProject,
+    toScope: targetProject,
+    fromName: senderName,
+    targetName,
+    content: JSON.stringify(message),
+    expiresAt: Date.now() + MESSAGE_TTL_MS,
+  })
 }
 
-/** Check how many messages are queued for a target project. */
+export interface DrainedMessage {
+  ts: number
+  senderProject: string
+  senderName: string
+  message: Record<string, unknown>
+  targetName?: string
+}
+
+/**
+ * Drain pending messages for a target project.
+ * If conversationName is provided, only drains messages targeted at that name
+ * (or messages with no targetName -- project-level messages). Messages targeted
+ * at other conversation names stay in the queue.
+ */
+export function drain(targetProject: string, conversationName?: string): DrainedMessage[] {
+  if (!store) return []
+
+  const messages = store.dequeueFor(targetProject, conversationName || undefined)
+  return messages.map(m => ({
+    ts: m.createdAt,
+    senderProject: m.fromScope,
+    senderName: m.fromName || m.fromScope,
+    message: JSON.parse(m.content) as Record<string, unknown>,
+    targetName: m.targetName,
+  }))
+}
+
 export function getQueueSize(targetProject: string): number {
-  return queues[targetProject]?.length || 0
-}
-
-/** Get total queue stats (for diagnostics). */
-function getQueueStats(): { targets: number; messages: number } {
-  let messages = 0
-  for (const queue of Object.values(queues)) {
-    messages += queue.length
-  }
-  return { targets: Object.keys(queues).length, messages }
+  if (!store) return 0
+  return store.countFor(targetProject)
 }
