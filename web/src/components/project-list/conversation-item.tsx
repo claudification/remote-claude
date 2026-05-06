@@ -874,11 +874,12 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
       {!session.summary && session.recap && (
         <div
           className={cn(
-            'mt-1.5 text-[10px] whitespace-pre-wrap transition-all duration-700',
+            'mt-1.5 text-[10px] whitespace-pre-wrap overflow-hidden transition-all duration-700',
             session.recapFresh
               ? 'text-zinc-300/80 border-l-2 border-zinc-500/50 pl-2 py-0.5 bg-zinc-800/20 rounded-r'
               : 'text-muted-foreground/50 italic pl-1',
           )}
+          title={session.recap.content}
         >
           {session.recap.content}
         </div>
@@ -1080,9 +1081,10 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
       {session.recap && (
         <div
           className={cn(
-            'mt-0.5 pl-4 text-[9px] whitespace-pre-wrap',
+            'mt-0.5 pl-4 text-[9px] whitespace-pre-wrap overflow-hidden',
             session.recapFresh ? 'text-zinc-400/70' : 'text-muted-foreground/40 italic',
           )}
+          title={session.recap.content}
         >
           {session.recap.content}
         </div>

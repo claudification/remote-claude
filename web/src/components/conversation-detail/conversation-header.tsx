@@ -63,13 +63,14 @@ export function ConversationHeader({
           )}
           <div
             className={cn(
-              'text-[10px] whitespace-pre-wrap',
+              'text-[10px] whitespace-pre-wrap overflow-hidden',
               session.recap && session.recapFresh
                 ? 'text-zinc-300 border-l-2 border-zinc-500/60 ml-0 pl-2 bg-zinc-800/20 rounded-r py-1'
                 : session.recap
                   ? 'text-zinc-400'
                   : 'text-muted-foreground/70 italic truncate',
             )}
+            title={session.recap?.content || session.description}
           >
             {session.recap?.content || session.description}
           </div>
