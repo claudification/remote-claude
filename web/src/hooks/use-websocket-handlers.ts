@@ -274,7 +274,7 @@ function handleEvent(msg: DashboardMessage) {
 // ─── transcripts + streaming ───────────────────────────────────────────────
 
 function handleTranscriptEntries(msg: DashboardMessage) {
-  if (!(msg.conversationId && msg.entries?.length)) return
+  if (!msg.conversationId || !msg.entries) return
   const sid = msg.conversationId
   const newEntries = msg.entries as TranscriptEntry[]
   const initial = msg.isInitial as boolean
@@ -332,11 +332,13 @@ function handleTranscriptEntries(msg: DashboardMessage) {
             return rest
           })()
         : state.streamingText
-    // Update lastAppliedTranscriptSeq to max(existing, max-in-result).
+    // Update lastAppliedTranscriptSeq. For isInitial, REPLACE with the snapshot's
+    // max seq (or 0 for empty -- e.g. /clear). Without this, a stale high-water
+    // mark from the pre-clear conversation filters out all new entries.
     // Skipped initial snapshots don't move the marker (result === existing).
     const maxSeqInResult = result.length > 0 ? (result[result.length - 1].seq ?? 0) : 0
     const prevSeq = state.lastAppliedTranscriptSeq[sid] ?? 0
-    const newSeq = Math.max(prevSeq, maxSeqInResult)
+    const newSeq = initial && !skipped ? maxSeqInResult : Math.max(prevSeq, maxSeqInResult)
     return {
       transcripts: {
         ...state.transcripts,
@@ -415,7 +417,7 @@ function handleStreamDelta(msg: DashboardMessage) {
 }
 
 function handleSubagentTranscript(msg: DashboardMessage) {
-  if (!(msg.conversationId && msg.entries?.length)) return
+  if (!msg.conversationId || !msg.entries) return
   const subMsg = msg as DashboardMessage & { agentId?: string }
   const agentId = subMsg.agentId
   if (!agentId) return
