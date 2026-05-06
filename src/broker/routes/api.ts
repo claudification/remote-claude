@@ -127,6 +127,18 @@ export function createApiRouter(
     return c.json({ hits: enriched, total: hits.length, query: q, limit, offset })
   })
 
+  // ─── Search-index admin (stats + manual rebuild) ──────────────────
+  app.get('/api/search-index/stats', c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
+    return c.json(store.transcripts.getIndexStats())
+  })
+
+  app.post('/api/search-index/rebuild', c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
+    const result = store.transcripts.rebuildIndex()
+    return c.json(result)
+  })
+
   // ─── Transcript context window (sliding) ───────────────────────────
   app.get('/api/transcript-window', c => {
     const url = new URL(c.req.raw.url)

@@ -169,6 +169,24 @@ export interface WindowOpts {
   after?: number
 }
 
+export interface SearchIndexStats {
+  /** Number of source rows in transcript_entries. */
+  totalEntries: number
+  /** Number of documents currently in the FTS5 inverted index (or totalEntries
+   *  for the memory driver, which has no separate index structure). */
+  indexedDocs: number
+  /** Distinct conversation IDs represented in transcript_entries. */
+  conversations: number
+  /** indexedDocs == totalEntries -- a quick "is the index up to date?" probe. */
+  isComplete: boolean
+}
+
+export interface RebuildResult {
+  /** Documents present in the rebuilt index. */
+  docsIndexed: number
+  durationMs: number
+}
+
 export interface TranscriptStore {
   append(conversationId: string, syncEpoch: string, entries: TranscriptEntryInput[]): void
   getPage(conversationId: string, opts: PageOpts & { agentId?: string | null }): TranscriptPage
@@ -184,6 +202,10 @@ export interface TranscriptStore {
   getWindow(conversationId: string, opts: WindowOpts): TranscriptEntryRecord[]
   count(conversationId: string, agentId?: string | null): number
   pruneOlderThan(cutoffMs: number): number
+  /** Inspect FTS index health -- doc counts, completeness, conversation breadth. */
+  getIndexStats(): SearchIndexStats
+  /** Drop and rebuild the FTS index from transcript_entries. Memory driver no-ops. */
+  rebuildIndex(): RebuildResult
 }
 
 export interface TranscriptEntryInput {

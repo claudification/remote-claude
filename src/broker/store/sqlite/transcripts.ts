@@ -328,6 +328,34 @@ export function createSqliteTranscriptStore(db: Database): TranscriptStore {
       const result = db.prepare('DELETE FROM transcript_entries WHERE timestamp < $cutoff').run({ cutoff: cutoffMs })
       return result.changes
     },
+
+    getIndexStats() {
+      const totalEntries = (db.prepare('SELECT COUNT(*) AS c FROM transcript_entries').get() as { c: number }).c
+      const indexedDocs = (db.prepare('SELECT COUNT(*) AS c FROM transcript_fts_docsize').get() as { c: number }).c
+      const conversations = (
+        db.prepare('SELECT COUNT(DISTINCT conversation_id) AS c FROM transcript_entries').get() as { c: number }
+      ).c
+      return {
+        totalEntries,
+        indexedDocs,
+        conversations,
+        isComplete: indexedDocs >= totalEntries,
+      }
+    },
+
+    rebuildIndex() {
+      const start = Date.now()
+      // 'rebuild' is the canonical FTS5 way to repopulate an external-content
+      // table from the source rows. Wraps the read+write in a single tx for
+      // atomicity -- partial rebuilds leave the index in a queryable state.
+      const tx = db.transaction(() => {
+        db.run("INSERT INTO transcript_fts(transcript_fts) VALUES('delete-all')")
+        db.run("INSERT INTO transcript_fts(transcript_fts) VALUES('rebuild')")
+      })
+      tx()
+      const docsIndexed = (db.prepare('SELECT COUNT(*) AS c FROM transcript_fts_docsize').get() as { c: number }).c
+      return { docsIndexed, durationMs: Date.now() - start }
+    },
   }
 }
 

@@ -326,6 +326,25 @@ function createTranscriptStore(): TranscriptStore {
       }
       return pruned
     },
+
+    getIndexStats() {
+      let totalEntries = 0
+      for (const arr of entries.values()) totalEntries += arr.length
+      return {
+        totalEntries,
+        indexedDocs: totalEntries, // memory driver: source IS the index
+        conversations: entries.size,
+        isComplete: true,
+      }
+    },
+
+    rebuildIndex() {
+      // No-op for memory driver -- substring search reads the source directly,
+      // there's no separate index to rebuild.
+      let totalEntries = 0
+      for (const arr of entries.values()) totalEntries += arr.length
+      return { docsIndexed: totalEntries, durationMs: 0 }
+    },
   }
 }
 
