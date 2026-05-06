@@ -54,7 +54,7 @@ function formatConversationsOutput(data: SearchResponse): string {
   for (const [cid, group] of grouped) {
     const title = group.conv?.title || 'untitled'
     const project = group.conv?.project || ''
-    const shortProject = project.replace(/^claude:\/\/default/, '')
+    const shortProject = project
     lines.push(`[${cid}] ${title}`)
     lines.push(`  project: ${shortProject}  |  hits: ${group.hits.length}`)
     const best = group.hits[0]
