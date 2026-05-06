@@ -4,7 +4,7 @@ import type { ConversationStore } from './conversation-store'
 
 const RECAP_DELAY_MS = 60_000
 const RECAP_PROMPT =
-  'Recap in under 25 words, one plain sentence. Plain text only -- no markdown, no backticks, no bold, no bullet points. State the goal and the one next step.'
+  'Recap in under 25 words, one plain sentence. Plain text only -- no markdown, no backticks, no bold, no bullet points, no labels like "Goal:" or "Next:". Just a natural sentence.'
 const MAX_RECENT_ENTRIES = 20
 const MAX_CONTEXT_CHARS = 4000
 const MODEL = 'anthropic/claude-haiku-4.5'
