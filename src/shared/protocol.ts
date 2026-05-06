@@ -1346,6 +1346,7 @@ export interface ProjectSettings {
   defaultEnvText?: string
   allowPlanMode?: boolean // default: true. Set false to auto-deny EnterPlanMode
   verbs?: string[] // custom spinner verbs (merged with defaults)
+  pinned?: boolean
 }
 
 // File metadata for the file editor

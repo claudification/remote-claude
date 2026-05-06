@@ -8,6 +8,7 @@ import { ConversationHeader } from './conversation-detail/conversation-header'
 import { DialogOverlay, InputBar } from './conversation-detail/conversation-input'
 import { ConversationTabs } from './conversation-detail/conversation-tabs'
 import { EmptyState } from './conversation-detail/empty-state'
+import { ProjectActionPanel } from './conversation-detail/project-action-panel'
 import { ReviveFooter } from './conversation-detail/revive-footer'
 import { SubagentDetailView } from './conversation-detail/subagent-detail-view'
 import { TabContentPanels } from './conversation-detail/tab-content-panels'
@@ -85,7 +86,12 @@ export const ConversationDetail = memo(function SessionDetail() {
 
   const inPlanMode = session?.planMode ?? false
 
-  if (!session) return <EmptyState />
+  const selectedProjectUri = useConversationsStore(state => state.selectedProjectUri)
+
+  if (!session) {
+    if (selectedProjectUri) return <ProjectActionPanel projectUri={selectedProjectUri} />
+    return <EmptyState />
+  }
 
   const model = (events.find(e => e.hookEvent === 'SessionStart')?.data as { model?: string } | undefined)?.model
   const canSendInput = session.status !== 'ended' && canChat

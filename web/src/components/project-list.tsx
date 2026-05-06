@@ -11,12 +11,11 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { saveProjectOrder, useConversationsStore } from '@/hooks/use-conversations'
 import type { ProjectOrder, ProjectOrderGroup, ProjectOrderNode, Session } from '@/lib/types'
-import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { MaybeProfiler } from './perf-profiler'
 import { ConversationItemCompact, InactiveProjectItem } from './project-list/conversation-item'
 import { GroupNode, NewGroupDropTarget, SortableNode } from './project-list/conversation-sorting'
-import { ProjectNode } from './project-list/project-node'
+import { PinnedProjectNode, ProjectNode } from './project-list/project-node'
 
 // ─── Main ProjectList ──────────────────────────────────────────────
 
@@ -28,6 +27,7 @@ export function ProjectList() {
   const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
   const rawProjectOrder = useConversationsStore(s => s.projectOrder)
   const projectOrder = rawProjectOrder?.tree ? rawProjectOrder : { tree: [] }
+  const projectSettings = useConversationsStore(s => s.projectSettings)
   const showEnded = useConversationsStore(s => s.controlPanelPrefs.showEndedConversations)
   const showInactive = useConversationsStore(s => s.controlPanelPrefs.showInactiveByDefault)
   const updatePrefs = useConversationsStore(s => s.updateControlPanelPrefs)
@@ -85,6 +85,17 @@ export function ProjectList() {
     walk(projectOrder.tree)
     return projects
   }, [projectOrder])
+
+  // Pinned projects not in tree (show even with 0 conversations)
+  const pinnedNotInTree = useMemo(() => {
+    const result: string[] = []
+    for (const [uri, ps] of Object.entries(projectSettings)) {
+      if (ps.pinned && !treeProjects.has(uri) && !visibleConversationsByCwd.has(uri)) {
+        result.push(uri)
+      }
+    }
+    return result
+  }, [projectSettings, treeProjects, visibleConversationsByCwd])
 
   // Unorganized active conversations (uses visibleConversationsByCwd to respect showEnded filter)
   const unorganized = useMemo(() => {
@@ -183,8 +194,9 @@ export function ProjectList() {
       }
     }
     for (const { project } of unorganized) ids.push(project)
+    for (const uri of pinnedNotInTree) ids.push(uri)
     return ids
-  }, [projectOrder, unorganized, collapsedGroups])
+  }, [projectOrder, unorganized, pinnedNotInTree, collapsedGroups])
 
   // Sensors: mouse (8px) + touch (300ms long-press)
   const sensors = useSensors(
@@ -377,7 +389,16 @@ export function ProjectList() {
                           if (child.type === 'group') return null
                           const childProject = child.id
                           const childConversations = visibleConversationsByCwd.get(childProject)
-                          if (!childConversations || childConversations.length === 0) return null
+                          if (!childConversations || childConversations.length === 0) {
+                            if (projectSettings[childProject]?.pinned) {
+                              return (
+                                <SortableNode key={child.id} id={child.id}>
+                                  <PinnedProjectNode project={childProject} />
+                                </SortableNode>
+                              )
+                            }
+                            return null
+                          }
                           return (
                             <SortableNode key={child.id} id={child.id}>
                               <ProjectNode project={childProject} sessions={childConversations} />
@@ -405,7 +426,16 @@ export function ProjectList() {
               // Root-level session node
               const nodeProject = node.id
               const nodeConversations = visibleConversationsByCwd.get(nodeProject)
-              if (!nodeConversations || nodeConversations.length === 0) return null
+              if (!nodeConversations || nodeConversations.length === 0) {
+                if (projectSettings[nodeProject]?.pinned) {
+                  return (
+                    <SortableNode key={node.id} id={node.id}>
+                      <PinnedProjectNode project={nodeProject} />
+                    </SortableNode>
+                  )
+                }
+                return null
+              }
               return (
                 <SortableNode key={node.id} id={node.id}>
                   <ProjectNode project={nodeProject} sessions={nodeConversations} />
@@ -424,7 +454,7 @@ export function ProjectList() {
             </div>
 
             {/* Unorganized section */}
-            {unorganized.length > 0 && (
+            {(unorganized.length > 0 || pinnedNotInTree.length > 0) && (
               <div>
                 {hasOrganized && (
                   <div className="text-[10px] text-muted-foreground/50 font-bold uppercase tracking-wider px-1 mb-1 flex items-center gap-2">
@@ -433,6 +463,11 @@ export function ProjectList() {
                   </div>
                 )}
                 <div className="space-y-1">
+                  {pinnedNotInTree.map(uri => (
+                    <SortableNode key={uri} id={uri}>
+                      <PinnedProjectNode project={uri} />
+                    </SortableNode>
+                  ))}
                   {unorganized.map(({ project, sessions: projectConversations }, i) => {
                     // Insert separator before first ad-hoc-only group
                     const isAllAdHoc = projectConversations.every(s => s.capabilities?.includes('ad-hoc'))

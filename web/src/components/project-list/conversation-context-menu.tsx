@@ -1,6 +1,6 @@
 import { ContextMenu } from 'radix-ui'
 import type { ReactNode } from 'react'
-import { saveProjectOrder, useConversationsStore } from '@/hooks/use-conversations'
+import { saveProjectOrder, updateProjectSettings, useConversationsStore } from '@/hooks/use-conversations'
 import type { ProjectOrder, ProjectOrderGroup, Session } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
@@ -118,6 +118,7 @@ export function ConversationContextMenu({
 }) {
   const dismissConversation = useConversationsStore(s => s.dismissConversation)
   const selectConversation = useConversationsStore(s => s.selectConversation)
+  const ps = useConversationsStore(s => s.projectSettings[session.project])
 
   return (
     <ContextMenu.Root>
@@ -173,6 +174,15 @@ export function ConversationContextMenu({
           >
             Assign tasks...
           </ContextMenu.Item>
+          <ContextMenu.Item
+            className={menuItemClass}
+            onSelect={() => {
+              haptic('tap')
+              updateProjectSettings(session.project, { pinned: !ps?.pinned })
+            }}
+          >
+            {ps?.pinned ? 'Unpin project' : 'Pin project'}
+          </ContextMenu.Item>
           <ContextMenu.Separator className="h-px bg-border my-1" />
           {session.status !== 'ended' && (
             <ContextMenu.Item
@@ -214,6 +224,64 @@ export function ConversationContextMenu({
   )
 }
 
+function ProjectMenuItems({ project, onOpenSettings }: { project: string; onOpenSettings: () => void }) {
+  const ps = useConversationsStore(s => s.projectSettings[project])
+  return (
+    <>
+      <ContextMenu.Item
+        className={cn(menuItemClass, 'text-cyan-400')}
+        onSelect={() => {
+          haptic('tap')
+          openSpawnDialog({ path: projectPath(project) })
+        }}
+      >
+        Launch new...
+      </ContextMenu.Item>
+      <ContextMenu.Item
+        className={menuItemClass}
+        onSelect={() => {
+          haptic('tap')
+          onOpenSettings()
+        }}
+      >
+        Project settings...
+      </ContextMenu.Item>
+      <ContextMenu.Item
+        className={menuItemClass}
+        onSelect={() => {
+          haptic('tap')
+          updateProjectSettings(project, { pinned: !ps?.pinned })
+        }}
+      >
+        {ps?.pinned ? 'Unpin project' : 'Pin project'}
+      </ContextMenu.Item>
+    </>
+  )
+}
+
+export function PinnedProjectContextMenu({
+  project,
+  onOpenSettings,
+  children,
+}: {
+  project: string
+  onOpenSettings: () => void
+  children: ReactNode
+}) {
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content className="min-w-[180px] bg-popover border border-border rounded-md shadow-lg py-1 z-50">
+          <GroupingMenuItems project={project} />
+          <ContextMenu.Separator className="h-px bg-border my-1" />
+          <ProjectMenuItems project={project} onOpenSettings={onOpenSettings} />
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
+  )
+}
+
 export function ProjectContextMenu({
   project,
   sessions,
@@ -235,24 +303,7 @@ export function ProjectContextMenu({
         <ContextMenu.Content className="min-w-[180px] bg-popover border border-border rounded-md shadow-lg py-1 z-50">
           <GroupingMenuItems project={project} />
           <ContextMenu.Separator className="h-px bg-border my-1" />
-          <ContextMenu.Item
-            className={cn(menuItemClass, 'text-cyan-400')}
-            onSelect={() => {
-              haptic('tap')
-              openSpawnDialog({ path: projectPath(project) })
-            }}
-          >
-            Launch new...
-          </ContextMenu.Item>
-          <ContextMenu.Item
-            className={menuItemClass}
-            onSelect={() => {
-              haptic('tap')
-              onOpenSettings()
-            }}
-          >
-            Project settings...
-          </ContextMenu.Item>
+          <ProjectMenuItems project={project} onOpenSettings={onOpenSettings} />
           {ended.length > 0 && (
             <>
               <ContextMenu.Separator className="h-px bg-border my-1" />

@@ -12,7 +12,6 @@ import { setPerfEnabled } from '@/lib/perf-metrics'
 import { DEFAULT_PERMISSIONS, type ResolvedPermissions } from '@/lib/permissions'
 import { appendShareParam } from '@/lib/share-mode'
 import {
-  extractProjectLabel,
   flattenProjectOrderTree,
   type HookEvent,
   type ProjectOrder,
@@ -91,6 +90,7 @@ interface ConversationsState {
   /** O(1) lookup index maintained alongside sessions[] */
   sessionsById: Record<string, Session>
   selectedConversationId: string | null
+  selectedProjectUri: string | null
   selectedSubagentId: string | null
   sessionMru: string[]
   events: Record<string, HookEvent[]>
@@ -230,6 +230,7 @@ interface ConversationsState {
   setConversations: (sessions: Session[]) => void
   /** Select a conversation. Optional `reason` is logged to console for debugging navigation bugs. */
   selectConversation: (id: string | null, reason?: string) => void
+  selectProject: (projectUri: string | null) => void
   selectSubagent: (agentId: string | null) => void
   openTab: (conversationId: string, tab: string) => void
   setShowTerminal: (show: boolean) => void
@@ -382,16 +383,18 @@ function processHash() {
   const hash = window.location.hash.slice(1)
   if (!hash) return
 
-  const [mode, id] = hash.split('/')
+  const [mode, ...rest] = hash.split('/')
+  const id = rest.join('/')
   if (!id) return
 
   const store = useConversationsStore.getState()
   if (mode === 'terminal') {
-    store.openTerminal(id) // id is conversationId
+    store.openTerminal(id)
   } else if (mode === 'session') {
     store.selectConversation(id, 'hash-route')
+  } else if (mode === 'project') {
+    store.selectProject(decodeURIComponent(id))
   } else if (mode === 'task') {
-    // Dispatch event for project board to open the task modal
     window.dispatchEvent(new CustomEvent('open-project-task', { detail: { taskId: id } }))
   }
 }
@@ -432,6 +435,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   sessions: [],
   sessionsById: {},
   selectedConversationId: null,
+  selectedProjectUri: null,
   selectedSubagentId: null,
   sessionMru: [],
   events: {},
@@ -729,6 +733,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       const closeTerminal = state.showTerminal ? { showTerminal: false, terminalWrapperId: null } : {}
       return {
         selectedConversationId: id,
+        selectedProjectUri: null,
         selectedSubagentId: null,
         requestedTab: rememberedTab || (defaultView === 'tty' ? 'tty' : 'transcript'),
         requestedTabSeq: state.requestedTabSeq + 1,
@@ -747,6 +752,14 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       }
       get().clearSessionNotifications(id)
     }
+  },
+  selectProject: (projectUri: string | null) => {
+    set({
+      selectedProjectUri: projectUri,
+      selectedConversationId: null,
+      selectedSubagentId: null,
+    })
+    updateHash(projectUri ? `project/${encodeURIComponent(projectUri)}` : '')
   },
   selectSubagent: agentId => {
     set({ selectedSubagentId: agentId })

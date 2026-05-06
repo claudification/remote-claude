@@ -2,8 +2,9 @@ import { memo, useState } from 'react'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import type { Session } from '@/lib/types'
 import { extractProjectLabel, projectPath } from '@/lib/types'
+import { cn, haptic } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from '../project-settings-editor'
-import { ConversationContextMenu, ProjectContextMenu } from './conversation-context-menu'
+import { ConversationContextMenu, PinnedProjectContextMenu, ProjectContextMenu } from './conversation-context-menu'
 import { ConversationCard, ConversationItemCompact } from './conversation-item'
 import { InlineConfirmButton } from './inline-confirm-button'
 import { partitionConversations } from './partition'
@@ -133,6 +134,60 @@ const ProjectSessionGroup = memo(
   },
   (prev, next) => prev.project === next.project && sessionsEqual(prev.sessions, next.sessions),
 )
+
+// ─── Pinned project node (no active conversations) ────────────────
+
+export function PinnedProjectNode({ project }: { project: string }) {
+  const [showSettings, setShowSettings] = useState(false)
+  const ps = useConversationsStore(s => s.projectSettings[project])
+  const selectProject = useConversationsStore(s => s.selectProject)
+  const isSelected = useConversationsStore(s => s.selectedProjectUri === project)
+  const displayName = ps?.label || extractProjectLabel(project)
+  const displayColor = ps?.color
+
+  return (
+    <PinnedProjectContextMenu project={project} onOpenSettings={() => setShowSettings(true)}>
+      <div>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            haptic('tap')
+            selectProject(project)
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              haptic('tap')
+              selectProject(project)
+            }
+          }}
+          className={cn(
+            'border border-border hover:border-primary p-2 pl-3 transition-colors cursor-pointer',
+            isSelected && 'border-primary bg-accent/10',
+          )}
+          style={displayColor ? { borderLeftColor: displayColor, borderLeftWidth: '3px' } : undefined}
+          title={projectPath(project)}
+        >
+          <div className="flex items-center gap-1.5">
+            {ps?.icon && (
+              <span className="text-muted-foreground" style={displayColor ? { color: displayColor } : undefined}>
+                {renderProjectIcon(ps.icon)}
+              </span>
+            )}
+            <span
+              className="font-mono text-xs truncate flex-1"
+              style={displayColor ? { color: displayColor } : undefined}
+            >
+              {displayName}
+            </span>
+            <span className="text-[9px] text-muted-foreground/40 font-mono">PIN</span>
+          </div>
+        </div>
+        {showSettings && <ProjectSettingsEditor project={project} onClose={() => setShowSettings(false)} />}
+      </div>
+    </PinnedProjectContextMenu>
+  )
+}
 
 // ─── Project node renderer (single or multi-session) ─────────────
 
