@@ -4,12 +4,14 @@ import { parseRecapContent } from '../shared/recap'
 import type { ConversationStore } from './conversation-store'
 
 const RECAP_DELAY_MS = 60_000
-const RECAP_PROMPT = `Describe what this coding session is currently working on. You're looking at a conversation between a developer and an AI coding assistant. The RECENT CONVERSATION section is the most important -- that's what's happening now. BACKGROUND is just prior context.
-Respond with a JSON object containing exactly two fields:
-- "title": what's being worked on RIGHT NOW (3-5 words, e.g. "Structured recap output", "SQLite migration pipeline")
-- "recap": describe the current focus in under 20 words. Emphasize the most recent work. No "I" or "We".
+const RECAP_PROMPT = `The developer stepped away from this coding session. Recap what's happening.
+Respond with JSON: {"title": "...", "recap": "..."}
 
-Plain text only, no markdown. Respond with ONLY the JSON object.`
+title: 3-5 word topic label for the current work.
+recap: Under 30 words, 1-2 plain sentences. Lead with the overall goal, then where they are now and the one next action. Skip root-cause narrative, implementation details, secondary to-dos, and filler words. No "I" or "We". No markdown.
+
+Focus on RECENT CONVERSATION. BACKGROUND is prior context only.
+Respond with ONLY the JSON object.`
 const MAX_RECENT_ENTRIES = 40
 const MAX_CONTEXT_CHARS = 8000
 const MODEL = 'anthropic/claude-haiku-4.5'
@@ -109,11 +111,7 @@ async function generateRecap(store: ConversationStore, conversationId: string): 
   )
 }
 
-function condenseTranscript(
-  store: ConversationStore,
-  conversationId: string,
-  resultText?: string,
-): string | null {
+function condenseTranscript(store: ConversationStore, conversationId: string, resultText?: string): string | null {
   const cached = store.getTranscriptEntries(conversationId)
   if (cached.length === 0) return null
 
