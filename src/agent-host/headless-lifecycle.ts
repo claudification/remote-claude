@@ -583,7 +583,8 @@ export function sendAdHocPrompt(ctx: AgentHostContext): void {
 
   debug(`[ad-hoc] Prompt file: ${promptFile}`)
   try {
-    const prompt = readFileSync(promptFile, 'utf-8').trim()
+    // MCP callers (Claude) often emit literal \n instead of real newlines in tool params
+    const prompt = readFileSync(promptFile, 'utf-8').trim().replaceAll('\\n', '\n').replaceAll('\\t', '\t')
     if (!prompt) {
       debug('[ad-hoc] WARNING: Prompt file was empty')
       ctx.diag('ad-hoc', 'WARNING: prompt file empty')
