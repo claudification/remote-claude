@@ -1,13 +1,91 @@
 /**
- * MCP search tools -- search across transcripts and slide a context window.
+ * MCP search tools -- progressive transcript search.
  *
- * Both tools call the broker over HTTP. The broker enforces permission gating
- * (caller can only see conversations whose project they have chat:read on).
+ * Designed for minimal context consumption:
+ *   1. search_transcripts (conversations mode) -> which conversations match?
+ *   2. search_transcripts (snippets mode, + conversationId) -> matches within a conversation
+ *   3. get_transcript_context (aroundSeq) -> full content window around a hit
+ *
+ * Both tools call the broker over HTTP. The broker enforces permission gating.
  */
 
 import { wsToHttpUrl } from '../cli-args'
 import { debug } from '../debug'
 import type { McpToolContext, ToolDef } from './types'
+
+interface SearchHit {
+  id: number
+  conversationId: string
+  seq: number
+  type: string
+  subtype?: string
+  snippet: string
+  score: number
+  content: unknown
+  createdAt: number
+  conversation?: { id: string; project?: string; title?: string; description?: string }
+  window?: unknown[]
+}
+
+interface SearchResponse {
+  hits: SearchHit[]
+  total: number
+  query: string
+  limit: number
+  offset: number
+}
+
+function formatConversationsOutput(data: SearchResponse): string {
+  const grouped = new Map<string, { conv: SearchHit['conversation']; hits: SearchHit[]; bestScore: number }>()
+
+  for (const hit of data.hits) {
+    const cid = hit.conversationId
+    const existing = grouped.get(cid)
+    if (existing) {
+      existing.hits.push(hit)
+      if (hit.score < existing.bestScore) existing.bestScore = hit.score
+    } else {
+      grouped.set(cid, { conv: hit.conversation, hits: [hit], bestScore: hit.score })
+    }
+  }
+
+  const lines: string[] = [`Found ${data.total} hits across ${grouped.size} conversations for "${data.query}"`, '']
+
+  for (const [cid, group] of grouped) {
+    const title = group.conv?.title || 'untitled'
+    const project = group.conv?.project || ''
+    const shortProject = project.replace(/^claude:\/\/default/, '')
+    lines.push(`[${cid}] ${title}`)
+    lines.push(`  project: ${shortProject}  |  hits: ${group.hits.length}`)
+    const best = group.hits[0]
+    if (best?.snippet) {
+      const clean = best.snippet.replace(/<\/?mark>/g, '*').replace(/\.\.\./g, '...').trim()
+      lines.push(`  best match: ${clean}`)
+    }
+    lines.push('')
+  }
+
+  lines.push('Drill in: search_transcripts({ query, conversationId, output: "snippets" })')
+  return lines.join('\n')
+}
+
+function formatSnippetsOutput(data: SearchResponse): string {
+  const lines: string[] = [`${data.total} matches for "${data.query}" (offset ${data.offset}, limit ${data.limit})`, '']
+
+  for (const hit of data.hits) {
+    const convTitle = hit.conversation?.title || ''
+    const ts = hit.createdAt ? new Date(hit.createdAt).toISOString().replace('T', ' ').slice(0, 19) : ''
+    const clean = (hit.snippet || '').replace(/<\/?mark>/g, '*').replace(/\.\.\./g, '...').trim()
+
+    lines.push(`seq ${hit.seq}  |  ${hit.type}${hit.subtype ? '/' + hit.subtype : ''}  |  ${ts}  |  ${convTitle}`)
+    lines.push(`  conv: ${hit.conversationId}`)
+    if (clean) lines.push(`  ${clean}`)
+    lines.push('')
+  }
+
+  lines.push('Expand: get_transcript_context({ conversationId, aroundSeq })')
+  return lines.join('\n')
+}
 
 export function registerSearchTools(ctx: McpToolContext): Record<string, ToolDef> {
   function authHeaders(): Record<string, string> {
@@ -22,60 +100,46 @@ export function registerSearchTools(ctx: McpToolContext): Record<string, ToolDef
   return {
     search_transcripts: {
       description:
-        'Search across conversation transcripts using FTS5 full-text indexing. Returns ranked, highlighted matches with conversation metadata. Use this to find prior discussions, decisions, code, errors, or any context across past or current conversations.\n\n' +
+        'Search conversation transcripts (FTS5 full-text). Progressive: start broad, drill in.\n\n' +
+        'OUTPUT MODES (progressive disclosure):\n' +
+        '  1. "conversations" (default) -- which conversations match? Grouped, compact.\n' +
+        '  2. "snippets" -- individual hits with highlighted snippets. Add conversationId to focus.\n' +
+        '  3. "full" -- raw transcript entries (large! use sparingly).\n\n' +
+        'TYPICAL FLOW:\n' +
+        '  search_transcripts({ query: "auth" })                          -> conversations list\n' +
+        '  search_transcripts({ query: "auth", conversationId: "abc..." , output: "snippets" }) -> snippets in that conversation\n' +
+        '  get_transcript_context({ conversationId: "abc...", aroundSeq: 42 })  -> full content window\n\n' +
         'QUERY SYNTAX (FTS5):\n' +
-        '  - Bareword: `migration`            -- matches that token (porter-stemmed, case-insensitive)\n' +
-        '  - Multi-word: `merge conflict`     -- auto-quoted as a phrase\n' +
-        '  - Explicit phrase: `"exact words"` -- exact phrase\n' +
-        '  - Boolean: `auth AND token`, `slack OR webhook`, `error NOT timeout`\n' +
-        '  - Prefix: `migrat*`                -- matches migrate/migration/migrating\n' +
-        '  - NEAR: `NEAR(foo bar, 5)`         -- foo within 5 tokens of bar\n' +
-        '\n' +
-        'FILTERS:\n' +
-        '  - conversationId: limit to a specific conversation (most precise)\n' +
-        '  - project: filter by project URI. Supports exact match (`claude://default/Users/me/proj`) or glob suffix (`claude://default/Users/me/*` matches anything under that path). Use `*` to match any project.\n' +
-        '  - types: filter by entry types (e.g. `["user","assistant"]`, `["tool_use"]`, `["tool_result"]`)\n' +
-        '\n' +
-        'CONTEXT WINDOW:\n' +
-        '  Set windowBefore/windowAfter > 0 to receive surrounding entries with each hit. The window slides on `seq` so it includes the previous N and next N entries in the same conversation.\n' +
-        "  After getting results, use `get_transcript_context` with the hit's conversationId + seq to slide further (move the window or expand it).\n" +
-        '\n' +
-        'PAGINATION: Use `limit` (1-100, default 20) and `offset` to page through results.',
+        '  bareword: `migration` | phrase: `"merge conflict"` | boolean: `auth AND token`\n' +
+        '  prefix: `migrat*` | NOT: `error NOT timeout` | NEAR: `NEAR(foo bar, 5)`\n\n' +
+        'FILTERS: conversationId, project (URI or glob `path/*`), types (["user","assistant",...]).',
       inputSchema: {
         type: 'object' as const,
         properties: {
           query: {
             type: 'string',
-            description:
-              'FTS5 search query. Bareword/phrase/prefix/boolean syntax supported. Multi-word casual queries are auto-quoted as phrases.',
+            description: 'FTS5 search query.',
+          },
+          output: {
+            type: 'string',
+            enum: ['conversations', 'snippets', 'full'],
+            description: 'Output mode. "conversations" (default) = grouped by conversation. "snippets" = individual hits. "full" = raw entries.',
           },
           conversationId: {
             type: 'string',
-            description:
-              'Limit search to a single conversation ID. Most specific filter. Mutually-precise with project.',
+            description: 'Limit to one conversation.',
           },
           project: {
             type: 'string',
-            description:
-              'Filter by project URI. Exact (`claude://default/path`), glob suffix (`claude://default/path/*` matches subtree), or `*` for any.',
+            description: 'Filter by project URI (exact or glob suffix `path/*`).',
           },
           types: {
             type: 'array',
             items: { type: 'string' },
-            description:
-              'Filter by transcript entry types. Common values: "user", "assistant", "tool_use", "tool_result", "system", "summary".',
+            description: 'Filter by entry types: "user", "assistant", "tool_use", "tool_result", etc.',
           },
-          limit: { type: 'number', description: 'Max results (1-100, default 20)' },
-          offset: { type: 'number', description: 'Pagination offset (default 0)' },
-          windowBefore: {
-            type: 'number',
-            description:
-              'Include N entries immediately before each hit for context (0-10, default 0). Use 2-5 for quick context, then `get_transcript_context` to expand further.',
-          },
-          windowAfter: {
-            type: 'number',
-            description: 'Include N entries immediately after each hit for context (0-10, default 0).',
-          },
+          limit: { type: 'number', description: 'Max results (1-100, default 20).' },
+          offset: { type: 'number', description: 'Pagination offset (default 0).' },
         },
         required: ['query'],
       },
@@ -84,6 +148,8 @@ export function registerSearchTools(ctx: McpToolContext): Record<string, ToolDef
         if (!http) return { content: [{ type: 'text', text: 'Error: broker not available' }], isError: true }
         const query = String(params.query || '').trim()
         if (!query) return { content: [{ type: 'text', text: 'Error: query is required' }], isError: true }
+
+        const output = String(params.output || 'conversations')
 
         const url = new URL(`${http}/api/search`)
         url.searchParams.set('q', query)
@@ -95,12 +161,6 @@ export function registerSearchTools(ctx: McpToolContext): Record<string, ToolDef
         }
         if (params.limit != null) url.searchParams.set('limit', String(params.limit))
         if (params.offset != null) url.searchParams.set('offset', String(params.offset))
-        if (params.windowBefore != null) {
-          url.searchParams.set('windowBefore', String(Math.min(parseInt(String(params.windowBefore), 10) || 0, 10)))
-        }
-        if (params.windowAfter != null) {
-          url.searchParams.set('windowAfter', String(Math.min(parseInt(String(params.windowAfter), 10) || 0, 10)))
-        }
 
         try {
           const res = await fetch(url, { headers: authHeaders() })
@@ -112,8 +172,18 @@ export function registerSearchTools(ctx: McpToolContext): Record<string, ToolDef
               isError: true,
             }
           }
-          const data = await res.json()
-          return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] }
+          const data = (await res.json()) as SearchResponse
+
+          let text: string
+          if (output === 'full') {
+            text = JSON.stringify(data, null, 2)
+          } else if (output === 'snippets') {
+            text = formatSnippetsOutput(data)
+          } else {
+            text = formatConversationsOutput(data)
+          }
+
+          return { content: [{ type: 'text', text }] }
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'unknown'
           debug(`[channel] search_transcripts error: ${msg}`)
@@ -124,29 +194,23 @@ export function registerSearchTools(ctx: McpToolContext): Record<string, ToolDef
 
     get_transcript_context: {
       description:
-        'Get a sliding window of transcript entries around a specific point in a conversation. Use after `search_transcripts` to expand context around a hit, or to walk through a conversation by repeatedly shifting `aroundSeq`.\n\n' +
-        'CENTERING:\n' +
-        '  - aroundSeq: center on a specific sequence number (preferred -- stable across the conversation lifetime)\n' +
-        '  - aroundId: center on a specific entry id (database row id)\n' +
-        '\n' +
-        'SLIDING:\n' +
-        '  Adjust `before` and `after` (each 0-50) to expand/shrink the window. To move forward, call again with aroundSeq = lastReturned.seq. To move backward, aroundSeq = firstReturned.seq.\n' +
-        '\n' +
-        'TYPICAL USAGE: Start with before=5, after=5. If results are partial, expand to before=20, after=20. To walk a conversation, repeat with shifted aroundSeq.',
+        'Sliding window of transcript entries around a point. Use after search_transcripts to read full content.\n\n' +
+        'Center on aroundSeq (from search hits) or aroundId. Adjust before/after (0-50) to expand.\n' +
+        'To walk forward: set aroundSeq = last returned seq. Backward: aroundSeq = first returned seq.',
       inputSchema: {
         type: 'object' as const,
         properties: {
-          conversationId: { type: 'string', description: 'Conversation to read from' },
+          conversationId: { type: 'string', description: 'Conversation to read from.' },
           aroundSeq: {
             type: 'number',
-            description: 'Center the window on this sequence number (preferred). Get this from search hits.',
+            description: 'Center on this sequence number (preferred). From search hit results.',
           },
           aroundId: {
             type: 'number',
-            description: 'Center the window on this entry id. Use aroundSeq when possible -- ids are storage-internal.',
+            description: 'Center on this entry id (fallback).',
           },
-          before: { type: 'number', description: 'Entries before center (0-50, default 5)' },
-          after: { type: 'number', description: 'Entries after center (0-50, default 5)' },
+          before: { type: 'number', description: 'Entries before center (0-50, default 5).' },
+          after: { type: 'number', description: 'Entries after center (0-50, default 5).' },
         },
         required: ['conversationId'],
       },
