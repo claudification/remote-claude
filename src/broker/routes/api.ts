@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Hono } from 'hono'
-import { parseProjectUri } from '../../shared/project-uri'
+import { matchProjectUri, parseProjectUri } from '../../shared/project-uri'
 import { getAuthenticatedUser } from '../auth-routes'
 import type { ConversationStore } from '../conversation-store'
 import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
@@ -20,12 +20,14 @@ import {
   setProjectSettings,
 } from '../project-settings'
 import { addSubscription, getSubscriptionCount, isPushConfigured, removeSubscription, sendPushToAll } from '../push'
+import type { StoreDriver } from '../store/types'
 import { appendSharedFile, dismissSharedFile, mediaTypeToExt, readSharedFiles, storeBlobStreaming } from './blob-store'
 import type { RouteHelpers } from './shared'
 import { broadcastToSubscribers } from './shared'
 
 export function createApiRouter(
   conversationStore: ConversationStore,
+  store: StoreDriver,
   helpers: RouteHelpers,
   rclaudeSecret: string | undefined,
   cacheDir: string | undefined,
@@ -36,11 +38,135 @@ export function createApiRouter(
   const { httpHasPermission, httpIsAdmin, resolveHttpGrants } = helpers
   const app = new Hono()
 
+  // Clamp a query-string integer to [min, max], falling back to `defaultVal`
+  // when the param is absent or NaN. Plain `parseInt(...) || N` corrupts 0
+  // into N (because 0 is falsy) -- this helper doesn't.
+  function clampInt(raw: string | null, defaultVal: number, min: number, max: number): number {
+    if (raw == null || raw === '') return Math.min(Math.max(defaultVal, min), max)
+    const n = parseInt(raw, 10)
+    if (!Number.isFinite(n)) return Math.min(Math.max(defaultVal, min), max)
+    return Math.min(Math.max(n, min), max)
+  }
+
   // ─── Model pricing (LiteLLM) ─────────────────────────────────────
   app.get('/api/models', c => c.json({ models: getModels(), fetchedAt: getModelsFetchedAt() }))
 
   // ─── Server capabilities ───────────────────────────────────────────
   app.get('/api/capabilities', c => c.json({ voice: !!process.env.DEEPGRAM_API_KEY }))
+
+  // ─── Transcript search (FTS5) ──────────────────────────────────────
+  // Free-form search across conversation transcripts. Supports filtering by
+  // conversation, project (exact URI or `claude://host/path/*` glob), entry
+  // type, and pagination. Each hit may include a sliding window of surrounding
+  // entries via windowBefore / windowAfter.
+  app.get('/api/search', c => {
+    const url = new URL(c.req.raw.url)
+    const q = (url.searchParams.get('q') || url.searchParams.get('query') || '').trim()
+    if (!q) return c.json({ error: 'Missing q parameter' }, 400)
+
+    const conversationId = url.searchParams.get('conversation') || url.searchParams.get('conversationId') || undefined
+    const projectPattern = url.searchParams.get('project') || undefined
+    const typesParam = url.searchParams.get('type') || url.searchParams.get('types') || ''
+    const types = typesParam
+      ? typesParam
+          .split(',')
+          .map(t => t.trim())
+          .filter(Boolean)
+      : undefined
+    const limit = clampInt(url.searchParams.get('limit'), 20, 1, 100)
+    const offset = clampInt(url.searchParams.get('offset'), 0, 0, Number.MAX_SAFE_INTEGER)
+    const windowBefore = clampInt(url.searchParams.get('windowBefore'), 0, 0, 50)
+    const windowAfter = clampInt(url.searchParams.get('windowAfter'), 0, 0, 50)
+
+    // Permission filter: collect conversations the caller can read.
+    const allConversations = conversationStore.getAllConversations()
+    const allowed = helpers
+      .filterConversationsByHttpGrants(c.req.raw, allConversations)
+      .filter(s => !conversationId || s.id === conversationId)
+      .filter(s => !projectPattern || matchProjectUri(projectPattern, s.project))
+
+    if (allowed.length === 0) return c.json({ hits: [], total: 0 })
+
+    // If a single-conversation filter resolves to an unauthorized conversation, deny.
+    if (conversationId && !allowed.some(s => s.id === conversationId)) {
+      return c.json({ error: 'Forbidden' }, 403)
+    }
+
+    const conversationIds = allowed.map(s => s.id)
+    const convMeta = new Map(
+      allowed.map(s => [s.id, { project: s.project, title: s.title, description: s.description }]),
+    )
+
+    const hits = store.transcripts.search(q, {
+      conversationId: conversationId,
+      conversationIds: conversationId ? undefined : conversationIds,
+      types,
+      limit,
+      offset,
+    })
+
+    const enriched = hits.map(hit => {
+      const meta = convMeta.get(hit.conversationId)
+      const window =
+        windowBefore > 0 || windowAfter > 0
+          ? store.transcripts.getWindow(hit.conversationId, {
+              aroundSeq: hit.seq,
+              before: windowBefore,
+              after: windowAfter,
+            })
+          : undefined
+      return {
+        ...hit,
+        conversation: meta
+          ? { id: hit.conversationId, project: meta.project, title: meta.title, description: meta.description }
+          : { id: hit.conversationId },
+        window,
+      }
+    })
+
+    return c.json({ hits: enriched, total: hits.length, query: q, limit, offset })
+  })
+
+  // ─── Search-index admin (stats + manual rebuild) ──────────────────
+  app.get('/api/search-index/stats', c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
+    return c.json(store.transcripts.getIndexStats())
+  })
+
+  app.post('/api/search-index/rebuild', c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
+    const result = store.transcripts.rebuildIndex()
+    return c.json(result)
+  })
+
+  // ─── Transcript context window (sliding) ───────────────────────────
+  app.get('/api/transcript-window', c => {
+    const url = new URL(c.req.raw.url)
+    const conversationId = url.searchParams.get('conversation') || url.searchParams.get('conversationId') || ''
+    if (!conversationId) return c.json({ error: 'Missing conversation' }, 400)
+
+    const conv = conversationStore.getConversation(conversationId)
+    if (!conv) return c.json({ error: 'Conversation not found' }, 404)
+    if (!helpers.httpHasPermission(c.req.raw, 'chat:read', conv.project)) {
+      return c.json({ error: 'Forbidden' }, 403)
+    }
+
+    const aroundSeqRaw = url.searchParams.get('aroundSeq') || url.searchParams.get('seq')
+    const aroundIdRaw = url.searchParams.get('aroundId') || url.searchParams.get('id')
+    const aroundSeq = aroundSeqRaw ? parseInt(aroundSeqRaw, 10) : undefined
+    const aroundId = aroundIdRaw ? parseInt(aroundIdRaw, 10) : undefined
+    if (aroundSeq == null && aroundId == null) {
+      return c.json({ error: 'Missing aroundSeq or aroundId' }, 400)
+    }
+    const before = clampInt(url.searchParams.get('before'), 5, 0, 50)
+    const after = clampInt(url.searchParams.get('after'), 5, 0, 50)
+
+    const entries = store.transcripts.getWindow(conversationId, { aroundSeq, aroundId, before, after })
+    return c.json({
+      entries,
+      conversation: { id: conv.id, project: conv.project, title: conv.title, description: conv.description },
+    })
+  })
 
   // ─── Push notifications ────────────────────────────────────────────
   app.get('/api/push/vapid', c => {

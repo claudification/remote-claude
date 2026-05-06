@@ -55,6 +55,36 @@ function sha256File(path: string): string {
   return createHash('sha256').update(readFileSync(path)).digest('hex')
 }
 
+// Map of database name -> derived artifacts (FTS tables, triggers) that are
+// fully rebuildable from base tables. Stripped from snapshots; recreated by
+// createSchema()'s backfill logic on next startup.
+const DERIVED_ARTIFACTS: Record<string, { triggers: string[]; tables: string[] }> = {
+  'store.db': {
+    triggers: ['transcript_fts_ai', 'transcript_fts_ad', 'transcript_fts_au'],
+    tables: ['transcript_fts'],
+  },
+}
+
+function stripDerivedArtifacts(dbPath: string, dbName: string): void {
+  const spec = DERIVED_ARTIFACTS[dbName]
+  if (!spec) return
+  const db = new Database(dbPath)
+  try {
+    // Drop triggers BEFORE the FTS table -- otherwise dropping the table
+    // fires the AFTER DELETE trigger row-by-row, which is slow and writes
+    // to the FTS shadows we're about to discard anyway.
+    for (const t of spec.triggers) {
+      db.run(`DROP TRIGGER IF EXISTS ${t}`)
+    }
+    for (const t of spec.tables) {
+      db.run(`DROP TABLE IF EXISTS ${t}`)
+    }
+    db.run('VACUUM')
+  } finally {
+    db.close()
+  }
+}
+
 function isBrokerRunning(cacheDir: string): boolean {
   const pidFile = join(cacheDir, 'broker.pid')
   if (!existsSync(pidFile)) return false
@@ -112,6 +142,14 @@ export async function createBackup(opts: BackupCreateOptions): Promise<string> {
       } finally {
         db.close()
       }
+
+      // Strip derived/rebuildable artifacts from the snapshot so the archive
+      // stays lean. The FTS5 index over transcript_entries.content is fully
+      // rebuildable from the source rows -- the broker's schema bootstrap
+      // (createSchema) detects an empty FTS table with non-empty source rows
+      // and backfills automatically on next startup.
+      stripDerivedArtifacts(destPath, dbName)
+
       const size = statSync(destPath).size
       manifestFiles.push({ path: dbName, size, sha256: sha256File(destPath) })
       console.log(`  ${dbName}: ${(size / 1024 / 1024).toFixed(1)} MB`)

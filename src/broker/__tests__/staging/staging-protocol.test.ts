@@ -19,6 +19,7 @@ import {
   httpGet,
   sleep,
   testId,
+  waitForMatch,
   waitForMessage,
 } from './staging-harness'
 
@@ -202,7 +203,13 @@ run('dashboard subscription', () => {
       startedAt: Date.now(),
     })
 
-    const update = await waitForMessage(dashboard, 'conversation_update')
+    // Filter to the specific convId -- other tests in the same staging run
+    // can emit unrelated conversation_update broadcasts that race with ours.
+    const update = await waitForMatch(
+      dashboard,
+      'conversation_update',
+      m => (m.conversation as Record<string, unknown>)?.id === convId,
+    )
     expect(update.type).toBe('conversation_update')
     const session = update.conversation as Record<string, unknown>
     expect(session.id).toBe(convId)

@@ -212,7 +212,7 @@ export function createRouter(options: RouteOptions): Hono {
   app.route('/', createSpawnRouter(conversationStore, helpers))
   app.route(
     '/',
-    createApiRouter(conversationStore, helpers, rclaudeSecret, cacheDir, blobDir, publicOrigin, vapidPublicKey),
+    createApiRouter(conversationStore, store, helpers, rclaudeSecret, cacheDir, blobDir, publicOrigin, vapidPublicKey),
   )
   app.route('/', createStatsRouter(conversationStore, store, helpers, serverStartTime))
   app.route('/', createAdminRouter(conversationStore, helpers, rclaudeSecret))

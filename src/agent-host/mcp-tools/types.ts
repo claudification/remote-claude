@@ -117,4 +117,9 @@ export interface McpToolContext {
   getDialogCwd: () => string
   pendingDialogs: Map<string, PendingDialog>
   elog: (msg: string) => void
+  // Broker access for HTTP-backed tools (search, etc). Optional so tests/headless
+  // tools without a broker still work.
+  brokerUrl?: string
+  brokerSecret?: string
+  noBroker?: boolean
 }

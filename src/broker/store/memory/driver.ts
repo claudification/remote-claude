@@ -250,30 +250,62 @@ function createTranscriptStore(): TranscriptStore {
     },
 
     search(query, opts) {
-      const q = query.toLowerCase()
+      const q = query.trim().toLowerCase()
+      if (!q) return []
+      const limit = Math.min(Math.max(opts?.limit ?? 20, 1), 100)
+      const offset = Math.max(opts?.offset ?? 0, 0)
       const hits: SearchHit[] = []
-      for (const [conversationId, arr] of entries) {
-        if (opts?.scope) {
-          continue // no scope info in transcript entries; caller should pre-filter
-        }
+
+      const idSet = opts?.conversationIds ? new Set(opts.conversationIds) : null
+      const typeSet = opts?.types?.length ? new Set(opts.types) : null
+      const sources: Array<[string, TranscriptEntryRecord[]]> = opts?.conversationId
+        ? [[opts.conversationId, entries.get(opts.conversationId) ?? []]]
+        : [...entries.entries()].filter(([cid]) => !idSet || idSet.has(cid))
+
+      for (const [conversationId, arr] of sources) {
         for (const e of arr) {
-          const text = JSON.stringify(e.content).toLowerCase()
-          const idx = text.indexOf(q)
-          if (idx !== -1) {
-            const start = Math.max(0, idx - 40)
-            const end = Math.min(text.length, idx + q.length + 40)
-            hits.push({
-              conversationId,
-              entryId: e.id,
-              snippet: text.slice(start, end),
-              score: 1,
-              createdAt: e.timestamp,
-            })
-          }
+          if (typeSet && !typeSet.has(e.type)) continue
+          const text = JSON.stringify(e.content)
+          const idx = text.toLowerCase().indexOf(q)
+          if (idx === -1) continue
+          const start = Math.max(0, idx - 32)
+          const end = Math.min(text.length, idx + q.length + 32)
+          const before = start > 0 ? '...' : ''
+          const after = end < text.length ? '...' : ''
+          hits.push({
+            id: e.id,
+            conversationId,
+            seq: e.seq,
+            type: e.type,
+            subtype: e.subtype,
+            content: e.content,
+            timestamp: e.timestamp,
+            rank: -1 / (text.length + 1), // shorter matches rank higher (less-negative bm25 surrogate)
+            snippet: `${before}${text.slice(start, end)}${after}`,
+          })
         }
       }
-      hits.sort((a, b) => b.createdAt - a.createdAt)
-      return hits.slice(0, opts?.limit ?? 50)
+      hits.sort((a, b) => a.rank - b.rank)
+      return hits.slice(offset, offset + limit)
+    },
+
+    getWindow(conversationId, opts) {
+      const arr = entries.get(conversationId) ?? []
+      const before = Math.min(Math.max(opts.before ?? 5, 0), 50)
+      const after = Math.min(Math.max(opts.after ?? 5, 0), 50)
+
+      let centerSeq: number | null = null
+      if (opts.aroundSeq != null) centerSeq = opts.aroundSeq
+      else if (opts.aroundId != null) {
+        const found = arr.find(e => e.id === opts.aroundId)
+        if (!found) return []
+        centerSeq = found.seq
+      }
+      if (centerSeq == null) return []
+
+      const minSeq = centerSeq - before
+      const maxSeq = centerSeq + after
+      return arr.filter(e => e.seq >= minSeq && e.seq <= maxSeq).sort((a, b) => a.seq - b.seq)
     },
 
     count(conversationId, agentId) {
@@ -293,6 +325,25 @@ function createTranscriptStore(): TranscriptStore {
         pruned += before - kept.length
       }
       return pruned
+    },
+
+    getIndexStats() {
+      let totalEntries = 0
+      for (const arr of entries.values()) totalEntries += arr.length
+      return {
+        totalEntries,
+        indexedDocs: totalEntries, // memory driver: source IS the index
+        conversations: entries.size,
+        isComplete: true,
+      }
+    },
+
+    rebuildIndex() {
+      // No-op for memory driver -- substring search reads the source directly,
+      // there's no separate index to rebuild.
+      let totalEntries = 0
+      for (const arr of entries.values()) totalEntries += arr.length
+      return { docsIndexed: totalEntries, durationMs: 0 }
     },
   }
 }

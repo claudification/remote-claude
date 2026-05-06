@@ -257,6 +257,12 @@ export function useGlobalCommands(toggleSidebar: () => void) {
     when: () => useConversationsStore.getState().permissions.canAdmin,
   })
 
+  useCommand('manage-search-index', () => window.dispatchEvent(new Event('open-search-index')), {
+    label: 'Manage search index',
+    group: 'System',
+    when: () => useConversationsStore.getState().permissions.canAdmin,
+  })
+
   useCommand(
     'effort',
     (level = 'medium') => {

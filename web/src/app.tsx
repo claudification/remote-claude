@@ -40,6 +40,9 @@ const UserAdminDialog = lazy(() => import('@/components/user-admin').then(m => (
 const SentinelManagerDialog = lazy(() =>
   import('@/components/sentinel-manager').then(m => ({ default: m.SentinelManagerDialog })),
 )
+const SearchIndexManagerDialog = lazy(() =>
+  import('@/components/search-index-manager').then(m => ({ default: m.SearchIndexManagerDialog })),
+)
 
 function Dashboard() {
   const [sheetOpen, setSheetOpen] = useState(
@@ -48,6 +51,7 @@ function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === 'true')
   const [showUserAdmin, setShowUserAdmin] = useState(false)
   const [showSentinelManager, setShowSentinelManager] = useState(false)
+  const [showSearchIndex, setShowSearchIndex] = useState(false)
 
   const { swUpdate, setSwUpdate } = useBuildUpdate()
 
@@ -85,6 +89,15 @@ function Dashboard() {
     }
     window.addEventListener('open-sentinel-manager', handleOpen)
     return () => window.removeEventListener('open-sentinel-manager', handleOpen)
+  }, [])
+
+  // Listen for search-index manager open event (from command palette)
+  useEffect(() => {
+    function handleOpen() {
+      setShowSearchIndex(true)
+    }
+    window.addEventListener('open-search-index', handleOpen)
+    return () => window.removeEventListener('open-search-index', handleOpen)
   }, [])
 
   // Close sheet when a conversation is selected (mobile UX)
@@ -219,6 +232,12 @@ function Dashboard() {
       {showSentinelManager && (
         <Suspense fallback={null}>
           <SentinelManagerDialog open={showSentinelManager} onOpenChange={setShowSentinelManager} />
+        </Suspense>
+      )}
+
+      {showSearchIndex && (
+        <Suspense fallback={null}>
+          <SearchIndexManagerDialog open={showSearchIndex} onOpenChange={setShowSearchIndex} />
         </Suspense>
       )}
 

@@ -147,8 +147,11 @@ function createMockStoreDriver(): StoreDriver {
       getLastSeq: () => 0,
       find: () => [],
       search: () => [],
+      getWindow: () => [],
       count: () => 0,
       pruneOlderThan: () => 0,
+      getIndexStats: () => ({ totalEntries: 0, indexedDocs: 0, conversations: 0, isComplete: true }),
+      rebuildIndex: () => ({ docsIndexed: 0, durationMs: 0 }),
     },
     events: {
       append: noop,

@@ -44,7 +44,7 @@ import { processHookEvent } from './hook-processor'
 import { emitLaunchEvent, filterRelevantEnv } from './launch-events'
 import { setLocalServerDebug, startLocalServer } from './local-server'
 import { buildMcpCallbacksWithRules } from './mcp-callbacks'
-import { initMcpChannel, setClaudeCodeVersion, setDialogCwd } from './mcp-channel'
+import { initMcpChannel, setBrokerInfo, setClaudeCodeVersion, setDialogCwd } from './mcp-channel'
 import { Osc52Parser } from './osc52-parser'
 import { clearInteraction, sendInteraction } from './pending-interactions'
 import { createRulesEngine } from './permission-rules'
@@ -238,6 +238,7 @@ async function main() {
     permissionRules,
   )
 
+  setBrokerInfo(cli.brokerUrl, cli.brokerSecret, cli.noBroker)
   initMcpChannel(mcpCallbacks, {
     ccSessionId: conversationId,
     conversationId,

@@ -142,11 +142,49 @@ export interface TranscriptFilter {
 }
 
 export interface SearchHit {
+  id: number
   conversationId: string
-  entryId: number
+  seq: number
+  type: string
+  subtype?: string
+  content: Record<string, unknown>
+  timestamp: number
+  rank: number
   snippet: string
-  score: number
-  createdAt: number
+}
+
+export interface SearchOpts {
+  conversationId?: string
+  conversationIds?: string[]
+  scope?: string
+  types?: string[]
+  limit?: number
+  offset?: number
+}
+
+export interface WindowOpts {
+  aroundSeq?: number
+  aroundId?: number
+  before?: number
+  after?: number
+}
+
+export interface SearchIndexStats {
+  /** Number of source rows in transcript_entries. */
+  totalEntries: number
+  /** Number of documents currently in the FTS5 inverted index (or totalEntries
+   *  for the memory driver, which has no separate index structure). */
+  indexedDocs: number
+  /** Distinct conversation IDs represented in transcript_entries. */
+  conversations: number
+  /** indexedDocs == totalEntries -- a quick "is the index up to date?" probe. */
+  isComplete: boolean
+}
+
+export interface RebuildResult {
+  /** Documents present in the rebuilt index. */
+  docsIndexed: number
+  durationMs: number
 }
 
 export interface TranscriptStore {
@@ -160,9 +198,14 @@ export interface TranscriptStore {
   ): { entries: TranscriptEntryRecord[]; lastSeq: number; gap: boolean }
   getLastSeq(conversationId: string): number
   find(conversationId: string, filter: TranscriptFilter): TranscriptEntryRecord[]
-  search(query: string, opts?: { scope?: string; limit?: number }): SearchHit[]
+  search(query: string, opts?: SearchOpts): SearchHit[]
+  getWindow(conversationId: string, opts: WindowOpts): TranscriptEntryRecord[]
   count(conversationId: string, agentId?: string | null): number
   pruneOlderThan(cutoffMs: number): number
+  /** Inspect FTS index health -- doc counts, completeness, conversation breadth. */
+  getIndexStats(): SearchIndexStats
+  /** Drop and rebuild the FTS index from transcript_entries. Memory driver no-ops. */
+  rebuildIndex(): RebuildResult
 }
 
 export interface TranscriptEntryInput {

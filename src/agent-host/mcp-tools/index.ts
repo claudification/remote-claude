@@ -4,6 +4,7 @@ import { registerHostTools } from './hosts'
 import { registerIdentityTools } from './identity'
 import { registerNotifyTools } from './notify'
 import { registerProjectBoardTools } from './project-board'
+import { registerSearchTools } from './search'
 import { registerSpawnTools } from './spawn'
 import type { McpToolContext, ToolDef } from './types'
 
@@ -28,5 +29,6 @@ export function registerAllTools(ctx: McpToolContext): Record<string, ToolDef> {
     ...registerHostTools(ctx),
     ...registerProjectBoardTools(ctx),
     ...registerDialogTool(ctx),
+    ...registerSearchTools(ctx),
   }
 }
