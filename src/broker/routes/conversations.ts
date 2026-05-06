@@ -170,7 +170,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
       teammates: conv.teammates,
       team: conv.team,
       args: conv.args,
-      conversationInfo: (conv as unknown as Record<string, unknown>).conversationInfoSnapshot,
+      conversationInfo: conv.conversationInfo,
       diagLog: conv.diagLog,
     })
   })

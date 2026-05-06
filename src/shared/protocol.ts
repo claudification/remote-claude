@@ -1402,6 +1402,18 @@ export interface Conversation {
   team?: TeamInfo
   diagLog: Array<{ t: number; type: string; msg: string; args?: unknown }>
   effortLevel?: string // 'speed' field from API usage: e.g. 'standard', maps to low/medium/high
+  conversationInfo?: {
+    tools?: unknown[]
+    slashCommands?: unknown[]
+    skills?: unknown[]
+    agents?: unknown[]
+    mcpServers?: Array<{ name: string; status?: string }>
+    plugins?: unknown[]
+    model?: string
+    permissionMode?: string
+    claudeCodeVersion?: string
+    fastModeState?: unknown
+  }
   permissionMode?: string // current CC permission mode (default/plan/acceptEdits/auto/bypassPermissions)
   lastError?: { stopReason?: string; errorType?: string; errorMessage?: string; timestamp: number }
   rateLimit?: { retryAfterMs: number; message: string; timestamp: number }
@@ -1577,6 +1589,7 @@ export interface SpawnResult {
   jobId?: string // launch job correlation ID
   success: boolean
   error?: string
+  project?: string
   tmuxSession?: string
   conversationId?: string
 }
@@ -1666,7 +1679,8 @@ export interface SpawnConversation {
   type: 'spawn'
   requestId: string
   conversationId: string
-  project: string
+  cwd: string
+  project?: string
   jobId?: string
   // Conversation metadata
   sessionName?: string

@@ -214,10 +214,7 @@ const conversationInfo: MessageHandler = (ctx, data) => {
     return
   }
   const conversationId = conversation.id
-  const prevSnapshot =
-    ((conversation as unknown as Record<string, unknown>).conversationInfoSnapshot as
-      | ConversationInfoSnapshot
-      | undefined) || {}
+  const prevSnapshot = (conversation.conversationInfo as ConversationInfoSnapshot | undefined) || {}
   const nextSnapshot: ConversationInfoSnapshot = {
     tools: data.tools as unknown[] | undefined,
     slashCommands: data.slashCommands as unknown[] | undefined,
@@ -230,7 +227,7 @@ const conversationInfo: MessageHandler = (ctx, data) => {
     claudeCodeVersion: data.claudeCodeVersion as string | undefined,
     fastModeState: data.fastModeState as string | undefined,
   }
-  ;(conversation as unknown as Record<string, unknown>).conversationInfoSnapshot = nextSnapshot
+  conversation.conversationInfo = nextSnapshot
 
   // The init message is ground truth for model identity -- it's what CC
   // is actually running, not what was requested via --model.

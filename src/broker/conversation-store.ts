@@ -716,6 +716,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           prLinks: fullMeta.prLinks as Conversation['prLinks'],
           hostSentinelId: fullMeta.hostSentinelId as string | undefined,
           hostSentinelAlias: fullMeta.hostSentinelAlias as string | undefined,
+          conversationInfo: fullMeta.conversationInfo as Conversation['conversationInfo'],
         }
         conversations.set(conv.id, conv)
       }
@@ -776,6 +777,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         prLinks: conv.prLinks?.length ? conv.prLinks : undefined,
         hostSentinelId: conv.hostSentinelId,
         hostSentinelAlias: conv.hostSentinelAlias,
+        conversationInfo: conv.conversationInfo,
       }
       if (!existing) {
         store.conversations.create({
