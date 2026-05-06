@@ -91,7 +91,14 @@ export function createSchema(db: Database) {
   const indexed = db.prepare('SELECT COUNT(*) AS cnt FROM transcript_fts_docsize').get() as { cnt: number }
   const tx = db.prepare('SELECT COUNT(*) AS cnt FROM transcript_entries').get() as { cnt: number }
   if (indexed.cnt === 0 && tx.cnt > 0) {
+    const start = Date.now()
     db.run("INSERT INTO transcript_fts(transcript_fts) VALUES('rebuild')")
+    const ms = Date.now() - start
+    // Stderr so it shows up in docker logs / journalctl without depending on
+    // any logger init order (this runs in createSchema, before app wiring).
+    console.error(
+      `[fts] backfilled ${tx.cnt} transcript entries in ${ms}ms (${Math.round(tx.cnt / Math.max(ms, 1))} entries/ms)`,
+    )
   }
 
   db.run(`
