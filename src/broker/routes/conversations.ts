@@ -2,7 +2,6 @@
  * Conversation routes -- /conversations/*
  */
 
-import { randomUUID } from 'node:crypto'
 import { Hono } from 'hono'
 import { extractProjectLabel, parseProjectUri } from '../../shared/project-uri'
 import type { SendInput } from '../../shared/protocol'
@@ -227,7 +226,9 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
     const sentinel = conversationStore.getSentinel()
     if (!sentinel) return c.json({ error: 'No sentinel connected' }, 503)
 
-    const conversationId = randomUUID()
+    // Reuse the original conversation ID so transcript + sidebar entry persist
+    conversationStore.resumeConversation(targetId)
+
     const lc = conv.launchConfig // stored launch config from original spawn
     const name =
       conv.title || getProjectSettings(conv.project)?.label || extractProjectLabel(conv.project) || targetId.slice(0, 8)
@@ -255,7 +256,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
     const { buildReviveMessage } = await import('../build-revive')
     sentinel.send(
       JSON.stringify(
-        buildReviveMessage(conv, conversationId, {
+        buildReviveMessage(conv, targetId, {
           headless,
           effort,
           model,
@@ -271,7 +272,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
     // Register rendezvous for MCP callers
     if (callerConversationId) {
       conversationStore
-        .addRendezvous(conversationId, callerConversationId, conv.project, 'revive')
+        .addRendezvous(targetId, callerConversationId, conv.project, 'revive')
         .then(revived => {
           const callerWs = conversationStore.getConversationSocket(callerConversationId)
           if (callerWs) {
@@ -291,7 +292,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
             callerWs.send(
               JSON.stringify({
                 type: 'revive_timeout',
-                conversationId,
+                conversationId: targetId,
                 project: conv.project,
                 error: typeof err === 'string' ? err : 'Revive rendezvous timed out',
               }),
@@ -300,7 +301,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
         })
     }
 
-    return c.json({ success: true, name, message: 'Revive command sent to sentinel', conversationId }, 202)
+    return c.json({ success: true, name, message: 'Revive command sent to sentinel', conversationId: targetId }, 202)
   })
 
   app.get('/conversations/by-slug/:slug', c => {

@@ -7,7 +7,7 @@
  */
 
 import { generateConversationName } from '../../shared/conversation-names'
-import { extractProjectLabel, parseProjectUri } from '../../shared/project-uri'
+import { extractProjectLabel } from '../../shared/project-uri'
 import type { SendInput } from '../../shared/protocol'
 import { buildReviveMessage } from '../build-revive'
 import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
@@ -227,7 +227,6 @@ const reviveConversation: MessageHandler = (ctx, data) => {
   const sentinel = ctx.getSentinel()
   if (!sentinel) throw new GuardError('No sentinel connected')
 
-  const newConversationId = crypto.randomUUID()
   const jobId = data.jobId as string | undefined
   const projSettings = getProjectSettings(conversation.project)
   const lc = conversation.launchConfig // stored launch config from original spawn
@@ -256,14 +255,17 @@ const reviveConversation: MessageHandler = (ctx, data) => {
   const effort = effortRaw && effortRaw !== 'default' ? effortRaw : undefined
   const model = modelOverride || lc?.model || projSettings?.defaultModel || globalSettings.defaultModel || undefined
 
+  // Reuse the original conversation ID so transcript + sidebar entry persist
+  ctx.conversations.resumeConversation(conversationId)
+
   // Register launch job if dashboard provided a jobId
   if (jobId) {
-    ctx.conversations.createJob(jobId, newConversationId)
+    ctx.conversations.createJob(jobId, conversationId)
   }
 
   sentinel.send(
     JSON.stringify(
-      buildReviveMessage(conversation, newConversationId, {
+      buildReviveMessage(conversation, conversationId, {
         jobId,
         headless,
         effort,
@@ -276,13 +278,13 @@ const reviveConversation: MessageHandler = (ctx, data) => {
   )
 
   ctx.log.info(
-    `[revive] ${name} (${conversationId.slice(0, 8)}) via WS, conversationId=${newConversationId.slice(0, 8)} headless=${headless}${jobId ? ` job=${jobId.slice(0, 8)}` : ''}${lc ? ' (launch config restored)' : ''}`,
+    `[revive] ${name} (${conversationId.slice(0, 8)}) via WS, headless=${headless}${jobId ? ` job=${jobId.slice(0, 8)}` : ''}${lc ? ' (launch config restored)' : ''}`,
   )
   ctx.reply({
     type: 'revive_conversation_result',
     ok: true,
     name,
-    conversationId: newConversationId,
+    conversationId,
     jobId,
     message: 'Revive command sent to sentinel',
   })
