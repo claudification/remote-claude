@@ -1370,12 +1370,14 @@ function connect(
             )
             break
           }
-          const spawnCwdRaw = parseProjectUri(spawnMsg.project).path
+          const spawnCwdRaw = spawnMsg.cwd
           const expandedCwd = expandPath(spawnCwdRaw, spawnRoot)
+          const resolvedProject = cwdToProjectUri(expandedCwd)
           launchLog(spawnMsg.jobId, 'Sentinel received spawn request', 'ok', expandedCwd.split('/').pop())
           diag('spawn', 'Spawn request received', {
             requestId: spawnMsg.requestId,
-            project: spawnMsg.project,
+            cwd: spawnMsg.cwd,
+            resolvedProject,
             expandedCwd,
             conversationId: spawnMsg.conversationId,
             mkdir: spawnMsg.mkdir,
@@ -1418,6 +1420,7 @@ function connect(
             jobId: spawnMsg.jobId,
             success: spawnRes.success,
             error: spawnRes.error,
+            project: resolvedProject,
             tmuxSession: spawnRes.tmuxSession,
             conversationId: spawnMsg.conversationId,
           }

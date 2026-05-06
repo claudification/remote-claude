@@ -118,10 +118,6 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
   const conversationId = randomUUID()
   const jobId = req.jobId ?? randomUUID()
 
-  // Convert cwd to project URI at the boundary -- broker internals and
-  // the sentinel wire message use URIs, never raw paths.
-  const project = req.cwd.includes('://') ? req.cwd : cwdToProjectUri(req.cwd)
-
   deps.conversationStore.createJob(jobId, conversationId)
   emitProgress(deps.conversationStore, jobId, 'job_created', 'done', { conversationId })
 
@@ -132,7 +128,11 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
     )
   }
 
-  const projSettings = deps.getProjectSettings(project)
+  // Best-effort settings lookup. Non-absolute paths (~/..., ./...) won't match
+  // any stored project settings -- that's fine, global defaults apply. The
+  // sentinel resolves the real path and returns the canonical URI.
+  const settingsUri = req.cwd.includes('://') ? req.cwd : req.cwd.startsWith('/') ? cwdToProjectUri(req.cwd) : null
+  const projSettings = settingsUri ? deps.getProjectSettings(settingsUri) : null
   const globalSettings = deps.getGlobalSettings()
   const resolved = resolveSpawnConfig(req, projSettings, globalSettings)
   const {
@@ -210,7 +210,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
       JSON.stringify({
         type: 'spawn',
         requestId,
-        project,
+        cwd: req.cwd,
         conversationId,
         jobId,
         mkdir: req.mkdir || false,
@@ -259,6 +259,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
     emitProgress(deps.conversationStore, jobId, 'failed', 'error', { error: result.error || 'Spawn failed' })
     return { ok: false, error: result.error || 'Spawn failed', statusCode: 500 }
   }
+  const project = result.project!
   emitProgress(deps.conversationStore, jobId, 'agent_acked', 'done', { detail: result.tmuxSession })
   if (req.adHoc) console.log(`[ad-hoc] Spawn OK: conv=${conversationId.slice(0, 8)} tmux=${result.tmuxSession}`)
 
