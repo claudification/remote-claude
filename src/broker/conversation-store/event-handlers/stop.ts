@@ -1,6 +1,5 @@
 import type { Conversation, HookEventOf } from '../../../shared/protocol'
 import { getModelInfo } from '../../model-pricing'
-import { scheduleRecap } from '../../recap-generator'
 import type { ConversationStoreContext } from '../event-context'
 
 /**
@@ -16,7 +15,6 @@ export function handleStop(
 ): void {
   conv.status = 'idle'
   conv.lastTurnEndedAt = event.timestamp
-  scheduleRecap(ctx, conversationId)
 
   if (event.hookEvent === 'StopFailure') {
     const d = event.data

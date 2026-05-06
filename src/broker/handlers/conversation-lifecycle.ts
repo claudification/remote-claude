@@ -281,8 +281,10 @@ const conversationStatus: MessageHandler = (ctx, data) => {
 
   conversation.status = status
   conversation.lastActivity = Date.now()
-  if (status === 'active') {
-    // Clear stale error/rate-limit on resume
+  if (status === 'idle') {
+    ctx.conversations.scheduleRecap(conversationId)
+  } else {
+    ctx.conversations.cancelRecap(conversationId)
     if (conversation.lastError) conversation.lastError = undefined
     if (conversation.rateLimit) conversation.rateLimit = undefined
   }

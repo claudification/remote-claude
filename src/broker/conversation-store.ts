@@ -55,6 +55,7 @@ import type { ControlPanelMessage } from './conversation-store/types'
 import { createViewerRegistry } from './conversation-store/viewer-registry'
 import type { UserGrant } from './permissions'
 import { resolvePermissionFlags, resolvePermissions } from './permissions'
+import { cancelRecap, scheduleRecap } from './recap-generator'
 import type { SentinelRegistry } from './sentinel-registry'
 import { listShares } from './shares'
 import type { StoreDriver } from './store/types'
@@ -112,6 +113,8 @@ export interface ConversationStore {
   addBgTaskOutput: (conversationId: string, taskId: string, data: string, done: boolean) => void
   getBgTaskOutput: (taskId: string) => string | undefined
   broadcastConversationUpdate: (conversationId: string) => void
+  scheduleRecap: (conversationId: string) => void
+  cancelRecap: (conversationId: string) => void
   // Terminal viewer methods (multiple viewers per conversation)
   // Terminal viewers keyed by conversationId (each PTY is on a specific rclaude instance)
   addTerminalViewer: (conversationId: string, ws: ServerWebSocket<unknown>) => void
@@ -1061,8 +1064,18 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return Array.from(conversations.values()).filter(s => s.status !== 'ended')
   }
 
+  // Late-bound reference so addEvent can pass it to scheduleRecap before the return object exists.
+  // Assigned immediately after the return statement via Object.assign trick below.
+  let self: ConversationStore
+
   function addEvent(conversationId: string, event: HookEvent): void {
+    cancelRecap(conversationId)
+    const prevStatus = conversations.get(conversationId)?.status
     addEventImpl(ctx, conversationId, event)
+    const conv = conversations.get(conversationId)
+    if (conv?.status === 'idle' && prevStatus !== 'idle') {
+      scheduleRecap(self, conversationId)
+    }
   }
 
   function updateActivity(conversationId: string): void {
@@ -1732,7 +1745,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
   }
 
-  return {
+  const result: ConversationStore = {
     createConversation,
     resumeConversation,
     clearConversation,
@@ -1849,5 +1862,10 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     clearState,
     flushTranscripts,
     persistConversationById,
+    scheduleRecap: (conversationId: string) => scheduleRecap(self, conversationId),
+    cancelRecap,
   }
+
+  self = result
+  return result
 }

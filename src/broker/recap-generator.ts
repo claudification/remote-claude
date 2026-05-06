@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { TranscriptAssistantEntry, TranscriptSystemEntry, TranscriptUserEntry } from '../shared/protocol'
-import type { ConversationStoreContext } from './conversation-store/event-context'
+import type { ConversationStore } from './conversation-store'
 
 const RECAP_DELAY_MS = 60_000
 const RECAP_PROMPT =
@@ -11,17 +11,16 @@ const MODEL = 'anthropic/claude-haiku-4.5'
 
 const pendingTimers = new Map<string, Timer>()
 
-export function scheduleRecap(ctx: ConversationStoreContext, conversationId: string): void {
+export function scheduleRecap(store: ConversationStore, conversationId: string): void {
   if (!process.env.OPENROUTER_API_KEY) return
 
   cancelRecap(conversationId)
 
   const timer = setTimeout(() => {
     pendingTimers.delete(conversationId)
-    const conv = ctx.conversations.get(conversationId)
-    if (!conv) return
-    if (conv.status !== 'idle') return
-    generateRecap(ctx, conversationId).catch(err => {
+    const conv = store.getConversation(conversationId)
+    if (!conv || conv.status !== 'idle') return
+    generateRecap(store, conversationId).catch(err => {
       console.log(`[recap] generation failed for ${conversationId.slice(0, 8)}: ${err}`)
     })
   }, RECAP_DELAY_MS)
@@ -37,8 +36,8 @@ export function cancelRecap(conversationId: string): void {
   }
 }
 
-async function generateRecap(ctx: ConversationStoreContext, conversationId: string): Promise<void> {
-  const condensed = condenseTranscript(ctx, conversationId)
+async function generateRecap(store: ConversationStore, conversationId: string): Promise<void> {
+  const condensed = condenseTranscript(store, conversationId)
   if (!condensed) {
     console.log(`[recap] no transcript context for ${conversationId.slice(0, 8)}, skipping`)
     return
@@ -78,8 +77,7 @@ async function generateRecap(ctx: ConversationStoreContext, conversationId: stri
     return
   }
 
-  // Re-check: conversation might have resumed while we were awaiting the API
-  const freshConv = ctx.conversations.get(conversationId)
+  const freshConv = store.getConversation(conversationId)
   if (!freshConv || freshConv.status !== 'idle') return
 
   const entry: TranscriptSystemEntry = {
@@ -90,27 +88,21 @@ async function generateRecap(ctx: ConversationStoreContext, conversationId: stri
     uuid: randomUUID(),
   }
 
-  ctx.addTranscriptEntries(conversationId, [entry], false)
-  ctx.broadcastToChannel('conversation:transcript', conversationId, {
+  store.addTranscriptEntries(conversationId, [entry], false)
+  store.broadcastToChannel('conversation:transcript', conversationId, {
     type: 'transcript',
     conversationId,
     entries: [entry],
   })
-  ctx.scheduleConversationUpdate(conversationId)
+  store.broadcastConversationUpdate(conversationId)
 
   console.log(`[recap] generated for ${conversationId.slice(0, 8)}: ${recapText.slice(0, 80)}`)
 }
 
-/**
- * Build recap context: initial prompt (first user message after last /clear)
- * plus the most recent user+assistant exchanges. Skips tool_use/tool_result
- * noise -- just the conversational turns that convey intent and results.
- */
-function condenseTranscript(ctx: ConversationStoreContext, conversationId: string): string | null {
-  const cached = ctx.transcriptCache.get(conversationId)
-  if (!cached || cached.length === 0) return null
+function condenseTranscript(store: ConversationStore, conversationId: string): string | null {
+  const cached = store.getTranscriptEntries(conversationId)
+  if (cached.length === 0) return null
 
-  // Find the last compact_boundary or start of transcript (post-/clear baseline)
   let resetIdx = 0
   for (let i = cached.length - 1; i >= 0; i--) {
     const e = cached[i]
@@ -126,25 +118,22 @@ function condenseTranscript(ctx: ConversationStoreContext, conversationId: strin
   const parts: string[] = []
   let chars = 0
 
-  // Always include the first user message (the initial prompt / task)
   const firstUser = postReset.find((e): e is TranscriptUserEntry => e.type === 'user')
   if (firstUser) {
     const text = extractUserText(firstUser)
     if (text) {
-      const label = 'INITIAL PROMPT: ' + text
+      const label = `INITIAL PROMPT: ${text}`
       parts.push(truncate(label, MAX_CONTEXT_CHARS))
       chars += parts[0].length
     }
   }
 
-  // Then the most recent user+assistant entries
   const recent = postReset.slice(-MAX_RECENT_ENTRIES)
   for (const entry of recent) {
     if (chars >= MAX_CONTEXT_CHARS) break
 
     let line: string | null = null
     if (entry.type === 'user') {
-      // Skip if this is the same first user entry we already included
       if (entry === firstUser) continue
       line = prefixed('USER', extractUserText(entry as TranscriptUserEntry))
     } else if (entry.type === 'assistant') {
