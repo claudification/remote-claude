@@ -232,6 +232,19 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
     return () => window.removeEventListener('file-upload-request', handler)
   }, [])
 
+  // Bypass react-codemirror's 200ms typing latch for stash-pop (same
+  // pattern as submitFromEditor's direct dispatch for clearing).
+  useEffect(() => {
+    function handler(e: Event) {
+      const text = (e as CustomEvent<string>).detail
+      const view = viewRef.current
+      if (text == null || !view) return
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } })
+    }
+    window.addEventListener('editor-set-value', handler)
+    return () => window.removeEventListener('editor-set-value', handler)
+  }, [])
+
   // Hardware Escape closes the panel (mobile keyboards don't send Escape,
   // but desktop testing + external BT keyboards benefit).
   // biome-ignore lint/correctness/useExhaustiveDependencies: closePanel is a stable closure over refs/setters, not worth re-subscribing the global listener for

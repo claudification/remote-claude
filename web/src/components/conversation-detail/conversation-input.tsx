@@ -77,6 +77,8 @@ export const InputBar = memo(function InputBar({ conversationId }: { conversatio
     const text = current ? `${current}\n\n${joined}` : joined
     setInputValue(text)
     store.setInputDraft(conversationId, text)
+    // Bypass react-codemirror's 200ms typing latch (same pattern as file-upload-request)
+    window.dispatchEvent(new CustomEvent('editor-set-value', { detail: text }))
     haptic('success')
     requestAnimationFrame(() => containerRef.current && focusInputEditor(containerRef.current))
   }
