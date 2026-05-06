@@ -814,11 +814,6 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
           {isRenaming ? <InlineRename session={session} /> : sessionName}
         </div>
       )}
-      {!isRenaming && session.recap?.title && (
-        <div className="mt-0.5 text-[10px] text-zinc-400/80 truncate pl-1">
-          {session.recap.title}
-        </div>
-      )}
       {isEditingDescription ? (
         <div className="mt-0.5 pl-1">
           <InlineDescription session={session} />
@@ -828,6 +823,9 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
           {session.description}
         </div>
       ) : null}
+      {!isRenaming && session.recap?.title && (
+        <div className="mt-0.5 text-[10px] text-zinc-400/80 truncate pl-1">{session.recap.title}</div>
+      )}
       {session.gitBranch && session.gitBranch !== 'main' && session.gitBranch !== 'master' && (
         <div className="mt-0.5 pl-1 flex items-center gap-1">
           <span
@@ -1098,9 +1096,7 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
         </div>
       )}
       {session.recap?.title && (
-        <div className="mt-0.5 pl-4 text-[9px] text-zinc-400/80 truncate">
-          {session.recap.title}
-        </div>
+        <div className="mt-0.5 pl-4 text-[9px] text-zinc-400/80 truncate">{session.recap.title}</div>
       )}
       {showContextBar &&
         session.tokenUsage &&
