@@ -4,7 +4,7 @@ import type { ConversationStore } from './conversation-store'
 
 const RECAP_DELAY_MS = 60_000
 const RECAP_PROMPT =
-  'The user stepped away and is coming back. Recap in under 40 words, 1-2 plain sentences, no markdown. Lead with the overall goal and current task, then the one next action. Skip root-cause narrative, fix internals, secondary to-dos, and em-dash tangents.'
+  'Recap in under 25 words, one plain sentence. Plain text only -- no markdown, no backticks, no bold, no bullet points. State the goal and the one next step.'
 const MAX_RECENT_ENTRIES = 20
 const MAX_CONTEXT_CHARS = 4000
 const MODEL = 'anthropic/claude-haiku-4.5'
