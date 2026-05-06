@@ -82,6 +82,7 @@ const ProjectSessionGroup = memo(
               >
                 {displayName}
               </span>
+              {ps?.pinned && <span className="text-[9px] text-muted-foreground/30" title="Pinned">{'\u{1F4CC}'}</span>}
               <span className="text-[10px] text-muted-foreground font-mono">{sessions.length} conversations</span>
               {hasPendingPermission && (
                 <span
@@ -180,7 +181,7 @@ export function PinnedProjectNode({ project }: { project: string }) {
             >
               {displayName}
             </span>
-            <span className="text-[9px] text-muted-foreground/40 font-mono">PIN</span>
+            <span className="text-[9px] text-muted-foreground/30" title="Pinned">{'\u{1F4CC}'}</span>
           </div>
         </div>
         {showSettings && <ProjectSettingsEditor project={project} onClose={() => setShowSettings(false)} />}
@@ -193,7 +194,19 @@ export function PinnedProjectNode({ project }: { project: string }) {
 
 export const ProjectNode = memo(
   function ProjectNode({ project, sessions }: { project: string; sessions: Session[] }) {
-    if (sessions.length === 1) return <ConversationCard session={sessions[0]} />
+    const isPinned = useConversationsStore(s => s.projectSettings[project]?.pinned)
+    if (sessions.length === 1) {
+      return (
+        <div className="relative">
+          <ConversationCard session={sessions[0]} />
+          {isPinned && (
+            <span className="absolute top-1.5 left-1.5 text-[8px] text-muted-foreground/25" title="Pinned">
+              {'\u{1F4CC}'}
+            </span>
+          )}
+        </div>
+      )
+    }
     return <ProjectSessionGroup sessions={sessions} project={project} />
   },
   (prev, next) => prev.project === next.project && sessionsEqual(prev.sessions, next.sessions),
