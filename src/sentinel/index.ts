@@ -1485,14 +1485,17 @@ function connect(
     }
   }
 
-  ws.onclose = () => {
+  ws.onclose = (event: CloseEvent) => {
     activeWs = null
     if (heartbeatTimer) clearInterval(heartbeatTimer)
     stopUsagePolling()
 
+    const detail = event.code ? ` (code=${event.code}${event.reason ? ` reason=${event.reason}` : ''})` : ''
     if (shouldReconnect) {
-      log(`Disconnected. Reconnecting in ${RECONNECT_DELAY_MS / 1000}s...`)
+      log(`Disconnected${detail}. Reconnecting in ${RECONNECT_DELAY_MS / 1000}s...`)
       setTimeout(() => connect(url, secret, reviveScript, verbose, spawnRoot, noSpawn), RECONNECT_DELAY_MS)
+    } else {
+      log(`Connection closed${detail}`)
     }
   }
 

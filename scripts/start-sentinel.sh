@@ -93,22 +93,26 @@ REVIVE_SCRIPT="$SCRIPT_DIR/revive-session.sh"
 command -v tmux &>/dev/null || die "tmux not found. Install with: brew install tmux"
 
 # Check for already running sentinel
+kill_sentinel_pid() {
+  local pid=$1
+  warn "Killing sentinel (PID $pid)"
+  kill "$pid" 2>/dev/null || true
+  for i in {1..6}; do
+    kill -0 "$pid" 2>/dev/null || return 0
+    sleep 0.5
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    warn "Sentinel didn't exit cleanly, sending SIGKILL"
+    kill -9 "$pid" 2>/dev/null || true
+  fi
+}
+
+# Check PID file first
 if [[ -f "$PID_FILE" ]]; then
   OLD_PID=$(cat "$PID_FILE")
   if kill -0 "$OLD_PID" 2>/dev/null; then
     if [[ "$KILL_IF_RUNNING" == true ]]; then
-      warn "Killing existing sentinel (PID $OLD_PID)"
-      kill "$OLD_PID" 2>/dev/null || true
-      # Wait up to 3s for clean exit
-      for i in {1..6}; do
-        kill -0 "$OLD_PID" 2>/dev/null || break
-        sleep 0.5
-      done
-      # Force kill if still alive
-      if kill -0 "$OLD_PID" 2>/dev/null; then
-        warn "Sentinel didn't exit cleanly, sending SIGKILL"
-        kill -9 "$OLD_PID" 2>/dev/null || true
-      fi
+      kill_sentinel_pid "$OLD_PID"
       rm -f "$PID_FILE"
     else
       warn "Sentinel already running (PID $OLD_PID)"
@@ -118,6 +122,31 @@ if [[ -f "$PID_FILE" ]]; then
   else
     warn "Stale PID file (process $OLD_PID dead). Removing."
     rm -f "$PID_FILE"
+  fi
+fi
+
+# Safety net: find orphaned sentinel processes not tracked by PID file.
+# This catches the case where a previous run's PID file was lost/stale but
+# the process is still alive -- two sentinels with the same identity cause
+# a reconnect death spiral (each connect kicks the other, forever).
+ORPHAN_PIDS=()
+while IFS= read -r line; do
+  pid=$(echo "$line" | awk '{print $2}')
+  # Skip our own grep and the current shell
+  [[ "$pid" == "$$" ]] && continue
+  ORPHAN_PIDS+=("$pid")
+done < <(ps aux | grep "[b]un.*sentinel" | grep -v grep)
+
+if [[ ${#ORPHAN_PIDS[@]} -gt 0 ]]; then
+  if [[ "$KILL_IF_RUNNING" == true ]]; then
+    for pid in "${ORPHAN_PIDS[@]}"; do
+      warn "Found orphaned sentinel process (PID $pid) not tracked by PID file"
+      kill_sentinel_pid "$pid"
+    done
+  else
+    warn "Found ${#ORPHAN_PIDS[@]} orphaned sentinel process(es): ${ORPHAN_PIDS[*]}"
+    echo -e "  Use ${YELLOW}--kill-if-running${NC} to clean them up"
+    exit 1
   fi
 fi
 
