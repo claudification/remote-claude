@@ -250,6 +250,7 @@ function inputTheme(fontSize: number, minHeight: string, maxHeight: string): Ext
 
 interface InputExtensionOptions {
   onSubmit: () => void
+  onStash?: () => void
   fontSize?: number
   minHeight?: string
   maxHeight?: string
@@ -315,6 +316,19 @@ export function buildInputExtensions(opts: InputExtensionOptions): Extension[] {
     },
   ])
 
+  const stashKeymap = opts.onStash
+    ? keymap.of([
+        {
+          key: 'Ctrl-s',
+          run: () => {
+            opts.onStash?.()
+            return true
+          },
+          preventDefault: true,
+        },
+      ])
+    : []
+
   // Escape: blur the editor and let the event propagate so any ancestor
   // (Radix Dialog, etc.) can handle it natively. Without this, contentEditable
   // sometimes swallows Escape silently in modal contexts.
@@ -349,6 +363,7 @@ export function buildInputExtensions(opts: InputExtensionOptions): Extension[] {
     drawSelection(),
     history(),
     submitKeymap, // before defaultKeymap so our Enter wins (autocomplete still wins over us when popup is open)
+    stashKeymap,
     escapeBlurKeymap,
     emacsKeymap, // before defaultKeymap so our Ctrl-* bindings take priority
     keymap.of([...defaultKeymap, ...historyKeymap]),

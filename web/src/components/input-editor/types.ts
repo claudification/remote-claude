@@ -22,4 +22,6 @@ export interface InputEditorProps {
   enableAutocomplete?: boolean
   /** Highlight effort keywords (e.g. "ultrathink"). Prompt input only. */
   enableEffortKeywords?: boolean
+  /** Called on Ctrl+S with current input text (for message stash). */
+  onStash?: () => void
 }

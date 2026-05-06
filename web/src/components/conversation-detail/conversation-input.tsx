@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Layers } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 import { DialogModal } from '@/components/dialog'
 import { InputEditor } from '@/components/input-editor'
@@ -43,6 +43,7 @@ export const InputBar = memo(function InputBar({ conversationId }: { conversatio
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef(inputValue)
   const sessionRef = useRef(conversationId)
+  const stashCount = useConversationsStore(s => s.messageStash[conversationId]?.length ?? 0)
 
   // Track pendingAttention with 15s delay before showing (PTY only - headless uses PermissionBanners)
   const pendingAttention = useConversationsStore(s => s.sessionsById[conversationId]?.pendingAttention)
@@ -65,6 +66,32 @@ export const InputBar = memo(function InputBar({ conversationId }: { conversatio
   function setInputValue(text: string) {
     setLocalInput(text)
     inputRef.current = text
+  }
+
+  function popStash() {
+    const store = useConversationsStore.getState()
+    const entries = store.popStash(conversationId)
+    if (entries.length === 0) return
+    const joined = entries.join('\n\n')
+    const current = inputRef.current
+    const text = current ? `${current}\n\n${joined}` : joined
+    setInputValue(text)
+    store.setInputDraft(conversationId, text)
+    haptic('success')
+    requestAnimationFrame(() => containerRef.current && focusInputEditor(containerRef.current))
+  }
+
+  function handleStash() {
+    const text = inputRef.current.trim()
+    if (text) {
+      useConversationsStore.getState().pushStash(conversationId, text)
+      setInputValue('')
+      useConversationsStore.getState().setInputDraft(conversationId, '')
+      haptic('tick')
+      requestAnimationFrame(() => containerRef.current && focusInputEditor(containerRef.current))
+    } else {
+      popStash()
+    }
   }
 
   // Session switch: save old draft, restore new, focus input (desktop only)
@@ -173,11 +200,23 @@ export const InputBar = memo(function InputBar({ conversationId }: { conversatio
           <span className="text-amber-500/60 shrink-0 text-[10px]">open terminal</span>
         </div>
       )}
+      {stashCount > 0 && (
+        <button
+          type="button"
+          onClick={popStash}
+          className="mb-2 px-2.5 py-1 flex items-center gap-1.5 rounded text-[11px] font-mono text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-muted border border-border/50 transition-colors cursor-pointer w-fit"
+        >
+          <Layers className="h-3 w-3" />
+          <span>{stashCount} stashed</span>
+          <span className="text-muted-foreground/60 ml-1">Ctrl+S to pop</span>
+        </button>
+      )}
       <div className="flex gap-2 items-stretch">
         <InputEditor
           value={inputValue}
           onChange={setInputValue}
           onSubmit={handleSend}
+          onStash={handleStash}
           disabled={isSending}
           placeholder={isMobileViewport() ? 'Message...' : 'Enter to send, Shift+Enter for new line'}
           className="flex-1"

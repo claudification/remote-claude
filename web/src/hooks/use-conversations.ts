@@ -268,6 +268,9 @@ interface ConversationsState {
   setPendingTaskEdit: (task: { slug: string; status: string } | null) => void
   inputDrafts: Record<string, string>
   setInputDraft: (conversationId: string, text: string) => void
+  messageStash: Record<string, string[]>
+  pushStash: (conversationId: string, text: string) => void
+  popStash: (conversationId: string) => string[]
 
   shares: Array<{
     token: string
@@ -617,6 +620,22 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   inputDrafts: {},
   setInputDraft: (conversationId, text) =>
     set(state => ({ inputDrafts: { ...state.inputDrafts, [conversationId]: text } })),
+  messageStash: {},
+  pushStash: (conversationId, text) =>
+    set(state => {
+      const stack = state.messageStash[conversationId] || []
+      return { messageStash: { ...state.messageStash, [conversationId]: [...stack, text] } }
+    }),
+  popStash: conversationId => {
+    const stack = get().messageStash[conversationId] || []
+    if (stack.length === 0) return []
+    set(state => {
+      const copy = { ...state.messageStash }
+      delete copy[conversationId]
+      return { messageStash: copy }
+    })
+    return stack
+  },
   newDataSeq: 0,
   shares: [],
   setShares: shares => set({ shares }),

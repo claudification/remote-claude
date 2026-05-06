@@ -27,6 +27,7 @@ interface MarkdownInputProps {
   inline?: boolean
   enableAutocomplete?: boolean
   enableEffortKeywords?: boolean
+  onStash?: () => void
 }
 
 export function MarkdownInput({
@@ -40,6 +41,7 @@ export function MarkdownInput({
   inline,
   enableAutocomplete = false,
   enableEffortKeywords = false,
+  onStash,
 }: MarkdownInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const highlightRef = useRef<HTMLDivElement>(null)
@@ -277,6 +279,7 @@ export function MarkdownInput({
       selectAutocomplete,
       textareaRef,
       handleSubmit,
+      onStash,
     })
   }
 
