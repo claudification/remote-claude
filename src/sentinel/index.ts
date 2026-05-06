@@ -1370,11 +1370,12 @@ function connect(
             )
             break
           }
-          const expandedCwd = expandPath(spawnMsg.cwd, spawnRoot)
+          const spawnCwdRaw = parseProjectUri(spawnMsg.project).path
+          const expandedCwd = expandPath(spawnCwdRaw, spawnRoot)
           launchLog(spawnMsg.jobId, 'Sentinel received spawn request', 'ok', expandedCwd.split('/').pop())
           diag('spawn', 'Spawn request received', {
             requestId: spawnMsg.requestId,
-            rawCwd: spawnMsg.cwd,
+            project: spawnMsg.project,
             expandedCwd,
             conversationId: spawnMsg.conversationId,
             mkdir: spawnMsg.mkdir,
@@ -1429,7 +1430,7 @@ function connect(
               const paneId = spawnRes.tmuxPaneId
               const wid = spawnMsg.conversationId
               const jid = spawnMsg.jobId
-              const spawnCwd = expandedCwd
+              const spawnProject = spawnMsg.project
               setTimeout(() => {
                 const check = Bun.spawnSync([TMUX_BIN, 'list-panes', '-t', paneId], {
                   stdout: 'pipe',
@@ -1441,7 +1442,7 @@ function connect(
                   const failMsg: SpawnFailed = {
                     type: 'spawn_failed',
                     conversationId: wid,
-                    project: cwdToProjectUri(spawnCwd),
+                    project: spawnProject,
                     error: 'rclaude process died within 5s of tmux launch - check shell environment, PATH, and hooks',
                   }
                   try {

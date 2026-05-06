@@ -17,6 +17,7 @@
 import { randomUUID } from 'node:crypto'
 import { generateConversationName } from '../shared/conversation-names'
 import { validateModel } from '../shared/models'
+import { cwdToProjectUri } from '../shared/project-uri'
 import type { Conversation, LaunchProgressEvent, LaunchStep, ProjectSettings, SpawnResult } from '../shared/protocol'
 import { resolveSpawnConfig } from '../shared/spawn-defaults'
 import { deriveConversationName, validateConversationName } from '../shared/spawn-naming'
@@ -117,6 +118,10 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
   const conversationId = randomUUID()
   const jobId = req.jobId ?? randomUUID()
 
+  // Convert cwd to project URI at the boundary -- broker internals and
+  // the sentinel wire message use URIs, never raw paths.
+  const project = req.cwd.includes('://') ? req.cwd : cwdToProjectUri(req.cwd)
+
   deps.conversationStore.createJob(jobId, conversationId)
   emitProgress(deps.conversationStore, jobId, 'job_created', 'done', { conversationId })
 
@@ -127,7 +132,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
     )
   }
 
-  const projSettings = deps.getProjectSettings(req.cwd)
+  const projSettings = deps.getProjectSettings(project)
   const globalSettings = deps.getGlobalSettings()
   const resolved = resolveSpawnConfig(req, projSettings, globalSettings)
   const {
@@ -205,7 +210,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
       JSON.stringify({
         type: 'spawn',
         requestId,
-        cwd: req.cwd,
+        project,
         conversationId,
         jobId,
         mkdir: req.mkdir || false,
@@ -262,7 +267,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
     // Don't block the response -- caller gets immediate success + conversationId.
     // Rendezvous resolves async and pushes spawn_ready / spawn_timeout.
     deps.conversationStore
-      .addRendezvous(conversationId, callerConversationId, req.cwd, 'spawn')
+      .addRendezvous(conversationId, callerConversationId, project, 'spawn')
       .then(conv => {
         emitProgress(deps.conversationStore, jobId, 'session_connected', 'done', {
           ccSessionId: (conv.agentHostMeta?.ccSessionId as string) || conv.id,
@@ -287,7 +292,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
           JSON.stringify({
             type: 'spawn_timeout',
             conversationId,
-            cwd: req.cwd,
+            project,
             error: errMsg,
           }),
         )

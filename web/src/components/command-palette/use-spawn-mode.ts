@@ -96,7 +96,7 @@ export function useSpawnMode({
   function handleSpawn(path: string, mkdir = false) {
     if (spawning || !path) return
     onClose()
-    openSpawnDialog({ cwd: path, mkdir, sentinel: spawnSentinel })
+    openSpawnDialog({ path, mkdir, sentinel: spawnSentinel })
   }
 
   function handleDirSelect(dir: string) {

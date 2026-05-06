@@ -110,7 +110,7 @@ const spawnFailed: MessageHandler = (ctx, data) => {
   const conversationId = data.conversationId as string
   const exitCode = data.exitCode as number | null | undefined
   const elapsedMs = data.elapsedMs as number | undefined
-  const projectPath = data.cwd as string | undefined
+  const projectPath = (data.project as string | undefined) ?? (data.cwd as string | undefined)
   const earlyFailure = typeof elapsedMs === 'number' && elapsedMs < 5000
   const errorMsg =
     (data.error as string) ||

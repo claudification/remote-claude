@@ -24,7 +24,7 @@ import { LaunchConfigFields, type LaunchFieldsValue } from './launch-config-fiel
 import { LaunchDialogBottom } from './launch-monitor'
 
 interface SpawnDialogOptions {
-  cwd: string
+  path: string
   mkdir?: boolean
   sentinel?: string
 }
@@ -83,7 +83,7 @@ export function SpawnDialog() {
   const progressReset = progress.reset
   useEffect(() => {
     _openDialog = (options: SpawnDialogOptions) => {
-      const ps = projectSettings[cwdToProjectUri(options.cwd)]
+      const ps = projectSettings[cwdToProjectUri(options.path)]
       const gs = globalSettings as Record<string, unknown>
       // Resolve defaults: project > global > hardcoded
       const defaultMode = ps?.defaultLaunchMode || (gs.defaultLaunchMode as string) || 'headless'
@@ -199,7 +199,7 @@ export function SpawnDialog() {
     progress.start([{ label: 'Sending spawn request', status: 'active', ts: Date.now() }])
 
     const spawnReq: SpawnRequest = {
-      cwd: state.options.cwd,
+      cwd: state.options.path,
       mkdir: state.options.mkdir || false,
       headless,
       bare: bare || undefined,
@@ -308,7 +308,7 @@ export function SpawnDialog() {
   function handleSaveProjectDefaults() {
     if (!state.options) return
     const defaults = buildSpawnDefaults()
-    updateProjectSettings(cwdToProjectUri(state.options.cwd), defaults)
+    updateProjectSettings(cwdToProjectUri(state.options.path), defaults)
     setSavedFeedback('project')
     haptic('success')
     setTimeout(() => setSavedFeedback(null), 2000)
@@ -347,7 +347,7 @@ export function SpawnDialog() {
       elapsedSec: progress.elapsed,
       error: progress.error || progress.launch.error || null,
       config: {
-        cwd: state.options?.cwd,
+        cwd: state.options?.path,
         headless,
         bare,
         name: name || undefined,
@@ -373,7 +373,7 @@ export function SpawnDialog() {
     progress.copyToClipboard(JSON.stringify(diag, null, 2))
   }
 
-  const shortPath = state.options?.cwd?.replace(/^\/Users\/[^/]+/, '~') || ''
+  const shortPath = state.options?.path?.replace(/^\/Users\/[^/]+/, '~') || ''
   const displayError = progress.error || progress.launch.error
 
   function applyFieldsPatch(patch: Partial<LaunchFieldsValue>) {

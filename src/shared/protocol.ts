@@ -1666,8 +1666,7 @@ export interface SpawnConversation {
   type: 'spawn'
   requestId: string
   conversationId: string
-  cwd: string
-  project?: string
+  project: string
   jobId?: string
   // Conversation metadata
   sessionName?: string
