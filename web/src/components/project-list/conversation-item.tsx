@@ -721,6 +721,7 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
   const ps = useConversationsStore(s => s.projectSettings[session.project])
   const showContextBar = useConversationsStore(s => s.controlPanelPrefs.showContextInList)
   const showCost = useConversationsStore(s => s.controlPanelPrefs.showCostInList)
+  const showRecap = useConversationsStore(s => s.controlPanelPrefs.showRecapInList)
   const isRenaming = useConversationsStore(s => s.renamingConversationId === session.id)
   const isEditingDescription = useConversationsStore(s => s.editingDescriptionConversationId === session.id)
   const hasPendingPermission = useConversationsStore(s =>
@@ -823,7 +824,7 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
           {session.description}
         </div>
       ) : null}
-      {!isRenaming && session.recap?.title && (
+      {showRecap && !isRenaming && session.recap?.title && (
         <div className="mt-0.5 text-[10px] text-zinc-400/80 truncate pl-1">{session.recap.title}</div>
       )}
       {session.gitBranch && session.gitBranch !== 'main' && session.gitBranch !== 'master' && (
@@ -875,7 +876,7 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
           {session.summary}
         </div>
       )}
-      {!session.summary && session.recap && (
+      {showRecap && !session.summary && session.recap && (
         <div
           className={cn(
             'mt-1.5 text-[10px] whitespace-pre-wrap overflow-hidden transition-all duration-700',
@@ -972,6 +973,7 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
   const ps = useConversationsStore(s => s.projectSettings[session.project])
   const showCost = useConversationsStore(s => s.controlPanelPrefs.showCostInList)
   const showContextBar = useConversationsStore(s => s.controlPanelPrefs.showContextInList)
+  const showRecap = useConversationsStore(s => s.controlPanelPrefs.showRecapInList)
   const isRenaming = useConversationsStore(s => s.renamingConversationId === session.id)
   const isEditingDescription = useConversationsStore(s => s.editingDescriptionConversationId === session.id)
   const hasPendingPermission = useConversationsStore(s =>
@@ -1095,7 +1097,7 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
           {session.summary}
         </div>
       )}
-      {session.recap?.title && (
+      {showRecap && session.recap?.title && (
         <div className="mt-0.5 pl-4 text-[9px] text-zinc-400/80 truncate">{session.recap.title}</div>
       )}
       {showContextBar &&

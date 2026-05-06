@@ -557,6 +557,21 @@ const SETTINGS: SettingItem[] = [
   {
     tab: 'display',
     group: 'Display',
+    label: 'Recap in sidebar',
+    description: 'Show recap titles and descriptions on conversation cards',
+    keywords: 'recap title summary description sidebar',
+    render: ctx => (
+      <input
+        type="checkbox"
+        checked={ctx.prefs.showRecapInList}
+        onChange={e => ctx.updatePrefs({ showRecapInList: e.target.checked })}
+        className="accent-primary w-4 h-4"
+      />
+    ),
+  },
+  {
+    tab: 'display',
+    group: 'Display',
     label: 'Cost in sidebar',
     description: 'Show cost badges on conversation cards',
     keywords: 'cost money dollars pricing',

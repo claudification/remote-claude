@@ -43,6 +43,7 @@ export interface ControlPanelPrefs {
   showThinking: boolean
   showContextInList: boolean
   showCostInList: boolean
+  showRecapInList: boolean
   chatBubbles: boolean
   sessionCacheSize: number // LIFO cache: 0 = disabled, N = keep N recent sessions in memory
   sessionCacheTimeout: number // minutes before cached non-selected sessions are evicted (0 = never)
@@ -76,6 +77,7 @@ const defaultPrefs: ControlPanelPrefs = {
   showThinking: false,
   showContextInList: true,
   showCostInList: false,
+  showRecapInList: true,
   chatBubbles: true,
   sessionCacheSize: 3,
   sessionCacheTimeout: 10,
