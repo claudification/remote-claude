@@ -173,6 +173,30 @@ export async function waitForMessage(ws: LiveWs, type: string, timeoutMs = 5000)
   throw new Error(`Timed out waiting for message type "${type}" after ${timeoutMs}ms (got: ${types || 'none'})`)
 }
 
+/**
+ * Wait for a message matching a predicate. Use when the broker may emit
+ * multiple messages of the same type (e.g. conversation_update for unrelated
+ * conversations created by other tests in the same staging run) and the test
+ * needs to pick the one that matches a specific id.
+ */
+export async function waitForMatch(
+  ws: LiveWs,
+  type: string,
+  predicate: (msg: Record<string, unknown>) => boolean,
+  timeoutMs = 5000,
+): Promise<Record<string, unknown>> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const msgs = ws.messagesOfType(type).filter(predicate)
+    if (msgs.length > 0) return msgs[msgs.length - 1]
+    await sleep(50)
+  }
+  const types = ws.received.map(m => m.type).join(', ')
+  throw new Error(
+    `Timed out waiting for message type "${type}" matching predicate after ${timeoutMs}ms (got: ${types || 'none'})`,
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------

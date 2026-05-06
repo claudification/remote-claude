@@ -38,6 +38,16 @@ export function createApiRouter(
   const { httpHasPermission, httpIsAdmin, resolveHttpGrants } = helpers
   const app = new Hono()
 
+  // Clamp a query-string integer to [min, max], falling back to `defaultVal`
+  // when the param is absent or NaN. Plain `parseInt(...) || N` corrupts 0
+  // into N (because 0 is falsy) -- this helper doesn't.
+  function clampInt(raw: string | null, defaultVal: number, min: number, max: number): number {
+    if (raw == null || raw === '') return Math.min(Math.max(defaultVal, min), max)
+    const n = parseInt(raw, 10)
+    if (!Number.isFinite(n)) return Math.min(Math.max(defaultVal, min), max)
+    return Math.min(Math.max(n, min), max)
+  }
+
   // ─── Model pricing (LiteLLM) ─────────────────────────────────────
   app.get('/api/models', c => c.json({ models: getModels(), fetchedAt: getModelsFetchedAt() }))
 
@@ -63,10 +73,10 @@ export function createApiRouter(
           .map(t => t.trim())
           .filter(Boolean)
       : undefined
-    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20', 10) || 20, 1), 100)
-    const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0)
-    const windowBefore = Math.min(Math.max(parseInt(url.searchParams.get('windowBefore') || '0', 10) || 0, 0), 50)
-    const windowAfter = Math.min(Math.max(parseInt(url.searchParams.get('windowAfter') || '0', 10) || 0, 0), 50)
+    const limit = clampInt(url.searchParams.get('limit'), 20, 1, 100)
+    const offset = clampInt(url.searchParams.get('offset'), 0, 0, Number.MAX_SAFE_INTEGER)
+    const windowBefore = clampInt(url.searchParams.get('windowBefore'), 0, 0, 50)
+    const windowAfter = clampInt(url.searchParams.get('windowAfter'), 0, 0, 50)
 
     // Permission filter: collect conversations the caller can read.
     const allConversations = conversationStore.getAllConversations()
@@ -136,8 +146,8 @@ export function createApiRouter(
     if (aroundSeq == null && aroundId == null) {
       return c.json({ error: 'Missing aroundSeq or aroundId' }, 400)
     }
-    const before = Math.min(Math.max(parseInt(url.searchParams.get('before') || '5', 10) || 5, 0), 50)
-    const after = Math.min(Math.max(parseInt(url.searchParams.get('after') || '5', 10) || 5, 0), 50)
+    const before = clampInt(url.searchParams.get('before'), 5, 0, 50)
+    const after = clampInt(url.searchParams.get('after'), 5, 0, 50)
 
     const entries = store.transcripts.getWindow(conversationId, { aroundSeq, aroundId, before, after })
     return c.json({

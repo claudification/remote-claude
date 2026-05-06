@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type {
   Conversation,
   TranscriptAgentNameEntry,
@@ -9,6 +10,7 @@ import type {
   TranscriptSystemEntry,
   TranscriptUserEntry,
 } from '../../shared/protocol'
+import type { TranscriptEntryInput } from '../store/types'
 import { MAX_TRANSCRIPT_ENTRIES } from './constants'
 import { assignTranscriptSeqs, type ConversationStoreContext } from './event-context'
 import { handleAssistantEntry } from './transcript-handlers/assistant-entry'
@@ -47,6 +49,7 @@ export function addTranscriptEntries(
   // broadcast the same objects, so the wire payload carries seqs too.
   assignTranscriptSeqs(ctx.transcriptSeqCounters, conversationId, entries, isInitial)
   appendToCache(ctx, conversationId, entries, isInitial)
+  persistToStore(ctx, conversationId, entries)
   ctx.dirtyTranscripts.add(conversationId)
 
   const conv = ctx.conversations.get(conversationId)
@@ -182,6 +185,42 @@ const entryHandlers: Record<string, TranscriptEntryHandler> = {
   'custom-title': dispatchCustomTitleEntry,
   'agent-name': dispatchAgentNameEntry,
   'pr-link': dispatchPrLinkEntry,
+}
+
+/**
+ * Persist transcript entries to the StoreDriver so they're queryable via the
+ * FTS5 search index. The append uses INSERT OR IGNORE on (conversation_id, uuid)
+ * so re-reading the same JSONL on hydrate / reconnect skips duplicates without
+ * blowing up. Entries without a uuid get one synthesized -- the live wire
+ * format makes uuid optional, but the store treats it as the dedup key.
+ *
+ * Failures are swallowed: if the store is misconfigured or the underlying DB
+ * is in a weird state, transcript ingest must keep working for the dashboard.
+ * Search just won't find these entries until things recover.
+ */
+function persistToStore(ctx: ConversationStoreContext, conversationId: string, entries: TranscriptEntry[]): void {
+  if (!ctx.store || entries.length === 0) return
+  const inputs: TranscriptEntryInput[] = []
+  for (const e of entries) {
+    const ts = typeof e.timestamp === 'string' ? Date.parse(e.timestamp) : Date.now()
+    inputs.push({
+      type: e.type,
+      subtype:
+        typeof (e as Record<string, unknown>).subtype === 'string'
+          ? ((e as Record<string, unknown>).subtype as string)
+          : undefined,
+      uuid: e.uuid || randomUUID(),
+      content: e as unknown as Record<string, unknown>,
+      timestamp: Number.isFinite(ts) ? ts : Date.now(),
+    })
+  }
+  try {
+    ctx.store.transcripts.append(conversationId, 'live', inputs)
+  } catch (err) {
+    // Don't break ingest if the store is unhappy. Log via console so it shows up
+    // in broker stderr without dragging in the broker logger here.
+    console.error('[transcript-store] append failed:', err instanceof Error ? err.message : err)
+  }
 }
 
 function appendToCache(
