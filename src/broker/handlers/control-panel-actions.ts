@@ -329,6 +329,7 @@ const renameConversation: MessageHandler = (ctx, data) => {
   if (description !== undefined) {
     conversation.description = description || undefined
   }
+  ctx.conversations.persistConversationById(conversationId)
   ctx.conversations.broadcastConversationUpdate(conversationId)
   ctx.reply({ type: 'rename_conversation_result', ok: true })
 }

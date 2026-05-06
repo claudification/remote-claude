@@ -256,6 +256,7 @@ export interface ConversationStore {
   saveState: () => Promise<void>
   clearState: () => Promise<void>
   flushTranscripts: () => Promise<void>
+  persistConversationById: (id: string) => void
 }
 
 /**
@@ -727,6 +728,11 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     } catch (err) {
       console.error(`[store] Failed to load sessions: ${err}`)
     }
+  }
+
+  function persistConversationById(id: string): void {
+    const conv = conversations.get(id)
+    if (conv) persistConversation(conv)
   }
 
   function persistConversation(conv: Conversation): void {
@@ -1842,5 +1848,6 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     saveState,
     clearState,
     flushTranscripts,
+    persistConversationById,
   }
 }

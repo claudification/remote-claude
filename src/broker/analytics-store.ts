@@ -215,7 +215,7 @@ let cleanupTimer: ReturnType<typeof setInterval> | null = null
 /** Per-conversation turn accumulators (keyed by conversationId) */
 const turnAccumulators = new Map<string, TurnAccumulator>()
 
-const RETENTION_MS = 90 * 24 * 60 * 60 * 1000 // 90 days (longer than cost-store)
+const RETENTION_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 /**

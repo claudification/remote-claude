@@ -111,6 +111,7 @@ const meta: MessageHandler = (ctx, data) => {
     }
   }
 
+  ctx.conversations.persistConversationById(conversationId)
   ctx.conversations.broadcastConversationUpdate(conversationId)
 
   ctx.conversations.completeJob(conversationId, conversationId)

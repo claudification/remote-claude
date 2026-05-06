@@ -288,6 +288,9 @@ const conversationInfo: MessageHandler = (ctx, data) => {
     }
   }
 
+  // Persist metadata so it survives broker restarts
+  ctx.conversations.persistConversationById(conversationId)
+
   // Broadcast with canonical conversation ID (not whatever the agent host sent)
   if (conversation.project) {
     ctx.broadcastScoped({ ...data, type: 'conversation_info', conversationId }, conversation.project)
