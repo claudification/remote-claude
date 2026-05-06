@@ -557,14 +557,14 @@ const SETTINGS: SettingItem[] = [
   {
     tab: 'display',
     group: 'Display',
-    label: 'Recap in sidebar',
-    description: 'Show recap titles and descriptions on conversation cards',
-    keywords: 'recap title summary description sidebar',
+    label: 'Recap descriptions in sidebar',
+    description: 'Show recap description text on conversation cards (title always visible)',
+    keywords: 'recap summary description sidebar',
     render: ctx => (
       <input
         type="checkbox"
-        checked={ctx.prefs.showRecapInList}
-        onChange={e => ctx.updatePrefs({ showRecapInList: e.target.checked })}
+        checked={ctx.prefs.showRecapDescInList}
+        onChange={e => ctx.updatePrefs({ showRecapDescInList: e.target.checked })}
         className="accent-primary w-4 h-4"
       />
     ),
