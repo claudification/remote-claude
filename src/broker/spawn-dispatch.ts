@@ -83,6 +83,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
   // Route to the specified sentinel, or default
   const targetAlias = req.sentinel
   let sentinel: ReturnType<typeof deps.conversationStore.getSentinel>
+  let resolvedSentinelId: string | undefined
   if (targetAlias) {
     sentinel = deps.conversationStore.getSentinelByAlias(targetAlias)
     if (!sentinel) {
@@ -94,9 +95,22 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
         statusCode: 503,
       }
     }
+    const connectedSentinels = deps.conversationStore.getConnectedSentinels()
+    resolvedSentinelId = connectedSentinels.find(s => s.alias === targetAlias)?.sentinelId
   } else {
     sentinel = deps.conversationStore.getSentinel()
     if (!sentinel) return { ok: false, error: 'No sentinel connected', statusCode: 503 }
+    resolvedSentinelId = deps.conversationStore.getDefaultSentinelId()
+  }
+
+  // Pre-flight liveness check: verify sentinel has sent a heartbeat recently.
+  // Catches stale/half-open WS connections that would otherwise timeout after 15s.
+  if (resolvedSentinelId && !deps.conversationStore.isSentinelAlive(resolvedSentinelId)) {
+    return {
+      ok: false,
+      error: 'Sentinel not responding (no heartbeat received recently)',
+      statusCode: 503,
+    }
   }
 
   if (req.mode === 'resume' && !req.resumeId) {
@@ -159,7 +173,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
   const result = await new Promise<SpawnResult>((resolve, reject) => {
     const timeout = setTimeout(() => {
       deps.conversationStore.removeSpawnListener(requestId)
-      reject(new Error('Spawn timed out (15s)'))
+      reject(new Error('Sentinel did not respond (15s timeout)'))
     }, 15000)
 
     deps.conversationStore.addSpawnListener(requestId, msg => {
@@ -206,45 +220,52 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
       env: req.env || undefined,
     })
 
-    sentinel.send(
-      JSON.stringify({
-        type: 'spawn',
-        requestId,
-        cwd: req.cwd,
-        conversationId,
-        jobId,
-        mkdir: req.mkdir || false,
-        mode: req.adHoc ? 'fresh' : req.mode || 'fresh',
-        resumeId: req.resumeId,
-        headless,
-        effort,
-        model,
-        bare: bare || false,
-        repl: repl || false,
-        sessionName:
-          deriveConversationName(req) ??
-          generateConversationName(
-            new Set(
-              deps.conversationStore
-                .getAllConversations()
-                .map((s: Conversation) => s.title)
-                .filter(Boolean) as string[],
+    try {
+      sentinel.send(
+        JSON.stringify({
+          type: 'spawn',
+          requestId,
+          cwd: req.cwd,
+          conversationId,
+          jobId,
+          mkdir: req.mkdir || false,
+          mode: req.adHoc ? 'fresh' : req.mode || 'fresh',
+          resumeId: req.resumeId,
+          headless,
+          effort,
+          model,
+          bare: bare || false,
+          repl: repl || false,
+          sessionName:
+            deriveConversationName(req) ??
+            generateConversationName(
+              new Set(
+                deps.conversationStore
+                  .getAllConversations()
+                  .map((s: Conversation) => s.title)
+                  .filter(Boolean) as string[],
+              ),
             ),
-          ),
-        sessionDescription: req.description || undefined,
-        agent,
-        permissionMode,
-        autocompactPct,
-        maxBudgetUsd,
-        prompt: req.prompt || undefined,
-        adHoc: req.adHoc || undefined,
-        adHocTaskId: req.adHocTaskId || undefined,
-        includePartialMessages,
-        leaveRunning: req.leaveRunning || undefined,
-        worktree: req.worktree || undefined,
-        env: req.env || undefined,
-      }),
-    )
+          sessionDescription: req.description || undefined,
+          agent,
+          permissionMode,
+          autocompactPct,
+          maxBudgetUsd,
+          prompt: req.prompt || undefined,
+          adHoc: req.adHoc || undefined,
+          adHocTaskId: req.adHocTaskId || undefined,
+          includePartialMessages,
+          leaveRunning: req.leaveRunning || undefined,
+          worktree: req.worktree || undefined,
+          env: req.env || undefined,
+        }),
+      )
+    } catch {
+      clearTimeout(timeout)
+      deps.conversationStore.removeSpawnListener(requestId)
+      reject(new Error('Sentinel offline (send failed)'))
+      return
+    }
   }).catch((err: unknown) => {
     return {
       type: 'spawn_result',
@@ -255,9 +276,11 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
   })
 
   if (!result.success) {
-    if (req.adHoc) console.log(`[ad-hoc] Spawn FAILED: ${result.error || 'unknown'} (${projectLabel})`)
-    emitProgress(deps.conversationStore, jobId, 'failed', 'error', { error: result.error || 'Spawn failed' })
-    return { ok: false, error: result.error || 'Spawn failed', statusCode: 500 }
+    const errorMsg = result.error || 'Spawn failed'
+    if (req.adHoc) console.log(`[ad-hoc] Spawn FAILED: ${errorMsg} (${projectLabel})`)
+    emitProgress(deps.conversationStore, jobId, 'failed', 'error', { error: errorMsg })
+    deps.conversationStore.failJob(jobId, errorMsg)
+    return { ok: false, error: errorMsg, statusCode: 500 }
   }
   const project = result.project!
   emitProgress(deps.conversationStore, jobId, 'agent_acked', 'done', { detail: result.tmuxSession })

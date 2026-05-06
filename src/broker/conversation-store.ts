@@ -30,7 +30,9 @@ import { createListenerRegistry } from './conversation-store/listeners'
 import { createProjectLinkRegistry } from './conversation-store/project-links'
 import {
   createSentinelState,
+  isSentinelAlive as isSentinelAliveImpl,
   pushSentinelDiag as pushSentinelDiagImpl,
+  recordSentinelHeartbeat as recordSentinelHeartbeatImpl,
   removeSentinel as removeSentinelImpl,
   type SentinelIdentifyInfo,
   setSentinel as setSentinelImpl,
@@ -174,6 +176,8 @@ export interface ConversationStore {
   getDefaultSentinelAlias: () => string | undefined
   getConnectedSentinels: () => Array<{ sentinelId: string; alias: string; hostname?: string; connectedAt: number }>
   removeSentinel: (ws: ServerWebSocket<unknown>) => void
+  recordSentinelHeartbeat: (ws: ServerWebSocket<unknown>) => void
+  isSentinelAlive: (sentinelId: string) => boolean
   hasSentinel: () => boolean
   // Sentinel diagnostics (structured log entries from sentinel)
   pushSentinelDiag: (entry: { t: number; type: string; msg: string; args?: unknown }) => void
@@ -1516,6 +1520,14 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     removeSentinelImpl(sentinelState, ws, broadcast)
   }
 
+  function recordSentinelHeartbeat(ws: ServerWebSocket<unknown>): void {
+    recordSentinelHeartbeatImpl(sentinelState, ws)
+  }
+
+  function isSentinelAlive(sentinelId: string): boolean {
+    return isSentinelAliveImpl(sentinelState, sentinelId)
+  }
+
   function hasSentinel(): boolean {
     return sentinelState.sentinels.size > 0
   }
@@ -1806,6 +1818,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     getDefaultSentinelAlias,
     getConnectedSentinels,
     removeSentinel,
+    recordSentinelHeartbeat,
+    isSentinelAlive,
     hasSentinel,
     pushSentinelDiag,
     getSentinelDiag,

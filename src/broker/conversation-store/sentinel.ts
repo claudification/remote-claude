@@ -1,8 +1,9 @@
 import type { ServerWebSocket } from 'bun'
-import type { UsageUpdate } from '../../shared/protocol'
+import { HEARTBEAT_INTERVAL_MS, type UsageUpdate } from '../../shared/protocol'
 import type { ControlPanelMessage, SentinelStatusInfo } from './types'
 
 const SENTINEL_DIAG_MAX = 200
+const SENTINEL_STALE_MS = HEARTBEAT_INTERVAL_MS * 2.5
 
 function buildSentinelList(state: SentinelState): SentinelStatusInfo[] {
   const list: SentinelStatusInfo[] = []
@@ -25,6 +26,7 @@ export interface SentinelConnection {
   machineId?: string
   spawnRoot?: string
   connectedAt: number
+  lastHeartbeat: number
 }
 
 export interface SentinelIdentifyInfo {
@@ -68,6 +70,7 @@ export function setSentinel(
     } catch {}
   }
 
+  const now = Date.now()
   const conn: SentinelConnection = {
     ws,
     sentinelId,
@@ -75,7 +78,8 @@ export function setSentinel(
     hostname: info?.hostname,
     machineId: info?.machineId,
     spawnRoot: info?.spawnRoot,
-    connectedAt: Date.now(),
+    connectedAt: now,
+    lastHeartbeat: now,
   }
   state.sentinels.set(sentinelId, conn)
   state.sentinelsByAlias.set(alias, sentinelId)
@@ -106,6 +110,21 @@ export function removeSentinel(
       return
     }
   }
+}
+
+export function recordSentinelHeartbeat(state: SentinelState, ws: ServerWebSocket<unknown>): void {
+  for (const conn of state.sentinels.values()) {
+    if (conn.ws === ws) {
+      conn.lastHeartbeat = Date.now()
+      return
+    }
+  }
+}
+
+export function isSentinelAlive(state: SentinelState, sentinelId: string): boolean {
+  const conn = state.sentinels.get(sentinelId)
+  if (!conn) return false
+  return Date.now() - conn.lastHeartbeat < SENTINEL_STALE_MS
 }
 
 export function pushSentinelDiag(

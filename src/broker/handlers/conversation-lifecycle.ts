@@ -155,8 +155,10 @@ const hook: MessageHandler = (ctx, data) => {
 
 // ─── Heartbeat (keep-alive, no activity tracking) ──────────────────
 
-const heartbeat: MessageHandler = () => {
-  // Heartbeats keep the WS alive but do NOT count as activity.
+const heartbeat: MessageHandler = ctx => {
+  if (ctx.ws.data.isSentinel) {
+    ctx.conversations.recordSentinelHeartbeat(ctx.ws)
+  }
 }
 
 // ─── Conversation reset (/clear wipes ephemeral state) ──
