@@ -336,7 +336,7 @@ export function initAnalyticsStore(cacheDir: string): void {
 
     // Indexes
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_timestamp ON turns(timestamp)')
-    db.run('CREATE INDEX IF NOT EXISTS idx_analytics_session ON turns(conversation_id)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_analytics_conversation ON turns(conversation_id)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_project_uri ON turns(project_uri)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_project ON turns(project_id)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_category ON turns(task_category)')

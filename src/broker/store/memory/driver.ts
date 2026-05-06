@@ -371,7 +371,9 @@ function createMessageStore(): MessageStore {
         id: nextId(),
         fromScope: msg.fromScope,
         toScope: msg.toScope,
-        fromSessionId: msg.fromSessionId,
+        fromConversationId: msg.fromConversationId,
+        fromName: msg.fromName,
+        targetName: msg.targetName,
         content: msg.content,
         intent: msg.intent,
         conversationId: msg.conversationId,
@@ -380,29 +382,40 @@ function createMessageStore(): MessageStore {
       })
     },
 
-    dequeueFor(scope) {
+    dequeueFor(scope, targetName?) {
       const now = Date.now()
       const matching: QueuedMessage[] = []
       const remaining: (typeof queue)[number][] = []
       for (const m of queue) {
-        if (m.toScope === scope && m.expiresAt > now) {
-          matching.push({
-            id: m.id,
-            fromScope: m.fromScope,
-            toScope: m.toScope,
-            fromSessionId: m.fromSessionId,
-            content: m.content,
-            intent: m.intent,
-            conversationId: m.conversationId,
-            createdAt: m.createdAt,
-          })
-        } else if (m.toScope !== scope) {
-          remaining.push(m)
+        if (m.toScope !== scope || m.expiresAt <= now) {
+          if (m.expiresAt > now) remaining.push(m)
+          continue
         }
+        if (targetName && m.targetName && m.targetName !== targetName) {
+          remaining.push(m)
+          continue
+        }
+        matching.push({
+          id: m.id,
+          fromScope: m.fromScope,
+          toScope: m.toScope,
+          fromConversationId: m.fromConversationId,
+          fromName: m.fromName,
+          targetName: m.targetName,
+          content: m.content,
+          intent: m.intent,
+          conversationId: m.conversationId,
+          createdAt: m.createdAt,
+        })
       }
       queue.length = 0
       queue.push(...remaining)
       return matching
+    },
+
+    countFor(scope) {
+      const now = Date.now()
+      return queue.filter(m => m.toScope === scope && m.expiresAt > now).length
     },
 
     log(entry) {
@@ -415,9 +428,35 @@ function createMessageStore(): MessageStore {
       if (opts?.conversationId) results = results.filter(e => e.conversationId === opts.conversationId)
       const afterId = opts?.afterId
       if (afterId != null) results = results.filter(e => (e.id ?? 0) > afterId)
+      if (opts?.before != null) results = results.filter(e => e.createdAt < (opts.before as number))
       results.sort((a, b) => b.createdAt - a.createdAt)
       if (opts?.limit) results = results.slice(0, opts.limit)
       return results
+    },
+
+    purgeLog(scopeA, scopeB) {
+      const before = log.length
+      const kept = log.filter(
+        e => !((e.fromScope === scopeA && e.toScope === scopeB) || (e.fromScope === scopeB && e.toScope === scopeA)),
+      )
+      log.length = 0
+      log.push(...kept)
+      return before - kept.length
+    },
+
+    compactLog(retentionMs, maxEntries) {
+      const cutoff = Date.now() - retentionMs
+      const before = log.length
+      const kept = log.filter(e => e.createdAt >= cutoff)
+      log.length = 0
+      log.push(...kept)
+      let removed = before - kept.length
+      if (log.length > maxEntries) {
+        log.sort((a, b) => b.createdAt - a.createdAt)
+        const excess = log.splice(maxEntries)
+        removed += excess.length
+      }
+      return removed
     },
 
     pruneExpired() {

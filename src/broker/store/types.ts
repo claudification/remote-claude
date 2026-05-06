@@ -218,7 +218,9 @@ export interface KVStore {
 export interface EnqueueMessage {
   fromScope: string
   toScope: string
-  fromSessionId?: string
+  fromConversationId?: string
+  fromName?: string
+  targetName?: string
   content: string
   intent?: string
   conversationId?: string
@@ -229,7 +231,9 @@ export interface QueuedMessage {
   id: number
   fromScope: string
   toScope: string
-  fromSessionId?: string
+  fromConversationId?: string
+  fromName?: string
+  targetName?: string
   content: string
   intent?: string
   conversationId?: string
@@ -240,19 +244,31 @@ export interface MessageLogEntry {
   id?: number
   fromScope: string
   toScope: string
-  fromSessionId?: string
-  toSessionId?: string
+  fromConversationId?: string
+  toConversationId?: string
+  fromName?: string
+  toName?: string
   content?: string
   intent?: string
   conversationId?: string
+  fullLength?: number
   createdAt: number
 }
 
 export interface MessageStore {
   enqueue(msg: EnqueueMessage): void
-  dequeueFor(scope: string): QueuedMessage[]
+  dequeueFor(scope: string, targetName?: string): QueuedMessage[]
+  countFor(scope: string): number
   log(entry: MessageLogEntry): void
-  queryLog(opts?: { scope?: string; conversationId?: string; limit?: number; afterId?: number }): MessageLogEntry[]
+  queryLog(opts?: {
+    scope?: string
+    conversationId?: string
+    limit?: number
+    afterId?: number
+    before?: number
+  }): MessageLogEntry[]
+  purgeLog(scopeA: string, scopeB: string): number
+  compactLog(retentionMs: number, maxEntries: number): number
   pruneExpired(): number
 }
 

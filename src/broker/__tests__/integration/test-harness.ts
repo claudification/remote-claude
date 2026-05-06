@@ -159,8 +159,11 @@ function createMockStoreDriver(): StoreDriver {
     messages: {
       enqueue: noop,
       dequeueFor: () => [],
+      countFor: () => 0,
       log: noop,
       queryLog: () => [],
+      purgeLog: () => 0,
+      compactLog: () => 0,
       pruneExpired: () => 0,
     },
     shares: {

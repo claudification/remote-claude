@@ -50,7 +50,7 @@ function rowToSummary(row: Params): ConversationSummaryRecord {
   }
 }
 
-export function createSqliteSessionStore(db: Database): ConversationStore {
+export function createSqliteConversationStore(db: Database): ConversationStore {
   const stmtGet = db.prepare('SELECT * FROM conversations WHERE id = $id')
   const stmtInsert = db.prepare(`
     INSERT INTO conversations (id, scope, agent_type, agent_version, title, model, status, created_at, meta)

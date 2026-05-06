@@ -45,9 +45,11 @@ export function createSchema(db: Database) {
       UNIQUE(conversation_id, uuid)
     )
   `)
-  db.run('CREATE INDEX IF NOT EXISTS idx_transcript_session ON transcript_entries(conversation_id)')
-  db.run('CREATE INDEX IF NOT EXISTS idx_transcript_session_seq ON transcript_entries(conversation_id, seq)')
-  db.run('CREATE INDEX IF NOT EXISTS idx_transcript_session_agent ON transcript_entries(conversation_id, agent_id)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_transcript_conversation ON transcript_entries(conversation_id)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_transcript_conversation_seq ON transcript_entries(conversation_id, seq)')
+  db.run(
+    'CREATE INDEX IF NOT EXISTS idx_transcript_conversation_agent ON transcript_entries(conversation_id, agent_id)',
+  )
   db.run('CREATE INDEX IF NOT EXISTS idx_transcript_timestamp ON transcript_entries(timestamp)')
 
   db.run(`
@@ -59,8 +61,8 @@ export function createSchema(db: Database) {
       created_at INTEGER NOT NULL
     )
   `)
-  db.run('CREATE INDEX IF NOT EXISTS idx_events_session ON events(conversation_id)')
-  db.run('CREATE INDEX IF NOT EXISTS idx_events_type ON events(conversation_id, type)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_events_conversation ON events(conversation_id)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_events_conversation_type ON events(conversation_id, type)')
 
   db.run(`
     CREATE TABLE IF NOT EXISTS scope_links (
@@ -91,7 +93,9 @@ export function createSchema(db: Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       from_scope TEXT NOT NULL,
       to_scope TEXT NOT NULL,
-      from_session_id TEXT,
+      from_conversation_id TEXT,
+      from_name TEXT,
+      target_name TEXT,
       content TEXT NOT NULL,
       intent TEXT,
       conversation_id TEXT,
@@ -107,11 +111,14 @@ export function createSchema(db: Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       from_scope TEXT NOT NULL,
       to_scope TEXT NOT NULL,
-      from_session_id TEXT,
-      to_session_id TEXT,
+      from_conversation_id TEXT,
+      to_conversation_id TEXT,
+      from_name TEXT,
+      to_name TEXT,
       content TEXT,
       intent TEXT,
       conversation_id TEXT,
+      full_length INTEGER,
       created_at INTEGER NOT NULL
     )
   `)
@@ -132,8 +139,8 @@ export function createSchema(db: Database) {
       PRIMARY KEY(conversation_id, id)
     )
   `)
-  db.run('CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(conversation_id)')
-  db.run('CREATE INDEX IF NOT EXISTS idx_tasks_kind ON tasks(conversation_id, kind)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_tasks_conversation ON tasks(conversation_id)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_tasks_conversation_kind ON tasks(conversation_id, kind)')
 
   db.run(`
     CREATE TABLE IF NOT EXISTS shares (
@@ -145,7 +152,7 @@ export function createSchema(db: Database) {
       viewer_count INTEGER NOT NULL DEFAULT 0
     )
   `)
-  db.run('CREATE INDEX IF NOT EXISTS idx_shares_session ON shares(conversation_id)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_shares_conversation ON shares(conversation_id)')
   db.run('CREATE INDEX IF NOT EXISTS idx_shares_expires ON shares(expires_at)')
 
   db.run(`

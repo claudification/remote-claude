@@ -2,11 +2,12 @@ import { Database } from 'bun:sqlite'
 import { join } from 'node:path'
 import type { StoreConfig, StoreDriver } from '../types'
 import { createSqliteAddressBookStore } from './address-book'
-import { createSqliteSessionStore } from './conversations'
+import { createSqliteConversationStore } from './conversations'
 import { createSqliteCostStore } from './costs'
 import { createSqliteEventStore } from './events'
 import { createSqliteKVStore } from './kv'
 import { createSqliteMessageStore } from './messages'
+import { migrateMessages } from './migrate-messages'
 import { migrateSessionColumns } from './migrate-session-columns'
 import { createSchema } from './schema'
 import { createSqliteScopeLinkStore } from './scope-links'
@@ -18,10 +19,11 @@ export function createSqliteDriver(config: StoreConfig): StoreDriver {
   const filename = config.filename ?? join(config.dataDir ?? '.', 'store.db')
   const db = new Database(filename, { strict: true })
   migrateSessionColumns(db)
+  migrateMessages(db)
   createSchema(db)
 
   return {
-    conversations: createSqliteSessionStore(db),
+    conversations: createSqliteConversationStore(db),
     transcripts: createSqliteTranscriptStore(db),
     events: createSqliteEventStore(db),
     kv: createSqliteKVStore(db),

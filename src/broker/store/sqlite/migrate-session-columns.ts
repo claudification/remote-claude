@@ -38,10 +38,7 @@ export function migrateSessionColumns(db: Database) {
     // turns: conversation_id -> conversation_id
     db.run('ALTER TABLE turns RENAME COLUMN session_id TO conversation_id')
 
-    // message_queue + message_log: from_session_id -> from_conversation_id, to_session_id -> to_conversation_id
-    db.run('ALTER TABLE message_queue RENAME COLUMN from_session_id TO from_conversation_id')
-    db.run('ALTER TABLE message_log RENAME COLUMN from_session_id TO from_conversation_id')
-    db.run('ALTER TABLE message_log RENAME COLUMN to_session_id TO to_conversation_id')
+    // message_queue + message_log column renames handled by migrate-messages.ts
 
     // Drop old indexes and recreate with new names
     // (SQLite auto-updates indexes on column rename, but names stay old)

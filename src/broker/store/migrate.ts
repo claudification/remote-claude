@@ -427,10 +427,8 @@ function migrateMessageQueue(store: StoreDriver, cacheDir: string, result: Migra
         const enqueue: EnqueueMessage = {
           fromScope: (m.senderProject as string) || (m.fromCwd as string) || '',
           toScope: targetProject,
-          fromSessionId: undefined,
+          fromName: (m.senderName as string) || undefined,
           content: JSON.stringify(m.message || ''),
-          intent: undefined,
-          conversationId: undefined,
           expiresAt: (ts || now) + TTL_MS,
         }
         store.messages.enqueue(enqueue)
@@ -469,11 +467,14 @@ function migrateInterSessionLog(store: StoreDriver, cacheDir: string, result: Mi
       const logEntry: MessageLogEntry = {
         fromScope: from.project || from.cwd || '',
         toScope: to.project || to.cwd || '',
-        fromSessionId: from.sessionId,
-        toSessionId: to.sessionId,
+        fromConversationId: from.sessionId || from.conversationId,
+        toConversationId: to.sessionId || to.conversationId,
+        fromName: from.name,
+        toName: to.name,
         content: entry.preview as string | undefined,
         intent: entry.intent as string | undefined,
         conversationId: entry.conversationId as string | undefined,
+        fullLength: entry.fullLength as number | undefined,
         createdAt: (entry.ts as number) || Date.now(),
       }
       store.messages.log(logEntry)
