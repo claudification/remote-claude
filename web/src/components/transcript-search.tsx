@@ -83,12 +83,7 @@ function SnippetText({ html }: { html: string }) {
     .replace(/\x01/g, '<mark class="bg-[#e0af68]/30 text-[#e0af68] rounded-sm px-0.5">')
     .replace(/\x02/g, '</mark>')
 
-  return (
-    <span
-      className="text-[11px] text-[#9aa5ce] leading-relaxed"
-      dangerouslySetInnerHTML={{ __html: sanitized }}
-    />
-  )
+  return <span className="text-[11px] text-[#9aa5ce] leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitized }} />
 }
 
 function formatProject(uri: string): string {
@@ -109,12 +104,18 @@ function formatTime(ts: number): string {
 
 function entryTypeIcon(type: string): string {
   switch (type) {
-    case 'user': return '▸' // ▸
-    case 'assistant': return '◂' // ◂
-    case 'tool_use': return '⚙' // ⚙
-    case 'tool_result': return '↳' // ↳
-    case 'system': return '⚑' // ⚑
-    default: return '·' // ·
+    case 'user':
+      return '▸' // ▸
+    case 'assistant':
+      return '◂' // ◂
+    case 'tool_use':
+      return '⚙' // ⚙
+    case 'tool_result':
+      return '↳' // ↳
+    case 'system':
+      return '⚑' // ⚑
+    default:
+      return '·' // ·
   }
 }
 
@@ -122,12 +123,24 @@ function SyntaxHints() {
   return (
     <div className="px-4 py-3 border-t border-[#1a1b26] bg-[#13141c]">
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#565f89]">
-        <span><code className="text-[#7aa2f7]">"exact phrase"</code></span>
-        <span><code className="text-[#7aa2f7]">prefix*</code></span>
-        <span><code className="text-[#7aa2f7]">A AND B</code></span>
-        <span><code className="text-[#7aa2f7]">A OR B</code></span>
-        <span><code className="text-[#7aa2f7]">A NOT B</code></span>
-        <span><code className="text-[#7aa2f7]">NEAR(a b, 5)</code></span>
+        <span>
+          <code className="text-[#7aa2f7]">"exact phrase"</code>
+        </span>
+        <span>
+          <code className="text-[#7aa2f7]">prefix*</code>
+        </span>
+        <span>
+          <code className="text-[#7aa2f7]">A AND B</code>
+        </span>
+        <span>
+          <code className="text-[#7aa2f7]">A OR B</code>
+        </span>
+        <span>
+          <code className="text-[#7aa2f7]">A NOT B</code>
+        </span>
+        <span>
+          <code className="text-[#7aa2f7]">NEAR(a b, 5)</code>
+        </span>
       </div>
     </div>
   )
@@ -369,9 +382,7 @@ export function TranscriptSearch() {
             autoComplete="off"
           />
           {loading && <span className="text-[10px] text-[#565f89] animate-pulse shrink-0">...</span>}
-          {!loading && total > 0 && (
-            <span className="text-[10px] text-[#565f89] font-mono shrink-0">{total} hits</span>
-          )}
+          {!loading && total > 0 && <span className="text-[10px] text-[#565f89] font-mono shrink-0">{total} hits</span>}
         </div>
 
         {/* Results */}
@@ -393,9 +404,13 @@ export function TranscriptSearch() {
               >
                 <div className="flex items-baseline gap-2 mb-1">
                   <span className="text-xs text-[#c0caf5] font-medium truncate">{hit.title}</span>
-                  <span className="text-[10px] text-[#565f89] font-mono shrink-0">{hit.hitCount} hit{hit.hitCount > 1 ? 's' : ''}</span>
+                  <span className="text-[10px] text-[#565f89] font-mono shrink-0">
+                    {hit.hitCount} hit{hit.hitCount > 1 ? 's' : ''}
+                  </span>
                   <span className="flex-1" />
-                  <span className="text-[10px] text-[#3b4261] font-mono truncate max-w-[200px]">{formatProject(hit.project)}</span>
+                  <span className="text-[10px] text-[#3b4261] font-mono truncate max-w-[200px]">
+                    {formatProject(hit.project)}
+                  </span>
                 </div>
                 <div className="line-clamp-2">
                   <SnippetText html={hit.bestSnippet} />
@@ -416,7 +431,10 @@ export function TranscriptSearch() {
                 )}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] text-[#565f89] font-mono">{entryTypeIcon(hit.type)} {hit.type}{hit.subtype ? `/${hit.subtype}` : ''}</span>
+                  <span className="text-[10px] text-[#565f89] font-mono">
+                    {entryTypeIcon(hit.type)} {hit.type}
+                    {hit.subtype ? `/${hit.subtype}` : ''}
+                  </span>
                   <span className="text-[10px] text-[#3b4261]">seq {hit.seq}</span>
                   <span className="flex-1" />
                   <span className="text-[10px] text-[#3b4261] font-mono">{formatTime(hit.createdAt)}</span>
@@ -432,10 +450,18 @@ export function TranscriptSearch() {
         {/* Footer with syntax hints + shortcuts */}
         <SyntaxHints />
         <div className="px-4 py-2 border-t border-[#1a1b26] bg-[#13141c] flex items-center gap-3 text-[10px] text-[#3b4261]">
-          <span className="flex items-center gap-1"><Kbd className="text-[9px] h-4">&uarr;&darr;</Kbd> navigate</span>
-          <span className="flex items-center gap-1"><Kbd className="text-[9px] h-4">Tab</Kbd> drill in</span>
-          <span className="flex items-center gap-1"><Kbd className="text-[9px] h-4">Enter</Kbd> {mode === 'conversations' ? 'expand' : 'go to'}</span>
-          <span className="flex items-center gap-1"><Kbd className="text-[9px] h-4">Esc</Kbd> {mode === 'snippets' ? 'back' : 'close'}</span>
+          <span className="flex items-center gap-1">
+            <Kbd className="text-[9px] h-4">&uarr;&darr;</Kbd> navigate
+          </span>
+          <span className="flex items-center gap-1">
+            <Kbd className="text-[9px] h-4">Tab</Kbd> drill in
+          </span>
+          <span className="flex items-center gap-1">
+            <Kbd className="text-[9px] h-4">Enter</Kbd> {mode === 'conversations' ? 'expand' : 'go to'}
+          </span>
+          <span className="flex items-center gap-1">
+            <Kbd className="text-[9px] h-4">Esc</Kbd> {mode === 'snippets' ? 'back' : 'close'}
+          </span>
         </div>
       </DialogContent>
     </Dialog>

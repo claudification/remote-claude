@@ -59,7 +59,10 @@ function formatConversationsOutput(data: SearchResponse): string {
     lines.push(`  project: ${shortProject}  |  hits: ${group.hits.length}`)
     const best = group.hits[0]
     if (best?.snippet) {
-      const clean = best.snippet.replace(/<\/?mark>/g, '*').replace(/\.\.\./g, '...').trim()
+      const clean = best.snippet
+        .replace(/<\/?mark>/g, '*')
+        .replace(/\.\.\./g, '...')
+        .trim()
       lines.push(`  best match: ${clean}`)
     }
     lines.push('')
@@ -75,7 +78,10 @@ function formatSnippetsOutput(data: SearchResponse): string {
   for (const hit of data.hits) {
     const convTitle = hit.conversation?.title || ''
     const ts = hit.createdAt ? new Date(hit.createdAt).toISOString().replace('T', ' ').slice(0, 19) : ''
-    const clean = (hit.snippet || '').replace(/<\/?mark>/g, '*').replace(/\.\.\./g, '...').trim()
+    const clean = (hit.snippet || '')
+      .replace(/<\/?mark>/g, '*')
+      .replace(/\.\.\./g, '...')
+      .trim()
 
     lines.push(`seq ${hit.seq}  |  ${hit.type}${hit.subtype ? '/' + hit.subtype : ''}  |  ${ts}  |  ${convTitle}`)
     lines.push(`  conv: ${hit.conversationId}`)
@@ -123,7 +129,8 @@ export function registerSearchTools(ctx: McpToolContext): Record<string, ToolDef
           output: {
             type: 'string',
             enum: ['conversations', 'snippets', 'full'],
-            description: 'Output mode. "conversations" (default) = grouped by conversation. "snippets" = individual hits. "full" = raw entries.',
+            description:
+              'Output mode. "conversations" (default) = grouped by conversation. "snippets" = individual hits. "full" = raw entries.',
           },
           conversationId: {
             type: 'string',
