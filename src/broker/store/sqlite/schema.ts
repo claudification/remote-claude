@@ -53,6 +53,44 @@ export function createSchema(db: Database) {
   db.run('CREATE INDEX IF NOT EXISTS idx_transcript_timestamp ON transcript_entries(timestamp)')
 
   db.run(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS transcript_fts USING fts5(
+      content,
+      content=transcript_entries,
+      content_rowid=id,
+      tokenize='porter unicode61'
+    )
+  `)
+  db.run(`
+    CREATE TRIGGER IF NOT EXISTS transcript_fts_ai AFTER INSERT ON transcript_entries BEGIN
+      INSERT INTO transcript_fts(rowid, content) VALUES (new.id, new.content);
+    END
+  `)
+  db.run(`
+    CREATE TRIGGER IF NOT EXISTS transcript_fts_ad AFTER DELETE ON transcript_entries BEGIN
+      INSERT INTO transcript_fts(transcript_fts, rowid, content) VALUES ('delete', old.id, old.content);
+    END
+  `)
+  db.run(`
+    CREATE TRIGGER IF NOT EXISTS transcript_fts_au AFTER UPDATE ON transcript_entries BEGIN
+      INSERT INTO transcript_fts(transcript_fts, rowid, content) VALUES ('delete', old.id, old.content);
+      INSERT INTO transcript_fts(rowid, content) VALUES (new.id, new.content);
+    END
+  `)
+
+  // Backfill: if FTS index is empty but transcript_entries has data, rebuild.
+  // Uses transcript_fts_docsize (one row per indexed doc) as the emptiness probe.
+  const indexed = db.prepare('SELECT COUNT(*) AS cnt FROM transcript_fts_docsize').get() as { cnt: number }
+  const tx = db.prepare('SELECT COUNT(*) AS cnt FROM transcript_entries').get() as { cnt: number }
+  if (indexed.cnt === 0 && tx.cnt > 0) {
+    const start = Date.now()
+    db.run("INSERT INTO transcript_fts(transcript_fts) VALUES('rebuild')")
+    const ms = Date.now() - start
+    console.error(
+      `[fts] backfilled ${tx.cnt} transcript entries in ${ms}ms (${Math.round(tx.cnt / Math.max(ms, 1))} entries/ms)`,
+    )
+  }
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       conversation_id TEXT NOT NULL,
