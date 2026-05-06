@@ -10,6 +10,7 @@ package-lock.json
 .env
 *.pid
 concentrator-data-backup-*.tar.gz
+backups/
 src/shared/version.ts
 NOTES.md
 .rclaude/
