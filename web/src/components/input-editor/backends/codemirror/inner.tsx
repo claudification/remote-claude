@@ -27,7 +27,7 @@ import { useIsMobile } from '../../shell/use-is-mobile'
 import { useScrollLock } from '../../shell/use-scroll-lock'
 import type { SubCommandContext } from '../../sub-commands'
 import type { InputEditorProps } from '../../types'
-import { buildInputExtensions, darkThemeBase, submitFromEditor } from './extensions'
+import { buildInputExtensions, darkThemeBase, replaceEditorDoc, submitFromEditor } from './extensions'
 import { attachPasteUpload, uploadDroppedFile } from './paste-drop'
 
 export default function CodeMirrorBackendInner(props: InputEditorProps) {
@@ -239,7 +239,7 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
       const text = (e as CustomEvent<string>).detail
       const view = viewRef.current
       if (text == null || !view) return
-      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } })
+      replaceEditorDoc(view, text)
     }
     window.addEventListener('editor-set-value', handler)
     return () => window.removeEventListener('editor-set-value', handler)

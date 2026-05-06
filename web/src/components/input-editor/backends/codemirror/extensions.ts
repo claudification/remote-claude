@@ -271,26 +271,33 @@ interface InputExtensionOptions {
   getSubCommandContext?: () => SubCommandContext
 }
 
-/**
- * Submit entry point shared by every surface that can fire a submit:
- *   - the Enter keymap (desktop + inline)
- *   - the mobile compose panel's Send button
- *
- * Clears the doc *before* calling onSubmit so the editor empties
- * immediately. react-codemirror has a 200ms "typing latch" (see
- * node_modules/@uiw/react-codemirror/esm/useCodeMirror.js TYPING_TIMOUT)
- * that defers prop-driven `value=""` updates until typing settles -- if
- * we only relied on React state -> value prop, the clear would lag by up
- * to 200ms. Dispatching directly through CM sidesteps the latch; the
- * parent's onChange still syncs React state in the same call stack, and
- * the submit handler reads the (still-correct) pre-clear value from its
- * own React-state closure.
- */
-export function submitFromEditor(view: EditorView, onSubmit: () => void) {
+// ---------------------------------------------------------------------------
+// Direct CM doc manipulation -- bypasses react-codemirror's 200ms typing
+// latch (TYPING_TIMOUT in useCodeMirror.js) by dispatching changes through
+// the view instead of waiting for the React value prop to propagate.
+// ---------------------------------------------------------------------------
+
+export function clearEditorDoc(view: EditorView) {
   const len = view.state.doc.length
-  if (len > 0) {
-    view.dispatch({ changes: { from: 0, to: len, insert: '' } })
-  }
+  if (len > 0) view.dispatch({ changes: { from: 0, to: len, insert: '' } })
+}
+
+export function replaceEditorDoc(view: EditorView, text: string) {
+  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } })
+}
+
+/**
+ * Fire-and-forget bridge for non-CM code (e.g. InputBar) to set the CM
+ * editor's content instantly. The CM backend listens for this event and
+ * calls replaceEditorDoc. Falls through silently when no CM is mounted
+ * (legacy textarea handles it via React state).
+ */
+export function requestEditorSetValue(text: string) {
+  window.dispatchEvent(new CustomEvent('editor-set-value', { detail: text }))
+}
+
+export function submitFromEditor(view: EditorView, onSubmit: () => void) {
+  clearEditorDoc(view)
   onSubmit()
 }
 
@@ -322,10 +329,7 @@ export function buildInputExtensions(opts: InputExtensionOptions): Extension[] {
           key: 'Ctrl-s',
           run: view => {
             const text = view.state.doc.toString()
-            const len = view.state.doc.length
-            if (len > 0) {
-              view.dispatch({ changes: { from: 0, to: len, insert: '' } })
-            }
+            clearEditorDoc(view)
             opts.onStash?.(text)
             return true
           },

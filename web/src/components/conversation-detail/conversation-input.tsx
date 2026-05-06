@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp, Layers } from 'lucide-react'
 import { memo, useEffect, useRef, useState } from 'react'
 import { DialogModal } from '@/components/dialog'
 import { InputEditor } from '@/components/input-editor'
+import { requestEditorSetValue } from '@/components/input-editor/backends/codemirror/extensions'
 import { sendInput, useConversationsStore } from '@/hooks/use-conversations'
 import { focusInputEditor } from '@/lib/focus-input'
 import { canTerminal } from '@/lib/types'
@@ -77,8 +78,7 @@ export const InputBar = memo(function InputBar({ conversationId }: { conversatio
     const text = current ? `${current}\n\n${joined}` : joined
     setInputValue(text)
     store.setInputDraft(conversationId, text)
-    // Bypass react-codemirror's 200ms typing latch (same pattern as file-upload-request)
-    window.dispatchEvent(new CustomEvent('editor-set-value', { detail: text }))
+    requestEditorSetValue(text)
     haptic('success')
     requestAnimationFrame(() => containerRef.current && focusInputEditor(containerRef.current))
   }
