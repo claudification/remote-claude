@@ -8,6 +8,7 @@ export default defineConfig({
       // The bun:sqlite mock can't simulate full SQL behavior, so these would fail under vitest.
       'src/broker/store/__tests__/store-driver.test.ts',
       'src/broker/store/__tests__/transcript-search.test.ts',
+      'src/broker/__tests__/backup-fts.test.ts',
       // Staging tests self-skip when STAGING_BROKER_URL is unset (describe.skip).
       // Do NOT exclude them here -- that blocks scripts/staging-test.sh from finding them.
     ],

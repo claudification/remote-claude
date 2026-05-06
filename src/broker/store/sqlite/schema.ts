@@ -77,11 +77,21 @@ export function createSchema(db: Database) {
     END
   `)
 
-  // Initial population: if FTS table is empty but transcript_entries has data, backfill.
-  const fts = db.prepare('SELECT COUNT(*) AS cnt FROM transcript_fts').get() as { cnt: number }
+  // Initial population: if the FTS5 inverted index is empty but
+  // transcript_entries has data, rebuild from the source table. This handles
+  // two cases: (1) initial migration of an existing DB to FTS, and (2)
+  // restoring a backup that stripped the rebuildable FTS shadows.
+  //
+  // The probe uses transcript_fts_docsize (one row per indexed doc, 0 when
+  // unbuilt). `SELECT COUNT(*) FROM transcript_fts` is NOT a valid emptiness
+  // check for external-content tables -- it returns the source row count.
+  // The rebuild itself uses FTS5's `rebuild` command -- a plain
+  // INSERT INTO transcript_fts(rowid, content) stores rows but does not
+  // tokenize, so MATCH would silently return nothing.
+  const indexed = db.prepare('SELECT COUNT(*) AS cnt FROM transcript_fts_docsize').get() as { cnt: number }
   const tx = db.prepare('SELECT COUNT(*) AS cnt FROM transcript_entries').get() as { cnt: number }
-  if (fts.cnt === 0 && tx.cnt > 0) {
-    db.run('INSERT INTO transcript_fts(rowid, content) SELECT id, content FROM transcript_entries')
+  if (indexed.cnt === 0 && tx.cnt > 0) {
+    db.run("INSERT INTO transcript_fts(transcript_fts) VALUES('rebuild')")
   }
 
   db.run(`

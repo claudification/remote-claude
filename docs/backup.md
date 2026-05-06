@@ -44,11 +44,18 @@ docker compose start broker
 1. **VACUUM INTO** each SQLite database to a temp directory. This creates a
    consistent, defragmented snapshot without blocking concurrent writers. The
    output is a single `.db` file (DELETE journal mode, no WAL/SHM sidecars).
-2. **Copy** flat config files alongside the database snapshots.
-3. **Write manifest.json** with SHA-256 checksums, broker git hash, branch,
+2. **Strip derived artifacts** from the snapshot (currently: the
+   `transcript_fts` FTS5 index over `transcript_entries.content` and its
+   sync triggers). These are fully rebuildable from base tables, so backing
+   them up wastes space. On next broker startup after restore, `createSchema()`
+   recreates the FTS table + triggers and detects an empty index against
+   non-empty source rows -- it then backfills with a single
+   `INSERT INTO transcript_fts(rowid, content) SELECT id, content FROM transcript_entries`.
+3. **Copy** flat config files alongside the database snapshots.
+4. **Write manifest.json** with SHA-256 checksums, broker git hash, branch,
    build time, and hostname.
-4. **tar + gzip** everything into `backup-YYYYMMDD-HHMMSS.tar.gz`.
-5. **Prune** old backups per the tiered retention policy.
+5. **tar + gzip** everything into `backup-YYYYMMDD-HHMMSS.tar.gz`.
+6. **Prune** old backups per the tiered retention policy.
 
 ## Tiered Retention
 
