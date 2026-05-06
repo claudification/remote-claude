@@ -188,20 +188,15 @@ function flushBatch(): void {
           promptSnippet: turn.promptSnippet,
         })
 
-        // Insert per-tool records
+        const turnId = (stmtLastRowid?.get() as { id: number }).id
         for (const toolName of turn.tools) {
-          stmtInsertToolUse?.run({
-            timestamp: turn.timestamp,
-            conversationId: turn.conversationId,
-            toolName,
-          })
+          stmtInsertToolUse?.run({ turnId, toolName })
         }
       }
     })
     tx()
   } catch (err) {
     console.error(`[analytics] Batch flush failed (${batch.length} turns dropped):`, err)
-    // Don't re-queue -- data loss is acceptable for analytics
   }
 }
 
@@ -210,6 +205,7 @@ function flushBatch(): void {
 let db: Database | null = null
 let stmtInsertTurn: Statement | null = null
 let stmtInsertToolUse: Statement | null = null
+let stmtLastRowid: Statement | null = null
 let cleanupTimer: ReturnType<typeof setInterval> | null = null
 
 /** Per-conversation turn accumulators (keyed by conversationId) */
@@ -232,16 +228,12 @@ function migrate(d: Database): void {
     const projectCol = cols.find(c => c.name === 'project_id')
 
     if (!projectCol) {
-      // Fresh DB or pre-project_id: add INTEGER column
       d.run('ALTER TABLE turns ADD COLUMN project_id INTEGER NOT NULL DEFAULT 0')
       backfillProjectIds(d)
       console.log('[analytics] Migrated: added project_id INTEGER column')
     } else if (projectCol.type === 'TEXT') {
-      // v1 -> v2: TEXT to INTEGER migration
-      // SQLite can't ALTER column type, so we add a new column and copy
       d.run('ALTER TABLE turns ADD COLUMN project_id_int INTEGER NOT NULL DEFAULT 0')
       backfillProjectIds(d, 'project_id_int')
-      // Swap columns: drop old index, rename
       d.run('DROP INDEX IF EXISTS idx_analytics_project')
       d.run('ALTER TABLE turns DROP COLUMN project_id')
       d.run('ALTER TABLE turns RENAME COLUMN project_id_int TO project_id')
@@ -252,12 +244,6 @@ function migrate(d: Database): void {
     console.error('[analytics] Migration failed:', err)
   }
 
-  // project_uri migration.
-  // cwd values are absolute paths that start with '/', so we prepend
-  // 'claude://default' to get canonical 'claude://default/path'. (The old
-  // pattern `'claude:///' || cwd` produced 'claude:////path' -- a scar that
-  // pre-2026-04-25 data still carries; canonicalizeUris() in store/migrate.ts
-  // upgrades both to 'claude://default/path'.)
   try {
     const uriCols = d.query("PRAGMA table_info('turns')").all() as Array<{ name: string }>
     if (!uriCols.some(c => c.name === 'project_uri')) {
@@ -277,7 +263,6 @@ function migrate(d: Database): void {
 
 /** Backfill project_id from cwd via project-store */
 function backfillProjectIds(d: Database, column = 'project_id'): void {
-  // Check if cwd column still exists (may have been dropped already)
   const cols = d.query("PRAGMA table_info('turns')").all() as Array<{ name: string }>
   if (!cols.some(c => c.name === 'cwd')) return
 
@@ -292,7 +277,60 @@ function backfillProjectIds(d: Database, column = 'project_id'): void {
   }
 }
 
-// ─── Init ───────────────────────────────────────────────────────────
+/**
+ * V2 migration: fix broken timestamps + restructure tool_uses.
+ *
+ * 1. Old code stored timestamps as ISO text strings. Cleanup compared
+ *    them to integer epoch millis -- always false in SQLite (text > int).
+ *    Result: cleanup never deleted anything. DB grew to ~500MB.
+ * 2. tool_uses stored (timestamp, conversation_id, tool_name) per call
+ *    -- 36-char conversation_id repeated 3.3M times. New schema uses
+ *    (turn_id, tool_name) with an integer FK to turns.id.
+ */
+function migrateToolUsesV2(d: Database): void {
+  const cols = d.query("PRAGMA table_info('tool_uses')").all() as Array<{ name: string }>
+  if (!cols.some(c => c.name === 'conversation_id')) return
+
+  console.log('[analytics] v2 migration: fixing timestamps, restructuring tool_uses...')
+  const t0 = Date.now()
+
+  d.run(
+    "UPDATE turns SET timestamp = CAST(strftime('%s', timestamp) AS INTEGER) * 1000 WHERE typeof(timestamp) = 'text'",
+  )
+
+  const cutoff = Date.now() - RETENTION_MS
+  d.prepare('DELETE FROM turns WHERE timestamp < $cutoff').run({ cutoff })
+
+  d.run('DROP TABLE tool_uses')
+  d.run('CREATE TABLE tool_uses (id INTEGER PRIMARY KEY, turn_id INTEGER NOT NULL, tool_name TEXT NOT NULL)')
+
+  const insertStmt = d.prepare('INSERT INTO tool_uses (turn_id, tool_name) VALUES ($turnId, $toolName)')
+  const turns = d.query("SELECT id, tool_sequence FROM turns WHERE tool_sequence != ''").all() as Array<{
+    id: number
+    tool_sequence: string
+  }>
+
+  let backfilled = 0
+  const backfillTx = d.transaction(() => {
+    for (const turn of turns) {
+      for (const toolName of turn.tool_sequence.split(',')) {
+        if (toolName) {
+          insertStmt.run({ turnId: turn.id, toolName })
+          backfilled++
+        }
+      }
+    }
+  })
+  backfillTx()
+
+  d.run('VACUUM')
+
+  console.log(
+    `[analytics] v2 migration complete in ${Date.now() - t0}ms: ${turns.length} turns, ${backfilled} tool_uses backfilled`,
+  )
+}
+
+// ─── Init ─────────────────────────────────────────────────────────
 
 export function initAnalyticsStore(cacheDir: string): void {
   try {
@@ -322,14 +360,25 @@ export function initAnalyticsStore(cacheDir: string): void {
       )
     `)
 
-    // Migration: add project_id column to existing tables
+    // Column migrations (project_id, project_uri)
     migrate(db)
 
+    // Drop legacy cwd column
+    const cwdCols = db.query("PRAGMA table_info('turns')").all() as Array<{ name: string }>
+    if (cwdCols.some(c => c.name === 'cwd')) {
+      db.run('DROP INDEX IF EXISTS idx_analytics_cwd')
+      db.run('ALTER TABLE turns DROP COLUMN cwd')
+      console.log('[analytics] Migrated turns: dropped cwd column')
+    }
+
+    // V2: fix timestamps + restructure tool_uses (one-time, ~500MB -> ~20MB)
+    migrateToolUsesV2(db)
+
+    // New schema: turn_id FK replaces (timestamp, conversation_id) per row
     db.run(`
       CREATE TABLE IF NOT EXISTS tool_uses (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp INTEGER NOT NULL,
-        conversation_id TEXT NOT NULL,
+        id INTEGER PRIMARY KEY,
+        turn_id INTEGER NOT NULL,
         tool_name TEXT NOT NULL
       )
     `)
@@ -340,16 +389,8 @@ export function initAnalyticsStore(cacheDir: string): void {
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_project_uri ON turns(project_uri)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_project ON turns(project_id)')
     db.run('CREATE INDEX IF NOT EXISTS idx_analytics_category ON turns(task_category)')
-    db.run('CREATE INDEX IF NOT EXISTS idx_tool_uses_timestamp ON tool_uses(timestamp)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_tool_uses_turn ON tool_uses(turn_id)')
     db.run('CREATE INDEX IF NOT EXISTS idx_tool_uses_name ON tool_uses(tool_name)')
-
-    // Migration: drop cwd column (project_uri is now the canonical identity)
-    const cwdCols = db.query("PRAGMA table_info('turns')").all() as Array<{ name: string }>
-    if (cwdCols.some(c => c.name === 'cwd')) {
-      db.run('DROP INDEX IF EXISTS idx_analytics_cwd')
-      db.run('ALTER TABLE turns DROP COLUMN cwd')
-      console.log('[analytics] Migrated turns: dropped cwd column')
-    }
 
     stmtInsertTurn = db.prepare(`
       INSERT INTO turns (timestamp, conversation_id, project_uri, project_id, model, account,
@@ -360,10 +401,9 @@ export function initAnalyticsStore(cacheDir: string): void {
         $oneShot, $hadError, $promptSnippet)
     `)
 
-    stmtInsertToolUse = db.prepare(`
-      INSERT INTO tool_uses (timestamp, conversation_id, tool_name)
-      VALUES ($timestamp, $conversationId, $toolName)
-    `)
+    stmtInsertToolUse = db.prepare('INSERT INTO tool_uses (turn_id, tool_name) VALUES ($turnId, $toolName)')
+
+    stmtLastRowid = db.prepare('SELECT last_insert_rowid() as id')
 
     // Cleanup on startup + daily
     cleanup()
@@ -376,7 +416,6 @@ export function initAnalyticsStore(cacheDir: string): void {
     console.log(`[analytics] Store initialized: ${dbPath} (${count} turns)`)
   } catch (err) {
     console.error('[analytics] Failed to initialize store:', err)
-    // Analytics failure is non-fatal -- broker continues without it
     db = null
   }
 }
@@ -396,7 +435,6 @@ export function recordHookEvent(
   if (!db) return
 
   try {
-    // UserPromptSubmit: start a new turn accumulator
     if (hookEvent === 'UserPromptSubmit') {
       const prompt = String(data.prompt || '')
         .slice(0, 200)
@@ -409,25 +447,22 @@ export function recordHookEvent(
       return
     }
 
-    // PreToolUse: record tool invocation (we use Pre because Post may not fire on timeout)
     if (hookEvent === 'PreToolUse') {
       const acc = turnAccumulators.get(conversationId)
       if (acc) {
         acc.tools.push({
           toolName: String(data.tool_name || ''),
           timestamp: Date.now(),
-          success: true, // optimistic, flipped on PostToolUseFailure
+          success: true,
         })
       }
       return
     }
 
-    // PostToolUseFailure: mark the last matching tool as failed
     if (hookEvent === 'PostToolUseFailure') {
       const acc = turnAccumulators.get(conversationId)
       if (acc) {
         const toolName = String(data.tool_name || '')
-        // Find last tool with this name and mark failed
         for (let i = acc.tools.length - 1; i >= 0; i--) {
           if (acc.tools[i].toolName === toolName && acc.tools[i].success) {
             acc.tools[i].success = false
@@ -438,13 +473,11 @@ export function recordHookEvent(
       return
     }
 
-    // Stop / StopFailure: finalize the turn and enqueue for batch write
     if (hookEvent === 'Stop' || hookEvent === 'StopFailure') {
       const acc = turnAccumulators.get(conversationId)
       if (!acc) return
       turnAccumulators.delete(conversationId)
 
-      // Skip empty turns (no tool calls and no prompt = not interesting)
       if (acc.tools.length === 0 && !acc.promptSnippet) return
 
       const retryCount = countRetries(acc.tools)
@@ -462,7 +495,6 @@ export function recordHookEvent(
         toolCallCount: acc.tools.length,
         taskCategory,
         retryCount,
-        // One-shot = had edits, zero retries, no error
         oneShot: hasEdits && retryCount === 0 && hookEvent !== 'StopFailure',
         hadError: hookEvent === 'StopFailure',
         promptSnippet: acc.promptSnippet,
@@ -476,9 +508,6 @@ export function recordHookEvent(
   }
 }
 
-/**
- * Clear the turn accumulator for a conversation (e.g. on conversation end).
- */
 export function clearSession(conversationId: string): void {
   turnAccumulators.delete(conversationId)
 }
@@ -539,13 +568,13 @@ export function querySummary(period: '24h' | '7d' | '30d' | '90d', project?: str
     binds,
   ) as Array<{ category: TaskCategory; count: number; one_shot_rate: number }>
 
-  // For top tools, join through conversation_id + timestamp range (tool_uses has no project_id)
-  const toolWhere = project
-    ? `WHERE tu.timestamp >= $cutoff AND tu.conversation_id IN (SELECT DISTINCT conversation_id FROM turns ${where})`
-    : 'WHERE tu.timestamp >= $cutoff'
+  // Top tools via turn_id FK JOIN. Column names in $where (timestamp,
+  // project_uri, project_id) only exist on turns, so they resolve
+  // unambiguously despite bare names in the WHERE clause.
   const topTools = queryAll(
     `SELECT tu.tool_name as toolName, COUNT(*) as count
-    FROM tool_uses tu ${toolWhere}
+    FROM tool_uses tu JOIN turns t ON tu.turn_id = t.id
+    ${where}
     GROUP BY tu.tool_name ORDER BY count DESC LIMIT 20`,
     binds,
   ) as Array<{ toolName: string; count: number }>
@@ -642,7 +671,6 @@ export interface ModelAnalytics {
 export function queryModelComparison(period: '24h' | '7d' | '30d' | '90d', project?: string): ModelAnalytics[] {
   const cutoff = Date.now() - periodToMs(period)
   const { where, binds } = buildFilter(cutoff, project)
-  // Append model != '' to the existing WHERE
   const modelWhere = `${where} AND model != ''`
 
   const rows = queryAll(
@@ -665,27 +693,8 @@ export function queryModelComparison(period: '24h' | '7d' | '30d' | '90d', proje
   }))
 }
 
-// ─── Mass Import ────────────────────────────────────────────────────
-
-/**
- * Import a pre-built TurnAnalytics record (for mass import script).
- * Bypasses the accumulator -- the caller has already classified the turn.
- */
-function importTurn(turn: TurnAnalytics): void {
-  enqueueTurn(turn)
-}
-
-/** Force flush the batch queue (for import scripts and shutdown) */
-function flush(): void {
-  flushBatch()
-}
-
 // ─── Query helpers ──────────────────────────────────────────────────
 
-/**
- * Build WHERE clause with optional project filter.
- * Accepts project as integer ID or slug string -- resolves via project-store.
- */
 function buildFilter(cutoff: number, project?: string): { where: string; binds: Binds } {
   if (project) {
     if (project.includes('://')) {
@@ -720,13 +729,18 @@ function cleanup(): void {
   if (!db) return
   try {
     const cutoff = Date.now() - RETENTION_MS
-    const turnsDeleted = db.prepare('DELETE FROM turns WHERE timestamp < $cutoff').run({ cutoff })
-    const toolsDeleted = db.prepare('DELETE FROM tool_uses WHERE timestamp < $cutoff').run({ cutoff })
 
-    if ((turnsDeleted?.changes ?? 0) > 0 || (toolsDeleted?.changes ?? 0) > 0) {
-      console.log(
-        `[analytics] Cleanup: ${turnsDeleted?.changes ?? 0} turns, ${toolsDeleted?.changes ?? 0} tool_uses removed (>90d)`,
-      )
+    // Delete tool_uses for expired turns first (FK dependency)
+    db.prepare('DELETE FROM tool_uses WHERE turn_id IN (SELECT id FROM turns WHERE timestamp < $cutoff)').run({
+      cutoff,
+    })
+
+    const result = db.prepare('DELETE FROM turns WHERE timestamp < $cutoff').run({ cutoff })
+    const deleted = (result as unknown as { changes: number } | undefined)?.changes ?? 0
+
+    if (deleted > 0) {
+      console.log(`[analytics] Cleanup: removed ${deleted} expired turns (>30d)`)
+      db.run('VACUUM')
     }
   } catch (err) {
     console.error('[analytics] Cleanup failed:', err)
@@ -739,7 +753,6 @@ export function closeAnalyticsStore(): void {
   if (flushTimer) clearInterval(flushTimer)
   if (cleanupTimer) clearInterval(cleanupTimer)
 
-  // Final flush
   flushBatch()
 
   if (db) {
@@ -752,6 +765,7 @@ export function closeAnalyticsStore(): void {
     db = null
     stmtInsertTurn = null
     stmtInsertToolUse = null
+    stmtLastRowid = null
   }
 }
 
