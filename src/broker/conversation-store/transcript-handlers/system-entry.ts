@@ -1,4 +1,5 @@
 import type { Conversation, TranscriptSystemEntry } from '../../../shared/protocol'
+import { parseRecapContent } from '../../../shared/recap'
 import type { ConversationStoreContext } from '../event-context'
 import { detectContextModeFromStdout } from '../parsers'
 
@@ -80,8 +81,9 @@ function handleCompactBoundary(
 function handleAwaySummaryEntry(conv: Conversation, entry: TranscriptSystemEntry): boolean {
   const content = entry.content
   if (typeof content !== 'string' || !content.trim()) return false
+  const parsed = parseRecapContent(content)
   const recapTs = new Date(entry.timestamp || 0).getTime()
-  conv.recap = { content: content.trim(), timestamp: recapTs }
+  conv.recap = { content: parsed.recap, title: parsed.title || undefined, timestamp: recapTs }
   conv.recapFresh = conv.lastActivity <= recapTs + 10_000
   if (conv.status === 'active') {
     conv.status = 'idle'

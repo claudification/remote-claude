@@ -124,7 +124,7 @@ export interface Session {
   adHocWorktree?: string
   launchConfig?: import('@shared/protocol').LaunchConfig
   resultText?: string
-  recap?: { content: string; timestamp: number }
+  recap?: { content: string; title?: string; timestamp: number }
   recapFresh?: boolean
   lastEvent?: {
     hookEvent: string

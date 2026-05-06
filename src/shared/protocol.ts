@@ -1485,7 +1485,7 @@ export interface Conversation {
   launchConfig?: LaunchConfig // resolved launch configuration -- reused on revive
   modelMismatch?: { requested: string; actual: string; detectedAt: number }
   resultText?: string // final result text from headless session (captured from stream-json result message)
-  recap?: { content: string; timestamp: number } // away_summary from CC recaps
+  recap?: { content: string; title?: string; timestamp: number } // away_summary from CC recaps
   recapFresh?: boolean // true when no meaningful activity has occurred after the recap
   hostSentinelId?: string // which sentinel owns this session (from sentinel registry)
   hostSentinelAlias?: string // denormalized display alias of the sentinel

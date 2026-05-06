@@ -1,3 +1,4 @@
+import { parseRecapContent } from '@shared/recap'
 import { JsonInspector } from '../json-inspector'
 import { Markdown } from '../markdown'
 import { formatDuration } from './group-view-types'
@@ -97,7 +98,8 @@ export function SystemLine({ group, time }: { group: DisplayGroup; time: string 
         : 'Scheduled task fired'
       color = 'text-amber-400/70'
       break
-    case 'away_summary':
+    case 'away_summary': {
+      const parsed = parseRecapContent(content)
       return (
         <div className="my-3 mx-auto max-w-[95%]">
           <div className="border border-zinc-600/40 bg-zinc-800/30 rounded px-4 py-3">
@@ -107,10 +109,14 @@ export function SystemLine({ group, time }: { group: DisplayGroup; time: string 
               <span className="text-muted-foreground/40 text-[10px]">{time}</span>
               <JsonInspector title="away_summary" data={entry as Record<string, unknown>} />
             </div>
-            <div className="text-[11px] text-zinc-300/80 leading-relaxed">{content}</div>
+            <div className="text-[11px] text-zinc-300/80 leading-relaxed">
+              {parsed.title && <span className="font-medium text-zinc-200/90">{parsed.title}: </span>}
+              {parsed.recap}
+            </div>
           </div>
         </div>
       )
+    }
     default:
       text = content || `[${sub}]`
       break

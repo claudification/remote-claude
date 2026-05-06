@@ -1,12 +1,17 @@
 import { randomUUID } from 'node:crypto'
 import type { TranscriptAssistantEntry, TranscriptSystemEntry, TranscriptUserEntry } from '../shared/protocol'
+import { parseRecapContent } from '../shared/recap'
 import type { ConversationStore } from './conversation-store'
 
 const RECAP_DELAY_MS = 60_000
-const RECAP_PROMPT =
-  'You are summarizing a conversation between a user and an AI coding assistant. Recap what the assistant did in under 25 words, one plain sentence. Write from the assistant\'s perspective ("Fixed the..." not "The team fixed..."). Plain text only -- no markdown, no backticks, no bold, no bullet points, no labels like "Goal:" or "Next:". Just a natural sentence.'
-const MAX_RECENT_ENTRIES = 20
-const MAX_CONTEXT_CHARS = 4000
+const RECAP_PROMPT = `Describe what this coding session is about. You're looking at a conversation between a developer and an AI coding assistant.
+Respond with a JSON object containing exactly two fields:
+- "title": a topic label for the session (3-5 words, e.g. "Spawn timeout and sentinel liveness", "SQLite migration pipeline")
+- "recap": describe what the session covers in under 20 words. Topic-oriented, not action-oriented. No "I" or "We". Example: "Spawn failure diagnosis, sentinel heartbeat detection, and structured recap output with title extraction."
+
+Plain text only, no markdown. Respond with ONLY the JSON object.`
+const MAX_RECENT_ENTRIES = 40
+const MAX_CONTEXT_CHARS = 8000
 const MODEL = 'anthropic/claude-haiku-4.5'
 
 const pendingTimers = new Map<string, Timer>()
@@ -71,11 +76,13 @@ async function generateRecap(store: ConversationStore, conversationId: string): 
   }
 
   const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> }
-  const recapText = data.choices?.[0]?.message?.content?.trim()
-  if (!recapText) {
+  const rawText = data.choices?.[0]?.message?.content?.trim()
+  if (!rawText) {
     console.log(`[recap] empty response for ${conversationId.slice(0, 8)}`)
     return
   }
+
+  const parsed = parseRecapContent(rawText)
 
   const freshConv = store.getConversation(conversationId)
   if (!freshConv || freshConv.status !== 'idle') return
@@ -83,7 +90,7 @@ async function generateRecap(store: ConversationStore, conversationId: string): 
   const entry: TranscriptSystemEntry = {
     type: 'system',
     subtype: 'away_summary',
-    content: recapText,
+    content: JSON.stringify({ title: parsed.title, recap: parsed.recap }),
     timestamp: new Date().toISOString(),
     uuid: randomUUID(),
   }
@@ -96,36 +103,71 @@ async function generateRecap(store: ConversationStore, conversationId: string): 
   })
   store.broadcastConversationUpdate(conversationId)
 
-  console.log(`[recap] generated for ${conversationId.slice(0, 8)}: ${recapText.slice(0, 80)}`)
+  console.log(
+    `[recap] generated for ${conversationId.slice(0, 8)}: title="${parsed.title}" recap="${parsed.recap.slice(0, 60)}"`,
+  )
 }
 
 function condenseTranscript(store: ConversationStore, conversationId: string): string | null {
   const cached = store.getTranscriptEntries(conversationId)
   if (cached.length === 0) return null
 
-  let resetIdx = 0
-  for (let i = cached.length - 1; i >= 0; i--) {
+  const parts: string[] = []
+  let chars = 0
+
+  function addPart(text: string, budget = MAX_CONTEXT_CHARS): boolean {
+    if (chars >= budget) return false
+    const trimmed = truncate(text, budget - chars)
+    parts.push(trimmed)
+    chars += trimmed.length
+    return true
+  }
+
+  // Collect prior recaps and first user messages from each compaction segment.
+  // This gives continuity across compaction boundaries -- the model sees what
+  // earlier segments covered even though the full transcript is gone.
+  const priorRecaps: string[] = []
+  const segmentFirstMessages: string[] = []
+  let lastBoundaryIdx = 0
+
+  for (let i = 0; i < cached.length; i++) {
     const e = cached[i]
-    if (e.type === 'system' && (e as TranscriptSystemEntry).subtype === 'compact_boundary') {
-      resetIdx = i + 1
-      break
+    if (e.type !== 'system') continue
+    const sys = e as TranscriptSystemEntry
+    if (sys.subtype === 'away_summary' && typeof sys.content === 'string') {
+      const parsed = parseRecapContent(sys.content)
+      const label = parsed.title ? `${parsed.title}: ${parsed.recap}` : parsed.recap
+      priorRecaps.push(label)
+    }
+    if (sys.subtype === 'compact_boundary') {
+      // Grab first user message from the segment that just ended
+      for (let j = lastBoundaryIdx; j < i; j++) {
+        if (cached[j].type === 'user') {
+          const text = extractUserText(cached[j] as TranscriptUserEntry)
+          if (text) segmentFirstMessages.push(truncate(text, 200))
+          break
+        }
+      }
+      lastBoundaryIdx = i + 1
     }
   }
 
-  const postReset = cached.slice(resetIdx)
-  if (postReset.length === 0) return null
+  // Add prior context sections
+  if (priorRecaps.length > 0) {
+    addPart(`PRIOR WORK IN THIS SESSION:\n${priorRecaps.join('\n')}`)
+  }
+  if (segmentFirstMessages.length > 0) {
+    addPart(`\nEARLIER TOPICS:\n${segmentFirstMessages.join('\n')}`)
+  }
 
-  const parts: string[] = []
-  let chars = 0
+  // Current segment: everything after the last compaction boundary
+  const postReset = cached.slice(lastBoundaryIdx)
+  if (postReset.length === 0 && parts.length === 0) return null
 
   const firstUser = postReset.find((e): e is TranscriptUserEntry => e.type === 'user')
   if (firstUser) {
     const text = extractUserText(firstUser)
-    if (text) {
-      const label = `INITIAL PROMPT: ${text}`
-      parts.push(truncate(label, MAX_CONTEXT_CHARS))
-      chars += parts[0].length
-    }
+    if (text) addPart(`\nCURRENT PROMPT: ${text}`)
   }
 
   const recent = postReset.slice(-MAX_RECENT_ENTRIES)
@@ -140,11 +182,7 @@ function condenseTranscript(store: ConversationStore, conversationId: string): s
       line = prefixed('ASSISTANT', extractAssistantText(entry as TranscriptAssistantEntry))
     }
     if (!line) continue
-
-    const remaining = MAX_CONTEXT_CHARS - chars
-    const trimmed = truncate(line, remaining)
-    parts.push(trimmed)
-    chars += trimmed.length
+    addPart(line)
   }
 
   return parts.length > 0 ? parts.join('\n') : null

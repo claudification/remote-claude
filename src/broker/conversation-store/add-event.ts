@@ -1,4 +1,5 @@
 import type { Conversation, HookEvent, HookEventOf, HookEventType, TranscriptUserEntry } from '../../shared/protocol'
+import { parseRecapContent } from '../../shared/recap'
 import { recordHookEvent } from '../analytics-store'
 import { getProjectSettings } from '../project-settings'
 import { MAX_EVENTS, PASSIVE_HOOKS, TRANSCRIPT_KICK_DEBOUNCE_MS, TRANSCRIPT_KICK_EVENT_THRESHOLD } from './constants'
@@ -65,7 +66,8 @@ export function addEvent(ctx: ConversationStoreContext, conversationId: string, 
   const eventInput = (event.data as { input?: { type?: unknown; subtype?: unknown; content?: unknown } }).input
   const isRecap = eventInput?.type === 'system' && eventInput?.subtype === 'away_summary'
   if (isRecap && typeof eventInput?.content === 'string') {
-    conv.recap = { content: eventInput.content, timestamp: event.timestamp }
+    const parsed = parseRecapContent(eventInput.content)
+    conv.recap = { content: parsed.recap, title: parsed.title || undefined, timestamp: event.timestamp }
     conv.recapFresh = true
     ctx.scheduleConversationUpdate(conversationId)
   }

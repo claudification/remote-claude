@@ -72,7 +72,8 @@ export function RecapRow({ recap, recapFresh }: { recap: Session['recap']; recap
       )}
       title={recap.content}
     >
-      {recapFresh ? recap.content : `Recap: ${recap.content}`}
+      {recap.title && <span className="font-medium">{recap.title}: </span>}
+      {recapFresh ? recap.content : recap.content}
     </div>
   )
 }

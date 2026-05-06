@@ -882,6 +882,9 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
           )}
           title={session.recap.content}
         >
+          {session.recap.title && (
+            <span className="font-medium text-zinc-300/90">{session.recap.title}: </span>
+          )}
           {session.recap.content}
         </div>
       )}
@@ -1100,6 +1103,9 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
           )}
           title={session.recap.content}
         >
+          {session.recap.title && (
+            <span className="font-medium">{session.recap.title}: </span>
+          )}
           {session.recap.content}
         </div>
       )}
