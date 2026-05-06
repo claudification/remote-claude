@@ -55,6 +55,15 @@ let callbacks: McpChannelCallbacks = {}
 let identity: AgentHostIdentity | null = null
 let keepaliveTimer: ReturnType<typeof setInterval> | null = null
 let claudeCodeVersion: string | undefined
+let brokerUrl: string | undefined
+let brokerSecret: string | undefined
+let noBroker = false
+
+export function setBrokerInfo(url: string | undefined, secret: string | undefined, disabled: boolean): void {
+  brokerUrl = url
+  brokerSecret = secret
+  noBroker = disabled
+}
 
 // ─── Pending Dialog state ──────────────────────────────────────────
 const pendingDialogs = new Map<string, PendingDialog>()
@@ -146,6 +155,9 @@ export function initMcpChannel(cb: McpChannelCallbacks, id?: AgentHostIdentity):
     getDialogCwd: () => dialogCwd,
     pendingDialogs,
     elog,
+    brokerUrl,
+    brokerSecret,
+    noBroker,
   }
   const tools = registerAllTools(toolCtx)
 

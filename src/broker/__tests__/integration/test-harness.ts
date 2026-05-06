@@ -147,6 +147,7 @@ function createMockStoreDriver(): StoreDriver {
       getLastSeq: () => 0,
       find: () => [],
       search: () => [],
+      getWindow: () => [],
       count: () => 0,
       pruneOlderThan: () => 0,
     },

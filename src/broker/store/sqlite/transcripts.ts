@@ -1,5 +1,5 @@
 import type { Database } from 'bun:sqlite'
-import type { TranscriptEntryInput, TranscriptEntryRecord, TranscriptStore } from '../types'
+import type { SearchHit, TranscriptEntryInput, TranscriptEntryRecord, TranscriptStore } from '../types'
 
 type Params = Record<string, string | number | bigint | boolean | null>
 
@@ -219,8 +219,99 @@ export function createSqliteTranscriptStore(db: Database): TranscriptStore {
       return rows.map(rowToEntry)
     },
 
-    search(_query, _opts) {
-      throw new Error('FTS not configured')
+    search(query, opts) {
+      const trimmed = query.trim()
+      if (!trimmed) return []
+      const limit = Math.min(Math.max(opts?.limit ?? 20, 1), 100)
+      const offset = Math.max(opts?.offset ?? 0, 0)
+
+      // FTS5 MATCH expression. Caller can use FTS5 syntax (AND/OR/NOT, "phrases", prefix*).
+      // If parsing fails, fall back to a quoted literal phrase so casual queries don't error.
+      const ftsQuery = needsQuoting(trimmed) ? `"${trimmed.replace(/"/g, '""')}"` : trimmed
+
+      let sql = `
+        SELECT t.*, bm25(transcript_fts) AS rank,
+          snippet(transcript_fts, 0, '<mark>', '</mark>', '...', 32) AS snippet
+        FROM transcript_fts
+        JOIN transcript_entries t ON t.id = transcript_fts.rowid
+        WHERE transcript_fts MATCH $q
+      `
+      const params: Params = { q: ftsQuery, limit, offset }
+      if (opts?.conversationId) {
+        sql += ' AND t.conversation_id = $conversationId'
+        params.conversationId = opts.conversationId
+      }
+      if (opts?.conversationIds?.length) {
+        const placeholders = opts.conversationIds.map((_, i) => `$cid${i}`)
+        sql += ` AND t.conversation_id IN (${placeholders.join(', ')})`
+        for (let i = 0; i < opts.conversationIds.length; i++) {
+          params[`cid${i}`] = opts.conversationIds[i]
+        }
+      }
+      if (opts?.types?.length) {
+        const placeholders = opts.types.map((_, i) => `$type${i}`)
+        sql += ` AND t.type IN (${placeholders.join(', ')})`
+        for (let i = 0; i < opts.types.length; i++) {
+          params[`type${i}`] = opts.types[i]
+        }
+      }
+      sql += ' ORDER BY rank LIMIT $limit OFFSET $offset'
+
+      let rows: Params[]
+      try {
+        rows = db.prepare(sql).all(params) as Params[]
+      } catch (err) {
+        // FTS5 syntax error -- retry as a literal phrase
+        const msg = err instanceof Error ? err.message : ''
+        if (/syntax error|fts5/i.test(msg) && ftsQuery !== `"${trimmed.replace(/"/g, '""')}"`) {
+          params.q = `"${trimmed.replace(/"/g, '""')}"`
+          rows = db.prepare(sql).all(params) as Params[]
+        } else {
+          throw err
+        }
+      }
+
+      return rows.map(row => {
+        const entry = rowToEntry(row)
+        const hit: SearchHit = {
+          id: entry.id,
+          conversationId: entry.conversationId,
+          seq: entry.seq,
+          type: entry.type,
+          subtype: entry.subtype,
+          content: entry.content,
+          timestamp: entry.timestamp,
+          rank: row.rank as number,
+          snippet: (row.snippet as string) ?? '',
+        }
+        return hit
+      })
+    },
+
+    getWindow(conversationId, opts) {
+      const before = Math.min(Math.max(opts.before ?? 5, 0), 50)
+      const after = Math.min(Math.max(opts.after ?? 5, 0), 50)
+
+      let centerSeq: number | null = null
+      if (opts.aroundSeq != null) {
+        centerSeq = opts.aroundSeq
+      } else if (opts.aroundId != null) {
+        const row = db
+          .prepare('SELECT seq FROM transcript_entries WHERE id = $id AND conversation_id = $conversationId')
+          .get({ id: opts.aroundId, conversationId }) as { seq: number } | null
+        if (!row) return []
+        centerSeq = row.seq
+      }
+      if (centerSeq == null) return []
+
+      const minSeq = centerSeq - before
+      const maxSeq = centerSeq + after
+      const rows = db
+        .prepare(
+          'SELECT * FROM transcript_entries WHERE conversation_id = $conversationId AND seq >= $minSeq AND seq <= $maxSeq ORDER BY seq ASC',
+        )
+        .all({ conversationId, minSeq, maxSeq }) as Params[]
+      return rows.map(rowToEntry)
     },
 
     count(conversationId, agentId) {
@@ -238,6 +329,19 @@ export function createSqliteTranscriptStore(db: Database): TranscriptStore {
       return result.changes
     },
   }
+}
+
+// Determine if the user query needs to be quoted as a phrase. Recognizable
+// FTS5 syntax passes through; anything else gets quoted defensively to avoid
+// syntax errors on casual queries (hyphens, apostrophes, multi-word phrases,
+// etc. all confuse the FTS5 parser when not quoted).
+function needsQuoting(query: string): boolean {
+  // If it looks like FTS5 syntax (contains parens, quotes, *, :), pass through.
+  if (/["()*:]/.test(query)) return false
+  if (/\b(AND|OR|NOT|NEAR)\b/.test(query)) return false
+  // Anything else -- quote it. Pure ASCII alphanumeric singletons are the only
+  // safe pass-through case.
+  return !/^[a-zA-Z0-9]+$/.test(query)
 }
 
 function getNextId(

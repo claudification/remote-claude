@@ -50,6 +50,40 @@ export function createSchema(db: Database) {
   db.run('CREATE INDEX IF NOT EXISTS idx_transcript_session_agent ON transcript_entries(conversation_id, agent_id)')
   db.run('CREATE INDEX IF NOT EXISTS idx_transcript_timestamp ON transcript_entries(timestamp)')
 
+  // FTS5 virtual table over transcript_entries.content (external-content variant).
+  // Triggers below keep it in sync; createSchema() also backfills if empty.
+  db.run(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS transcript_fts USING fts5(
+      content,
+      content=transcript_entries,
+      content_rowid=id,
+      tokenize='porter unicode61'
+    )
+  `)
+  db.run(`
+    CREATE TRIGGER IF NOT EXISTS transcript_fts_ai AFTER INSERT ON transcript_entries BEGIN
+      INSERT INTO transcript_fts(rowid, content) VALUES (new.id, new.content);
+    END
+  `)
+  db.run(`
+    CREATE TRIGGER IF NOT EXISTS transcript_fts_ad AFTER DELETE ON transcript_entries BEGIN
+      INSERT INTO transcript_fts(transcript_fts, rowid, content) VALUES ('delete', old.id, old.content);
+    END
+  `)
+  db.run(`
+    CREATE TRIGGER IF NOT EXISTS transcript_fts_au AFTER UPDATE ON transcript_entries BEGIN
+      INSERT INTO transcript_fts(transcript_fts, rowid, content) VALUES ('delete', old.id, old.content);
+      INSERT INTO transcript_fts(rowid, content) VALUES (new.id, new.content);
+    END
+  `)
+
+  // Initial population: if FTS table is empty but transcript_entries has data, backfill.
+  const fts = db.prepare('SELECT COUNT(*) AS cnt FROM transcript_fts').get() as { cnt: number }
+  const tx = db.prepare('SELECT COUNT(*) AS cnt FROM transcript_entries').get() as { cnt: number }
+  if (fts.cnt === 0 && tx.cnt > 0) {
+    db.run('INSERT INTO transcript_fts(rowid, content) SELECT id, content FROM transcript_entries')
+  }
+
   db.run(`
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
