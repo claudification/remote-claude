@@ -5,8 +5,8 @@ export function EmptyState() {
         {`
 ┌───────────────────────────┐
 │                           │
-│   Select a session to     │
-│   view details            │
+│  Select a conversation    │
+│  to view details          │
 │                           │
 │   _                       │
 │                           │

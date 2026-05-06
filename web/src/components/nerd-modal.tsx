@@ -92,7 +92,7 @@ function TrafficTab({ serverStats, fetchError }: { serverStats: ServerStats | nu
             <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">Server</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
               <StatRow label="uptime" value={formatUptime(serverStats.uptime)} />
-              <StatRow label="sessions" value={String(serverStats.sessions.total)} />
+              <StatRow label="conversations" value={String(serverStats.sessions.total)} />
               <StatRow label="active" value={String(serverStats.sessions.active)} accent />
               <StatRow label="connections" value={String(serverStats.connections.total)} />
             </div>
@@ -159,7 +159,7 @@ function CacheTab() {
       </div>
 
       <div>
-        <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">Cached Sessions (MRU order)</div>
+        <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">Cached Conversations (MRU order)</div>
         <div className="max-h-48 overflow-y-auto space-y-1">
           {mru
             .filter(id => cachedIds.includes(id))
@@ -179,7 +179,7 @@ function CacheTab() {
                 </div>
               )
             })}
-          {cachedIds.length === 0 && <div className="text-[11px] text-[#565f89]">No sessions cached</div>}
+          {cachedIds.length === 0 && <div className="text-[11px] text-[#565f89]">No conversations cached</div>}
         </div>
       </div>
 

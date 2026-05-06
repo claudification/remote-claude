@@ -61,12 +61,12 @@ export function TerminateConfirmDialog() {
   return (
     <Dialog open={state.open} onOpenChange={open => !open && cancel()}>
       <DialogContent className="font-mono max-w-sm p-0 overflow-hidden">
-        <DialogTitle className="sr-only">Terminate session</DialogTitle>
+        <DialogTitle className="sr-only">Terminate conversation</DialogTitle>
 
         {/* Header */}
         <div className="px-4 py-3 border-b border-border flex items-center gap-2">
           <span className="text-destructive font-bold text-sm">TERMINATE</span>
-          <span className="text-muted-foreground text-xs">session</span>
+          <span className="text-muted-foreground text-xs">conversation</span>
         </div>
 
         {/* Session name */}
@@ -74,12 +74,12 @@ export function TerminateConfirmDialog() {
           <div className="text-foreground truncate">
             {state.sessionName ? (
               <>
-                <span className="text-muted-foreground">session </span>
+                <span className="text-muted-foreground">conversation </span>
                 <span className="text-yellow-400 font-bold">{state.sessionName}</span>
                 <span className="text-muted-foreground"> will be terminated.</span>
               </>
             ) : (
-              <span className="text-muted-foreground">This session will be terminated.</span>
+              <span className="text-muted-foreground">This conversation will be terminated.</span>
             )}
           </div>
           <div className="text-[11px] text-muted-foreground/60 mt-1">Any running process will be killed.</div>

@@ -204,7 +204,7 @@ function renderEventContent(event: HookEvent) {
     case 'Setup':
       return (
         <div className="mt-2 text-xs bg-background/50 p-2 rounded">
-          <span className="text-muted-foreground">session initialized</span>
+          <span className="text-muted-foreground">conversation initialized</span>
         </div>
       )
 

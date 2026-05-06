@@ -46,7 +46,7 @@ export function HeaderDescription({ session }: { session: Session }) {
         data-lpignore="true"
         data-form-type="other"
         className="w-full bg-background/80 border border-accent/50 text-[10px] font-mono px-1.5 py-0.5 outline-none text-muted-foreground italic"
-        placeholder="session description"
+        placeholder="conversation description"
       />
     )
   }

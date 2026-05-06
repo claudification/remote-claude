@@ -342,7 +342,7 @@ export function PermissionRulesEditor({ project }: PermissionRulesEditorProps) {
       if (!result.ok) throw new Error(result.error || 'Save failed')
 
       setDirty(false)
-      showToast('Saved -- active sessions reloaded')
+      showToast('Saved -- active conversations reloaded')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
     }

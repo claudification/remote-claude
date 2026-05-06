@@ -131,7 +131,7 @@ export function SpawnDialog() {
     progress.setSteps(prev => [
       ...prev,
       {
-        label: 'Session connected',
+        label: 'Conversation connected',
         status: 'done',
         ts: Date.now(),
         detail: (progress.launch.conversationId || progress.spawnedConversation?.id || '').slice(0, 8),
@@ -228,7 +228,7 @@ export function SpawnDialog() {
             ? { ...s, status: 'done' as const, detail: `agent-host=${result.conversationId.slice(0, 8)}` }
             : s,
         ),
-        { label: 'Waiting for session...', status: 'active' as const, ts: Date.now() },
+        { label: 'Waiting for conversation...', status: 'active' as const, ts: Date.now() },
       ])
     } else {
       progress.setError(result.error)
@@ -535,7 +535,7 @@ export function SpawnDialog() {
 
                     {/* Bare toggle (dialog-specific) */}
                     <TileToggleRow
-                      title="Bare session"
+                      title="Bare conversation"
                       subtitle="Skip hooks, plugins, CLAUDE.md, auto-memory"
                       checked={bare}
                       onToggle={() => setBare(!bare)}

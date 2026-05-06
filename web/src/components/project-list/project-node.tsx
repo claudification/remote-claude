@@ -37,7 +37,7 @@ function DismissAllEndedButton({ ended }: { ended: Session[] }) {
             if (e.key === 'Enter' || e.key === ' ') requestConfirm(e)
           }}
           className="text-[9px] text-muted-foreground/40 hover:text-destructive cursor-pointer px-1 transition-colors"
-          title={`Dismiss ${ended.length} ended session${ended.length > 1 ? 's' : ''}`}
+          title={`Dismiss ${ended.length} ended conversation${ended.length > 1 ? 's' : ''}`}
         >
           {'\u2715'} ended
         </div>
@@ -81,11 +81,11 @@ const ProjectSessionGroup = memo(
               >
                 {displayName}
               </span>
-              <span className="text-[10px] text-muted-foreground font-mono">{sessions.length} sessions</span>
+              <span className="text-[10px] text-muted-foreground font-mono">{sessions.length} conversations</span>
               {hasPendingPermission && (
                 <span
                   className="text-[9px] text-amber-400 font-bold animate-pulse"
-                  title="A session in this project has a pending permission request"
+                  title="A conversation in this project has a pending permission request"
                 >
                   PERM
                 </span>

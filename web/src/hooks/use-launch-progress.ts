@@ -133,7 +133,7 @@ export function useLaunchProgress({
       }
       if (newSteps.length === 0) return prev
       const updated = [...prev]
-      const waitIdx = updated.findIndex(s => s.label.startsWith('Waiting for session'))
+      const waitIdx = updated.findIndex(s => s.label.startsWith('Waiting for conversation'))
       const insertAt = waitIdx >= 0 ? waitIdx : updated.length
       updated.splice(insertAt, 0, ...newSteps)
       return updated

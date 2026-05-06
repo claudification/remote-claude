@@ -42,7 +42,7 @@ export function ConversationHeader({
         {infoExpanded ? (
           <>
             <ChevronDown className="w-3 h-3 text-muted-foreground" />
-            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Session Info</span>
+            <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Conversation Info</span>
           </>
         ) : (
           <ChevronRight className="w-3 h-3 text-muted-foreground" />

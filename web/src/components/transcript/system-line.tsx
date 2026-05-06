@@ -35,7 +35,7 @@ export function SystemLine({ group, time }: { group: DisplayGroup; time: string 
       color = 'text-purple-400/70'
       break
     case 'session_state_changed':
-      text = `Session: ${entry.state}`
+      text = `Conversation: ${entry.state}`
       color = 'text-muted-foreground/70'
       break
     case 'task_notification': {

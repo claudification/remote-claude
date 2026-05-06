@@ -92,7 +92,7 @@ function AdHocBadge({ session }: { session: Session }) {
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') openTask()
       }}
-      title={session.adHocTaskId ? `Task: ${session.adHocTaskId}` : 'Ad-hoc session'}
+      title={session.adHocTaskId ? `Task: ${session.adHocTaskId}` : 'Ad-hoc conversation'}
     >
       &#x26A1; AD-HOC{session.adHocTaskId ? ` (${session.adHocTaskId})` : ''}
     </span>

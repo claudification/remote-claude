@@ -235,7 +235,7 @@ function ConversationInfoDialog({
         <DialogTitle className="pr-8 pb-2 border-b border-border">
           <div className="flex items-center gap-2">
             <span className="text-accent">{'\u24D8'}</span>
-            <span>Session Info</span>
+            <span>Conversation Info</span>
             <span className="text-[10px] text-muted-foreground/50 font-normal">{session.id.slice(0, 12)}</span>
           </div>
         </DialogTitle>
@@ -390,7 +390,7 @@ function ConversationInfoButton({ session, visible }: { session: Session; visibl
           'text-[10px] text-muted-foreground/50 hover:text-accent cursor-pointer transition-all shrink-0',
           visible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
         )}
-        title="Session info"
+        title="Conversation info"
         onClick={e => {
           e.stopPropagation()
           haptic('tap')
@@ -484,7 +484,7 @@ function DismissButton({ conversationId }: { conversationId: string }) {
             if (e.key === 'Enter' || e.key === ' ') requestConfirm(e)
           }}
           className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 text-muted-foreground/40 hover:text-destructive transition-opacity cursor-pointer px-0.5"
-          title="Dismiss session"
+          title="Dismiss conversation"
         >
           {'\u2715'}
         </div>
@@ -535,7 +535,7 @@ function InlineRename({ session }: { session: Session }) {
       data-lpignore="true"
       data-form-type="other"
       className="w-full bg-background/80 border border-accent text-[10px] font-mono px-1 py-0.5 outline-none text-foreground"
-      placeholder="session name"
+      placeholder="conversation name"
     />
   )
 }
@@ -581,7 +581,7 @@ function InlineDescription({ session }: { session: Session }) {
       data-lpignore="true"
       data-form-type="other"
       className="w-full bg-background/80 border border-accent/50 text-[10px] font-mono px-1 py-0.5 outline-none text-muted-foreground italic"
-      placeholder="session description"
+      placeholder="conversation description"
     />
   )
 }
@@ -801,7 +801,7 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
                   'text-[9px] font-mono ml-auto shrink-0',
                   level === 'low' ? 'text-emerald-400/40' : cn('px-1 py-0.5 font-bold border', getCostBgColor(cost)),
                 )}
-                title={`Session cost: ${formatCost(cost, exact)}`}
+                title={`Cost: ${formatCost(cost, exact)}`}
               >
                 {formatCost(cost, exact)}
               </span>
@@ -1191,7 +1191,7 @@ export const InactiveProjectItem = memo(
             }}
             className="w-full text-left border border-border hover:border-primary p-2 pl-3 transition-colors cursor-pointer"
             style={displayColor ? { borderLeftColor: displayColor, borderLeftWidth: '3px' } : undefined}
-            title={`${sessions.length} session${sessions.length > 1 ? 's' : ''}\n${projectPath(latest.project)}`}
+            title={`${sessions.length} conversation${sessions.length > 1 ? 's' : ''}\n${projectPath(latest.project)}`}
           >
             <div className="flex items-center gap-1.5">
               {ps?.icon && (

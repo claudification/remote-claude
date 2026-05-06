@@ -65,7 +65,7 @@ export function StatusRow({ session, model }: { session: Session; model: string 
       )}
       <span
         className="text-muted-foreground text-[10px]"
-        title={`session: ${session.id}\nconnections: ${session.connectionIds?.join(', ') || 'none'}`}
+        title={`conversation: ${session.id}\nconnections: ${session.connectionIds?.join(', ') || 'none'}`}
       >
         {session.id.slice(0, 8)}
         {session.connectionIds?.[0] && session.connectionIds[0] !== session.id && (

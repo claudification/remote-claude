@@ -80,7 +80,7 @@ const DASHBOARD_TABS: SettingsShellTab[] = [
   { id: 'general', label: 'General' },
   { id: 'display', label: 'Display' },
   { id: 'input', label: 'Input' },
-  { id: 'sessions', label: 'Sessions' },
+  { id: 'sessions', label: 'Conversations' },
   { id: 'system', label: 'System' },
 ]
 
@@ -188,7 +188,7 @@ const SETTINGS: SettingItem[] = [
   {
     tab: 'general',
     group: 'General',
-    label: 'Default session',
+    label: 'Default conversation',
     description: 'Auto-select this project when opening the dashboard (per-device)',
     keywords: 'startup auto select home',
     render: ctx => (
@@ -203,7 +203,7 @@ const SETTINGS: SettingItem[] = [
     tab: 'general',
     group: 'General',
     label: 'Default view',
-    description: 'What to show when selecting a session (per-device)',
+    description: 'What to show when selecting a conversation (per-device)',
     keywords: 'terminal tty transcript',
     render: ctx => (
       <select
@@ -403,8 +403,8 @@ const SETTINGS: SettingItem[] = [
   {
     tab: 'display',
     group: 'Display',
-    label: 'Show ended sessions',
-    description: 'Show [ENDED] sessions within CWD groups in sidebar',
+    label: 'Show ended conversations',
+    description: 'Show [ENDED] conversations within CWD groups in sidebar',
     keywords: 'sidebar ended filter',
     render: ctx => (
       <input
@@ -419,7 +419,7 @@ const SETTINGS: SettingItem[] = [
     tab: 'display',
     group: 'Display',
     label: 'Show inactive projects',
-    description: 'Show projects with only ended sessions at bottom of sidebar',
+    description: 'Show projects with only ended conversations at bottom of sidebar',
     keywords: 'sidebar inactive',
     render: ctx => (
       <input
@@ -434,7 +434,7 @@ const SETTINGS: SettingItem[] = [
     tab: 'display',
     group: 'Display',
     label: 'Compact mode',
-    description: 'Reduce spacing in session list',
+    description: 'Reduce spacing in conversation list',
     keywords: 'dense',
     render: ctx => (
       <input
@@ -463,8 +463,8 @@ const SETTINGS: SettingItem[] = [
   {
     tab: 'system',
     group: 'Performance',
-    label: 'Session cache size',
-    description: 'Keep N recent sessions in memory for instant switching (0 = disabled)',
+    label: 'Conversation cache size',
+    description: 'Keep N recent conversations in memory for instant switching (0 = disabled)',
     keywords: 'cache lifo mru fast switch',
     render: ctx => (
       <input
@@ -481,7 +481,7 @@ const SETTINGS: SettingItem[] = [
     tab: 'system',
     group: 'Performance',
     label: 'Cache timeout (min)',
-    description: 'Evict cached non-selected sessions after N minutes (0 = never)',
+    description: 'Evict cached non-selected conversations after N minutes (0 = never)',
     keywords: 'cache timeout evict memory',
     render: ctx => (
       <input
@@ -543,7 +543,7 @@ const SETTINGS: SettingItem[] = [
     tab: 'display',
     group: 'Display',
     label: 'Context bar in sidebar',
-    description: 'Show context window usage on session cards',
+    description: 'Show context window usage on conversation cards',
     keywords: 'tokens progress percentage',
     render: ctx => (
       <input
@@ -558,7 +558,7 @@ const SETTINGS: SettingItem[] = [
     tab: 'display',
     group: 'Display',
     label: 'Cost in sidebar',
-    description: 'Show session cost badges on session cards',
+    description: 'Show cost badges on conversation cards',
     keywords: 'cost money dollars pricing',
     render: ctx => (
       <input
@@ -604,7 +604,7 @@ const SETTINGS: SettingItem[] = [
     tab: 'system',
     group: 'Debug',
     label: 'Show Diag tab',
-    description: 'Show the Diag tab in session detail (debug info)',
+    description: 'Show the Diag tab in conversation detail (debug info)',
     keywords: 'diagnostics debug',
     render: ctx => (
       <input
@@ -632,9 +632,9 @@ const SETTINGS: SettingItem[] = [
   },
   {
     tab: 'sessions',
-    group: 'Sessions',
+    group: 'Conversations',
     label: 'Default launch mode',
-    description: 'Default mode when spawning/reviving sessions (per-project overrides this)',
+    description: 'Default mode when spawning/reviving conversations (per-project overrides this)',
     keywords: 'headless pty terminal launch mode spawn',
     render: ctx => (
       <select
@@ -649,9 +649,9 @@ const SETTINGS: SettingItem[] = [
   },
   {
     tab: 'sessions',
-    group: 'Sessions',
+    group: 'Conversations',
     label: 'Default effort',
-    description: 'Default --effort level for new sessions (per-project overrides this)',
+    description: 'Default --effort level for new conversations (per-project overrides this)',
     keywords: 'effort thinking budget low medium high xhigh max',
     render: ctx => (
       <select
@@ -670,9 +670,9 @@ const SETTINGS: SettingItem[] = [
   },
   {
     tab: 'sessions',
-    group: 'Sessions',
+    group: 'Conversations',
     label: 'Default model',
-    description: 'Default --model for new sessions (per-project overrides this)',
+    description: 'Default --model for new conversations (per-project overrides this)',
     keywords: 'model opus sonnet haiku claude',
     render: ctx => (
       <input
@@ -688,7 +688,7 @@ const SETTINGS: SettingItem[] = [
     tab: 'display',
     group: 'Display',
     label: 'Show streaming',
-    description: 'Show token-by-token streaming block for headless sessions',
+    description: 'Show token-by-token streaming block for headless conversations',
     keywords: 'streaming tokens live headless',
     render: ctx => (
       <input

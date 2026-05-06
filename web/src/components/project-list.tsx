@@ -335,9 +335,9 @@ export function ProjectList() {
       <div className="text-muted-foreground text-center py-10">
         <pre className="text-xs mb-4">
           {`
-  No sessions yet
+  No conversations yet
 
-  Start a session with:
+  Start a conversation with:
   $ rclaude
 `.trim()}
         </pre>

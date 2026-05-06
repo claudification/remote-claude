@@ -31,7 +31,7 @@ const STEP_LABEL: Record<AgentHostLaunchStep, string> = {
   skills_changed: 'skills changed',
   agents_changed: 'agents changed',
   plugins_changed: 'plugins changed',
-  conversation_exit: 'session exit',
+  conversation_exit: 'conversation exit',
 }
 
 const LIVE_STEPS = new Set<AgentHostLaunchStep>([
@@ -89,7 +89,7 @@ export function LaunchTimeline({ group }: { group: DisplayGroup }) {
         : 'border-sky-500/30 bg-sky-950/10'
   const labelClass =
     phase === 'reboot' ? 'text-amber-400/80' : phase === 'live' ? 'text-cyan-400/80' : 'text-sky-400/70'
-  const label = phase === 'reboot' ? 'relaunch (/clear)' : phase === 'live' ? 'session changed' : 'launch'
+  const label = phase === 'reboot' ? 'relaunch (/clear)' : phase === 'live' ? 'conversation changed' : 'launch'
 
   return (
     <div className={cn('mb-3 border-l-2 pl-3 py-1.5 rounded-r', borderClass)}>

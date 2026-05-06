@@ -604,7 +604,7 @@ export function RunTaskDialog({
     progress.setSteps(prev => [
       ...prev,
       {
-        label: 'Session connected',
+        label: 'Conversation connected',
         status: 'done' as const,
         ts: Date.now(),
         detail: progress.spawnedConversation!.id.slice(0, 8),
@@ -732,7 +732,7 @@ export function RunTaskDialog({
         ...prev.map(s =>
           s.status === 'active' ? { ...s, status: 'done' as const, detail: `agent-host=${wid.slice(0, 8)}` } : s,
         ),
-        { label: 'Waiting for session...', status: 'active' as const, ts: Date.now() },
+        { label: 'Waiting for conversation...', status: 'active' as const, ts: Date.now() },
       ])
     } else {
       progress.setError(result.error)

@@ -113,12 +113,12 @@ function Dashboard() {
           <SheetTrigger asChild>
             <Button variant="outline" size="icon" className="lg:hidden shrink-0">
               <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle sessions</span>
+              <span className="sr-only">Toggle conversations</span>
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-[320px] sm:w-[380px] p-0">
             <SheetHeader className="sr-only">
-              <SheetTitle>Sessions</SheetTitle>
+              <SheetTitle>Conversations</SheetTitle>
             </SheetHeader>
             <div className="flex-1 overflow-y-auto p-2 h-full">
               <ProjectList />

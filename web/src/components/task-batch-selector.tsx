@@ -707,10 +707,10 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
               disabled={!hasActiveConversation || selected.size === 0}
               title={
                 !hasActiveConversation
-                  ? 'No active session'
+                  ? 'No active conversation'
                   : selected.size === 0
                     ? 'Select tasks first'
-                    : 'Submit to current session'
+                    : 'Submit to current conversation'
               }
               className={cn(
                 'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded text-xs font-mono font-bold transition-colors',
@@ -720,7 +720,7 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
               )}
             >
               <Send className="w-3.5 h-3.5" />
-              Submit to session
+              Submit to conversation
               <Kbd className="ml-1 text-[9px]">⌘↵</Kbd>
             </button>
             <button

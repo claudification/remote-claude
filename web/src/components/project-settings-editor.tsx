@@ -910,9 +910,9 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
         {/* ── Launch tab ───────────────────────────────────────────── */}
         {activeTab === 'launch' && (
           <>
-            <GroupHeader label="Session Defaults" />
+            <GroupHeader label="Conversation Defaults" />
 
-            <SettingRow label="Launch mode" description="Used when spawning/reviving sessions for this project">
+            <SettingRow label="Launch mode" description="Used when spawning/reviving conversations for this project">
               <div className="flex gap-1">
                 {[
                   { value: 'headless', label: 'Headless' },
@@ -937,7 +937,7 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
               </div>
             </SettingRow>
 
-            <SettingRow label="Effort" description="Passed as --effort flag when launching sessions">
+            <SettingRow label="Effort" description="Passed as --effort flag when launching conversations">
               <div className="flex gap-1 flex-wrap">
                 {[
                   { value: 'default', label: 'Default' },
@@ -972,7 +972,7 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
               </div>
             </SettingRow>
 
-            <SettingRow label="Model" description="Passed as --model flag when launching sessions">
+            <SettingRow label="Model" description="Passed as --model flag when launching conversations">
               <input
                 type="text"
                 value={model}
@@ -990,7 +990,7 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
           <>
             <GroupHeader label="Trust" />
 
-            <SettingRow label="Trust level" description="Controls inter-session messaging approval">
+            <SettingRow label="Trust level" description="Controls inter-conversation messaging approval">
               <div className="flex gap-1">
                 {[
                   { value: 'default', label: 'Default' },

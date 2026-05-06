@@ -110,7 +110,7 @@ export function LaunchFooterActions({
             'hover:bg-emerald-500/25 transition-colors',
           )}
         >
-          View Session{viewCountdown != null && viewCountdown > 0 ? ` (${viewCountdown}s)` : ''}
+          View Conversation{viewCountdown != null && viewCountdown > 0 ? ` (${viewCountdown}s)` : ''}
           <Kbd className="bg-emerald-500/20 text-emerald-400/70">↵</Kbd>
         </button>
       )}

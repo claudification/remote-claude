@@ -182,7 +182,7 @@ export function ConversationContextMenu({
                 useConversationsStore.getState().terminateConversation(session.id)
               }}
             >
-              Terminate session
+              Terminate conversation
             </ContextMenu.Item>
           )}
           {session.status === 'ended' && (

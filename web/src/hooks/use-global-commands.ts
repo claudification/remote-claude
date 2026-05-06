@@ -97,15 +97,15 @@ export function useGlobalCommands(toggleSidebar: () => void) {
   )
 
   useChordCommand(
-    'spawn-session',
+    'spawn-conversation',
     () => {
       useConversationsStore.getState().openSwitcherWithFilter('S:~/')
     },
-    { label: 'Spawn new session', key: 's', group: 'Session' },
+    { label: 'Spawn new conversation', key: 's', group: 'Conversation' },
   )
 
   useChordCommand(
-    'launch-session',
+    'launch-conversation',
     () => {
       const store = useConversationsStore.getState()
       const session = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
@@ -114,11 +114,11 @@ export function useGlobalCommands(toggleSidebar: () => void) {
         : store.controlPanelPrefs.defaultConversationCwd
       openSpawnDialog({ cwd: spawnPath || '~' })
     },
-    { label: 'Launch session', key: 'l', group: 'Session' },
+    { label: 'Launch conversation', key: 'l', group: 'Conversation' },
   )
 
   useChordCommand(
-    'terminate-session',
+    'terminate-conversation',
     () => {
       const store = useConversationsStore.getState()
       const sid = store.selectedConversationId
@@ -128,7 +128,7 @@ export function useGlobalCommands(toggleSidebar: () => void) {
       const name = session.title || session.agentName || null
       openTerminateConfirm(sid, name)
     },
-    { label: 'Terminate session', key: 'x', group: 'Session' },
+    { label: 'Terminate conversation', key: 'x', group: 'Conversation' },
   )
 
   useChordCommand(
@@ -188,12 +188,12 @@ export function useGlobalCommands(toggleSidebar: () => void) {
   })
 
   useChordCommand(
-    'toggle-ended-sessions',
+    'toggle-ended-conversations',
     () => {
       const store = useConversationsStore.getState()
       store.updateControlPanelPrefs({ showEndedConversations: !store.controlPanelPrefs.showEndedConversations })
     },
-    { label: 'Toggle show ended sessions', key: 'e', group: 'View' },
+    { label: 'Toggle show ended conversations', key: 'e', group: 'View' },
   )
 
   useCommand(
@@ -207,17 +207,17 @@ export function useGlobalCommands(toggleSidebar: () => void) {
         wsSend('send_interrupt', { conversationId: sid })
       }
     },
-    { label: 'Interrupt current turn', shortcut: 'Escape Escape', group: 'Session' },
+    { label: 'Interrupt current turn', shortcut: 'Escape Escape', group: 'Conversation' },
   )
 
   useCommand(
-    'switch-session',
+    'switch-conversation',
     () => {
       const { sessionMru, sessions, selectConversation } = useConversationsStore.getState()
       const prev = sessionMru.slice(1).find(id => sessions.some(s => s.id === id))
       if (prev) selectConversation(prev, 'ctrl-tab')
     },
-    { label: 'Switch to previous session', shortcut: 'ctrl+Tab', group: 'Navigation' },
+    { label: 'Switch to previous conversation', shortcut: 'ctrl+Tab', group: 'Navigation' },
   )
 
   const keepMicOpen = useConversationsStore(s => s.controlPanelPrefs.keepMicOpen)
@@ -263,7 +263,7 @@ export function useGlobalCommands(toggleSidebar: () => void) {
       const sid = useConversationsStore.getState().selectedConversationId
       if (sid) sendInput(sid, `/effort ${level}`)
     },
-    { label: 'Set effort level', group: 'Session' },
+    { label: 'Set effort level', group: 'Conversation' },
   )
 
   useEffect(() => {

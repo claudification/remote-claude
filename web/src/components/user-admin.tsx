@@ -511,7 +511,7 @@ function UserEditPanel({ user, onSave, onClose }: { user: UserSummary; onSave: (
               </div>
               {confirmDelete === cred.credentialId ? (
                 <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-destructive">Kill sessions?</span>
+                  <span className="text-[10px] text-destructive">Kill conversations?</span>
                   <Button
                     size="sm"
                     variant="destructive"

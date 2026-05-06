@@ -110,7 +110,7 @@ export function ShareBanner({ sessionProject }: SharePanelProps) {
           className="w-full px-3 py-1.5 flex items-center gap-2 text-[10px] font-mono text-muted-foreground hover:text-teal-400 hover:bg-teal-500/5 transition-colors"
         >
           <Link2 className="w-3 h-3" />
-          <span className="uppercase tracking-wider">Share this session</span>
+          <span className="uppercase tracking-wider">Share this conversation</span>
         </button>
       </div>
     )

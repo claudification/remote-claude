@@ -49,7 +49,7 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
                     ? 'Search files...'
                     : palette.mode === 'task'
                       ? 'Search project tasks...'
-                      : 'Search sessions + commands... (>cmd  @tasks  F:files  S:spawn)'
+                      : 'Search conversations + commands... (>cmd  @tasks  F:files  S:spawn)'
             }
             className="w-full bg-transparent text-[19px] sm:text-sm text-[#a9b1d6] placeholder:text-[#565f89] outline-none"
             autoComplete="off"

@@ -20,7 +20,7 @@ const STEP_LABEL: Record<BootStep, string> = {
   claude_started: 'claude started',
   awaiting_init: 'awaiting init',
   init_received: 'init received',
-  session_ready: 'session ready',
+  session_ready: 'conversation ready',
   claude_exited: 'claude exited',
   boot_error: 'boot error',
 }

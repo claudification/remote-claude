@@ -25,7 +25,7 @@ export function ReviveFooter({ conversationId, project, sentinelConnected, canRe
             size="sm"
             className="w-full text-xs border bg-active/20 text-active border-active/50 hover:bg-active/30"
           >
-            Revive Session
+            Revive Conversation
           </Button>
           <p className="text-[10px] text-muted-foreground mt-1">
             Spawns new rclaude in tmux at {projectPath(project).split('/').slice(-2).join('/')}
@@ -33,7 +33,7 @@ export function ReviveFooter({ conversationId, project, sentinelConnected, canRe
         </div>
       ) : (
         <p className="text-[10px] text-muted-foreground text-center">
-          {sentinelConnected ? 'Session ended' : 'No sentinel connected -- revive unavailable'}
+          {sentinelConnected ? 'Conversation ended' : 'No sentinel connected -- revive unavailable'}
         </p>
       )}
     </div>

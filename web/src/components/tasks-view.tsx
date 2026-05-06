@@ -128,7 +128,7 @@ export function TasksView({ conversationId, pendingCount }: TasksViewProps) {
   }
 
   if (tasks.length === 0 && totalArchived === 0) {
-    return <div className="text-xs text-muted-foreground p-4">No tasks tracked for this session.</div>
+    return <div className="text-xs text-muted-foreground p-4">No tasks tracked for this conversation.</div>
   }
 
   const pending = tasks.filter(t => t.status === 'pending')

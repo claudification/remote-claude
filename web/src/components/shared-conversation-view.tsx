@@ -102,9 +102,9 @@ export function SharedSessionView({ token: _token }: { token: string }) {
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4 max-w-md px-6">
           <Link2Off className="w-12 h-12 text-muted-foreground mx-auto" />
-          <h1 className="text-lg font-bold text-foreground">Session share has expired</h1>
+          <h1 className="text-lg font-bold text-foreground">Share link has expired</h1>
           <p className="text-sm text-muted-foreground">
-            The person who shared this session has either revoked the link or it has reached its time limit.
+            The person who shared this conversation has either revoked the link or it has reached its time limit.
           </p>
           <p className="text-xs text-muted-foreground/60 font-mono">{randomQuote(expiredQuotes)}</p>
         </div>
@@ -126,7 +126,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-2">
-          <div className="text-sm text-muted-foreground animate-pulse">Waiting for session data...</div>
+          <div className="text-sm text-muted-foreground animate-pulse">Waiting for conversation data...</div>
         </div>
       </div>
     )
@@ -140,7 +140,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
           Shared
         </span>
         <span className="text-sm text-foreground font-mono truncate flex-1">
-          {(sessions[0]?.project ? extractProjectLabel(sessions[0].project) : '') || 'Session'}
+          {(sessions[0]?.project ? extractProjectLabel(sessions[0].project) : '') || 'Conversation'}
         </span>
         {timeLeft && (
           <span className="flex items-center gap-1 text-[10px] text-muted-foreground font-mono">

@@ -242,7 +242,7 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
       {show.maxBudgetUsd && (
         <Row
           label="Max budget USD"
-          subtitle="Stop session when spend reaches this (blank = no limit)"
+          subtitle="Stop conversation when spend reaches this (blank = no limit)"
           htmlFor="lcf-budget"
         >
           <input
@@ -288,7 +288,7 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
         </Row>
       )}
       {show.description && (
-        <Row label="Description" subtitle="What this session is about" htmlFor="lcf-description">
+        <Row label="Description" subtitle="What this conversation is about" htmlFor="lcf-description">
           <input
             id="lcf-description"
             type="text"
@@ -341,8 +341,8 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
       )}
       {show.leaveRunning && (
         <TileToggleRow
-          title="Leave session running"
-          subtitle="Keep session alive after the task completes for follow-up work"
+          title="Leave conversation running"
+          subtitle="Keep conversation alive after the task completes for follow-up work"
           checked={value.leaveRunning ?? false}
           onToggle={() => onChange({ leaveRunning: !(value.leaveRunning ?? false) })}
           disabled={disabled.leaveRunning}

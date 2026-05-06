@@ -103,7 +103,7 @@ export function ReviveDialog() {
     progress.setSteps(prev => [
       ...prev,
       {
-        label: 'Session connected',
+        label: 'Conversation connected',
         status: 'done',
         ts: Date.now(),
         detail: (progress.launch.conversationId || progress.spawnedConversation?.id || '').slice(0, 8),
@@ -321,7 +321,7 @@ export function ReviveDialog() {
 
               <div className="text-[9px] text-[#565f89] leading-snug">
                 Other settings (permission mode, env, budget, worktree, etc.) are restored from the original launch
-                config. Spawn a new session to change them.
+                config. Spawn a new conversation to change them.
               </div>
             </div>
           )}

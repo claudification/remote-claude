@@ -145,7 +145,7 @@ export function ConversationTag({ idOrSlug, resolvedId, className }: Conversatio
         useConversationsStore.getState().selectConversation(id)
       } else {
         haptic('error')
-        showToast('Session not found', `Could not find session "${bare}" on the server.`)
+        showToast('Conversation not found', `Could not find conversation "${bare}" on the server.`)
       }
     })
   }
