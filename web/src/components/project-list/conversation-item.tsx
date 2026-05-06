@@ -814,6 +814,11 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
           {isRenaming ? <InlineRename session={session} /> : sessionName}
         </div>
       )}
+      {!isRenaming && session.recap?.title && (
+        <div className="mt-0.5 text-[10px] text-zinc-400/80 truncate pl-1">
+          {session.recap.title}
+        </div>
+      )}
       {isEditingDescription ? (
         <div className="mt-0.5 pl-1">
           <InlineDescription session={session} />
@@ -882,9 +887,6 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
           )}
           title={session.recap.content}
         >
-          {session.recap.title && (
-            <span className="font-medium text-zinc-300/90">{session.recap.title}: </span>
-          )}
           {session.recap.content}
         </div>
       )}
@@ -1095,18 +1097,9 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
           {session.summary}
         </div>
       )}
-      {session.recap && (
-        <div
-          className={cn(
-            'mt-0.5 pl-4 text-[9px] whitespace-pre-wrap overflow-hidden',
-            session.recapFresh ? 'text-zinc-400/70' : 'text-muted-foreground/40 italic',
-          )}
-          title={session.recap.content}
-        >
-          {session.recap.title && (
-            <span className="font-medium">{session.recap.title}: </span>
-          )}
-          {session.recap.content}
+      {session.recap?.title && (
+        <div className="mt-0.5 pl-4 text-[9px] text-zinc-400/80 truncate">
+          {session.recap.title}
         </div>
       )}
       {showContextBar &&

@@ -4,10 +4,10 @@ import { parseRecapContent } from '../shared/recap'
 import type { ConversationStore } from './conversation-store'
 
 const RECAP_DELAY_MS = 60_000
-const RECAP_PROMPT = `Describe what this coding session is about. You're looking at a conversation between a developer and an AI coding assistant.
+const RECAP_PROMPT = `Describe what this coding session is currently working on. You're looking at a conversation between a developer and an AI coding assistant. The RECENT CONVERSATION section is the most important -- that's what's happening now. BACKGROUND is just prior context.
 Respond with a JSON object containing exactly two fields:
-- "title": a topic label for the session (3-5 words, e.g. "Spawn timeout and sentinel liveness", "SQLite migration pipeline")
-- "recap": describe what the session covers in under 20 words. Topic-oriented, not action-oriented. No "I" or "We". Example: "Spawn failure diagnosis, sentinel heartbeat detection, and structured recap output with title extraction."
+- "title": what's being worked on RIGHT NOW (3-5 words, e.g. "Structured recap output", "SQLite migration pipeline")
+- "recap": describe the current focus in under 20 words. Emphasize the most recent work. No "I" or "We".
 
 Plain text only, no markdown. Respond with ONLY the JSON object.`
 const MAX_RECENT_ENTRIES = 40
@@ -42,7 +42,8 @@ export function cancelRecap(conversationId: string): void {
 }
 
 async function generateRecap(store: ConversationStore, conversationId: string): Promise<void> {
-  const condensed = condenseTranscript(store, conversationId)
+  const conv = store.getConversation(conversationId)
+  const condensed = condenseTranscript(store, conversationId, conv?.resultText)
   if (!condensed) {
     console.log(`[recap] no transcript context for ${conversationId.slice(0, 8)}, skipping`)
     return
@@ -108,26 +109,32 @@ async function generateRecap(store: ConversationStore, conversationId: string): 
   )
 }
 
-function condenseTranscript(store: ConversationStore, conversationId: string): string | null {
+function condenseTranscript(
+  store: ConversationStore,
+  conversationId: string,
+  resultText?: string,
+): string | null {
   const cached = store.getTranscriptEntries(conversationId)
   if (cached.length === 0) return null
 
   const parts: string[] = []
   let chars = 0
 
-  function addPart(text: string, budget = MAX_CONTEXT_CHARS): boolean {
-    if (chars >= budget) return false
-    const trimmed = truncate(text, budget - chars)
+  function addPart(text: string): boolean {
+    if (chars >= MAX_CONTEXT_CHARS) return false
+    const trimmed = truncate(text, MAX_CONTEXT_CHARS - chars)
     parts.push(trimmed)
     chars += trimmed.length
     return true
   }
 
-  // Collect prior recaps and first user messages from each compaction segment.
-  // This gives continuity across compaction boundaries -- the model sees what
-  // earlier segments covered even though the full transcript is gone.
+  // The assistant's final result text is the single most important signal
+  if (resultText) {
+    addPart(`FINAL RESULT (the assistant's last output to the user):\n${truncate(resultText, 2000)}`)
+  }
+
+  // Scan for compaction boundaries and prior recaps
   const priorRecaps: string[] = []
-  const segmentFirstMessages: string[] = []
   let lastBoundaryIdx = 0
 
   for (let i = 0; i < cached.length; i++) {
@@ -140,49 +147,32 @@ function condenseTranscript(store: ConversationStore, conversationId: string): s
       priorRecaps.push(label)
     }
     if (sys.subtype === 'compact_boundary') {
-      // Grab first user message from the segment that just ended
-      for (let j = lastBoundaryIdx; j < i; j++) {
-        if (cached[j].type === 'user') {
-          const text = extractUserText(cached[j] as TranscriptUserEntry)
-          if (text) segmentFirstMessages.push(truncate(text, 200))
-          break
-        }
-      }
       lastBoundaryIdx = i + 1
     }
   }
 
-  // Add prior context sections
-  if (priorRecaps.length > 0) {
-    addPart(`PRIOR WORK IN THIS SESSION:\n${priorRecaps.join('\n')}`)
-  }
-  if (segmentFirstMessages.length > 0) {
-    addPart(`\nEARLIER TOPICS:\n${segmentFirstMessages.join('\n')}`)
-  }
-
-  // Current segment: everything after the last compaction boundary
+  // Recent conversation entries -- this is the current work
   const postReset = cached.slice(lastBoundaryIdx)
-  if (postReset.length === 0 && parts.length === 0) return null
-
-  const firstUser = postReset.find((e): e is TranscriptUserEntry => e.type === 'user')
-  if (firstUser) {
-    const text = extractUserText(firstUser)
-    if (text) addPart(`\nCURRENT PROMPT: ${text}`)
-  }
+  if (postReset.length === 0 && priorRecaps.length === 0 && !resultText) return null
 
   const recent = postReset.slice(-MAX_RECENT_ENTRIES)
-  for (const entry of recent) {
-    if (chars >= MAX_CONTEXT_CHARS) break
-
-    let line: string | null = null
-    if (entry.type === 'user') {
-      if (entry === firstUser) continue
-      line = prefixed('USER', extractUserText(entry as TranscriptUserEntry))
-    } else if (entry.type === 'assistant') {
-      line = prefixed('ASSISTANT', extractAssistantText(entry as TranscriptAssistantEntry))
+  if (recent.length > 0) {
+    addPart('\nRECENT CONVERSATION:')
+    for (const entry of recent) {
+      if (chars >= MAX_CONTEXT_CHARS) break
+      let line: string | null = null
+      if (entry.type === 'user') {
+        line = prefixed('USER', extractUserText(entry as TranscriptUserEntry))
+      } else if (entry.type === 'assistant') {
+        line = prefixed('ASSISTANT', extractAssistantText(entry as TranscriptAssistantEntry))
+      }
+      if (line) addPart(line)
     }
-    if (!line) continue
-    addPart(line)
+  }
+
+  // Prior recaps as background context at the end
+  if (priorRecaps.length > 0) {
+    addPart(`\nBACKGROUND (earlier in this session):\n${priorRecaps.join('\n')}`)
   }
 
   return parts.length > 0 ? parts.join('\n') : null
