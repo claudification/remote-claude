@@ -1,3 +1,4 @@
+import { Pin } from 'lucide-react'
 import { memo, useState } from 'react'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import type { Session } from '@/lib/types'
@@ -82,7 +83,7 @@ const ProjectSessionGroup = memo(
               >
                 {displayName}
               </span>
-              {ps?.pinned && <span className="text-[9px] text-muted-foreground/30" title="Pinned">{'\u{1F4CC}'}</span>}
+              {ps?.pinned && <Pin className="h-2.5 w-2.5 text-muted-foreground/30 shrink-0" />}
               <span className="text-[10px] text-muted-foreground font-mono">{sessions.length} conversations</span>
               {hasPendingPermission && (
                 <span
@@ -181,7 +182,7 @@ export function PinnedProjectNode({ project }: { project: string }) {
             >
               {displayName}
             </span>
-            <span className="text-[9px] text-muted-foreground/30" title="Pinned">{'\u{1F4CC}'}</span>
+            <Pin className="h-2.5 w-2.5 text-muted-foreground/30 shrink-0" />
           </div>
         </div>
         {showSettings && <ProjectSettingsEditor project={project} onClose={() => setShowSettings(false)} />}
@@ -199,11 +200,7 @@ export const ProjectNode = memo(
       return (
         <div className="relative">
           <ConversationCard session={sessions[0]} />
-          {isPinned && (
-            <span className="absolute top-1.5 left-1.5 text-[8px] text-muted-foreground/25" title="Pinned">
-              {'\u{1F4CC}'}
-            </span>
-          )}
+          {isPinned && <Pin className="absolute top-2 right-8 h-2.5 w-2.5 text-muted-foreground/25" />}
         </div>
       )
     }
