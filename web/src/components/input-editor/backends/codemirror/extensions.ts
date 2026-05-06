@@ -283,7 +283,10 @@ export function clearEditorDoc(view: EditorView) {
 }
 
 export function replaceEditorDoc(view: EditorView, text: string) {
-  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } })
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: text },
+    selection: { anchor: text.length },
+  })
 }
 
 /**
