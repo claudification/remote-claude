@@ -57,16 +57,22 @@ export function ConversationHeader({
         )}
       </button>
       {!infoExpanded && (session.recap || session.description) && (
-        <div
-          className={cn(
-            'px-3 pb-1.5 -mt-0.5 text-[10px] truncate transition-all duration-700',
-            session.recap && session.recapFresh
-              ? 'text-zinc-300 border-l-2 border-zinc-500/60 ml-3 pl-2 bg-zinc-800/20 rounded-r'
-              : 'text-muted-foreground/70 italic',
+        <div className="px-3 pb-1.5 -mt-0.5 space-y-0.5 transition-all duration-700">
+          {session.description && session.recap && (
+            <div className="text-[10px] text-muted-foreground/70 italic truncate">{session.description}</div>
           )}
-          title={session.recap?.content || session.description}
-        >
-          {session.recap?.content || session.description}
+          <div
+            className={cn(
+              'text-[10px] whitespace-pre-wrap',
+              session.recap && session.recapFresh
+                ? 'text-zinc-300 border-l-2 border-zinc-500/60 ml-0 pl-2 bg-zinc-800/20 rounded-r py-1'
+                : session.recap
+                  ? 'text-zinc-400'
+                  : 'text-muted-foreground/70 italic truncate',
+            )}
+          >
+            {session.recap?.content || session.description}
+          </div>
         </div>
       )}
       <CacheExpiredBanner
