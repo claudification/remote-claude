@@ -1,6 +1,7 @@
 import type { Conversation, HookEvent, HookEventOf, HookEventType, TranscriptUserEntry } from '../../shared/protocol'
 import { recordHookEvent } from '../analytics-store'
 import { getProjectSettings } from '../project-settings'
+import { cancelRecap } from '../recap-generator'
 import { MAX_EVENTS, PASSIVE_HOOKS, TRANSCRIPT_KICK_DEBOUNCE_MS, TRANSCRIPT_KICK_EVENT_THRESHOLD } from './constants'
 import type { ConversationStoreContext } from './event-context'
 import { handleCompactEvent } from './event-handlers/compact'
@@ -32,6 +33,8 @@ import { handleTaskCompleted, handleTeammateIdle } from './event-handlers/team'
 export function addEvent(ctx: ConversationStoreContext, conversationId: string, event: HookEvent): void {
   const conv = ctx.conversations.get(conversationId)
   if (!conv) return
+
+  cancelRecap(conversationId)
 
   conv.events.push(event)
   if (conv.events.length > MAX_EVENTS) {
