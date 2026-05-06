@@ -5,7 +5,7 @@ type Params = Record<string, string | number | bigint | boolean | null>
 
 export function createSqliteMessageStore(db: Database): MessageStore {
   const stmtEnqueue = db.prepare(`
-    INSERT INTO message_queue (from_scope, to_scope, from_session_id, content, intent, conversation_id, created_at, expires_at)
+    INSERT INTO message_queue (from_scope, to_scope, from_conversation_id, content, intent, conversation_id, created_at, expires_at)
     VALUES ($fromScope, $toScope, $fromSessionId, $content, $intent, $conversationId, $createdAt, $expiresAt)
   `)
 
@@ -15,7 +15,7 @@ export function createSqliteMessageStore(db: Database): MessageStore {
   const stmtDeleteDequeued = db.prepare('DELETE FROM message_queue WHERE to_scope = $toScope AND expires_at > $now')
 
   const stmtLogInsert = db.prepare(`
-    INSERT INTO message_log (from_scope, to_scope, from_session_id, to_session_id, content, intent, conversation_id, created_at)
+    INSERT INTO message_log (from_scope, to_scope, from_conversation_id, to_conversation_id, content, intent, conversation_id, created_at)
     VALUES ($fromScope, $toScope, $fromSessionId, $toSessionId, $content, $intent, $conversationId, $createdAt)
   `)
 
@@ -45,7 +45,7 @@ export function createSqliteMessageStore(db: Database): MessageStore {
             id: row.id as number,
             fromScope: row.from_scope as string,
             toScope: row.to_scope as string,
-            fromSessionId: (row.from_session_id as string) ?? undefined,
+            fromSessionId: (row.from_conversation_id as string) ?? undefined,
             content: row.content as string,
             intent: (row.intent as string) ?? undefined,
             conversationId: (row.conversation_id as string) ?? undefined,
@@ -99,8 +99,8 @@ export function createSqliteMessageStore(db: Database): MessageStore {
           id: row.id as number,
           fromScope: row.from_scope as string,
           toScope: row.to_scope as string,
-          fromSessionId: (row.from_session_id as string) ?? undefined,
-          toSessionId: (row.to_session_id as string) ?? undefined,
+          fromSessionId: (row.from_conversation_id as string) ?? undefined,
+          toSessionId: (row.to_conversation_id as string) ?? undefined,
           content: (row.content as string) ?? undefined,
           intent: (row.intent as string) ?? undefined,
           conversationId: (row.conversation_id as string) ?? undefined,
