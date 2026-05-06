@@ -13,6 +13,8 @@ services:
     volumes:
       # Session cache + auth data (read-write) -- volume name kept for data continuity
       - concentrator-data:/data/cache
+      # Backup destination (bind-mount so host cron / rsync can access archives)
+      - ${BACKUP_DIR:-./backups}:/data/backups
       # Frontend assets (mount over baked-in copy for hot rebuilds: bun run build:web)
       - ./web/dist:/srv/web:ro
     command:

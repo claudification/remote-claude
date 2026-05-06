@@ -6,6 +6,10 @@ export const DEFAULT_CACHE_DIR = existsSync('/data/cache')
   ? '/data/cache'
   : join(process.env.HOME || process.env.USERPROFILE || '/root', '.cache', 'broker')
 
+export const DEFAULT_BACKUP_DIR = existsSync('/data/backups')
+  ? '/data/backups'
+  : join(process.env.HOME || process.env.USERPROFILE || '/root', '.cache', 'broker-backups')
+
 const KNOWN_ROLES = new Set(['admin'])
 
 export function notifyServer(cacheDir: string): void {
@@ -81,6 +85,12 @@ SENTINEL COMMANDS:
   sentinel list                                             List all registered sentinels
   sentinel set-default --alias <alias>                      Set default sentinel
   sentinel revoke --alias <alias>                           Revoke sentinel secret
+
+BACKUP COMMANDS:
+  backup create [--dest <dir>] [--include-blobs]           Create backup (VACUUM INTO + tar.gz)
+    [--retain-hours N] [--retain-days N]                     Tiered retention (default: 24h + 7d)
+  backup list [--dest <dir>]                                List available backups
+  backup restore <archive> [--cache-dir <dir>]             Restore from backup (broker must be stopped)
 
 GRANT FORMAT:
   --grant "scope:permission,permission"   (repeatable)

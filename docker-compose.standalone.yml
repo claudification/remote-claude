@@ -24,6 +24,7 @@ services:
       - "${PORT:-9999}:9999"
     volumes:
       - concentrator-data:/data/cache
+      - ${BACKUP_DIR:-./backups}:/data/backups
       - ./web/dist:/srv/web:ro
     command:
       - "--web-dir"

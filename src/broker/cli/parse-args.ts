@@ -21,6 +21,11 @@ export interface ParsedArgs {
   allowRoots: string[]
   pathMapArgs: Array<{ from: string; to: string }>
   testPath: string
+  destArg: string
+  backupArchive: string
+  includeBlobs: boolean
+  retainHoursArg: string
+  retainDaysArg: string
 }
 
 export function parseArgs(argv: string[], defaultCacheDir: string): ParsedArgs {
@@ -47,6 +52,11 @@ export function parseArgs(argv: string[], defaultCacheDir: string): ParsedArgs {
     allowRoots: [],
     pathMapArgs: [],
     testPath: '',
+    destArg: '',
+    backupArchive: '',
+    includeBlobs: false,
+    retainHoursArg: '',
+    retainDaysArg: '',
   }
 
   for (let i = 0; i < argv.length; i++) {
@@ -91,6 +101,14 @@ export function parseArgs(argv: string[], defaultCacheDir: string): ParsedArgs {
       result.dbArg = argv[++i]
     } else if (arg === '--json') {
       result.jsonFlag = true
+    } else if (arg === '--dest') {
+      result.destArg = argv[++i]
+    } else if (arg === '--include-blobs') {
+      result.includeBlobs = true
+    } else if (arg === '--retain-hours') {
+      result.retainHoursArg = argv[++i]
+    } else if (arg === '--retain-days') {
+      result.retainDaysArg = argv[++i]
     } else if (!arg.startsWith('-')) {
       if (result.command === 'resolve-path' && !result.testPath) {
         result.testPath = arg
@@ -98,6 +116,10 @@ export function parseArgs(argv: string[], defaultCacheDir: string): ParsedArgs {
         result.queryArg = arg
       } else if (result.command === 'sentinel' && !result.subCommand) {
         result.subCommand = arg
+      } else if (result.command === 'backup' && !result.subCommand) {
+        result.subCommand = arg
+      } else if (result.command === 'backup' && result.subCommand === 'restore' && !result.backupArchive) {
+        result.backupArchive = arg
       } else {
         result.command = arg
       }

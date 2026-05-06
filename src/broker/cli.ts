@@ -6,6 +6,7 @@ checkBunVersion()
 
 import { existsSync } from 'node:fs'
 import { initAuth } from './auth'
+import { handleBackup } from './cli/backup-commands'
 import { type ParsedArgs, parseArgs } from './cli/parse-args'
 import { handleDeletePasskey, handleListPasskeys } from './cli/passkey-commands'
 import { handleRemoveRole, handleSetRole } from './cli/role-commands'
@@ -42,7 +43,7 @@ function handleResolvePath(args: ParsedArgs): void {
   process.exit(result ? 0 : 1)
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const rawArgs = process.argv.slice(2)
   if (rawArgs.length === 0 || rawArgs.includes('-h') || rawArgs.includes('--help')) {
     printUsage()
@@ -67,6 +68,11 @@ function main(): void {
       sql: args.queryArg,
       json: args.jsonFlag,
     })
+    process.exit(0)
+  }
+
+  if (args.command === 'backup') {
+    await handleBackup(args)
     process.exit(0)
   }
 
@@ -118,4 +124,7 @@ function main(): void {
   }
 }
 
-main()
+main().catch(err => {
+  console.error(`ERROR: ${err.message}`)
+  process.exit(1)
+})
