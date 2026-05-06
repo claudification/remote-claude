@@ -26,6 +26,14 @@ export function SystemLine({ group, time }: { group: DisplayGroup; time: string 
       text = `API retry ${entry.attempt}/${entry.max_retries} (${entry.error_status || 'timeout'}) - retrying in ${Math.ceil((entry.retry_delay_ms as number) / 1000)}s`
       color = 'text-amber-400'
       break
+    case 'rate_limit': {
+      const retryMs = entry.retryAfterMs as number
+      const info = (entry.raw as Record<string, unknown>)?.rate_limit_info as Record<string, unknown> | undefined
+      const limitType = info?.rateLimitType as string | undefined
+      text = `Rate limited${limitType ? ` (${limitType})` : ''}${retryMs ? ` - retry in ${Math.ceil(retryMs / 1000)}s` : ''}`
+      color = 'text-amber-400/70'
+      break
+    }
     case 'informational':
       text = content
       color = 'text-cyan-400/70'

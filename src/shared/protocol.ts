@@ -602,6 +602,7 @@ export interface AgentHostRateLimit {
   conversationId: string
   retryAfterMs: number
   message: string
+  raw?: Record<string, unknown>
 }
 
 // Clipboard capture from PTY OSC 52 sequences

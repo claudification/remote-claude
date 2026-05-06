@@ -64,7 +64,7 @@ export interface StreamBackendOptions {
   onResult?: (result: StreamResultMessage) => void
   onPermissionRequest?: (request: StreamPermissionRequest) => void
   onStreamEvent?: (event: Record<string, unknown>) => void
-  onRateLimit?: (retryAfterMs: number, message: string) => void
+  onRateLimit?: (retryAfterMs: number, message: string, raw: Record<string, unknown>) => void
   onTaskStarted?: (task: { taskId: string; toolUseId: string; taskType: string; description: string }) => void
   onSubagentEntry?: (toolUseId: string, entry: TranscriptEntry) => void
   onMonitorUpdate?: (monitor: {

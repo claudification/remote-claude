@@ -307,18 +307,35 @@ const streamDelta: MessageHandler = (ctx, data) => {
   }
 }
 
-// Rate limit event from headless backend - store on conversation and broadcast update
+// Rate limit event from headless backend - store on conversation + persist transcript entry
 const rateLimitHandler: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (!conversation) return
-  conversation.rateLimit = {
-    retryAfterMs: (data.retryAfterMs as number) || 5000,
-    message: (data.message as string) || 'Rate limited',
-    timestamp: Date.now(),
-  }
+
+  const retryAfterMs = (data.retryAfterMs as number) || 5000
+  const message = (data.message as string) || 'Rate limited'
+
+  conversation.rateLimit = { retryAfterMs, message, timestamp: Date.now() }
   ctx.conversations.broadcastConversationUpdate(conversationId)
+
+  const entry = {
+    type: 'system' as const,
+    subtype: 'rate_limit',
+    content: message,
+    retryAfterMs,
+    raw: data.raw as Record<string, unknown> | undefined,
+    uuid: randomUUID(),
+    timestamp: new Date().toISOString(),
+  }
+  ctx.conversations.addTranscriptEntries(conversationId, [entry], false)
+  ctx.conversations.broadcastToChannel('conversation:transcript', conversationId, {
+    type: 'transcript_entries',
+    conversationId,
+    entries: [entry],
+    isInitial: false,
+  })
 }
 
 const MAX_COST_TIMELINE = 500

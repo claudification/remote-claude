@@ -239,9 +239,9 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       }
     },
 
-    onRateLimit(retryAfterMs, message) {
+    onRateLimit(retryAfterMs, message, raw) {
       if (ctx.wsClient?.isConnected()) {
-        ctx.wsClient.sendRateLimit(retryAfterMs, message)
+        ctx.wsClient.sendRateLimit(retryAfterMs, message, raw)
       }
     },
 

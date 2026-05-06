@@ -466,7 +466,7 @@ function handleRateLimitEvent(hctx: HandlerContext, msg: Record<string, unknown>
   const retryMs = (msg.retry_after_ms as number) || 5000
   const rateLimitMsg = (msg.message as string) || `Rate limited. Retrying in ${Math.ceil(retryMs / 1000)}s.`
   debug(`Rate limit: ${rateLimitMsg} (retry in ${retryMs}ms)`)
-  hctx.callbacks.onRateLimit?.(retryMs, rateLimitMsg)
+  hctx.callbacks.onRateLimit?.(retryMs, rateLimitMsg, msg)
 }
 
 function handleQueueOperation(hctx: HandlerContext, msg: Record<string, unknown>) {

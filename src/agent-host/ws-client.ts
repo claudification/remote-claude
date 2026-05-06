@@ -157,7 +157,7 @@ export interface WsClient {
   sendBgTaskOutput: (taskId: string, data: string, done: boolean) => void
   sendJsonStreamData: (lines: string[], isBackfill: boolean) => void
   sendStreamDelta: (event: Record<string, unknown>) => void
-  sendRateLimit: (retryAfterMs: number, message: string) => void
+  sendRateLimit: (retryAfterMs: number, message: string, raw?: Record<string, unknown>) => void
   sendConversationStatus: (status: 'active' | 'idle') => void
   /** Emit a structured boot-phase event. Queued if not yet connected. */
   sendBootEvent: (step: BootStep, detail?: string, raw?: unknown) => void
@@ -816,8 +816,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
     sendStreamDelta(event: Record<string, unknown>) {
       send({ type: 'stream_delta', conversationId: routeId(), event } as AgentHostMessage)
     },
-    sendRateLimit(retryAfterMs: number, message: string) {
-      send({ type: 'rate_limit', conversationId: routeId(), retryAfterMs, message } as AgentHostMessage)
+    sendRateLimit(retryAfterMs: number, message: string, raw?: Record<string, unknown>) {
+      send({ type: 'rate_limit', conversationId: routeId(), retryAfterMs, message, raw } as AgentHostMessage)
     },
     sendConversationStatus(status: 'active' | 'idle') {
       send({ type: 'conversation_status', conversationId: routeId(), status } as AgentHostMessage)
