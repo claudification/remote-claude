@@ -33,7 +33,7 @@ export function StatusRow({ session, model }: { session: Session; model: string 
         return (
           <span
             className={cn('px-1.5 py-0.5 text-[9px] font-bold uppercase', pm.color, pm.bgColor)}
-            title={`Permission mode: ${session.permissionMode}`}
+            title={pm.title}
           >
             {pm.label}
           </span>

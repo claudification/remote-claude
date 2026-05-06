@@ -1,3 +1,4 @@
+import { Clock } from 'lucide-react'
 import { memo, type ReactNode, useEffect, useRef, useState } from 'react'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import {
@@ -771,10 +772,10 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
         )}
         {session.rateLimit && !session.lastError && (
           <span
-            className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40"
-            title={session.rateLimit.message}
+            className="px-1 py-0.5 text-amber-400 border border-amber-500/40 bg-amber-500/20"
+            title={`${session.rateLimit.message}${session.rateLimit.retryAfterMs ? ` (retry in ${Math.ceil(session.rateLimit.retryAfterMs / 1000)}s)` : ''}`}
           >
-            throttled
+            <Clock size={12} />
           </span>
         )}
         {hasPendingPermission && <span className="text-[9px] text-amber-400 font-bold animate-pulse">PERM</span>}
@@ -1008,13 +1009,15 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
         {session.compacting && <span className="text-[9px] text-amber-400 font-bold animate-pulse">COMPACT</span>}
         {session.lastError && <span className="text-[9px] text-destructive font-bold">ERROR</span>}
         {session.rateLimit && !session.lastError && (
-          <span className="text-[9px] text-amber-400 font-bold">THROTTLED</span>
+          <span title={`Rate limited: ${session.rateLimit.message}${session.rateLimit.retryAfterMs ? ` (retry in ${Math.ceil(session.rateLimit.retryAfterMs / 1000)}s)` : ''}`}>
+            <Clock size={11} className="text-amber-400" />
+          </span>
         )}
         {(() => {
           const pm = formatPermissionMode(session.permissionMode)
-          if (!pm && session.planMode) return <span className="text-[9px] text-blue-400 font-bold">PLAN</span>
+          if (!pm && session.planMode) return <span className="text-[9px] text-blue-400 font-bold" title="Plan mode -- requires plan approval">P</span>
           if (!pm) return null
-          return <span className={cn('text-[9px] font-bold', pm.color)}>{pm.label}</span>
+          return <span className={cn('text-[9px] font-bold', pm.color)} title={pm.title}>{pm.label}</span>
         })()}
         {session.status === 'idle' &&
           (() => {
