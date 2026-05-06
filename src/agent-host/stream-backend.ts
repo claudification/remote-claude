@@ -309,6 +309,11 @@ async function readStderr(stderr: ReadableStream<Uint8Array> | null, diagLog: (p
   }
 }
 
+let controlSeq = 0
+function nextRequestId(prefix: string): string {
+  return `${prefix}-${++controlSeq}`
+}
+
 function buildStreamProcess(
   proc: Subprocess<'pipe', 'pipe', 'pipe'>,
   writeStdin: (json: Record<string, unknown>) => void,
@@ -357,6 +362,7 @@ function buildStreamProcess(
       debug(`Setting model: ${model}`)
       writeStdin({
         type: 'control_request',
+        request_id: nextRequestId('mdl'),
         request: { subtype: 'set_model', model },
       })
     },
@@ -365,6 +371,7 @@ function buildStreamProcess(
       debug(`Setting permission mode: ${mode}`)
       writeStdin({
         type: 'control_request',
+        request_id: nextRequestId('perm'),
         request: { subtype: 'set_permission_mode', mode },
       })
     },
@@ -388,6 +395,7 @@ function buildStreamProcess(
       debug('Sending interrupt')
       writeStdin({
         type: 'control_request',
+        request_id: nextRequestId('int'),
         request: { subtype: 'interrupt' },
       })
     },
