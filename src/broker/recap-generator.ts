@@ -7,8 +7,8 @@ const RECAP_DELAY_MS = 60_000
 const RECAP_PROMPT = `The developer stepped away from this coding session. Recap what's happening.
 Respond with JSON: {"title": "...", "recap": "..."}
 
-title: 3-5 word topic label for the current work.
-recap: Under 30 words, 1-2 plain sentences. Lead with the overall goal, then where they are now and the one next action. Skip root-cause narrative, implementation details, secondary to-dos, and filler words. No "I" or "We". No markdown.
+title: 3-5 word topic label (e.g. "Fix spawn timeout", "SQLite migration").
+recap: One plain sentence, under 20 words. State what's being done and where it stands. No labels like "Goal:" or "Next:". No "I" or "We". No markdown, no backticks, no bullet points.
 
 Focus on RECENT CONVERSATION. BACKGROUND is prior context only.
 Respond with ONLY the JSON object.`
