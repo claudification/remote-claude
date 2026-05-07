@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface VoiceDevicePickerProps {
   value: string
@@ -8,37 +8,35 @@ interface VoiceDevicePickerProps {
 export function VoiceDevicePicker({ value, onChange }: VoiceDevicePickerProps) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
   const [error, setError] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const enumeratingRef = useRef(false)
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function enumerate() {
-      try {
-        // Request mic permission first -- enumerateDevices returns empty labels
-        // without a prior getUserMedia grant on most browsers.
-        await navigator.mediaDevices.getUserMedia({ audio: true }).then(s => {
-          for (const t of s.getTracks()) t.stop()
-        })
-        const all = await navigator.mediaDevices.enumerateDevices()
-        if (cancelled) return
-        setDevices(all.filter(d => d.kind === 'audioinput'))
-        setError('')
-      } catch (err) {
-        if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Cannot list devices')
-      }
-    }
-
-    enumerate()
-
-    // Re-enumerate when devices change (plug/unplug headphones)
-    const handler = () => enumerate()
-    navigator.mediaDevices.addEventListener('devicechange', handler)
-    return () => {
-      cancelled = true
-      navigator.mediaDevices.removeEventListener('devicechange', handler)
+  const enumerate = useCallback(async () => {
+    if (enumeratingRef.current) return
+    enumeratingRef.current = true
+    try {
+      // getUserMedia needed -- browsers hide device labels without a prior grant.
+      await navigator.mediaDevices.getUserMedia({ audio: true }).then(s => {
+        for (const t of s.getTracks()) t.stop()
+      })
+      const all = await navigator.mediaDevices.enumerateDevices()
+      setDevices(all.filter(d => d.kind === 'audioinput'))
+      setError('')
+      setLoaded(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Cannot list devices')
+    } finally {
+      enumeratingRef.current = false
     }
   }, [])
+
+  // Re-enumerate on plug/unplug, but only after first load
+  useEffect(() => {
+    if (!loaded) return
+    const handler = () => enumerate()
+    navigator.mediaDevices.addEventListener('devicechange', handler)
+    return () => navigator.mediaDevices.removeEventListener('devicechange', handler)
+  }, [loaded, enumerate])
 
   if (error) {
     return <span className="text-[10px] text-destructive font-mono">{error}</span>
@@ -48,6 +46,8 @@ export function VoiceDevicePicker({ value, onChange }: VoiceDevicePickerProps) {
     <select
       value={value}
       onChange={e => onChange(e.target.value)}
+      onMouseDown={!loaded ? () => enumerate() : undefined}
+      onFocus={!loaded ? () => enumerate() : undefined}
       className="w-52 bg-muted border border-border text-foreground text-xs px-2 py-1 font-mono truncate"
     >
       <option value="">System default</option>
