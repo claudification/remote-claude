@@ -1,7 +1,8 @@
 import { Pencil } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConversationsStore } from '@/hooks/use-conversations'
-import { haptic } from '@/lib/utils'
+import { focusInputEditor } from '@/lib/focus-input'
+import { haptic, isMobileViewport } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { Kbd } from './ui/kbd'
 
@@ -53,6 +54,7 @@ export function RenameModal() {
     if (!next) {
       setName('')
       setDescription('')
+      if (!isMobileViewport()) requestAnimationFrame(() => focusInputEditor())
     }
   }, [])
 
