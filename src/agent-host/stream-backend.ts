@@ -64,7 +64,13 @@ export interface StreamBackendOptions {
   onResult?: (result: StreamResultMessage) => void
   onPermissionRequest?: (request: StreamPermissionRequest) => void
   onStreamEvent?: (event: Record<string, unknown>) => void
-  onRateLimit?: (retryAfterMs: number, message: string, raw: Record<string, unknown>) => void
+  onRateLimitStatus?: (info: {
+    status: 'limited' | 'allowed'
+    retryAfterMs?: number
+    rateLimitType?: string
+    resetsAt?: number
+    raw: Record<string, unknown>
+  }) => void
   onTaskStarted?: (task: { taskId: string; toolUseId: string; taskType: string; description: string }) => void
   onSubagentEntry?: (toolUseId: string, entry: TranscriptEntry) => void
   onMonitorUpdate?: (monitor: {
@@ -141,13 +147,14 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
   const hctx: HandlerContext = {
     monitors: createMonitorTracker(),
     replay: createReplayBuffer(),
+    pendingControlRequests: new Map(),
     callbacks: {
       onTranscriptEntries: options.onTranscriptEntries,
       onInit: options.onInit,
       onResult: options.onResult,
       onPermissionRequest: options.onPermissionRequest,
       onStreamEvent: options.onStreamEvent,
-      onRateLimit: options.onRateLimit,
+      onRateLimitStatus: options.onRateLimitStatus,
       onTaskStarted: options.onTaskStarted,
       onSubagentEntry: options.onSubagentEntry,
       onMonitorUpdate: options.onMonitorUpdate,
@@ -186,7 +193,7 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
     proc.stdin.flush()
   }
 
-  return buildStreamProcess(proc, writeStdin, options)
+  return buildStreamProcess(proc, writeStdin, options, hctx.pendingControlRequests)
 }
 
 function spawnProcess(options: StreamBackendOptions) {
@@ -318,6 +325,7 @@ function buildStreamProcess(
   proc: Subprocess<'pipe', 'pipe', 'pipe'>,
   writeStdin: (json: Record<string, unknown>) => void,
   options: StreamBackendOptions,
+  pendingControlRequests: Map<string, { subtype: string; detail?: string }>,
 ): StreamProcess {
   return {
     proc,
@@ -360,18 +368,22 @@ function buildStreamProcess(
 
     sendSetModel(model: string) {
       debug(`Setting model: ${model}`)
+      const id = nextRequestId('mdl')
+      pendingControlRequests.set(id, { subtype: 'set_model', detail: model })
       writeStdin({
         type: 'control_request',
-        request_id: nextRequestId('mdl'),
+        request_id: id,
         request: { subtype: 'set_model', model },
       })
     },
 
     sendSetPermissionMode(mode: string) {
       debug(`Setting permission mode: ${mode}`)
+      const id = nextRequestId('perm')
+      pendingControlRequests.set(id, { subtype: 'set_permission_mode', detail: mode })
       writeStdin({
         type: 'control_request',
-        request_id: nextRequestId('perm'),
+        request_id: id,
         request: { subtype: 'set_permission_mode', mode },
       })
     },

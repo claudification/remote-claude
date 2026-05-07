@@ -14,6 +14,7 @@ const debug = (msg: string) => _debug(`[stream] ${msg}`)
 export interface HandlerContext {
   monitors: MonitorTracker
   replay: ReplayBuffer
+  pendingControlRequests: Map<string, { subtype: string; detail?: string }>
   callbacks: Pick<
     StreamBackendOptions,
     | 'onTranscriptEntries'
@@ -21,7 +22,7 @@ export interface HandlerContext {
     | 'onResult'
     | 'onPermissionRequest'
     | 'onStreamEvent'
-    | 'onRateLimit'
+    | 'onRateLimitStatus'
     | 'onTaskStarted'
     | 'onSubagentEntry'
     | 'onMonitorUpdate'
@@ -51,6 +52,9 @@ export function handleMessage(hctx: HandlerContext, msg: Record<string, unknown>
       break
     case 'control_request':
       handleControlRequest(hctx, msg)
+      break
+    case 'control_response':
+      handleControlResponse(hctx, msg)
       break
     case 'result':
       handleResult(hctx, msg)
@@ -451,6 +455,37 @@ function handleControlRequest(hctx: HandlerContext, msg: Record<string, unknown>
   })
 }
 
+function handleControlResponse(hctx: HandlerContext, msg: Record<string, unknown>) {
+  const response = msg.response as Record<string, unknown> | undefined
+  if (!response) return
+
+  const requestId = (response.request_id as string) || ''
+  const subtype = response.subtype as string
+  debug(`control_response: ${requestId} subtype=${subtype}`)
+
+  const pending = hctx.pendingControlRequests.get(requestId)
+  hctx.pendingControlRequests.delete(requestId)
+  if (!pending || subtype !== 'success') return
+
+  let text: string | null = null
+  if (pending.subtype === 'set_model') {
+    text = pending.detail ? `Model changed to ${pending.detail}` : 'Model changed'
+  } else if (pending.subtype === 'set_permission_mode') {
+    text = pending.detail ? `Permission mode: ${pending.detail}` : 'Permission mode changed'
+  }
+
+  if (!text) return
+
+  if (!hctx.replay.done) flushReplayBuffer(hctx.replay, hctx.callbacks.onTranscriptEntries)
+  const entry = {
+    type: 'system' as const,
+    subtype: 'informational',
+    timestamp: new Date().toISOString(),
+    content: text,
+  } as TranscriptEntry
+  hctx.callbacks.onTranscriptEntries?.([entry], false)
+}
+
 function handleResult(hctx: HandlerContext, msg: Record<string, unknown>) {
   if (!hctx.replay.done) flushReplayBuffer(hctx.replay, hctx.callbacks.onTranscriptEntries)
   debug(`Result: ${msg.subtype} cost=$${msg.total_cost_usd} turns=${msg.num_turns}`)
@@ -463,10 +498,21 @@ function handleStreamEvent(hctx: HandlerContext, msg: Record<string, unknown>) {
 }
 
 function handleRateLimitEvent(hctx: HandlerContext, msg: Record<string, unknown>) {
-  const retryMs = (msg.retry_after_ms as number) || 5000
-  const rateLimitMsg = (msg.message as string) || `Rate limited. Retrying in ${Math.ceil(retryMs / 1000)}s.`
-  debug(`Rate limit: ${rateLimitMsg} (retry in ${retryMs}ms)`)
-  hctx.callbacks.onRateLimit?.(retryMs, rateLimitMsg, msg)
+  const info = msg.rate_limit_info as Record<string, unknown> | undefined
+  const isAllowed = info?.status === 'allowed'
+  const rateLimitType = info?.rateLimitType as string | undefined
+  const resetsAt = info?.resetsAt as number | undefined
+  const retryMs = isAllowed ? undefined : (msg.retry_after_ms as number) || 5000
+
+  debug(`Rate limit status: ${isAllowed ? 'allowed' : 'limited'}${rateLimitType ? ` (${rateLimitType})` : ''}${retryMs ? ` retry=${retryMs}ms` : ''}`)
+
+  hctx.callbacks.onRateLimitStatus?.({
+    status: isAllowed ? 'allowed' : 'limited',
+    retryAfterMs: retryMs,
+    rateLimitType,
+    resetsAt,
+    raw: msg,
+  })
 }
 
 function handleQueueOperation(hctx: HandlerContext, msg: Record<string, unknown>) {
