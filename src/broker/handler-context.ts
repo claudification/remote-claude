@@ -62,7 +62,7 @@ export interface HandlerContext {
       title: string
       body: string
       conversationId?: string
-      sessionProject?: string
+      project?: string
       tag?: string
       data?: Record<string, unknown>
     }): void

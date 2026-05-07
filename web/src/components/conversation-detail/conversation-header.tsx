@@ -72,9 +72,7 @@ export function ConversationHeader({
             )}
             title={session.recap?.content || session.description}
           >
-            {session.recap?.title && (
-              <span className="font-medium text-zinc-300/90">{session.recap.title}: </span>
-            )}
+            {session.recap?.title && <span className="font-medium text-zinc-300/90">{session.recap.title}: </span>}
             {session.recap?.content || session.description}
           </div>
         </div>

@@ -20,13 +20,7 @@ export interface ContextDeps {
   setProjectSettings(project: string, update: Partial<ProjectSettings>): void
   getAllProjectSettings(): Record<string, ProjectSettings>
   pushConfigured: boolean
-  pushSendToAll(payload: {
-    title: string
-    body: string
-    conversationId?: string
-    sessionProject?: string
-    tag?: string
-  }): void
+  pushSendToAll(payload: { title: string; body: string; conversationId?: string; project?: string; tag?: string }): void
   getLinksForProject(project: string): Array<{ projectA: string; projectB: string }>
   findLink(projectA: string, projectB: string): boolean
   addLink(projectA: string, projectB: string): void

@@ -1101,8 +1101,14 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
 
     return { success: true }
   } catch (error: unknown) {
-    console.error('[push] Subscribe error:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    const msg =
+      error instanceof DOMException
+        ? `${error.name}: ${error.message}`
+        : error instanceof Error
+          ? error.message
+          : 'Unknown error'
+    console.error('[push] Subscribe error:', msg, error)
+    return { success: false, error: msg }
   }
 }
 

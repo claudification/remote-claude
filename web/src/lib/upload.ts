@@ -18,7 +18,7 @@ export async function uploadFileWithPlaceholder(
     const formData = new FormData()
     formData.append('file', file, file.name || 'paste.png')
     const headers: Record<string, string> = {}
-    if (conversationId) headers['x-session-id'] = conversationId
+    if (conversationId) headers['x-conversation-id'] = conversationId
     const res = await fetch('/api/files', { method: 'POST', body: formData, headers })
     if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
     const { url, filename } = await res.json()

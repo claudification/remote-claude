@@ -33,10 +33,6 @@ export function isPushConfigured(): boolean {
   return vapidConfigured
 }
 
-function getVapidPublicKey(config: PushConfig): string {
-  return config.vapidPublicKey
-}
-
 // ─── Per-user subscription management ─────────────────────────────
 
 export function addSubscription(userName: string, sub: PushSubscriptionData, userAgent?: string): void {
@@ -74,7 +70,7 @@ export interface PushPayload {
   title: string
   body: string
   conversationId?: string
-  sessionProject?: string
+  project?: string
   tag?: string
   data?: Record<string, unknown>
 }
@@ -92,8 +88,8 @@ export async function sendPushToAll(payload: PushPayload): Promise<{ sent: numbe
     if (user.revoked || !user.pushSubscriptions?.length) continue
 
     // Check if user has notifications permission for this conversation's project
-    if (payload.sessionProject) {
-      const { permissions } = resolvePermissions(user.grants, payload.sessionProject)
+    if (payload.project) {
+      const { permissions } = resolvePermissions(user.grants, payload.project)
       if (!permissions.has('notifications')) continue
     }
 
@@ -120,42 +116,6 @@ export async function sendPushToAll(payload: PushPayload): Promise<{ sent: numbe
       console.log(`[push] Removing stale subscription for "${userName}" (endpoint gone: ${endpoint.slice(0, 60)}...)`)
       removeSubscription(userName, endpoint)
     }
-  }
-
-  return { sent, failed }
-}
-
-/** Send push to a specific user's devices */
-async function sendPushToUser(userName: string, payload: PushPayload): Promise<{ sent: number; failed: number }> {
-  if (!vapidConfigured) return { sent: 0, failed: 0 }
-
-  const user = getUser(userName)
-  if (!user?.pushSubscriptions?.length) return { sent: 0, failed: 0 }
-
-  const jsonPayload = JSON.stringify(payload)
-  let sent = 0
-  let failed = 0
-  const staleEndpoints: string[] = []
-
-  for (const entry of user.pushSubscriptions) {
-    try {
-      await webpush.sendNotification(entry.subscription, jsonPayload, {
-        TTL: 60,
-        urgency: 'high',
-      })
-      sent++
-    } catch (error: unknown) {
-      const statusCode = (error as Record<string, unknown>)?.statusCode
-      if (statusCode === 404 || statusCode === 410) {
-        staleEndpoints.push(entry.subscription.endpoint)
-      }
-      failed++
-    }
-  }
-
-  for (const endpoint of staleEndpoints) {
-    console.log(`[push] Removing stale subscription for "${userName}" (endpoint gone: ${endpoint.slice(0, 60)}...)`)
-    removeSubscription(userName, endpoint)
   }
 
   return { sent, failed }

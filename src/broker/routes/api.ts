@@ -441,7 +441,7 @@ Output a JSON array of strings. Each string should be the correct spelling of on
     if (!blobDir) return c.json({ error: 'Blob store not configured' }, 503)
 
     // Require files permission -- check conversation CWD if available, else any grant
-    const uploadConversationId = c.req.header('x-session-id') || c.req.query('conversationId') || undefined
+    const uploadConversationId = c.req.header('x-conversation-id') || c.req.query('conversationId') || undefined
     const uploadCwd = uploadConversationId
       ? conversationStore.getConversation(uploadConversationId)?.project
       : undefined
@@ -489,14 +489,14 @@ Output a JSON array of strings. Each string should be the correct spelling of on
       : `http://${c.req.header('host') || 'localhost:9999'}${filePath}`
 
     // Log to shared files index (keyed by project for per-project queries)
-    const conversationId = c.req.header('x-session-id') || c.req.query('conversationId') || undefined
-    const sessionProject = conversationId ? conversationStore.getConversation(conversationId)?.project : undefined
+    const conversationId = c.req.header('x-conversation-id') || c.req.query('conversationId') || undefined
+    const fileProject = conversationId ? conversationStore.getConversation(conversationId)?.project : undefined
     appendSharedFile({
       type: 'file',
       hash,
       filename,
       mediaType,
-      project: sessionProject,
+      project: fileProject,
       conversationId: conversationId,
       size,
       url,

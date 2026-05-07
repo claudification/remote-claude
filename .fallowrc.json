@@ -1,0 +1,4 @@
+{
+  "entry": ["web/public/sw.js"],
+  "ignoreDependencies": ["bun:sqlite", "bun:test"]
+}
