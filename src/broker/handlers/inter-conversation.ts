@@ -413,6 +413,13 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
     ctx.conversations.broadcastConversationUpdate(targetSess.id)
   }
 
+  // Runtime model change: update launchConfig so the mismatch check in
+  // transcript.ts doesn't fire a false warning on the next init.
+  if (action === 'set_model' && model && targetSess.launchConfig) {
+    targetSess.launchConfig.model = model
+    targetSess.modelMismatch = undefined
+  }
+
   ctx.reply({
     type: 'conversation_control_result',
     ok: true,
