@@ -6,13 +6,12 @@
  * helper finds and focuses whichever exists in the given root.
  *
  * Falls back gracefully: returns true on success, false if no input was
- * found in scope.
+ * found in scope. When the element isn't found on the first attempt
+ * (e.g. CM6 still initializing after a conversation switch), retries
+ * up to 500ms via rAF polling.
  */
 
-export function focusInputEditor(root: ParentNode = document): boolean {
-  // CM backend: contentEditable inside .cm-editor (also matches focus-trapped
-  // mobile compose panel, since it portals to body but its descendants are
-  // still reachable from document).
+function tryFocus(root: ParentNode): boolean {
   const cm = root.querySelector<HTMLElement>('.cm-editor [contenteditable="true"]')
   if (cm) {
     cm.focus()
@@ -23,5 +22,18 @@ export function focusInputEditor(root: ParentNode = document): boolean {
     ta.focus()
     return true
   }
+  return false
+}
+
+const MAX_RETRY_MS = 500
+
+export function focusInputEditor(root: ParentNode = document): boolean {
+  if (tryFocus(root)) return true
+  const start = performance.now()
+  function retry() {
+    if (tryFocus(root)) return
+    if (performance.now() - start < MAX_RETRY_MS) requestAnimationFrame(retry)
+  }
+  requestAnimationFrame(retry)
   return false
 }
