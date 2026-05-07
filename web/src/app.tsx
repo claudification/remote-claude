@@ -12,6 +12,7 @@ import { JsonInspectorDialog } from '@/components/json-inspector'
 import { MediaLightbox } from '@/components/media-lightbox'
 import { ProjectList } from '@/components/project-list'
 import { QuickTaskModal } from '@/components/quick-task-modal'
+import { RenameModal } from '@/components/rename-modal'
 import { ReviveDialog } from '@/components/revive-dialog'
 import { SharedSessionView } from '@/components/shared-conversation-view'
 import { ShortcutHelp } from '@/components/shortcut-help'
@@ -221,6 +222,7 @@ function Dashboard() {
       <JsonInspectorDialog />
       <MediaLightbox />
       {canAdmin && <QuickTaskModal />}
+      <RenameModal />
       {canAdmin && <TaskBatchSelector />}
       {canAdmin && <ShortcutHelp />}
 

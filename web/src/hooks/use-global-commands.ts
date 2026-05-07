@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react'
+import { openRenameModal } from '@/components/rename-modal'
 import { openSpawnDialog } from '@/components/spawn-dialog'
 import { openTerminateConfirm } from '@/components/terminate-confirm'
 import { sendInput, useConversationsStore, wsSend } from '@/hooks/use-conversations'
@@ -129,6 +130,26 @@ export function useGlobalCommands(toggleSidebar: () => void) {
       openTerminateConfirm(sid, name)
     },
     { label: 'Terminate conversation', key: 'x', group: 'Conversation' },
+  )
+
+  useCommand(
+    'rename-conversation',
+    () => {
+      if (useConversationsStore.getState().selectedConversationId) {
+        openRenameModal()
+      }
+    },
+    { label: 'Rename conversation', shortcut: 'ctrl+shift+r', group: 'Conversation' },
+  )
+
+  useChordCommand(
+    'rename-conversation-chord',
+    () => {
+      if (useConversationsStore.getState().selectedConversationId) {
+        openRenameModal()
+      }
+    },
+    { label: 'Rename conversation', key: 'r', group: 'Conversation' },
   )
 
   useChordCommand(

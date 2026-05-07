@@ -112,6 +112,7 @@ const SUB_COMMANDS: SubCommandDef[] = [
   { name: 'config', noArg: true },
   { name: 'project', noArg: true },
   { name: 'session', noArg: true },
+  { name: 'rename' },
 ]
 
 export const BUILTIN_NAMES = SUB_COMMANDS.map(c => c.name)

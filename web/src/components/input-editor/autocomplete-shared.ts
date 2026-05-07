@@ -84,4 +84,5 @@ export const BUILTIN_COMMAND_NAMES = [
   'config',
   'project',
   'session',
+  'rename',
 ] as const

@@ -1,10 +1,10 @@
 /**
  * Client-side slash commands that run in the dashboard instead of being
- * forwarded to Claude Code. Invoked when the input is exactly `/cmd` (no
- * args) and the user submits -- the dispatcher clears the input and skips
- * the normal send path.
+ * forwarded to Claude Code. Invoked from the input editor's submit handler
+ * -- the dispatcher clears the input and skips the normal send path.
  */
 
+import { openRenameModal } from '@/components/rename-modal'
 import { useConversationsStore } from '@/hooks/use-conversations'
 
 /**
@@ -14,9 +14,29 @@ import { useConversationsStore } from '@/hooks/use-conversations'
  * that case we let the submit fall through to the normal path.
  */
 export function tryRunClientCommand(input: string): boolean {
-  const m = input.trim().match(/^\/([a-zA-Z0-9_-]+)\s*$/)
-  if (!m) return false
-  const name = m[1].toLowerCase()
+  const trimmed = input.trim()
+
+  // Commands with arguments
+  const argsMatch = trimmed.match(/^\/([a-zA-Z0-9_-]+)\s+(.+)$/)
+  if (argsMatch) {
+    const name = argsMatch[1].toLowerCase()
+    const args = argsMatch[2].trim()
+    switch (name) {
+      case 'rename': {
+        const sid = useConversationsStore.getState().selectedConversationId
+        if (!sid) return false
+        useConversationsStore.getState().renameConversation(sid, args)
+        return true
+      }
+      default:
+        break
+    }
+  }
+
+  // Bare commands (no args) -- also handle /rename (opens modal)
+  const bareMatch = trimmed.match(/^\/([a-zA-Z0-9_-]+)\s*$/)
+  if (!bareMatch) return false
+  const name = bareMatch[1].toLowerCase()
   switch (name) {
     case 'config':
     case 'settings':
@@ -31,6 +51,9 @@ export function tryRunClientCommand(input: string): boolean {
       window.dispatchEvent(new CustomEvent('open-project-settings', { detail: { project } }))
       return true
     }
+    case 'rename':
+      openRenameModal()
+      return true
     default:
       return false
   }
