@@ -529,7 +529,7 @@ export type AgentHostMessage =
   | PlanApprovalRequest
   | PlanModeChanged
   | StreamDelta
-  | AgentHostRateLimit
+  | AgentHostRateLimitStatus
   | ConversationInfoUpdate
   | ConversationNameUpdate
   | SpawnFailed
@@ -596,12 +596,16 @@ export interface JsonStreamData {
   isBackfill: boolean // true for initial batch on attach
 }
 
-// Rate limit notification from headless stream-json backend
-export interface AgentHostRateLimit {
-  type: 'rate_limit'
+// Rate limit status from headless stream-json backend.
+// CC emits rate_limit_event for both informational ("allowed") and actual
+// rate limiting. The agent host translates to this high-level message.
+export interface AgentHostRateLimitStatus {
+  type: 'rate_limit_status'
   conversationId: string
-  retryAfterMs: number
-  message: string
+  status: 'limited' | 'allowed'
+  retryAfterMs?: number
+  rateLimitType?: string
+  resetsAt?: number
   raw?: Record<string, unknown>
 }
 

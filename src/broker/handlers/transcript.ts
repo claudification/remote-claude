@@ -307,35 +307,47 @@ const streamDelta: MessageHandler = (ctx, data) => {
   }
 }
 
-// Rate limit event from headless backend - store on conversation + persist transcript entry
-const rateLimitHandler: MessageHandler = (ctx, data) => {
+// Rate limit status from headless backend. Only sets conversation.rateLimit
+// banner and creates a transcript entry when actually limited.
+// "allowed" status clears any existing rate limit state.
+const rateLimitStatusHandler: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (!conversation) return
 
-  const retryAfterMs = (data.retryAfterMs as number) || 5000
-  const message = (data.message as string) || 'Rate limited'
+  const status = data.status as string
+  const isLimited = status !== 'allowed'
+  const retryAfterMs = data.retryAfterMs as number | undefined
+  const rateLimitType = data.rateLimitType as string | undefined
 
-  conversation.rateLimit = { retryAfterMs, message, timestamp: Date.now() }
-  ctx.conversations.broadcastConversationUpdate(conversationId)
+  if (isLimited) {
+    const message = `Rate limited${rateLimitType ? ` (${rateLimitType})` : ''}${retryAfterMs ? ` - retry in ${Math.ceil(retryAfterMs / 1000)}s` : ''}`
+    conversation.rateLimit = { retryAfterMs: retryAfterMs || 5000, message, timestamp: Date.now() }
+    ctx.conversations.broadcastConversationUpdate(conversationId)
 
-  const entry = {
-    type: 'system' as const,
-    subtype: 'rate_limit',
-    content: message,
-    retryAfterMs,
-    raw: data.raw as Record<string, unknown> | undefined,
-    uuid: randomUUID(),
-    timestamp: new Date().toISOString(),
+    const entry = {
+      type: 'system' as const,
+      subtype: 'rate_limit',
+      content: message,
+      retryAfterMs,
+      raw: data.raw as Record<string, unknown> | undefined,
+      uuid: randomUUID(),
+      timestamp: new Date().toISOString(),
+    }
+    ctx.conversations.addTranscriptEntries(conversationId, [entry], false)
+    ctx.conversations.broadcastToChannel('conversation:transcript', conversationId, {
+      type: 'transcript_entries',
+      conversationId,
+      entries: [entry],
+      isInitial: false,
+    })
+  } else {
+    if (conversation.rateLimit) {
+      conversation.rateLimit = undefined
+      ctx.conversations.broadcastConversationUpdate(conversationId)
+    }
   }
-  ctx.conversations.addTranscriptEntries(conversationId, [entry], false)
-  ctx.conversations.broadcastToChannel('conversation:transcript', conversationId, {
-    type: 'transcript_entries',
-    conversationId,
-    entries: [entry],
-    isInitial: false,
-  })
 }
 
 const MAX_COST_TIMELINE = 500
@@ -497,7 +509,7 @@ export function registerTranscriptHandlers(): void {
     transcript_request: transcriptRequest,
     subagent_transcript_request: subagentTranscriptRequest,
     stream_delta: streamDelta,
-    rate_limit: rateLimitHandler,
+    rate_limit_status: rateLimitStatusHandler,
     conversation_info: conversationInfo,
     result_text: resultText,
     monitor_update: monitorUpdate,

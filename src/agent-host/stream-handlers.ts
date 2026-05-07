@@ -504,7 +504,9 @@ function handleRateLimitEvent(hctx: HandlerContext, msg: Record<string, unknown>
   const resetsAt = info?.resetsAt as number | undefined
   const retryMs = isAllowed ? undefined : (msg.retry_after_ms as number) || 5000
 
-  debug(`Rate limit status: ${isAllowed ? 'allowed' : 'limited'}${rateLimitType ? ` (${rateLimitType})` : ''}${retryMs ? ` retry=${retryMs}ms` : ''}`)
+  debug(
+    `Rate limit status: ${isAllowed ? 'allowed' : 'limited'}${rateLimitType ? ` (${rateLimitType})` : ''}${retryMs ? ` retry=${retryMs}ms` : ''}`,
+  )
 
   hctx.callbacks.onRateLimitStatus?.({
     status: isAllowed ? 'allowed' : 'limited',
