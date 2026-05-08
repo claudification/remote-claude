@@ -3,6 +3,7 @@
  * Each function handles one top-level message type from CC's NDJSON output.
  */
 
+import { createHash } from 'node:crypto'
 import type { TranscriptEntry } from '../shared/protocol'
 import { debug as _debug } from './debug'
 import type { StreamBackendOptions, StreamInitMessage, StreamResultMessage } from './stream-backend'
@@ -10,6 +11,11 @@ import { deriveMonitorOutputPath, type MonitorTracker } from './stream-monitors'
 import { flushReplayBuffer, type ReplayBuffer } from './stream-replay'
 
 const debug = (msg: string) => _debug(`[stream] ${msg}`)
+
+function deterministicUuid(key: string): string {
+  const h = createHash('sha1').update(key).digest('hex')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((Number.parseInt(h[16], 16) & 0x3) | 0x8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`
+}
 
 export interface HandlerContext {
   monitors: MonitorTracker
@@ -308,11 +314,13 @@ function handleAssistant(hctx: HandlerContext, msg: Record<string, unknown>) {
 
   cacheMonitorInputs(monitors, msg)
 
+  const ts = (msg.timestamp as string) || new Date().toISOString()
+  const uuid = (msg.uuid as string) || deterministicUuid(`assistant:${ts}:${JSON.stringify(msg.message).slice(0, 200)}`)
   const entry = {
     type: 'assistant' as const,
-    timestamp: (msg.timestamp as string) || new Date().toISOString(),
+    timestamp: ts,
     message: msg.message,
-    ...(msg.uuid ? { uuid: msg.uuid as string } : {}),
+    uuid,
   } as TranscriptEntry
 
   routeEntry(replay, callbacks, msg, parentToolUseId, entry)
@@ -344,11 +352,13 @@ function handleUser(hctx: HandlerContext, msg: Record<string, unknown>) {
   extractMonitorFromToolResult(monitors, callbacks, msg)
   detectMonitorNotifications(monitors, callbacks, msg)
 
+  const ts = (msg.timestamp as string) || new Date().toISOString()
+  const uuid = (msg.uuid as string) || deterministicUuid(`user:${ts}:${JSON.stringify(msg.message).slice(0, 200)}`)
   const entry = {
     type: 'user' as const,
-    timestamp: (msg.timestamp as string) || new Date().toISOString(),
+    timestamp: ts,
     message: msg.message,
-    ...(msg.uuid ? { uuid: msg.uuid as string } : {}),
+    uuid,
   } as TranscriptEntry
 
   if (msg.tool_use_result) {
