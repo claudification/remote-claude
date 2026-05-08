@@ -101,17 +101,20 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
         // headless mode; whoever fires first does the work.
         observeClaudeSessionId(ctx, init.session_id, 'stream_json', newModel)
       }
-      // Derive transcript path from init if not yet set by SessionStart hook
+      // Derive transcript path from init if not yet set by SessionStart hook.
+      // On --resume, CC reports a NEW session_id but keeps writing to the
+      // ORIGINAL file. Use the resumeId for the path when available.
       if (init.session_id && !ctx.parentTranscriptPath) {
         const cwdSlug = ctx.cwd.replace(/\//g, '-').replace(/^-/, '')
+        const transcriptId = ctx.resumeId || init.session_id
         ctx.parentTranscriptPath = join(
           process.env.HOME || '',
           '.claude',
           'projects',
           cwdSlug,
-          `${init.session_id}.jsonl`,
+          `${transcriptId}.jsonl`,
         )
-        debug(`[headless] Derived transcript path: ${ctx.parentTranscriptPath}`)
+        debug(`[headless] Derived transcript path: ${ctx.parentTranscriptPath}${ctx.resumeId ? ` (resumed from ${ctx.resumeId})` : ''}`)
       }
       // Forward full init metadata to broker for dashboard autocomplete
       if (ctx.wsClient?.isConnected()) {

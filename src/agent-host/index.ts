@@ -109,6 +109,7 @@ async function main() {
     terminalAttached: false,
     jsonStreamAttached: false,
     jsonStreamBuffer: [],
+    resumeId: cli.resumeId || null,
     parentTranscriptPath: null,
     lastTasksJson: '',
 

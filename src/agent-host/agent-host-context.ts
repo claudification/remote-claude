@@ -54,6 +54,7 @@ export interface AgentHostContext {
   terminalAttached: boolean
   jsonStreamAttached: boolean
   readonly jsonStreamBuffer: string[]
+  resumeId: string | null
   parentTranscriptPath: string | null
   lastTasksJson: string
 

@@ -23,6 +23,7 @@ export interface CliConfig {
   customEnv: Record<string, string>
   claudeArgs: string[]
   configuredModel: string | undefined
+  resumeId: string | undefined
 }
 
 function detectClaudeVersion(): string | undefined {
@@ -279,11 +280,13 @@ export async function parseCliArgs(args: string[]): Promise<CliConfig> {
     }
   }
 
-  // Capture --model from claudeArgs
+  // Capture --model and --resume from claudeArgs
+  let resumeId: string | undefined
   for (let i = 0; i < claudeArgs.length; i++) {
     if (claudeArgs[i] === '--model' && i + 1 < claudeArgs.length) {
       configuredModel = claudeArgs[i + 1]
-      break
+    } else if (claudeArgs[i] === '--resume' && i + 1 < claudeArgs.length) {
+      resumeId = claudeArgs[i + 1]
     }
   }
   if (!configuredModel && process.env.RCLAUDE_MODEL) {
@@ -330,6 +333,7 @@ export async function parseCliArgs(args: string[]): Promise<CliConfig> {
     customEnv,
     claudeArgs,
     configuredModel,
+    resumeId,
   }
 }
 
