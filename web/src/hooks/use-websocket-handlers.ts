@@ -332,13 +332,12 @@ function handleTranscriptEntries(msg: DashboardMessage) {
             return rest
           })()
         : state.streamingText
-    // Update lastAppliedTranscriptSeq. For isInitial, REPLACE with the snapshot's
-    // max seq (or 0 for empty -- e.g. /clear). Without this, a stale high-water
-    // mark from the pre-clear conversation filters out all new entries.
-    // Skipped initial snapshots don't move the marker (result === existing).
+    // Update lastAppliedTranscriptSeq. For isInitial, ALWAYS take the snapshot's
+    // max seq (even when skipped) so a broker restart that resets the counter
+    // doesn't leave a stale high-water mark that filters all future entries.
     const maxSeqInResult = result.length > 0 ? (result[result.length - 1].seq ?? 0) : 0
     const prevSeq = state.lastAppliedTranscriptSeq[sid] ?? 0
-    const newSeq = initial && !skipped ? maxSeqInResult : Math.max(prevSeq, maxSeqInResult)
+    const newSeq = initial ? maxSeqInResult : Math.max(prevSeq, maxSeqInResult)
     return {
       transcripts: {
         ...state.transcripts,
@@ -742,6 +741,7 @@ const ACTION_TITLES: Record<string, string> = {
   revive_session_result: 'Revive failed',
   rename_conversation_result: 'Rename failed',
   conversation_control_result: 'Control action failed',
+  recap_request_result: 'Recap failed',
 }
 
 function handleActionResult(msg: DashboardMessage) {
@@ -832,6 +832,7 @@ export const handlers: Record<string, MessageHandler> = {
   update_project_order_result: handleActionResult,
   revive_conversation_result: handleActionResult,
   revive_session_result: handleActionResult, // backward compat
+  recap_request_result: handleActionResult,
   revive_result: handleReviveResult,
   launch_log: handleLaunchJobEvent,
   launch_progress: handleLaunchJobEvent,

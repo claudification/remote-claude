@@ -211,8 +211,12 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
           if (sent_ < 0) {
             const subInfo = subscriberRegistry.get(ws)
             console.warn(
-              `[broadcast] backpressure drop: ${subInfo?.id || 'unknown'} channel=${channel}:${conversationId.slice(0, 8)} bytes=${bytes}`,
+              `[broadcast] backpressure: ${subInfo?.id || 'unknown'} channel=${channel}:${conversationId.slice(0, 8)} bytes=${bytes} -- closing to force reconnect`,
             )
+            subs.delete(ws)
+            if (subs.size === 0) channelSubscribers.delete(key)
+            try { ws.close(1008, 'backpressure') } catch { /* already closing */ }
+            continue
           }
           sent.add(ws)
           recordTraffic('out', bytes)
@@ -230,10 +234,11 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
         } catch (err) {
           const subInfo = subscriberRegistry.get(ws)
           console.error(
-            `[broadcast] Send failed to ${subInfo?.id || 'unknown'}: ${err instanceof Error ? err.message : err}`,
+            `[broadcast] Send failed to ${subInfo?.id || 'unknown'}: ${err instanceof Error ? err.message : err} -- closing socket to force reconnect`,
           )
           subs.delete(ws)
           if (subs.size === 0) channelSubscribers.delete(key)
+          try { ws.close(1011, 'send failed') } catch { /* already closing */ }
         }
       }
     }

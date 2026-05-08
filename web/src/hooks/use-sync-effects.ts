@@ -92,15 +92,15 @@ function useVisibilitySync(fetchSidebarMetadata: () => Promise<void>) {
       } else if (hiddenAt) {
         const elapsed = Date.now() - hiddenAt
         hiddenAt = 0
-        const { syncEpoch, syncSeq, transcripts } = useConversationsStore.getState()
-        const transcriptCounts: Record<string, number> = {}
-        for (const [sid, entries] of Object.entries(transcripts)) {
-          if (entries && entries.length > 0) transcriptCounts[sid] = entries.length
+        const { syncEpoch, syncSeq, lastAppliedTranscriptSeq } = useConversationsStore.getState()
+        const transcriptSeqs: Record<string, number> = {}
+        for (const [sid, seq] of Object.entries(lastAppliedTranscriptSeq)) {
+          if (seq > 0) transcriptSeqs[sid] = seq
         }
         console.log(
-          `[sync] restored after ${(elapsed / 1000).toFixed(1)}s - sending sync_check (epoch=${syncEpoch.slice(0, 8)} seq=${syncSeq} transcripts=${Object.keys(transcriptCounts).length})`,
+          `[sync] restored after ${(elapsed / 1000).toFixed(1)}s - sending sync_check (epoch=${syncEpoch.slice(0, 8)} seq=${syncSeq} transcripts=${Object.keys(transcriptSeqs).length})`,
         )
-        wsSend('sync_check', { epoch: syncEpoch, lastSeq: syncSeq, transcripts: transcriptCounts })
+        wsSend('sync_check', { epoch: syncEpoch, lastSeq: syncSeq, transcripts: transcriptSeqs })
         if (elapsed > 30_000) {
           console.log(`[sync] refetch sidebar metadata after ${(elapsed / 1000).toFixed(0)}s background`)
           fetchSidebarMetadata()
