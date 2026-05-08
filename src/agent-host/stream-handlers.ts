@@ -352,6 +352,18 @@ function handleUser(hctx: HandlerContext, msg: Record<string, unknown>) {
   extractMonitorFromToolResult(monitors, callbacks, msg)
   detectMonitorNotifications(monitors, callbacks, msg)
 
+  // CC echoes user text messages on stdout AFTER processing the turn,
+  // so they arrive at the broker with higher seqs than the assistant
+  // responses they preceded. sendUserMessage() already emits a synthetic
+  // entry at the correct position. Skip the CC echo for plain text
+  // messages (not tool results) when replay is done to avoid duplicates
+  // that render out of chronological order.
+  const messageContent = (msg.message as { content?: unknown })?.content
+  const isToolResult = Array.isArray(messageContent)
+  if (replay.done && !isToolResult && !parentToolUseId && !msg.isReplay) {
+    return
+  }
+
   const ts = (msg.timestamp as string) || new Date().toISOString()
   const uuid = (msg.uuid as string) || deterministicUuid(`user:${ts}:${JSON.stringify(msg.message).slice(0, 200)}`)
   const entry = {

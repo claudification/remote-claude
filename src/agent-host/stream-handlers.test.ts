@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { TranscriptEntry } from '../shared/protocol'
-import { handleMessage, type HandlerContext } from './stream-handlers'
+import { type HandlerContext, handleMessage } from './stream-handlers'
 import { createReplayBuffer } from './stream-replay'
 
 function createTestContext(): { hctx: HandlerContext; entries: TranscriptEntry[] } {
@@ -10,7 +10,9 @@ function createTestContext(): { hctx: HandlerContext; entries: TranscriptEntry[]
     replay: createReplayBuffer(),
     pendingControlRequests: new Map(),
     callbacks: {
-      onTranscriptEntries(e) { entries.push(...e) },
+      onTranscriptEntries(e) {
+        entries.push(...e)
+      },
     },
   }
   hctx.replay.done = true
@@ -18,53 +20,53 @@ function createTestContext(): { hctx: HandlerContext; entries: TranscriptEntry[]
 }
 
 describe('stream-handlers UUID synthesis', () => {
-  test('user message without UUID gets deterministic UUID', () => {
+  test('tool_result user message without UUID gets deterministic UUID', () => {
     const { hctx, entries } = createTestContext()
     handleMessage(hctx, {
       type: 'user',
       timestamp: '2026-05-08T15:15:25.731Z',
-      message: { role: 'user', content: 'hello world' },
+      message: { role: 'user', content: [{ tool_use_id: 'toolu_1', type: 'tool_result', content: 'ok' }] },
     })
     expect(entries).toHaveLength(1)
     expect(entries[0].uuid).toBeDefined()
     expect(entries[0].uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   })
 
-  test('user message with UUID from CC preserves it', () => {
+  test('tool_result user message with UUID from CC preserves it', () => {
     const { hctx, entries } = createTestContext()
     handleMessage(hctx, {
       type: 'user',
       timestamp: '2026-05-08T15:15:25.731Z',
       uuid: 'cc-provided-uuid-1234',
-      message: { role: 'user', content: 'hello' },
+      message: { role: 'user', content: [{ tool_use_id: 'toolu_2', type: 'tool_result', content: 'yes' }] },
     })
     expect(entries[0].uuid).toBe('cc-provided-uuid-1234')
   })
 
-  test('same user message always produces same UUID', () => {
+  test('same tool_result user message always produces same UUID', () => {
     const { hctx: hctx1, entries: entries1 } = createTestContext()
     const { hctx: hctx2, entries: entries2 } = createTestContext()
     const msg = {
       type: 'user',
       timestamp: '2026-05-08T15:15:25.731Z',
-      message: { role: 'user', content: 'same content' },
+      message: { role: 'user', content: [{ tool_use_id: 'toolu_3', type: 'tool_result', content: 'same' }] },
     }
     handleMessage(hctx1, { ...msg })
     handleMessage(hctx2, { ...msg })
     expect(entries1[0].uuid).toBe(entries2[0].uuid)
   })
 
-  test('different user messages produce different UUIDs', () => {
+  test('different tool_result messages produce different UUIDs', () => {
     const { hctx, entries } = createTestContext()
     handleMessage(hctx, {
       type: 'user',
       timestamp: '2026-05-08T15:15:25.731Z',
-      message: { role: 'user', content: 'message A' },
+      message: { role: 'user', content: [{ tool_use_id: 'toolu_A', type: 'tool_result', content: 'a' }] },
     })
     handleMessage(hctx, {
       type: 'user',
       timestamp: '2026-05-08T15:15:26.000Z',
-      message: { role: 'user', content: 'message B' },
+      message: { role: 'user', content: [{ tool_use_id: 'toolu_B', type: 'tool_result', content: 'b' }] },
     })
     expect(entries[0].uuid).not.toBe(entries[1].uuid)
   })
@@ -92,12 +94,53 @@ describe('stream-handlers UUID synthesis', () => {
     expect(entries[0].uuid).toBe('cc-assistant-uuid')
   })
 
-  test('user and assistant with same content produce different UUIDs (type-prefixed)', () => {
+  test('CC echo of plain text user message is skipped when replay is done', () => {
+    const { hctx, entries } = createTestContext()
+    // replay.done = true (set in createTestContext)
+    handleMessage(hctx, {
+      type: 'user',
+      timestamp: '2026-05-08T15:15:25.731Z',
+      message: { role: 'user', content: 'hello world' },
+    })
+    expect(entries).toHaveLength(0)
+  })
+
+  test('tool_result user message is NOT skipped when replay is done', () => {
+    const { hctx, entries } = createTestContext()
+    handleMessage(hctx, {
+      type: 'user',
+      timestamp: '2026-05-08T15:17:32.512Z',
+      uuid: 'tool-result-uuid',
+      message: { role: 'user', content: [{ tool_use_id: 'toolu_123', type: 'tool_result', content: 'ok' }] },
+    })
+    expect(entries).toHaveLength(1)
+    expect(entries[0].uuid).toBe('tool-result-uuid')
+  })
+
+  test('plain text user message passes through during replay phase', () => {
+    const { hctx, entries } = createTestContext()
+    hctx.replay.done = false  // still replaying
+    handleMessage(hctx, {
+      type: 'user',
+      timestamp: '2026-05-08T15:15:25.731Z',
+      isReplay: true,
+      message: { role: 'user', content: 'hello world' },
+    })
+    // Goes into replay buffer, not directly to entries
+    expect(entries).toHaveLength(0)
+    expect(hctx.replay.entries).toHaveLength(1)
+  })
+
+  test('tool_result user and assistant with same timestamp produce different UUIDs', () => {
     const { hctx, entries } = createTestContext()
     const ts = '2026-05-08T15:15:25.731Z'
-    const content = { role: 'user', content: 'same' }
-    handleMessage(hctx, { type: 'user', timestamp: ts, message: content })
-    handleMessage(hctx, { type: 'assistant', timestamp: ts, message: content })
+    handleMessage(hctx, {
+      type: 'user',
+      timestamp: ts,
+      message: { role: 'user', content: [{ tool_use_id: 'toolu_x', type: 'tool_result', content: 'same' }] },
+    })
+    handleMessage(hctx, { type: 'assistant', timestamp: ts, message: { role: 'assistant', content: 'same' } })
+    expect(entries).toHaveLength(2)
     expect(entries[0].uuid).not.toBe(entries[1].uuid)
   })
 })
