@@ -10,7 +10,7 @@
 | **CWD** | Permanent | Linking -- trust relationships, address book keys |
 
 - **Address book slugs** are the external addressing mechanism. Human-readable,
-  per-caller scoped, persisted on concentrator. Leaked slugs useless to other sessions.
+  per-caller scoped, persisted on broker. Leaked slugs useless to other sessions.
 - **Session IDs are short-lived.** Never cache them for later use.
 - **Runtime links are CWD-based.** Links survive `/clear`, restarts, without migration.
 

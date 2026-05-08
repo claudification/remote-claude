@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # rclaude installer
-# Sets up the rclaude agent host, shell config, and optionally the concentrator
+# Sets up the rclaude agent host, shell config, and optionally the broker
 #
 set -euo pipefail
 
@@ -109,30 +109,30 @@ if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
   ok "Added $INSTALL_DIR to PATH in $SHELL_RC"
 fi
 
-# ─── Concentrator setup ─────────────────────────────────────────
+# ─── Broker setup ──────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}Concentrator setup${NC}"
-echo -e "${DIM}The concentrator aggregates sessions and serves the dashboard.${NC}"
+echo -e "${BOLD}Broker setup${NC}"
+echo -e "${DIM}The broker aggregates sessions and serves the control panel.${NC}"
 echo ""
-echo "  1) Local Docker    - run concentrator on this machine"
-echo "  2) Remote           - connect to an existing concentrator"
+echo "  1) Local Docker    - run broker on this machine"
+echo "  2) Remote           - connect to an existing broker"
 echo "  3) Skip             - configure later"
 echo ""
 ask "Choose [1/2/3]:"
 read -r CONC_CHOICE
 
-CONCENTRATOR_URL=""
+BROKER_URL=""
 case "$CONC_CHOICE" in
   1)
-    # ─── Local concentrator ──────────────────────────────────────
-    ask "Hostname for the concentrator (e.g. concentrator.example.com, or localhost):"
+    # ─── Local broker ───────────────────────────────────────────
+    ask "Hostname for the broker (e.g. broker.example.com, or localhost):"
     read -r CONC_HOST
     CONC_HOST="${CONC_HOST:-localhost}"
 
     if [ "$CONC_HOST" = "localhost" ]; then
-      CONCENTRATOR_URL="ws://localhost:9999"
+      BROKER_URL="ws://localhost:9999"
     else
-      CONCENTRATOR_URL="wss://${CONC_HOST}"
+      BROKER_URL="wss://${CONC_HOST}"
     fi
 
     # Generate or reuse secret
@@ -165,15 +165,15 @@ case "$CONC_CHOICE" in
     } > "$ENV_FILE"
     ok "Wrote $ENV_FILE"
 
-    # Build concentrator + web
-    info "Building concentrator and web dashboard..."
-    bun run build:concentrator
+    # Build broker + web
+    info "Building broker and control panel..."
+    bun run build:broker
     bun run build:web
     bun run build:cli
-    ok "Built concentrator, web dashboard, and CLI"
+    ok "Built broker, control panel, and CLI"
 
-    # Symlink concentrator binaries
-    for bin in concentrator concentrator-cli; do
+    # Symlink broker binaries
+    for bin in broker broker-cli; do
       target="${BIN_DIR}/${bin}"
       link="${INSTALL_DIR}/${bin}"
       if [ -L "$link" ]; then rm "$link"; fi
@@ -184,7 +184,7 @@ case "$CONC_CHOICE" in
     done
 
     echo ""
-    info "Start the concentrator with:"
+    info "Start the broker with:"
     echo -e "  ${CYAN}cd ${REPO_DIR} && docker compose up -d${NC}"
     if [ "$CONC_HOST" != "localhost" ]; then
       echo ""
@@ -193,15 +193,15 @@ case "$CONC_CHOICE" in
     fi
     ;;
   2)
-    # ─── Remote concentrator ─────────────────────────────────────
-    ask "Concentrator WebSocket URL (e.g. wss://concentrator.example.com):"
-    read -r CONCENTRATOR_URL
+    # ─── Remote broker ──────────────────────────────────────────
+    ask "Broker WebSocket URL (e.g. wss://broker.example.com):"
+    read -r BROKER_URL
 
-    ask "RCLAUDE_SECRET (shared secret from the concentrator):"
+    ask "RCLAUDE_SECRET (shared secret from the broker):"
     read -r RCLAUDE_SECRET
     ;;
   3|*)
-    info "Skipping concentrator setup."
+    info "Skipping broker setup."
     ;;
 esac
 
@@ -211,10 +211,14 @@ MARKER="# rclaude config"
 
 # Extract existing values from shell rc before removing the old block
 EXISTING_SECRET=""
-EXISTING_CONCENTRATOR=""
+EXISTING_BROKER=""
 if grep -qF "$MARKER" "$SHELL_RC" 2>/dev/null; then
   EXISTING_SECRET="$(sed -n '/# rclaude config/,/# end rclaude config/{s/^export RCLAUDE_SECRET="\(.*\)"/\1/p;}' "$SHELL_RC")"
-  EXISTING_CONCENTRATOR="$(sed -n '/# rclaude config/,/# end rclaude config/{s/^export RCLAUDE_CONCENTRATOR="\(.*\)"/\1/p;}' "$SHELL_RC")"
+  EXISTING_BROKER="$(sed -n '/# rclaude config/,/# end rclaude config/{s/^export CLAUDWERK_BROKER="\(.*\)"/\1/p;}' "$SHELL_RC")"
+  # Legacy fallback: read RCLAUDE_CONCENTRATOR if CLAUDWERK_BROKER not found
+  if [ -z "$EXISTING_BROKER" ]; then
+    EXISTING_BROKER="$(sed -n '/# rclaude config/,/# end rclaude config/{s/^export RCLAUDE_CONCENTRATOR="\(.*\)"/\1/p;}' "$SHELL_RC")"
+  fi
   warn "rclaude config already exists in $SHELL_RC - updating"
   # Remove old block (resolve symlinks for sed -i compatibility)
   REAL_SHELL_RC="$(readlink -f "$SHELL_RC" 2>/dev/null || realpath "$SHELL_RC" 2>/dev/null || echo "$SHELL_RC")"
@@ -224,11 +228,11 @@ fi
 
 # For option 3 (skip), fall back to values parsed from the existing rc block
 RCLAUDE_SECRET="${RCLAUDE_SECRET:-$EXISTING_SECRET}"
-CONCENTRATOR_URL="${CONCENTRATOR_URL:-$EXISTING_CONCENTRATOR}"
+BROKER_URL="${BROKER_URL:-$EXISTING_BROKER}"
 
 SHELL_BLOCK="${MARKER}
 export RCLAUDE_SECRET=\"${RCLAUDE_SECRET:-}\"
-export RCLAUDE_CONCENTRATOR=\"${CONCENTRATOR_URL:-}\""
+export CLAUDWERK_BROKER=\"${BROKER_URL:-}\""
 
 # Add alias option
 echo ""
@@ -267,8 +271,8 @@ echo -e "${BOLD}  └───────────────────�
 echo ""
 echo -e "  Restart your shell or run: ${CYAN}source $SHELL_RC${NC}"
 echo ""
-if [ -n "$CONCENTRATOR_URL" ]; then
-  echo -e "  Concentrator: ${CYAN}${CONCENTRATOR_URL}${NC}"
+if [ -n "$BROKER_URL" ]; then
+  echo -e "  Broker: ${CYAN}${BROKER_URL}${NC}"
 fi
 echo -e "  Binaries:     ${CYAN}${INSTALL_DIR}/rclaude${NC}"
 echo -e "  Config:       ${CYAN}${SHELL_RC}${NC}"

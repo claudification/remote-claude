@@ -1,13 +1,13 @@
 # Operations
 
-## Deploy (concentrator Docker)
+## Deploy (broker Docker)
 
 Behind Caddy reverse proxy on Synology NAS.
 
 ```bash
 docker compose build && docker compose up -d        # Build + deploy
 docker compose build --no-cache && docker compose up -d  # Force rebuild
-docker compose logs -f concentrator                  # Logs
+docker compose logs -f broker                        # Logs
 ```
 
 **Env vars** (`.env` or shell):
@@ -19,8 +19,8 @@ docker compose logs -f concentrator                  # Logs
 
 **Auth management:**
 ```bash
-concentrator-cli invite create
-concentrator-cli passkey list
+broker-cli invite create
+broker-cli passkey list
 ```
 
 **CLI auth:** `Authorization: Bearer $RCLAUDE_SECRET` header on all API endpoints.
@@ -36,10 +36,10 @@ concentrator-cli passkey list
 | Component | Method | Destination |
 |---|---|---|
 | Agent Host | `debug()` | stderr (`RCLAUDE_DEBUG=1`) |
-| Agent Host | `ctx.diag(tag, msg)` | WS -> concentrator diagLog -> Diag tab |
-| Sentinel | `diag(tag, msg, data)` | WS -> concentrator + `.sentinel.log` |
-| Concentrator | `console.log` / `ctx.log.info` | Docker stdout |
-| Shell scripts | `echo >>` | `/tmp/concentrator-launch-log.log` |
+| Agent Host | `ctx.diag(tag, msg)` | WS -> broker diagLog -> Diag tab |
+| Sentinel | `diag(tag, msg, data)` | WS -> broker + `.sentinel.log` |
+| Broker | `console.log` / `ctx.log.info` | Docker stdout |
+| Shell scripts | `echo >>` | `/tmp/broker-launch-log.log` |
 
 **Ad-hoc spawn:** `[ad-hoc]` prefix at every step for easy grep.
 
@@ -47,7 +47,7 @@ concentrator-cli passkey list
 
 Paste `diag:{sessionId}` -> fetch and analyze:
 ```bash
-curl -s https://CONCENTRATOR_HOST/sessions/{sessionId}/diag
+curl -s https://BROKER_HOST/sessions/{sessionId}/diag
 ```
 Contains: metadata, capabilities, events, transcript, subagents, tasks, diagLog.
 

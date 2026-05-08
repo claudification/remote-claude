@@ -1,4 +1,4 @@
-# Caddyfile for standalone concentrator with auto TLS
+# Caddyfile for standalone broker with auto TLS
 #
 # Usage with docker-compose.standalone.yml:
 #   1. Copy to Caddyfile: cp Caddyfile.example Caddyfile
@@ -12,5 +12,5 @@
 #   - Ports 80 and 443 open (Let's Encrypt validation + HTTPS)
 
 YOUR_DOMAIN {
-	reverse_proxy concentrator:9999
+	reverse_proxy broker:9999
 }

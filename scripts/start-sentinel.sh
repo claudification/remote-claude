@@ -4,7 +4,7 @@
 #
 # Validates config, starts sentinel as background process, writes PID.
 #
-# Usage: start-sentinel.sh [--concentrator <url>] [-v|--verbose]
+# Usage: start-sentinel.sh [--broker <url>] [-v|--verbose]
 #
 
 set -euo pipefail
@@ -50,13 +50,13 @@ KILL_IF_RUNNING=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --concentrator) SENTINEL_ARGS+=(--concentrator "$2"); shift 2 ;;
+    --broker) SENTINEL_ARGS+=(--broker "$2"); shift 2 ;;
     --spawn-root)   SENTINEL_ARGS+=(--spawn-root "$2"); SPAWN_ROOT_SET=true; shift 2 ;;
     --no-spawn)     SENTINEL_ARGS+=(--no-spawn); shift ;;
     --kill-if-running) KILL_IF_RUNNING=true; shift ;;
     -v|--verbose)   SENTINEL_ARGS+=(-v); VERBOSE=true; shift ;;
     --help|-h)
-      echo "Usage: start-sentinel.sh [--concentrator <url>] [--spawn-root <path>] [--no-spawn] [--kill-if-running] [-v|--verbose]"
+      echo "Usage: start-sentinel.sh [--broker <url>] [--spawn-root <path>] [--no-spawn] [--kill-if-running] [-v|--verbose]"
       echo ""
       echo "Validates config and starts sentinel in the background."
       echo "Reads RCLAUDE_SECRET and RCLAUDE_SPAWN_ROOT from .env or environment."

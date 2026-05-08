@@ -1,6 +1,6 @@
 # Inter-Session Communication
 
-Sessions with `channel` capability discover and message each other through the concentrator.
+Sessions with `channel` capability discover and message each other through the broker.
 All routing uses existing WS connections. Offline messages queued for reconnect delivery.
 
 ## MCP Tools
@@ -13,7 +13,7 @@ All routing uses existing WS connections. Offline messages queued for reconnect 
 - First contact queues message, dashboard shows LINK approval banner (ALLOW/BLOCK)
 - Claude NEVER sees the permission request (security)
 - Block debounces 1 minute
-- Allow is permanent for concentrator lifetime (not persisted across restarts)
+- Allow is permanent for broker lifetime (not persisted across restarts)
 - Links are bidirectional (approve A->B = approve B->A)
 - Either side can sever via X button in session info
 

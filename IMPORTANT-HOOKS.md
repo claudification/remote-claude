@@ -160,18 +160,18 @@ instantly (~8ms). They bypass the normal user message queue path.
 | ID | Source | Lifetime | Purpose |
 |---|---|---|---|
 | `internalId` | `randomUUID()` at rclaude start | Entire agent host process | Local server validation, settings file naming, PTY routing |
-| `claudeSessionId` | `data.session_id` from SessionStart | Until `/clear` or restart | Canonical identity for concentrator, transcript path |
+| `claudeSessionId` | `data.session_id` from SessionStart | Until `/clear` or restart | Canonical identity for broker, transcript path |
 | `data.session_id` in hooks | Each hook payload | Per-event | Parent session = `claudeSessionId`; subagent hooks = subagent's own ID |
 
 **Flow:**
 1. rclaude boots -> generates `internalId` -> starts local HTTP server
 2. Spawns Claude CLI with `--settings` flag
 3. First `SessionStart` -> extracts `data.session_id` -> becomes `claudeSessionId`
-4. Opens WS to concentrator using `claudeSessionId`
+4. Opens WS to broker using `claudeSessionId`
 5. On `/clear`: new `SessionStart` with different `session_id` -> rekey
 
 **Subagent hooks carry the subagent's session_id, not the parent's.** The
-concentrator correlates by checking `hookSessionId !== session.id`.
+broker correlates by checking `hookSessionId !== session.id`.
 
 ## Transcript File Management
 
@@ -216,7 +216,7 @@ if (size < offset) {
 1. **Parent transcript** -- entries with `agentId`/`data.agentId` field (progress updates)
 2. **Separate JSONL file** -- complete agent transcript (available after stop, or live-watched)
 
-Both can produce entries. Dashboard/concentrator must handle potential duplicates.
+Both can produce entries. Dashboard/broker must handle potential duplicates.
 
 ## Task & Background Task Tracking
 
@@ -287,7 +287,7 @@ The `--settings` injection can cause a SessionStart before the JSONL file exists
 rclaude guards with `existsSync(transcriptPath)`.
 
 ### 3. `/clear` Changes Session ID
-A new `SessionStart` fires with a different `session_id`. The concentrator
+A new `SessionStart` fires with a different `session_id`. The broker
 rekeys the session. All ephemeral state (events, subagents, tasks, teammates,
 transcript cache) is reset.
 
@@ -315,7 +315,7 @@ When a session reconnects, all subagents cleared, teammates cleared,
 compacting flag reset, running bg tasks marked as killed.
 
 ### 9. Token Usage Extracted from Transcript
-The concentrator parses assistant message entries for `message.usage` fields.
+The broker parses assistant message entries for `message.usage` fields.
 Each assistant message adds to cumulative totals. Latest `tokenUsage` stored
 as current context window size.
 

@@ -18,12 +18,12 @@ LOGFILE="/volume1/docker/scripts/health-check.log"
 # Critical containers that MUST be running
 CRITICAL_CONTAINERS=(
   caddy-proxy
-  concentrator-proxy-concentrator-proxy-1
+  broker
 )
 
 # Public endpoints to verify (curl from localhost since we're on the NAS)
 PUBLIC_ENDPOINTS=(
-  "http://172.20.7.133:9999/health|concentrator"
+  "http://172.20.7.133:9999/health|broker"
 )
 
 FAILURES=()

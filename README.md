@@ -678,7 +678,7 @@ OPTIONS:
   -p, --port <port>        Port (default: 9999)
   -v, --verbose            Enable verbose logging
   -w, --web-dir <dir>      Serve control panel from directory
-  --cache-dir <dir>        Cache directory (default: ~/.cache/concentrator)
+  --cache-dir <dir>        Cache directory (default: ~/.cache/broker)
   --clear-cache            Clear cache and exit
   --no-persistence         Disable session persistence
   --rp-id <domain>         WebAuthn relying party ID (default: localhost)
@@ -705,7 +705,7 @@ COMMANDS:
   query [--db <name>] [--json] "SQL"                    Read-only SQL inspection
 
 OPTIONS:
-  --cache-dir <dir>    Storage directory (default: ~/.cache/concentrator)
+  --cache-dir <dir>    Storage directory (default: ~/.cache/broker)
   --url <url>          Base URL for invite links (default: http://localhost:9999)
   --not-before <date>  Grant valid from (ISO 8601)
   --not-after <date>   Grant valid until (ISO 8601)

@@ -1,4 +1,4 @@
-# Standalone concentrator with optional Caddy TLS
+# Standalone broker with optional Caddy TLS
 #
 # Usage:
 #   docker compose -f docker-compose.standalone.yml up -d
@@ -11,14 +11,14 @@
 #
 # Optional .env vars:
 #   PORT           - external port (default: 9999)
-#   CADDY_HOST     - hostname for TLS (e.g. concentrator.example.com)
+#   CADDY_HOST     - hostname for TLS (e.g. broker.example.com)
 #   RP_ID          - WebAuthn relying party domain (default: localhost)
 #   ORIGIN         - WebAuthn origin URL (default: http://localhost:9999)
 
 services:
-  concentrator:
+  broker:
     build: .
-    container_name: concentrator
+    container_name: broker
     restart: unless-stopped
     ports:
       - "${PORT:-9999}:9999"
@@ -56,7 +56,7 @@ services:
   #     - caddy-data:/data
   #     - caddy-config:/config
   #   depends_on:
-  #     - concentrator
+  #     - broker
 
 volumes:
   concentrator-data:

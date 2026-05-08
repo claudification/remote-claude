@@ -351,6 +351,7 @@ function spawnHeadlessDirect(
   args: string[],
   env: Record<string, string | undefined>,
   jobId?: string,
+  isResume = false,
 ): { success: boolean; error?: string; pid?: number } {
   const startTime = Date.now()
 
@@ -403,6 +404,14 @@ function spawnHeadlessDirect(
 
       // Report to broker
       if (activeWs?.readyState === WebSocket.OPEN) {
+        let errorDetail: string
+        if (isResume && earlyFailure) {
+          errorDetail = `Resume failed: process exited in ${elapsedMs}ms (exit ${exitCode}) - session may no longer exist or be corrupted`
+        } else if (earlyFailure) {
+          errorDetail = `Process exited in ${elapsedMs}ms (exit ${exitCode}) - likely hook or config failure`
+        } else {
+          errorDetail = `Process exited with code ${exitCode} after ${Math.round(elapsedMs / 1000)}s`
+        }
         const msg: SpawnFailed = {
           type: 'spawn_failed',
           conversationId,
@@ -410,9 +419,7 @@ function spawnHeadlessDirect(
           pid,
           exitCode,
           elapsedMs,
-          error: earlyFailure
-            ? `Process exited in ${elapsedMs}ms (exit ${exitCode}) - likely hook or config failure`
-            : `Process exited with code ${exitCode} after ${Math.round(elapsedMs / 1000)}s`,
+          error: errorDetail,
         }
         try {
           activeWs.send(JSON.stringify(msg))
@@ -672,7 +679,7 @@ async function reviveConversation(
     })
 
     launchLog(jobId, 'Reviving headless (direct spawn)', 'info', `mode=${mode || 'default'}`)
-    const spawnRes = spawnHeadlessDirect(rclaudeBin, cwd, conversationId, args, spawnEnv, jobId)
+    const spawnRes = spawnHeadlessDirect(rclaudeBin, cwd, conversationId, args, spawnEnv, jobId, mode === 'resume')
     result.success = spawnRes.success
     result.error = spawnRes.error
     result.continued = mode === 'resume'
@@ -680,22 +687,15 @@ async function reviveConversation(
   }
 
   // ─── tmux path for PTY sessions ────────────────────────────
-  // Same transcript check as headless path
-  let effectiveTmuxMode = mode
   if (mode === 'resume' && !ccTranscriptExists(ccSessionId, cwd)) {
-    log(`CC transcript missing for ${ccSessionId.slice(0, 8)} - falling back to fresh start (tmux)`)
-    launchLog(
-      jobId,
-      'CC transcript missing, starting fresh',
-      'info',
-      `ccSession ${ccSessionId.slice(0, 8)} has no JSONL file`,
-    )
-    effectiveTmuxMode = 'fresh'
+    result.error = `Cannot resume: CC transcript file missing for session ${ccSessionId.slice(0, 8)}`
+    launchLog(jobId, 'Resume failed', 'error', result.error)
+    return result
   }
 
   const scriptArgs = [reviveScript, ccSessionId, cwd]
-  if (effectiveTmuxMode) scriptArgs.push('--mode', effectiveTmuxMode)
-  if (effectiveTmuxMode === 'resume') scriptArgs.push('--resume-id', ccSessionId)
+  if (mode) scriptArgs.push('--mode', mode)
+  if (mode === 'resume') scriptArgs.push('--resume-id', ccSessionId)
 
   launchLog(jobId, 'Running revive script (tmux)', 'info', `mode=${mode || 'default'}`)
   debug(`Running: ${scriptArgs.join(' ')}`, verbose)

@@ -148,5 +148,5 @@ Files: `src/sentinel/index.ts`, `handlers/sentinel.ts`, `usage-bar.tsx`
 
 ## Context Window Detection
 
-`contextWindowSize()` resolves from LiteLLM DB (fetched by concentrator, served
+`contextWindowSize()` resolves from LiteLLM DB (fetched by broker, served
 via `GET /api/models`). Hardcoded fallback when DB not loaded.

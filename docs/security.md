@@ -54,8 +54,8 @@ from user input, apply `shellSafe()` in the sentinel.
 
 ## Path Guard
 
-File operations validated against session CWD in the **agent host**, not concentrator
-(concentrator is OS-agnostic Linux Docker).
+File operations validated against session CWD in the **agent host**, not the broker
+(broker is OS-agnostic Linux Docker).
 
 ```ts
 // src/shared/path-guard.ts

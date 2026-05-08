@@ -2,7 +2,7 @@
 # rclaude-notify - Send push notifications from Claude Code sessions
 #
 # Uses env vars set by rclaude:
-#   RCLAUDE_BROKER      - URL of concentrator
+#   RCLAUDE_BROKER      - URL of broker
 #   RCLAUDE_SECRET            - Auth secret
 #   RCLAUDE_SESSION_ID        - Current session ID
 #

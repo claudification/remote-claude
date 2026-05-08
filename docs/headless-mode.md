@@ -130,7 +130,7 @@ When started with `--channels` (default ON), rclaude becomes an MCP Streamable H
 server. Disable with `--no-channels` or `RCLAUDE_CHANNELS=0`.
 
 ```
-Dashboard input -> concentrator WS -> rclaude -> MCP notification
+Dashboard input -> broker WS -> rclaude -> MCP notification
   -> Claude sees <channel source="rclaude">message</channel>
 ```
 

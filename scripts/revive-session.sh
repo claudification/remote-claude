@@ -155,9 +155,9 @@ SPAWN_CMD="${CMD_PREFIX}${BASE_CMD}${EFFORT_FLAG}${MODEL_FLAG}${AGENT_FLAG}${WOR
 
 # Debug log for launch diagnostics
 if [[ "${RCLAUDE_ADHOC:-}" == "1" ]]; then
-  echo "$(date '+%Y-%m-%d %H:%M:%S') [AD-HOC] CWD=$CWD TASK=${RCLAUDE_ADHOC_TASK_ID:-none} PROMPT_FILE=${RCLAUDE_INITIAL_PROMPT_FILE:-none} WORKTREE=${RCLAUDE_WORKTREE:-none} CMD=$SPAWN_CMD" >> /tmp/concentrator-launch-log.log 2>/dev/null || true
+  echo "$(date '+%Y-%m-%d %H:%M:%S') [AD-HOC] CWD=$CWD TASK=${RCLAUDE_ADHOC_TASK_ID:-none} PROMPT_FILE=${RCLAUDE_INITIAL_PROMPT_FILE:-none} WORKTREE=${RCLAUDE_WORKTREE:-none} CMD=$SPAWN_CMD" >> /tmp/broker-launch-log.log 2>/dev/null || true
 else
-  echo "$(date '+%Y-%m-%d %H:%M:%S') CWD=$CWD CMD=$SPAWN_CMD" >> /tmp/concentrator-launch-log.log 2>/dev/null || true
+  echo "$(date '+%Y-%m-%d %H:%M:%S') CWD=$CWD CMD=$SPAWN_CMD" >> /tmp/broker-launch-log.log 2>/dev/null || true
 fi
 
 # Launch a command in tmux via a login shell so .zshrc/.zprofile are sourced.
