@@ -650,7 +650,10 @@ export function createWsClient(options: WsClientOptions): WsClient {
         messageQueue.push(message)
       }
     } catch (err) {
-      debug(`WS send failed (type=${message.type}): ${err instanceof Error ? err.message : err}`)
+      debug(`WS send failed (type=${message.type}): ${err instanceof Error ? err.message : err} -- queuing`)
+      if (messageQueue.length < MAX_QUEUE_SIZE) {
+        messageQueue.push(message)
+      }
     }
   }
 
