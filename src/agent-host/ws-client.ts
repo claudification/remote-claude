@@ -249,7 +249,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
   let reconnectAttempts = 0
   const maxReconnectAttempts = 50
   const messageQueue: AgentHostMessage[] = []
-  const MAX_QUEUE_SIZE = 500
+  const MAX_QUEUE_SIZE = 5000
   let heartbeatInterval: Timer | null = null
 
   /** Stable conversation identity for all outbound messages. Always returns
