@@ -34,6 +34,9 @@ import '@fontsource/geist/500.css'
 import '@fontsource/geist/600.css'
 import '@fontsource/geist-mono/400.css'
 import './styles/globals.css'
+import { loadAndApplyTheme } from './lib/themes'
+
+loadAndApplyTheme()
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

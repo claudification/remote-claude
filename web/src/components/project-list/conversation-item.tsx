@@ -79,7 +79,7 @@ function StatusIndicator({ status, adHoc }: { status: Session['status']; adHoc?:
       <span className="w-3 h-3 shrink-0 flex items-center justify-center" title="booting">
         <span
           className="w-2.5 h-2.5 rounded-full animate-spin"
-          style={{ border: '2px solid rgb(56 189 248)', borderTopColor: 'transparent' }}
+          style={{ border: '2px solid var(--info)', borderTopColor: 'transparent' }}
         />
       </span>
     )
@@ -620,12 +620,20 @@ function ConversationItemShell({
           ? 'border-accent bg-accent/15 ring-1 ring-accent/50 shadow-[0_0_8px_rgba(122,162,247,0.15)]'
           : displayColor
             ? 'border-border hover:border-primary'
-            : 'border-border hover:border-primary hover:bg-card',
+            : session.planMode
+              ? 'border-blue-500/40 hover:border-blue-400/60'
+              : 'border-border hover:border-primary hover:bg-card',
       )}
       style={
-        displayColor && !isSelected
-          ? { borderLeftColor: displayColor, borderLeftWidth: '3px', backgroundColor: `${displayColor}15` }
-          : undefined
+        !isSelected && session.planMode && !displayColor
+          ? {
+              borderLeftColor: 'var(--primary)',
+              borderLeftWidth: '3px',
+              backgroundColor: 'color-mix(in oklch, var(--primary) 8%, transparent)',
+            }
+          : displayColor && !isSelected
+            ? { borderLeftColor: displayColor, borderLeftWidth: '3px', backgroundColor: `${displayColor}15` }
+            : undefined
       }
     >
       {children}
@@ -761,6 +769,11 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
         >
           {projectName}
         </span>
+        {session.planMode && (
+          <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-blue-500/20 text-blue-400 border border-blue-500/50">
+            plan
+          </span>
+        )}
         {session.compacting && (
           <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-amber-400/20 text-amber-400 border border-amber-400/50 animate-pulse">
             compacting

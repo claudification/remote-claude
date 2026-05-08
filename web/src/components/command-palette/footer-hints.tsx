@@ -2,7 +2,7 @@ import { haptic } from '@/lib/utils'
 import type { PaletteMode } from './types'
 
 function Kbd({ children }: { children: string }) {
-  return <kbd className="px-1 py-0.5 bg-[#33467c]/30 rounded">{children}</kbd>
+  return <kbd className="px-1 py-0.5 bg-primary/12 rounded">{children}</kbd>
 }
 
 /** Tappable prefix chip - visible only on touch devices, inserts prefix into input */
@@ -15,7 +15,7 @@ function PrefixChip({ prefix, label, onTap }: { prefix: string; label: string; o
     <span
       role="button"
       tabIndex={0}
-      className="touch-chip cursor-pointer active:bg-[#33467c]/50 rounded px-1 -mx-0.5"
+      className="touch-chip cursor-pointer active:bg-primary/20 rounded px-1 -mx-0.5"
       onClick={handleTap}
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') handleTap()
@@ -34,11 +34,23 @@ interface FooterHintsProps {
 
 export function FooterHints({ mode, sentinelConnected, onPrefixTap }: FooterHintsProps) {
   return (
-    <div className="px-3 py-1.5 border-t border-[#33467c]/50 flex items-center gap-3 text-[10px] text-[#565f89]">
+    <div className="px-3 py-1.5 border-t border-primary/20 flex items-center gap-3 text-[10px] text-comment">
       <span>
         <Kbd>↑↓</Kbd> navigate
       </span>
-      {mode === 'spawn' ? (
+      {mode === 'theme' ? (
+        <>
+          <span>
+            <Kbd>↑↓</Kbd> preview
+          </span>
+          <span>
+            <Kbd>⏎</Kbd> apply
+          </span>
+          <span>
+            <Kbd>esc</Kbd> revert
+          </span>
+        </>
+      ) : mode === 'spawn' ? (
         <>
           <span>
             <Kbd>tab</Kbd> complete

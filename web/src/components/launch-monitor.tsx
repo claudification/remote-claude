@@ -27,9 +27,9 @@ export function LaunchStepList({ steps }: { steps: LaunchStep[] }) {
       {steps.map((step, i) => (
         <div key={i} className="flex items-start gap-2 font-mono">
           <span className="mt-0.5 w-3 flex-shrink-0 text-center">
-            {step.status === 'pending' && <span className="w-2 h-2 rounded-full bg-[#33467c]/50 inline-block" />}
+            {step.status === 'pending' && <span className="w-2 h-2 rounded-full bg-primary/20 inline-block" />}
             {step.status === 'active' && (
-              <span className="w-2 h-2 rounded-full bg-[#7aa2f7] inline-block animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-primary inline-block animate-pulse" />
             )}
             {step.status === 'done' && <span className="text-[10px] text-emerald-400">&#x2713;</span>}
             {step.status === 'error' && <span className="text-[10px] text-red-400">&#x2717;</span>}
@@ -215,7 +215,7 @@ export function LaunchDialogBottom({
             >
               {actionLabel}
               <KbdGroup>
-                <Kbd className="bg-[#1a1b26]/20 text-[#1a1b26]/70">↵</Kbd>
+                <Kbd className="bg-surface-inset/20 text-surface-inset/70">↵</Kbd>
               </KbdGroup>
             </button>
           </>

@@ -49,7 +49,7 @@ export function TileToggleRow({
       aria-disabled={disabled || undefined}
       className={cn(
         'flex items-center justify-between py-1.5 px-1 rounded cursor-pointer select-none',
-        'focus:outline-none focus:ring-1 focus:ring-[#7aa2f7]/50',
+        'focus:outline-none focus:ring-1 focus:ring-primary/50',
         disabled && 'opacity-50 cursor-not-allowed',
       )}
       onClick={handleToggle}
@@ -57,7 +57,7 @@ export function TileToggleRow({
     >
       <div>
         <div className="text-sm font-mono">{title}</div>
-        {subtitle && <div className="text-[10px] text-[#565f89]">{subtitle}</div>}
+        {subtitle && <div className="text-[10px] text-comment">{subtitle}</div>}
       </div>
       <ToggleSwitch on={checked} />
     </div>

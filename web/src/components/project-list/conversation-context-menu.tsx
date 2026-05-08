@@ -174,7 +174,7 @@ export function ConversationContextMenu({
             Launch new...
           </ContextMenu.Item>
           <ContextMenu.Item
-            className={cn(menuItemClass, 'text-[#2ac3de]')}
+            className={cn(menuItemClass, 'text-info')}
             onSelect={() => {
               haptic('tap')
               selectConversation(session.id)

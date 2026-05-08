@@ -419,7 +419,7 @@ export function SpawnDialog() {
         <div className="p-5 flex flex-col gap-4 min-h-0 max-h-[calc(85vh-2rem)]">
           <div className="flex items-center justify-between shrink-0">
             <DialogTitle className="text-sm font-bold font-mono flex items-center gap-2">
-              {phase === 'launching' && <Zap className="w-4 h-4 text-[#7aa2f7]" />}
+              {phase === 'launching' && <Zap className="w-4 h-4 text-primary" />}
               {phase === 'config'
                 ? 'SPAWN SESSION'
                 : progress.isConnected
@@ -450,8 +450,8 @@ export function SpawnDialog() {
                   className={cn(
                     'px-3 py-1 text-[11px] font-mono rounded transition-colors inline-flex items-center gap-1.5',
                     configTab === 'basic'
-                      ? 'bg-[#7aa2f7]/15 text-[#7aa2f7] border border-[#7aa2f7]/30'
-                      : 'text-[#565f89] hover:text-muted-foreground',
+                      ? 'bg-primary/15 text-primary border border-primary/30'
+                      : 'text-comment hover:text-muted-foreground',
                   )}
                 >
                   Basic
@@ -466,8 +466,8 @@ export function SpawnDialog() {
                   className={cn(
                     'px-3 py-1 text-[11px] font-mono rounded transition-colors inline-flex items-center gap-1.5',
                     configTab === 'advanced'
-                      ? 'bg-[#7aa2f7]/15 text-[#7aa2f7] border border-[#7aa2f7]/30'
-                      : 'text-[#565f89] hover:text-muted-foreground',
+                      ? 'bg-primary/15 text-primary border border-primary/30'
+                      : 'text-comment hover:text-muted-foreground',
                   )}
                 >
                   Advanced
@@ -564,7 +564,7 @@ export function SpawnDialog() {
 
                     {/* Env vars (LaunchConfigFields renders textarea + inline errors) */}
                     <LaunchConfigFields value={fieldsValue} onChange={applyFieldsPatch} show={{ env: true }} />
-                    <div className="text-[9px] text-[#565f89]">
+                    <div className="text-[9px] text-comment">
                       KEY=value per line, set before executing claude. # comments ok.
                     </div>
 
@@ -573,23 +573,23 @@ export function SpawnDialog() {
                       <button
                         type="button"
                         onClick={handleSaveProjectDefaults}
-                        className="text-[10px] font-mono text-[#7aa2f7]/70 hover:text-[#7aa2f7] transition-colors"
+                        className="text-[10px] font-mono text-primary/70 hover:text-primary transition-colors"
                       >
                         {savedFeedback === 'project' ? 'Saved!' : 'Save for project'}
                       </button>
-                      <span className="text-[#292e42]">|</span>
+                      <span className="text-border">|</span>
                       <button
                         type="button"
                         onClick={handleSaveGlobalDefaults}
-                        className="text-[10px] font-mono text-[#565f89] hover:text-muted-foreground transition-colors"
+                        className="text-[10px] font-mono text-comment hover:text-muted-foreground transition-colors"
                       >
                         {savedFeedback === 'global' ? 'Saved!' : 'Save globally'}
                       </button>
-                      <span className="text-[#292e42]">|</span>
+                      <span className="text-border">|</span>
                       <button
                         type="button"
                         onClick={handleResetDefaults}
-                        className="text-[10px] font-mono text-[#565f89] hover:text-red-400 transition-colors"
+                        className="text-[10px] font-mono text-comment hover:text-red-400 transition-colors"
                       >
                         Reset
                       </button>
@@ -609,7 +609,7 @@ export function SpawnDialog() {
             onClose={handleClose}
             onAction={handleSpawn}
             actionLabel="Spawn"
-            actionColorClass="bg-[#7aa2f7] text-[#1a1b26] hover:bg-[#7aa2f7]/90"
+            actionColorClass="bg-primary text-background hover:bg-primary/90"
             isConnected={progress.isConnected}
             isComplete={progress.isComplete}
             hasError={progress.hasError}
@@ -700,7 +700,7 @@ function ResumeSessionField({
             value={resumeId}
             onChange={e => onResumeIdChange(e.target.value)}
             placeholder="CC session ID"
-            className="w-full bg-[#1a1b26] border border-[#292e42] rounded px-2 py-1.5 text-[11px] font-mono text-foreground placeholder:text-[#565f89]/50 focus:outline-none focus:ring-1 focus:ring-[#7aa2f7]/50"
+            className="w-full bg-surface-inset border border-border rounded px-2 py-1.5 text-[11px] font-mono text-foreground placeholder:text-comment/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
           />
           {resumeId.trim() && (
             <div className="text-[9px] text-amber-400/80">
@@ -708,11 +708,11 @@ function ResumeSessionField({
             </div>
           )}
 
-          {loading && <div className="text-[9px] font-mono text-[#565f89]">Loading sessions...</div>}
+          {loading && <div className="text-[9px] font-mono text-comment">Loading sessions...</div>}
           {error && <div className="text-[9px] font-mono text-red-400">{error}</div>}
 
           {sessions.length > 0 && (
-            <div className="max-h-[160px] overflow-y-auto border border-[#292e42] rounded">
+            <div className="max-h-[160px] overflow-y-auto border border-border rounded">
               {sessions.map(s => (
                 <button
                   key={s.ccSessionId}
@@ -722,26 +722,26 @@ function ResumeSessionField({
                     haptic('tap')
                   }}
                   className={cn(
-                    'w-full text-left px-2 py-1.5 text-[10px] font-mono border-b border-[#292e42] last:border-b-0 transition-colors',
+                    'w-full text-left px-2 py-1.5 text-[10px] font-mono border-b border-border last:border-b-0 transition-colors',
                     resumeId === s.ccSessionId
-                      ? 'bg-[#7aa2f7]/10 text-[#7aa2f7]'
-                      : 'text-muted-foreground hover:bg-[#1a1b26] hover:text-foreground',
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:bg-surface-inset hover:text-foreground',
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate">{s.title || s.ccSessionId.slice(0, 8)}</span>
-                    <span className="text-[9px] text-[#565f89] shrink-0">
+                    <span className="text-[9px] text-comment shrink-0">
                       {formatAge(s.mtime)} / {formatSize(s.sizeBytes)}
                     </span>
                   </div>
-                  <div className="text-[9px] text-[#565f89] truncate">{s.ccSessionId}</div>
+                  <div className="text-[9px] text-comment truncate">{s.ccSessionId}</div>
                 </button>
               ))}
             </div>
           )}
 
           {!loading && !error && sessions.length === 0 && expanded && (
-            <div className="text-[9px] font-mono text-[#565f89]">No CC sessions found for this path.</div>
+            <div className="text-[9px] font-mono text-comment">No CC sessions found for this path.</div>
           )}
         </div>
       )}

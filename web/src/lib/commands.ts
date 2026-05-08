@@ -12,6 +12,7 @@ export interface Command {
   action: CommandAction
   when?: () => boolean
   group?: string
+  submenu?: string
 }
 
 interface UseCommandOptions {
@@ -19,6 +20,7 @@ interface UseCommandOptions {
   shortcut?: string
   when?: () => boolean
   group?: string
+  submenu?: string
 }
 
 // ── Registry (module singleton) ──────────────────────────────────────────
@@ -65,11 +67,12 @@ export function useCommand(id: string, action: CommandAction, options: UseComman
       label: options.label ?? id,
       shortcut: options.shortcut,
       group: options.group,
+      submenu: options.submenu,
       action: (...args: string[]) => actionRef.current(...args),
       when: whenRef.current ? () => whenRef.current?.() ?? false : undefined,
     }
     return registerCommand(cmd)
-  }, [id, options.label, options.shortcut, options.group])
+  }, [id, options.label, options.shortcut, options.group, options.submenu])
 
   useKeyLayer(
     options.shortcut

@@ -319,7 +319,7 @@ export function ReviveDialog() {
                 show={{ model: true, effort: true }}
               />
 
-              <div className="text-[9px] text-[#565f89] leading-snug">
+              <div className="text-[9px] text-comment leading-snug">
                 Other settings (permission mode, env, budget, worktree, etc.) are restored from the original launch
                 config. Spawn a new conversation to change them.
               </div>
@@ -335,7 +335,7 @@ export function ReviveDialog() {
             onClose={handleClose}
             onAction={handleRevive}
             actionLabel="Revive"
-            actionColorClass="bg-emerald-500 text-[#1a1b26] hover:bg-emerald-500/90"
+            actionColorClass="bg-emerald-500 text-background hover:bg-emerald-500/90"
             isConnected={progress.isConnected}
             isComplete={progress.isComplete}
             hasError={progress.hasError}

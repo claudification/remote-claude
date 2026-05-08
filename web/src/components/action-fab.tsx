@@ -34,35 +34,35 @@ function buildActions(session: Session | undefined, selectedConversationId: stri
       icon: <Command className="w-4 h-4" />,
       label: 'Switcher',
       action: () => useConversationsStore.getState().toggleSwitcher(),
-      color: 'bg-[#7aa2f7]',
+      color: 'bg-primary',
     },
     {
       id: 'task',
       icon: <PenLine className="w-4 h-4" />,
       label: 'Task',
       action: () => window.dispatchEvent(new Event('open-quick-task')),
-      color: 'bg-[#9ece6a]',
+      color: 'bg-active',
     },
     {
       id: 'batch-tasks',
       icon: <ListChecks className="w-4 h-4" />,
       label: 'Batch',
       action: () => window.dispatchEvent(new Event('open-batch-selector')),
-      color: 'bg-[#2ac3de]',
+      color: 'bg-info',
     },
     {
       id: 'launch',
       icon: <Rocket className="w-4 h-4" />,
       label: 'Launch',
       action: () => openSpawnDialog({ path: session ? projectPath(session.project) : '.' }),
-      color: 'bg-[#ff9e64]',
+      color: 'bg-warning',
     },
     {
       id: 'spawn',
       icon: <MessageSquarePlus className="w-4 h-4" />,
       label: 'Spawn',
       action: () => useConversationsStore.getState().openSwitcherWithFilter('S:~/'),
-      color: 'bg-[#e0af68]',
+      color: 'bg-accent',
     },
   ]
 
@@ -74,7 +74,7 @@ function buildActions(session: Session | undefined, selectedConversationId: stri
         icon: <Share2 className="w-4 h-4" />,
         label: 'Share',
         action: () => useConversationsStore.getState().openTab(selectedConversationId, 'shared'),
-        color: 'bg-[#bb9af7]',
+        color: 'bg-event-prompt',
       })
       actions.push({
         id: 'terminate',
@@ -247,7 +247,7 @@ export function ActionFab() {
           'shadow-lg border transition-all duration-150',
           'touch-none select-none',
           expanded
-            ? 'bg-[#33467c] border-[#7aa2f7]/50 text-[#7aa2f7] rotate-45'
+            ? 'bg-primary/20 border-primary/20 text-primary rotate-45'
             : 'bg-background/80 border-border/50 text-muted-foreground active:scale-95',
         )}
         onClick={handleMainTap}

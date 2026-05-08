@@ -200,7 +200,7 @@ export function VoiceFab() {
             <div
               className={cn(
                 'mt-2 px-4 py-3 rounded-xl border shadow-xl',
-                isCancelling ? 'bg-red-950 border-red-500/50' : 'bg-[#1a1b26] border-red-500/40',
+                isCancelling ? 'bg-red-950 border-red-500/50' : 'bg-surface-inset border-red-500/40',
               )}
             >
               {/* Status line */}

@@ -28,10 +28,10 @@ export function TogglePill({ active, onClick, label, small, shortcut, title }: T
       className={cn(
         'rounded font-mono transition-all duration-150 inline-flex items-center gap-1.5',
         small ? 'px-2.5 py-1 text-[11px]' : 'px-4 py-1.5 text-sm',
-        'focus:outline-none focus:ring-1 focus:ring-[#7aa2f7]/50',
+        'focus:outline-none focus:ring-1 focus:ring-primary/50',
         active
-          ? 'bg-[#7aa2f7]/20 text-[#7aa2f7] border border-[#7aa2f7]/40'
-          : 'bg-transparent text-[#565f89] border border-border hover:text-foreground hover:border-foreground/30',
+          ? 'bg-primary/20 text-primary border border-primary/40'
+          : 'bg-transparent text-comment border border-border hover:text-foreground hover:border-foreground/30',
       )}
     >
       {label}

@@ -1,7 +1,7 @@
 import type { TranscriptContentBlock, TranscriptImage, TranscriptToolUseResult } from '@/lib/types'
 
 export const BUBBLE_COLORS: Record<string, string> = {
-  blue: 'bg-[#2563eb]/90',
+  blue: 'bg-primary/90',
   teal: 'bg-teal-600/90',
   purple: 'bg-purple-600/90',
   green: 'bg-emerald-600/90',

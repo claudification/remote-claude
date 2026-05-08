@@ -25,6 +25,17 @@
 	--input: oklch(0.22 0.02 260);
 	--ring: oklch(0.7 0.15 250);
 
+	/* Surface layers */
+	--surface-inset: oklch(0.145 0.025 265);
+
+	/* Semantic status */
+	--success: oklch(0.72 0.17 163);
+	--warning: oklch(0.82 0.15 85);
+	--info: oklch(0.74 0.12 200);
+
+	/* Subdued text */
+	--comment: oklch(0.45 0.04 260);
+
 	/* Status colors - Tokyo Night accent colors */
 	--active: oklch(0.75 0.18 150);
 	--idle: oklch(0.75 0.15 85);
@@ -79,6 +90,12 @@
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
+
+	--color-surface-inset: var(--surface-inset);
+	--color-success: var(--success);
+	--color-warning: var(--warning);
+	--color-info: var(--info);
+	--color-comment: var(--comment);
 
 	--color-active: var(--active);
 	--color-idle: var(--idle);
@@ -218,7 +235,7 @@ body {
 .hljs-built_in,
 .hljs-name,
 .hljs-tag {
-	color: oklch(0.75 0.18 320);
+	color: var(--event-prompt);
 }
 .hljs-string,
 .hljs-title,
@@ -228,7 +245,7 @@ body {
 .hljs-template-tag,
 .hljs-template-variable,
 .hljs-type {
-	color: oklch(0.75 0.18 150);
+	color: var(--event-conversation);
 }
 .hljs-comment,
 .hljs-quote {
@@ -240,7 +257,7 @@ body {
 .hljs-symbol,
 .hljs-bullet,
 .hljs-link {
-	color: oklch(0.75 0.15 85);
+	color: var(--accent);
 }
 .hljs-meta,
 .hljs-selector-id,
@@ -249,19 +266,19 @@ body {
 }
 .hljs-function,
 .hljs-title.function_ {
-	color: oklch(0.7 0.15 250);
+	color: var(--primary);
 }
 .hljs-variable,
 .hljs-params {
 	color: var(--foreground);
 }
 .hljs-addition {
-	color: oklch(0.75 0.18 150);
-	background: oklch(0.75 0.18 150 / 0.1);
+	color: var(--event-conversation);
+	background: color-mix(in oklch, var(--event-conversation) 10%, transparent);
 }
 .hljs-deletion {
 	color: var(--destructive);
-	background: oklch(0.6 0.2 20 / 0.1);
+	background: color-mix(in oklch, var(--destructive) 10%, transparent);
 }
 
 /* Hide native iOS caret on xterm.js hidden textarea */
@@ -270,7 +287,9 @@ body {
 	color: transparent;
 }
 
-/* Hacker-style markdown prose */
+/* Hacker-style markdown prose -- in @layer so Tailwind utilities (e.g. bubble
+   link overrides) can win via cascade priority */
+@layer components {
 .prose-hacker {
 	h1, h2, h3, h4, h5, h6 {
 		color: var(--accent);
@@ -425,6 +444,7 @@ body {
 		font-weight: bold;
 	}
 }
+} /* end @layer components */
 
 /* Mermaid diagram rendering */
 pre.mermaid {
@@ -468,7 +488,7 @@ body:has([data-mobile-compose-panel]) [data-voice-fab] {
 /* Session pulse animation (triggered on Ctrl+K selection) */
 @keyframes conversation-pulse-glow {
 	0%, 100% { box-shadow: none; }
-	50% { box-shadow: 0 0 12px 2px oklch(0.7 0.15 260 / 0.4); }
+	50% { box-shadow: 0 0 12px 2px color-mix(in oklch, var(--primary) 40%, transparent); }
 }
 .conversation-pulse {
 	animation: conversation-pulse-glow 0.5s ease-in-out 3;

@@ -128,13 +128,29 @@ export function SettingRow({
   label,
   description,
   server,
+  fullWidth,
   children,
 }: {
   label: string
   description: string
   server?: boolean
+  fullWidth?: boolean
   children: ReactNode
 }) {
+  if (fullWidth) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-start gap-1.5 min-w-0">
+          {server && <ServerIcon />}
+          <div className="min-w-0">
+            <div className="text-sm text-foreground">{label}</div>
+            <div className="text-[10px] text-muted-foreground">{description}</div>
+          </div>
+        </div>
+        <div>{children}</div>
+      </div>
+    )
+  }
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-start gap-1.5 min-w-0">
@@ -162,7 +178,7 @@ export function GroupHeader({ label }: { label: string }) {
 // --- Bubble color picker ---
 
 const BUBBLE_PREVIEW_COLORS: Record<string, string> = {
-  blue: 'bg-[#2563eb]',
+  blue: 'bg-blue-600',
   teal: 'bg-teal-600',
   purple: 'bg-purple-600',
   green: 'bg-emerald-600',

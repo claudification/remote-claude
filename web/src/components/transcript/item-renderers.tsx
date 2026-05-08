@@ -60,9 +60,9 @@ export function ProjectTaskItem({ item }: { item: Extract<RenderItem, { kind: 'p
 
   return (
     <div
-      className={cn('rounded-lg border border-[#33467c]/40 bg-[#0d1b3e]/60 border-l-[3px] overflow-hidden', prioColor)}
+      className={cn('rounded-lg border border-primary/15 bg-primary/[0.06] border-l-[3px] overflow-hidden', prioColor)}
     >
-      <div className="px-3 py-2 flex items-center gap-2 border-b border-[#33467c]/30">
+      <div className="px-3 py-2 flex items-center gap-2 border-b border-primary/12">
         <span className="text-xs font-mono text-muted-foreground/50">TASK</span>
         <span className="text-sm font-bold text-foreground/90 flex-1 truncate">{item.title}</span>
         {item.taskStatus && (

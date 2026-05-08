@@ -11,6 +11,7 @@ import type { PaletteCommand } from './types'
  */
 export type RegistryCommand = Omit<PaletteCommand, 'action'> & {
   action: (...args: string[]) => void
+  submenu?: string
 }
 
 export interface CommandModeState {
@@ -52,9 +53,10 @@ function buildRegistryCommands(onClose: () => void): RegistryCommand[] {
     id: c.id,
     label: c.label,
     shortcut: c.shortcut ? formatShortcut(c.shortcut) : undefined,
+    submenu: c.submenu,
     action: (...args: string[]) => {
       c.action(...args)
-      onClose()
+      if (!c.submenu) onClose()
     },
   }))
   // Deduplicate by label, merging shortcuts into a list

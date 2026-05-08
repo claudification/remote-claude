@@ -77,11 +77,11 @@ function taskAge(created: string): string {
 }
 
 const COLUMNS: { status: TaskStatus; label: string; color: string }[] = [
-  { status: 'inbox', label: 'Inbox', color: 'text-[#bb9af7]' },
-  { status: 'open', label: 'Open', color: 'text-[#7aa2f7]' },
-  { status: 'in-progress', label: 'In Progress', color: 'text-[#e0af68]' },
-  { status: 'in-review', label: 'In Review', color: 'text-[#2ac3de]' },
-  { status: 'done', label: 'Done', color: 'text-[#9ece6a]' },
+  { status: 'inbox', label: 'Inbox', color: 'text-event-prompt' },
+  { status: 'open', label: 'Open', color: 'text-primary' },
+  { status: 'in-progress', label: 'In Progress', color: 'text-accent' },
+  { status: 'in-review', label: 'In Review', color: 'text-info' },
+  { status: 'done', label: 'Done', color: 'text-active' },
 ]
 
 const NEXT_STATUS: Record<string, TaskStatus> = {
@@ -99,12 +99,12 @@ const PREV_STATUS: Record<string, TaskStatus> = {
 
 // Rotating tag pill colors
 const TAG_COLORS = [
-  'bg-[#7aa2f7]/20 text-[#7aa2f7] border-[#7aa2f7]/30',
-  'bg-[#bb9af7]/20 text-[#bb9af7] border-[#bb9af7]/30',
-  'bg-[#2ac3de]/20 text-[#2ac3de] border-[#2ac3de]/30',
-  'bg-[#9ece6a]/20 text-[#9ece6a] border-[#9ece6a]/30',
-  'bg-[#e0af68]/20 text-[#e0af68] border-[#e0af68]/30',
-  'bg-[#f7768e]/20 text-[#f7768e] border-[#f7768e]/30',
+  'bg-primary/20 text-primary border-primary/30',
+  'bg-event-prompt/20 text-event-prompt border-event-prompt/30',
+  'bg-info/20 text-info border-info/30',
+  'bg-active/20 text-active border-active/30',
+  'bg-accent/20 text-accent border-accent/30',
+  'bg-destructive/20 text-destructive border-destructive/30',
 ]
 
 function tagColor(tag: string): string {
@@ -277,7 +277,7 @@ export function TaskEditor({
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col p-0">
         <DialogTitle className="sr-only">Edit task: {title}</DialogTitle>
         {/* Header */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-[#33467c]/50 shrink-0">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-primary/20 shrink-0">
           <input
             type="text"
             value={title}
@@ -298,12 +298,12 @@ export function TaskEditor({
             }}
             className={cn(
               'text-[10px] font-mono bg-transparent border px-1 py-0.5 outline-none',
-              status === 'inbox' && 'border-[#bb9af7]/50 text-[#bb9af7]',
-              status === 'open' && 'border-[#7aa2f7]/50 text-[#7aa2f7]',
-              status === 'in-progress' && 'border-[#e0af68]/50 text-[#e0af68]',
-              status === 'in-review' && 'border-[#2ac3de]/50 text-[#2ac3de]',
+              status === 'inbox' && 'border-event-prompt/50 text-event-prompt',
+              status === 'open' && 'border-primary/50 text-primary',
+              status === 'in-progress' && 'border-accent/50 text-accent',
+              status === 'in-review' && 'border-info/50 text-info',
               status === 'done' && 'border-emerald-500/50 text-emerald-400',
-              status === 'archived' && 'border-[#33467c]/50 text-muted-foreground',
+              status === 'archived' && 'border-primary/20 text-muted-foreground',
             )}
           >
             <option value="inbox">inbox</option>
@@ -316,7 +316,7 @@ export function TaskEditor({
           <select
             value={priority}
             onChange={e => setPriority(e.target.value as 'low' | 'medium' | 'high')}
-            className="text-[10px] font-mono bg-transparent border border-[#33467c]/50 text-muted-foreground px-1 py-0.5 outline-none"
+            className="text-[10px] font-mono bg-transparent border border-primary/20 text-muted-foreground px-1 py-0.5 outline-none"
           >
             <option value="low">low</option>
             <option value="medium">medium</option>
@@ -329,7 +329,7 @@ export function TaskEditor({
         </div>
 
         {/* Tags */}
-        <div className="flex items-center gap-1 px-4 py-1.5 border-b border-[#33467c]/30 flex-wrap shrink-0">
+        <div className="flex items-center gap-1 px-4 py-1.5 border-b border-primary/12 flex-wrap shrink-0">
           {tags.map(tag => (
             <span
               key={tag}
@@ -360,7 +360,7 @@ export function TaskEditor({
         </div>
 
         {/* Body - toggle between markdown view and edit */}
-        <div className="flex items-center justify-between px-4 py-1 border-b border-[#33467c]/20 shrink-0">
+        <div className="flex items-center justify-between px-4 py-1 border-b border-primary/8 shrink-0">
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -420,7 +420,7 @@ export function TaskEditor({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-[#33467c]/50 shrink-0">
+        <div className="border-t border-primary/20 shrink-0">
           <div className="flex items-center justify-between px-4 py-2">
             <div className="flex items-center gap-3">
               {/* Context-aware actions based on task status */}
@@ -472,7 +472,7 @@ export function TaskEditor({
                       onMove(task.slug, status, 'in-review')
                       haptic('tap')
                     }}
-                    className="whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-[#2ac3de]/15 text-[#2ac3de] border border-[#2ac3de]/30 hover:bg-[#2ac3de]/25 transition-colors"
+                    className="whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-info/15 text-info border border-info/30 hover:bg-info/25 transition-colors"
                   >
                     Reopen
                   </button>
@@ -483,7 +483,7 @@ export function TaskEditor({
                       onMove(task.slug, status, 'archived')
                       haptic('tap')
                     }}
-                    className="flex items-center gap-1 whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-[#33467c]/30 text-muted-foreground border border-[#33467c]/50 hover:bg-[#33467c]/50 transition-colors"
+                    className="flex items-center gap-1 whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-primary/12 text-muted-foreground border border-primary/20 hover:bg-primary/20 transition-colors"
                   >
                     <Archive className="w-3 h-3" />
                     Archive <Kbd className="ml-1.5 opacity-60">A</Kbd>
@@ -498,7 +498,7 @@ export function TaskEditor({
                     onMove(task.slug, status, 'open')
                     haptic('tap')
                   }}
-                  className="whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-[#7aa2f7]/15 text-[#7aa2f7] border border-[#7aa2f7]/30 hover:bg-[#7aa2f7]/25 transition-colors"
+                  className="whitespace-nowrap px-3 py-1 text-[11px] font-bold font-mono bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors"
                 >
                   Reopen
                 </button>
@@ -524,7 +524,7 @@ export function TaskEditor({
           </div>
           <div className="flex items-center justify-between px-4 pb-1.5">
             <span className="text-[10px] text-muted-foreground/30 font-mono">{task.slug}.md</span>
-            <div className="flex items-center gap-3 text-[9px] text-[#565f89] font-mono">
+            <div className="flex items-center gap-3 text-[9px] text-comment font-mono">
               {PREV_STATUS[status] && (
                 <span>
                   <Kbd>^⇧←</Kbd> {PREV_STATUS[status]}
@@ -786,7 +786,7 @@ export function RunTaskDialog({
 
   return (
     <Dialog open={true} onOpenChange={open => !open && onClose()}>
-      <DialogContent className="max-w-md rounded-lg p-0 gap-0 bg-[#1a1b26] border-amber-500/30">
+      <DialogContent className="max-w-md rounded-lg p-0 gap-0 bg-surface-inset border-amber-500/30">
         <DialogTitle className="sr-only">Run Task: {task.title}</DialogTitle>
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-500/20">
@@ -808,7 +808,7 @@ export function RunTaskDialog({
         </div>
 
         {/* Task title */}
-        <div className="px-4 py-3 border-b border-[#33467c]/30">
+        <div className="px-4 py-3 border-b border-primary/12">
           <div className="text-xs font-mono text-foreground truncate">{task.title}</div>
           {phase === 'config' && task.body && (
             <div className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{task.body.slice(0, 200)}</div>
@@ -854,7 +854,7 @@ export function RunTaskDialog({
                 }}
               />
             </div>
-            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#33467c]/30">
+            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-primary/12">
               <button
                 type="button"
                 onClick={onClose}
@@ -895,7 +895,7 @@ export function RunTaskDialog({
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#33467c]/30">
+            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-primary/12">
               <LaunchFooterActions
                 isConnected={progress.isConnected}
                 isComplete={progress.isComplete}
@@ -943,7 +943,7 @@ function ProjectCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'group bg-[#1a1b26] border border-[#33467c]/30 hover:border-[#33467c]/60 transition-colors cursor-pointer',
+        'group bg-surface-inset border border-primary/12 hover:border-primary/25 transition-colors cursor-pointer',
         DENSITY_PADDING[view.density],
         isDragging && 'opacity-50 z-50',
       )}
@@ -1003,7 +1003,7 @@ function ProjectCard({
       {showActions && (
         <div
           role="toolbar"
-          className="flex items-center gap-0.5 mt-2 pt-2 border-t border-[#33467c]/20"
+          className="flex items-center gap-0.5 mt-2 pt-2 border-t border-primary/8"
           onClick={e => e.stopPropagation()}
           onKeyDown={e => e.stopPropagation()}
         >
@@ -1075,7 +1075,7 @@ function InlineAdd({ onAdd }: { onAdd: (text: string) => void }) {
     return (
       <button
         type="button"
-        className="w-full px-3 py-1.5 text-[10px] text-muted-foreground/40 hover:text-muted-foreground hover:bg-[#1a1b26]/50 transition-colors font-mono text-left"
+        className="w-full px-3 py-1.5 text-[10px] text-muted-foreground/40 hover:text-muted-foreground hover:bg-surface-inset/50 transition-colors font-mono text-left"
         onClick={() => {
           haptic('tap')
           setAdding(true)
@@ -1087,7 +1087,7 @@ function InlineAdd({ onAdd }: { onAdd: (text: string) => void }) {
   }
 
   return (
-    <div className="px-2 py-1.5 border-t border-[#33467c]/20">
+    <div className="px-2 py-1.5 border-t border-primary/8">
       <InputEditor
         value={text}
         onChange={setText}
@@ -1167,7 +1167,7 @@ function ViewConfigPanel({
   reset: () => void
 }) {
   return (
-    <div className="border border-[#33467c]/40 bg-[#1a1b26]/60 px-3 py-2 space-y-2">
+    <div className="border border-primary/15 bg-surface-inset/60 px-3 py-2 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/60">View</span>
         <button
@@ -1484,7 +1484,7 @@ export const ProjectBoard = memo(function ProjectBoard({ conversationId }: { con
                 onChange={e => setSearchQuery(e.target.value)}
                 onFocus={() => haptic('tap')}
                 placeholder="Filter by title..."
-                className="flex-1 bg-[#1a1b26] border border-[#33467c]/40 px-2 py-1 text-xs font-mono text-foreground outline-none placeholder:text-muted-foreground/30 focus:border-accent/50"
+                className="flex-1 bg-surface-inset border border-primary/15 px-2 py-1 text-xs font-mono text-foreground outline-none placeholder:text-muted-foreground/30 focus:border-accent/50"
               />
               {hasActiveFilters && (
                 <button
@@ -1583,7 +1583,7 @@ export const ProjectBoard = memo(function ProjectBoard({ conversationId }: { con
         </div>
         <DragOverlay dropAnimation={null}>
           {activeDragTask && (
-            <div className="px-3 py-2 bg-[#1a1b26] border border-[#33467c]/60 shadow-xl opacity-90 max-w-[250px]">
+            <div className="px-3 py-2 bg-surface-inset border border-primary/25 shadow-xl opacity-90 max-w-[250px]">
               <div className="text-xs font-mono text-foreground truncate">{activeDragTask.title}</div>
               {activeDragTask.bodyPreview && (
                 <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">

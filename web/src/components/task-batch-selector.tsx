@@ -26,12 +26,12 @@ import { Markdown } from './markdown'
 // --- Constants ---
 
 const TAG_COLORS = [
-  'bg-[#7aa2f7]/20 text-[#7aa2f7] border-[#7aa2f7]/30',
-  'bg-[#bb9af7]/20 text-[#bb9af7] border-[#bb9af7]/30',
-  'bg-[#2ac3de]/20 text-[#2ac3de] border-[#2ac3de]/30',
-  'bg-[#9ece6a]/20 text-[#9ece6a] border-[#9ece6a]/30',
-  'bg-[#e0af68]/20 text-[#e0af68] border-[#e0af68]/30',
-  'bg-[#f7768e]/20 text-[#f7768e] border-[#f7768e]/30',
+  'bg-primary/20 text-primary border-primary/30',
+  'bg-event-prompt/20 text-event-prompt border-event-prompt/30',
+  'bg-info/20 text-info border-info/30',
+  'bg-active/20 text-active border-active/30',
+  'bg-accent/20 text-accent border-accent/30',
+  'bg-destructive/20 text-destructive border-destructive/30',
 ]
 
 function tagColor(tag: string): string {
@@ -241,10 +241,10 @@ function TaskPreviewPopover({ task, anchorRect }: { task: ProjectTask; anchorRec
   return (
     <div
       style={style}
-      className="bg-[#1a1b26] border border-[#33467c]/60 rounded-lg shadow-xl overflow-hidden animate-in fade-in duration-150"
+      className="bg-surface-inset border border-primary/20 rounded-lg shadow-xl overflow-hidden animate-in fade-in duration-150"
     >
       {/* Header */}
-      <div className="px-3 py-2 border-b border-[#33467c]/30">
+      <div className="px-3 py-2 border-b border-primary/12">
         <div className="text-xs font-mono text-foreground font-bold">{task.title}</div>
         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
           <span className="text-[9px] font-mono text-muted-foreground/50">{task.status}</span>
@@ -680,11 +680,11 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
                 value={customInstructions}
                 onChange={e => setCustomInstructions(e.target.value)}
                 rows={4}
-                className="w-full bg-[#13141f] border border-[#33467c]/40 rounded px-2.5 py-2 text-[11px] font-mono text-foreground/80 outline-none resize-y placeholder:text-muted-foreground/30 focus:border-accent/50"
+                className="w-full bg-background border border-primary/15 rounded px-2.5 py-2 text-[11px] font-mono text-foreground/80 outline-none resize-y placeholder:text-muted-foreground/30 focus:border-accent/50"
               />
 
               {/* Task list preview (read-only) */}
-              <div className="bg-[#13141f] border border-[#33467c]/20 rounded px-2.5 py-1.5 max-h-20 overflow-y-auto">
+              <div className="bg-background border border-primary/12 rounded px-2.5 py-1.5 max-h-20 overflow-y-auto">
                 <div className="text-[10px] font-mono text-muted-foreground/40 mb-1">Tasks:</div>
                 {selectedTasks.map(task => (
                   <div key={task.slug} className="text-[10px] font-mono text-foreground/60 leading-relaxed">
@@ -716,7 +716,7 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
                 'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded text-xs font-mono font-bold transition-colors',
                 hasActiveConversation && selected.size > 0
                   ? 'bg-accent/20 text-accent border border-accent/40 hover:bg-accent/30 active:scale-[0.98]'
-                  : 'bg-[#13141f] text-muted-foreground/30 border border-border/20 cursor-not-allowed',
+                  : 'bg-background text-muted-foreground/30 border border-border/20 cursor-not-allowed',
               )}
             >
               <Send className="w-3.5 h-3.5" />

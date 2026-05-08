@@ -30,10 +30,10 @@ function formatTime(ts: number): string {
 }
 
 function barColor(delta: number, maxDelta: number): string {
-  if (delta === 0) return 'rgba(100,100,100,0.2)'
-  if (delta >= maxDelta * 0.8) return '#f87171'
-  if (delta >= maxDelta * 0.4) return '#fbbf24'
-  return '#34d399'
+  if (delta === 0) return 'var(--muted)'
+  if (delta >= maxDelta * 0.8) return 'var(--destructive)'
+  if (delta >= maxDelta * 0.4) return 'var(--warning)'
+  return 'var(--success)'
 }
 
 export function CostSparkline({ timeline, className }: CostSparklineProps) {
@@ -155,7 +155,8 @@ export function CostSparkline({ timeline, className }: CostSparklineProps) {
             y1={0}
             x2={2 + hoverIdx * (barW + 1) + barW / 2}
             y2={H}
-            stroke="rgba(255,255,255,0.15)"
+            stroke="var(--foreground)"
+            strokeOpacity={0.15}
             strokeWidth={barW + 2}
           />
         )}

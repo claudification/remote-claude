@@ -6,13 +6,27 @@ import { ConversationRow } from './conversation-results'
 import { FileResults } from './file-results'
 import { FooterHints } from './footer-hints'
 import { SpawnResults } from './spawn-results'
+import { ThemeResults } from './theme-results'
 import type { CommandPaletteProps } from './types'
 import { useCommandPalette } from './use-command-palette'
 
 export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPaletteProps) {
   const palette = useCommandPalette(onClose)
 
-  useKeyLayer({ Escape: () => onClose() }, { id: 'command-palette' })
+  useKeyLayer(
+    {
+      Escape: () => {
+        if (palette.mode === 'theme') {
+          palette.themeRevert()
+          palette.setFilter('>')
+          palette.setActiveIndex(0)
+        } else {
+          onClose()
+        }
+      },
+    },
+    { id: 'command-palette' },
+  )
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: backdrop overlay closes on click
@@ -23,14 +37,14 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
     >
       <div
         role="dialog"
-        className="w-full max-w-lg bg-[#16161e] border border-[#33467c] shadow-2xl font-mono"
+        className="w-full max-w-lg bg-surface-inset border border-primary/20 shadow-2xl font-mono"
         onClick={e => e.stopPropagation()}
         onKeyDown={e => e.stopPropagation()}
       >
         {/* Search input */}
-        <div className="px-3 py-2 border-b border-[#33467c] flex items-center gap-2">
-          {palette.mode === 'spawn' && <FolderPlus className="w-4 h-4 text-[#9ece6a] shrink-0" />}
-          {palette.mode === 'file' && <FileText className="w-4 h-4 text-[#7aa2f7] shrink-0" />}
+        <div className="px-3 py-2 border-b border-primary/20 flex items-center gap-2">
+          {palette.mode === 'spawn' && <FolderPlus className="w-4 h-4 text-active shrink-0" />}
+          {palette.mode === 'file' && <FileText className="w-4 h-4 text-primary shrink-0" />}
           <input
             ref={palette.inputRef}
             type="text"
@@ -41,17 +55,19 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
             }}
             onKeyDown={e => palette.handleKeyDown(e, { onSelectConversation: onSelect, onFileSelect })}
             placeholder={
-              palette.mode === 'command'
-                ? 'Type a command...'
-                : palette.mode === 'spawn'
-                  ? 'Path to spawn (e.g. projects/my-app or /absolute/path)...'
-                  : palette.mode === 'file'
-                    ? 'Search files...'
-                    : palette.mode === 'task'
-                      ? 'Search project tasks...'
-                      : 'Search conversations + commands... (>cmd  @tasks  F:files  S:spawn)'
+              palette.mode === 'theme'
+                ? 'Select theme (arrows to preview, enter to apply, esc to revert)...'
+                : palette.mode === 'command'
+                  ? 'Type a command...'
+                  : palette.mode === 'spawn'
+                    ? 'Path to spawn (e.g. projects/my-app or /absolute/path)...'
+                    : palette.mode === 'file'
+                      ? 'Search files...'
+                      : palette.mode === 'task'
+                        ? 'Search project tasks...'
+                        : 'Search conversations + commands... (>cmd  @tasks  F:files  S:spawn)'
             }
-            className="w-full bg-transparent text-[19px] sm:text-sm text-[#a9b1d6] placeholder:text-[#565f89] outline-none"
+            className="w-full bg-transparent text-[19px] sm:text-sm text-foreground placeholder:text-comment outline-none"
             autoComplete="off"
             spellCheck={false}
           />
@@ -59,7 +75,18 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
 
         {/* Results */}
         <div className="max-h-[40vh] overflow-y-auto">
-          {palette.mode === 'command' ? (
+          {palette.mode === 'theme' ? (
+            <ThemeResults
+              themes={palette.themes}
+              currentThemeId={useConversationsStore.getState().controlPanelPrefs.theme || 'tokyo-night'}
+              activeIndex={palette.activeIndex}
+              setActiveIndex={palette.setActiveIndex}
+              onSelect={i => {
+                palette.themeConfirm(i)
+                onClose()
+              }}
+            />
+          ) : palette.mode === 'command' ? (
             <CommandResults
               commands={palette.filteredCommands}
               activeIndex={palette.activeIndex}
@@ -82,16 +109,18 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
           ) : palette.mode === 'task' ? (
             <div>
               {palette.tasksLoading ? (
-                <div className="px-4 py-3 text-[#565f89] text-xs">Loading tasks...</div>
+                <div className="px-4 py-3 text-comment text-xs">Loading tasks...</div>
               ) : palette.filteredTasks.length === 0 ? (
-                <div className="px-4 py-3 text-[#565f89] text-xs">No matching tasks</div>
+                <div className="px-4 py-3 text-comment text-xs">No matching tasks</div>
               ) : (
                 palette.filteredTasks.map((task, i) => (
                   <button
                     key={task.slug}
                     type="button"
                     className={`w-full flex items-center gap-2 px-4 py-2 text-left text-xs transition-colors ${
-                      i === palette.activeIndex ? 'bg-[#283457] text-[#c0caf5]' : 'text-[#a9b1d6] hover:bg-[#1a1b26]'
+                      i === palette.activeIndex
+                        ? 'bg-primary/20 text-foreground'
+                        : 'text-foreground hover:bg-surface-inset'
                     }`}
                     onClick={() => {
                       useConversationsStore.getState().setPendingTaskEdit({ slug: task.slug, status: task.status })
@@ -102,16 +131,16 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
                     <span
                       className={`px-1 py-0.5 text-[9px] font-bold uppercase ${
                         task.status === 'open'
-                          ? 'bg-[#7aa2f7]/20 text-[#7aa2f7]'
+                          ? 'bg-primary/20 text-primary'
                           : task.status === 'in-progress'
-                            ? 'bg-[#e0af68]/20 text-[#e0af68]'
-                            : 'bg-[#9ece6a]/20 text-[#9ece6a]'
+                            ? 'bg-accent/20 text-accent'
+                            : 'bg-active/20 text-active'
                       }`}
                     >
                       {task.status}
                     </span>
                     <span className="flex-1 truncate font-mono">{task.title}</span>
-                    {task.priority && <span className="text-[9px] text-[#565f89]">{task.priority}</span>}
+                    {task.priority && <span className="text-[9px] text-comment">{task.priority}</span>}
                   </button>
                 ))
               )}
@@ -126,7 +155,7 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
               onFileSelect={onFileSelect}
             />
           ) : palette.mergedItems.length === 0 ? (
-            <div className="px-3 py-4 text-center text-[10px] text-[#565f89]">No matches</div>
+            <div className="px-3 py-4 text-center text-[10px] text-comment">No matches</div>
           ) : (
             palette.mergedItems.map((item, i) =>
               item.kind === 'session' ? (
@@ -149,6 +178,14 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
                   command={item.command}
                   active={i === palette.activeIndex}
                   onMouseEnter={() => palette.setActiveIndex(i)}
+                  onClick={
+                    (item.command as { submenu?: string }).submenu
+                      ? () => {
+                          palette.setFilter((item.command as { submenu?: string }).submenu!)
+                          palette.setActiveIndex(0)
+                        }
+                      : undefined
+                  }
                   dim
                 />
               ),

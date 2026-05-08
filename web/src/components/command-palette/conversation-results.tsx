@@ -13,11 +13,11 @@ function statusIndicator(s: Session, selectedConversationId: string | null) {
 }
 
 function statusColor(s: Session, selectedConversationId: string | null) {
-  if (canTerminal(s)) return s.status === 'active' ? 'text-[#9ece6a]' : 'text-[#e0af68]'
-  if (s.id === selectedConversationId) return 'text-[#7aa2f7]'
-  if (s.status === 'active') return 'text-[#9ece6a]'
-  if (s.status === 'starting' || s.status === 'idle') return 'text-[#e0af68]'
-  return 'text-[#565f89]'
+  if (canTerminal(s)) return s.status === 'active' ? 'text-active' : 'text-accent'
+  if (s.id === selectedConversationId) return 'text-primary'
+  if (s.status === 'active') return 'text-active'
+  if (s.status === 'starting' || s.status === 'idle') return 'text-accent'
+  return 'text-comment'
 }
 
 function actionLabel(s: Session, selectedConversationId: string | null) {
@@ -50,14 +50,14 @@ export function ConversationRow({
       onMouseEnter={onMouseEnter}
       className={cn(
         'w-full px-3 py-2 flex items-center gap-3 text-left transition-colors',
-        active ? 'bg-[#33467c]/50' : 'hover:bg-[#33467c]/25',
+        active ? 'bg-primary/20' : 'hover:bg-primary/10',
       )}
     >
       <span className={cn('text-sm', statusColor(session, selectedConversationId))}>
         {statusIndicator(session, selectedConversationId)}
       </span>
       <div className="flex-1 min-w-0">
-        <div className="text-xs text-[#a9b1d6] truncate flex items-center gap-1.5">
+        <div className="text-xs text-foreground truncate flex items-center gap-1.5">
           {projectSettings[session.project]?.icon && (
             <span
               style={
@@ -76,19 +76,19 @@ export function ConversationRow({
           </span>
           {(session.title || session.agentName) && (
             <>
-              <span className="text-[#3b4261]">·</span>
-              <span className="text-[#7aa2f7] truncate">{session.title || session.agentName}</span>
+              <span className="text-comment">·</span>
+              <span className="text-primary truncate">{session.title || session.agentName}</span>
             </>
           )}
         </div>
-        <div className="text-[10px] text-[#565f89] flex items-center gap-2">
+        <div className="text-[10px] text-comment flex items-center gap-2">
           <span>{session.id.slice(0, 8)}</span>
           <span>{formatAge(session.lastActivity)}</span>
           {session.model && <span>{formatModel(session.model)}</span>}
         </div>
       </div>
       {actionLabel(session, selectedConversationId) && (
-        <span className={cn('text-[10px]', canTerminal(session) ? 'text-[#9ece6a]' : 'text-[#565f89]')}>
+        <span className={cn('text-[10px]', canTerminal(session) ? 'text-active' : 'text-comment')}>
           {actionLabel(session, selectedConversationId)}
         </span>
       )}

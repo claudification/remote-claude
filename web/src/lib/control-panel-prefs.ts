@@ -63,6 +63,7 @@ export interface ControlPanelPrefs {
   sanitizePaths: boolean // strip redundant `cd <project-path> &&` prefixes from displayed commands
   inputBackend: 'legacy' | 'codemirror' // editor backend for InputEditor (default legacy)
   settingsTab: SettingsTab // last active settings tab (per-device)
+  theme: string // UI theme id (see lib/themes.ts)
 }
 
 export type SettingsTab = 'general' | 'display' | 'input' | 'sessions' | 'sentinels' | 'system'
@@ -97,6 +98,7 @@ const defaultPrefs: ControlPanelPrefs = {
   sanitizePaths: true,
   inputBackend: 'legacy',
   settingsTab: 'general',
+  theme: 'tokyo-night',
 }
 
 export function loadPrefs(): ControlPanelPrefs {

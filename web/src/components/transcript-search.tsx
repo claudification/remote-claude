@@ -80,10 +80,12 @@ function SnippetText({ html }: { html: string }) {
     .replace(/<\/mark>/g, '\x02')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/\x01/g, '<mark class="bg-[#e0af68]/30 text-[#e0af68] rounded-sm px-0.5">')
+    .replace(/\x01/g, '<mark class="bg-accent/30 text-accent rounded-sm px-0.5">')
     .replace(/\x02/g, '</mark>')
 
-  return <span className="text-[11px] text-[#9aa5ce] leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitized }} />
+  return (
+    <span className="text-[11px] text-foreground/70 leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitized }} />
+  )
 }
 
 function formatProject(uri: string): string {
@@ -121,25 +123,25 @@ function entryTypeIcon(type: string): string {
 
 function SyntaxHints() {
   return (
-    <div className="px-4 py-3 border-t border-[#1a1b26] bg-[#13141c]">
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#565f89]">
+    <div className="px-4 py-3 border-t border-surface-inset bg-background">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-comment">
         <span>
-          <code className="text-[#7aa2f7]">"exact phrase"</code>
+          <code className="text-primary">"exact phrase"</code>
         </span>
         <span>
-          <code className="text-[#7aa2f7]">prefix*</code>
+          <code className="text-primary">prefix*</code>
         </span>
         <span>
-          <code className="text-[#7aa2f7]">A AND B</code>
+          <code className="text-primary">A AND B</code>
         </span>
         <span>
-          <code className="text-[#7aa2f7]">A OR B</code>
+          <code className="text-primary">A OR B</code>
         </span>
         <span>
-          <code className="text-[#7aa2f7]">A NOT B</code>
+          <code className="text-primary">A NOT B</code>
         </span>
         <span>
-          <code className="text-[#7aa2f7]">NEAR(a b, 5)</code>
+          <code className="text-primary">NEAR(a b, 5)</code>
         </span>
       </div>
     </div>
@@ -149,7 +151,7 @@ function SyntaxHints() {
 function EmptyState({ query, loading }: { query: string; loading: boolean }) {
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-[#565f89]">
+      <div className="flex items-center justify-center py-12 text-comment">
         <div className="flex items-center gap-2 text-xs">
           <span className="animate-pulse">searching...</span>
         </div>
@@ -159,16 +161,16 @@ function EmptyState({ query, loading }: { query: string; loading: boolean }) {
   if (query) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-2">
-        <span className="text-[#565f89] text-xs">no matches for "{query}"</span>
-        <span className="text-[10px] text-[#3b4261]">try a prefix search: {query}*</span>
+        <span className="text-comment text-xs">no matches for "{query}"</span>
+        <span className="text-[10px] text-comment">try a prefix search: {query}*</span>
       </div>
     )
   }
   return (
     <div className="flex flex-col items-center justify-center py-12 gap-3">
-      <div className="text-[#3b4261] text-2xl font-mono">/</div>
-      <span className="text-[#565f89] text-xs">search across all conversations</span>
-      <span className="text-[10px] text-[#3b4261]">FTS5 full-text -- stemmed, ranked, fast</span>
+      <div className="text-comment text-2xl font-mono">/</div>
+      <span className="text-comment text-xs">search across all conversations</span>
+      <span className="text-[10px] text-comment">FTS5 full-text -- stemmed, ranked, fast</span>
     </div>
   )
 }
@@ -352,22 +354,22 @@ export function TranscriptSearch() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
-        className="max-w-2xl p-0 gap-0 overflow-hidden bg-[#1a1b26] border-[#33467c]/60"
+        className="max-w-2xl p-0 gap-0 overflow-hidden bg-surface-inset border-primary/20"
         aria-label="Search transcripts"
       >
         <DialogTitle className="sr-only">Search transcripts</DialogTitle>
 
         {/* Search input */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-[#33467c]/40">
-          <span className="text-[#7aa2f7] text-sm shrink-0">/</span>
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-primary/15">
+          <span className="text-primary text-sm shrink-0">/</span>
           {mode === 'snippets' && (
             <button
               type="button"
               onClick={drillOut}
-              className="shrink-0 px-1.5 py-0.5 text-[10px] font-mono bg-[#33467c]/40 text-[#7aa2f7] rounded hover:bg-[#33467c]/60 transition-colors cursor-pointer"
+              className="shrink-0 px-1.5 py-0.5 text-[10px] font-mono bg-primary/15 text-primary rounded hover:bg-primary/20 transition-colors cursor-pointer"
             >
               {focusedTitle}
-              <span className="ml-1 text-[#565f89]">&times;</span>
+              <span className="ml-1 text-comment">&times;</span>
             </button>
           )}
           <input
@@ -377,12 +379,12 @@ export function TranscriptSearch() {
             onChange={e => handleQueryChange(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={mode === 'snippets' ? `search within ${focusedTitle}...` : 'search all conversations...'}
-            className="flex-1 bg-transparent text-sm text-[#a9b1d6] placeholder:text-[#3b4261] outline-none font-mono"
+            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-comment outline-none font-mono"
             spellCheck={false}
             autoComplete="off"
           />
-          {loading && <span className="text-[10px] text-[#565f89] animate-pulse shrink-0">...</span>}
-          {!loading && total > 0 && <span className="text-[10px] text-[#565f89] font-mono shrink-0">{total} hits</span>}
+          {loading && <span className="text-[10px] text-comment animate-pulse shrink-0">...</span>}
+          {!loading && total > 0 && <span className="text-[10px] text-comment font-mono shrink-0">{total} hits</span>}
         </div>
 
         {/* Results */}
@@ -398,17 +400,17 @@ export function TranscriptSearch() {
                 onClick={() => drillInto(hit.conversationId)}
                 onMouseEnter={() => setActiveIndex(i)}
                 className={cn(
-                  'w-full px-4 py-2.5 text-left transition-colors border-b border-[#1a1b26]/80 cursor-pointer',
-                  i === activeIndex ? 'bg-[#33467c]/30' : 'hover:bg-[#33467c]/15',
+                  'w-full px-4 py-2.5 text-left transition-colors border-b border-surface-inset/80 cursor-pointer',
+                  i === activeIndex ? 'bg-primary/12' : 'hover:bg-primary/6',
                 )}
               >
                 <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-xs text-[#c0caf5] font-medium truncate">{hit.title}</span>
-                  <span className="text-[10px] text-[#565f89] font-mono shrink-0">
+                  <span className="text-xs text-foreground font-medium truncate">{hit.title}</span>
+                  <span className="text-[10px] text-comment font-mono shrink-0">
                     {hit.hitCount} hit{hit.hitCount > 1 ? 's' : ''}
                   </span>
                   <span className="flex-1" />
-                  <span className="text-[10px] text-[#3b4261] font-mono truncate max-w-[200px]">
+                  <span className="text-[10px] text-comment font-mono truncate max-w-[200px]">
                     {formatProject(hit.project)}
                   </span>
                 </div>
@@ -426,18 +428,18 @@ export function TranscriptSearch() {
                 onClick={() => navigateToConversation(hit.conversationId)}
                 onMouseEnter={() => setActiveIndex(i)}
                 className={cn(
-                  'w-full px-4 py-2.5 text-left transition-colors border-b border-[#1a1b26]/80 cursor-pointer',
-                  i === activeIndex ? 'bg-[#33467c]/30' : 'hover:bg-[#33467c]/15',
+                  'w-full px-4 py-2.5 text-left transition-colors border-b border-surface-inset/80 cursor-pointer',
+                  i === activeIndex ? 'bg-primary/12' : 'hover:bg-primary/6',
                 )}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] text-[#565f89] font-mono">
+                  <span className="text-[10px] text-comment font-mono">
                     {entryTypeIcon(hit.type)} {hit.type}
                     {hit.subtype ? `/${hit.subtype}` : ''}
                   </span>
-                  <span className="text-[10px] text-[#3b4261]">seq {hit.seq}</span>
+                  <span className="text-[10px] text-comment">seq {hit.seq}</span>
                   <span className="flex-1" />
-                  <span className="text-[10px] text-[#3b4261] font-mono">{formatTime(hit.createdAt)}</span>
+                  <span className="text-[10px] text-comment font-mono">{formatTime(hit.createdAt)}</span>
                 </div>
                 <div className="line-clamp-2">
                   <SnippetText html={hit.snippet} />
@@ -449,7 +451,7 @@ export function TranscriptSearch() {
 
         {/* Footer with syntax hints + shortcuts */}
         <SyntaxHints />
-        <div className="px-4 py-2 border-t border-[#1a1b26] bg-[#13141c] flex items-center gap-3 text-[10px] text-[#3b4261]">
+        <div className="px-4 py-2 border-t border-surface-inset bg-background flex items-center gap-3 text-[10px] text-comment">
           <span className="flex items-center gap-1">
             <Kbd className="text-[9px] h-4">&uarr;&darr;</Kbd> navigate
           </span>

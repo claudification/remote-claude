@@ -33,7 +33,7 @@ export function ChatBubble({
                 <div
                   // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
                   key={i}
-                  className="text-sm [&_a]:text-blue-200 [&_a]:underline [&_code]:!bg-black/25 [&_code]:!px-1.5 [&_code]:!py-0.5 [&_code]:!rounded-sm [&_code]:!text-white/80 [&_code]:!text-[0.85em]"
+                  className="text-sm [&_a]:text-primary-foreground/85 [&_a]:underline [&_a]:decoration-primary-foreground/40 [&_code]:!bg-black/25 [&_code]:!px-1.5 [&_code]:!py-0.5 [&_code]:!rounded-sm [&_code]:!text-primary-foreground/80 [&_code]:!text-[0.85em]"
                 >
                   <Markdown inline={!hasBlocks}>{item.text}</Markdown>
                 </div>

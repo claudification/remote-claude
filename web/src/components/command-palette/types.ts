@@ -9,7 +9,7 @@ export interface PaletteCommand {
   action: () => void
 }
 
-export type PaletteMode = 'session' | 'command' | 'file' | 'spawn' | 'task'
+export type PaletteMode = 'session' | 'command' | 'file' | 'spawn' | 'task' | 'theme'
 
 /** Merged result item for the no-prefix palette: sessions + commands fuzzy-matched together. */
 export type MergedItem =

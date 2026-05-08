@@ -266,6 +266,8 @@ export function useGlobalCommands(toggleSidebar: () => void) {
 
   useCommand('settings', () => window.dispatchEvent(new Event('open-settings')), { label: 'Settings', group: 'System' })
 
+  useCommand('theme', () => {}, { label: 'Theme', group: 'System', submenu: 'theme:' })
+
   useCommand('manage-users', () => window.dispatchEvent(new Event('open-user-admin')), {
     label: 'Manage users',
     group: 'System',

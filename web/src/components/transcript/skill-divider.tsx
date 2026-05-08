@@ -18,7 +18,7 @@ export function SkillDivider({ name, content }: { name: string; content: string 
           className="flex-1 h-px"
           style={{
             backgroundImage:
-              'repeating-linear-gradient(90deg, #2dd4bf 0px, #2dd4bf 8px, transparent 8px, transparent 16px)',
+              'repeating-linear-gradient(90deg, var(--info) 0px, var(--info) 8px, transparent 8px, transparent 16px)',
           }}
         />
         <span className="px-2 py-0.5 text-[10px] font-bold font-mono uppercase tracking-widest text-teal-400/80 bg-teal-400/10 border border-teal-400/30 shrink-0 flex items-center gap-1.5">
@@ -28,7 +28,7 @@ export function SkillDivider({ name, content }: { name: string; content: string 
           className="flex-1 h-px"
           style={{
             backgroundImage:
-              'repeating-linear-gradient(90deg, #2dd4bf 0px, #2dd4bf 8px, transparent 8px, transparent 16px)',
+              'repeating-linear-gradient(90deg, var(--info) 0px, var(--info) 8px, transparent 8px, transparent 16px)',
           }}
         />
       </button>

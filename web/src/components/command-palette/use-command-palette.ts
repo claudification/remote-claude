@@ -9,6 +9,7 @@ import { useFileMode } from './use-file-mode'
 import { useSessionMode } from './use-session-mode'
 import { useSpawnMode } from './use-spawn-mode'
 import { useTaskMode } from './use-task-mode'
+import { useThemeMode } from './use-theme-mode'
 
 /**
  * Top-level command palette hook. Owns the search filter, active index, and
@@ -26,16 +27,18 @@ export function useCommandPalette(onClose: () => void) {
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Apply initial filter when switcher opens with a prefilled value
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - runs once on mount to consume the initial filter; switcherInitialFilter read from closure at mount time
+  // Apply initial filter when switcher opens with a prefilled value, or when
+  // a command inside the palette sets a new filter (e.g. Theme -> 'TH:')
   useEffect(() => {
     if (switcherInitialFilter) {
       setFilter(switcherInitialFilter)
+      setActiveIndex(0)
       useConversationsStore.getState().openSwitcherWithFilter('')
     }
-  }, [])
+  }, [switcherInitialFilter])
 
-  const { mode, isCommandMode, isFileMode, isSpawnMode, isTaskMode, isConversationMode } = derivePaletteMode(filter)
+  const { mode, isCommandMode, isFileMode, isSpawnMode, isTaskMode, isThemeMode, isConversationMode } =
+    derivePaletteMode(filter)
 
   const command = useCommandMode(filter, isCommandMode, onClose)
   const session = useSessionMode(filter, isConversationMode, command.registryCommands)
@@ -50,16 +53,19 @@ export function useCommandPalette(onClose: () => void) {
     onClose,
   })
   const task = useTaskMode(filter, isTaskMode, selectedConversationId)
+  const theme = useThemeMode(isThemeMode, activeIndex)
 
-  const itemCount = isCommandMode
-    ? command.filteredCommands.length
-    : isSpawnMode
-      ? spawn.filteredSpawnDirs.length
-      : isFileMode
-        ? file.filteredFiles.length
-        : isTaskMode
-          ? task.filteredTasks.length
-          : session.mergedItems.length
+  const itemCount = isThemeMode
+    ? theme.themes.length
+    : isCommandMode
+      ? command.filteredCommands.length
+      : isSpawnMode
+        ? spawn.filteredSpawnDirs.length
+        : isFileMode
+          ? file.filteredFiles.length
+          : isTaskMode
+            ? task.filteredTasks.length
+            : session.mergedItems.length
 
   // Clamp activeIndex when the result count shrinks below it
   useEffect(() => {
@@ -84,11 +90,13 @@ export function useCommandPalette(onClose: () => void) {
         isSpawnMode,
         isFileMode,
         isTaskMode,
+        isThemeMode,
         command,
         session,
         file: { filteredFiles: file.filteredFiles },
         spawn,
         task,
+        theme,
         selectedConversationId,
         onClose,
       },
@@ -138,6 +146,11 @@ export function useCommandPalette(onClose: () => void) {
     // Task mode
     filteredTasks: task.filteredTasks,
     tasksLoading: task.tasksLoading,
+
+    // Theme mode
+    themes: theme.themes,
+    themeConfirm: theme.confirm,
+    themeRevert: theme.revert,
 
     // Actions
     handleKeyDown,

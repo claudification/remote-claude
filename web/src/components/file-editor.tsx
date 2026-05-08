@@ -138,7 +138,7 @@ function EditorPane({
   filePath?: string
 }) {
   return (
-    <Suspense fallback={<div className="flex-1 min-h-0 bg-[#1a1b26]" />}>
+    <Suspense fallback={<div className="flex-1 min-h-0 bg-surface-inset" />}>
       <FileEditorPane content={content} onChange={onChange} filePath={filePath} />
     </Suspense>
   )

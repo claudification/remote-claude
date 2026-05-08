@@ -7,6 +7,7 @@ import type { CommandModeState, RegistryCommand } from './use-command-mode'
 import type { SessionModeState } from './use-session-mode'
 import type { SpawnModeState } from './use-spawn-mode'
 import type { TaskModeState } from './use-task-mode'
+import type { ThemeModeState } from './use-theme-mode'
 
 export interface KeyHandlerCallbacks {
   onSelectConversation: (id: string) => void
@@ -23,12 +24,14 @@ export interface KeyHandlerContext {
   isSpawnMode: boolean
   isFileMode: boolean
   isTaskMode: boolean
+  isThemeMode: boolean
 
   command: CommandModeState
   session: SessionModeState
   file: { filteredFiles: FileInfo[] }
   spawn: SpawnModeState
   task: TaskModeState
+  theme: ThemeModeState
 
   selectedConversationId: string | null
   onClose: () => void
@@ -81,16 +84,28 @@ function handleTab(e: React.KeyboardEvent, ctx: KeyHandlerContext): void {
 
 function handleEnter(e: React.KeyboardEvent, ctx: KeyHandlerContext, callbacks: KeyHandlerCallbacks): void {
   e.preventDefault()
-  if (ctx.isCommandMode) submitCommand(ctx)
+  if (ctx.isThemeMode) submitTheme(ctx)
+  else if (ctx.isCommandMode) submitCommand(ctx)
   else if (ctx.isSpawnMode) submitSpawn(ctx)
   else if (ctx.isFileMode) submitFile(ctx, callbacks)
   else if (ctx.isTaskMode) submitTask(ctx)
   else submitSession(ctx, callbacks)
 }
 
+function submitTheme(ctx: KeyHandlerContext): void {
+  ctx.theme.confirm(ctx.activeIndex)
+  ctx.onClose()
+}
+
 function submitCommand(ctx: KeyHandlerContext): void {
   const cmd = ctx.command.filteredCommands[ctx.activeIndex]
-  if (cmd) cmd.action(...ctx.command.getCommandArgs(cmd))
+  if (!cmd) return
+  if (cmd.submenu) {
+    ctx.setFilter(cmd.submenu)
+    ctx.setActiveIndex(0)
+  } else {
+    cmd.action(...ctx.command.getCommandArgs(cmd))
+  }
 }
 
 function submitSpawn(ctx: KeyHandlerContext): void {
@@ -129,12 +144,13 @@ function submitSession(ctx: KeyHandlerContext, callbacks: KeyHandlerCallbacks): 
   if (item?.kind === 'session') {
     selectConversationWithTracking(item.session, callbacks.onSelectConversation)
   } else if (item?.kind === 'command') {
-    // session-mode merged items hold raw RegistryCommands; the type widening
-    // (action: () => void in PaletteCommand) hides the args overload, but the
-    // no-arg call below is exactly what session-mode's command surface
-    // promises -- positional args only matter in command-mode (`>` prefix).
     const cmd = item.command as RegistryCommand
-    cmd.action()
+    if (cmd.submenu) {
+      ctx.setFilter(cmd.submenu)
+      ctx.setActiveIndex(0)
+    } else {
+      cmd.action()
+    }
   }
 }
 

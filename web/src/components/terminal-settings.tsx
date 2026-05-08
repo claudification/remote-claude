@@ -323,18 +323,18 @@ export function TerminalSettingsPanel({ settings, onChange, onClose }: TerminalS
   }
 
   return (
-    <div className="absolute top-10 right-2 z-50 w-72 bg-[#16161e] border border-[#33467c] shadow-2xl font-mono text-xs">
+    <div className="absolute top-10 right-2 z-50 w-72 bg-surface-inset border border-primary/20 shadow-2xl font-mono text-xs">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#33467c]">
-        <span className="text-[10px] uppercase tracking-wider text-[#565f89]">Terminal Settings</span>
-        <button type="button" onClick={onClose} className="text-[#565f89] hover:text-[#a9b1d6]">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-primary/20">
+        <span className="text-[10px] uppercase tracking-wider text-comment">Terminal Settings</span>
+        <button type="button" onClick={onClose} className="text-comment hover:text-foreground">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
 
       {/* Theme */}
-      <div className="px-3 py-2 border-b border-[#33467c]/50">
-        <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">Theme</div>
+      <div className="px-3 py-2 border-b border-primary/20/50">
+        <div className="text-[10px] uppercase tracking-wider text-comment mb-2">Theme</div>
         <div className="grid grid-cols-3 gap-1">
           {Object.entries(THEMES).map(([id, theme]) => (
             <button
@@ -344,8 +344,8 @@ export function TerminalSettingsPanel({ settings, onChange, onClose }: TerminalS
               className={cn(
                 'px-1.5 py-1.5 text-[10px] rounded border transition-colors text-left',
                 local.themeId === id
-                  ? 'border-[#7aa2f7] text-[#c0caf5]'
-                  : 'border-transparent text-[#565f89] hover:text-[#a9b1d6] hover:border-[#33467c]',
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-comment hover:text-foreground hover:border-primary/20',
               )}
             >
               <div className="flex items-center gap-1.5 mb-1">
@@ -362,8 +362,8 @@ export function TerminalSettingsPanel({ settings, onChange, onClose }: TerminalS
       </div>
 
       {/* Font */}
-      <div className="px-3 py-2 border-b border-[#33467c]/50">
-        <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">Font</div>
+      <div className="px-3 py-2 border-b border-primary/20/50">
+        <div className="text-[10px] uppercase tracking-wider text-comment mb-2">Font</div>
         <div className="space-y-0.5">
           {FONTS.map(font => (
             <button
@@ -373,8 +373,8 @@ export function TerminalSettingsPanel({ settings, onChange, onClose }: TerminalS
               className={cn(
                 'w-full px-2 py-1 text-left rounded transition-colors',
                 local.fontId === font.id
-                  ? 'text-[#c0caf5] bg-[#33467c]/50'
-                  : 'text-[#565f89] hover:text-[#a9b1d6] hover:bg-[#33467c]/25',
+                  ? 'text-foreground bg-primary/50'
+                  : 'text-comment hover:text-foreground hover:bg-primary/25',
               )}
               style={{ fontFamily: font.family }}
             >
@@ -386,7 +386,7 @@ export function TerminalSettingsPanel({ settings, onChange, onClose }: TerminalS
 
       {/* Font Size */}
       <div className="px-3 py-2">
-        <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">Size</div>
+        <div className="text-[10px] uppercase tracking-wider text-comment mb-2">Size</div>
         <div className="flex items-center gap-1 flex-wrap">
           {FONT_SIZES.map(size => (
             <button
@@ -396,8 +396,8 @@ export function TerminalSettingsPanel({ settings, onChange, onClose }: TerminalS
               className={cn(
                 'w-7 h-7 flex items-center justify-center rounded transition-colors',
                 local.fontSize === size
-                  ? 'text-[#c0caf5] bg-[#33467c]/50 border border-[#7aa2f7]'
-                  : 'text-[#565f89] hover:text-[#a9b1d6] border border-transparent hover:border-[#33467c]',
+                  ? 'text-foreground bg-primary/50 border border-primary'
+                  : 'text-comment hover:text-foreground border border-transparent hover:border-primary/20',
               )}
             >
               {size}

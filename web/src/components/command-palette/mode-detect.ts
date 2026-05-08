@@ -21,25 +21,30 @@ export interface PaletteModeFlags {
   isFileMode: boolean
   isSpawnMode: boolean
   isTaskMode: boolean
+  isThemeMode: boolean
   isConversationMode: boolean
 }
 
 export function derivePaletteMode(filter: string): PaletteModeFlags {
+  const lower = filter.toLowerCase()
   const isCommandMode = filter.startsWith('>')
-  const isFileMode = !isCommandMode && filter.toLowerCase().startsWith('f:') && !filter.toLowerCase().startsWith('f:/')
-  const isSpawnMode = !isCommandMode && filter.toLowerCase().startsWith('s:')
-  const isTaskMode = !isCommandMode && (filter.startsWith('@') || filter.toLowerCase().startsWith('t:'))
-  const isConversationMode = !isFileMode && !isSpawnMode && !isCommandMode && !isTaskMode
+  const isThemeMode = !isCommandMode && lower.startsWith('theme:')
+  const isFileMode = !isCommandMode && !isThemeMode && lower.startsWith('f:') && !lower.startsWith('f:/')
+  const isSpawnMode = !isCommandMode && !isThemeMode && lower.startsWith('s:')
+  const isTaskMode = !isCommandMode && !isThemeMode && (filter.startsWith('@') || lower.startsWith('t:'))
+  const isConversationMode = !isFileMode && !isSpawnMode && !isCommandMode && !isTaskMode && !isThemeMode
 
   const mode: PaletteMode = isCommandMode
     ? 'command'
-    : isSpawnMode
-      ? 'spawn'
-      : isFileMode
-        ? 'file'
-        : isTaskMode
-          ? 'task'
-          : 'session'
+    : isThemeMode
+      ? 'theme'
+      : isSpawnMode
+        ? 'spawn'
+        : isFileMode
+          ? 'file'
+          : isTaskMode
+            ? 'task'
+            : 'session'
 
-  return { mode, isCommandMode, isFileMode, isSpawnMode, isTaskMode, isConversationMode }
+  return { mode, isCommandMode, isFileMode, isSpawnMode, isTaskMode, isThemeMode, isConversationMode }
 }

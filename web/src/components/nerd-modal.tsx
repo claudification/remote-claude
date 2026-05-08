@@ -57,10 +57,10 @@ function formatMemory(entries: number): string {
 }
 
 function StatRow({ label, value, accent, dim }: { label: string; value: string; accent?: boolean; dim?: boolean }) {
-  const valueColor = accent ? 'text-[#9ece6a]' : dim ? 'text-[#565f89]' : 'text-[#7aa2f7]'
+  const valueColor = accent ? 'text-success' : dim ? 'text-comment' : 'text-primary'
   return (
-    <div className="flex justify-between py-0.5 border-b border-[#33467c]/20">
-      <span className="text-[#a9b1d6]">{label}</span>
+    <div className="flex justify-between py-0.5 border-b border-primary/8">
+      <span className="text-foreground">{label}</span>
       <span className={`${valueColor} tabular-nums`}>{value}</span>
     </div>
   )
@@ -75,7 +75,7 @@ function TrafficTab({ serverStats, fetchError }: { serverStats: ServerStats | nu
   return (
     <div className="space-y-4">
       <div>
-        <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">Client (browser WS)</div>
+        <div className="text-[10px] uppercase tracking-wider text-comment mb-2">Client (browser WS)</div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
           <StatRow label="msg in" value={`${clientRates.msgInPerSec.toFixed(1)}/s`} />
           <StatRow label="msg out" value={`${clientRates.msgOutPerSec.toFixed(1)}/s`} />
@@ -89,7 +89,7 @@ function TrafficTab({ serverStats, fetchError }: { serverStats: ServerStats | nu
       {serverStats && (
         <>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">Server</div>
+            <div className="text-[10px] uppercase tracking-wider text-comment mb-2">Server</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
               <StatRow label="uptime" value={formatUptime(serverStats.uptime)} />
               <StatRow label="conversations" value={String(serverStats.sessions.total)} />
@@ -99,7 +99,7 @@ function TrafficTab({ serverStats, fetchError }: { serverStats: ServerStats | nu
           </div>
 
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">Server Traffic</div>
+            <div className="text-[10px] uppercase tracking-wider text-comment mb-2">Server Traffic</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
               <StatRow label="msg in" value={`${serverStats.traffic.in.messagesPerSec}/s`} />
               <StatRow label="msg out" value={`${serverStats.traffic.out.messagesPerSec}/s`} />
@@ -110,7 +110,7 @@ function TrafficTab({ serverStats, fetchError }: { serverStats: ServerStats | nu
 
           {channelEntries.length > 0 && (
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">
+              <div className="text-[10px] uppercase tracking-wider text-comment mb-2">
                 Channels ({channelEntries.length})
               </div>
               <div className="max-h-32 overflow-y-auto">
@@ -141,7 +141,7 @@ function CacheTab() {
   return (
     <div className="space-y-4">
       <div>
-        <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">LIFO Cache Settings</div>
+        <div className="text-[10px] uppercase tracking-wider text-comment mb-2">LIFO Cache Settings</div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
           <StatRow label="cache size" value={String(prefs.sessionCacheSize)} />
           <StatRow label="timeout" value={prefs.sessionCacheTimeout > 0 ? `${prefs.sessionCacheTimeout}m` : 'never'} />
@@ -149,7 +149,7 @@ function CacheTab() {
       </div>
 
       <div>
-        <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">Memory</div>
+        <div className="text-[10px] uppercase tracking-wider text-comment mb-2">Memory</div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
           <StatRow label="cached sessions" value={String(cachedIds.length)} accent />
           <StatRow label="transcript entries" value={String(totalEntries)} />
@@ -159,7 +159,7 @@ function CacheTab() {
       </div>
 
       <div>
-        <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">Cached Conversations (MRU order)</div>
+        <div className="text-[10px] uppercase tracking-wider text-comment mb-2">Cached Conversations (MRU order)</div>
         <div className="max-h-48 overflow-y-auto space-y-1">
           {mru
             .filter(id => cachedIds.includes(id))
@@ -174,25 +174,25 @@ function CacheTab() {
                   className={cn('flex items-center gap-2 py-1 px-2 rounded text-[11px]', isSelected && 'bg-accent/10')}
                 >
                   {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />}
-                  <span className={cn('truncate flex-1', isSelected ? 'text-accent' : 'text-[#a9b1d6]')}>{name}</span>
-                  <span className="text-[#565f89] tabular-nums shrink-0">{entryCount} entries</span>
+                  <span className={cn('truncate flex-1', isSelected ? 'text-accent' : 'text-foreground')}>{name}</span>
+                  <span className="text-comment tabular-nums shrink-0">{entryCount} entries</span>
                 </div>
               )
             })}
-          {cachedIds.length === 0 && <div className="text-[11px] text-[#565f89]">No conversations cached</div>}
+          {cachedIds.length === 0 && <div className="text-[11px] text-comment">No conversations cached</div>}
         </div>
       </div>
 
       <div>
-        <div className="text-[10px] uppercase tracking-wider text-[#565f89] mb-2">WS Subscriptions</div>
+        <div className="text-[10px] uppercase tracking-wider text-comment mb-2">WS Subscriptions</div>
         <div className="max-h-32 overflow-y-auto space-y-0.5">
           {cachedIds.map(id => {
             const session = sessionsById[id]
             const name = session?.title || (session ? extractProjectLabel(session.project) : '') || id.slice(0, 8)
             return (
-              <div key={id} className="text-[10px] text-[#a9b1d6] font-mono">
-                <span className="text-[#9ece6a]">SUB</span> {name}
-                <span className="text-[#565f89]"> (events, transcript, tasks, bg_output)</span>
+              <div key={id} className="text-[10px] text-foreground font-mono">
+                <span className="text-success">SUB</span> {name}
+                <span className="text-comment"> (events, transcript, tasks, bg_output)</span>
               </div>
             )
           })}
@@ -230,7 +230,7 @@ function LogTab() {
           onClick={() => {
             copyLogText()
           }}
-          className="text-[10px] text-[#7aa2f7] hover:text-[#89b4fa] px-2 py-0.5 border border-[#33467c]/50 rounded"
+          className="text-[10px] text-primary hover:text-primary px-2 py-0.5 border border-primary/20 rounded"
         >
           Copy
         </button>
@@ -240,15 +240,15 @@ function LogTab() {
             clearLog()
             setEntries([])
           }}
-          className="text-[10px] text-red-400 hover:text-red-300 px-2 py-0.5 border border-[#33467c]/50 rounded"
+          className="text-[10px] text-red-400 hover:text-red-300 px-2 py-0.5 border border-primary/20 rounded"
         >
           Clear
         </button>
-        <span className="text-[10px] text-[#565f89] ml-auto">{entries.length} entries</span>
+        <span className="text-[10px] text-comment ml-auto">{entries.length} entries</span>
       </div>
       <div ref={scrollRef} className="max-h-64 overflow-y-auto bg-black/30 rounded p-2 space-y-0.5">
         {entries.length === 0 ? (
-          <div className="text-[11px] text-[#565f89]">No log entries</div>
+          <div className="text-[11px] text-comment">No log entries</div>
         ) : (
           entries.map((entry, i) => {
             const ts = new Date(entry.t).toISOString().slice(11, 23)
@@ -319,7 +319,7 @@ function SwTab() {
 
   return (
     <div className="space-y-3">
-      <div className="text-[10px] uppercase tracking-wider text-[#565f89]">Service Worker</div>
+      <div className="text-[10px] uppercase tracking-wider text-comment">Service Worker</div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1">
         <StatRow
           label="status"
@@ -332,15 +332,12 @@ function SwTab() {
 
       {cacheInfo.length > 0 && (
         <>
-          <div className="text-[10px] uppercase tracking-wider text-[#565f89] mt-3">Caches</div>
+          <div className="text-[10px] uppercase tracking-wider text-comment mt-3">Caches</div>
           {cacheInfo.map(c => (
-            <div
-              key={c.name}
-              className="flex items-center justify-between py-1 border-b border-[#33467c]/20 text-[11px]"
-            >
-              <span className="text-[#a9b1d6] truncate mr-2 flex-1">{c.name}</span>
-              <span className="text-[#565f89] shrink-0 mr-3">{c.count} files</span>
-              <span className="text-[#7aa2f7] tabular-nums shrink-0">
+            <div key={c.name} className="flex items-center justify-between py-1 border-b border-primary/8 text-[11px]">
+              <span className="text-foreground truncate mr-2 flex-1">{c.name}</span>
+              <span className="text-comment shrink-0 mr-3">{c.count} files</span>
+              <span className="text-primary tabular-nums shrink-0">
                 {c.sizeKB > 1024 ? `${(c.sizeKB / 1024).toFixed(1)} MB` : `${c.sizeKB} KB`}
               </span>
             </div>
@@ -349,10 +346,10 @@ function SwTab() {
       )}
 
       {cacheInfo.length === 0 && !loading && (
-        <div className="text-[11px] text-[#565f89]">No caches found. SW may not be registered yet.</div>
+        <div className="text-[11px] text-comment">No caches found. SW may not be registered yet.</div>
       )}
 
-      <div className="mt-4 pt-3 border-t border-[#33467c]/30">
+      <div className="mt-4 pt-3 border-t border-primary/12">
         <button
           type="button"
           onClick={() => clearCacheAndReload()}
@@ -367,10 +364,10 @@ function SwTab() {
 
 const PERF_CATEGORIES: PerfCategory[] = ['render', 'grouping', 'ws', 'scroll', 'other']
 const CAT_COLORS: Record<PerfCategory, string> = {
-  render: 'text-[#7aa2f7]',
-  grouping: 'text-[#bb9af7]',
-  ws: 'text-[#2ac3de]',
-  scroll: 'text-[#9ece6a]',
+  render: 'text-primary',
+  grouping: 'text-event-prompt',
+  ws: 'text-info',
+  scroll: 'text-success',
   other: 'text-muted-foreground',
 }
 
@@ -391,7 +388,7 @@ function PerfTab() {
 
   if (!enabled) {
     return (
-      <div className="text-center text-[#565f89] text-xs py-8">
+      <div className="text-center text-comment text-xs py-8">
         Performance monitor is <span className="text-red-400">OFF</span>
         <br />
         <span className="text-[10px] mt-1 block">Enable in Settings &gt; Developer &gt; Performance monitor</span>
@@ -407,9 +404,9 @@ function PerfTab() {
       {stats.length > 0 && (
         <div className="grid grid-cols-2 gap-2">
           {stats.map(s => (
-            <div key={s.cat} className="bg-[#1a1b26] border border-[#33467c]/30 px-2 py-1.5">
+            <div key={s.cat} className="bg-surface-inset border border-primary/12 px-2 py-1.5">
               <div className={cn('text-[10px] uppercase tracking-wider font-bold', CAT_COLORS[s.cat])}>{s.cat}</div>
-              <div className="text-[10px] text-[#a9b1d6] mt-0.5">
+              <div className="text-[10px] text-foreground mt-0.5">
                 {s.count} samples -- avg <span className={durationColor(s.avg)}>{s.avg.toFixed(1)}ms</span> -- p95{' '}
                 <span className={durationColor(s.p95)}>{s.p95.toFixed(1)}ms</span> -- max{' '}
                 <span className={durationColor(s.max)}>{s.max.toFixed(1)}ms</span>
@@ -421,16 +418,16 @@ function PerfTab() {
 
       {/* Controls */}
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-[#565f89]">
+        <span className="text-[10px] text-comment">
           {significantOnly ? `${visibleEntries.length}/${entries.length}` : entries.length} entries
         </span>
         <div className="flex items-center gap-3">
-          <label className="text-[10px] text-[#565f89] hover:text-[#a9b1d6] flex items-center gap-1 cursor-pointer select-none">
+          <label className="text-[10px] text-comment hover:text-foreground flex items-center gap-1 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={significantOnly}
               onChange={e => setSignificantOnly(e.target.checked)}
-              className="accent-[#7aa2f7]"
+              className="accent-primary"
             />
             Significant only (&ge;{SIGNIFICANT_THRESHOLD_MS}ms)
           </label>
@@ -458,14 +455,14 @@ function PerfTab() {
               }
               navigator.clipboard.writeText(lines.join('\n'))
             }}
-            className="text-[10px] text-[#565f89] hover:text-[#a9b1d6] transition-colors"
+            className="text-[10px] text-comment hover:text-foreground transition-colors"
           >
             Copy
           </button>
           <button
             type="button"
             onClick={clearPerfEntries}
-            className="text-[10px] text-[#565f89] hover:text-[#a9b1d6] transition-colors"
+            className="text-[10px] text-comment hover:text-foreground transition-colors"
           >
             Clear
           </button>
@@ -475,7 +472,7 @@ function PerfTab() {
       {/* Entry list */}
       <div ref={scrollRef} className="max-h-[300px] overflow-y-auto space-y-0">
         {visibleEntries.length === 0 ? (
-          <div className="text-center text-[#565f89] text-[10px] py-4">
+          <div className="text-center text-comment text-[10px] py-4">
             {entries.length === 0
               ? 'No entries yet -- interact with the dashboard'
               : `No entries \u2265${SIGNIFICANT_THRESHOLD_MS}ms`}
@@ -488,24 +485,24 @@ function PerfTab() {
               <div
                 // biome-ignore lint/suspicious/noArrayIndexKey: traffic events share timestamps, no stable unique key
                 key={`${e.t}-${i}`}
-                className="flex items-center gap-2 py-0.5 px-1 text-[10px] hover:bg-[#1a1b26]/50 border-b border-[#33467c]/10"
+                className="flex items-center gap-2 py-0.5 px-1 text-[10px] hover:bg-surface-inset/50 border-b border-primary/4"
               >
-                <span className="text-[#565f89] w-16 shrink-0">{time}</span>
+                <span className="text-comment w-16 shrink-0">{time}</span>
                 <span className={cn('w-14 shrink-0 uppercase tracking-wider', CAT_COLORS[e.category])}>
                   {e.category}
                 </span>
-                <span className="w-20 shrink-0 truncate text-[#a9b1d6]">{e.label}</span>
+                <span className="w-20 shrink-0 truncate text-foreground">{e.label}</span>
                 <span className={cn('w-14 shrink-0 text-right tabular-nums', durationColor(e.durationMs))}>
                   {e.durationMs.toFixed(1)}ms
                 </span>
-                <div className="flex-1 min-w-0 h-2 bg-[#1a1b26] relative overflow-hidden">
+                <div className="flex-1 min-w-0 h-2 bg-surface-inset relative overflow-hidden">
                   <div
                     className={cn(
                       'absolute inset-y-0 left-0',
                       e.durationMs < 5
                         ? 'bg-emerald-500/40'
                         : e.durationMs < 16
-                          ? 'bg-[#7aa2f7]/40'
+                          ? 'bg-primary/40'
                           : e.durationMs < 50
                             ? 'bg-amber-500/40'
                             : 'bg-red-500/40',
@@ -513,7 +510,7 @@ function PerfTab() {
                     style={{ width: `${barWidth}%` }}
                   />
                 </div>
-                {e.detail && <span className="text-[#565f89] truncate max-w-24 text-[9px]">{e.detail}</span>}
+                {e.detail && <span className="text-comment truncate max-w-24 text-[9px]">{e.detail}</span>}
               </div>
             )
           })
@@ -562,7 +559,7 @@ export function NerdModal({ open, onClose }: { open: boolean; onClose: () => voi
       <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden font-mono flex flex-col p-0">
         <div className="p-4 pb-0">
           <DialogTitle className="sr-only">Details for Nerds</DialogTitle>
-          <pre className="text-[#7aa2f7] text-[10px] leading-tight mb-3 select-none text-center">
+          <pre className="text-primary text-[10px] leading-tight mb-3 select-none text-center">
             {`┌─────────────────────────────────┐
 │      DETAILS FOR NERDS          │
 └─────────────────────────────────┘`}
@@ -577,8 +574,8 @@ export function NerdModal({ open, onClose }: { open: boolean; onClose: () => voi
                 className={cn(
                   'px-3 py-1 text-[10px] uppercase tracking-wider transition-colors',
                   tab === t.id
-                    ? 'bg-[#7aa2f7]/20 text-[#7aa2f7] border border-[#7aa2f7]/40'
-                    : 'text-[#565f89] border border-transparent hover:text-[#a9b1d6]',
+                    ? 'bg-primary/20 text-primary border border-primary/40'
+                    : 'text-comment border border-transparent hover:text-foreground',
                 )}
               >
                 {t.label}
@@ -595,8 +592,8 @@ export function NerdModal({ open, onClose }: { open: boolean; onClose: () => voi
           {tab === 'log' && <LogTab />}
         </div>
 
-        <div className="text-center text-[10px] text-[#565f89] py-2 border-t border-[#33467c]/30">
-          <kbd className="px-1 py-0.5 bg-[#33467c]/30 text-[#7aa2f7]">Esc</kbd> to close
+        <div className="text-center text-[10px] text-comment py-2 border-t border-primary/12">
+          <kbd className="px-1 py-0.5 bg-primary/12 text-primary">Esc</kbd> to close
         </div>
       </DialogContent>
     </Dialog>

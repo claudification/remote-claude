@@ -19,6 +19,7 @@ import {
 } from './settings/settings-inputs'
 import { SettingsShell, type SettingsShellTab } from './settings/settings-shell'
 import { VoiceDevicePicker } from './settings/voice-device-picker'
+import { ThemeSelector } from './theme-selector'
 
 // --- Default session picker ---
 function DefaultSessionPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -72,6 +73,7 @@ interface SettingItem {
   label: string
   description: string
   server?: boolean
+  fullWidth?: boolean
   keywords?: string // extra search terms
   render: (ctx: SettingsContext) => React.ReactNode
 }
@@ -400,6 +402,15 @@ const SETTINGS: SettingItem[] = [
     ),
   },
   // --- Display ---
+  {
+    tab: 'display',
+    group: 'Display',
+    label: 'Theme',
+    description: 'Control panel color theme',
+    fullWidth: true,
+    keywords: 'appearance dark color scheme palette',
+    render: () => <ThemeSelector />,
+  },
   {
     tab: 'display',
     group: 'Display',
@@ -870,7 +881,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 )
               }
               return (
-                <SettingRow key={item.label} label={item.label} description={item.description} server={item.server}>
+                <SettingRow key={item.label} label={item.label} description={item.description} server={item.server} fullWidth={item.fullWidth}>
                   {rendered}
                 </SettingRow>
               )

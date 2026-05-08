@@ -91,7 +91,7 @@ function Row({
         <label htmlFor={htmlFor} className="text-[10px] font-mono text-muted-foreground block">
           {label}
         </label>
-        {subtitle && <div className="text-[9px] text-[#565f89] mt-0.5 leading-snug">{subtitle}</div>}
+        {subtitle && <div className="text-[9px] text-comment mt-0.5 leading-snug">{subtitle}</div>}
       </div>
       <div className="shrink-0">{children}</div>
     </div>
@@ -171,7 +171,7 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
             onChange={e => onChange({ agent: e.target.value })}
             disabled={disabled.agent}
             placeholder="(none)"
-            className="flex-1 max-w-[220px] text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
+            className="flex-1 max-w-[220px] text-[10px] font-mono bg-surface-inset border border-primary/20 text-foreground px-2 py-1 outline-none"
           />
         </Row>
       )}
@@ -202,12 +202,12 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
               <label htmlFor="lcf-compact" className="text-[10px] font-mono text-muted-foreground block">
                 Auto-compact %
               </label>
-              <div className="text-[9px] text-[#565f89] mt-0.5 leading-snug">
+              <div className="text-[9px] text-comment mt-0.5 leading-snug">
                 Compact context when usage hits this % of the window
               </div>
             </div>
             <div className="shrink-0 flex items-center gap-2 font-mono text-[11px] tabular-nums">
-              <span className={value.autocompactPct === '' ? 'text-[#565f89]' : 'text-[#7aa2f7]'}>
+              <span className={value.autocompactPct === '' ? 'text-comment' : 'text-primary'}>
                 {value.autocompactPct === '' ? 'off' : `${value.autocompactPct}%`}
               </span>
             </div>
@@ -225,13 +225,13 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
                 onChange({ autocompactPct: n === 0 ? '' : n })
               }}
               disabled={disabled.autocompactPct}
-              className="flex-1 accent-[#7aa2f7] cursor-pointer"
+              className="flex-1 accent-primary cursor-pointer"
             />
             <button
               type="button"
               onClick={() => onChange({ autocompactPct: '' })}
               disabled={disabled.autocompactPct || value.autocompactPct === ''}
-              className="text-[9px] font-mono text-[#565f89] hover:text-muted-foreground transition-colors disabled:opacity-30 disabled:hover:text-[#565f89]"
+              className="text-[9px] font-mono text-comment hover:text-muted-foreground transition-colors disabled:opacity-30 disabled:hover:text-comment"
               title="Disable auto-compact"
             >
               clear
@@ -254,7 +254,7 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
             value={value.maxBudgetUsd ?? ''}
             onChange={e => onChange({ maxBudgetUsd: e.target.value })}
             disabled={disabled.maxBudgetUsd}
-            className="w-[100px] text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="w-[100px] text-[10px] font-mono bg-surface-inset border border-primary/20 text-foreground px-2 py-1 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
         </Row>
       )}
@@ -265,7 +265,7 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
             value={value.timeout ?? ''}
             onChange={e => onChange({ timeout: e.target.value })}
             disabled={disabled.timeout}
-            className="text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
+            className="text-[10px] font-mono bg-surface-inset border border-primary/20 text-foreground px-2 py-1 outline-none"
           >
             <option value="5">5 min</option>
             <option value="10">10 min</option>
@@ -283,7 +283,7 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
             value={value.name ?? ''}
             onChange={e => onChange({ name: e.target.value })}
             disabled={disabled.name}
-            className="flex-1 max-w-[220px] text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
+            className="flex-1 max-w-[220px] text-[10px] font-mono bg-surface-inset border border-primary/20 text-foreground px-2 py-1 outline-none"
           />
         </Row>
       )}
@@ -296,7 +296,7 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
             onChange={e => onChange({ description: e.target.value })}
             disabled={disabled.description}
             placeholder="optional"
-            className="flex-1 max-w-[220px] text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none placeholder:text-[#565f89]"
+            className="flex-1 max-w-[220px] text-[10px] font-mono bg-surface-inset border border-primary/20 text-foreground px-2 py-1 outline-none placeholder:text-comment/80"
           />
         </Row>
       )}
@@ -325,7 +325,7 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
               onChange={e => onChange({ worktreeName: e.target.value })}
               disabled={disabled.worktree}
               placeholder="Branch name..."
-              className="w-full text-[10px] font-mono bg-[#1a1b26] border border-[#33467c]/50 text-foreground px-2 py-1 outline-none"
+              className="w-full text-[10px] font-mono bg-surface-inset border border-primary/20 text-foreground px-2 py-1 outline-none"
             />
           )}
         </div>
@@ -360,8 +360,8 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
             disabled={disabled.env}
             rows={3}
             spellCheck={false}
-            className={`w-full text-[10px] font-mono bg-[#1a1b26] border text-foreground px-2 py-1 outline-none transition-colors ${
-              envErrors.length > 0 ? 'border-red-500/50 focus-visible:border-red-500' : 'border-[#33467c]/50'
+            className={`w-full text-[10px] font-mono bg-surface-inset border text-foreground px-2 py-1 outline-none transition-colors ${
+              envErrors.length > 0 ? 'border-red-500/50 focus-visible:border-red-500' : 'border-primary/20'
             }`}
           />
           {envErrors.length > 0 && (
