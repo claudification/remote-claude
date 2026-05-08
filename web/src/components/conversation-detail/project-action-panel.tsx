@@ -114,8 +114,8 @@ export function ProjectActionPanel({ projectUri }: { projectUri: string }) {
   const visibleRecent = showAllRecent ? recentEnded : recentEnded.slice(0, 5)
 
   return (
-    <div className="flex items-center justify-center h-full text-muted-foreground">
-      <div className="w-full max-w-md space-y-4 px-4">
+    <div className="flex items-start justify-center h-full overflow-y-auto text-muted-foreground">
+      <div className="w-full max-w-md space-y-4 px-4 py-8">
         {/* Project header */}
         <div className="text-center space-y-1">
           {ps?.icon && (
