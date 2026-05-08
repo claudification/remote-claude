@@ -642,22 +642,14 @@ async function reviveConversation(
       return result
     }
 
-    // Check if CC transcript exists before attempting --resume.
-    // If missing, fall back to fresh start to avoid immediate exit code 1.
-    let effectiveMode = mode
     if (mode === 'resume' && !ccTranscriptExists(ccSessionId, cwd)) {
-      log(`CC transcript missing for ${ccSessionId.slice(0, 8)} - falling back to fresh start`)
-      launchLog(
-        jobId,
-        'CC transcript missing, starting fresh',
-        'info',
-        `ccSession ${ccSessionId.slice(0, 8)} has no JSONL file`,
-      )
-      effectiveMode = 'fresh'
+      result.error = `Cannot resume: CC transcript file missing for session ${ccSessionId.slice(0, 8)}`
+      launchLog(jobId, 'Resume failed', 'error', result.error)
+      return result
     }
 
     const args = buildHeadlessArgs({
-      mode: effectiveMode,
+      mode,
       resumeId: ccSessionId,
       resumeName: sessionName,
       effort,
@@ -679,11 +671,11 @@ async function reviveConversation(
       env,
     })
 
-    launchLog(jobId, 'Reviving headless (direct spawn)', 'info', `mode=${effectiveMode || 'default'}`)
+    launchLog(jobId, 'Reviving headless (direct spawn)', 'info', `mode=${mode || 'default'}`)
     const spawnRes = spawnHeadlessDirect(rclaudeBin, cwd, conversationId, args, spawnEnv, jobId)
     result.success = spawnRes.success
     result.error = spawnRes.error
-    result.continued = effectiveMode === 'resume'
+    result.continued = mode === 'resume'
     return result
   }
 
