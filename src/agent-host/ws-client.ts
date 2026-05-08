@@ -252,10 +252,35 @@ export function createWsClient(options: WsClientOptions): WsClient {
   const MAX_QUEUE_SIZE = 5000
   let heartbeatInterval: Timer | null = null
 
-  // Transcript recovery is handled by three mechanisms, no ring buffer needed:
-  // 1. Message queue (5000 cap): buffers ALL messages during WS disconnect
-  // 2. CC replay buffer: replays full history with isInitial=true on reconnect
-  // 3. Broker pull model: transcript_request on promote if cache is empty
+  // Ring buffer: last N transcript entry messages, replayed on every reconnect.
+  // Broker deduplicates via UUID (SQLite INSERT OR IGNORE) and client deduplicates
+  // via seq (filters entries with seq <= lastAppliedSeq).
+  const TRANSCRIPT_RING_SIZE = 50
+  const transcriptRing: AgentHostMessage[] = []
+  let transcriptRingHead = 0
+  let transcriptRingCount = 0
+
+  function pushToTranscriptRing(msg: AgentHostMessage) {
+    transcriptRing[transcriptRingHead] = msg
+    transcriptRingHead = (transcriptRingHead + 1) % TRANSCRIPT_RING_SIZE
+    if (transcriptRingCount < TRANSCRIPT_RING_SIZE) transcriptRingCount++
+  }
+
+  function flushTranscriptRing() {
+    if (transcriptRingCount === 0) return
+    const start = (transcriptRingHead - transcriptRingCount + TRANSCRIPT_RING_SIZE) % TRANSCRIPT_RING_SIZE
+    for (let i = 0; i < transcriptRingCount; i++) {
+      const idx = (start + i) % TRANSCRIPT_RING_SIZE
+      const msg = transcriptRing[idx]
+      if (msg) {
+        try {
+          ws?.send(JSON.stringify(msg))
+        } catch {
+          break
+        }
+      }
+    }
+  }
 
   /** Stable conversation identity for all outbound messages. Always returns
    *  the agent host's conversationId (the broker's primary key). ccSessionId
@@ -339,6 +364,10 @@ export function createWsClient(options: WsClientOptions): WsClient {
               }
             }
           }
+
+          // Replay transcript ring buffer -- last 50 transcript entry messages.
+          // Broker deduplicates via UUID; client deduplicates via seq.
+          flushTranscriptRing()
 
           // Start heartbeat (uses conversationId as route key during boot phase)
           heartbeatInterval = setInterval(() => {
@@ -707,6 +736,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
       entries,
       isInitial,
     }
+    pushToTranscriptRing(msg)
     send(msg)
   }
 
