@@ -21,6 +21,8 @@ export interface HandlerContext {
   monitors: MonitorTracker
   replay: ReplayBuffer
   pendingControlRequests: Map<string, { subtype: string; detail?: string }>
+  syntheticUserUuids?: Map<string, string>
+  conversationId?: string
   callbacks: Pick<
     StreamBackendOptions,
     | 'onTranscriptEntries'
@@ -353,7 +355,26 @@ function handleUser(hctx: HandlerContext, msg: Record<string, unknown>) {
   detectMonitorNotifications(monitors, callbacks, msg)
 
   const ts = (msg.timestamp as string) || new Date().toISOString()
-  const uuid = (msg.uuid as string) || deterministicUuid(`user:${ts}:${JSON.stringify(msg.message).slice(0, 200)}`)
+  const messageContent = (msg.message as { content?: unknown })?.content
+  const isToolResult = Array.isArray(messageContent)
+
+  // For plain text user messages, check if sendUserMessage stashed a UUID.
+  // Reusing it ensures the broker deduplicates the CC echo (displaced arrival)
+  // against the synthetic (correct position) via INSERT OR IGNORE.
+  let uuid = msg.uuid as string | undefined
+  if (!uuid && !isToolResult && hctx.syntheticUserUuids) {
+    const content = typeof messageContent === 'string' ? messageContent : ''
+    const contentHash = createHash('sha1').update(content).digest('hex').slice(0, 16)
+    const stashed = hctx.syntheticUserUuids.get(contentHash)
+    if (stashed) {
+      uuid = stashed
+      hctx.syntheticUserUuids.delete(contentHash)
+    }
+  }
+  if (!uuid) {
+    uuid = deterministicUuid(`user:${ts}:${JSON.stringify(msg.message).slice(0, 200)}`)
+  }
+
   const entry = {
     type: 'user' as const,
     timestamp: ts,

@@ -4,6 +4,7 @@
  * Parses structured output and converts to TranscriptEntry format.
  */
 
+import { createHash } from 'node:crypto'
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Subprocess } from 'bun'
@@ -59,6 +60,7 @@ export interface StreamBackendOptions {
   cwd?: string
   env?: Record<string, string>
   includePartialMessages?: boolean
+  syntheticUserUuids?: Map<string, string>
   onTranscriptEntries?: (entries: TranscriptEntry[], isInitial: boolean) => void
   onInit?: (init: StreamInitMessage) => void
   onResult?: (result: StreamResultMessage) => void
@@ -148,6 +150,8 @@ export function spawnStreamClaude(options: StreamBackendOptions): StreamProcess 
     monitors: createMonitorTracker(),
     replay: createReplayBuffer(),
     pendingControlRequests: new Map(),
+    syntheticUserUuids: options.syntheticUserUuids,
+    conversationId: options.conversationId,
     callbacks: {
       onTranscriptEntries: options.onTranscriptEntries,
       onInit: options.onInit,
@@ -341,8 +345,17 @@ function buildStreamProcess(
         message: { role: 'user', content },
         parent_tool_use_id: null,
       })
+      // Stash a deterministic UUID so the CC echo (which arrives later,
+      // after the current turn finishes) produces the same UUID. The broker
+      // deduplicates via INSERT OR IGNORE -- the synthetic (correct position)
+      // wins, the CC echo (displaced) is dropped.
+      const contentHash = createHash('sha1').update(content).digest('hex').slice(0, 16)
+      const stash = options.syntheticUserUuids
+      const h = createHash('sha1').update(`user:${options.conversationId}:${contentHash}`).digest('hex')
+      const uuid = `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((Number.parseInt(h[16], 16) & 0x3) | 0x8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`
+      stash?.set(contentHash, uuid)
       options.onTranscriptEntries?.(
-        [{ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content } }],
+        [{ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content }, uuid } as TranscriptEntry],
         false,
       )
     },

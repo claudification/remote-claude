@@ -56,6 +56,7 @@ export interface AgentHostContext {
   readonly jsonStreamBuffer: string[]
   resumeId: string | null
   parentTranscriptPath: string | null
+  syntheticUserUuids: Map<string, string>
   lastTasksJson: string
 
   // Process references

@@ -59,6 +59,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
     conversationId: ctx.conversationId,
     localServerPort: deps.localServerPort,
     includePartialMessages: deps.includePartialMessages,
+    syntheticUserUuids: ctx.syntheticUserUuids,
     env: deps.env,
     brokerUrl: deps.brokerUrl,
     brokerSecret: deps.brokerSecret,
@@ -107,14 +108,10 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
       if (init.session_id && !ctx.parentTranscriptPath) {
         const cwdSlug = ctx.cwd.replace(/\//g, '-').replace(/^-/, '')
         const transcriptId = ctx.resumeId || init.session_id
-        ctx.parentTranscriptPath = join(
-          process.env.HOME || '',
-          '.claude',
-          'projects',
-          cwdSlug,
-          `${transcriptId}.jsonl`,
+        ctx.parentTranscriptPath = join(process.env.HOME || '', '.claude', 'projects', cwdSlug, `${transcriptId}.jsonl`)
+        debug(
+          `[headless] Derived transcript path: ${ctx.parentTranscriptPath}${ctx.resumeId ? ` (resumed from ${ctx.resumeId})` : ''}`,
         )
-        debug(`[headless] Derived transcript path: ${ctx.parentTranscriptPath}${ctx.resumeId ? ` (resumed from ${ctx.resumeId})` : ''}`)
       }
       // Forward full init metadata to broker for dashboard autocomplete
       if (ctx.wsClient?.isConnected()) {
@@ -454,6 +451,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
         ctx.pendingReadPaths.clear()
         ctx.agentToolUseMap.clear()
         ctx.pendingAskRequests.clear()
+        ctx.syntheticUserUuids.clear()
         transcriptSendChain = Promise.resolve()
         ctx.diag(
           'headless',

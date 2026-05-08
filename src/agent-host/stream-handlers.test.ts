@@ -107,6 +107,36 @@ describe('stream-handlers UUID synthesis', () => {
     expect(entries[0].uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   })
 
+  test('CC echo reuses stashed UUID from synthetic (dedup with broker)', () => {
+    const stash = new Map<string, string>()
+    const entries: TranscriptEntry[] = []
+    const hctx: HandlerContext = {
+      monitors: { pendingMonitorInputs: new Map(), agentTaskToToolUse: new Map(), monitorTasks: new Map() },
+      replay: createReplayBuffer(),
+      pendingControlRequests: new Map(),
+      syntheticUserUuids: stash,
+      conversationId: 'test-conv-id',
+      callbacks: { onTranscriptEntries(e) { entries.push(...e) } },
+    }
+    hctx.replay.done = true
+
+    // Simulate sendUserMessage stashing a UUID
+    const { createHash } = require('node:crypto')
+    const content = 'hello world'
+    const contentHash = createHash('sha1').update(content).digest('hex').slice(0, 16)
+    stash.set(contentHash, 'stashed-uuid-12345')
+
+    // CC echo arrives -- should reuse the stashed UUID
+    handleMessage(hctx, {
+      type: 'user',
+      timestamp: '2026-05-08T15:17:40.000Z',
+      message: { role: 'user', content },
+    })
+    expect(entries).toHaveLength(1)
+    expect(entries[0].uuid).toBe('stashed-uuid-12345')
+    expect(stash.size).toBe(0) // consumed
+  })
+
   test('assistant message with UUID from CC preserves it', () => {
     const { hctx, entries } = createTestContext()
     handleMessage(hctx, {

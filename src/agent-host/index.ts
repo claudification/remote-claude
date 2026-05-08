@@ -110,6 +110,7 @@ async function main() {
     jsonStreamAttached: false,
     jsonStreamBuffer: [],
     resumeId: cli.resumeId || null,
+    syntheticUserUuids: new Map(),
     parentTranscriptPath: null,
     lastTasksJson: '',
 
