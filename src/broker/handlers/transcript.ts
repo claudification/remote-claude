@@ -174,14 +174,22 @@ const transcriptRequest: MessageHandler = (ctx, data) => {
       data.filter === 'display'
         ? filterDisplayEntries(ctx.conversations.getTranscriptEntries(conversationId), data.limit)
         : ctx.conversations.getTranscriptEntries(conversationId, data.limit)
-    // Filter user entries for share viewers with hideUserInput
     if (ctx.ws.data.hideUserInput) {
       entries = entries.filter(e => (e as { type?: string }).type !== 'user')
     }
     ctx.reply({ type: 'transcript_entries', conversationId, entries, isInitial: true })
   } else {
-    const conversationSocket = ctx.conversations.getConversationSocket(conversationId)
-    if (conversationSocket) conversationSocket.send(JSON.stringify(data))
+    const stored = ctx.conversations.loadTranscriptFromStore(conversationId, data.limit || 200)
+    if (stored) {
+      let entries = data.filter === 'display' ? filterDisplayEntries(stored, data.limit) : stored
+      if (ctx.ws.data.hideUserInput) {
+        entries = entries.filter(e => (e as { type?: string }).type !== 'user')
+      }
+      ctx.reply({ type: 'transcript_entries', conversationId, entries, isInitial: true })
+    } else {
+      const conversationSocket = ctx.conversations.getConversationSocket(conversationId)
+      if (conversationSocket) conversationSocket.send(JSON.stringify(data))
+    }
   }
 }
 

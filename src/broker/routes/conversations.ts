@@ -80,14 +80,21 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
     const filter = c.req.query('filter')
     const sinceSeqRaw = c.req.query('sinceSeq')
     const sinceSeq = sinceSeqRaw !== undefined ? parseInt(sinceSeqRaw, 10) : undefined
+    let allEntries = conversationStore.getTranscriptEntries(conversationId)
+    let source = 'cache'
+
     if (!conversationStore.hasTranscriptCache(conversationId)) {
-      console.log(
-        `[${conversationId.slice(0, 8)}] GET transcript limit=${limit} filter=${filter || 'none'} -> 404 no-cache`,
-      )
-      return c.json({ error: 'No transcript in cache (rclaude not streaming yet?)' }, 404)
+      const stored = conversationStore.loadTranscriptFromStore(conversationId, limit)
+      if (!stored) {
+        console.log(
+          `[${conversationId.slice(0, 8)}] GET transcript limit=${limit} filter=${filter || 'none'} -> 404 no-cache no-store`,
+        )
+        return c.json({ error: 'No transcript available' }, 404)
+      }
+      allEntries = stored
+      source = 'store'
     }
 
-    const allEntries = conversationStore.getTranscriptEntries(conversationId)
     const cacheSize = allEntries.length
     const lastSeq = allEntries.length > 0 ? (allEntries[allEntries.length - 1].seq ?? 0) : 0
 
@@ -119,7 +126,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
 
     const mode = sinceSeq !== undefined ? `delta(sinceSeq=${sinceSeq}${gap ? ' GAP' : ''})` : `full(limit=${limit})`
     console.log(
-      `[${conversationId.slice(0, 8)}] GET transcript ${mode} filter=${filter || 'none'} -> ${entries.length}/${cacheSize} entries lastSeq=${lastSeq}`,
+      `[${conversationId.slice(0, 8)}] GET transcript ${mode} filter=${filter || 'none'} -> ${entries.length}/${cacheSize} entries lastSeq=${lastSeq} (${source})`,
     )
     return c.json({
       entries: entries.map(e => processImagesInEntry(e as Record<string, unknown>)),
