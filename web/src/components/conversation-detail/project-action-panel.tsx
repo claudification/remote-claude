@@ -10,35 +10,41 @@ import { openSpawnDialog } from '../spawn-dialog'
 function RecentConversationItem({ session }: { session: Session }) {
   const selectConversation = useConversationsStore(s => s.selectConversation)
   const sentinelConnected = useConversationsStore(s => s.sentinelConnected)
-  const name = session.title || session.id.slice(0, 8)
+  const name = session.title || session.agentName || session.recap?.title || session.id.slice(0, 8)
+  const recap = session.recap?.content || session.summary
   const ago = formatTimeAgo(session.lastActivity)
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 border border-border hover:border-primary transition-colors">
-      <span className="text-xs font-mono text-muted-foreground truncate flex-1">{name}</span>
-      <span className="text-[10px] text-muted-foreground/50 shrink-0">{ago}</span>
-      <button
-        type="button"
-        className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
-        onClick={() => {
-          haptic('tap')
-          selectConversation(session.id)
-        }}
-      >
-        VIEW
-      </button>
-      {sentinelConnected && (
+    <div className="px-3 py-2 border border-border hover:border-primary transition-colors space-y-1">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-mono text-foreground/80 truncate flex-1">{name}</span>
+        <span className="text-[10px] text-muted-foreground/50 shrink-0">{ago}</span>
         <button
           type="button"
-          className="text-[10px] font-mono text-emerald-400 hover:text-emerald-300 transition-colors"
+          className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
           onClick={() => {
             haptic('tap')
             selectConversation(session.id)
-            openReviveDialog({ conversationId: session.id })
           }}
         >
-          REVIVE
+          VIEW
         </button>
+        {sentinelConnected && (
+          <button
+            type="button"
+            className="text-[10px] font-mono text-emerald-400 hover:text-emerald-300 transition-colors"
+            onClick={() => {
+              haptic('tap')
+              selectConversation(session.id)
+              openReviveDialog({ conversationId: session.id })
+            }}
+          >
+            REVIVE
+          </button>
+        )}
+      </div>
+      {recap && (
+        <div className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-line">{recap}</div>
       )}
     </div>
   )
@@ -76,8 +82,8 @@ export function ProjectActionPanel({ projectUri }: { projectUri: string }) {
         {/* Project header */}
         <div className="text-center space-y-1">
           {ps?.icon && (
-            <div className="text-2xl" style={displayColor ? { color: displayColor } : undefined}>
-              {renderProjectIcon(ps.icon)}
+            <div className="flex justify-center text-2xl" style={displayColor ? { color: displayColor } : undefined}>
+              {renderProjectIcon(ps.icon, 'w-6 h-6')}
             </div>
           )}
           <h2 className="text-lg font-bold text-foreground" style={displayColor ? { color: displayColor } : undefined}>
