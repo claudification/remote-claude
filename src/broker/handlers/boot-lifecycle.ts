@@ -189,11 +189,14 @@ const conversationPromote: MessageHandler = (ctx, data) => {
   // Pull model: request transcript from agent host if broker has none.
   // The agent host reads its CC JSONL file and sends entries back.
   // UUID-based dedup in SQLite handles overlap with stream replay buffer.
+  // Pull model: request transcript from agent host if broker has none.
+  // Usually the stream replay buffer sends entries before promote fires,
+  // so this acts as a fallback (e.g., broker restart mid-session).
   if (!ctx.conversations.hasTranscriptCache(conversationId)) {
     const socket = ctx.conversations.getConversationSocket(conversationId)
     if (socket) {
       socket.send(JSON.stringify({ type: 'transcript_request', conversationId }))
-      ctx.log.debug(`[boot] requested transcript from agent host for ${conversationId.slice(0, 8)}`)
+      console.log(`[${conversationId.slice(0, 8)}] [boot] requested transcript from agent host`)
     }
   }
 }
