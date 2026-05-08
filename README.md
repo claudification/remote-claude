@@ -151,7 +151,7 @@ with new content; scroll up to pause, scroll back down to resume.
 
 Run Claude on your desktop, your server, your CI runner -- all sessions stream
 to one broker. The control panel shows them all, grouped by project, with custom
-labels, icons, and colors. Switch between sessions instantly with Ctrl+K
+labels, icons, and colors. Switch between sessions instantly with Cmd+P
 (QuickSilver-style fuzzy finder). Never lose track of what's running where.
 
 ### Sub-Agent & Team Tracking
@@ -171,7 +171,7 @@ with their commands, descriptions, and run times.
 
 Browse and edit markdown files in your session's working directory directly from
 the control panel. CodeMirror-powered editor with syntax highlighting, version
-history, and conflict detection. Hit Ctrl+K and type `F:` to open the
+history, and conflict detection. Hit Cmd+P and type `F:` to open the
 QuickSilver-style file browser.
 
 ### Passkey-Only Authentication
@@ -616,18 +616,17 @@ docker exec broker broker-cli delete-passkey --name alice --credential-id <id>
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+K` | Command palette (fuzzy finder) |
-| `Ctrl+K` then `F:` | File browser |
-| `Ctrl+K` then `S:` | Spawn session picker |
-| `Ctrl+Shift+S` | Spawn new session (direct) |
-| `Ctrl+Shift+N` | Quick note (append to NOTES.md) |
-| `Ctrl+Shift+Alt+N` | Open NOTES.md in file editor |
-| `Ctrl+Shift+T` | Toggle terminal for current session |
-| `Ctrl+Shift+D` | Toggle debug console |
-| `Ctrl+O` | Toggle verbose / expand all |
+| `Cmd+P` | Command palette (fuzzy finder) |
+| `Cmd+P` then `F:` | File browser |
+| `Cmd+P` then `S:` | Spawn conversation picker |
+| `Cmd+P` then `>` | Command mode (system actions) |
+| `Cmd+G` + letter | Chord shortcuts (navigation/conversation actions) |
+| `Cmd+B` | Toggle sidebar |
+| `Cmd+O` | Toggle verbose / expand all |
+| `Cmd+Shift+P` | Command palette (command mode) |
 | `Shift+Click` TTY badge | Popout terminal to separate window |
-| `Shift+?` | Keyboard shortcut help |
-| `Esc` | Close modal / exit picker |
+| `Escape` | Close modal / home |
+| `Escape Escape` | Interrupt |
 
 **Input bar:**
 
@@ -635,7 +634,7 @@ docker exec broker broker-cli delete-passkey --name alice --credential-id <id>
 |----------|--------|
 | `Enter` | Submit prompt |
 | `Shift+Enter` | New line |
-| `Ctrl+V` / Paste | Paste text or images |
+| `Cmd+V` / Paste | Paste text or images |
 
 ---
 
@@ -763,27 +762,27 @@ to preview what legacy files a fresh install would absorb.
 All API endpoints require authentication (passkey cookie or
 `Authorization: Bearer $RCLAUDE_SECRET`).
 
-### Sessions
+### Conversations
 
 ```
-GET  /health                                    Health check (public)
-GET  /sessions                                  List sessions (?active=true)
-GET  /sessions/:id                              Session details
-GET  /sessions/:id/events                       Hook events
-GET  /sessions/:id/subagents                    Sub-agent list
-GET  /sessions/:id/transcript                   Transcript entries
-GET  /sessions/:id/subagents/:aid/transcript    Sub-agent transcript
-GET  /sessions/:id/tasks                        Tasks + background tasks
-GET  /sessions/:id/diag                         Full diagnostic dump
-POST /sessions/:id/input                        Send input to session
-POST /sessions/:id/revive                       Revive ended session
-DELETE /sessions/:id                            Dismiss ended session
+GET  /health                                             Health check (public)
+GET  /conversations                                      List conversations (?active=true)
+GET  /conversations/:id                                  Conversation details
+GET  /conversations/:id/events                           Hook events
+GET  /conversations/:id/subagents                        Sub-agent list
+GET  /conversations/:id/transcript                       Transcript entries
+GET  /conversations/:id/subagents/:aid/transcript        Sub-agent transcript
+GET  /conversations/:id/tasks                            Tasks + background tasks
+GET  /conversations/:id/diag                             Full diagnostic dump
+POST /conversations/:id/input                            Send input to conversation
+POST /conversations/:id/revive                           Revive ended conversation
+DELETE /conversations/:id                                Dismiss ended conversation
 ```
 
 ### Spawn & Sentinel
 
 ```
-POST /api/spawn                                 Spawn new session
+POST /api/spawn                                 Spawn new conversation
 GET  /sentinel/status                           Sentinel connection status
 POST /sentinel/quit                             Request sentinel quit
 GET  /api/sentinel/diag                         Sentinel diagnostics
@@ -798,11 +797,11 @@ GET  /api/settings/projects                     Project settings
 POST /api/settings/projects                     Create/update project settings
 DELETE /api/settings/projects                   Delete project settings
 POST /api/settings/projects/generate-keyterms   AI-generate project keywords
-GET  /api/session-order                         Session tree order
-POST /api/session-order                         Update session tree order
+GET  /api/project-order                          Project tree order
+POST /api/project-order                          Update project tree order
 ```
 
-### Inter-Session Links
+### Inter-Conversation Links
 
 ```
 GET  /api/links                                 List links + trust levels
@@ -811,7 +810,7 @@ DELETE /api/links                               Remove link
 GET  /api/links/messages                        Message history
 ```
 
-### Session Shares
+### Conversation Shares
 
 ```
 POST /api/shares                                Create share link
@@ -914,8 +913,8 @@ claudewerk/
 │   │   ├── routes.ts             HTTP routes composition root
 │   │   ├── routes/               Per-domain route modules
 │   │   ├── __tests__/            Vitest behavioral tests
-│   │   ├── session-store.ts      Runtime session registry (hot cache over StoreDriver)
-│   │   ├── session-store/        Domain modules (sync-protocol, broadcast, spawn-jobs, ...)
+│   │   ├── conversation-store.ts  Runtime conversation registry (hot cache over StoreDriver)
+│   │   ├── conversation-store/   Domain modules (sync-protocol, broadcast, spawn-jobs, ...)
 │   │   ├── store/                Unified StoreDriver (SQLite + in-memory)
 │   │   │   ├── types.ts            Interface contracts (SessionStore, TranscriptStore, CostStore, ...)
 │   │   │   ├── sqlite/             SQLite implementation (all SQL lives here)
@@ -925,7 +924,7 @@ claudewerk/
 │   │   │   └── query-cli.ts        broker-cli query (readonly SQL)
 │   │   ├── project-store.ts      Project registry (separate projects.db, integer PKs)
 │   │   ├── analytics-store.ts    Tool-use analytics (separate analytics.db)
-│   │   ├── session-order.ts      Tree-based session organization (backed by store.kv)
+│   │   ├── project-order.ts      Tree-based project organization (backed by store.kv)
 │   │   ├── project-links.ts      Inter-project trust (backed by store.scopeLinks)
 │   │   ├── address-book.ts       Per-caller routing slugs (backed by store.addressBook)
 │   │   ├── message-queue.ts      Offline message queue (backed by store.messages)
