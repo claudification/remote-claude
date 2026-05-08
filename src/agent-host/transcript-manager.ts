@@ -4,6 +4,7 @@
  * TodoWrite interception, background task output watching, and subagent watchers.
  */
 
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { structuredPatch as computeStructuredPatch } from 'diff'
 import type { ConversationNameUpdate, TaskInfo, TasksUpdate, TranscriptEntry } from '../shared/protocol'
@@ -230,6 +231,19 @@ export async function sendTranscriptEntriesChunked(
   isInitial: boolean,
   agentId?: string,
 ) {
+  // Stamp deterministic UUIDs on entries that lack them. CC doesn't assign
+  // UUIDs to user-typed messages (only tool results). Without stable UUIDs,
+  // duplicates from ring buffer replay or CC replay can't be deduped by the
+  // broker (INSERT OR IGNORE on uuid). Applies to BOTH headless (stream-json)
+  // and PTY (JSONL watcher) paths since both funnel through here.
+  for (const e of entries) {
+    if (!e.uuid) {
+      const content = JSON.stringify((e as Record<string, unknown>).message ?? e.type).slice(0, 200)
+      const h = createHash('sha1').update(`${e.type}:${e.timestamp}:${content}`).digest('hex')
+      e.uuid = `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((Number.parseInt(h[16], 16) & 0x3) | 0x8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`
+    }
+  }
+
   if (!ctx.claudeSessionId) {
     debug(`Buffering ${entries.length} transcript entries (claudeSessionId not set yet)`)
     ctx.pendingTranscriptEntries.push({ entries, isInitial, agentId })
