@@ -16,26 +16,26 @@
 	--secondary: oklch(0.25 0.02 260);
 	--secondary-foreground: oklch(0.85 0.02 260);
 	--muted: oklch(0.22 0.02 260);
-	--muted-foreground: oklch(0.6 0.02 260);
+	--muted-foreground: oklch(0.7 0.02 260);
 	--accent: oklch(0.75 0.15 85);
 	--accent-foreground: oklch(0.15 0.02 260);
 	--destructive: oklch(0.6 0.2 20);
 	--destructive-foreground: oklch(0.98 0 0);
-	--border: oklch(0.3 0.02 260);
+	--border: oklch(0.32 0.02 260);
 	--input: oklch(0.22 0.02 260);
 	--ring: oklch(0.7 0.15 250);
 
 	/* Status colors - Tokyo Night accent colors */
 	--active: oklch(0.75 0.18 150);
 	--idle: oklch(0.75 0.15 85);
-	--ended: oklch(0.5 0.02 260);
+	--ended: oklch(0.55 0.02 260);
 
 	/* Event type colors */
 	--event-conversation: oklch(0.75 0.18 150);
 	--event-tool: oklch(0.7 0.15 250);
 	--event-prompt: oklch(0.75 0.18 320);
 	--event-stop: oklch(0.75 0.15 85);
-	--event-notification: oklch(0.5 0.02 260);
+	--event-notification: oklch(0.55 0.02 260);
 
 	/* Chart colors - Tokyo Night accent palette */
 	--chart-1: oklch(0.7 0.15 250);
@@ -51,7 +51,7 @@
 	--sidebar-primary-foreground: oklch(0.98 0 0);
 	--sidebar-accent: oklch(0.75 0.15 85);
 	--sidebar-accent-foreground: oklch(0.15 0.02 260);
-	--sidebar-border: oklch(0.25 0.02 260);
+	--sidebar-border: oklch(0.28 0.02 260);
 	--sidebar-ring: oklch(0.7 0.15 250);
 
 	--font-sans: 'JetBrains Mono', system-ui, sans-serif;

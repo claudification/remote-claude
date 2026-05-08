@@ -17,11 +17,11 @@ function RecentConversationItem({ session }: { session: Session }) {
   return (
     <div className="px-3 py-2 border border-border hover:border-primary transition-colors space-y-1">
       <div className="flex items-center gap-2">
-        <span className="text-xs font-mono text-foreground/80 truncate flex-1">{name}</span>
-        <span className="text-[10px] text-muted-foreground/50 shrink-0">{ago}</span>
+        <span className="text-xs font-mono text-primary truncate flex-1">{name}</span>
+        <span className="text-[10px] text-muted-foreground/70 shrink-0">{ago}</span>
         <button
           type="button"
-          className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
+          className="text-[10px] font-mono text-accent hover:text-accent/80 transition-colors"
           onClick={() => {
             haptic('tap')
             selectConversation(session.id)
@@ -43,9 +43,7 @@ function RecentConversationItem({ session }: { session: Session }) {
           </button>
         )}
       </div>
-      {recap && (
-        <div className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-line">{recap}</div>
-      )}
+      {recap && <div className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-line">{recap}</div>}
     </div>
   )
 }
@@ -89,7 +87,7 @@ export function ProjectActionPanel({ projectUri }: { projectUri: string }) {
           <h2 className="text-lg font-bold text-foreground" style={displayColor ? { color: displayColor } : undefined}>
             {displayName}
           </h2>
-          <div className="text-xs font-mono text-muted-foreground/60">{path}</div>
+          <div className="text-xs font-mono text-muted-foreground">{path}</div>
           {ps?.description && <div className="text-xs text-muted-foreground/80">{ps.description}</div>}
         </div>
 
@@ -111,7 +109,7 @@ export function ProjectActionPanel({ projectUri }: { projectUri: string }) {
         {/* Recent conversations */}
         {recentEnded.length > 0 && (
           <div className="space-y-1">
-            <div className="text-[10px] text-muted-foreground/50 font-bold uppercase tracking-wider px-1 flex items-center gap-2">
+            <div className="text-[10px] text-muted-foreground/70 font-bold uppercase tracking-wider px-1 flex items-center gap-2">
               <span>Recent conversations</span>
               <span className="flex-1 h-px bg-border" />
             </div>
