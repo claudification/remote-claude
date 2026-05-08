@@ -83,16 +83,19 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
     let allEntries = conversationStore.getTranscriptEntries(conversationId)
     let source = 'cache'
 
-    if (!conversationStore.hasTranscriptCache(conversationId)) {
-      const stored = conversationStore.loadTranscriptFromStore(conversationId, limit)
-      if (!stored) {
-        console.log(
-          `[${conversationId.slice(0, 8)}] GET transcript limit=${limit} filter=${filter || 'none'} -> 404 no-cache no-store`,
-        )
-        return c.json({ error: 'No transcript available' }, 404)
-      }
+    // Always check SQLite -- the cache may only have boot entries while
+    // the store has the full transcript (e.g., after broker restart).
+    const stored = conversationStore.loadTranscriptFromStore(conversationId, Math.max(limit, 500))
+    if (stored && stored.length > allEntries.length) {
       allEntries = stored
       source = 'store'
+    }
+
+    if (allEntries.length === 0) {
+      console.log(
+        `[${conversationId.slice(0, 8)}] GET transcript limit=${limit} filter=${filter || 'none'} -> 404 no-cache no-store`,
+      )
+      return c.json({ error: 'No transcript available' }, 404)
     }
 
     const cacheSize = allEntries.length

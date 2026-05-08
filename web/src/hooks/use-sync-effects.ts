@@ -145,7 +145,17 @@ function useConversationSwitchFetch(
   // biome-ignore lint/correctness/useExhaustiveDependencies: isConnected and fetchConversationData intentionally omitted - only re-run on conversation switch
   useEffect(() => {
     if (!selectedConversationId || !isConnected) return
-    fetchConversationData(selectedConversationId, 'session-switch')
+    const { transcripts, events } = useConversationsStore.getState()
+    const cachedTranscript = transcripts[selectedConversationId]?.length ?? 0
+    const cachedEvents = events[selectedConversationId]?.length ?? 0
+    if (cachedTranscript > 0) {
+      console.log(
+        `[sync] HIT ${selectedConversationId.slice(0, 8)}: transcript=${cachedTranscript} events=${cachedEvents} (no fetch, WS sub alive)`,
+      )
+    } else {
+      console.log(`[sync] MISS ${selectedConversationId.slice(0, 8)}: no cached transcript, fetching full`)
+      fetchConversationData(selectedConversationId, 'session-switch-empty')
+    }
   }, [selectedConversationId]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
