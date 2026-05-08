@@ -1579,7 +1579,17 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     if (!store) return null
     const records = store.transcripts.getLatest(conversationId, limit)
     if (records.length === 0) return null
-    return records.map(r => ({ ...r.content, seq: r.seq }) as TranscriptEntry)
+    const entries = records.map(r => ({ ...r.content, seq: r.seq }) as TranscriptEntry)
+    // Seed the in-memory seq counter so live entries continue from where
+    // SQLite left off. Without this, broker restart resets the counter to 0,
+    // live entries get seq 1..N, and clients that fetched from SQLite (seq 500+)
+    // filter them all out as "already applied".
+    const maxSeq = entries[entries.length - 1].seq ?? 0
+    const currentSeq = transcriptSeqCounters.get(conversationId) ?? 0
+    if (maxSeq > currentSeq) {
+      transcriptSeqCounters.set(conversationId, maxSeq)
+    }
+    return entries
   }
 
   function addSubagentTranscriptEntries(
