@@ -579,6 +579,15 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         changed = true
       }
 
+      // Starting liveness: agent host connected but CC is idle (e.g. broker restart
+      // while CC was waiting for input -- no events arrive to advance the status)
+      if (conv.status === 'starting' && now - conv.lastActivity > 60_000) {
+        if (conversationSockets.has(conv.id)) {
+          conv.status = 'idle'
+          changed = true
+        }
+      }
+
       // Clean up stale "running" agents (SubagentStop may have been missed)
       for (const agent of conv.subagents) {
         if (
@@ -726,6 +735,9 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           hostSentinelAlias: fullMeta.hostSentinelAlias as string | undefined,
           conversationInfo: fullMeta.conversationInfo as Conversation['conversationInfo'],
           agentHostMeta: fullMeta.agentHostMeta as Record<string, unknown> | undefined,
+          tokenUsage: fullMeta.tokenUsage as Conversation['tokenUsage'],
+          cacheTtl: fullMeta.cacheTtl as Conversation['cacheTtl'],
+          lastTurnEndedAt: fullMeta.lastTurnEndedAt as number | undefined,
         }
         conversations.set(conv.id, conv)
       }
@@ -788,6 +800,10 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         hostSentinelAlias: conv.hostSentinelAlias,
         conversationInfo: conv.conversationInfo,
         agentHostMeta: conv.agentHostMeta,
+        tokenUsage: conv.tokenUsage,
+        summary: conv.summary,
+        cacheTtl: conv.cacheTtl,
+        lastTurnEndedAt: conv.lastTurnEndedAt,
       }
       if (!existing) {
         store.conversations.create({
@@ -950,7 +966,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   function resumeConversation(id: string): void {
     const conv = conversations.get(id)
     if (conv) {
-      conv.status = 'starting'
+      conv.status = 'idle'
       conv.lastActivity = Date.now()
       // Reset stale state from previous run
       conv.subagents = []
