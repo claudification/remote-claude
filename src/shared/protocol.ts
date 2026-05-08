@@ -930,6 +930,11 @@ export interface QuitConversation {
   conversationId: string
 }
 
+export interface RecapRequest {
+  type: 'recap_request'
+  conversationId: string
+}
+
 /**
  * Higher-level control verbs routed to a target session's agent host. The agent host
  * interprets these backend-specifically (headless vs PTY) instead of letting

@@ -10,6 +10,8 @@ import type { AgentHostLaunchStep, TranscriptLaunchEntry } from '../../shared/pr
 import { filterDisplayEntries } from '../../shared/transcript-filter'
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
+import { generateRecapManual } from '../recap-generator'
+import { requireStrings } from './validate'
 
 /** Stored conversation_info snapshot shape used for cross-turn diffing. */
 interface ConversationInfoSnapshot {
@@ -497,6 +499,16 @@ const resultText: MessageHandler = (ctx, data) => {
   }
 }
 
+const recapRequest: MessageHandler = (ctx, data) => {
+  ctx.requireBenevolent()
+  const fields = requireStrings(ctx, data, ['conversationId'] as const, 'recap_request')
+  if (!fields) return
+  const conversation = ctx.conversations.getConversation(fields.conversationId)
+  if (!conversation) return
+  ctx.requirePermission('chat:read', conversation.project)
+  generateRecapManual(ctx.conversations, fields.conversationId)
+}
+
 export function registerTranscriptHandlers(): void {
   registerHandlers({
     conversation_name: conversationName,
@@ -514,5 +526,6 @@ export function registerTranscriptHandlers(): void {
     result_text: resultText,
     monitor_update: monitorUpdate,
     scheduled_task_fire: scheduledTaskFire,
+    recap_request: recapRequest,
   })
 }

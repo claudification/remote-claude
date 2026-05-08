@@ -3,7 +3,7 @@ import type { TranscriptAssistantEntry, TranscriptSystemEntry, TranscriptUserEnt
 import { parseRecapContent } from '../shared/recap'
 import type { ConversationStore } from './conversation-store'
 
-const RECAP_DELAY_MS = 60_000
+const RECAP_DELAY_MS = 120_000
 const RECAP_PROMPT = `The developer stepped away from this coding session. Recap what's happening.
 Respond with JSON: {"title": "...", "recap": "..."}
 
@@ -43,8 +43,33 @@ export function cancelRecap(conversationId: string): void {
   }
 }
 
-async function generateRecap(store: ConversationStore, conversationId: string): Promise<void> {
+export function generateRecapOnEnd(store: ConversationStore, conversationId: string): void {
+  if (!process.env.OPENROUTER_API_KEY) return
   const conv = store.getConversation(conversationId)
+  if (!conv || conv.recap) return
+  cancelRecap(conversationId)
+  generateRecap(store, conversationId, true).catch(err => {
+    console.log(`[recap] end-of-conversation generation failed for ${conversationId.slice(0, 8)}: ${err}`)
+  })
+}
+
+export function generateRecapManual(store: ConversationStore, conversationId: string): void {
+  if (!process.env.OPENROUTER_API_KEY) {
+    console.log(`[recap] manual generation skipped -- no OPENROUTER_API_KEY`)
+    return
+  }
+  const conv = store.getConversation(conversationId)
+  if (!conv) return
+  cancelRecap(conversationId)
+  console.log(`[recap] manual generation requested for ${conversationId.slice(0, 8)}`)
+  generateRecap(store, conversationId, true).catch(err => {
+    console.log(`[recap] manual generation failed for ${conversationId.slice(0, 8)}: ${err}`)
+  })
+}
+
+async function generateRecap(store: ConversationStore, conversationId: string, allowEnded = false): Promise<void> {
+  const conv = store.getConversation(conversationId)
+  if (!conv || (!allowEnded && conv.status !== 'idle')) return
   const condensed = condenseTranscript(store, conversationId, conv?.resultText)
   if (!condensed) {
     console.log(`[recap] no transcript context for ${conversationId.slice(0, 8)}, skipping`)
@@ -88,7 +113,8 @@ async function generateRecap(store: ConversationStore, conversationId: string): 
   const parsed = parseRecapContent(rawText)
 
   const freshConv = store.getConversation(conversationId)
-  if (!freshConv || freshConv.status !== 'idle') return
+  if (!freshConv) return
+  if (!allowEnded && freshConv.status !== 'idle') return
 
   const entry: TranscriptSystemEntry = {
     type: 'system',
@@ -105,6 +131,7 @@ async function generateRecap(store: ConversationStore, conversationId: string): 
     entries: [entry],
   })
   store.broadcastConversationUpdate(conversationId)
+  if (allowEnded) store.persistConversationById(conversationId)
 
   console.log(
     `[recap] generated for ${conversationId.slice(0, 8)}: title="${parsed.title}" recap="${parsed.recap.slice(0, 60)}"`,

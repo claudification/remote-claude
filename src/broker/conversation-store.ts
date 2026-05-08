@@ -57,7 +57,7 @@ import type { ControlPanelMessage } from './conversation-store/types'
 import { createViewerRegistry } from './conversation-store/viewer-registry'
 import type { UserGrant } from './permissions'
 import { resolvePermissionFlags, resolvePermissions } from './permissions'
-import { cancelRecap, scheduleRecap } from './recap-generator'
+import { cancelRecap, generateRecapOnEnd, scheduleRecap } from './recap-generator'
 import type { SentinelRegistry } from './sentinel-registry'
 import { listShares } from './shares'
 import type { StoreDriver } from './store/types'
@@ -103,6 +103,7 @@ export interface ConversationStore {
   addTranscriptEntries: (conversationId: string, entries: TranscriptEntry[], isInitial: boolean) => void
   getTranscriptEntries: (conversationId: string, limit?: number) => TranscriptEntry[]
   hasTranscriptCache: (conversationId: string) => boolean
+  loadTranscriptFromStore: (conversationId: string, limit: number) => TranscriptEntry[] | null
   addSubagentTranscriptEntries: (
     conversationId: string,
     agentId: string,
@@ -1140,6 +1141,9 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
 
       // Persist to store immediately
       persistConversation(conv)
+
+      // Generate recap if none exists (async, re-persists on completion)
+      generateRecapOnEnd(self, conversationId)
     }
   }
 
@@ -1566,6 +1570,13 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return transcriptCache.has(conversationId)
   }
 
+  function loadTranscriptFromStore(conversationId: string, limit: number): TranscriptEntry[] | null {
+    if (!store) return null
+    const records = store.transcripts.getLatest(conversationId, limit)
+    if (records.length === 0) return null
+    return records.map(r => ({ ...r.content, seq: r.seq }) as TranscriptEntry)
+  }
+
   function addSubagentTranscriptEntries(
     conversationId: string,
     agentId: string,
@@ -1828,6 +1839,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     addTranscriptEntries,
     getTranscriptEntries,
     hasTranscriptCache,
+    loadTranscriptFromStore,
     addSubagentTranscriptEntries,
     getSubagentTranscriptEntries,
     hasSubagentTranscriptCache,

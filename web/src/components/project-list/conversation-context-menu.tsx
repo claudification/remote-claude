@@ -1,6 +1,6 @@
 import { ContextMenu } from 'radix-ui'
 import type { ReactNode } from 'react'
-import { saveProjectOrder, updateProjectSettings, useConversationsStore } from '@/hooks/use-conversations'
+import { saveProjectOrder, updateProjectSettings, useConversationsStore, wsSend } from '@/hooks/use-conversations'
 import type { ProjectOrder, ProjectOrderGroup, Session } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
@@ -143,6 +143,15 @@ export function ConversationContextMenu({
             }}
           >
             Edit description...
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className={menuItemClass}
+            onSelect={() => {
+              haptic('tap')
+              wsSend('recap_request', { conversationId: session.id })
+            }}
+          >
+            Recap
           </ContextMenu.Item>
           {onOpenSettings && (
             <ContextMenu.Item
