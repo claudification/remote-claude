@@ -8,6 +8,7 @@
  * on the conversation (the conversationId store key stays the same).
  */
 
+import { createHash } from 'node:crypto'
 import { cwdToProjectUri } from '../../shared/project-uri'
 import type {
   AgentHostCapability,
@@ -20,6 +21,11 @@ import type {
 import type { MessageHandler } from '../handler-context'
 import { registerHandlers } from '../message-router'
 import { requireProtocolVersion } from './validate'
+
+function deterministicUuid(key: string): string {
+  const h = createHash('sha1').update(key).digest('hex')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((Number.parseInt(h[16], 16) & 0x3) | 0x8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`
+}
 
 const agentHostBoot: MessageHandler = (ctx, data) => {
   // Gate: protocol version. wrapper_boot is the very first frame from a
@@ -116,6 +122,7 @@ const bootEvent: MessageHandler = (ctx, data) => {
     detail: (data.detail as string | undefined) ?? undefined,
     raw: data.raw,
     timestamp: new Date().toISOString(),
+    uuid: deterministicUuid(`${conv.id}:boot:${step}:${data.t || ''}`),
   }
 
   // Append to the conversation's transcript + broadcast to dashboard subscribers.
@@ -154,6 +161,7 @@ const launchEvent: MessageHandler = (ctx, data) => {
     detail: (data.detail as string | undefined) ?? undefined,
     raw: (data.raw as Record<string, unknown> | undefined) ?? undefined,
     timestamp: new Date().toISOString(),
+    uuid: deterministicUuid(`${conv.id}:launch:${launchId}:${step}`),
   }
 
   ctx.conversations.addTranscriptEntries(conv.id, [entry], false)
