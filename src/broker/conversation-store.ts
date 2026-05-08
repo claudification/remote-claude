@@ -722,6 +722,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           hostSentinelId: fullMeta.hostSentinelId as string | undefined,
           hostSentinelAlias: fullMeta.hostSentinelAlias as string | undefined,
           conversationInfo: fullMeta.conversationInfo as Conversation['conversationInfo'],
+          agentHostMeta: fullMeta.agentHostMeta as Record<string, unknown> | undefined,
         }
         conversations.set(conv.id, conv)
       }
@@ -783,6 +784,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         hostSentinelId: conv.hostSentinelId,
         hostSentinelAlias: conv.hostSentinelAlias,
         conversationInfo: conv.conversationInfo,
+        agentHostMeta: conv.agentHostMeta,
       }
       if (!existing) {
         store.conversations.create({
