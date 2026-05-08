@@ -616,24 +616,31 @@ function ConversationItemShell({
       className={cn(
         'w-full text-left border transition-colors group cursor-pointer',
         variant === 'compact' ? 'p-2 pl-4 text-[11px]' : 'p-3',
-        isSelected
-          ? 'border-accent bg-accent/15 ring-1 ring-accent/50 shadow-[0_0_8px_rgba(122,162,247,0.15)]'
-          : displayColor
-            ? 'border-border hover:border-primary'
+        isSelected && session.planMode
+          ? 'border-blue-500 bg-blue-500/15 ring-1 ring-blue-500/50 shadow-[0_0_8px_rgba(59,130,246,0.2)]'
+          : isSelected
+            ? 'border-accent bg-accent/15 ring-1 ring-accent/50 shadow-[0_0_8px_rgba(122,162,247,0.15)]'
             : session.planMode
               ? 'border-blue-500/40 hover:border-blue-400/60'
-              : 'border-border hover:border-primary hover:bg-card',
+              : displayColor
+                ? 'border-border hover:border-primary'
+                : 'border-border hover:border-primary hover:bg-card',
       )}
       style={
-        !isSelected && session.planMode && !displayColor
+        isSelected && session.planMode
           ? {
-              borderLeftColor: 'var(--primary)',
+              borderLeftColor: 'rgb(59 130 246)',
               borderLeftWidth: '3px',
-              backgroundColor: 'color-mix(in oklch, var(--primary) 8%, transparent)',
             }
-          : displayColor && !isSelected
-            ? { borderLeftColor: displayColor, borderLeftWidth: '3px', backgroundColor: `${displayColor}15` }
-            : undefined
+          : !isSelected && session.planMode
+            ? {
+                borderLeftColor: 'rgb(59 130 246)',
+                borderLeftWidth: '3px',
+                backgroundColor: 'color-mix(in oklch, rgb(59 130 246) 8%, transparent)',
+              }
+            : displayColor && !isSelected
+              ? { borderLeftColor: displayColor, borderLeftWidth: '3px', backgroundColor: `${displayColor}15` }
+              : undefined
       }
     >
       {children}
