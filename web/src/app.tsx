@@ -14,6 +14,7 @@ import { ProjectList } from '@/components/project-list'
 import { QuickTaskModal } from '@/components/quick-task-modal'
 import { RenameModal } from '@/components/rename-modal'
 import { ReviveDialog } from '@/components/revive-dialog'
+import { ManageProjectLinksDialog } from '@/components/settings/manage-project-links-dialog'
 import { SharedSessionView } from '@/components/shared-conversation-view'
 import { ShortcutHelp } from '@/components/shortcut-help'
 import { SpawnDialog } from '@/components/spawn-dialog'
@@ -252,6 +253,7 @@ function Dashboard() {
       <ChordOverlay />
       <SpawnDialog />
       <ReviveDialog />
+      <ManageProjectLinksDialog />
       <TerminateConfirmDialog />
       <ToastContainer />
     </div>

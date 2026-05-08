@@ -3,7 +3,7 @@
  */
 
 import { Hono } from 'hono'
-import { parseProjectUri } from '../../shared/project-uri'
+import { normalizeProjectUri } from '../../shared/project-uri'
 import {
   createAuthToken,
   createInvite,
@@ -306,8 +306,8 @@ export function createAdminRouter(
     const activeConversations = conversationStore.getActiveConversations()
 
     const links = persisted.map(pl => {
-      const sessA = activeConversations.find(s => parseProjectUri(s.project).path === pl.projectA)
-      const sessB = activeConversations.find(s => parseProjectUri(s.project).path === pl.projectB)
+      const sessA = activeConversations.find(s => normalizeProjectUri(s.project) === normalizeProjectUri(pl.projectA))
+      const sessB = activeConversations.find(s => normalizeProjectUri(s.project) === normalizeProjectUri(pl.projectB))
       const nameA = getProjectSettings(pl.projectA)?.label || pl.projectA.split('/').pop() || pl.projectA
       const nameB = getProjectSettings(pl.projectB)?.label || pl.projectB.split('/').pop() || pl.projectB
       return {
@@ -333,11 +333,10 @@ export function createAdminRouter(
 
     const link = addPersistedLink(body.projectA, body.projectB)
 
-    // Activate the in-memory project link
-    const active = conversationStore.getActiveConversations()
-    const anyA = active.find(s => parseProjectUri(s.project).path === link.projectA)
-    const anyB = active.find(s => parseProjectUri(s.project).path === link.projectB)
-    if (anyA && anyB) conversationStore.linkProjects(anyA.id, anyB.id)
+    // Activate the in-memory project link using project URIs directly
+    conversationStore.linkProjects(link.projectA, link.projectB)
+    conversationStore.broadcastForProject(link.projectA)
+    conversationStore.broadcastForProject(link.projectB)
 
     return c.json({ ok: true, link })
   })
@@ -351,6 +350,8 @@ export function createAdminRouter(
 
     // Sever the in-memory project link
     conversationStore.unlinkProjects(body.projectA, body.projectB)
+    conversationStore.broadcastForProject(body.projectA)
+    conversationStore.broadcastForProject(body.projectB)
 
     let purged = 0
     if (body.purgeHistory) {

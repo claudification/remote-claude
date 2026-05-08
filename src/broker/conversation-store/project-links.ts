@@ -65,8 +65,8 @@ export function createProjectLinkRegistry(
     },
 
     linkProjects(a, b) {
-      const projA = sessionToProject(a)
-      const projB = sessionToProject(b)
+      const projA = sessionToProject(a) || toProjectUri(a)
+      const projB = sessionToProject(b) || toProjectUri(b)
       if (!projA || !projB) return
       const key = projectLinkKey(projA, projB)
       projectLinks.add(key)
@@ -74,8 +74,8 @@ export function createProjectLinkRegistry(
     },
 
     unlinkProjects(a, b) {
-      const projA = sessionToProject(a)
-      const projB = sessionToProject(b)
+      const projA = sessionToProject(a) || toProjectUri(a)
+      const projB = sessionToProject(b) || toProjectUri(b)
       if (projA && projB) projectLinks.delete(projectLinkKey(projA, projB))
     },
 

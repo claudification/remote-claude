@@ -5,6 +5,7 @@ import type { ProjectOrder, ProjectOrderGroup, Session } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { openReviveDialog } from '../revive-dialog'
+import { openManageProjectLinks } from '../settings/manage-project-links-dialog'
 import { openSpawnDialog } from '../spawn-dialog'
 
 // ─── Session context menu (right-click) ─────────────────────────────
@@ -187,6 +188,15 @@ export function ConversationContextMenu({
             className={menuItemClass}
             onSelect={() => {
               haptic('tap')
+              openManageProjectLinks(session.project)
+            }}
+          >
+            Manage links...
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className={menuItemClass}
+            onSelect={() => {
+              haptic('tap')
               updateProjectSettings(session.project, { pinned: !ps?.pinned })
             }}
           >
@@ -254,6 +264,15 @@ function ProjectMenuItems({ project, onOpenSettings }: { project: string; onOpen
         }}
       >
         Project settings...
+      </ContextMenu.Item>
+      <ContextMenu.Item
+        className={menuItemClass}
+        onSelect={() => {
+          haptic('tap')
+          openManageProjectLinks(project)
+        }}
+      >
+        Manage links...
       </ContextMenu.Item>
       <ContextMenu.Item
         className={menuItemClass}

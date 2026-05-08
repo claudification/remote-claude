@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { openRenameModal } from '@/components/rename-modal'
+import { openManageProjectLinks } from '@/components/settings/manage-project-links-dialog'
 import { openSpawnDialog } from '@/components/spawn-dialog'
 import { openTerminateConfirm } from '@/components/terminate-confirm'
 import { sendInput, useConversationsStore, wsSend } from '@/hooks/use-conversations'
@@ -285,6 +286,17 @@ export function useGlobalCommands(toggleSidebar: () => void) {
     group: 'System',
     when: () => useConversationsStore.getState().permissions.canAdmin,
   })
+
+  useCommand(
+    'manage-project-links',
+    () => {
+      const sid = useConversationsStore.getState().selectedConversationId
+      const sessions = useConversationsStore.getState().sessions
+      const selected = sessions.find(s => s.id === sid)
+      openManageProjectLinks(selected?.project)
+    },
+    { label: 'Manage project links', group: 'System' },
+  )
 
   useCommand(
     'effort',

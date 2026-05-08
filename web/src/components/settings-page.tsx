@@ -8,6 +8,7 @@ import { clearCacheAndReload } from '@/lib/utils'
 import { BUILD_VERSION } from '../../../src/shared/version'
 import { ProjectLinksSection } from './settings/conversation-links-section'
 import { KeyCapture } from './settings/key-capture'
+import { openManageProjectLinks } from './settings/manage-project-links-dialog'
 import { NotificationsSection } from './settings/notifications-section'
 import {
   BubbleColorPicker,
@@ -881,7 +882,13 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                 )
               }
               return (
-                <SettingRow key={item.label} label={item.label} description={item.description} server={item.server} fullWidth={item.fullWidth}>
+                <SettingRow
+                  key={item.label}
+                  label={item.label}
+                  description={item.description}
+                  server={item.server}
+                  fullWidth={item.fullWidth}
+                >
                   {rendered}
                 </SettingRow>
               )
@@ -962,7 +969,16 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       {/* Project Links -- pinned to System tab */}
       {(isFiltering ? 'links project connect persist'.includes(lowerFilter) : activeTab === 'system') && (
         <div>
-          <GroupHeader label="Project Links" />
+          <div className="flex items-center justify-between pt-3 pb-1 border-t border-border first:border-t-0 first:pt-0">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Project Links</span>
+            <button
+              type="button"
+              onClick={() => openManageProjectLinks()}
+              className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors px-1"
+            >
+              [+]
+            </button>
+          </div>
           <ProjectLinksSection />
         </div>
       )}
