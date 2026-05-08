@@ -62,6 +62,10 @@ const ProjectSessionGroup = memo(
       const ids = new Set(sessions.map(x => x.id))
       return s.pendingPermissions.some(p => ids.has(p.conversationId))
     })
+    const hasPendingLink = useConversationsStore(s => {
+      const ids = new Set(sessions.map(x => x.id))
+      return s.pendingProjectLinks.some(r => ids.has(r.fromSession) || ids.has(r.toSession))
+    })
     const hasPendingAttention = sessions.some(s => s.pendingAttention)
     const hasNotification = sessions.some(s => s.hasNotification)
 
@@ -85,6 +89,14 @@ const ProjectSessionGroup = memo(
               </span>
               {ps?.pinned && <Pin className="h-2.5 w-2.5 text-muted-foreground/30 shrink-0" />}
               <span className="text-[10px] text-muted-foreground font-mono">{sessions.length} conversations</span>
+              {hasPendingLink && (
+                <span
+                  className="text-[9px] text-teal-400 font-bold animate-pulse"
+                  title="A conversation in this project has a pending link request"
+                >
+                  LINK
+                </span>
+              )}
               {hasPendingPermission && (
                 <span
                   className="text-[9px] text-amber-400 font-bold animate-pulse"

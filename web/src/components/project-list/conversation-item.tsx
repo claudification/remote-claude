@@ -727,6 +727,9 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
   const hasPendingPermission = useConversationsStore(s =>
     s.pendingPermissions.some(p => p.conversationId === session.id),
   )
+  const hasPendingLink = useConversationsStore(s =>
+    s.pendingProjectLinks.some(r => r.fromSession === session.id || r.toSession === session.id),
+  )
 
   const projectName = projectDisplayName(projectPath(session.project), ps?.label)
   const sessionName = session.title || session.agentName
@@ -779,6 +782,7 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
             <Clock size={12} />
           </span>
         )}
+        {hasPendingLink && <span className="text-[9px] text-teal-400 font-bold animate-pulse">LINK</span>}
         {hasPendingPermission && <span className="text-[9px] text-amber-400 font-bold animate-pulse">PERM</span>}
         {session.pendingAttention && <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>}
         {session.hasNotification && <span className="text-[9px] text-teal-400 font-bold">NOTIFY</span>}
@@ -978,6 +982,9 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
   const hasPendingPermission = useConversationsStore(s =>
     s.pendingPermissions.some(p => p.conversationId === session.id),
   )
+  const hasPendingLink = useConversationsStore(s =>
+    s.pendingProjectLinks.some(r => r.fromSession === session.id || r.toSession === session.id),
+  )
 
   const displayColor = ps?.color
 
@@ -1058,6 +1065,7 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
             )
           })()}
         {session.adHocWorktree && <span className="text-[9px] text-orange-400 font-bold">WT</span>}
+        {hasPendingLink && <span className="text-[9px] text-teal-400 font-bold animate-pulse">LINK</span>}
         {hasPendingPermission && <span className="text-[9px] text-amber-400 font-bold animate-pulse">PERM</span>}
         {session.pendingAttention && <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>}
         {session.hasNotification && <span className="text-[9px] text-teal-400 font-bold">NOTIFY</span>}

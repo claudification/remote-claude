@@ -340,11 +340,14 @@ export const TranscriptView = memo(function TranscriptView({
       : 0,
   )
 
-  // Same idea for pending project-link requests targeting this conversation -- they
-  // also render inline at the transcript bottom as a blocking gate.
+  // Pending project-link requests: both inbound (ALLOW/BLOCK) and outbound (waiting)
   const pendingLinkCount = useConversationsStore(state =>
     state.selectedConversationId
-      ? state.pendingProjectLinks.filter(r => r.toSession === state.selectedConversationId).length
+      ? state.pendingProjectLinks.filter(
+          r =>
+            r.toSession === state.selectedConversationId ||
+            (r.fromSession === state.selectedConversationId && r.toSession !== state.selectedConversationId),
+        ).length
       : 0,
   )
 

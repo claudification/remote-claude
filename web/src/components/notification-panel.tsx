@@ -141,7 +141,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
   for (const link of links) {
     items.push({
       type: 'link',
-      key: `link-${link.fromSession}-${link.toSession}`,
+      key: `link-in-${link.fromSession}-${link.toSession}`,
       conversationId: link.toSession,
       timestamp: Date.now(),
       render: () => (
@@ -177,6 +177,37 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                 }}
               />
             </>
+          }
+        />
+      ),
+    })
+    items.push({
+      type: 'link',
+      key: `link-out-${link.fromSession}-${link.toSession}`,
+      conversationId: link.fromSession,
+      timestamp: Date.now(),
+      render: () => (
+        <ConversationBanner
+          accent="teal"
+          label="LINK PENDING"
+          layout="row"
+          title={
+            <>
+              {'Waiting for '}
+              <span className="text-teal-300">{link.toProject}</span>
+              {' to approve'}
+            </>
+          }
+          actions={
+            <BannerButton
+              accent="red"
+              label="CANCEL"
+              size="sm"
+              onClick={() => {
+                haptic('error')
+                respondLink(link.fromSession, link.toSession, 'block')
+              }}
+            />
           }
         />
       ),

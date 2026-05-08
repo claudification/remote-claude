@@ -12,52 +12,82 @@ export function LinkRequestBanners() {
   const requests = useConversationsStore(s => s.pendingProjectLinks)
   const respond = useConversationsStore(s => s.respondToProjectLink)
   const selectedConversation = useConversationsStore(s => s.selectedConversationId)
-  // Only surface requests whose target is the currently-viewed session. Rendered
-  // inline at the transcript bottom (see TranscriptView) as a blocking UI gate,
-  // same pattern as PermissionBanners. Without this filter we'd leak other
-  // sessions' pending links into whichever session the user happens to be on.
-  const relevant = requests.filter(r => r.toSession === selectedConversation)
+
+  const inbound = requests.filter(r => r.toSession === selectedConversation)
+  const outbound = requests.filter(r => r.fromSession === selectedConversation && r.toSession !== selectedConversation)
+
   return (
-    <BannerStack
-      items={relevant}
-      render={req => (
-        <ConversationBanner
-          key={`${req.fromSession}:${req.toSession}`}
-          accent="teal"
-          label="LINK"
-          layout="row"
-          title={
-            <>
-              <span className="text-teal-300">{req.fromProject}</span>
-              {' -> '}
-              <span className="text-teal-300">{req.toProject}</span>
-            </>
-          }
-          actions={
-            <>
-              <BannerButton
-                accent="emerald"
-                label="ALLOW"
-                size="sm"
-                onClick={() => {
-                  haptic('success')
-                  respond(req.fromSession, req.toSession, 'approve')
-                }}
-              />
+    <>
+      <BannerStack
+        items={inbound}
+        render={req => (
+          <ConversationBanner
+            key={`${req.fromSession}:${req.toSession}`}
+            accent="teal"
+            label="LINK"
+            layout="row"
+            title={
+              <>
+                <span className="text-teal-300">{req.fromProject}</span>
+                {' -> '}
+                <span className="text-teal-300">{req.toProject}</span>
+              </>
+            }
+            actions={
+              <>
+                <BannerButton
+                  accent="emerald"
+                  label="ALLOW"
+                  size="sm"
+                  onClick={() => {
+                    haptic('success')
+                    respond(req.fromSession, req.toSession, 'approve')
+                  }}
+                />
+                <BannerButton
+                  accent="red"
+                  label="BLOCK"
+                  size="sm"
+                  onClick={() => {
+                    haptic('error')
+                    respond(req.fromSession, req.toSession, 'block')
+                  }}
+                />
+              </>
+            }
+          />
+        )}
+      />
+      <BannerStack
+        items={outbound}
+        render={req => (
+          <ConversationBanner
+            key={`out-${req.fromSession}:${req.toSession}`}
+            accent="teal"
+            label="LINK PENDING"
+            layout="row"
+            title={
+              <>
+                {'Waiting for '}
+                <span className="text-teal-300">{req.toProject}</span>
+                {' to approve link'}
+              </>
+            }
+            actions={
               <BannerButton
                 accent="red"
-                label="BLOCK"
+                label="CANCEL"
                 size="sm"
                 onClick={() => {
                   haptic('error')
                   respond(req.fromSession, req.toSession, 'block')
                 }}
               />
-            </>
-          }
-        />
-      )}
-    />
+            }
+          />
+        )}
+      />
+    </>
   )
 }
 
