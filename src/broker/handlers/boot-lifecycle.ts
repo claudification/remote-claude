@@ -185,6 +185,17 @@ const conversationPromote: MessageHandler = (ctx, data) => {
   ctx.log.debug(
     `[boot] promoted ${conversationId.slice(0, 8)} cc=${ccSessionId.slice(0, 8)} (source=${data.source || 'unknown'})`,
   )
+
+  // Pull model: request transcript from agent host if broker has none.
+  // The agent host reads its CC JSONL file and sends entries back.
+  // UUID-based dedup in SQLite handles overlap with stream replay buffer.
+  if (!ctx.conversations.hasTranscriptCache(conversationId)) {
+    const socket = ctx.conversations.getConversationSocket(conversationId)
+    if (socket) {
+      socket.send(JSON.stringify({ type: 'transcript_request', conversationId }))
+      ctx.log.debug(`[boot] requested transcript from agent host for ${conversationId.slice(0, 8)}`)
+    }
+  }
 }
 
 export function registerBootLifecycleHandlers(): void {

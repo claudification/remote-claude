@@ -282,6 +282,9 @@ export function connectToBroker(ctx: AgentHostContext, deps: BrokerConnectionDep
     onConfigSet(requestId: string, config: import('../shared/protocol').RclaudePermissionConfig) {
       handleConfigSet(ctx, requestId, config, cwd)
     },
+    onTranscriptRequest() {
+      resendTranscriptFromFile(ctx)
+    },
     onTranscriptKick() {
       handleTranscriptKick(ctx)
     },
@@ -402,7 +405,6 @@ function handleConnected(ctx: AgentHostContext, deps: BrokerConnectionDeps, ccSe
     } as AgentHostMessage)
     ctx.pendingConversationName = undefined
   }
-  if (deps.headless) resendTranscriptFromFile(ctx)
   replayLaunchEvents(ctx)
   replayInteractions(ctx)
   startTaskWatching(ctx)
@@ -564,6 +566,11 @@ function handleConfigSet(
 }
 
 function handleTranscriptKick(ctx: AgentHostContext) {
+  if (ctx.headless) {
+    debug('Transcript kick received (headless) - resending from JSONL')
+    resendTranscriptFromFile(ctx)
+    return
+  }
   if (!ctx.transcriptWatcher && ctx.parentTranscriptPath) {
     debug(`Transcript kick received - retrying watcher for: ${ctx.parentTranscriptPath}`)
     ctx.diag('info', 'Transcript kick - retrying watcher', { path: ctx.parentTranscriptPath })
