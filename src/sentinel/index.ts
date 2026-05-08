@@ -32,6 +32,7 @@ import { cwdToProjectUri, parseProjectUri } from '../shared/project-uri'
 import type {
   BrokerSentinelMessage,
   ExtraUsage,
+  ListCcSessionsResult,
   ListDirsResult,
   ReviveConversation,
   ReviveResult,
@@ -194,6 +195,39 @@ function ccTranscriptExists(ccSessionId: string, cwd: string): boolean {
   const mangledCwd = cwd.replace(/\//g, '-')
   const transcriptPath = join(home, '.claude', 'projects', mangledCwd, `${ccSessionId}.jsonl`)
   return existsSync(transcriptPath)
+}
+
+function listCcSessions(cwd: string): ListCcSessionsResult['sessions'] {
+  const home = process.env.HOME || '/root'
+  const mangledCwd = cwd.replace(/\//g, '-')
+  const projectDir = join(home, '.claude', 'projects', mangledCwd)
+  if (!existsSync(projectDir)) return []
+
+  const entries: ListCcSessionsResult['sessions'] = []
+  for (const file of readdirSync(projectDir)) {
+    if (!file.endsWith('.jsonl')) continue
+    const ccSessionId = file.slice(0, -6)
+    const filePath = join(projectDir, file)
+    try {
+      const stat = statSync(filePath)
+      let title: string | undefined
+      const proc = Bun.spawnSync(['head', '-1', filePath])
+      const firstLine = proc.stdout.toString().trim()
+      if (firstLine) {
+        try {
+          const first = JSON.parse(firstLine)
+          title = first.customTitle || first.agentName || undefined
+        } catch {
+          /* malformed first line */
+        }
+      }
+      entries.push({ ccSessionId, title, mtime: stat.mtimeMs, sizeBytes: stat.size })
+    } catch {
+      /* stat/read error, skip */
+    }
+  }
+  entries.sort((a, b) => b.mtime - a.mtime)
+  return entries.slice(0, 50)
 }
 
 // ─── rclaude Binary Discovery ────────────────────────────────────────
@@ -1469,6 +1503,20 @@ function connect(
             error: dirResult.error,
           }
           ws.send(JSON.stringify(dirResponse))
+          break
+        }
+
+        case 'list_cc_sessions': {
+          const sessMsg = msg as { requestId: string; cwd: string }
+          const expandedCwd = expandPath(sessMsg.cwd, spawnRoot)
+          debug(`Listing CC sessions for: ${expandedCwd}`, verbose)
+          const sessions = listCcSessions(expandedCwd)
+          const sessResponse: ListCcSessionsResult = {
+            type: 'list_cc_sessions_result',
+            requestId: sessMsg.requestId,
+            sessions,
+          }
+          ws.send(JSON.stringify(sessResponse))
           break
         }
       }

@@ -1612,6 +1612,20 @@ export interface ListDirsResult {
   error?: string
 }
 
+export interface CcSessionEntry {
+  ccSessionId: string
+  title?: string
+  mtime: number
+  sizeBytes: number
+}
+
+export interface ListCcSessionsResult {
+  type: 'list_cc_sessions_result'
+  requestId: string
+  sessions: CcSessionEntry[]
+  error?: string
+}
+
 /** Agent or agent host reports a spawn failure (headless child exit, PTY crash, or early exit) */
 export interface SpawnFailed {
   type: 'spawn_failed'
@@ -1652,6 +1666,7 @@ export type SentinelMessage =
   | SpawnResult
   | SpawnFailed
   | ListDirsResult
+  | ListCcSessionsResult
   | UsageUpdate
   | LaunchLog
 
@@ -1726,6 +1741,12 @@ export interface ListDirs {
   path: string
 }
 
+export interface ListCcSessions {
+  type: 'list_cc_sessions'
+  requestId: string
+  cwd: string
+}
+
 export interface RclaudeConfigGet {
   type: 'rclaude_config_get'
   requestId: string
@@ -1774,7 +1795,13 @@ export interface SentinelReject {
   reason: string
 }
 
-export type BrokerSentinelMessage = ReviveConversation | SpawnConversation | ListDirs | SentinelQuit | SentinelReject
+export type BrokerSentinelMessage =
+  | ReviveConversation
+  | SpawnConversation
+  | ListDirs
+  | ListCcSessions
+  | SentinelQuit
+  | SentinelReject
 
 // Dashboard broadcast: sentinel status
 export interface SentinelStatus {

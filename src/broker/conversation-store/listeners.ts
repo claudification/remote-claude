@@ -8,12 +8,16 @@ export interface ListenerRegistry {
   addFileListener: (requestId: string, cb: (result: unknown) => void) => void
   removeFileListener: (requestId: string) => void
   resolveFile: (requestId: string, result: unknown) => boolean
+  addCcSessionsListener: (requestId: string, cb: (result: unknown) => void) => void
+  removeCcSessionsListener: (requestId: string) => void
+  resolveCcSessions: (requestId: string, result: unknown) => void
 }
 
 export function createListenerRegistry(): ListenerRegistry {
   const spawnListeners = new Map<string, (result: unknown) => void>()
   const dirListeners = new Map<string, (result: unknown) => void>()
   const fileListeners = new Map<string, (result: unknown) => void>()
+  const ccSessionsListeners = new Map<string, (result: unknown) => void>()
 
   return {
     addSpawnListener(requestId, cb) {
@@ -56,6 +60,19 @@ export function createListenerRegistry(): ListenerRegistry {
         return true
       }
       return false
+    },
+    addCcSessionsListener(requestId, cb) {
+      ccSessionsListeners.set(requestId, cb)
+    },
+    removeCcSessionsListener(requestId) {
+      ccSessionsListeners.delete(requestId)
+    },
+    resolveCcSessions(requestId, result) {
+      const cb = ccSessionsListeners.get(requestId)
+      if (cb) {
+        ccSessionsListeners.delete(requestId)
+        cb(result)
+      }
     },
   }
 }

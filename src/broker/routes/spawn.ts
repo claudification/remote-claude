@@ -4,7 +4,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { Hono } from 'hono'
-import type { ListDirsResult } from '../../shared/protocol'
+import type { ListCcSessionsResult, ListDirsResult } from '../../shared/protocol'
 import { mapProjectTrust, type SpawnCallerContext } from '../../shared/spawn-permissions'
 import { spawnRequestSchema } from '../../shared/spawn-schema'
 import type { ConversationStore } from '../conversation-store'
@@ -95,6 +95,43 @@ export function createSpawnRouter(conversationStore: ConversationStore, helpers:
 
     if (result.error) return c.json({ error: result.error }, 400)
     return c.json({ path: dirPath, dirs: result.dirs })
+  })
+
+  // ─── CC session listing (sentinel relay) ─────────────────────────────
+  app.get('/api/cc-sessions', async c => {
+    if (!httpHasPermission(c.req.raw, 'spawn', '*'))
+      return c.json({ error: 'Forbidden: spawn permission required' }, 403)
+
+    const sentinelAlias = c.req.query('sentinel')
+    let sentinel: ReturnType<typeof conversationStore.getSentinel>
+    if (sentinelAlias) {
+      sentinel = conversationStore.getSentinelByAlias(sentinelAlias)
+      if (!sentinel) return c.json({ error: `Sentinel "${sentinelAlias}" not connected` }, 503)
+    } else {
+      sentinel = conversationStore.getSentinel()
+      if (!sentinel) return c.json({ error: 'No sentinel connected' }, 503)
+    }
+
+    const cwd = c.req.query('cwd')
+    if (!cwd) return c.json({ error: 'cwd query param required' }, 400)
+
+    const requestId = randomUUID()
+    const result = await new Promise<ListCcSessionsResult>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        conversationStore.removeCcSessionsListener(requestId)
+        reject(new Error('CC session listing timed out (5s)'))
+      }, 5000)
+
+      conversationStore.addCcSessionsListener(requestId, msg => {
+        clearTimeout(timeout)
+        resolve(msg as ListCcSessionsResult)
+      })
+
+      sentinel!.send(JSON.stringify({ type: 'list_cc_sessions', requestId, cwd }))
+    })
+
+    if (result.error) return c.json({ error: result.error }, 400)
+    return c.json({ cwd, sessions: result.sessions })
   })
 
   return app

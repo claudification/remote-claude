@@ -193,6 +193,9 @@ export interface ConversationStore {
   addDirListener: (requestId: string, cb: (result: unknown) => void) => void
   removeDirListener: (requestId: string) => void
   resolveDir: (requestId: string, result: unknown) => void
+  addCcSessionsListener: (requestId: string, cb: (result: unknown) => void) => void
+  removeCcSessionsListener: (requestId: string) => void
+  resolveCcSessions: (requestId: string, result: unknown) => void
   broadcastToConversationsForProject: (project: string, message: Record<string, unknown>) => number
   broadcastToConversationsAtCwd: (project: string, message: Record<string, unknown>) => number
   addFileListener: (requestId: string, cb: (result: unknown) => void) => void
@@ -1675,8 +1678,17 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
 
   // Request-response listeners: extracted to listeners.ts
   const listeners = createListenerRegistry()
-  const { addSpawnListener, removeSpawnListener, resolveSpawn, addDirListener, removeDirListener, resolveDir } =
-    listeners
+  const {
+    addSpawnListener,
+    removeSpawnListener,
+    resolveSpawn,
+    addDirListener,
+    removeDirListener,
+    resolveDir,
+    addCcSessionsListener,
+    removeCcSessionsListener,
+    resolveCcSessions,
+  } = listeners
 
   // ─── Pending Launch Configs (conversationId -> LaunchConfig) ─────────────
   // Stored at spawn time, consumed when the conversation connects (meta handler).
@@ -1864,6 +1876,9 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     addDirListener,
     removeDirListener,
     resolveDir,
+    addCcSessionsListener,
+    removeCcSessionsListener,
+    resolveCcSessions,
     broadcastToConversationsForProject,
     broadcastToConversationsAtCwd: broadcastToConversationsForProject,
     addFileListener,

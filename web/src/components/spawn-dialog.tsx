@@ -5,9 +5,10 @@
  * Phase 2 (launching): Step-by-step progress via shared LaunchMonitor.
  */
 
+import type { CcSessionEntry } from '@shared/protocol'
 import { buildSpawnDiagnostics } from '@shared/spawn-diagnostics'
 import type { SpawnRequest } from '@shared/spawn-schema'
-import { Zap } from 'lucide-react'
+import { ChevronDown, Zap } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
@@ -59,6 +60,7 @@ export function SpawnDialog() {
   const [maxBudgetUsd, setMaxBudgetUsd] = useState('')
   const [includePartialMessages, setIncludePartialMessages] = useState(true)
   const [configTab, setConfigTab] = useState<'basic' | 'advanced'>('basic')
+  const [resumeId, setResumeId] = useState('')
   const [envText, setEnvText] = useState('')
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [savedFeedback, setSavedFeedback] = useState<string | null>(null)
@@ -104,6 +106,7 @@ export function SpawnDialog() {
       const budget = ps?.defaultMaxBudgetUsd ?? (gs.defaultMaxBudgetUsd as number) ?? 0
       setMaxBudgetUsd(budget > 0 ? String(budget) : '')
       const envDefault = ps?.defaultEnvText || (gs.defaultEnvText as string) || ''
+      setResumeId('')
       setEnvText(envDefault)
       setIncludePartialMessages(
         ps?.defaultIncludePartialMessages ?? (gs.defaultIncludePartialMessages as boolean) ?? true,
@@ -198,9 +201,12 @@ export function SpawnDialog() {
     setJobId(newJobId)
     progress.start([{ label: 'Sending spawn request', status: 'active', ts: Date.now() }])
 
+    const trimmedResumeId = resumeId.trim()
     const spawnReq: SpawnRequest = {
       cwd: state.options.path,
       mkdir: state.options.mkdir || false,
+      mode: trimmedResumeId ? 'resume' : undefined,
+      resumeId: trimmedResumeId || undefined,
       headless,
       bare: bare || undefined,
       repl: repl || undefined,
@@ -247,6 +253,7 @@ export function SpawnDialog() {
     permissionMode,
     autocompactPct,
     maxBudgetUsd,
+    resumeId,
     includePartialMessages,
     useWorktree,
     worktreeName,
@@ -547,6 +554,14 @@ export function SpawnDialog() {
                       </div>
                     )}
 
+                    {/* Resume existing CC session */}
+                    <ResumeSessionField
+                      resumeId={resumeId}
+                      onResumeIdChange={setResumeId}
+                      cwd={state.options?.path || ''}
+                      sentinel={state.options?.sentinel}
+                    />
+
                     {/* Env vars (LaunchConfigFields renders textarea + inline errors) */}
                     <LaunchConfigFields value={fieldsValue} onChange={applyFieldsPatch} show={{ env: true }} />
                     <div className="text-[9px] text-[#565f89]">
@@ -607,5 +622,129 @@ export function SpawnDialog() {
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ─── Resume Session Field ──────────────────────────────────────────────
+
+function ResumeSessionField({
+  resumeId,
+  onResumeIdChange,
+  cwd,
+  sentinel,
+}: {
+  resumeId: string
+  onResumeIdChange: (id: string) => void
+  cwd: string
+  sentinel?: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [sessions, setSessions] = useState<CcSessionEntry[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function handleToggle() {
+    const next = !expanded
+    setExpanded(next)
+    if (next && sessions.length === 0 && !loading) fetchSessions()
+  }
+
+  function fetchSessions() {
+    setLoading(true)
+    setError(null)
+    const params = new URLSearchParams({ cwd })
+    if (sentinel) params.set('sentinel', sentinel)
+    fetch(`/api/cc-sessions?${params}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) setError(data.error)
+        else setSessions(data.sessions || [])
+      })
+      .catch(err => setError(String(err)))
+      .finally(() => setLoading(false))
+  }
+
+  function formatAge(mtime: number): string {
+    const diff = Date.now() - mtime
+    const mins = Math.floor(diff / 60_000)
+    if (mins < 1) return 'just now'
+    if (mins < 60) return `${mins}m ago`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}h ago`
+    const days = Math.floor(hours / 24)
+    return `${days}d ago`
+  }
+
+  function formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes}B`
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        onClick={handleToggle}
+        className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ChevronDown className={cn('w-3 h-3 transition-transform', !expanded && '-rotate-90')} />
+        Resume CC session
+        {resumeId.trim() && <span className="text-amber-400/80 ml-1">(set)</span>}
+      </button>
+
+      {expanded && (
+        <div className="space-y-1.5 pl-4">
+          <input
+            type="text"
+            value={resumeId}
+            onChange={e => onResumeIdChange(e.target.value)}
+            placeholder="CC session ID"
+            className="w-full bg-[#1a1b26] border border-[#292e42] rounded px-2 py-1.5 text-[11px] font-mono text-foreground placeholder:text-[#565f89]/50 focus:outline-none focus:ring-1 focus:ring-[#7aa2f7]/50"
+          />
+          {resumeId.trim() && (
+            <div className="text-[9px] text-amber-400/80">
+              Will pass --resume to CC. Fails if session ID is invalid.
+            </div>
+          )}
+
+          {loading && <div className="text-[9px] font-mono text-[#565f89]">Loading sessions...</div>}
+          {error && <div className="text-[9px] font-mono text-red-400">{error}</div>}
+
+          {sessions.length > 0 && (
+            <div className="max-h-[160px] overflow-y-auto border border-[#292e42] rounded">
+              {sessions.map(s => (
+                <button
+                  key={s.ccSessionId}
+                  type="button"
+                  onClick={() => {
+                    onResumeIdChange(s.ccSessionId)
+                    haptic('tap')
+                  }}
+                  className={cn(
+                    'w-full text-left px-2 py-1.5 text-[10px] font-mono border-b border-[#292e42] last:border-b-0 transition-colors',
+                    resumeId === s.ccSessionId
+                      ? 'bg-[#7aa2f7]/10 text-[#7aa2f7]'
+                      : 'text-muted-foreground hover:bg-[#1a1b26] hover:text-foreground',
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate">{s.title || s.ccSessionId.slice(0, 8)}</span>
+                    <span className="text-[9px] text-[#565f89] shrink-0">
+                      {formatAge(s.mtime)} / {formatSize(s.sizeBytes)}
+                    </span>
+                  </div>
+                  <div className="text-[9px] text-[#565f89] truncate">{s.ccSessionId}</div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!loading && !error && sessions.length === 0 && expanded && (
+            <div className="text-[9px] font-mono text-[#565f89]">No CC sessions found for this path.</div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

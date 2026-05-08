@@ -93,6 +93,10 @@ const listDirsResult: MessageHandler = (ctx, data) => {
   ctx.conversations.resolveDir(data.requestId as string, data)
 }
 
+const listCcSessionsResult: MessageHandler = (ctx, data) => {
+  ctx.conversations.resolveCcSessions(data.requestId as string, data)
+}
+
 const launchLog: MessageHandler = (ctx, data) => {
   const jobId = data.jobId as string
   if (!jobId) return
@@ -177,6 +181,7 @@ export function registerSentinelHandlers(): void {
     spawn_result: spawnResult,
     spawn_failed: spawnFailed,
     list_dirs_result: listDirsResult,
+    list_cc_sessions_result: listCcSessionsResult,
     launch_log: launchLog,
     sentinel_diag: sentinelDiag,
     usage_update: usageUpdate,
