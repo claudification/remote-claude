@@ -3,7 +3,7 @@ import { memo, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { canJsonStream, canTerminal, projectPath, type TranscriptEntry } from '@/lib/types'
-import { AskQuestionBanners, ClipboardBanners } from './conversation-detail/conversation-banners'
+import { ClipboardBanners } from './conversation-detail/conversation-banners'
 import { ConversationHeader } from './conversation-detail/conversation-header'
 import { DialogOverlay, InputBar } from './conversation-detail/conversation-input'
 import { ConversationTabs } from './conversation-detail/conversation-tabs'
@@ -101,7 +101,6 @@ export const ConversationDetail = memo(function SessionDetail() {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
-      <AskQuestionBanners />
       <ClipboardBanners />
       {canAdmin && <ShareBanner sessionProject={projectPath(session.project)} />}
       {selectedConversationId && <DialogOverlay conversationId={selectedConversationId} />}

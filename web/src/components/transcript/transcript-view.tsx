@@ -19,7 +19,7 @@ import {
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { record } from '@/lib/perf-metrics'
 import type { TranscriptEntry } from '@/lib/types'
-import { LinkRequestBanners, PermissionBanners } from '../conversation-detail/conversation-banners'
+import { AskQuestionBanners, LinkRequestBanners, PermissionBanners } from '../conversation-detail/conversation-banners'
 import { Markdown } from '../markdown'
 import { CompactedDivider, CompactingBanner, MemoizedGroupView, SkillDivider } from './group-view'
 import { type DisplayGroup, useIncrementalGroups } from './grouping'
@@ -351,6 +351,13 @@ export const TranscriptView = memo(function TranscriptView({
       : 0,
   )
 
+  // Pending ask questions for the selected conversation -- scroll trigger
+  const pendingAskCount = useConversationsStore(state =>
+    state.selectedConversationId
+      ? state.pendingAskQuestions.filter(q => q.conversationId === state.selectedConversationId).length
+      : 0,
+  )
+
   // Cache measured sizes so estimateSize can use real heights for groups
   // that have been rendered before (survives virtualizer cache invalidation)
   const measuredSizesRef = useRef(new Map<string, number>())
@@ -499,6 +506,14 @@ export const TranscriptView = memo(function TranscriptView({
     return () => clearTimeout(timer)
   }, [follow, pendingLinkCount, scrollToBottom])
 
+  // Same for ask questions -- pin the interactive card into view.
+  useEffect(() => {
+    if (!follow) return
+    if (pendingAskCount === 0) return
+    const timer = setTimeout(scrollToBottom, 50)
+    return () => clearTimeout(timer)
+  }, [follow, pendingAskCount, scrollToBottom])
+
   if (mainGroups.length === 0 && queuedGroups.length === 0) {
     return (
       <div className="text-muted-foreground text-center py-10 font-mono">
@@ -592,6 +607,7 @@ export const TranscriptView = memo(function TranscriptView({
         <div className="mt-2">
           <LinkRequestBanners />
           <PermissionBanners />
+          <AskQuestionBanners />
         </div>
         {/* Queued messages: rendered inline at the bottom of the transcript */}
         {queuedGroups.length > 0 && (
