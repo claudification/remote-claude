@@ -54,6 +54,7 @@ const ProjectSessionGroup = memo(
   function ProjectSessionGroup({ sessions, project }: { sessions: Session[]; project: string }) {
     const [showSettings, setShowSettings] = useState(false)
     const ps = useConversationsStore(s => s.projectSettings[project])
+    const selectProject = useConversationsStore(s => s.selectProject)
     const displayName = ps?.label || extractProjectLabel(project)
     const displayColor = ps?.color
     const { adhoc, normal, ended } = partitionConversations(sessions)
@@ -76,7 +77,21 @@ const ProjectSessionGroup = memo(
           style={displayColor ? { borderLeftColor: displayColor, borderLeftWidth: '3px' } : undefined}
         >
           <ProjectContextMenu project={project} sessions={sessions} onOpenSettings={() => setShowSettings(true)}>
-            <div className="flex items-center gap-1.5 p-3 pb-1">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                haptic('tap')
+                selectProject(project)
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  haptic('tap')
+                  selectProject(project)
+                }
+              }}
+              className="flex items-center gap-1.5 p-3 pb-1 cursor-pointer hover:bg-accent/10 transition-colors"
+            >
               {ps?.icon && (
                 <span style={displayColor ? { color: displayColor } : undefined}>{renderProjectIcon(ps.icon)}</span>
               )}
