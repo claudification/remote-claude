@@ -71,6 +71,30 @@ describe('stream-handlers UUID synthesis', () => {
     expect(entries[0].uuid).not.toBe(entries[1].uuid)
   })
 
+  test('plain text user message gets deterministic UUID', () => {
+    const { hctx, entries } = createTestContext()
+    handleMessage(hctx, {
+      type: 'user',
+      timestamp: '2026-05-08T15:15:25.731Z',
+      message: { role: 'user', content: 'hello world' },
+    })
+    expect(entries).toHaveLength(1)
+    expect(entries[0].uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+  })
+
+  test('same plain text user message always produces same UUID (dedup-safe)', () => {
+    const { hctx: hctx1, entries: entries1 } = createTestContext()
+    const { hctx: hctx2, entries: entries2 } = createTestContext()
+    const msg = {
+      type: 'user',
+      timestamp: '2026-05-08T15:15:25.731Z',
+      message: { role: 'user', content: 'hello world' },
+    }
+    handleMessage(hctx1, { ...msg })
+    handleMessage(hctx2, { ...msg })
+    expect(entries1[0].uuid).toBe(entries2[0].uuid)
+  })
+
   test('assistant message without UUID gets deterministic UUID', () => {
     const { hctx, entries } = createTestContext()
     handleMessage(hctx, {
@@ -94,39 +118,15 @@ describe('stream-handlers UUID synthesis', () => {
     expect(entries[0].uuid).toBe('cc-assistant-uuid')
   })
 
-  test('CC echo of plain text user message is skipped when replay is done', () => {
+  test('plain text user message during replay goes to buffer', () => {
     const { hctx, entries } = createTestContext()
-    // replay.done = true (set in createTestContext)
-    handleMessage(hctx, {
-      type: 'user',
-      timestamp: '2026-05-08T15:15:25.731Z',
-      message: { role: 'user', content: 'hello world' },
-    })
-    expect(entries).toHaveLength(0)
-  })
-
-  test('tool_result user message is NOT skipped when replay is done', () => {
-    const { hctx, entries } = createTestContext()
-    handleMessage(hctx, {
-      type: 'user',
-      timestamp: '2026-05-08T15:17:32.512Z',
-      uuid: 'tool-result-uuid',
-      message: { role: 'user', content: [{ tool_use_id: 'toolu_123', type: 'tool_result', content: 'ok' }] },
-    })
-    expect(entries).toHaveLength(1)
-    expect(entries[0].uuid).toBe('tool-result-uuid')
-  })
-
-  test('plain text user message passes through during replay phase', () => {
-    const { hctx, entries } = createTestContext()
-    hctx.replay.done = false  // still replaying
+    hctx.replay.done = false
     handleMessage(hctx, {
       type: 'user',
       timestamp: '2026-05-08T15:15:25.731Z',
       isReplay: true,
       message: { role: 'user', content: 'hello world' },
     })
-    // Goes into replay buffer, not directly to entries
     expect(entries).toHaveLength(0)
     expect(hctx.replay.entries).toHaveLength(1)
   })
