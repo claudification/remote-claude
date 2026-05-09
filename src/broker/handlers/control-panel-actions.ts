@@ -41,7 +41,11 @@ const sendInput: MessageHandler = (ctx, data) => {
   const backend = resolveBackend(conversation)
   if (!backend.requiresAgentSocket) {
     backend
-      .handleInput(conversationId, input, { conversationStore: ctx.conversations, kv: ctx.store.kv })
+      .handleInput(conversationId, input, {
+        conversationStore: ctx.conversations,
+        kv: ctx.store.kv,
+        broadcastScoped: ctx.broadcastScoped,
+      })
       .then((result: { ok: boolean; error?: string }) => {
         if (!result.ok) ctx.log.error(`[${backend.type}] proxy error: ${result.error}`)
       })
