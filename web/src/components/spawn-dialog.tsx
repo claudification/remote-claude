@@ -5,6 +5,7 @@
  * Phase 2 (launching): Step-by-step progress via shared LaunchMonitor.
  */
 
+import type { HermesAgent } from '@shared/hermes-types'
 import type { CcSessionEntry } from '@shared/protocol'
 import { buildSpawnDiagnostics } from '@shared/spawn-diagnostics'
 import type { SpawnRequest } from '@shared/spawn-schema'
@@ -14,7 +15,12 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
 import { TileToggleRow } from '@/components/ui/tile-toggle-row'
 import { TogglePill } from '@/components/ui/toggle-pill'
-import { updateProjectSettings, useConversationsStore, wsSend } from '@/hooks/use-conversations'
+import {
+  type ProjectSettingsMap,
+  updateProjectSettings,
+  useConversationsStore,
+  wsSend,
+} from '@/hooks/use-conversations'
 import { useLaunchProgress } from '@/hooks/use-launch-progress'
 import { sendSpawnRequest } from '@/hooks/use-spawn'
 import { parseEnvText } from '@/lib/env-parse'
@@ -62,6 +68,9 @@ export function SpawnDialog() {
   const [configTab, setConfigTab] = useState<'basic' | 'advanced'>('basic')
   const [resumeId, setResumeId] = useState('')
   const [envText, setEnvText] = useState('')
+  const [backend, setBackend] = useState<'claude' | 'hermes'>('claude')
+  const [hermesAgentId, setHermesAgentId] = useState('')
+  const [hermesAgents, setHermesAgents] = useState<HermesAgent[]>([])
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [savedFeedback, setSavedFeedback] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -70,8 +79,8 @@ export function SpawnDialog() {
   // back to the spawned session if they navigated away during the countdown
   const sessionAtSpawnRef = useRef<string | null>(null)
 
-  const projectSettings = useConversationsStore(s => s.projectSettings)
-  const globalSettings = useConversationsStore(s => s.globalSettings)
+  const projectSettings = useConversationsStore((s: { projectSettings: ProjectSettingsMap }) => s.projectSettings)
+  const globalSettings = useConversationsStore((s: { globalSettings: Record<string, unknown> }) => s.globalSettings)
 
   // Shared launch progress hook
   const progress = useLaunchProgress({
@@ -111,11 +120,18 @@ export function SpawnDialog() {
       setIncludePartialMessages(
         ps?.defaultIncludePartialMessages ?? (gs.defaultIncludePartialMessages as boolean) ?? true,
       )
+      setBackend('claude')
+      setHermesAgentId('')
       setConfigTab('basic')
       setSavedFeedback(null)
       setPhase('config')
       setJobId(null)
       setWrapperId(null)
+      // Fetch Hermes agents
+      fetch(`${window.location.protocol}//${window.location.host}/api/hermes/agents`)
+        .then(r => (r.ok ? r.json() : { agents: [] }))
+        .then(d => setHermesAgents(d.agents || []))
+        .catch(() => setHermesAgents([]))
       // Drop any stale error/steps from a prior failed launch so reopening
       // the dialog doesn't show the old "Session failed to connect" banner.
       progressReset()
@@ -221,6 +237,9 @@ export function SpawnDialog() {
       sentinel: state.options.sentinel || undefined,
       env: parsedEnv || undefined,
       jobId: newJobId,
+      backend: backend !== 'claude' ? backend : undefined,
+      hermesAgentId: backend === 'hermes' ? hermesAgentId || undefined : undefined,
+      hermesAgentName: backend === 'hermes' ? hermesAgents.find(a => a.id === hermesAgentId)?.name : undefined,
     }
     const result = await sendSpawnRequest(spawnReq)
     if (result.ok) {
@@ -256,6 +275,9 @@ export function SpawnDialog() {
     useWorktree,
     worktreeName,
     envText,
+    backend,
+    hermesAgentId,
+    hermesAgents,
     progress,
     description.trim,
   ])
@@ -413,7 +435,7 @@ export function SpawnDialog() {
   }
 
   return (
-    <Dialog open={state.open} onOpenChange={open => !open && handleClose()}>
+    <Dialog open={state.open} onOpenChange={(open: boolean) => !open && handleClose()}>
       <DialogContent className="max-w-md rounded-lg">
         <div className="p-5 flex flex-col gap-4 min-h-0 max-h-[calc(85vh-2rem)]">
           <div className="flex items-center justify-between shrink-0">
@@ -438,164 +460,219 @@ export function SpawnDialog() {
           {/* ── Config Phase ── */}
           {phase === 'config' && (
             <>
-              {/* Tab selector */}
-              <div className="flex gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConfigTab('basic')
-                    haptic('tick')
-                  }}
-                  className={cn(
-                    'px-3 py-1 text-[11px] font-mono rounded transition-colors inline-flex items-center gap-1.5',
-                    configTab === 'basic'
-                      ? 'bg-primary/15 text-primary border border-primary/30'
-                      : 'text-comment hover:text-muted-foreground',
-                  )}
-                >
-                  Basic
-                  <Kbd className="text-[10px]">1</Kbd>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConfigTab('advanced')
-                    haptic('tick')
-                  }}
-                  className={cn(
-                    'px-3 py-1 text-[11px] font-mono rounded transition-colors inline-flex items-center gap-1.5',
-                    configTab === 'advanced'
-                      ? 'bg-primary/15 text-primary border border-primary/30'
-                      : 'text-comment hover:text-muted-foreground',
-                  )}
-                >
-                  Advanced
-                  <Kbd className="text-[10px]">2</Kbd>
-                </button>
-              </div>
+              {/* Backend selector (Claude / Hermes) */}
+              {hermesAgents.length > 0 && (
+                <div className="flex gap-1.5 shrink-0">
+                  <TogglePill
+                    active={backend === 'claude'}
+                    onClick={() => {
+                      setBackend('claude')
+                      haptic('tap')
+                    }}
+                    label="Claude"
+                  />
+                  <TogglePill
+                    active={backend === 'hermes'}
+                    onClick={() => {
+                      setBackend('hermes')
+                      haptic('tap')
+                    }}
+                    label="Hermes"
+                  />
+                </div>
+              )}
 
-              {/* Scrollable content area.
+              {/* ── Hermes config ── */}
+              {backend === 'hermes' ? (
+                <div className="space-y-3 px-1.5 py-1">
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
+                      Agent
+                    </div>
+                    <select
+                      value={hermesAgentId}
+                      onChange={e => setHermesAgentId(e.target.value)}
+                      className="w-full bg-surface-inset border border-border rounded px-2 py-1.5 text-[11px] font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    >
+                      <option value="">Select agent...</option>
+                      {hermesAgents
+                        .filter(a => a.enabled)
+                        .map(a => (
+                          <option key={a.id} value={a.id}>
+                            {a.icon ? `${a.icon} ` : ''}
+                            {a.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <LaunchConfigFields
+                    value={fieldsValue}
+                    onChange={applyFieldsPatch}
+                    show={{ name: true, description: true }}
+                  />
+                </div>
+              ) : (
+                <>
+                  {/* Tab selector */}
+                  <div className="flex gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfigTab('basic')
+                        haptic('tick')
+                      }}
+                      className={cn(
+                        'px-3 py-1 text-[11px] font-mono rounded transition-colors inline-flex items-center gap-1.5',
+                        configTab === 'basic'
+                          ? 'bg-primary/15 text-primary border border-primary/30'
+                          : 'text-comment hover:text-muted-foreground',
+                      )}
+                    >
+                      Basic
+                      <Kbd className="text-[10px]">1</Kbd>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfigTab('advanced')
+                        haptic('tick')
+                      }}
+                      className={cn(
+                        'px-3 py-1 text-[11px] font-mono rounded transition-colors inline-flex items-center gap-1.5',
+                        configTab === 'advanced'
+                          ? 'bg-primary/15 text-primary border border-primary/30'
+                          : 'text-comment hover:text-muted-foreground',
+                      )}
+                    >
+                      Advanced
+                      <Kbd className="text-[10px]">2</Kbd>
+                    </button>
+                  </div>
+
+                  {/* Scrollable content area.
                   Inner padding gives focus rings (ring-[3px]) room; without
                   this, overflow-y:auto implicitly clips overflow-x and the
                   blue focus ring on inputs/selects gets sliced off. */}
-              <div className="overflow-y-auto flex-1 min-h-0 space-y-4 px-1.5 py-1">
-                {configTab === 'basic' && (
-                  <div className="space-y-3">
-                    {/* Mode toggle (dialog-specific: drives headless + keyboard shortcut) */}
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
-                        Mode
-                      </div>
-                      <div className="flex gap-2">
-                        <TogglePill
-                          active={headless}
-                          onClick={() => {
-                            setHeadless(true)
-                            haptic('tap')
-                          }}
-                          label="Headless"
-                          shortcut="H"
+                  <div className="overflow-y-auto flex-1 min-h-0 space-y-4 px-1.5 py-1">
+                    {configTab === 'basic' && (
+                      <div className="space-y-3">
+                        {/* Mode toggle (dialog-specific: drives headless + keyboard shortcut) */}
+                        <div className="space-y-2">
+                          <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
+                            Mode
+                          </div>
+                          <div className="flex gap-2">
+                            <TogglePill
+                              active={headless}
+                              onClick={() => {
+                                setHeadless(true)
+                                haptic('tap')
+                              }}
+                              label="Headless"
+                              shortcut="H"
+                            />
+                            <TogglePill
+                              active={!headless}
+                              onClick={() => {
+                                setHeadless(false)
+                                haptic('tap')
+                              }}
+                              label="PTY"
+                              shortcut="P"
+                            />
+                          </div>
+                        </div>
+
+                        <LaunchConfigFields
+                          value={fieldsValue}
+                          onChange={applyFieldsPatch}
+                          show={{ name: true, description: true, model: true, effort: true }}
                         />
-                        <TogglePill
-                          active={!headless}
-                          onClick={() => {
-                            setHeadless(false)
-                            haptic('tap')
-                          }}
-                          label="PTY"
-                          shortcut="P"
-                        />
-                      </div>
-                    </div>
-
-                    <LaunchConfigFields
-                      value={fieldsValue}
-                      onChange={applyFieldsPatch}
-                      show={{ name: true, description: true, model: true, effort: true }}
-                    />
-                  </div>
-                )}
-
-                {configTab === 'advanced' && (
-                  <div className="space-y-3">
-                    <LaunchConfigFields
-                      value={fieldsValue}
-                      onChange={applyFieldsPatch}
-                      show={{
-                        agent: true,
-                        permissionMode: true,
-                        autocompactPct: true,
-                        maxBudgetUsd: headless,
-                        includePartialMessages: headless,
-                        worktree: true,
-                      }}
-                    />
-
-                    {/* REPL tool toggle (dialog-specific) */}
-                    <TileToggleRow
-                      title="REPL tool"
-                      subtitle="JS sandbox for batched tool calls (CLAUDE_CODE_REPL)"
-                      checked={repl}
-                      onToggle={() => setRepl(!repl)}
-                    />
-
-                    {/* Bare toggle (dialog-specific) */}
-                    <TileToggleRow
-                      title="Bare conversation"
-                      subtitle="Skip hooks, plugins, CLAUDE.md, auto-memory"
-                      checked={bare}
-                      onToggle={() => setBare(!bare)}
-                    />
-                    {bare && (
-                      <div className="text-[10px] font-mono text-amber-400/80 bg-amber-950/20 border border-amber-400/30 rounded px-2 py-1.5 leading-snug">
-                        <span className="font-bold">warning:</span> --bare uses a separate Claude auth cache and may
-                        force a fresh login the first time. Plugins, CLAUDE.md and auto-memory are also disabled.
                       </div>
                     )}
 
-                    {/* Resume existing CC session */}
-                    <ResumeSessionField
-                      resumeId={resumeId}
-                      onResumeIdChange={setResumeId}
-                      cwd={state.options?.path || ''}
-                      sentinel={state.options?.sentinel}
-                    />
+                    {configTab === 'advanced' && (
+                      <div className="space-y-3">
+                        <LaunchConfigFields
+                          value={fieldsValue}
+                          onChange={applyFieldsPatch}
+                          show={{
+                            agent: true,
+                            permissionMode: true,
+                            autocompactPct: true,
+                            maxBudgetUsd: headless,
+                            includePartialMessages: headless,
+                            worktree: true,
+                          }}
+                        />
 
-                    {/* Env vars (LaunchConfigFields renders textarea + inline errors) */}
-                    <LaunchConfigFields value={fieldsValue} onChange={applyFieldsPatch} show={{ env: true }} />
-                    <div className="text-[9px] text-comment">
-                      KEY=value per line, set before executing claude. # comments ok.
-                    </div>
+                        {/* REPL tool toggle (dialog-specific) */}
+                        <TileToggleRow
+                          title="REPL tool"
+                          subtitle="JS sandbox for batched tool calls (CLAUDE_CODE_REPL)"
+                          checked={repl}
+                          onToggle={() => setRepl(!repl)}
+                        />
 
-                    {/* Save / Reset defaults */}
-                    <div className="flex items-center gap-3 pt-1">
-                      <button
-                        type="button"
-                        onClick={handleSaveProjectDefaults}
-                        className="text-[10px] font-mono text-primary/70 hover:text-primary transition-colors"
-                      >
-                        {savedFeedback === 'project' ? 'Saved!' : 'Save for project'}
-                      </button>
-                      <span className="text-border">|</span>
-                      <button
-                        type="button"
-                        onClick={handleSaveGlobalDefaults}
-                        className="text-[10px] font-mono text-comment hover:text-muted-foreground transition-colors"
-                      >
-                        {savedFeedback === 'global' ? 'Saved!' : 'Save globally'}
-                      </button>
-                      <span className="text-border">|</span>
-                      <button
-                        type="button"
-                        onClick={handleResetDefaults}
-                        className="text-[10px] font-mono text-comment hover:text-red-400 transition-colors"
-                      >
-                        Reset
-                      </button>
-                    </div>
+                        {/* Bare toggle (dialog-specific) */}
+                        <TileToggleRow
+                          title="Bare conversation"
+                          subtitle="Skip hooks, plugins, CLAUDE.md, auto-memory"
+                          checked={bare}
+                          onToggle={() => setBare(!bare)}
+                        />
+                        {bare && (
+                          <div className="text-[10px] font-mono text-amber-400/80 bg-amber-950/20 border border-amber-400/30 rounded px-2 py-1.5 leading-snug">
+                            <span className="font-bold">warning:</span> --bare uses a separate Claude auth cache and may
+                            force a fresh login the first time. Plugins, CLAUDE.md and auto-memory are also disabled.
+                          </div>
+                        )}
+
+                        {/* Resume existing CC session */}
+                        <ResumeSessionField
+                          resumeId={resumeId}
+                          onResumeIdChange={setResumeId}
+                          cwd={state.options?.path || ''}
+                          sentinel={state.options?.sentinel}
+                        />
+
+                        {/* Env vars (LaunchConfigFields renders textarea + inline errors) */}
+                        <LaunchConfigFields value={fieldsValue} onChange={applyFieldsPatch} show={{ env: true }} />
+                        <div className="text-[9px] text-comment">
+                          KEY=value per line, set before executing claude. # comments ok.
+                        </div>
+
+                        {/* Save / Reset defaults */}
+                        <div className="flex items-center gap-3 pt-1">
+                          <button
+                            type="button"
+                            onClick={handleSaveProjectDefaults}
+                            className="text-[10px] font-mono text-primary/70 hover:text-primary transition-colors"
+                          >
+                            {savedFeedback === 'project' ? 'Saved!' : 'Save for project'}
+                          </button>
+                          <span className="text-border">|</span>
+                          <button
+                            type="button"
+                            onClick={handleSaveGlobalDefaults}
+                            className="text-[10px] font-mono text-comment hover:text-muted-foreground transition-colors"
+                          >
+                            {savedFeedback === 'global' ? 'Saved!' : 'Save globally'}
+                          </button>
+                          <span className="text-border">|</span>
+                          <button
+                            type="button"
+                            onClick={handleResetDefaults}
+                            className="text-[10px] font-mono text-comment hover:text-red-400 transition-colors"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </>
           )}
 

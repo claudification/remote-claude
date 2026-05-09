@@ -1,0 +1,20 @@
+name: claudwerk
+label: Claudwerk
+kind: platform
+version: 1.0.0
+description: Claudwerk control panel integration - conversations appear in the dashboard
+author: Jonas Frost
+requires_env:
+  - name: CLAUDWERK_BROKER_URL
+    description: "WebSocket URL for the broker (wss://concentrator.frst.dev/ws)"
+    prompt: "Broker WS URL"
+    password: false
+  - name: CLAUDWERK_ADAPTER_SECRET
+    description: "Authentication secret for the broker"
+    prompt: "Broker secret"
+    password: true
+optional_env:
+  - name: CLAUDWERK_DEFAULT_PROJECT
+    description: "Default project URI for Hermes conversations (e.g. hermes://personal)"
+    prompt: "Project URI (or empty for hermes://default)"
+    password: false

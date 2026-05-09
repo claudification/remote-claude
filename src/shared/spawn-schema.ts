@@ -119,5 +119,11 @@ export const spawnRequestSchema = z.object({
     .describe('Keep session running after prompt completes (only applies when adHoc=true, ignored otherwise)'),
   sentinel: z.string().optional().describe('Target sentinel alias for spawn routing. Default sentinel if omitted.'),
   jobId: z.string().uuid().optional().describe('Caller-supplied job id for progress correlation'),
+  backend: z
+    .enum(['claude', 'hermes'])
+    .optional()
+    .describe('Agent backend. Default: claude. Use "hermes" for Hermes agent conversations.'),
+  hermesAgentId: z.string().optional().describe('Hermes agent ID (required when backend=hermes)'),
+  hermesAgentName: z.string().optional().describe('Hermes agent display name (for project URI)'),
 })
 export type SpawnRequest = z.infer<typeof spawnRequestSchema>

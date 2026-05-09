@@ -14,6 +14,8 @@ import { createAdminRouter } from './routes/admin'
 import { createApiRouter } from './routes/api'
 import { blobDir, initBlobStore, initSharedFilesLog } from './routes/blob-store'
 import { createConversationsRouter } from './routes/conversations'
+import { createHermesRouter } from './routes/hermes'
+import { createMcpRouter } from './routes/mcp-server'
 import { createSentinelRouter } from './routes/sentinels'
 import { createRouteHelpers } from './routes/shared'
 import { createSpawnRouter } from './routes/spawn'
@@ -210,6 +212,8 @@ export function createRouter(options: RouteOptions): Hono {
   // ─── Sub-routers ────────────────────────────────────────────────────
   app.route('/', createConversationsRouter(conversationStore, helpers))
   app.route('/', createSpawnRouter(conversationStore, helpers))
+  app.route('/', createHermesRouter(conversationStore, store.kv, helpers))
+  app.route('/', createMcpRouter(conversationStore, store, rclaudeSecret))
   app.route(
     '/',
     createApiRouter(conversationStore, store, helpers, rclaudeSecret, cacheDir, blobDir, publicOrigin, vapidPublicKey),
@@ -254,7 +258,8 @@ export function createRouter(options: RouteOptions): Hono {
         !path.startsWith('/conversations') &&
         !path.startsWith('/health') &&
         !path.startsWith('/api') &&
-        !path.startsWith('/file')
+        !path.startsWith('/file') &&
+        !path.startsWith('/mcp')
       ) {
         const indexHtml = embeddedFiles.get('index.html')
         if (indexHtml) {
@@ -296,7 +301,8 @@ export function createRouter(options: RouteOptions): Hono {
         !path.startsWith('/conversations') &&
         !path.startsWith('/health') &&
         !path.startsWith('/api') &&
-        !path.startsWith('/file')
+        !path.startsWith('/file') &&
+        !path.startsWith('/mcp')
       ) {
         try {
           const indexFile = Bun.file(`${webDir}/index.html`)

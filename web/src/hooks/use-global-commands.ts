@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { openRenameModal } from '@/components/rename-modal'
+import { openManageHermesAgents } from '@/components/settings/manage-hermes-agents-dialog'
 import { openManageProjectLinks } from '@/components/settings/manage-project-links-dialog'
 import { openSpawnDialog } from '@/components/spawn-dialog'
 import { openTerminateConfirm } from '@/components/terminate-confirm'
@@ -236,13 +237,15 @@ export function useGlobalCommands(toggleSidebar: () => void) {
     'switch-conversation',
     () => {
       const { sessionMru, sessions, selectConversation } = useConversationsStore.getState()
-      const prev = sessionMru.slice(1).find(id => sessions.some(s => s.id === id))
+      const prev = sessionMru.slice(1).find((id: string) => sessions.some((s: { id: string }) => s.id === id))
       if (prev) selectConversation(prev, 'ctrl-tab')
     },
     { label: 'Switch to previous conversation', shortcut: 'ctrl+Tab', group: 'Navigation' },
   )
 
-  const keepMicOpen = useConversationsStore(s => s.controlPanelPrefs.keepMicOpen)
+  const keepMicOpen = useConversationsStore(
+    (s: { controlPanelPrefs: { keepMicOpen: boolean } }) => s.controlPanelPrefs.keepMicOpen,
+  )
   useCommand(
     'toggle-keep-mic-open',
     () => {
@@ -287,12 +290,18 @@ export function useGlobalCommands(toggleSidebar: () => void) {
     when: () => useConversationsStore.getState().permissions.canAdmin,
   })
 
+  useCommand('manage-hermes-agents', () => openManageHermesAgents(), {
+    label: 'Manage Hermes agents',
+    group: 'System',
+    when: () => useConversationsStore.getState().permissions.canAdmin,
+  })
+
   useCommand(
     'manage-project-links',
     () => {
       const sid = useConversationsStore.getState().selectedConversationId
       const sessions = useConversationsStore.getState().sessions
-      const selected = sessions.find(s => s.id === sid)
+      const selected = sessions.find((s: { id: string; project?: string }) => s.id === sid)
       openManageProjectLinks(selected?.project)
     },
     { label: 'Manage project links', group: 'System' },

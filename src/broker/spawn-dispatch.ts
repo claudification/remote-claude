@@ -80,6 +80,11 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
     throw err
   }
 
+  // ─── Hermes backend: bypass sentinel entirely ─────────────────────
+  if (req.backend === 'hermes') {
+    return dispatchHermesSpawn(req, deps)
+  }
+
   // Route to the specified sentinel, or default
   const targetAlias = req.sentinel
   let sentinel: ReturnType<typeof deps.conversationStore.getSentinel>
@@ -324,4 +329,54 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
   }
 
   return { ok: true, conversationId, jobId, tmuxSession: result.tmuxSession }
+}
+
+/**
+ * Spawn a Hermes conversation directly -- no sentinel, no process.
+ * Creates the conversation record immediately and returns.
+ */
+function dispatchHermesSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): SpawnDispatchResult {
+  if (!req.hermesAgentId) {
+    return { ok: false, error: 'hermesAgentId is required for backend=hermes', statusCode: 400 }
+  }
+
+  const conversationId = randomUUID()
+  const jobId = req.jobId ?? randomUUID()
+  const agentName = req.hermesAgentName || 'default'
+  const project = `hermes://${agentName}`
+
+  deps.conversationStore.createJob(jobId, conversationId)
+
+  const conv = deps.conversationStore.createConversation(
+    conversationId,
+    project,
+    req.model,
+    [],
+    ['headless', 'channel'],
+  )
+  conv.status = 'active'
+  conv.agentHostType = 'hermes'
+  conv.agentHostMeta = {
+    hermesAgentId: req.hermesAgentId,
+    backend: 'hermes',
+  }
+  conv.title =
+    req.name ||
+    deriveConversationName(req) ||
+    generateConversationName(
+      new Set(
+        deps.conversationStore
+          .getAllConversations()
+          .map((s: Conversation) => s.title)
+          .filter(Boolean) as string[],
+      ),
+    )
+
+  deps.conversationStore.broadcastConversationUpdate(conversationId)
+  emitProgress(deps.conversationStore, jobId, 'session_connected', 'done', { conversationId })
+
+  // If prompt provided, proxy it immediately via the chat endpoint
+  // (done async by the caller -- we just return the conversationId)
+
+  return { ok: true, conversationId, jobId }
 }
