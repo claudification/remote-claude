@@ -743,9 +743,13 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           hostSentinelAlias: fullMeta.hostSentinelAlias as string | undefined,
           conversationInfo: fullMeta.conversationInfo as Conversation['conversationInfo'],
           agentHostMeta: fullMeta.agentHostMeta as Record<string, unknown> | undefined,
+          agentHostType: fullMeta.agentHostType as string | undefined,
           tokenUsage: fullMeta.tokenUsage as Conversation['tokenUsage'],
           cacheTtl: fullMeta.cacheTtl as Conversation['cacheTtl'],
           lastTurnEndedAt: fullMeta.lastTurnEndedAt as number | undefined,
+        }
+        if (!resolveBackend(conv).requiresAgentSocket) {
+          conv.status = 'idle'
         }
         conversations.set(conv.id, conv)
       }
@@ -808,6 +812,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         hostSentinelAlias: conv.hostSentinelAlias,
         conversationInfo: conv.conversationInfo,
         agentHostMeta: conv.agentHostMeta,
+        agentHostType: conv.agentHostType,
         tokenUsage: conv.tokenUsage,
         summary: conv.summary,
         cacheTtl: conv.cacheTtl,
