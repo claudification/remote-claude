@@ -25,6 +25,9 @@ export interface WsData {
   isShare?: boolean
   shareToken?: string
   hideUserInput?: boolean
+  // Gateway adapter (e.g. Hermes)
+  isGateway?: boolean
+  gatewayType?: string
 }
 
 /** Thrown by guard methods (requireBenevolent, requireAgent, etc.) */

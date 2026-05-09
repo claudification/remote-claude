@@ -276,6 +276,10 @@ export interface ConversationStore {
   clearState: () => Promise<void>
   flushTranscripts: () => Promise<void>
   persistConversationById: (id: string) => void
+  // Gateway sockets (adapters like Hermes that serve multiple conversations on one WS)
+  setGatewaySocket: (agentHostType: string, ws: ServerWebSocket<unknown>) => void
+  getGatewaySocket: (agentHostType: string) => ServerWebSocket<unknown> | undefined
+  removeGatewaySocketByRef: (ws: ServerWebSocket<unknown>) => string | undefined
 }
 
 /**
@@ -291,6 +295,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   const terminalRegistry = createTerminalRegistry()
   // JSON stream viewers keyed by conversationId (raw NDJSON tail for headless conversations)
   const jsonStreamRegistry = createViewerRegistry()
+  // Gateway sockets: agentHostType -> WS (adapters like Hermes serving multiple conversations)
+  const gatewaySockets = new Map<string, ServerWebSocket<unknown>>()
   const controlPanelSubscribers = new Set<ServerWebSocket<unknown>>()
   let subscriberIdCounter = 0
 
@@ -1326,6 +1332,29 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return wrappers ? Array.from(wrappers.keys()) : []
   }
 
+  function setGatewaySocket(agentHostType: string, ws: ServerWebSocket<unknown>): void {
+    gatewaySockets.set(agentHostType, ws)
+  }
+
+  function getGatewaySocket(agentHostType: string): ServerWebSocket<unknown> | undefined {
+    const ws = gatewaySockets.get(agentHostType)
+    if (ws && (ws as { readyState?: number }).readyState !== WebSocket.OPEN) {
+      gatewaySockets.delete(agentHostType)
+      return undefined
+    }
+    return ws
+  }
+
+  function removeGatewaySocketByRef(ws: ServerWebSocket<unknown>): string | undefined {
+    for (const [type, gws] of gatewaySockets) {
+      if (gws === ws) {
+        gatewaySockets.delete(type)
+        return type
+      }
+    }
+    return undefined
+  }
+
   /**
    * Reap conversations whose sockets have all closed without firing the WS
    * close handler (network blip, OS sleep, half-open TCP). Returns the list
@@ -1965,6 +1994,9 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     persistConversationById,
     scheduleRecap: (conversationId: string) => scheduleRecap(self, conversationId),
     cancelRecap,
+    setGatewaySocket,
+    getGatewaySocket,
+    removeGatewaySocketByRef,
   }
 
   self = result

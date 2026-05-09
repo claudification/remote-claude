@@ -85,6 +85,11 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
     return dispatchChatApiSpawn(req, deps)
   }
 
+  // --- Hermes gateway backend: bypass sentinel, routes via gateway socket --
+  if (req.backend === 'hermes') {
+    return dispatchHermesSpawn(req, deps)
+  }
+
   // Route to the specified sentinel, or default
   const targetAlias = req.sentinel
   let sentinel: ReturnType<typeof deps.conversationStore.getSentinel>
@@ -377,6 +382,52 @@ function dispatchChatApiSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): Spawn
 
   // If prompt provided, proxy it immediately via the chat endpoint
   // (done async by the caller -- we just return the conversationId)
+
+  return { ok: true, conversationId, jobId }
+}
+
+/**
+ * Spawn a Hermes gateway conversation -- no sentinel, no process.
+ * Creates the conversation record and relies on the Hermes gateway adapter
+ * (connected via gateway_register) to handle input when it arrives.
+ */
+function dispatchHermesSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): SpawnDispatchResult {
+  const conversationId = randomUUID()
+  const jobId = req.jobId ?? randomUUID()
+  const project = 'hermes://gateway'
+
+  deps.conversationStore.createJob(jobId, conversationId)
+
+  const gatewayWs = deps.conversationStore.getGatewaySocket('hermes')
+  if (!gatewayWs) {
+    deps.conversationStore.failJob(jobId, 'Hermes gateway not connected')
+    return { ok: false, error: 'Hermes gateway not connected', statusCode: 503 }
+  }
+
+  const conv = deps.conversationStore.createConversation(
+    conversationId,
+    project,
+    req.model,
+    [],
+    ['headless', 'channel'],
+  )
+  conv.status = 'idle'
+  conv.agentHostType = 'hermes'
+  conv.agentHostMeta = { backend: 'hermes' }
+  conv.title =
+    req.name ||
+    deriveConversationName(req) ||
+    generateConversationName(
+      new Set(
+        deps.conversationStore
+          .getAllConversations()
+          .map((s: Conversation) => s.title)
+          .filter(Boolean) as string[],
+      ),
+    )
+
+  deps.conversationStore.broadcastConversationUpdate(conversationId)
+  emitProgress(deps.conversationStore, jobId, 'session_connected', 'done', { conversationId })
 
   return { ok: true, conversationId, jobId }
 }

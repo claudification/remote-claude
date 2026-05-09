@@ -120,9 +120,9 @@ export const spawnRequestSchema = z.object({
   sentinel: z.string().optional().describe('Target sentinel alias for spawn routing. Default sentinel if omitted.'),
   jobId: z.string().uuid().optional().describe('Caller-supplied job id for progress correlation'),
   backend: z
-    .enum(['claude', 'chat-api'])
+    .enum(['claude', 'chat-api', 'hermes'])
     .optional()
-    .describe('Agent backend. Default: claude. Use "chat-api" for Chat API conversations.'),
+    .describe('Agent backend. Default: claude. Use "chat-api" for generic chat, "hermes" for Hermes gateway.'),
   chatConnectionId: z.string().optional().describe('Chat API connection ID (required when backend=chat-api)'),
   chatConnectionName: z.string().optional().describe('Chat API connection display name (for project URI)'),
 })

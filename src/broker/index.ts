@@ -690,6 +690,15 @@ async function main() {
             return
           }
 
+          // Handle gateway adapter disconnection (e.g. Hermes)
+          if (ws.data.isGateway) {
+            const gatewayType = conversationStore.removeGatewaySocketByRef(ws)
+            if (gatewayType) {
+              console.log(`[gateway] ${gatewayType} adapter disconnected`)
+            }
+            return
+          }
+
           // Handle dashboard subscriber disconnection
           if (ws.data.isControlPanel) {
             // Clean up any active voice streaming conversation

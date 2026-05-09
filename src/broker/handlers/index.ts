@@ -9,6 +9,7 @@ import { registerDashboardActionHandlers } from './control-panel-actions'
 import { registerConversationLifecycleHandlers } from './conversation-lifecycle'
 import { registerDialogHandlers } from './dialog'
 import { registerFileHandlers } from './files'
+import { registerGatewayHandlers } from './gateway'
 import { registerInterConversationHandlers } from './inter-conversation'
 import { registerJsonStreamHandlers } from './json-stream'
 import { registerPermissionHandlers } from './permissions'
@@ -27,6 +28,7 @@ export function registerAllHandlers(): void {
   registerDashboardActionHandlers()
   registerDialogHandlers()
   registerFileHandlers()
+  registerGatewayHandlers()
   registerInterConversationHandlers()
   registerJsonStreamHandlers()
   registerPermissionHandlers()
