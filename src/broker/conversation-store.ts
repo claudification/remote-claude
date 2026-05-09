@@ -20,8 +20,8 @@ import type {
   TranscriptEntry,
 } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
-import { resolveBackend } from './backends'
 import { clearSession as clearAnalyticsSession } from './analytics-store'
+import { resolveBackend } from './backends'
 import { addEvent as addEventImpl } from './conversation-store/add-event'
 import { addTranscriptEntries as addTranscriptEntriesImpl } from './conversation-store/add-transcript-entries'
 import { createChannelRegistry } from './conversation-store/channel-registry'

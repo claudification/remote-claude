@@ -2,14 +2,14 @@
  * Tests for Hermes routes -- agent registry CRUD + test + conversation proxy
  */
 
-import { beforeEach, describe, expect, it } from 'vitest'
 import { Hono } from 'hono'
-import { createHermesRouter } from '../hermes'
-import { createMemoryDriver } from '../../store/memory/driver'
-import { createConversationStore, type ConversationStore } from '../../conversation-store'
-import { createRouteHelpers, type RouteHelpers } from '../shared'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { setRclaudeSecret } from '../../auth-routes'
+import { type ConversationStore, createConversationStore } from '../../conversation-store'
+import { createMemoryDriver } from '../../store/memory/driver'
 import type { StoreDriver } from '../../store/types'
+import { createHermesRouter } from '../hermes'
+import { createRouteHelpers, type RouteHelpers } from '../shared'
 
 const TEST_SECRET = 'test-secret-hermes-42'
 

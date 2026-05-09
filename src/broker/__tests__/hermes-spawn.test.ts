@@ -3,10 +3,10 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { dispatchSpawn, type SpawnDispatchDeps } from '../spawn-dispatch'
-import { createConversationStore, type ConversationStore } from '../conversation-store'
-import { createMemoryDriver } from '../store/memory/driver'
 import type { SpawnRequest } from '../../shared/spawn-schema'
+import { type ConversationStore, createConversationStore } from '../conversation-store'
+import { dispatchSpawn, type SpawnDispatchDeps } from '../spawn-dispatch'
+import { createMemoryDriver } from '../store/memory/driver'
 import type { StoreDriver } from '../store/types'
 
 let conversationStore: ConversationStore

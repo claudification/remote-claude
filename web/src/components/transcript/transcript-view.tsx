@@ -18,7 +18,7 @@ import {
 } from 'react'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { record } from '@/lib/perf-metrics'
-import type { TranscriptEntry } from '@/lib/types'
+import type { TranscriptAssistantEntry, TranscriptEntry } from '@/lib/types'
 import { AskQuestionBanners, LinkRequestBanners, PermissionBanners } from '../conversation-detail/conversation-banners'
 import { Markdown } from '../markdown'
 import { CompactedDivider, CompactingBanner, MemoizedGroupView, SkillDivider } from './group-view'
@@ -293,9 +293,9 @@ export const TranscriptView = memo(function TranscriptView({
     let content: string | undefined
     let path: string | undefined
     for (const entry of entries) {
-      // biome-ignore lint/suspicious/noExplicitAny: transcript entry message has variable structure
-      const msg = (entry as any)?.message
-      if (msg?.role !== 'assistant') continue
+      if (entry.type !== 'assistant') continue
+      const msg = (entry as TranscriptAssistantEntry).message
+      if (!msg) continue
       const blocks = msg.content
       if (!Array.isArray(blocks)) continue
       for (const block of blocks) {

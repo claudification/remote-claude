@@ -5,11 +5,7 @@
 
 import { randomUUID } from 'node:crypto'
 import type { HermesAgent } from '../../shared/hermes-types'
-import type {
-  TranscriptAssistantEntry,
-  TranscriptEntry,
-  TranscriptUserEntry,
-} from '../../shared/protocol'
+import type { TranscriptAssistantEntry, TranscriptEntry, TranscriptUserEntry } from '../../shared/protocol'
 import type { ConversationStore } from '../conversation-store'
 import type { KVStore } from '../store/types'
 import type { BackendDeps, ConversationBackend, InputResult } from './types'
@@ -81,7 +77,8 @@ export const hermesBackend: ConversationBackend = {
       }
 
       const broadcast = deps.broadcastScoped
-        ? (event: Record<string, unknown>) => deps.broadcastScoped!({ type: 'stream_delta', conversationId, event }, conv.project)
+        ? (event: Record<string, unknown>) =>
+            deps.broadcastScoped!({ type: 'stream_delta', conversationId, event }, conv.project)
         : undefined
       const fullText = await streamHermesResponse(resp, conversationId, conversationStore, broadcast)
 
@@ -127,9 +124,7 @@ function transcriptToMessages(entries: TranscriptEntry[]): ChatMessage[] {
   for (const entry of entries) {
     if (entry.type === 'user') {
       const userEntry = entry as TranscriptUserEntry
-      const content = typeof userEntry.message?.content === 'string'
-        ? userEntry.message.content
-        : ''
+      const content = typeof userEntry.message?.content === 'string' ? userEntry.message.content : ''
       if (content) messages.push({ role: 'user', content })
     } else if (entry.type === 'assistant') {
       const assistantEntry = entry as TranscriptAssistantEntry
@@ -198,7 +193,11 @@ async function streamHermesResponse(
           }
 
           if (typeof delta?.reasoning_content === 'string' && emitDelta) {
-            emitDelta({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: delta.reasoning_content } })
+            emitDelta({
+              type: 'content_block_delta',
+              index: 0,
+              delta: { type: 'thinking_delta', thinking: delta.reasoning_content },
+            })
           }
 
           const usage = chunk.usage

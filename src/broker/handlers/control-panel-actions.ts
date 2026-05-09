@@ -9,6 +9,7 @@
 import { generateConversationName } from '../../shared/conversation-names'
 import { extractProjectLabel } from '../../shared/project-uri'
 import type { SendInput, SubscriptionChannel } from '../../shared/protocol'
+import { resolveBackend } from '../backends'
 import { buildReviveMessage } from '../build-revive'
 import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
 import { GuardError, type MessageHandler, type WsData } from '../handler-context'
@@ -21,7 +22,6 @@ import {
   getProjectSettings,
   setProjectSettings,
 } from '../project-settings'
-import { resolveBackend } from '../backends'
 
 // ─── Send input to a conversation ──────────────────────────────────────
 
