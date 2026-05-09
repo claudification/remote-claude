@@ -74,7 +74,10 @@ export const hermesBackend: ConversationBackend = {
         return { ok: false, error: `Hermes API error: ${resp.status} ${errText}` }
       }
 
-      const fullText = await streamHermesResponse(resp, conversationId, conversationStore)
+      const broadcast = deps.broadcastScoped
+        ? (event: Record<string, unknown>) => deps.broadcastScoped!({ type: 'stream_delta', conversationId, event }, conv.project)
+        : undefined
+      const fullText = await streamHermesResponse(resp, conversationId, conversationStore, broadcast)
 
       const assistantEntry: TranscriptAssistantEntry = {
         type: 'assistant',
@@ -134,6 +137,7 @@ async function streamHermesResponse(
   resp: Response,
   conversationId: string,
   conversationStore: ConversationStore,
+  emitDelta?: (event: Record<string, unknown>) => void,
 ): Promise<string> {
   const reader = resp.body?.getReader()
   if (!reader) return ''
@@ -141,6 +145,7 @@ async function streamHermesResponse(
   const decoder = new TextDecoder()
   let fullText = ''
   let buffer = ''
+  let started = false
 
   try {
     while (true) {
@@ -158,9 +163,23 @@ async function streamHermesResponse(
 
         try {
           const chunk = JSON.parse(data)
-          const delta = chunk.choices?.[0]?.delta?.content
-          if (typeof delta === 'string') {
-            fullText += delta
+          const delta = chunk.choices?.[0]?.delta
+
+          if (emitDelta && !started) {
+            emitDelta({ type: 'message_start', message: { role: 'assistant' } })
+            emitDelta({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+            started = true
+          }
+
+          if (typeof delta?.content === 'string') {
+            fullText += delta.content
+            if (emitDelta) {
+              emitDelta({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: delta.content } })
+            }
+          }
+
+          if (typeof delta?.reasoning_content === 'string' && emitDelta) {
+            emitDelta({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: delta.reasoning_content } })
           }
 
           const usage = chunk.usage
@@ -179,6 +198,11 @@ async function streamHermesResponse(
     }
   } finally {
     reader.releaseLock()
+  }
+
+  if (emitDelta && started) {
+    emitDelta({ type: 'content_block_stop', index: 0 })
+    emitDelta({ type: 'message_stop' })
   }
 
   return fullText

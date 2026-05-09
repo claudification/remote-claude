@@ -17,6 +17,7 @@ export interface InputResult {
 export interface BackendDeps {
   conversationStore: ConversationStore
   kv: KVStore
+  broadcastScoped?: (msg: Record<string, unknown>, project: string) => void
 }
 
 export interface ConversationBackend {
