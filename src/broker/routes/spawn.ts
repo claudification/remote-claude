@@ -90,7 +90,7 @@ export function createSpawnRouter(conversationStore: ConversationStore, helpers:
         resolve(msg as ListDirsResult)
       })
 
-      sentinel!.send(JSON.stringify({ type: 'list_dirs', requestId, path: dirPath }))
+      sentinel?.send(JSON.stringify({ type: 'list_dirs', requestId, path: dirPath }))
     })
 
     if (result.error) return c.json({ error: result.error }, 400)
@@ -127,7 +127,7 @@ export function createSpawnRouter(conversationStore: ConversationStore, helpers:
         resolve(msg as ListCcSessionsResult)
       })
 
-      sentinel!.send(JSON.stringify({ type: 'list_cc_sessions', requestId, cwd }))
+      sentinel?.send(JSON.stringify({ type: 'list_cc_sessions', requestId, cwd }))
     })
 
     if (result.error) return c.json({ error: result.error }, 400)

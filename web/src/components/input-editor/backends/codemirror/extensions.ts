@@ -277,7 +277,7 @@ interface InputExtensionOptions {
 // the view instead of waiting for the React value prop to propagate.
 // ---------------------------------------------------------------------------
 
-export function clearEditorDoc(view: EditorView) {
+function clearEditorDoc(view: EditorView) {
   const len = view.state.doc.length
   if (len > 0) view.dispatch({ changes: { from: 0, to: len, insert: '' } })
 }

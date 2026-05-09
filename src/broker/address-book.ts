@@ -94,7 +94,7 @@ export function getBook(callerProject: string): Record<string, string> {
 }
 
 /** Remove a specific entry from a caller's address book. */
-function removeEntry(callerProject: string, localId: string): void {
+function _removeEntry(callerProject: string, localId: string): void {
   if (books[callerProject]) {
     delete books[callerProject][localId]
     if (Object.keys(books[callerProject]).length === 0) {
@@ -105,7 +105,7 @@ function removeEntry(callerProject: string, localId: string): void {
 }
 
 /** Clean up entries pointing to projects that no longer have any conversation. */
-function pruneStale(activeProjects: Set<string>): number {
+function _pruneStale(activeProjects: Set<string>): number {
   let removed = 0
   for (const [callerProject, book] of Object.entries(books)) {
     for (const [id, targetProject] of Object.entries(book)) {

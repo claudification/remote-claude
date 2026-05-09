@@ -373,7 +373,7 @@ export function buildMcpCallbacksWithRules(
 
 async function handleSpawnConversation(
   ctx: AgentHostContext,
-  deps: McpCallbackDeps,
+  _deps: McpCallbackDeps,
   spawnParams: Record<string, unknown>,
   onProgress?: (event: Record<string, unknown>) => void,
 ) {

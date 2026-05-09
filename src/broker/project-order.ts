@@ -132,6 +132,6 @@ function getAllTreeProjects(nodes: ProjectOrderNode[] = order.tree): Set<string>
 }
 
 /** @deprecated Use getAllTreeProjects() instead. */
-function getAllTreeCwds(nodes: ProjectOrderNode[] = order.tree): Set<string> {
+function _getAllTreeCwds(nodes: ProjectOrderNode[] = order.tree): Set<string> {
   return getAllTreeProjects(nodes)
 }

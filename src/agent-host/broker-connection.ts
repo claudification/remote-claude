@@ -503,7 +503,7 @@ function writeToPty(ctx: AgentHostContext, input: string, crDelay?: number) {
   )
 }
 
-function handleFileRequest(ctx: AgentHostContext, deps: BrokerConnectionDeps, requestId: string, path: string) {
+function handleFileRequest(ctx: AgentHostContext, _deps: BrokerConnectionDeps, requestId: string, path: string) {
   readFile(path)
     .then(buf => {
       const ext = path.split('.').pop()?.toLowerCase() || ''

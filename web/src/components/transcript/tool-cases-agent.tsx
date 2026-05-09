@@ -10,7 +10,7 @@ function formatTokenCount(tokens: number): string {
 }
 
 export function renderAgentTask(name: string, ctx: ToolCaseInput): ToolCaseResult {
-  const { input, result, subagents } = ctx
+  const { input, subagents } = ctx
   const desc = input.description as string
   const agentType = input.subagent_type as string
   const prompt = input.prompt as string

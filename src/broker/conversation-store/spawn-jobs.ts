@@ -1,7 +1,7 @@
 import type { ServerWebSocket } from 'bun'
 import type { ConnectionId, ConversationId, JobId } from '../../shared/identity'
 import { extractProjectLabel } from '../../shared/project-uri'
-import type { Conversation, ConversationSummary } from '../../shared/protocol'
+import type { Conversation } from '../../shared/protocol'
 
 interface LaunchJobEvent {
   type: string

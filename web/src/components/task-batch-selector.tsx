@@ -317,13 +317,13 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hoverSlugRef = useRef<string | null>(null)
 
-  function clearHoverPreview() {
+  const clearHoverPreview = useCallback(() => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
     hoverTimerRef.current = null
     hoverSlugRef.current = null
     setPreviewTask(null)
     setPreviewRect(null)
-  }
+  }, [])
 
   function handleTaskMouseEnter(task: ProjectTaskMeta, el: HTMLElement) {
     clearHoverPreview()
@@ -361,7 +361,7 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
   // Clean up hover timer on unmount or close
   useEffect(() => {
     if (!open) clearHoverPreview()
-  }, [open])
+  }, [open, clearHoverPreview])
 
   // Listen for open event
   useEffect(() => {
@@ -545,6 +545,7 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
               return (
                 <div
                   key={task.slug}
+                  role="group"
                   className={cn(
                     'flex items-start border-b border-border/20 transition-colors',
                     'hover:bg-accent/5',

@@ -462,7 +462,7 @@ const MODEL_CATALOG: readonly ModelEntry[] = [
 ] as const
 
 /** Every id known to rclaude -- drives `modelEnum` validation. */
-const KNOWN_MODEL_IDS: readonly string[] = MODEL_CATALOG.map(m => m.id)
+const _KNOWN_MODEL_IDS: readonly string[] = MODEL_CATALOG.map(m => m.id)
 
 /** Ids surfaced in the `/model` autocomplete list (preserves catalog order). */
 export const COMPLETER_MODEL_IDS: readonly string[] = MODEL_CATALOG.filter(m => m.showInCompleter).map(m => m.id)

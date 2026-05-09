@@ -113,8 +113,8 @@ function GroupView({
       />
       <div className={cn('pl-4 space-y-2', group.queued && 'opacity-50')}>
         {items.map((item, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
           <GroupItem
+            // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
             key={i}
             item={item}
             showThinking={showThinking}

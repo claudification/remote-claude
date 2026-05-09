@@ -19,13 +19,13 @@ if (typeof globalThis.KeyboardEvent === 'undefined') {
   } as unknown as typeof KeyboardEvent
 }
 if (typeof globalThis.window === 'undefined') {
-  const listeners: Record<string, Function[]> = {}
+  const listeners: Record<string, ((...args: never[]) => unknown)[]> = {}
   globalThis.window = {
-    addEventListener(type: string, fn: Function) {
+    addEventListener(type: string, fn: (...args: never[]) => unknown) {
       if (!listeners[type]) listeners[type] = []
       listeners[type].push(fn)
     },
-    removeEventListener(type: string, fn: Function) {
+    removeEventListener(type: string, fn: (...args: never[]) => unknown) {
       const arr = listeners[type]
       if (arr) listeners[type] = arr.filter(f => f !== fn)
     },

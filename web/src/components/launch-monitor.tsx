@@ -25,6 +25,7 @@ export function LaunchStepList({ steps }: { steps: LaunchStep[] }) {
   return (
     <div className="space-y-2">
       {steps.map((step, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: steps have no stable ID
         <div key={i} className="flex items-start gap-2 font-mono">
           <span className="mt-0.5 w-3 flex-shrink-0 text-center">
             {step.status === 'pending' && <span className="w-2 h-2 rounded-full bg-primary/20 inline-block" />}

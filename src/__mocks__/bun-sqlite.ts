@@ -5,7 +5,6 @@
  */
 
 class Database {
-  constructor(_path?: string, _opts?: unknown) {}
   query(_sql: string) {
     return {
       all: () => [],

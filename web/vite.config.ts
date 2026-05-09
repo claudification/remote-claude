@@ -100,8 +100,8 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: ['./src/test-setup.ts'],
       alias: {
-        '@/': resolve(__dirname, 'src') + '/',
-        '@shared/': resolve(__dirname, '../src/shared') + '/',
+        '@/': `${resolve(__dirname, 'src')}/`,
+        '@shared/': `${resolve(__dirname, '../src/shared')}/`,
       },
     },
     server: {

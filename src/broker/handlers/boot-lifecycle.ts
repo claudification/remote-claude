@@ -41,7 +41,7 @@ const agentHostBoot: MessageHandler = (ctx, data) => {
     return
   }
 
-  const resolvedProject = project ?? cwdToProjectUri(bootPath!)
+  const resolvedProject = project ?? cwdToProjectUri(bootPath as string)
 
   // Track the WS so subsequent messages from this agent host are routed here.
   ctx.ws.data.conversationId = conversationId

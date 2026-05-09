@@ -12,13 +12,6 @@ export class ConversationNotFound extends StoreError {
   }
 }
 
-class EntryNotFound extends StoreError {
-  constructor(id: number) {
-    super(`Entry not found: ${id}`)
-    this.name = 'EntryNotFound'
-  }
-}
-
 export class DuplicateEntry extends StoreError {
   constructor(message: string) {
     super(message)

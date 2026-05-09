@@ -165,7 +165,7 @@ export function extractMcpText(result?: string, extra?: unknown): string | null 
  * Extract MCP result text and try to parse it as typed JSON.
  * Returns the parsed object or null. Falls through all extraction strategies.
  */
-function extractMcpJson<T>(result?: string, extra?: unknown): T | null {
+function _extractMcpJson<T>(result?: string, extra?: unknown): T | null {
   const text = extractMcpText(result, extra)
   if (!text) return null
   try {

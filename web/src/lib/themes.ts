@@ -696,7 +696,7 @@ export const THEMES: Theme[] = [
   AMBER_PHOSPHOR,
 ]
 
-export const DEFAULT_THEME_ID = 'tokyo-night'
+const DEFAULT_THEME_ID = 'tokyo-night'
 
 export function findTheme(id: string): Theme {
   return THEMES.find(t => t.id === id) || TOKYO_NIGHT

@@ -107,7 +107,7 @@ function setStoreState(state: Record<string, unknown>) {
     pendingTaskEdit: null,
     projectSettings: {},
     ...state,
-  } as any)
+  } as unknown as ReturnType<typeof useConversationsStore.getState>)
 }
 
 afterEach(() => {

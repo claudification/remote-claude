@@ -307,7 +307,7 @@ export async function writeMergedSettings(
  * Write .mcp.json for channel support.
  * Merges rclaude MCP server into existing project .mcp.json without overwriting user servers.
  */
-async function writeMcpConfig(cwd: string, port: number): Promise<void> {
+async function _writeMcpConfig(cwd: string, port: number): Promise<void> {
   const mcpPath = join(cwd, '.mcp.json')
   let existing: Record<string, unknown> = {}
   try {
@@ -331,7 +331,7 @@ async function writeMcpConfig(cwd: string, port: number): Promise<void> {
 /**
  * Remove rclaude entry from .mcp.json on cleanup
  */
-async function cleanupMcpConfig(cwd: string): Promise<void> {
+async function _cleanupMcpConfig(cwd: string): Promise<void> {
   const mcpPath = join(cwd, '.mcp.json')
   try {
     const file = Bun.file(mcpPath)

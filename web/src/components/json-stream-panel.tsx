@@ -222,7 +222,7 @@ export function JsonStreamPanel({ conversationId }: JsonStreamPanelProps) {
   useEffect(() => {
     if (!autoScrollRef.current || !scrollRef.current) return
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [lines])
+  }, [])
 
   function handleScroll() {
     const el = scrollRef.current
@@ -322,7 +322,10 @@ export function JsonStreamPanel({ conversationId }: JsonStreamPanelProps) {
             {lines.length === 0 ? 'Waiting for stream data...' : 'No matching lines'}
           </div>
         ) : (
-          filtered.map((line, i) => <StreamLine key={i} line={line} index={i} />)
+          filtered.map((line, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: stream lines have no stable ID
+            <StreamLine key={i} line={line} index={i} />
+          ))
         )}
       </div>
     </div>

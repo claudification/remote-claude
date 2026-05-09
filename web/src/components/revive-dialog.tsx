@@ -109,13 +109,30 @@ export function ReviveDialog() {
         detail: (progress.launch.conversationId || progress.spawnedConversation?.id || '').slice(0, 8),
       },
     ])
-  }, [progress.isConnected, progress.launch.conversationId, progress.spawnedConversation?.id])
+  }, [progress.isConnected, progress.launch.conversationId, progress.spawnedConversation?.id, progress.setSteps])
+
+  const handleClose = useCallback(() => {
+    addedConnectedStepRef.current = false
+    const currentId = useConversationsStore.getState().selectedConversationId
+    const userNavigatedAway = currentId !== sessionAtReviveRef.current && currentId !== null
+    const sid =
+      progress.launch.conversationId ||
+      (progress.spawnedConversation && progress.spawnedConversation.status !== 'ended'
+        ? progress.spawnedConversation.id
+        : null)
+
+    if (sid && !userNavigatedAway) {
+      useConversationsStore.getState().selectConversation(sid, 'revive-dialog-close')
+    }
+    setState({ open: false, options: null })
+    setJobId(null)
+  }, [progress.launch.conversationId, progress.spawnedConversation])
 
   // Auto-redirect when countdown reaches 0
   useEffect(() => {
     if (progress.viewCountdown !== 0) return
     handleClose()
-  }, [progress.viewCountdown]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [progress.viewCountdown, handleClose])
 
   // Legacy agent events -- keep the listeners from the old ReviveMonitor for
   // backwards compat with older agents that don't emit launch channel events.
@@ -148,23 +165,6 @@ export function ReviveDialog() {
     window.addEventListener('revive-session-result', handleAck)
     return () => window.removeEventListener('revive-session-result', handleAck)
   }, [progress.setError, progress.setSteps])
-
-  const handleClose = useCallback(() => {
-    addedConnectedStepRef.current = false
-    const currentId = useConversationsStore.getState().selectedConversationId
-    const userNavigatedAway = currentId !== sessionAtReviveRef.current && currentId !== null
-    const sid =
-      progress.launch.conversationId ||
-      (progress.spawnedConversation && progress.spawnedConversation.status !== 'ended'
-        ? progress.spawnedConversation.id
-        : null)
-
-    if (sid && !userNavigatedAway) {
-      useConversationsStore.getState().selectConversation(sid, 'revive-dialog-close')
-    }
-    setState({ open: false, options: null })
-    setJobId(null)
-  }, [progress.launch.conversationId, progress.spawnedConversation])
 
   const handleViewConversation = useCallback(() => {
     const sid = progress.launch.conversationId || progress.spawnedConversation?.id

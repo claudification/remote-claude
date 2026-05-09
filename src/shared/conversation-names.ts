@@ -215,7 +215,7 @@ export function generateConversationName(usedNames?: Set<string>, maxRetries = 1
     const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]
     const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)]
     const name = `${adj}-${noun}`
-    if (!usedNames || !usedNames.has(name)) return name
+    if (!usedNames?.has(name)) return name
   }
   // Exhausted retries -- append random number to guarantee uniqueness
   const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]

@@ -237,7 +237,6 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onConfigGet,
     onConfigSet,
     onControl,
-    onDiag,
   } = options
 
   const project = cwdToProjectUri(cwd)

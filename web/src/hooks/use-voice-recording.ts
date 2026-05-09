@@ -167,9 +167,9 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
 
   stateRef.current = state
 
-  function elapsed() {
+  const elapsed = useCallback(() => {
     return `+${(performance.now() - startTsRef.current).toFixed(0)}ms`
-  }
+  }, [])
 
   const sendWs = useCallback((msg: Record<string, unknown>) => {
     useConversationsStore.getState().sendWsMessage(msg)
@@ -362,7 +362,7 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
     }, 10_000)
   }
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: doStop is a stable function defined in this scope
+  // biome-ignore lint/correctness/useExhaustiveDependencies: doStop is a stable function
   const stop = useCallback(() => {
     console.log(`[voice] ${elapsed()} stop() (state=${stateRef.current})`)
 
@@ -386,14 +386,14 @@ export function useVoiceRecording(): UseVoiceRecordingResult {
     } else {
       doStop()
     }
-  }, [sendWs, reset])
+  }, [sendWs, reset, elapsed])
 
   const cancel = useCallback(() => {
     console.log(`[voice] ${elapsed()} cancel()`)
     cancelledRef.current = true
     sendWs({ type: 'voice_stop' })
     reset()
-  }, [sendWs, reset])
+  }, [sendWs, reset, elapsed])
 
   return {
     state,

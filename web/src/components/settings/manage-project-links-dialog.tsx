@@ -115,14 +115,17 @@ export function ManageProjectLinksDialog() {
     pinned.current = false
   }
 
-  function isLinkedTo(targetUri: string): boolean {
-    if (!focusProject) return false
-    return links.some(
-      l =>
-        (uriMatches(l.projectA, focusProject) && uriMatches(l.projectB, targetUri)) ||
-        (uriMatches(l.projectB, focusProject) && uriMatches(l.projectA, targetUri)),
-    )
-  }
+  const isLinkedTo = useCallback(
+    (targetUri: string): boolean => {
+      if (!focusProject) return false
+      return links.some(
+        l =>
+          (uriMatches(l.projectA, focusProject) && uriMatches(l.projectB, targetUri)) ||
+          (uriMatches(l.projectB, focusProject) && uriMatches(l.projectA, targetUri)),
+      )
+    },
+    [focusProject, links],
+  )
 
   const otherProjects = useMemo(() => {
     const lf = filter.toLowerCase()
@@ -132,14 +135,14 @@ export function ManageProjectLinksDialog() {
         if (!lf) return true
         const name = projectDisplayName(p).toLowerCase()
         const settingsLabel = projectSettings[p.project_uri]?.label?.toLowerCase()
-        return name.includes(lf) || p.slug.includes(lf) || (settingsLabel && settingsLabel.includes(lf))
+        return name.includes(lf) || p.slug.includes(lf) || settingsLabel?.includes(lf)
       })
   }, [projects, focusProject, filter, projectSettings])
 
   const linkedCount = useMemo(() => {
     if (!focusProject) return 0
     return projects.filter(p => !uriMatches(p.project_uri, focusProject) && isLinkedTo(p.project_uri)).length
-  }, [focusProject, projects, links])
+  }, [focusProject, projects, isLinkedTo])
 
   const projectOrder = rawProjectOrder?.tree ?? []
 
@@ -315,6 +318,7 @@ function ProjectCheckboxRow({
   onToggle: () => void
 }) {
   return (
+    // biome-ignore lint/a11y/noLabelWithoutControl: label wraps Radix Checkbox (implicit association)
     <label
       className={cn(
         'flex items-center gap-2.5 px-2 py-1.5 rounded cursor-pointer',

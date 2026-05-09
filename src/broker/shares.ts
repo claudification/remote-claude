@@ -122,7 +122,7 @@ export function listShares(): ConversationShare[] {
 }
 
 /** List active shares for a specific project. */
-function listSharesForProject(project: string): ConversationShare[] {
+function _listSharesForProject(project: string): ConversationShare[] {
   return shares.filter(s => !s.revoked && s.expiresAt > Date.now() && s.project === project)
 }
 
@@ -157,7 +157,7 @@ export function cleanExpired(): string[] {
 }
 
 /** Reload shares from store (for SIGHUP handler). */
-function reloadShares() {
+function _reloadShares() {
   if (!kv) return
   const raw = kv.get<ConversationShare[]>(KV_KEY)
   if (raw && Array.isArray(raw)) {

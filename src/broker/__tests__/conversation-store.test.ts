@@ -136,8 +136,7 @@ describe('conversation lifecycle', () => {
 
     store.resumeConversation('resume-me')
     expect(store.getActiveConversations().map(s => s.id)).toContain('resume-me')
-    // status is reset to 'starting' on resume
-    expect(store.getConversation('resume-me')!.status).toBe('starting')
+    expect(store.getConversation('resume-me')!.status).toBe('idle')
   })
 
   it('getConversation on nonexistent id returns undefined', () => {

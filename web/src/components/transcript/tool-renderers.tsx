@@ -482,13 +482,13 @@ export function BashOutput({
   const extraStderr = extra?.stderr as string | undefined
 
   if (!parts) {
-    const hasExtra = (extraStdout && extraStdout.trim()) || (extraStderr && extraStderr.trim())
+    const hasExtra = extraStdout?.trim() || extraStderr?.trim()
     if (hasExtra) {
       return (
         <div className="space-y-1">
           {command && <ShellCommand command={command.trim()} />}
-          {extraStdout && extraStdout.trim() && <TruncatedPre text={extraStdout.trim()} tool="Bash" />}
-          {extraStderr && extraStderr.trim() && (
+          {extraStdout?.trim() && <TruncatedPre text={extraStdout.trim()} tool="Bash" />}
+          {extraStderr?.trim() && (
             <div className="border-l-2 border-red-500/40">
               <TruncatedPre text={extraStderr.trim()} tool="Bash" />
             </div>

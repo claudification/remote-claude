@@ -236,12 +236,12 @@ export function getProjectBySlug(slug: string): Project | null {
 }
 
 /** Lookup by scope URI */
-function getProjectByScope(scope: string): Project | null {
+function _getProjectByScope(scope: string): Project | null {
   return (stmtByScope?.get({ scope }) as Project) || null
 }
 
 /** Lookup by project URI */
-function getProjectByUri(projectUri: string): Project | null {
+function _getProjectByUri(projectUri: string): Project | null {
   return (stmtByProjectUri?.get({ project_uri: projectUri }) as Project) || null
 }
 
@@ -252,7 +252,7 @@ export function listProjects(): Project[] {
 }
 
 /** Update the scope URI for a project (for future migration to custom URIs) */
-function updateProjectScope(id: number, scope: string): void {
+function _updateProjectScope(id: number, scope: string): void {
   stmtUpdateScope?.run({ scope, id })
   for (const [, p] of projectCache) {
     if (p.id === id) {

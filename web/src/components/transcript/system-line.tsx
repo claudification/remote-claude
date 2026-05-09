@@ -1,6 +1,5 @@
 import { parseRecapContent } from '@shared/recap'
 import { JsonInspector } from '../json-inspector'
-import { Markdown } from '../markdown'
 import { formatDuration } from './group-view-types'
 import type { DisplayGroup } from './grouping'
 

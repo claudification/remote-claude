@@ -123,7 +123,7 @@ function renderCronCreateRich(body: Record<string, unknown>, result?: string): T
   return { summary, details }
 }
 
-export function renderCronList({ result, toolUseResult }: ToolCaseInput): ToolCaseResult {
+export function renderCronList({ toolUseResult }: ToolCaseInput): ToolCaseResult {
   const extra = toolUseResult as Record<string, unknown> | undefined
   const jobs = extra?.jobs as
     | Array<{ id: string; humanSchedule: string; prompt: string; recurring: boolean }>

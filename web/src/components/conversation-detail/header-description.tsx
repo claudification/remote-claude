@@ -52,7 +52,13 @@ export function HeaderDescription({ session }: { session: Session }) {
   }
 
   return (
-    <div className="group/desc flex items-center gap-1 cursor-pointer" onClick={() => setEditing(session.id)}>
+    <div
+      className="group/desc flex items-center gap-1 cursor-pointer"
+      role="button"
+      tabIndex={0}
+      onClick={() => setEditing(session.id)}
+      onKeyDown={e => e.key === 'Enter' && setEditing(session.id)}
+    >
       <span
         className={cn(
           'text-[10px] truncate',

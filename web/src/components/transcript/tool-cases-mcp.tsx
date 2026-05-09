@@ -78,7 +78,7 @@ export function renderMcpListConversations({ input, result }: ToolCaseInput): To
         : Array.isArray(parsed?.sessions)
           ? parsed.sessions
           : []
-      summary = `${sessions.length} conversations` + (parts.length ? ` (${parts.join(', ')})` : '')
+      summary = `${sessions.length} conversations${parts.length ? ` (${parts.join(', ')})` : ''}`
       details = (
         <div className="text-[10px] font-mono space-y-0.5 mt-1">
           {sessions.map(s => (

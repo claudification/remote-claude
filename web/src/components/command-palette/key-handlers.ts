@@ -154,7 +154,7 @@ function submitSession(ctx: KeyHandlerContext, callbacks: KeyHandlerCallbacks): 
   }
 }
 
-export function selectConversationWithTracking(session: Session, onSelectConversation: (id: string) => void): void {
+function selectConversationWithTracking(session: Session, onSelectConversation: (id: string) => void): void {
   recordSwitch(session.project)
   onSelectConversation(session.id)
 }

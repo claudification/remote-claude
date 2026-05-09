@@ -311,6 +311,7 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
   }, [])
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: drop-target container, CodeMirror inside handles focus
     <div
       data-mobile-compose-panel={expanded || undefined}
       className={cn(

@@ -419,7 +419,7 @@ export function createTestHarness(): TestHarness {
 // ---------------------------------------------------------------------------
 
 /** Wait for messages of a specific type to appear in a mock WS's sent buffer */
-async function waitForMessage(mock: MockWs, type: string, timeoutMs = 500): Promise<Record<string, unknown>> {
+async function _waitForMessage(mock: MockWs, type: string, timeoutMs = 500): Promise<Record<string, unknown>> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     const msgs = mock.messagesOfType(type)

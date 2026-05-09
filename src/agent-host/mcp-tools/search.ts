@@ -83,7 +83,7 @@ function formatSnippetsOutput(data: SearchResponse): string {
       .replace(/\.\.\./g, '...')
       .trim()
 
-    lines.push(`seq ${hit.seq}  |  ${hit.type}${hit.subtype ? '/' + hit.subtype : ''}  |  ${ts}  |  ${convTitle}`)
+    lines.push(`seq ${hit.seq}  |  ${hit.type}${hit.subtype ? `/${hit.subtype}` : ''}  |  ${ts}  |  ${convTitle}`)
     lines.push(`  conv: ${hit.conversationId}`)
     if (clean) lines.push(`  ${clean}`)
     lines.push('')

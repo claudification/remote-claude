@@ -35,7 +35,7 @@ export const MODEL_OPTION_GROUPS: ModelOptionGroup[] = (() => {
 })()
 
 /** Flat list for backwards compat -- includes Default sentinel. */
-const MODEL_OPTIONS = [
+const _MODEL_OPTIONS = [
   { value: DEFAULT_SENTINEL, label: 'Default', info: 'Use project / global default' },
   ...DROPDOWN_MODEL_ENTRIES.map(m => ({ value: m.id, label: m.label, info: m.info })),
 ] as const
@@ -58,7 +58,7 @@ export const PERMISSION_MODE_OPTIONS = [
 ] as const
 
 // Keep TIMEOUT_OPTIONS simple; used only by RunTaskDialog today
-const TIMEOUT_OPTIONS = [
+const _TIMEOUT_OPTIONS = [
   { value: '5', label: '5 min' },
   { value: '10', label: '10 min' },
   { value: '15', label: '15 min' },

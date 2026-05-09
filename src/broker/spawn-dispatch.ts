@@ -282,7 +282,7 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
     deps.conversationStore.failJob(jobId, errorMsg)
     return { ok: false, error: errorMsg, statusCode: 500 }
   }
-  const project = result.project!
+  const project = result.project ?? projectLabel
   emitProgress(deps.conversationStore, jobId, 'agent_acked', 'done', { detail: result.tmuxSession })
   if (req.adHoc) console.log(`[ad-hoc] Spawn OK: conv=${conversationId.slice(0, 8)} tmux=${result.tmuxSession}`)
 

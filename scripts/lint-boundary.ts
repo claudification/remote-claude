@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Boundary lint: enforces that the broker NEVER reads or interprets CC-specific
  * concepts. The broker is a conversation router -- CC session IDs, CC-specific
@@ -14,9 +15,9 @@
  * Exits 0 = clean, 1 = violations found.
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { Glob } from 'bun'
-import { readFileSync } from 'fs'
-import { join } from 'path'
 
 const BROKER_DIR = join(import.meta.dir, '..', 'src/broker')
 const glob = new Glob('**/*.ts')

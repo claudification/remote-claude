@@ -63,8 +63,8 @@ describe('sentinel-registry', () => {
     const created = registry.create({ alias: 'test', color: '#ff0000' })
     const fetched = registry.get(created.sentinelId)
     expect(fetched).toBeDefined()
-    expect(fetched!.aliases).toEqual(['test'])
-    expect(fetched!.color).toBe('#ff0000')
+    expect(fetched?.aliases).toEqual(['test'])
+    expect(fetched?.color).toBe('#ff0000')
   })
 
   it('get() returns undefined for unknown sentinelId', () => {
@@ -83,7 +83,7 @@ describe('sentinel-registry', () => {
     const created = registry.create({ alias: 'test', secret: 'snt_test123' })
     const found = registry.findBySecret('snt_test123')
     expect(found).toBeDefined()
-    expect(found!.sentinelId).toBe(created.sentinelId)
+    expect(found?.sentinelId).toBe(created.sentinelId)
   })
 
   it('findBySecret() returns undefined for unknown secret', () => {
@@ -151,8 +151,8 @@ describe('sentinel-registry', () => {
     const reloaded = createSentinelRegistry(TEST_CACHE_DIR)
     const fetched = reloaded.get(created.sentinelId)
     expect(fetched).toBeDefined()
-    expect(fetched!.aliases).toEqual(['persistent'])
-    expect(fetched!.color).toBe('#00ff00')
+    expect(fetched?.aliases).toEqual(['persistent'])
+    expect(fetched?.color).toBe('#00ff00')
     expect(reloaded.getDefaultId()).toBe(created.sentinelId)
   })
 
@@ -162,15 +162,15 @@ describe('sentinel-registry', () => {
     const reloaded = createSentinelRegistry(TEST_CACHE_DIR)
     const found = reloaded.findBySecret('snt_persist')
     expect(found).toBeDefined()
-    expect(found!.aliases).toEqual(['secret-test'])
+    expect(found?.aliases).toEqual(['secret-test'])
   })
 
   it('getDefault() returns the default sentinel with id', () => {
     const created = registry.create({ alias: 'def' })
     const def = registry.getDefault()
     expect(def).toBeDefined()
-    expect(def!.sentinelId).toBe(created.sentinelId)
-    expect(def!.aliases).toEqual(['def'])
+    expect(def?.sentinelId).toBe(created.sentinelId)
+    expect(def?.aliases).toEqual(['def'])
   })
 
   it('handles corrupted settings file gracefully', () => {

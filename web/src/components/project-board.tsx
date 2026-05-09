@@ -607,11 +607,11 @@ export function RunTaskDialog({
         label: 'Conversation connected',
         status: 'done' as const,
         ts: Date.now(),
-        detail: progress.spawnedConversation!.id.slice(0, 8),
+        detail: progress.spawnedConversation?.id.slice(0, 8),
       },
       { label: 'Waiting for prompt submission...', status: 'active' as const, ts: Date.now() },
     ])
-  }, [progress.isConnected, progress.spawnedConversation])
+  }, [progress.isConnected, progress.spawnedConversation, progress.setSteps])
 
   // Detect session becoming active (prompt submitted) -> add "Running..." step
   const promptDoneRef = useRef(false)
@@ -623,18 +623,18 @@ export function RunTaskDialog({
     progress.setSteps(prev => {
       const updated = prev.map(s =>
         s.label === 'Waiting for prompt submission...' && s.status === 'active'
-          ? { ...s, status: 'done' as const, detail: progress.spawnedConversation!.lastEvent?.hookEvent || 'active' }
+          ? { ...s, status: 'done' as const, detail: progress.spawnedConversation?.lastEvent?.hookEvent || 'active' }
           : s,
       )
       updated.push({
         label: 'Running...',
         status: 'active' as const,
         ts: Date.now(),
-        detail: `${progress.spawnedConversation!.eventCount || 0} events`,
+        detail: `${progress.spawnedConversation?.eventCount || 0} events`,
       })
       return updated
     })
-  }, [progress.spawnedConversation])
+  }, [progress.spawnedConversation, progress.setSteps])
 
   // Update running step event count + detect completion
   useEffect(() => {
@@ -647,7 +647,7 @@ export function RunTaskDialog({
                 ...s,
                 status: 'done' as const,
                 label: 'Task complete',
-                detail: `${progress.elapsed}s, ${progress.spawnedConversation!.eventCount || 0} events`,
+                detail: `${progress.elapsed}s, ${progress.spawnedConversation?.eventCount || 0} events`,
               }
             : s,
         ),
@@ -655,11 +655,11 @@ export function RunTaskDialog({
     } else {
       progress.setSteps(prev =>
         prev.map(s =>
-          s.label === 'Running...' ? { ...s, detail: `${progress.spawnedConversation!.eventCount || 0} events` } : s,
+          s.label === 'Running...' ? { ...s, detail: `${progress.spawnedConversation?.eventCount || 0} events` } : s,
         ),
       )
     }
-  }, [progress.spawnedConversation, progress.isComplete, progress.elapsed])
+  }, [progress.spawnedConversation, progress.isComplete, progress.elapsed, progress.setSteps])
 
   // Auto-redirect when countdown reaches 0
   useEffect(() => {

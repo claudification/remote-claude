@@ -68,7 +68,7 @@ describe('inter-session messaging', () => {
 
       const found = sessions.find(s => s.project?.includes('project-beta'))
       expect(found).toBeDefined()
-      expect(found!.id).toBeTruthy()
+      expect(found?.id).toBeTruthy()
     })
 
     it('does not include self', async () => {
@@ -233,7 +233,7 @@ describe('inter-session messaging', () => {
       // Send using the compound ID from list_conversations
       h.agentSend(agentA, {
         type: 'channel_send',
-        toSession: betaSession!.id,
+        toSession: betaSession?.id,
         intent: 'request',
         message: 'Via compound ID',
       })

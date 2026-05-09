@@ -338,7 +338,7 @@ export function TranscriptSearch() {
     if (!list) return
     const active = list.querySelector('[data-active="true"]')
     if (active) active.scrollIntoView({ block: 'nearest' })
-  }, [activeIndex])
+  }, [])
 
   // Focus input when dialog opens
   useEffect(() => {

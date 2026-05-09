@@ -140,16 +140,8 @@ export function SpawnDialog() {
         detail: (progress.launch.conversationId || progress.spawnedConversation?.id || '').slice(0, 8),
       },
     ])
-  }, [progress.isConnected, progress.launch.conversationId, progress.spawnedConversation?.id])
+  }, [progress.isConnected, progress.launch.conversationId, progress.spawnedConversation?.id, progress.setSteps])
 
-  // Auto-redirect when countdown reaches 0
-  useEffect(() => {
-    if (progress.viewCountdown !== 0) return
-    handleClose()
-  }, [progress.viewCountdown]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  /** Close and optionally navigate to spawned session.
-   *  Skips navigation if the user switched sessions during the spawn countdown. */
   const handleClose = useCallback(() => {
     addedConnectedStepRef.current = false
     const currentId = useConversationsStore.getState().selectedConversationId
@@ -170,6 +162,12 @@ export function SpawnDialog() {
     setState({ open: false, options: null })
     setJobId(null)
   }, [progress.launch.conversationId, progress.spawnedConversation])
+
+  // Auto-redirect when countdown reaches 0
+  useEffect(() => {
+    if (progress.viewCountdown !== 0) return
+    handleClose()
+  }, [progress.viewCountdown, handleClose])
 
   /** Explicitly navigate to the spawned session and close. */
   const handleViewConversation = useCallback(() => {
@@ -259,6 +257,7 @@ export function SpawnDialog() {
     worktreeName,
     envText,
     progress,
+    description.trim,
   ])
 
   // Keyboard layer: Enter spawns (config) or views session (launching). Radix Dialog handles Escape.

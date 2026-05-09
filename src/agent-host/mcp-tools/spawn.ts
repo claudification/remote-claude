@@ -3,7 +3,7 @@ import { type SpawnRequest, spawnRequestSchema } from '../../shared/spawn-schema
 import { debug } from '../debug'
 import type { McpToolContext, ToolDef } from './types'
 
-export function buildSpawnToolInputSchema(): {
+function buildSpawnToolInputSchema(): {
   type: 'object'
   properties?: Record<string, unknown>
   required?: string[]

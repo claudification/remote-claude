@@ -49,6 +49,7 @@ export default function MarkdownBodyPane({
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: drop-target container, CodeMirror inside handles focus
     <div
       className="relative w-full"
       onDragOver={e => {

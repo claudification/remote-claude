@@ -144,7 +144,7 @@ export function setTerminalTitle(cwd: string) {
   }
 }
 
-export function printHelp() {
+function printHelp() {
   console.log(`
 rclaude - Claude Code Session Wrapper
 
