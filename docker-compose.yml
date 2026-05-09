@@ -42,6 +42,12 @@ services:
 
 volumes:
   concentrator-data:
+    # External so worktree compose runs cannot create parallel empty volumes
+    # and `docker compose down -v` cannot destroy it. Pinned to the existing
+    # scoped name to preserve data in place (no migration). To recreate from
+    # scratch: `docker volume create remote-claude_concentrator-data`.
+    external: true
+    name: remote-claude_concentrator-data
 
 networks:
   caddy:
