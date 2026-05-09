@@ -177,13 +177,14 @@ export function SpawnDialog() {
     }
     setState({ open: false, options: null })
     setJobId(null)
-  }, [progress.launch.conversationId, progress.spawnedConversation])
+  }, [progress.launch.conversationId, progress.spawnedConversation?.id, progress.spawnedConversation?.status])
 
   // Auto-redirect when countdown reaches 0
   useEffect(() => {
     if (progress.viewCountdown !== 0) return
     handleClose()
-  }, [progress.viewCountdown, handleClose])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once when countdown hits 0, not on every handleClose recreation
+  }, [progress.viewCountdown])
 
   /** Explicitly navigate to the spawned session and close. */
   const handleViewConversation = useCallback(() => {
