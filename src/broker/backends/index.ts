@@ -4,14 +4,14 @@
 
 import type { Conversation } from '../../shared/protocol'
 import { claudeBackend } from './claude'
-import { hermesBackend } from './hermes'
+import { chatApiBackend } from './chat-api'
 import type { ConversationBackend } from './types'
 
 export type { BackendDeps, ConversationBackend, InputResult } from './types'
 
 const backends = new Map<string, ConversationBackend>([
   ['claude', claudeBackend],
-  ['hermes', hermesBackend],
+  ['chat-api', chatApiBackend],
 ])
 
 export function resolveBackend(conversation: Conversation): ConversationBackend {

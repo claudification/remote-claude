@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn, haptic } from '@/lib/utils'
-import type { HermesAgent } from '../../../../src/shared/hermes-types'
+import type { ChatApiConnection } from '../../../../src/shared/chat-api-types'
 
 const API_BASE = `${window.location.protocol}//${window.location.host}/api`
 
-let _openManageHermes: (() => void) | null = null
+let _openManageChatConnections: (() => void) | null = null
 
-export function openManageHermesAgents(): void {
-  _openManageHermes?.()
+export function openManageChatConnections(): void {
+  _openManageChatConnections?.()
 }
 
 type View = 'list' | 'add' | 'edit'
@@ -22,10 +22,10 @@ interface FormState {
 
 const emptyForm: FormState = { name: '', url: '', apiKey: '', model: '' }
 
-export function ManageHermesAgentsDialog() {
+export function ManageChatConnectionsDialog() {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<View>('list')
-  const [agents, setAgents] = useState<HermesAgent[]>([])
+  const [connections, setConnections] = useState<ChatApiConnection[]>([])
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [loading, setLoading] = useState(false)
@@ -33,20 +33,20 @@ export function ManageHermesAgentsDialog() {
   const [testResult, setTestResult] = useState<{ id: string; ok: boolean; error?: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  _openManageHermes = useCallback(() => {
+  _openManageChatConnections = useCallback(() => {
     setOpen(true)
     setView('list')
     setError(null)
     setTestResult(null)
   }, [])
 
-  const fetchAgents = useCallback(async () => {
+  const fetchConnections = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/hermes/agents`)
+      const res = await fetch(`${API_BASE}/chat/connections`)
       if (res.ok) {
-        const data = (await res.json()) as { agents: HermesAgent[] }
-        setAgents(data.agents)
+        const data = (await res.json()) as { connections: ChatApiConnection[] }
+        setConnections(data.connections)
       }
     } catch {
       // network error
@@ -56,8 +56,8 @@ export function ManageHermesAgentsDialog() {
   }, [])
 
   useEffect(() => {
-    if (open) fetchAgents()
-  }, [open, fetchAgents])
+    if (open) fetchConnections()
+  }, [open, fetchConnections])
 
   function handleClose() {
     setOpen(false)
@@ -75,14 +75,14 @@ export function ManageHermesAgentsDialog() {
     setError(null)
   }
 
-  function startEdit(agent: HermesAgent) {
+  function startEdit(connection: ChatApiConnection) {
     setForm({
-      name: agent.name,
-      url: agent.url,
-      apiKey: agent.apiKey,
-      model: agent.model || '',
+      name: connection.name,
+      url: connection.url,
+      apiKey: connection.apiKey,
+      model: connection.model || '',
     })
-    setEditId(agent.id)
+    setEditId(connection.id)
     setView('edit')
     setError(null)
   }
@@ -103,19 +103,19 @@ export function ManageHermesAgentsDialog() {
         model: form.model || undefined,
       }
       if (editId) {
-        await fetch(`${API_BASE}/hermes/agents/${editId}`, {
+        await fetch(`${API_BASE}/chat/connections/${editId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         })
       } else {
-        await fetch(`${API_BASE}/hermes/agents`, {
+        await fetch(`${API_BASE}/chat/connections`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         })
       }
-      await fetchAgents()
+      await fetchConnections()
       setView('list')
       setForm(emptyForm)
       setEditId(null)
@@ -128,8 +128,8 @@ export function ManageHermesAgentsDialog() {
 
   async function handleDelete(id: string) {
     haptic('tap')
-    await fetch(`${API_BASE}/hermes/agents/${id}`, { method: 'DELETE' })
-    await fetchAgents()
+    await fetch(`${API_BASE}/chat/connections/${id}`, { method: 'DELETE' })
+    await fetchConnections()
   }
 
   async function handleTest(id: string) {
@@ -137,7 +137,7 @@ export function ManageHermesAgentsDialog() {
     setTesting(id)
     setTestResult(null)
     try {
-      const res = await fetch(`${API_BASE}/hermes/agents/${id}/test`, { method: 'POST' })
+      const res = await fetch(`${API_BASE}/chat/connections/${id}/test`, { method: 'POST' })
       const data = await res.json()
       setTestResult({ id, ok: data.ok, error: data.error })
     } catch (err) {
@@ -152,52 +152,52 @@ export function ManageHermesAgentsDialog() {
       <DialogContent className="max-w-md rounded-lg">
         <div className="p-5 flex flex-col gap-3 min-h-0 max-h-[calc(85vh-2rem)]">
           <DialogTitle className="text-sm font-bold font-mono">
-            {view === 'list' ? 'MANAGE HERMES AGENTS' : view === 'add' ? 'ADD HERMES AGENT' : 'EDIT HERMES AGENT'}
+            {view === 'list' ? 'MANAGE CHAT CONNECTIONS' : view === 'add' ? 'ADD CONNECTION' : 'EDIT CONNECTION'}
           </DialogTitle>
 
           {view === 'list' && (
             <>
-              {loading && agents.length === 0 ? (
+              {loading && connections.length === 0 ? (
                 <div className="text-xs text-muted-foreground font-mono py-4">Loading...</div>
-              ) : agents.length === 0 ? (
+              ) : connections.length === 0 ? (
                 <div className="text-xs text-muted-foreground font-mono py-4">
-                  No Hermes agents registered. Add one to get started.
+                  No connections registered. Add one to get started.
                 </div>
               ) : (
                 <div className="overflow-y-auto flex-1 min-h-0 space-y-1">
-                  {agents.map(agent => (
-                    <div key={agent.id} className="rounded hover:bg-muted/30 transition-colors">
+                  {connections.map(connection => (
+                    <div key={connection.id} className="rounded hover:bg-muted/30 transition-colors">
                       <div className="flex items-center gap-2 px-2 py-1.5">
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-mono font-medium truncate">{agent.name}</div>
-                          <div className="text-[10px] text-muted-foreground font-mono truncate">{agent.url}</div>
+                          <div className="text-xs font-mono font-medium truncate">{connection.name}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono truncate">{connection.url}</div>
                         </div>
                         <div className="flex gap-1 shrink-0">
                           <button
                             type="button"
-                            onClick={() => handleTest(agent.id)}
-                            disabled={testing === agent.id}
+                            onClick={() => handleTest(connection.id)}
+                            disabled={testing === connection.id}
                             className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-inset hover:bg-muted/50 transition-colors disabled:opacity-50"
                           >
-                            {testing === agent.id ? '...' : 'test'}
+                            {testing === connection.id ? '...' : 'test'}
                           </button>
                           <button
                             type="button"
-                            onClick={() => startEdit(agent)}
+                            onClick={() => startEdit(connection)}
                             className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-inset hover:bg-muted/50 transition-colors"
                           >
                             edit
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDelete(agent.id)}
+                            onClick={() => handleDelete(connection.id)}
                             className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-inset hover:bg-red-500/20 text-red-400 transition-colors"
                           >
                             del
                           </button>
                         </div>
                       </div>
-                      {testResult?.id === agent.id && (
+                      {testResult?.id === connection.id && (
                         <div
                           className={cn(
                             'text-[10px] font-mono px-2 pb-1.5 truncate',
@@ -216,7 +216,7 @@ export function ManageHermesAgentsDialog() {
                 onClick={startAdd}
                 className="w-full text-xs font-mono py-1.5 rounded bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
               >
-                + Add agent
+                + Add connection
               </button>
             </>
           )}

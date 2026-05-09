@@ -37,7 +37,7 @@ const sendInput: MessageHandler = (ctx, data) => {
   if (conversation.status === 'ended') throw new GuardError('Conversation has ended')
   ctx.requirePermission('chat', conversation.project)
 
-  // Backend-proxied conversations (Hermes, future: OpenCode, Pi, etc.)
+  // Backend-proxied conversations (Chat API, future: OpenCode, Pi, etc.)
   const backend = resolveBackend(conversation)
   if (!backend.requiresAgentSocket) {
     backend

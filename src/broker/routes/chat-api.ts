@@ -1,57 +1,57 @@
 /**
- * Hermes routes -- agent registry CRUD + connection test + conversation proxy
+ * Chat API routes -- connection registry CRUD + connection test + conversation proxy
  */
 
 import { randomUUID } from 'node:crypto'
 import { Hono } from 'hono'
-import type { HermesAgent, HermesAgentCreate, HermesAgentUpdate } from '../../shared/hermes-types'
+import type { ChatApiConnection, ChatApiConnectionCreate, ChatApiConnectionUpdate } from '../../shared/chat-api-types'
 import { resolveBackend } from '../backends'
 import type { ConversationStore } from '../conversation-store'
 import type { KVStore } from '../store/types'
 import type { RouteHelpers } from './shared'
 
-const KV_PREFIX = 'hermes:agent:'
+const KV_PREFIX = 'chat:connection:'
 
-function agentKey(id: string): string {
+function connectionKey(id: string): string {
   return `${KV_PREFIX}${id}`
 }
 
-function listAgents(kv: KVStore): HermesAgent[] {
+function listConnections(kv: KVStore): ChatApiConnection[] {
   return kv
     .keys(KV_PREFIX)
-    .map(k => kv.get<HermesAgent>(k))
-    .filter((a): a is HermesAgent => a !== null)
+    .map(k => kv.get<ChatApiConnection>(k))
+    .filter((a): a is ChatApiConnection => a !== null)
     .sort((a, b) => a.createdAt - b.createdAt)
 }
 
-function getAgent(kv: KVStore, id: string): HermesAgent | null {
-  return kv.get<HermesAgent>(agentKey(id))
+function getConnection(kv: KVStore, id: string): ChatApiConnection | null {
+  return kv.get<ChatApiConnection>(connectionKey(id))
 }
 
 function normalizeUrl(url: string): string {
   return url.replace(/\/+$/, '')
 }
 
-export function createHermesRouter(conversationStore: ConversationStore, kv: KVStore, helpers: RouteHelpers): Hono {
+export function createChatApiRouter(conversationStore: ConversationStore, kv: KVStore, helpers: RouteHelpers): Hono {
   const { httpHasPermission, httpIsAdmin } = helpers
   const app = new Hono()
 
-  // ─── Agent Registry CRUD ───────────────────────────────────────────
+  // --- Connection Registry CRUD ----------------------------------------------
 
-  app.get('/api/hermes/agents', c => {
+  app.get('/api/chat/connections', c => {
     if (!httpHasPermission(c.req.raw, 'chat:read', '*')) return c.json({ error: 'Forbidden' }, 403)
-    return c.json({ agents: listAgents(kv) })
+    return c.json({ connections: listConnections(kv) })
   })
 
-  app.post('/api/hermes/agents', async c => {
+  app.post('/api/chat/connections', async c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
 
-    const body = await c.req.json<HermesAgentCreate>()
+    const body = await c.req.json<ChatApiConnectionCreate>()
     if (!body.name || !body.url || !body.apiKey) {
       return c.json({ error: 'name, url, and apiKey are required' }, 400)
     }
 
-    const agent: HermesAgent = {
+    const connection: ChatApiConnection = {
       id: randomUUID().slice(0, 12),
       name: body.name,
       url: normalizeUrl(body.url),
@@ -60,48 +60,48 @@ export function createHermesRouter(conversationStore: ConversationStore, kv: KVS
       enabled: true,
       createdAt: Date.now(),
     }
-    kv.set(agentKey(agent.id), agent)
-    return c.json({ agent }, 201)
+    kv.set(connectionKey(connection.id), connection)
+    return c.json({ connection }, 201)
   })
 
-  app.put('/api/hermes/agents/:id', async c => {
+  app.put('/api/chat/connections/:id', async c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
 
     const id = c.req.param('id')
-    const existing = getAgent(kv, id)
-    if (!existing) return c.json({ error: 'Agent not found' }, 404)
+    const existing = getConnection(kv, id)
+    if (!existing) return c.json({ error: 'Connection not found' }, 404)
 
-    const patch = await c.req.json<HermesAgentUpdate>()
-    const updated: HermesAgent = {
+    const patch = await c.req.json<ChatApiConnectionUpdate>()
+    const updated: ChatApiConnection = {
       ...existing,
       ...Object.fromEntries(Object.entries(patch).filter(([_, v]) => v !== undefined)),
     }
     if (patch.url) updated.url = normalizeUrl(patch.url)
-    kv.set(agentKey(id), updated)
-    return c.json({ agent: updated })
+    kv.set(connectionKey(id), updated)
+    return c.json({ connection: updated })
   })
 
-  app.delete('/api/hermes/agents/:id', c => {
+  app.delete('/api/chat/connections/:id', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
 
     const id = c.req.param('id')
-    if (!getAgent(kv, id)) return c.json({ error: 'Agent not found' }, 404)
-    kv.delete(agentKey(id))
+    if (!getConnection(kv, id)) return c.json({ error: 'Connection not found' }, 404)
+    kv.delete(connectionKey(id))
     return c.json({ success: true })
   })
 
-  // ─── Test Connection ───────────────────────────────────────────────
+  // --- Test Connection -------------------------------------------------------
 
-  app.post('/api/hermes/agents/:id/test', async c => {
+  app.post('/api/chat/connections/:id/test', async c => {
     if (!httpHasPermission(c.req.raw, 'chat:read', '*')) return c.json({ error: 'Forbidden' }, 403)
 
     const id = c.req.param('id')
-    const agent = getAgent(kv, id)
-    if (!agent) return c.json({ error: 'Agent not found' }, 404)
+    const connection = getConnection(kv, id)
+    if (!connection) return c.json({ error: 'Connection not found' }, 404)
 
     try {
-      const resp = await fetch(`${agent.url}/v1/models`, {
-        headers: { Authorization: `Bearer ${agent.apiKey}` },
+      const resp = await fetch(`${connection.url}/v1/models`, {
+        headers: { Authorization: `Bearer ${connection.apiKey}` },
         signal: AbortSignal.timeout(5000),
       })
       if (!resp.ok) {
@@ -114,9 +114,9 @@ export function createHermesRouter(conversationStore: ConversationStore, kv: KVS
     }
   })
 
-  // ─── Conversation Proxy (delegates to backend) ─────────────────────
+  // --- Conversation Proxy (delegates to backend) -----------------------------
 
-  app.post('/api/hermes/conversations/:conversationId/chat', async c => {
+  app.post('/api/chat/conversations/:conversationId/chat', async c => {
     const conversationId = c.req.param('conversationId')
     if (!httpHasPermission(c.req.raw, 'chat', '*')) return c.json({ error: 'Forbidden' }, 403)
 

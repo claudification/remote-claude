@@ -1,7 +1,7 @@
 /**
  * ConversationBackend -- abstraction for different agent backends.
  *
- * Each backend (Claude/CC, Hermes, future OpenCode/Pi/Codex) implements
+ * Each backend (Claude/CC, Chat API, future OpenCode/Pi/Codex) implements
  * this interface. The broker dispatches through resolveBackend() instead
  * of scattering `if (agentHostType === 'xxx')` checks.
  */

@@ -5,7 +5,7 @@
  * Phase 2 (launching): Step-by-step progress via shared LaunchMonitor.
  */
 
-import type { HermesAgent } from '@shared/hermes-types'
+import type { ChatApiConnection } from '@shared/chat-api-types'
 import type { CcSessionEntry } from '@shared/protocol'
 import { buildSpawnDiagnostics } from '@shared/spawn-diagnostics'
 import type { SpawnRequest } from '@shared/spawn-schema'
@@ -68,9 +68,9 @@ export function SpawnDialog() {
   const [configTab, setConfigTab] = useState<'basic' | 'advanced'>('basic')
   const [resumeId, setResumeId] = useState('')
   const [envText, setEnvText] = useState('')
-  const [backend, setBackend] = useState<'claude' | 'hermes'>('claude')
-  const [hermesAgentId, setHermesAgentId] = useState('')
-  const [hermesAgents, setHermesAgents] = useState<HermesAgent[]>([])
+  const [backend, setBackend] = useState<'claude' | 'chat-api'>('claude')
+  const [chatConnectionId, setChatConnectionId] = useState('')
+  const [chatConnections, setChatConnections] = useState<ChatApiConnection[]>([])
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [savedFeedback, setSavedFeedback] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -121,17 +121,17 @@ export function SpawnDialog() {
         ps?.defaultIncludePartialMessages ?? (gs.defaultIncludePartialMessages as boolean) ?? true,
       )
       setBackend('claude')
-      setHermesAgentId('')
+      setChatConnectionId('')
       setConfigTab('basic')
       setSavedFeedback(null)
       setPhase('config')
       setJobId(null)
       setWrapperId(null)
-      // Fetch Hermes agents
-      fetch(`${window.location.protocol}//${window.location.host}/api/hermes/agents`)
-        .then(r => (r.ok ? r.json() : { agents: [] }))
-        .then(d => setHermesAgents(d.agents || []))
-        .catch(() => setHermesAgents([]))
+      // Fetch chat connections
+      fetch(`${window.location.protocol}//${window.location.host}/api/chat/connections`)
+        .then(r => (r.ok ? r.json() : { connections: [] }))
+        .then(d => setChatConnections(d.connections || []))
+        .catch(() => setChatConnections([]))
       // Drop any stale error/steps from a prior failed launch so reopening
       // the dialog doesn't show the old "Session failed to connect" banner.
       progressReset()
@@ -238,8 +238,8 @@ export function SpawnDialog() {
       env: parsedEnv || undefined,
       jobId: newJobId,
       backend: backend !== 'claude' ? backend : undefined,
-      hermesAgentId: backend === 'hermes' ? hermesAgentId || undefined : undefined,
-      hermesAgentName: backend === 'hermes' ? hermesAgents.find(a => a.id === hermesAgentId)?.name : undefined,
+      chatConnectionId: backend === 'chat-api' ? chatConnectionId || undefined : undefined,
+      chatConnectionName: backend === 'chat-api' ? chatConnections.find(a => a.id === chatConnectionId)?.name : undefined,
     }
     const result = await sendSpawnRequest(spawnReq)
     if (result.ok) {
@@ -276,8 +276,8 @@ export function SpawnDialog() {
     worktreeName,
     envText,
     backend,
-    hermesAgentId,
-    hermesAgents,
+    chatConnectionId,
+    chatConnections,
     progress,
     description.trim,
   ])
@@ -460,8 +460,8 @@ export function SpawnDialog() {
           {/* ── Config Phase ── */}
           {phase === 'config' && (
             <>
-              {/* Backend selector (Claude / Hermes) */}
-              {hermesAgents.length > 0 && (
+              {/* Backend selector (Claude / Chat) */}
+              {chatConnections.length > 0 && (
                 <div className="flex gap-1.5 shrink-0">
                   <TogglePill
                     active={backend === 'claude'}
@@ -472,30 +472,30 @@ export function SpawnDialog() {
                     label="Claude"
                   />
                   <TogglePill
-                    active={backend === 'hermes'}
+                    active={backend === 'chat-api'}
                     onClick={() => {
-                      setBackend('hermes')
+                      setBackend('chat-api')
                       haptic('tap')
                     }}
-                    label="Hermes"
+                    label="Chat"
                   />
                 </div>
               )}
 
-              {/* ── Hermes config ── */}
-              {backend === 'hermes' ? (
+              {/* -- Chat API config -- */}
+              {backend === 'chat-api' ? (
                 <div className="space-y-3 px-1.5 py-1">
                   <div className="space-y-2">
                     <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
-                      Agent
+                      Connection
                     </div>
                     <select
-                      value={hermesAgentId}
-                      onChange={e => setHermesAgentId(e.target.value)}
+                      value={chatConnectionId}
+                      onChange={e => setChatConnectionId(e.target.value)}
                       className="w-full bg-surface-inset border border-border rounded px-2 py-1.5 text-[11px] font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                     >
-                      <option value="">Select agent...</option>
-                      {hermesAgents
+                      <option value="">Select connection...</option>
+                      {chatConnections
                         .filter(a => a.enabled)
                         .map(a => (
                           <option key={a.id} value={a.id}>

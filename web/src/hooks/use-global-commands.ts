@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { openRenameModal } from '@/components/rename-modal'
-import { openManageHermesAgents } from '@/components/settings/manage-hermes-agents-dialog'
+import { openManageChatConnections } from '@/components/settings/manage-chat-connections-dialog'
 import { openManageProjectLinks } from '@/components/settings/manage-project-links-dialog'
 import { openSpawnDialog } from '@/components/spawn-dialog'
 import { openTerminateConfirm } from '@/components/terminate-confirm'
@@ -290,8 +290,8 @@ export function useGlobalCommands(toggleSidebar: () => void) {
     when: () => useConversationsStore.getState().permissions.canAdmin,
   })
 
-  useCommand('manage-hermes-agents', () => openManageHermesAgents(), {
-    label: 'Manage Hermes agents',
+  useCommand('manage-chat-connections', () => openManageChatConnections(), {
+    label: 'Manage chat connections',
     group: 'System',
     when: () => useConversationsStore.getState().permissions.canAdmin,
   })

@@ -1,7 +1,7 @@
 /**
  * MCP Server endpoint -- exposes Claudwerk tools via Streamable HTTP MCP.
  *
- * External agents (Hermes, etc.) connect to /mcp to use Claudwerk's capabilities:
+ * External agents (Chat API, etc.) connect to /mcp to use Claudwerk's capabilities:
  * notify, share_file, search_transcripts, send_message, spawn_session,
  * list_conversations, project_list, project_set_status.
  */
@@ -148,17 +148,17 @@ function createMcpServer(conversationStore: ConversationStore, store: StoreDrive
   // ─── spawn_session ──────────────────────────────────────────────────
   mcp.tool(
     'spawn_session',
-    'Spawn a new conversation (coding session or Hermes)',
+    'Spawn a new conversation (coding session or Chat API)',
     {
       cwd: z.string().describe('Working directory'),
       prompt: z.string().optional(),
       name: z.string().optional(),
       model: z.string().optional(),
-      backend: z.enum(['claude', 'hermes']).optional(),
-      hermesAgentId: z.string().optional(),
+      backend: z.enum(['claude', 'chat-api']).optional(),
+      chatConnectionId: z.string().optional(),
       headless: z.boolean().optional(),
     },
-    async ({ cwd, prompt, name, model, backend, hermesAgentId, headless }) => {
+    async ({ cwd, prompt, name, model, backend, chatConnectionId, headless }) => {
       const callerContext = {
         kind: 'mcp' as const,
         hasSpawnPermission: true,
@@ -178,7 +178,7 @@ function createMcpServer(conversationStore: ConversationStore, store: StoreDrive
           name,
           model,
           backend,
-          hermesAgentId,
+          chatConnectionId,
           headless: headless ?? true,
         },
         deps,

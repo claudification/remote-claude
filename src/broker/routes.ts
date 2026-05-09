@@ -14,7 +14,7 @@ import { createAdminRouter } from './routes/admin'
 import { createApiRouter } from './routes/api'
 import { blobDir, initBlobStore, initSharedFilesLog } from './routes/blob-store'
 import { createConversationsRouter } from './routes/conversations'
-import { createHermesRouter } from './routes/hermes'
+import { createChatApiRouter } from './routes/chat-api'
 import { createMcpRouter } from './routes/mcp-server'
 import { createSentinelRouter } from './routes/sentinels'
 import { createRouteHelpers } from './routes/shared'
@@ -212,7 +212,7 @@ export function createRouter(options: RouteOptions): Hono {
   // ─── Sub-routers ────────────────────────────────────────────────────
   app.route('/', createConversationsRouter(conversationStore, helpers))
   app.route('/', createSpawnRouter(conversationStore, helpers))
-  app.route('/', createHermesRouter(conversationStore, store.kv, helpers))
+  app.route('/', createChatApiRouter(conversationStore, store.kv, helpers))
   app.route('/', createMcpRouter(conversationStore, store, rclaudeSecret))
   app.route(
     '/',
