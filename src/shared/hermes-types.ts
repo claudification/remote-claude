@@ -8,8 +8,6 @@ export interface HermesAgent {
   url: string
   apiKey: string
   model?: string
-  icon?: string
-  color?: string
   enabled: boolean
   createdAt: number
 }
@@ -19,8 +17,6 @@ export interface HermesAgentCreate {
   url: string
   apiKey: string
   model?: string
-  icon?: string
-  color?: string
 }
 
 export interface HermesAgentUpdate {
@@ -28,7 +24,5 @@ export interface HermesAgentUpdate {
   url?: string
   apiKey?: string
   model?: string
-  icon?: string
-  color?: string
   enabled?: boolean
 }

@@ -499,7 +499,6 @@ export function SpawnDialog() {
                         .filter(a => a.enabled)
                         .map(a => (
                           <option key={a.id} value={a.id}>
-                            {a.icon ? `${a.icon} ` : ''}
                             {a.name}
                           </option>
                         ))}

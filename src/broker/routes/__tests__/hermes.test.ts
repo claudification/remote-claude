@@ -109,14 +109,10 @@ describe('POST /api/hermes/agents', () => {
         url: 'http://hermes:8642',
         apiKey: 'key',
         model: 'gpt-4o',
-        icon: '~',
-        color: '#8B5CF6',
       }),
     })
     const data = await json(res)
     expect(data.agent.model).toBe('gpt-4o')
-    expect(data.agent.icon).toBe('~')
-    expect(data.agent.color).toBe('#8B5CF6')
   })
 })
 
@@ -134,12 +130,11 @@ describe('PUT /api/hermes/agents/:id', () => {
     const updateRes = await app.request(`/api/hermes/agents/${agent.id}`, {
       method: 'PUT',
       headers: jsonHeaders(),
-      body: JSON.stringify({ name: 'Updated', icon: '~' }),
+      body: JSON.stringify({ name: 'Updated' }),
     })
     expect(updateRes.status).toBe(200)
     const data = await json(updateRes)
     expect(data.agent.name).toBe('Updated')
-    expect(data.agent.icon).toBe('~')
     expect(data.agent.url).toBe('http://hermes:8642')
   })
 

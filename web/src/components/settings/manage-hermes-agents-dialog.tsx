@@ -18,11 +18,9 @@ interface FormState {
   url: string
   apiKey: string
   model: string
-  icon: string
-  color: string
 }
 
-const emptyForm: FormState = { name: '', url: '', apiKey: '', model: '', icon: '', color: '' }
+const emptyForm: FormState = { name: '', url: '', apiKey: '', model: '' }
 
 export function ManageHermesAgentsDialog() {
   const [open, setOpen] = useState(false)
@@ -83,8 +81,6 @@ export function ManageHermesAgentsDialog() {
       url: agent.url,
       apiKey: agent.apiKey,
       model: agent.model || '',
-      icon: agent.icon || '',
-      color: agent.color || '',
     })
     setEditId(agent.id)
     setView('edit')
@@ -105,8 +101,6 @@ export function ManageHermesAgentsDialog() {
         url: form.url,
         apiKey: form.apiKey,
         model: form.model || undefined,
-        icon: form.icon || undefined,
-        color: form.color || undefined,
       }
       if (editId) {
         await fetch(`${API_BASE}/hermes/agents/${editId}`, {
@@ -176,7 +170,6 @@ export function ManageHermesAgentsDialog() {
                       key={agent.id}
                       className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/30 transition-colors"
                     >
-                      <span className="text-sm">{agent.icon || '~'}</span>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-mono font-medium truncate">{agent.name}</div>
                         <div className="text-[10px] text-muted-foreground font-mono truncate">{agent.url}</div>
@@ -253,18 +246,6 @@ export function ManageHermesAgentsDialog() {
                   value={form.model}
                   onChange={v => setForm(f => ({ ...f, model: v }))}
                   placeholder="(optional)"
-                />
-                <FormField
-                  label="Icon"
-                  value={form.icon}
-                  onChange={v => setForm(f => ({ ...f, icon: v }))}
-                  placeholder="~ (emoji)"
-                />
-                <FormField
-                  label="Color"
-                  value={form.color}
-                  onChange={v => setForm(f => ({ ...f, color: v }))}
-                  placeholder="#8B5CF6 (hex)"
                 />
               </div>
               {error && <div className="text-xs text-red-400 font-mono">{error}</div>}

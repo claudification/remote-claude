@@ -57,8 +57,6 @@ export function createHermesRouter(conversationStore: ConversationStore, kv: KVS
       url: normalizeUrl(body.url),
       apiKey: body.apiKey,
       model: body.model,
-      icon: body.icon,
-      color: body.color,
       enabled: true,
       createdAt: Date.now(),
     }
