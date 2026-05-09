@@ -14,7 +14,7 @@ import { ProjectList } from '@/components/project-list'
 import { QuickTaskModal } from '@/components/quick-task-modal'
 import { RenameModal } from '@/components/rename-modal'
 import { ReviveDialog } from '@/components/revive-dialog'
-import { ManageHermesAgentsDialog } from '@/components/settings/manage-hermes-agents-dialog'
+import { ManageChatConnectionsDialog } from '@/components/settings/manage-chat-connections-dialog'
 import { ManageProjectLinksDialog } from '@/components/settings/manage-project-links-dialog'
 import { SharedSessionView } from '@/components/shared-conversation-view'
 import { ShortcutHelp } from '@/components/shortcut-help'
@@ -255,7 +255,7 @@ function Dashboard() {
       <SpawnDialog />
       <ReviveDialog />
       <ManageProjectLinksDialog />
-      <ManageHermesAgentsDialog />
+      <ManageChatConnectionsDialog />
       <TerminateConfirmDialog />
       <ToastContainer />
     </div>

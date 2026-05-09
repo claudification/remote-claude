@@ -1,23 +1,27 @@
 /**
- * Hermes backend -- proxies input to the Hermes API via HTTP/SSE.
+ * Chat API backend -- proxies input to an OpenAI-compatible API via HTTP/SSE.
  * No agent host socket needed.
  */
 
 import { randomUUID } from 'node:crypto'
-import type { HermesAgent } from '../../shared/hermes-types'
-import type { TranscriptAssistantEntry, TranscriptEntry, TranscriptUserEntry } from '../../shared/protocol'
+import type { ChatApiConnection } from '../../shared/chat-api-types'
+import type {
+  TranscriptAssistantEntry,
+  TranscriptEntry,
+  TranscriptUserEntry,
+} from '../../shared/protocol'
 import type { ConversationStore } from '../conversation-store'
 import type { KVStore } from '../store/types'
 import type { BackendDeps, ConversationBackend, InputResult } from './types'
 
-const KV_PREFIX = 'hermes:agent:'
+const KV_PREFIX = 'chat:connection:'
 
-export function getHermesAgent(kv: KVStore, id: string): HermesAgent | null {
-  return kv.get<HermesAgent>(`${KV_PREFIX}${id}`)
+export function getChatApiConnection(kv: KVStore, id: string): ChatApiConnection | null {
+  return kv.get<ChatApiConnection>(`${KV_PREFIX}${id}`)
 }
 
-export const hermesBackend: ConversationBackend = {
-  type: 'hermes',
+export const chatApiBackend: ConversationBackend = {
+  type: 'chat-api',
   requiresAgentSocket: false,
 
   async handleInput(conversationId: string, input: string, deps: BackendDeps): Promise<InputResult> {
@@ -26,12 +30,12 @@ export const hermesBackend: ConversationBackend = {
     const conv = conversationStore.getConversation(conversationId)
     if (!conv) return { ok: false, error: 'Conversation not found' }
 
-    const hermesAgentId = conv.agentHostMeta?.hermesAgentId as string | undefined
-    if (!hermesAgentId) return { ok: false, error: 'Not a Hermes conversation' }
+    const chatConnectionId = conv.agentHostMeta?.chatConnectionId as string | undefined
+    if (!chatConnectionId) return { ok: false, error: 'Not a Chat API conversation' }
 
-    const agent = getHermesAgent(kv, hermesAgentId)
-    if (!agent) return { ok: false, error: 'Hermes agent not found' }
-    if (!agent.enabled) return { ok: false, error: 'Hermes agent is disabled' }
+    const connection = getChatApiConnection(kv, chatConnectionId)
+    if (!connection) return { ok: false, error: 'Chat API connection not found' }
+    if (!connection.enabled) return { ok: false, error: 'Chat API connection is disabled' }
 
     const userEntry: TranscriptUserEntry = {
       type: 'user',
@@ -55,14 +59,14 @@ export const hermesBackend: ConversationBackend = {
     const messages = transcriptToMessages(transcript)
 
     try {
-      const resp = await fetch(`${agent.url}/v1/chat/completions`, {
+      const resp = await fetch(`${connection.url}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${agent.apiKey}`,
+          Authorization: `Bearer ${connection.apiKey}`,
         },
         body: JSON.stringify({
-          model: agent.model || 'default',
+          model: connection.model || 'default',
           messages,
           stream: true,
         }),
@@ -73,14 +77,13 @@ export const hermesBackend: ConversationBackend = {
         const errText = await resp.text()
         conv.status = 'idle'
         conversationStore.broadcastConversationUpdate(conversationId)
-        return { ok: false, error: `Hermes API error: ${resp.status} ${errText}` }
+        return { ok: false, error: `Chat API error: ${resp.status} ${errText}` }
       }
 
       const broadcast = deps.broadcastScoped
-        ? (event: Record<string, unknown>) =>
-            deps.broadcastScoped!({ type: 'stream_delta', conversationId, event }, conv.project)
+        ? (event: Record<string, unknown>) => deps.broadcastScoped!({ type: 'stream_delta', conversationId, event }, conv.project)
         : undefined
-      const fullText = await streamHermesResponse(resp, conversationId, conversationStore, broadcast)
+      const fullText = await streamChatApiResponse(resp, conversationId, conversationStore, broadcast)
 
       const assistantEntry: TranscriptAssistantEntry = {
         type: 'assistant',
@@ -107,12 +110,12 @@ export const hermesBackend: ConversationBackend = {
     } catch (err) {
       conv.status = 'idle'
       conversationStore.broadcastConversationUpdate(conversationId)
-      return { ok: false, error: `Hermes request failed: ${err instanceof Error ? err.message : String(err)}` }
+      return { ok: false, error: `Chat API request failed: ${err instanceof Error ? err.message : String(err)}` }
     }
   },
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────
+// --- Helpers ------------------------------------------------------------------
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
@@ -124,7 +127,9 @@ function transcriptToMessages(entries: TranscriptEntry[]): ChatMessage[] {
   for (const entry of entries) {
     if (entry.type === 'user') {
       const userEntry = entry as TranscriptUserEntry
-      const content = typeof userEntry.message?.content === 'string' ? userEntry.message.content : ''
+      const content = typeof userEntry.message?.content === 'string'
+        ? userEntry.message.content
+        : ''
       if (content) messages.push({ role: 'user', content })
     } else if (entry.type === 'assistant') {
       const assistantEntry = entry as TranscriptAssistantEntry
@@ -140,7 +145,7 @@ function transcriptToMessages(entries: TranscriptEntry[]): ChatMessage[] {
   return messages
 }
 
-async function streamHermesResponse(
+async function streamChatApiResponse(
   resp: Response,
   conversationId: string,
   conversationStore: ConversationStore,
@@ -193,11 +198,7 @@ async function streamHermesResponse(
           }
 
           if (typeof delta?.reasoning_content === 'string' && emitDelta) {
-            emitDelta({
-              type: 'content_block_delta',
-              index: 0,
-              delta: { type: 'thinking_delta', thinking: delta.reasoning_content },
-            })
+            emitDelta({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: delta.reasoning_content } })
           }
 
           const usage = chunk.usage

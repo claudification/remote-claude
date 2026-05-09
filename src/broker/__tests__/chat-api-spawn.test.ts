@@ -1,5 +1,5 @@
 /**
- * Tests for Hermes spawn bypass in dispatchSpawn
+ * Tests for Chat API spawn bypass in dispatchSpawn
  */
 
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -35,13 +35,13 @@ beforeEach(() => {
   deps = makeDeps()
 })
 
-describe('Hermes spawn bypass', () => {
+describe('Chat API spawn bypass', () => {
   it('creates conversation immediately without sentinel', async () => {
     const req: SpawnRequest = {
       cwd: '~',
-      backend: 'hermes',
-      hermesAgentId: 'agent-123',
-      hermesAgentName: 'Personal',
+      backend: 'chat-api',
+      chatConnectionId: 'conn-123',
+      chatConnectionName: 'Personal',
     }
 
     const result = await dispatchSpawn(req, deps)
@@ -54,17 +54,17 @@ describe('Hermes spawn bypass', () => {
     const conv = conversationStore.getConversation(result.conversationId)
     expect(conv).toBeDefined()
     expect(conv?.status).toBe('active')
-    expect(conv?.agentHostType).toBe('hermes')
-    expect(conv?.agentHostMeta?.hermesAgentId).toBe('agent-123')
-    expect(conv?.agentHostMeta?.backend).toBe('hermes')
+    expect(conv?.agentHostType).toBe('chat-api')
+    expect(conv?.agentHostMeta?.chatConnectionId).toBe('conn-123')
+    expect(conv?.agentHostMeta?.backend).toBe('chat-api')
   })
 
-  it('uses hermes://{agentName} as project URI', async () => {
+  it('uses chat://{connectionName} as project URI', async () => {
     const req: SpawnRequest = {
       cwd: '~',
-      backend: 'hermes',
-      hermesAgentId: 'agent-123',
-      hermesAgentName: 'Work',
+      backend: 'chat-api',
+      chatConnectionId: 'conn-123',
+      chatConnectionName: 'Work',
     }
 
     const result = await dispatchSpawn(req, deps)
@@ -72,14 +72,14 @@ describe('Hermes spawn bypass', () => {
     if (!result.ok) return
 
     const conv = conversationStore.getConversation(result.conversationId)
-    expect(conv?.project).toBe('hermes://Work')
+    expect(conv?.project).toBe('chat://Work')
   })
 
-  it('defaults project to hermes://default when no agent name', async () => {
+  it('defaults project to chat://default when no connection name', async () => {
     const req: SpawnRequest = {
       cwd: '~',
-      backend: 'hermes',
-      hermesAgentId: 'agent-123',
+      backend: 'chat-api',
+      chatConnectionId: 'conn-123',
     }
 
     const result = await dispatchSpawn(req, deps)
@@ -87,28 +87,28 @@ describe('Hermes spawn bypass', () => {
     if (!result.ok) return
 
     const conv = conversationStore.getConversation(result.conversationId)
-    expect(conv?.project).toBe('hermes://default')
+    expect(conv?.project).toBe('chat://default')
   })
 
-  it('fails when hermesAgentId is missing', async () => {
+  it('fails when chatConnectionId is missing', async () => {
     const req: SpawnRequest = {
       cwd: '~',
-      backend: 'hermes',
+      backend: 'chat-api',
     }
 
     const result = await dispatchSpawn(req, deps)
     expect(result.ok).toBe(false)
     if (result.ok) return
-    expect(result.error).toContain('hermesAgentId')
+    expect(result.error).toContain('chatConnectionId')
     expect(result.statusCode).toBe(400)
   })
 
   it('uses provided name as conversation title', async () => {
     const req: SpawnRequest = {
       cwd: '~',
-      backend: 'hermes',
-      hermesAgentId: 'agent-123',
-      hermesAgentName: 'Personal',
+      backend: 'chat-api',
+      chatConnectionId: 'conn-123',
+      chatConnectionName: 'Personal',
       name: 'Morning Briefing',
     }
 
@@ -124,9 +124,9 @@ describe('Hermes spawn bypass', () => {
     const jobId = '11111111-2222-3333-4444-555555555555'
     const req: SpawnRequest = {
       cwd: '~',
-      backend: 'hermes',
-      hermesAgentId: 'agent-123',
-      hermesAgentName: 'Personal',
+      backend: 'chat-api',
+      chatConnectionId: 'conn-123',
+      chatConnectionName: 'Personal',
       jobId,
     }
 
@@ -137,14 +137,14 @@ describe('Hermes spawn bypass', () => {
   })
 
   it('does not require a sentinel connection', async () => {
-    // No sentinel set up at all -- should still work for Hermes
+    // No sentinel set up at all -- should still work for Chat API
     expect(conversationStore.hasSentinel()).toBe(false)
 
     const req: SpawnRequest = {
       cwd: '~',
-      backend: 'hermes',
-      hermesAgentId: 'agent-123',
-      hermesAgentName: 'Personal',
+      backend: 'chat-api',
+      chatConnectionId: 'conn-123',
+      chatConnectionName: 'Personal',
     }
 
     const result = await dispatchSpawn(req, deps)
@@ -152,7 +152,7 @@ describe('Hermes spawn bypass', () => {
   })
 })
 
-describe('Non-Hermes spawn still requires sentinel', () => {
+describe('Non-Chat API spawn still requires sentinel', () => {
   it('fails without sentinel for claude backend', async () => {
     const req: SpawnRequest = {
       cwd: '/tmp/test',

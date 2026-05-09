@@ -1,8 +1,8 @@
 /**
- * Hermes Agent types -- shared between broker and control panel.
+ * Chat API Connection types -- shared between broker and control panel.
  */
 
-export interface HermesAgent {
+export interface ChatApiConnection {
   id: string
   name: string
   url: string
@@ -12,14 +12,14 @@ export interface HermesAgent {
   createdAt: number
 }
 
-export interface HermesAgentCreate {
+export interface ChatApiConnectionCreate {
   name: string
   url: string
   apiKey: string
   model?: string
 }
 
-export interface HermesAgentUpdate {
+export interface ChatApiConnectionUpdate {
   name?: string
   url?: string
   apiKey?: string

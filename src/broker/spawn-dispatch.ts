@@ -80,9 +80,9 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
     throw err
   }
 
-  // ─── Hermes backend: bypass sentinel entirely ─────────────────────
-  if (req.backend === 'hermes') {
-    return dispatchHermesSpawn(req, deps)
+  // --- Chat API backend: bypass sentinel entirely -------------------------
+  if (req.backend === 'chat-api') {
+    return dispatchChatApiSpawn(req, deps)
   }
 
   // Route to the specified sentinel, or default
@@ -332,18 +332,18 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
 }
 
 /**
- * Spawn a Hermes conversation directly -- no sentinel, no process.
+ * Spawn a Chat API conversation directly -- no sentinel, no process.
  * Creates the conversation record immediately and returns.
  */
-function dispatchHermesSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): SpawnDispatchResult {
-  if (!req.hermesAgentId) {
-    return { ok: false, error: 'hermesAgentId is required for backend=hermes', statusCode: 400 }
+function dispatchChatApiSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): SpawnDispatchResult {
+  if (!req.chatConnectionId) {
+    return { ok: false, error: 'chatConnectionId is required for backend=chat-api', statusCode: 400 }
   }
 
   const conversationId = randomUUID()
   const jobId = req.jobId ?? randomUUID()
-  const agentName = req.hermesAgentName || 'default'
-  const project = `hermes://${agentName}`
+  const connectionName = req.chatConnectionName || 'default'
+  const project = `chat://${connectionName}`
 
   deps.conversationStore.createJob(jobId, conversationId)
 
@@ -355,10 +355,10 @@ function dispatchHermesSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): SpawnD
     ['headless', 'channel'],
   )
   conv.status = 'active'
-  conv.agentHostType = 'hermes'
+  conv.agentHostType = 'chat-api'
   conv.agentHostMeta = {
-    hermesAgentId: req.hermesAgentId,
-    backend: 'hermes',
+    chatConnectionId: req.chatConnectionId,
+    backend: 'chat-api',
   }
   conv.title =
     req.name ||
