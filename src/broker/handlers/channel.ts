@@ -27,6 +27,12 @@ const subscribe: MessageHandler = (ctx, data) => {
     ctx.reply({ type: 'usage_update', usage })
   }
 
+  // Push external status data if available (clanker.watch + usage.report)
+  const health = ctx.conversations.getClaudeHealth()
+  if (health) ctx.reply(health as unknown as Record<string, unknown>)
+  const efficiency = ctx.conversations.getClaudeEfficiency()
+  if (efficiency) ctx.reply(efficiency as unknown as Record<string, unknown>)
+
   // Push resolved permissions to client (server owns grant resolution)
   const grants = ctx.ws.data.grants
   if (grants) {

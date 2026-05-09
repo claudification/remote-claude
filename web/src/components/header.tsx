@@ -1,6 +1,8 @@
 import { Settings } from 'lucide-react'
 import { Popover } from 'radix-ui'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { EfficiencyWidget } from '@/components/efficiency-widget'
+import { HealthWidget } from '@/components/health-widget'
 import { NerdModal } from '@/components/nerd-modal'
 import { NotificationBell } from '@/components/notification-bell'
 import { ProjectSettingsEditor } from '@/components/project-settings-editor'
@@ -169,6 +171,8 @@ export function Header() {
         <StatusIndicator />
 
         <UsageBar />
+        <HealthWidget />
+        <EfficiencyWidget />
 
         <span className="flex-1" />
 

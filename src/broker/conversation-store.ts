@@ -35,6 +35,8 @@ import {
   recordSentinelHeartbeat as recordSentinelHeartbeatImpl,
   removeSentinel as removeSentinelImpl,
   type SentinelIdentifyInfo,
+  setClaudeEfficiency as setClaudeEfficiencyImpl,
+  setClaudeHealth as setClaudeHealthImpl,
   setSentinel as setSentinelImpl,
   setUsage as setUsageImpl,
 } from './conversation-store/sentinel'
@@ -186,6 +188,11 @@ export interface ConversationStore {
   // Plan usage data (from sentinel OAuth usage API polling)
   setUsage: (usage: import('../shared/protocol').UsageUpdate) => void
   getUsage: () => import('../shared/protocol').UsageUpdate | undefined
+  // External status data (broker polls clanker.watch + usage.report)
+  setClaudeHealth: (health: import('../shared/protocol').ClaudeHealthUpdate) => void
+  getClaudeHealth: () => import('../shared/protocol').ClaudeHealthUpdate | undefined
+  setClaudeEfficiency: (efficiency: import('../shared/protocol').ClaudeEfficiencyUpdate) => void
+  getClaudeEfficiency: () => import('../shared/protocol').ClaudeEfficiencyUpdate | undefined
   // Request-response listeners for sentinel relay (spawn, dir listing)
   addSpawnListener: (requestId: string, cb: (result: unknown) => void) => void
   removeSpawnListener: (requestId: string) => void
@@ -1569,6 +1576,18 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   function getUsage(): import('../shared/protocol').UsageUpdate | undefined {
     return sentinelState.usage
   }
+  function setClaudeHealth(health: import('../shared/protocol').ClaudeHealthUpdate): void {
+    setClaudeHealthImpl(sentinelState, health, broadcast)
+  }
+  function getClaudeHealth(): import('../shared/protocol').ClaudeHealthUpdate | undefined {
+    return sentinelState.claudeHealth
+  }
+  function setClaudeEfficiency(efficiency: import('../shared/protocol').ClaudeEfficiencyUpdate): void {
+    setClaudeEfficiencyImpl(sentinelState, efficiency, broadcast)
+  }
+  function getClaudeEfficiency(): import('../shared/protocol').ClaudeEfficiencyUpdate | undefined {
+    return sentinelState.claudeEfficiency
+  }
 
   /** Stamp `entry.seq` on every entry in-place using the per-conversation counter.
    *  Mutates the array in place -- callers rely on this so subsequent
@@ -1876,6 +1895,10 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     getSentinelDiag,
     setUsage,
     getUsage,
+    setClaudeHealth,
+    getClaudeHealth,
+    setClaudeEfficiency,
+    getClaudeEfficiency,
     addTranscriptEntries,
     getTranscriptEntries,
     hasTranscriptCache,

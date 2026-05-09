@@ -458,6 +458,14 @@ function handleUsageUpdate(msg: DashboardMessage) {
   }
 }
 
+function handleClaudeHealthUpdate(msg: DashboardMessage) {
+  useConversationsStore.getState().setClaudeHealth(msg as unknown as import('@/lib/types').ClaudeHealthUpdate)
+}
+
+function handleClaudeEfficiencyUpdate(msg: DashboardMessage) {
+  useConversationsStore.getState().setClaudeEfficiency(msg as unknown as import('@/lib/types').ClaudeEfficiencyUpdate)
+}
+
 function handleSettingsUpdated(msg: DashboardMessage) {
   if (msg.settings) {
     useConversationsStore.setState({ globalSettings: msg.settings as Record<string, unknown> })
@@ -806,6 +814,8 @@ export const handlers: Record<string, MessageHandler> = {
   tasks_update: handleTasksUpdate,
   sentinel_status: handleSentinelStatus,
   usage_update: handleUsageUpdate,
+  claude_health_update: handleClaudeHealthUpdate,
+  claude_efficiency_update: handleClaudeEfficiencyUpdate,
   settings_updated: handleSettingsUpdated,
   project_settings_updated: handleProjectSettingsUpdated,
   project_order_updated: handleProjectOrderUpdated,

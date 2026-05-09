@@ -1660,6 +1660,29 @@ export interface UsageUpdate {
   polledAt: number // timestamp of last poll
 }
 
+// External status data (broker polls clanker.watch + usage.report)
+export interface ClaudeHealthUpdate {
+  type: 'claude_health_update'
+  isUp: boolean
+  status: 'operational' | 'investigating' | 'identified' | 'monitoring' | 'resolved' | 'unknown'
+  uptime24h: number
+  riskScore: number
+  riskTrend: 'worsening' | 'improving' | 'stable'
+  incidents7d: number
+  lastIncidentTitle: string | null
+  polledAt: number
+}
+
+export interface ClaudeEfficiencyUpdate {
+  type: 'claude_efficiency_update'
+  efficiency: number
+  level: 'great' | 'good' | 'fair' | 'tight' | 'harsh' | 'brutal'
+  currentDrainPp: number
+  baselineDrainPp: number
+  forecast: Array<{ hourUtc: number; efficiency: number; level: string }>
+  polledAt: number
+}
+
 export type SentinelMessage =
   | SentinelIdentify
   | ReviveResult

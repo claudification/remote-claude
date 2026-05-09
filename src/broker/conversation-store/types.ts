@@ -1,4 +1,4 @@
-import type { ConversationSummary } from '../../shared/protocol'
+import type { ClaudeEfficiencyUpdate, ClaudeHealthUpdate, ConversationSummary } from '../../shared/protocol'
 
 export type { ConversationSummary }
 
@@ -24,6 +24,8 @@ export interface ControlPanelMessage {
     | 'project_settings_updated'
     | 'clipboard_capture'
     | 'usage_update'
+    | 'claude_health_update'
+    | 'claude_efficiency_update'
   conversationId?: string
   previousConversationId?: string
   conversation?: ConversationSummary
@@ -36,4 +38,6 @@ export interface ControlPanelMessage {
   title?: string
   message?: string
   settings?: unknown
+  claudeHealth?: ClaudeHealthUpdate
+  claudeEfficiency?: ClaudeEfficiencyUpdate
 }

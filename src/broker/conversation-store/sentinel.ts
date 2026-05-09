@@ -1,5 +1,10 @@
 import type { ServerWebSocket } from 'bun'
-import { HEARTBEAT_INTERVAL_MS, type UsageUpdate } from '../../shared/protocol'
+import {
+  type ClaudeEfficiencyUpdate,
+  type ClaudeHealthUpdate,
+  HEARTBEAT_INTERVAL_MS,
+  type UsageUpdate,
+} from '../../shared/protocol'
 import type { ControlPanelMessage, SentinelStatusInfo } from './types'
 
 const SENTINEL_DIAG_MAX = 200
@@ -42,6 +47,8 @@ export interface SentinelState {
   sentinelsByAlias: Map<string, string> // alias -> sentinelId (O(1) alias lookup)
   diagLog: Array<{ t: number; type: string; msg: string; args?: unknown }>
   usage: UsageUpdate | undefined
+  claudeHealth: ClaudeHealthUpdate | undefined
+  claudeEfficiency: ClaudeEfficiencyUpdate | undefined
 }
 
 export function createSentinelState(): SentinelState {
@@ -50,6 +57,8 @@ export function createSentinelState(): SentinelState {
     sentinelsByAlias: new Map(),
     diagLog: [],
     usage: undefined,
+    claudeHealth: undefined,
+    claudeEfficiency: undefined,
   }
 }
 
@@ -144,4 +153,22 @@ export function setUsage(
 ): void {
   state.usage = usage
   broadcast({ type: 'usage_update', usage } as unknown as ControlPanelMessage)
+}
+
+export function setClaudeHealth(
+  state: SentinelState,
+  health: ClaudeHealthUpdate,
+  broadcast: (msg: ControlPanelMessage) => void,
+): void {
+  state.claudeHealth = health
+  broadcast(health as unknown as ControlPanelMessage)
+}
+
+export function setClaudeEfficiency(
+  state: SentinelState,
+  efficiency: ClaudeEfficiencyUpdate,
+  broadcast: (msg: ControlPanelMessage) => void,
+): void {
+  state.claudeEfficiency = efficiency
+  broadcast(efficiency as unknown as ControlPanelMessage)
 }

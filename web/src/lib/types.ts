@@ -3,6 +3,8 @@ export type {
   AgentHostCapability,
   ArchivedTaskGroup,
   BgTaskInfo as BgTaskSummary,
+  ClaudeEfficiencyUpdate,
+  ClaudeHealthUpdate,
   ExtraUsage,
   FileInfo,
   HookEventType,

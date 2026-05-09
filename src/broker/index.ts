@@ -26,6 +26,7 @@ import {
 import { buildReviveMessage } from './build-revive'
 import { createConversationStore } from './conversation-store'
 import { type ContextDeps, createContext } from './create-context'
+import { startExternalStatusPolling, stopExternalStatusPolling } from './external-status'
 import { initGlobalSettings } from './global-settings'
 import type { WsData } from './handler-context'
 import { registerAllHandlers } from './handlers'
@@ -377,9 +378,16 @@ async function main() {
     process.exit(0)
   }
 
+  // External status polling (clanker.watch health + usage.report efficiency)
+  startExternalStatusPolling({
+    onHealth: health => conversationStore.setClaudeHealth(health),
+    onEfficiency: efficiency => conversationStore.setClaudeEfficiency(efficiency),
+  })
+
   // Shutdown: StoreDriver writes are immediate, just close handles
   process.on('SIGINT', async () => {
     console.log('\n[shutdown] Closing stores...')
+    stopExternalStatusPolling()
     clearInterval(costCleanupTimer)
     closeAnalyticsStore()
     closeProjectStore()
@@ -387,6 +395,7 @@ async function main() {
     process.exit(0)
   })
   process.on('SIGTERM', async () => {
+    stopExternalStatusPolling()
     clearInterval(costCleanupTimer)
     closeAnalyticsStore()
     closeProjectStore()

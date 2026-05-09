@@ -139,6 +139,8 @@ interface ConversationsState {
   sentinelConnected: boolean
   sentinels: SentinelStatusInfo[]
   planUsage: UsageUpdate | null
+  claudeHealth: import('@/lib/types').ClaudeHealthUpdate | null
+  claudeEfficiency: import('@/lib/types').ClaudeEfficiencyUpdate | null
   error: string | null
   authExpired: boolean
   ws: WebSocket | null
@@ -247,6 +249,8 @@ interface ConversationsState {
   setConnected: (connected: boolean) => void
   setSentinelConnected: (connected: boolean, sentinels?: SentinelStatusInfo[]) => void
   setPlanUsage: (usage: UsageUpdate) => void
+  setClaudeHealth: (health: import('@/lib/types').ClaudeHealthUpdate) => void
+  setClaudeEfficiency: (efficiency: import('@/lib/types').ClaudeEfficiencyUpdate) => void
   setError: (error: string | null) => void
   setAuthExpired: (expired: boolean) => void
   setWs: (ws: WebSocket | null) => void
@@ -459,6 +463,8 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   sentinelConnected: false,
   sentinels: [],
   planUsage: null,
+  claudeHealth: null,
+  claudeEfficiency: null,
   error: null,
   authExpired: false,
   ws: null,
@@ -857,6 +863,8 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   setSentinelConnected: (connected, sentinels) =>
     set({ sentinelConnected: connected, ...(sentinels !== undefined && { sentinels }) }),
   setPlanUsage: usage => set({ planUsage: usage }),
+  setClaudeHealth: health => set({ claudeHealth: health }),
+  setClaudeEfficiency: efficiency => set({ claudeEfficiency: efficiency }),
   setError: error => set({ error }),
   setAuthExpired: authExpired => set({ authExpired }),
   setWs: ws => set({ ws }),
