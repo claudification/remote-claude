@@ -166,44 +166,46 @@ export function ManageHermesAgentsDialog() {
               ) : (
                 <div className="overflow-y-auto flex-1 min-h-0 space-y-1">
                   {agents.map(agent => (
-                    <div
-                      key={agent.id}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/30 transition-colors"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-mono font-medium truncate">{agent.name}</div>
-                        <div className="text-[10px] text-muted-foreground font-mono truncate">{agent.url}</div>
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleTest(agent.id)}
-                          disabled={testing === agent.id}
-                          className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-inset hover:bg-muted/50 transition-colors disabled:opacity-50"
-                        >
-                          {testing === agent.id ? '...' : 'test'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => startEdit(agent)}
-                          className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-inset hover:bg-muted/50 transition-colors"
-                        >
-                          edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(agent.id)}
-                          className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-inset hover:bg-red-500/20 text-red-400 transition-colors"
-                        >
-                          del
-                        </button>
+                    <div key={agent.id} className="rounded hover:bg-muted/30 transition-colors">
+                      <div className="flex items-center gap-2 px-2 py-1.5">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-mono font-medium truncate">{agent.name}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono truncate">{agent.url}</div>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleTest(agent.id)}
+                            disabled={testing === agent.id}
+                            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-inset hover:bg-muted/50 transition-colors disabled:opacity-50"
+                          >
+                            {testing === agent.id ? '...' : 'test'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(agent)}
+                            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-inset hover:bg-muted/50 transition-colors"
+                          >
+                            edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(agent.id)}
+                            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-inset hover:bg-red-500/20 text-red-400 transition-colors"
+                          >
+                            del
+                          </button>
+                        </div>
                       </div>
                       {testResult?.id === agent.id && (
-                        <span
-                          className={cn('text-[10px] font-mono', testResult.ok ? 'text-green-400' : 'text-red-400')}
+                        <div
+                          className={cn(
+                            'text-[10px] font-mono px-2 pb-1.5 truncate',
+                            testResult.ok ? 'text-green-400' : 'text-red-400',
+                          )}
                         >
-                          {testResult.ok ? 'OK' : testResult.error || 'FAIL'}
-                        </span>
+                          {testResult.ok ? 'Connected' : 'Connection failed'}
+                        </div>
                       )}
                     </div>
                   ))}
@@ -232,7 +234,7 @@ export function ManageHermesAgentsDialog() {
                   label="URL"
                   value={form.url}
                   onChange={v => setForm(f => ({ ...f, url: v }))}
-                  placeholder="http://hermes:8642"
+                  placeholder="http://localhost:8642"
                 />
                 <FormField
                   label="API Key"
