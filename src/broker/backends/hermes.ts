@@ -44,6 +44,12 @@ export const hermesBackend: ConversationBackend = {
       message: { role: 'user', content: input },
     }
     conversationStore.addTranscriptEntries(conversationId, [userEntry], false)
+    deps.broadcastToChannel?.('conversation:transcript', conversationId, {
+      type: 'transcript_entries',
+      conversationId,
+      entries: [userEntry],
+      isInitial: false,
+    })
 
     conv.status = 'active'
     conv.lastActivity = Date.now()
@@ -89,6 +95,12 @@ export const hermesBackend: ConversationBackend = {
         },
       }
       conversationStore.addTranscriptEntries(conversationId, [assistantEntry], false)
+      deps.broadcastToChannel?.('conversation:transcript', conversationId, {
+        type: 'transcript_entries',
+        conversationId,
+        entries: [assistantEntry],
+        isInitial: false,
+      })
 
       conv.status = 'idle'
       conv.lastActivity = Date.now()
@@ -146,6 +158,7 @@ async function streamHermesResponse(
   let fullText = ''
   let buffer = ''
   let started = false
+  let modelReported = false
 
   try {
     while (true) {
@@ -164,6 +177,12 @@ async function streamHermesResponse(
         try {
           const chunk = JSON.parse(data)
           const delta = chunk.choices?.[0]?.delta
+
+          if (!modelReported && typeof chunk.model === 'string' && chunk.model !== 'default') {
+            const conv = conversationStore.getConversation(conversationId)
+            if (conv) conv.model = chunk.model
+            modelReported = true
+          }
 
           if (emitDelta && !started) {
             emitDelta({ type: 'message_start', message: { role: 'assistant' } })

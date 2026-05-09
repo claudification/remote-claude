@@ -8,7 +8,7 @@
 
 import { generateConversationName } from '../../shared/conversation-names'
 import { extractProjectLabel } from '../../shared/project-uri'
-import type { SendInput } from '../../shared/protocol'
+import type { SendInput, SubscriptionChannel } from '../../shared/protocol'
 import { buildReviveMessage } from '../build-revive'
 import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
 import { GuardError, type MessageHandler, type WsData } from '../handler-context'
@@ -45,6 +45,8 @@ const sendInput: MessageHandler = (ctx, data) => {
         conversationStore: ctx.conversations,
         kv: ctx.store.kv,
         broadcastScoped: ctx.broadcastScoped,
+        broadcastToChannel: (channel: SubscriptionChannel, cid: string, msg: Record<string, unknown>) =>
+          ctx.conversations.broadcastToChannel(channel, cid, msg),
       })
       .then((result: { ok: boolean; error?: string }) => {
         if (!result.ok) ctx.log.error(`[${backend.type}] proxy error: ${result.error}`)
