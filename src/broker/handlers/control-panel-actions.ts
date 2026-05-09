@@ -21,6 +21,7 @@ import {
   getProjectSettings,
   setProjectSettings,
 } from '../project-settings'
+import { resolveBackend } from '../backends'
 
 // ─── Send input to a conversation ──────────────────────────────────────
 
@@ -36,7 +37,21 @@ const sendInput: MessageHandler = (ctx, data) => {
   if (conversation.status === 'ended') throw new GuardError('Conversation has ended')
   ctx.requirePermission('chat', conversation.project)
 
-  // Try by conversation ID first, then by routing IDs (handles ID changes from SessionStart)
+  // Backend-proxied conversations (Hermes, future: OpenCode, Pi, etc.)
+  const backend = resolveBackend(conversation)
+  if (!backend.requiresAgentSocket) {
+    backend
+      .handleInput(conversationId, input, { conversationStore: ctx.conversations, kv: ctx.store.kv })
+      .then((result: { ok: boolean; error?: string }) => {
+        if (!result.ok) ctx.log.error(`[${backend.type}] proxy error: ${result.error}`)
+      })
+      .catch((err: unknown) => ctx.log.error(`[${backend.type}] proxy failed`, err))
+    ctx.log.debug(`send_input: ${conversationId.slice(0, 8)} [${backend.type}] "${input.slice(0, 50)}"`)
+    ctx.reply({ type: 'send_input_result', ok: true })
+    return
+  }
+
+  // Socket-based backends (Claude CC) -- forward to agent host WebSocket
   let ws = ctx.conversations.getConversationSocket(conversationId)
   if (!ws) {
     const routingIds = ctx.conversations.getConnectionIds(conversationId)

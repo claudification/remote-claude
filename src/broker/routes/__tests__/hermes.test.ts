@@ -208,7 +208,7 @@ describe('POST /api/hermes/conversations/:id/chat', () => {
     expect(res.status).toBe(404)
   })
 
-  it('returns 400 for non-Hermes conversation', async () => {
+  it('returns 400 for non-proxy conversation (Claude backend)', async () => {
     const conv = conversationStore.createConversation('conv-1', 'claude://test', undefined, [], ['headless'])
     conv.status = 'active'
 
@@ -219,12 +219,13 @@ describe('POST /api/hermes/conversations/:id/chat', () => {
     })
     expect(res.status).toBe(400)
     const data = await json(res)
-    expect(data.error).toContain('Not a Hermes conversation')
+    expect(data.error).toContain('Not a proxy-backed conversation')
   })
 
-  it('returns 404 when hermesAgentId references unknown agent', async () => {
+  it('returns 502 when hermesAgentId references unknown agent', async () => {
     const conv = conversationStore.createConversation('conv-2', 'hermes://test', undefined, [], ['headless'])
     conv.status = 'active'
+    conv.agentHostType = 'hermes'
     conv.agentHostMeta = { hermesAgentId: 'nonexistent', backend: 'hermes' }
 
     const res = await app.request('/api/hermes/conversations/conv-2/chat', {
@@ -232,13 +233,12 @@ describe('POST /api/hermes/conversations/:id/chat', () => {
       headers: jsonHeaders(),
       body: JSON.stringify({ input: 'hello' }),
     })
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(502)
     const data = await json(res)
-    expect(data.error).toContain('Hermes agent not found')
+    expect(data.error).toContain('agent not found')
   })
 
-  it('returns 400 when agent is disabled', async () => {
-    // Create agent, then disable it
+  it('returns 502 when agent is disabled', async () => {
     const createRes = await app.request('/api/hermes/agents', {
       method: 'POST',
       headers: jsonHeaders(),
@@ -253,6 +253,7 @@ describe('POST /api/hermes/conversations/:id/chat', () => {
 
     const conv = conversationStore.createConversation('conv-3', 'hermes://test', undefined, [], ['headless'])
     conv.status = 'active'
+    conv.agentHostType = 'hermes'
     conv.agentHostMeta = { hermesAgentId: agent.id, backend: 'hermes' }
 
     const res = await app.request('/api/hermes/conversations/conv-3/chat', {
@@ -260,7 +261,7 @@ describe('POST /api/hermes/conversations/:id/chat', () => {
       headers: jsonHeaders(),
       body: JSON.stringify({ input: 'hello' }),
     })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(502)
     const data = await json(res)
     expect(data.error).toContain('disabled')
   })
@@ -275,6 +276,7 @@ describe('POST /api/hermes/conversations/:id/chat', () => {
 
     const conv = conversationStore.createConversation('conv-4', 'hermes://test', undefined, [], ['headless'])
     conv.status = 'active'
+    conv.agentHostType = 'hermes'
     conv.agentHostMeta = { hermesAgentId: agent.id, backend: 'hermes' }
 
     const res = await app.request('/api/hermes/conversations/conv-4/chat', {

@@ -20,6 +20,7 @@ import type {
   TranscriptEntry,
 } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
+import { resolveBackend } from './backends'
 import { clearSession as clearAnalyticsSession } from './analytics-store'
 import { addEvent as addEventImpl } from './conversation-store/add-event'
 import { addTranscriptEntries as addTranscriptEntriesImpl } from './conversation-store/add-transcript-entries'
@@ -1325,16 +1326,11 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
    * close handler (network blip, OS sleep, half-open TCP). Returns the list
    * of conversation IDs that were ended so the caller can broadcast / log.
    */
-  function requiresAgentSocket(conversation: Conversation): boolean {
-    if (conversation.agentHostType === 'hermes') return false
-    return true
-  }
-
   function reapPhantomConversations(): string[] {
     const ended: string[] = []
     for (const [convId, conversation] of conversations.entries()) {
       if (conversation.status === 'ended') continue
-      if (!requiresAgentSocket(conversation)) continue
+      if (!resolveBackend(conversation).requiresAgentSocket) continue
       const live = pruneDeadSockets(convId)
       if (live === 0) {
         endConversation(convId, 'connection_closed')
