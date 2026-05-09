@@ -53,31 +53,60 @@ export function generateRecapOnEnd(store: ConversationStore, conversationId: str
   })
 }
 
-export function generateRecapManual(store: ConversationStore, conversationId: string): void {
+type ReplyFn = (msg: Record<string, unknown>) => void
+
+export function generateRecapManual(store: ConversationStore, conversationId: string, reply?: ReplyFn): void {
+  function replyResult(ok: boolean, error?: string) {
+    if (reply) reply({ type: 'recap_request_result', conversationId, ok, ...(error ? { error } : {}) })
+  }
+
   if (!process.env.OPENROUTER_API_KEY) {
     console.log(`[recap] manual generation skipped -- no OPENROUTER_API_KEY`)
+    replyResult(false, 'No OPENROUTER_API_KEY configured on broker')
     return
   }
   const conv = store.getConversation(conversationId)
-  if (!conv) return
+  if (!conv) {
+    replyResult(false, 'Conversation not found')
+    return
+  }
   cancelRecap(conversationId)
   console.log(`[recap] manual generation requested for ${conversationId.slice(0, 8)}`)
-  generateRecap(store, conversationId, true).catch(err => {
+  generateRecap(store, conversationId, true, reply).catch(err => {
     console.log(`[recap] manual generation failed for ${conversationId.slice(0, 8)}: ${err}`)
+    replyResult(false, `Recap generation failed: ${err}`)
   })
 }
 
-async function generateRecap(store: ConversationStore, conversationId: string, allowEnded = false): Promise<void> {
+async function generateRecap(
+  store: ConversationStore,
+  conversationId: string,
+  allowEnded = false,
+  reply?: ReplyFn,
+): Promise<void> {
+  function replyResult(ok: boolean, error?: string) {
+    if (reply) reply({ type: 'recap_request_result', conversationId, ok, ...(error ? { error } : {}) })
+  }
+
   const conv = store.getConversation(conversationId)
-  if (!conv || (!allowEnded && conv.status !== 'idle')) return
+  if (!conv || (!allowEnded && conv.status !== 'idle')) {
+    replyResult(false, 'Conversation not available for recap')
+    return
+  }
   const condensed = condenseTranscript(store, conversationId, conv?.resultText)
-  if (!condensed) {
-    console.log(`[recap] no transcript context for ${conversationId.slice(0, 8)}, skipping`)
+  if (!condensed || condensed.length < 50) {
+    console.log(
+      `[recap] insufficient transcript for ${conversationId.slice(0, 8)} (${condensed?.length ?? 0} chars), skipping`,
+    )
+    replyResult(false, 'Not enough conversation content to generate a recap')
     return
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY
-  if (!apiKey) return
+  if (!apiKey) {
+    replyResult(false, 'No OPENROUTER_API_KEY configured on broker')
+    return
+  }
 
   console.log(`[recap] generating for ${conversationId.slice(0, 8)} (${condensed.length} chars context)`)
 
@@ -100,6 +129,7 @@ async function generateRecap(store: ConversationStore, conversationId: string, a
 
   if (!res.ok) {
     console.log(`[recap] OpenRouter returned ${res.status} for ${conversationId.slice(0, 8)}`)
+    replyResult(false, `OpenRouter API returned ${res.status}`)
     return
   }
 
@@ -107,6 +137,14 @@ async function generateRecap(store: ConversationStore, conversationId: string, a
   const rawText = data.choices?.[0]?.message?.content?.trim()
   if (!rawText) {
     console.log(`[recap] empty response for ${conversationId.slice(0, 8)}`)
+    replyResult(false, 'OpenRouter returned an empty response')
+    return
+  }
+
+  const hasJson = /\{[\s\S]*"recap"[\s\S]*\}/.test(rawText)
+  if (!hasJson) {
+    console.log(`[recap] non-JSON response for ${conversationId.slice(0, 8)}: ${rawText.slice(0, 80)}`)
+    replyResult(false, 'Model returned invalid response (no JSON)')
     return
   }
 
@@ -136,10 +174,14 @@ async function generateRecap(store: ConversationStore, conversationId: string, a
   console.log(
     `[recap] generated for ${conversationId.slice(0, 8)}: title="${parsed.title}" recap="${parsed.recap.slice(0, 60)}"`,
   )
+  replyResult(true)
 }
 
 function condenseTranscript(store: ConversationStore, conversationId: string, resultText?: string): string | null {
-  const cached = store.getTranscriptEntries(conversationId)
+  let cached = store.getTranscriptEntries(conversationId)
+  if (cached.length === 0) {
+    cached = store.loadTranscriptFromStore(conversationId, 200) || []
+  }
   if (cached.length === 0) return null
 
   const parts: string[] = []
@@ -181,6 +223,7 @@ function condenseTranscript(store: ConversationStore, conversationId: string, re
   if (postReset.length === 0 && priorRecaps.length === 0 && !resultText) return null
 
   const recent = postReset.slice(-MAX_RECENT_ENTRIES)
+  let conversationLines = 0
   if (recent.length > 0) {
     addPart('\nRECENT CONVERSATION:')
     for (const entry of recent) {
@@ -191,9 +234,14 @@ function condenseTranscript(store: ConversationStore, conversationId: string, re
       } else if (entry.type === 'assistant') {
         line = prefixed('ASSISTANT', extractAssistantText(entry as TranscriptAssistantEntry))
       }
-      if (line) addPart(line)
+      if (line) {
+        addPart(line)
+        conversationLines++
+      }
     }
   }
+
+  if (conversationLines === 0 && priorRecaps.length === 0 && !resultText) return null
 
   // Prior recaps as background context at the end
   if (priorRecaps.length > 0) {

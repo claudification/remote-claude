@@ -508,13 +508,20 @@ const resultText: MessageHandler = (ctx, data) => {
 }
 
 const recapRequest: MessageHandler = (ctx, data) => {
-  ctx.requireBenevolent()
   const fields = requireStrings(ctx, data, ['conversationId'] as const, 'recap_request')
   if (!fields) return
   const conversation = ctx.conversations.getConversation(fields.conversationId)
-  if (!conversation) return
+  if (!conversation) {
+    ctx.reply({
+      type: 'recap_request_result',
+      conversationId: fields.conversationId,
+      ok: false,
+      error: 'Conversation not found',
+    })
+    return
+  }
   ctx.requirePermission('chat:read', conversation.project)
-  generateRecapManual(ctx.conversations, fields.conversationId)
+  generateRecapManual(ctx.conversations, fields.conversationId, msg => ctx.reply(msg))
 }
 
 export function registerTranscriptHandlers(): void {
