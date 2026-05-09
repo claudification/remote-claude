@@ -6,6 +6,7 @@
  * of scattering `if (agentHostType === 'xxx')` checks.
  */
 
+import type { SubscriptionChannel } from '../../shared/protocol'
 import type { ConversationStore } from '../conversation-store'
 import type { KVStore } from '../store/types'
 
@@ -18,6 +19,7 @@ export interface BackendDeps {
   conversationStore: ConversationStore
   kv: KVStore
   broadcastScoped?: (msg: Record<string, unknown>, project: string) => void
+  broadcastToChannel?: (channel: SubscriptionChannel, conversationId: string, msg: Record<string, unknown>) => void
 }
 
 export interface ConversationBackend {
