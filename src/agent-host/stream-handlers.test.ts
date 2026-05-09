@@ -116,7 +116,11 @@ describe('stream-handlers UUID synthesis', () => {
       pendingControlRequests: new Map(),
       syntheticUserUuids: stash,
       conversationId: 'test-conv-id',
-      callbacks: { onTranscriptEntries(e) { entries.push(...e) } },
+      callbacks: {
+        onTranscriptEntries(e) {
+          entries.push(...e)
+        },
+      },
     }
     hctx.replay.done = true
 

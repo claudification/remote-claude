@@ -36,7 +36,15 @@ function ThemePreview({ variables }: { variables: Record<string, string> }) {
   )
 }
 
-function ThemeCard({ themeId, currentTheme, onSelect }: { themeId: string; currentTheme: string; onSelect: (id: string) => void }) {
+function ThemeCard({
+  themeId,
+  currentTheme,
+  onSelect,
+}: {
+  themeId: string
+  currentTheme: string
+  onSelect: (id: string) => void
+}) {
   const theme = findTheme(themeId)
   return (
     <button
@@ -56,7 +64,11 @@ function ThemeCard({ themeId, currentTheme, onSelect }: { themeId: string; curre
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground/60 pt-1 pb-0.5">{children}</div>
+  return (
+    <div className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground/60 pt-1 pb-0.5">
+      {children}
+    </div>
+  )
 }
 
 export function ThemeSelector() {

@@ -215,7 +215,11 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
             )
             subs.delete(ws)
             if (subs.size === 0) channelSubscribers.delete(key)
-            try { ws.close(1008, 'backpressure') } catch { /* already closing */ }
+            try {
+              ws.close(1008, 'backpressure')
+            } catch {
+              /* already closing */
+            }
             continue
           }
           sent.add(ws)
@@ -238,7 +242,11 @@ export function createChannelRegistry(deps: ChannelRegistryDeps): ChannelRegistr
           )
           subs.delete(ws)
           if (subs.size === 0) channelSubscribers.delete(key)
-          try { ws.close(1011, 'send failed') } catch { /* already closing */ }
+          try {
+            ws.close(1011, 'send failed')
+          } catch {
+            /* already closing */
+          }
         }
       }
     }

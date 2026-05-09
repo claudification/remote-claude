@@ -355,7 +355,14 @@ function buildStreamProcess(
       const uuid = `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((Number.parseInt(h[16], 16) & 0x3) | 0x8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`
       stash?.set(contentHash, uuid)
       options.onTranscriptEntries?.(
-        [{ type: 'user', timestamp: new Date().toISOString(), message: { role: 'user', content }, uuid } as TranscriptEntry],
+        [
+          {
+            type: 'user',
+            timestamp: new Date().toISOString(),
+            message: { role: 'user', content },
+            uuid,
+          } as TranscriptEntry,
+        ],
         false,
       )
     },
