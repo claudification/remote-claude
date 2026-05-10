@@ -634,10 +634,19 @@ const channelUnlink: MessageHandler = (ctx, data) => {
 }
 
 export function registerChannelHandlers(): void {
-  // Dashboard / share viewer subscribe + control.
+  // `subscribe` is the self-elevation entry point for bearer-secret WS
+  // upgrades that don't carry a passkey/userName at upgrade time (admin
+  // tooling, CLI, the staging test harness). The handler sets
+  // ws.data.isControlPanel = true; subsequent messages then route as
+  // 'control-panel' under detectRole(). Without this opt-out, bearer-
+  // secret connections default to 'agent-host' and the gate blocks the
+  // very message that would promote them. Real production dashboards
+  // arrive with userName already set (passkey auth), so this exception
+  // does not soften the audit's intent.
+  registerHandlers({ subscribe })
+  // Dashboard / share viewer control surface (post-subscribe).
   registerHandlers(
     {
-      subscribe,
       refresh_sessions: refreshSessions,
       sync_check: syncCheck,
       channel_subscribe: channelSubscribe,
