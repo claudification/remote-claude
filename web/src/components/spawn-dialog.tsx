@@ -58,6 +58,9 @@ interface SpawnDialogOptions {
   path: string
   mkdir?: boolean
   sentinel?: string
+  /** Source project URI -- when scheme is `opencode://`, the dialog defaults
+   *  the backend selector to OpenCode instead of Claude. */
+  projectUri?: string
 }
 
 interface HermesGateway {
@@ -167,7 +170,10 @@ export function SpawnDialog() {
       setIncludePartialMessages(
         ps?.defaultIncludePartialMessages ?? (gs.defaultIncludePartialMessages as boolean) ?? true,
       )
-      setBackend('claude')
+      // Default backend follows the source project URI scheme: `opencode://`
+      // projects open with the OpenCode backend pre-selected. Other schemes
+      // (claude://, hermes://, etc.) start on Claude and let the user pick.
+      setBackend(options.projectUri?.startsWith('opencode://') ? 'opencode' : 'claude')
       setChatConnectionId('')
       setHermesGateways([])
       setHermesGatewayId('')

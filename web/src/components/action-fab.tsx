@@ -54,7 +54,11 @@ function buildActions(session: Session | undefined, selectedConversationId: stri
       id: 'launch',
       icon: <Rocket className="w-4 h-4" />,
       label: 'Launch',
-      action: () => openSpawnDialog({ path: session ? projectPath(session.project) : '.' }),
+      action: () =>
+        openSpawnDialog({
+          path: session ? projectPath(session.project) : '.',
+          projectUri: session?.project,
+        }),
       color: 'bg-warning',
     },
     {

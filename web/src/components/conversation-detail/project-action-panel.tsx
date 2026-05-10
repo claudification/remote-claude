@@ -251,7 +251,7 @@ export function ProjectActionPanel({ projectUri }: { projectUri: string }) {
             disabled={!sentinelConnected}
             onClick={() => {
               haptic('tap')
-              openSpawnDialog({ path })
+              openSpawnDialog({ path, projectUri })
             }}
             className="px-4 py-1.5 text-xs font-mono border border-cyan-400/50 text-cyan-400 hover:bg-cyan-400/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >

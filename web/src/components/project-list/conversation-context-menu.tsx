@@ -186,7 +186,7 @@ export function ConversationContextMenu({
             className={cn(menuItemClass, 'text-cyan-400')}
             onSelect={() => {
               haptic('tap')
-              openSpawnDialog({ path: projectPath(session.project) })
+              openSpawnDialog({ path: projectPath(session.project), projectUri: session.project })
             }}
           >
             Launch new...
@@ -268,7 +268,7 @@ function ProjectMenuItems({ project, onOpenSettings }: { project: string; onOpen
         className={cn(menuItemClass, 'text-cyan-400')}
         onSelect={() => {
           haptic('tap')
-          openSpawnDialog({ path: projectPath(project) })
+          openSpawnDialog({ path: projectPath(project), projectUri: project })
         }}
       >
         Launch new...
