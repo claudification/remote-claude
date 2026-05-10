@@ -61,6 +61,7 @@ export const BACKENDS: Record<string, BackendDef> = {
     label: 'Hermes',
   },
   opencode: { icon: OpenCodeIcon, color: 'text-emerald-400', label: 'OpenCode' },
+  acp: { icon: OpenCodeIcon, color: 'text-emerald-400', label: 'OpenCode' },
 }
 
 export function getBackendIconElement(backend: string, size = 14): ReactNode {
