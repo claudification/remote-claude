@@ -3,7 +3,6 @@ import { CopyMenu } from '../copy-menu'
 import { JsonInspector } from '../json-inspector'
 import { Markdown } from '../markdown'
 import { AgentTranscriptInline } from './agent-views'
-import { makeEncryptedGlyphs } from './encrypted-thinking-glyphs'
 import type { RenderItem, SubagentRef } from './group-view-types'
 import { MemoizedToolLine } from './tool-line'
 import { BashOutput } from './tool-renderers'
@@ -13,15 +12,10 @@ export { ChannelItem } from './channel-renderers'
 export function ThinkingItem({ item }: { item: Extract<RenderItem, { kind: 'thinking' }> }) {
   const isEncrypted = !item.text && typeof item.encryptedBytes === 'number'
   const estBytes = isEncrypted ? Math.round((item.encryptedBytes as number) * 0.75) : 0
-  const sigSeed =
-    isEncrypted && item.rawBlock
-      ? (item.rawBlock as { signature?: string }).signature || String(item.encryptedBytes)
-      : ''
-  const glyphs = isEncrypted ? makeEncryptedGlyphs(sigSeed, estBytes) : ''
 
   return (
     <div className="border-l-2 border-purple-400/40 pl-3 py-1">
-      <div className="text-[10px] text-purple-400/70 uppercase font-bold tracking-wider mb-1 flex items-center gap-1.5">
+      <div className="text-[10px] text-purple-400/70 uppercase font-bold tracking-wider flex items-center gap-1.5">
         <span>thinking</span>
         {isEncrypted && (
           <>
@@ -35,14 +29,7 @@ export function ThinkingItem({ item }: { item: Extract<RenderItem, { kind: 'thin
           </>
         )}
       </div>
-      {isEncrypted ? (
-        <pre
-          className="text-[10px] font-mono text-purple-400/35 leading-[1.15] whitespace-pre overflow-x-auto"
-          title="Anthropic ships Claude 4.7 thinking as a signed/encrypted blob. Plaintext is not available to the client."
-        >
-          {glyphs}
-        </pre>
-      ) : (
+      {!isEncrypted && (
         <div className="text-sm opacity-75">
           <Markdown>{item.text}</Markdown>
         </div>

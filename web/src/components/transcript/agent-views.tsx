@@ -9,7 +9,6 @@ import type { TranscriptContentBlock, TranscriptEntry } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { JsonInspector } from '../json-inspector'
 import { Markdown } from '../markdown'
-import { makeEncryptedGlyphs } from './encrypted-thinking-glyphs'
 import { buildResultMap, type DisplayGroup, groupEntries } from './grouping'
 import { Collapsible } from './shared'
 import { ToolLine } from './tool-line'
@@ -152,15 +151,10 @@ function AgentGroupView({
             if (!showThinking && !expandAll) return null
             const isEncrypted = !item.text && typeof item.encryptedBytes === 'number'
             const estBytes = isEncrypted ? Math.round((item.encryptedBytes as number) * 0.75) : 0
-            const sigSeed =
-              isEncrypted && item.rawBlock
-                ? (item.rawBlock as { signature?: string }).signature || String(item.encryptedBytes)
-                : ''
-            const glyphs = isEncrypted ? makeEncryptedGlyphs(sigSeed, estBytes, 48) : ''
             return (
               // biome-ignore lint/suspicious/noArrayIndexKey: content blocks without stable IDs
               <div key={i} className="border-l-2 border-purple-400/40 pl-2 py-1">
-                <div className="text-[10px] text-purple-400/70 uppercase font-bold tracking-wider mb-1 flex items-center gap-1.5">
+                <div className="text-[10px] text-purple-400/70 uppercase font-bold tracking-wider flex items-center gap-1.5">
                   <span>thinking</span>
                   {isEncrypted && (
                     <>
@@ -176,14 +170,7 @@ function AgentGroupView({
                     </>
                   )}
                 </div>
-                {isEncrypted ? (
-                  <pre
-                    className="text-[10px] font-mono text-purple-400/35 leading-[1.15] whitespace-pre overflow-x-auto"
-                    title="Claude 4.7 ships thinking encrypted. Plaintext unavailable to client."
-                  >
-                    {glyphs}
-                  </pre>
-                ) : (
+                {!isEncrypted && (
                   <div className="text-[11px] opacity-75">
                     <Markdown>{item.text}</Markdown>
                   </div>
