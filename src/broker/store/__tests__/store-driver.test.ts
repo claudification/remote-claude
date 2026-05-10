@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'bun:test'
 import { createMemoryDriver } from '../memory/driver'
 import { createSqliteDriver } from '../sqlite/driver'
 import type { StoreDriver, TranscriptEntryInput } from '../types'
@@ -354,7 +354,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
       it('set overwrites existing value', () => {
         store.kv.set('counter', 1)
         store.kv.set('counter', 2)
-        expect(store.kv.get('counter')).toBe(2)
+        expect(store.kv.get<number>('counter')).toBe(2)
       })
     })
 

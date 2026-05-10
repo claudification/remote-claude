@@ -9,7 +9,7 @@
  */
 
 import type { ServerWebSocket } from 'bun'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'bun:test'
 import { deriveModelName } from '../../shared/models'
 import type { HookEvent, TaskInfo, TranscriptEntry } from '../../shared/protocol'
 import type { ConversationStore } from '../conversation-store'

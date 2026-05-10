@@ -6,7 +6,7 @@
  * and message router -- only the transport layer is mocked.
  *
  * This gives us full coverage of handler logic, state transitions, and
- * broadcast behavior while running under vitest (Node runtime).
+ * broadcast behavior while running under bun:test.
  */
 
 import type { ServerWebSocket } from 'bun'

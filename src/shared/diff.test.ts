@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { applyUnifiedDiff, computeUnifiedDiff, merge3way } from './diff'
 
 describe('computeUnifiedDiff', () => {

@@ -3,7 +3,7 @@
  */
 
 import { Hono } from 'hono'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'bun:test'
 import { setRclaudeSecret } from '../../auth-routes'
 import { type ConversationStore, createConversationStore } from '../../conversation-store'
 import { createMemoryDriver } from '../../store/memory/driver'

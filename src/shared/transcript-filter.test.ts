@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'bun:test'
 import type { TranscriptEntry } from './protocol'
 import { filterDisplayEntries, isDisplayEntry } from './transcript-filter'
 

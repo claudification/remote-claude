@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { FileEditor } from './file-editor'
 
 let testDir: string
@@ -224,7 +224,7 @@ describe('watchFile', () => {
     writeFileSync(join(testDir, 'watch.md'), 'initial')
     await editor.readFile('watch.md')
 
-    const onChange = vi.fn()
+    const onChange = mock()
     editor.watchFile('watch.md', onChange)
 
     // Wait for watcher to be ready

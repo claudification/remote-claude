@@ -10,7 +10,7 @@
  *     insert -- new rows are immediately searchable)
  */
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'bun:test'
 import {
   cleanup,
   connectAgentHost,

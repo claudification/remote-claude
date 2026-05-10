@@ -53,7 +53,7 @@ done
 echo "[staging] Running tests..."
 TEST_EXIT=0
 STAGING_BROKER_URL="localhost:$STAGING_PORT" STAGING_SECRET="$STAGING_SECRET" \
-  bunx vitest run src/broker/__tests__/staging/ 2>&1 || TEST_EXIT=$?
+  bun test src/broker/__tests__/staging/ 2>&1 || TEST_EXIT=$?
 
 # 6. Tear down (unless --keep)
 if [[ "${1:-}" != "--keep" ]]; then
