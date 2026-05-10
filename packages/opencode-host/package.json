@@ -1,0 +1,34 @@
+{
+  "name": "@claudewerk/opencode-host",
+  "version": "0.1.0",
+  "description": "Claudwerk agent host that wraps the OpenCode CLI for multi-provider tool-using conversations",
+  "bin": {
+    "opencode-host": "bin/opencode-host"
+  },
+  "files": [
+    "bin/opencode-host",
+    "bin/opencode-host.map"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/claudification/claudewerk.git",
+    "directory": "packages/opencode-host"
+  },
+  "keywords": [
+    "claudewerk",
+    "opencode",
+    "agent-host",
+    "openrouter",
+    "anthropic",
+    "openai"
+  ],
+  "peerDependencies": {
+    "opencode-ai": ">=1.14.0"
+  },
+  "peerDependenciesMeta": {
+    "opencode-ai": {
+      "optional": true
+    }
+  }
+}
