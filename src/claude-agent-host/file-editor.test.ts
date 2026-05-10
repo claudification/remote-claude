@@ -1,7 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { FileEditor } from './file-editor'
 
 let testDir: string

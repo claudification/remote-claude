@@ -2,8 +2,8 @@
  * Tests for Chat API routes -- connection registry CRUD + test + conversation proxy
  */
 
-import { Hono } from 'hono'
 import { beforeEach, describe, expect, it } from 'bun:test'
+import { Hono } from 'hono'
 import { setRclaudeSecret } from '../../auth-routes'
 import { type ConversationStore, createConversationStore } from '../../conversation-store'
 import { createMemoryDriver } from '../../store/memory/driver'

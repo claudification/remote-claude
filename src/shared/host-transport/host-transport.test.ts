@@ -16,7 +16,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
-import { type AgentHostBoot, AGENT_HOST_PROTOCOL_VERSION, type TranscriptUserEntry } from '../protocol'
+import { AGENT_HOST_PROTOCOL_VERSION, type AgentHostBoot, type TranscriptUserEntry } from '../protocol'
 import { createHostTransport, type HostTransport } from './index'
 
 // ---------------------------------------------------------------------------

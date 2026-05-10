@@ -5,10 +5,10 @@
  */
 
 import { Database } from 'bun:sqlite'
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { createBackup, restoreBackup } from '../backup'
 import { createSqliteDriver } from '../store/sqlite/driver'
 

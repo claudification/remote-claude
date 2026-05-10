@@ -13,10 +13,10 @@
  */
 
 import { Database } from 'bun:sqlite'
+import { describe, expect, it } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'bun:test'
 import { createSchema } from '../sqlite/schema'
 import { createSqliteTranscriptStore } from '../sqlite/transcripts'
 
