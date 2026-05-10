@@ -61,6 +61,7 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
 
   let fileHandle: FileHandle | null = null
   let watcher: ChokidarWatcher | null = null
+  let pollTimer: ReturnType<typeof setInterval> | null = null
   let offset = 0
   let entryCount = 0
   let partial = '' // leftover bytes from incomplete last line
@@ -136,9 +137,24 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
       }
     } finally {
       reading = false
-      if (pendingRead) {
+      // chokidar on macOS occasionally drops `change` events under bursty writes
+      // (only 1 event fires for ~10 rapid appendFile calls). The pendingRead
+      // mechanism above only catches events that arrived DURING a read; it can't
+      // recover bytes that arrived AFTER the read with no follow-up event. So
+      // we re-stat post-read: if more bytes are on disk, drain them now.
+      if (!stopped && fileHandle) {
+        try {
+          const { size } = await stat(filePath)
+          if (size > offset || pendingRead) {
+            pendingRead = false
+            readNewLines(false)
+          }
+        } catch {
+          // stat failure here means the file vanished; the next chokidar event
+          // (if any) will surface the error. No point swallowing twice.
+        }
+      } else if (pendingRead) {
         pendingRead = false
-        readNewLines(false)
       }
     }
   }
@@ -188,10 +204,35 @@ export function createTranscriptWatcher(options: TranscriptWatcherOptions): Tran
       }
     })
     debug?.(`Chokidar dir watcher setup OK: ${dir}`)
+
+    // Safety-net poll for chokidar/macOS event drops. Under bursty writes
+    // (e.g. CC streaming many tool results in tight succession), chokidar
+    // sometimes fires only one `change` event for a series of appends, and
+    // the post-read stat in readNewLines can't catch bytes that arrive after
+    // it. A low-frequency stat closes that gap without the CPU cost of full
+    // polling. 500ms is well below human-noticeable latency for transcript
+    // updates, and the stat is a no-op when offset matches size.
+    pollTimer = setInterval(() => {
+      if (stopped || reading) return
+      stat(filePath)
+        .then(({ size }) => {
+          if (!stopped && size > offset) {
+            debug?.(`poll: size=${size} > offset=${offset}, draining`)
+            readNewLines(false)
+          }
+        })
+        .catch(() => {
+          // file gone -- next chokidar event (or its absence) will surface it
+        })
+    }, 500)
   }
 
   function stop(): void {
     stopped = true
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
     if (watcher) {
       watcher.close()
       watcher = null

@@ -1,7 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import type { TranscriptEntry } from '../shared/protocol'
 import { createTranscriptWatcher } from './transcript-watcher'
 
@@ -174,11 +174,7 @@ describe('TranscriptWatcher', () => {
     expect(emitCount).toBe(1)
   })
 
-  // Skipped: flaky under macOS fs.watch -- events coalesce when appends arrive
-  // faster than the watcher's debounce. Behavior is correct in production
-  // (debounced batch read), the test's "expect exactly 10 emitted" contract
-  // is unrealistic for this watcher design.
-  it.skip('handles multiple rapid appends', async () => {
+  it('handles multiple rapid appends', async () => {
     await writeFile(testFile, '')
 
     const received: TranscriptEntry[] = []
