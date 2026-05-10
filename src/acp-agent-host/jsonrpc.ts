@@ -74,6 +74,11 @@ export interface JsonRpcClientOptions {
   /** Called when an inbound line fails to parse or is structurally invalid.
    *  Useful for tracing and noisy-stream diagnostics. */
   onInvalid?: (line: string, reason: string) => void
+  /** Called for every parsed inbound message and every outbound message
+   *  (request, response, notification). Direction is 'send' for client->agent,
+   *  'recv' for agent->client. Used by the host to write per-conversation
+   *  NDJSON traffic logs without touching this transport-only module. */
+  onTrace?: (dir: 'send' | 'recv', msg: object) => void
 }
 
 export interface PendingCall {
@@ -134,6 +139,7 @@ export class JsonRpcClient {
       }
       this.pending.set(id, pending)
     })
+    this.opts.onTrace?.('send', req)
     this.opts.writer.writeLine(JSON.stringify(req))
     return promise
   }
@@ -141,6 +147,7 @@ export class JsonRpcClient {
   /** Send a notification (fire-and-forget; no response expected). */
   notify(method: string, params?: unknown): void {
     const n: JsonRpcNotification = { jsonrpc: '2.0', method, params }
+    this.opts.onTrace?.('send', n)
     this.opts.writer.writeLine(JSON.stringify(n))
   }
 
@@ -178,6 +185,7 @@ export class JsonRpcClient {
       this.opts.onInvalid?.(trimmed, 'no id+method, no id+result/error, no method-only')
       return
     }
+    this.opts.onTrace?.('recv', parsed as object)
     if (kind === 'response') {
       const res = parsed as unknown as JsonRpcResponse
       if (typeof res.id !== 'number') {
@@ -202,10 +210,12 @@ export class JsonRpcClient {
       const req = parsed as unknown as JsonRpcRequest
       const respond = (result: unknown) => {
         const out: JsonRpcResult = { jsonrpc: '2.0', id: req.id, result }
+        this.opts.onTrace?.('send', out)
         this.opts.writer.writeLine(JSON.stringify(out))
       }
       const respondError = (code: number, message: string, data?: unknown) => {
         const out: JsonRpcErrorResponse = { jsonrpc: '2.0', id: req.id, error: { code, message, ...(data !== undefined ? { data } : {}) } }
+        this.opts.onTrace?.('send', out)
         this.opts.writer.writeLine(JSON.stringify(out))
       }
       try {

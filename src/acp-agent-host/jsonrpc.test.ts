@@ -204,3 +204,48 @@ describe('JsonRpcClient.notify', () => {
     })
   })
 })
+
+describe('JsonRpcClient onTrace', () => {
+  it('fires on every send + recv (request, response, notification, agent-request, agent-response)', () => {
+    const { writer } = mkWriter()
+    const trace: Array<{ dir: 'send' | 'recv'; msg: any }> = []
+    const c = new JsonRpcClient({
+      writer,
+      onRequest: (_req, respond) => respond({ ok: true }),
+      onNotify: () => {},
+      onTrace: (dir, msg) => trace.push({ dir, msg: msg as any }),
+    })
+
+    // outbound: client request
+    void c.call('initialize', { v: 1 })
+    expect(trace).toHaveLength(1)
+    expect(trace[0].dir).toBe('send')
+    expect(trace[0].msg.method).toBe('initialize')
+
+    // inbound: response to that request
+    c.feed(`${JSON.stringify({ jsonrpc: '2.0', id: 1, result: { ok: true } })}\n`)
+    expect(trace).toHaveLength(2)
+    expect(trace[1].dir).toBe('recv')
+    expect((trace[1].msg as any).result).toEqual({ ok: true })
+
+    // inbound: notification
+    c.feed(`${JSON.stringify({ jsonrpc: '2.0', method: 'session/update', params: { x: 1 } })}\n`)
+    expect(trace[2].dir).toBe('recv')
+    expect((trace[2].msg as any).method).toBe('session/update')
+
+    // inbound: agent request -> our response goes out
+    c.feed(`${JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'fs/read_text_file', params: { path: '/x' } })}\n`)
+    // recv (agent request)
+    expect(trace[3].dir).toBe('recv')
+    expect((trace[3].msg as any).method).toBe('fs/read_text_file')
+    // send (our response)
+    expect(trace[4].dir).toBe('send')
+    expect((trace[4].msg as any).id).toBe(7)
+    expect((trace[4].msg as any).result).toEqual({ ok: true })
+
+    // outbound: notification
+    c.notify('session/cancel')
+    expect(trace[5].dir).toBe('send')
+    expect((trace[5].msg as any).method).toBe('session/cancel')
+  })
+})

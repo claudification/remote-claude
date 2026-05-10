@@ -28,7 +28,9 @@ import { checkBunVersion } from '../shared/bun-version'
 checkBunVersion()
 
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { createHostTransport, type HostTransport } from '../shared/host-transport'
 import { brokerMcpUrlFromWs } from '../shared/opencode-config'
 import { cwdToProjectUri } from '../shared/project-uri'
@@ -112,8 +114,36 @@ async function main() {
   const brokerMcpUrl = brokerMcpUrlFromWs(cfg.brokerUrl)
   const mcpWired = !!(brokerMcpUrl && cfg.brokerSecret)
 
+  // Per-conversation NDJSON traffic log -- mirrors the rclaude headless
+  // ~/.rclaude/settings/headless-{conversationId}.ndjsonl convention so
+  // ACP sessions can be inspected the same way Claude sessions are. One
+  // line per JSON-RPC message, in either direction. Path:
+  //   ~/.rclaude/settings/acp-{conversationId}.ndjsonl
+  // Override with ACP_HOST_TRACE_FILE to a custom path; set =0 to disable.
+  let traceFile: string | null = null
+  if (process.env.ACP_HOST_TRACE_FILE !== '0') {
+    traceFile = process.env.ACP_HOST_TRACE_FILE || join(homedir(), '.rclaude', 'settings', `acp-${cfg.conversationId}.ndjsonl`)
+    try {
+      mkdirSync(dirname(traceFile), { recursive: true })
+      appendFileSync(traceFile, JSON.stringify({ t: Date.now(), dir: 'note', msg: { type: 'host_start', conversationId: cfg.conversationId, agent: cfg.recipe.agentName } }) + '\n')
+    } catch (e) {
+      log(`could not open trace file ${traceFile}: ${(e as Error).message}`)
+      traceFile = null
+    }
+  }
+  const traceWrite = traceFile
+    ? (dir: 'send' | 'recv' | 'note', msg: object) => {
+        try {
+          appendFileSync(traceFile!, JSON.stringify({ t: Date.now(), dir, msg }) + '\n')
+        } catch {
+          // Drop trace lines silently if disk fills -- we'd rather lose log
+          // entries than crash the host on a write error.
+        }
+      }
+    : () => {}
+
   log(
-    `starting conv=${cfg.conversationId.slice(0, 8)} agent=${cfg.recipe.agentName} cmd=${cfg.recipe.agentCmd.join(' ')} cwd=${cfg.cwd} broker=${cfg.brokerUrl} tier=${cfg.recipe.toolPermission} mcp=${mcpWired ? 'on' : 'off'}${cfg.resumeSessionId ? ` resume=${cfg.resumeSessionId}` : ''}`,
+    `starting conv=${cfg.conversationId.slice(0, 8)} agent=${cfg.recipe.agentName} cmd=${cfg.recipe.agentCmd.join(' ')} cwd=${cfg.cwd} broker=${cfg.brokerUrl} tier=${cfg.recipe.toolPermission} mcp=${mcpWired ? 'on' : 'off'}${cfg.resumeSessionId ? ` resume=${cfg.resumeSessionId}` : ''}${traceFile ? ` trace=${traceFile}` : ''}`,
   )
 
   // ─── Spawn the agent subprocess ───────────────────────────────────────
@@ -139,7 +169,11 @@ async function main() {
         debug(`ignoring notification: ${notif.method}`)
       }
     },
-    onInvalid: (line, reason) => debug(`invalid inbound: ${reason} (${line.slice(0, 200)})`),
+    onInvalid: (line, reason) => {
+      debug(`invalid inbound: ${reason} (${line.slice(0, 200)})`)
+      traceWrite('note', { invalid: true, reason, line: line.slice(0, 500) })
+    },
+    onTrace: (dir, msg) => traceWrite(dir, msg),
   })
 
   ;(async () => {
@@ -161,7 +195,10 @@ async function main() {
       const { value, done } = await reader.read()
       if (done) break
       const txt = decoder.decode(value, { stream: true })
-      if (txt.trim()) debug(`agent stderr: ${txt.trim().slice(0, 1000)}`)
+      if (txt.trim()) {
+        debug(`agent stderr: ${txt.trim().slice(0, 1000)}`)
+        traceWrite('note', { stderr: txt.trim().slice(0, 4000) })
+      }
     }
   })().catch(() => {})
 
