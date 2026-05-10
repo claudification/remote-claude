@@ -14,6 +14,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { generateConversationName } from '../../shared/conversation-names'
+import { DEFAULT_OPENCODE_TOOL_PERMISSION, normalizeTier } from '../../shared/opencode-config'
 import type {
   Conversation,
   LaunchProgressEvent,
@@ -32,6 +33,7 @@ import type { ConversationBackend, InputResult, SpawnDeps, SpawnResult } from '.
 const META_OPENCODE_SESSION_ID = 'openCodeSessionId'
 const META_BACKEND = 'backend'
 const META_PROVIDER_MODEL = 'openCodeModel'
+const META_TOOL_PERMISSION = 'openCodeToolPermission'
 
 function emitProgress(
   conversationStore: ConversationStore,
@@ -121,6 +123,13 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
   const slug = deriveOpenCodeSlug(req)
   const project = `opencode://${slug}`
 
+  // Resolve the OpenCode tool permission tier:
+  //   request override -> project setting -> safe default.
+  // The opencode:// project URI is what opencode conversations key off; the
+  // dashboard saves the project setting under the same URI.
+  const projSettings = deps.getProjectSettings(project)
+  const toolPermission = normalizeTier(req.toolPermission ?? projSettings?.defaultOpenCodeToolPermission)
+
   const sessionName =
     deriveConversationName(req) ??
     generateConversationName(
@@ -189,6 +198,7 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
           env: req.env || undefined,
           // Pass through OpenCode-specific extras (later: from req.backendExtras).
           openCodeModel: req.openCodeModel ?? req.model,
+          toolPermission,
         }),
       )
     } catch {
@@ -231,6 +241,7 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
   conv.agentHostMeta = {
     [META_BACKEND]: 'opencode',
     [META_PROVIDER_MODEL]: req.openCodeModel ?? req.model,
+    [META_TOOL_PERMISSION]: toolPermission,
   }
   conv.project = project
   conv.title = req.name || sessionName
@@ -268,5 +279,7 @@ export const _internal = {
   META_OPENCODE_SESSION_ID,
   META_BACKEND,
   META_PROVIDER_MODEL,
+  META_TOOL_PERMISSION,
+  DEFAULT_OPENCODE_TOOL_PERMISSION,
   deriveOpenCodeSlug,
 }

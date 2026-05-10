@@ -503,6 +503,7 @@ function spawnOpenCodeHostDirect(opts: {
   sessionDescription?: string
   promptFile?: string
   env?: Record<string, string>
+  toolPermission?: string
 }): { success: boolean; error?: string; pid?: number } {
   const startTime = Date.now()
   launchLog(opts.jobId, 'Spawning opencode-host (direct)', 'info', `${opts.bin} model=${opts.model ?? 'default'}`)
@@ -516,6 +517,7 @@ function spawnOpenCodeHostDirect(opts: {
   if (opts.sessionName) env.CLAUDWERK_CONVERSATION_NAME = opts.sessionName
   if (opts.sessionDescription) env.CLAUDWERK_CONVERSATION_DESCRIPTION = opts.sessionDescription
   if (opts.promptFile) env.RCLAUDE_INITIAL_PROMPT_FILE = opts.promptFile
+  if (opts.toolPermission) env.OPENCODE_TOOL_PERMISSION = opts.toolPermission
   // Provider credentials forwarded transparently from the sentinel's env
   // (OPENROUTER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, etc. -- already
   // present after cleanSentinelEnv since they don't match the strip rules).
@@ -1619,6 +1621,7 @@ function connect(
               sessionDescription: spawnMsg.sessionDescription,
               promptFile,
               env: spawnMsg.env,
+              toolPermission: spawnMsg.toolPermission,
             })
             const ocResp: SpawnResult = {
               type: 'spawn_result',

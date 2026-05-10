@@ -38,8 +38,17 @@ import { checkBunVersion } from '../shared/bun-version'
 checkBunVersion()
 
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createHostTransport, type HostTransport } from '../shared/host-transport'
+import {
+  buildOpenCodeConfig,
+  DEFAULT_OPENCODE_TOOL_PERMISSION,
+  normalizeTier,
+  type OpenCodeToolPermissionTier,
+  shouldSkipPermissions,
+} from '../shared/opencode-config'
 import { cwdToProjectUri } from '../shared/project-uri'
 import {
   AGENT_HOST_PROTOCOL_VERSION,
@@ -67,6 +76,10 @@ interface CliConfig {
   description: string | null
   /** Path to the `opencode` binary; defaults to looking up via PATH. */
   opencodeBin: string
+  /** Tool permission tier (resolved by broker; sentinel sets OPENCODE_TOOL_PERMISSION). */
+  toolPermission: OpenCodeToolPermissionTier
+  /** Path to a generated opencode.json. null when toolPermission='full'. */
+  opencodeConfigPath: string | null
 }
 
 function parseConfig(): CliConfig {
@@ -87,6 +100,9 @@ function parseConfig(): CliConfig {
       log(`Failed to read initial prompt file: ${(err as Error).message}`)
     }
   }
+  const toolPermission = normalizeTier(process.env.OPENCODE_TOOL_PERMISSION ?? DEFAULT_OPENCODE_TOOL_PERMISSION)
+  const opencodeConfigPath = writeOpenCodeConfigIfNeeded(toolPermission, conversationId)
+
   return {
     brokerUrl,
     brokerSecret,
@@ -97,7 +113,26 @@ function parseConfig(): CliConfig {
     title: process.env.CLAUDWERK_CONVERSATION_NAME || null,
     description: process.env.CLAUDWERK_CONVERSATION_DESCRIPTION || null,
     opencodeBin: process.env.OPENCODE_BIN || 'opencode',
+    toolPermission,
+    opencodeConfigPath,
   }
+}
+
+/**
+ * Generate the per-conversation opencode.json (if the tier requires it) and
+ * write it to a temp file outside the user's cwd so we don't pollute the
+ * repo. Returns the absolute path or null if no config is needed (tier=full).
+ */
+function writeOpenCodeConfigIfNeeded(tier: OpenCodeToolPermissionTier, conversationId: string): string | null {
+  const cfg = buildOpenCodeConfig(tier)
+  if (!cfg) return null
+  const dir = join(tmpdir(), 'opencode-host', conversationId)
+  try {
+    mkdirSync(dir, { recursive: true })
+  } catch {}
+  const path = join(dir, 'opencode.json')
+  writeFileSync(path, JSON.stringify(cfg, null, 2), 'utf-8')
+  return path
 }
 
 function buildBoot(cfg: CliConfig): AgentHostBoot {
@@ -134,17 +169,29 @@ async function runOpenCodeTurn(opts: {
   onSessionId: (id: string) => void
 }): Promise<{ exitCode: number }> {
   const { cfg, input, sessionId, onEntries, onSessionId } = opts
-  const args = ['run', '--format', 'json', '--dir', cfg.cwd, '--model', cfg.model, '--dangerously-skip-permissions']
+  const args = ['run', '--format', 'json', '--dir', cfg.cwd, '--model', cfg.model]
+  if (shouldSkipPermissions(cfg.toolPermission)) {
+    args.push('--dangerously-skip-permissions')
+  }
   if (sessionId) args.push('--session', sessionId)
   args.push(input)
 
-  debug(`spawn: ${cfg.opencodeBin} ${args.join(' ')}`)
+  // Per-spawn env: layer OPENCODE_CONFIG (and disable user project config so
+  // the tier is authoritative -- a user's repo opencode.json can't re-enable
+  // bash on a 'safe' tier conversation). 'full' tier sets neither.
+  const turnEnv: Record<string, string | undefined> = { ...process.env }
+  if (cfg.opencodeConfigPath) {
+    turnEnv.OPENCODE_CONFIG = cfg.opencodeConfigPath
+    turnEnv.OPENCODE_DISABLE_PROJECT_CONFIG = 'true'
+  }
+
+  debug(`spawn: ${cfg.opencodeBin} ${args.join(' ')} tier=${cfg.toolPermission}`)
 
   const proc = Bun.spawn([cfg.opencodeBin, ...args], {
     cwd: cfg.cwd,
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...process.env },
+    env: turnEnv,
   })
 
   const decoder = new TextDecoder()
@@ -197,7 +244,9 @@ async function runOpenCodeTurn(opts: {
 
 async function main() {
   const cfg = parseConfig()
-  log(`starting conv=${cfg.conversationId.slice(0, 8)} model=${cfg.model} cwd=${cfg.cwd} broker=${cfg.brokerUrl}`)
+  log(
+    `starting conv=${cfg.conversationId.slice(0, 8)} model=${cfg.model} cwd=${cfg.cwd} broker=${cfg.brokerUrl} tier=${cfg.toolPermission}${cfg.opencodeConfigPath ? ` config=${cfg.opencodeConfigPath}` : ''}`,
+  )
 
   let openCodeSessionId: string | null = null
   let activeTurn: Promise<unknown> | null = null
@@ -283,6 +332,11 @@ async function main() {
   const shutdown = (sig: string) => {
     log(`shutdown: ${sig}`)
     transport.close()
+    if (cfg.opencodeConfigPath) {
+      try {
+        rmSync(join(tmpdir(), 'opencode-host', cfg.conversationId), { recursive: true, force: true })
+      } catch {}
+    }
     setTimeout(() => process.exit(0), 200)
   }
   process.on('SIGINT', () => shutdown('SIGINT'))
