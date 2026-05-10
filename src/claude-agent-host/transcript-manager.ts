@@ -117,7 +117,7 @@ function interceptTodoWrite(ctx: AgentHostContext, entries: TranscriptEntry[]) {
         status: STATUS_MAP[todo.status] || 'pending',
         updatedAt: Date.now(),
       }))
-      const msg: TasksUpdate = { type: 'tasks_update', conversationId: ctx.claudeSessionId, tasks }
+      const msg: TasksUpdate = { type: 'tasks_update', conversationId: ctx.conversationId, tasks }
       ctx.wsClient?.send(msg)
       debug(`TodoWrite intercepted: ${tasks.length} items -> tasks_update`)
     }

@@ -61,7 +61,7 @@ export function readAndSendTasks(ctx: AgentHostContext) {
     const json = JSON.stringify(tasks)
     if (json !== ctx.lastTasksJson) {
       ctx.lastTasksJson = json
-      const msg: TasksUpdate = { type: 'tasks_update', conversationId: ctx.claudeSessionId, tasks }
+      const msg: TasksUpdate = { type: 'tasks_update', conversationId: ctx.conversationId, tasks }
       ctx.wsClient?.send(msg)
       debug(`Tasks updated: ${tasks.length} tasks (dir: ${tasksDir?.split('/').pop()?.slice(0, 8)})`)
       ctx.diag('tasks', `Sent ${tasks.length} tasks`, { dir: tasksDir?.split('/').pop() })
