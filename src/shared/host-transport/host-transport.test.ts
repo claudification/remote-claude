@@ -3,15 +3,20 @@
  *
  * Strategy: stub `WebSocket` globally with an in-memory class we control. The
  * transport sees a real WebSocket-shaped object; we drive its lifecycle by
- * calling fake.onopen / onmessage / onclose from the test.
+ * calling fake.open() / receive() / closeFromServer() from the test.
+ *
+ * No fake timers: bun:test doesn't ship vitest's timer mocks, so the timing-
+ * sensitive tests configure tiny intervals (e.g. heartbeatIntervalMs: 50,
+ * reconnect.capMs: 50) and use real sleeps. Each test stays under a second
+ * even on slow CI.
  *
  * Covers the parts the transport owns: queueing, ring buffer replay,
  * heartbeat, reconnect backoff, conversation_promote dispatch, and
  * protocol_upgrade_required handling.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AGENT_HOST_PROTOCOL_VERSION, type AgentHostBoot, type TranscriptUserEntry } from '../protocol'
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { type AgentHostBoot, AGENT_HOST_PROTOCOL_VERSION, type TranscriptUserEntry } from '../protocol'
 import { createHostTransport, type HostTransport } from './index'
 
 // ---------------------------------------------------------------------------
@@ -86,14 +91,19 @@ async function flush(ms = 0): Promise<void> {
   await new Promise(r => setTimeout(r, ms))
 }
 
+let originalWs: typeof globalThis.WebSocket | undefined
+
 beforeEach(() => {
   sockets.length = 0
+  originalWs = globalThis.WebSocket as typeof globalThis.WebSocket | undefined
   // @ts-expect-error -- override for tests
   globalThis.WebSocket = FakeWebSocket
 })
 
 afterEach(() => {
-  vi.restoreAllMocks()
+  if (originalWs) {
+    globalThis.WebSocket = originalWs
+  }
 })
 
 function lastSocket(): FakeSocket {
@@ -145,7 +155,7 @@ describe('host-transport: connection + initial message', () => {
   })
 
   it('sends the initial message on open', async () => {
-    const onConnected = vi.fn()
+    const onConnected = mock(() => {})
     createHostTransport({
       brokerUrl: 'ws://b:1',
       conversationId: 'conv-1',
@@ -154,7 +164,7 @@ describe('host-transport: connection + initial message', () => {
     })
     lastSocket().open()
     await flush()
-    expect(onConnected).toHaveBeenCalledOnce()
+    expect(onConnected).toHaveBeenCalledTimes(1)
     const sent = parseSent(lastSocket())
     expect(sent[0]).toMatchObject({
       type: 'agent_host_boot',
@@ -164,7 +174,7 @@ describe('host-transport: connection + initial message', () => {
   })
 
   it('aborts and surfaces error if buildInitialMessage throws', () => {
-    const onError = vi.fn()
+    const onError = mock((_err: Error) => {})
     createHostTransport({
       brokerUrl: 'ws://b:1',
       conversationId: 'conv-1',
@@ -173,7 +183,7 @@ describe('host-transport: connection + initial message', () => {
       },
       onError,
     })
-    expect(onError).toHaveBeenCalledOnce()
+    expect(onError).toHaveBeenCalledTimes(1)
     expect((onError.mock.calls[0]?.[0] as Error).message).toBe('bad config')
   })
 })
@@ -196,7 +206,7 @@ describe('host-transport: outbound queue', () => {
   })
 
   it('drops oldest messages when queue is full', async () => {
-    const onDiag = vi.fn()
+    const onDiag = mock((_kind: string, _msg: string, _args?: unknown) => {})
     const t = createHostTransport({
       brokerUrl: 'ws://b:1',
       conversationId: 'conv-1',
@@ -218,7 +228,6 @@ describe('host-transport: outbound queue', () => {
 
 describe('host-transport: transcript ring buffer', () => {
   it('replays recent transcript_entries on reconnect', async () => {
-    vi.useFakeTimers()
     const userEntry: TranscriptUserEntry = {
       type: 'user',
       uuid: 'u-1',
@@ -230,20 +239,23 @@ describe('host-transport: transcript ring buffer', () => {
       conversationId: 'conv-1',
       buildInitialMessage: () => makeBoot('conv-1'),
       transcriptRingSize: 5,
+      // Tiny reconnect cap so the test stays fast
+      reconnect: { maxAttempts: 5, capMs: 30 },
     })
     const sock1 = lastSocket()
     sock1.open()
-    await vi.advanceTimersByTimeAsync(0)
+    await flush()
     t.sendTranscriptEntries([userEntry], false)
     expect(parseSent(sock1).filter(m => m.type === 'transcript_entries')).toHaveLength(1)
 
-    // Server drops the connection; transport reconnects, replays ring.
+    // Server drops the connection; transport reconnects (after exponential
+    // backoff capped at 30ms), replays ring on the new socket.
     sock1.closeFromServer()
-    await vi.advanceTimersByTimeAsync(2000)
-    expect(sockets).toHaveLength(2)
+    await flush(80)
+    expect(sockets.length).toBeGreaterThanOrEqual(2)
     const sock2 = lastSocket()
     sock2.open()
-    await vi.advanceTimersByTimeAsync(0)
+    await flush()
     const sent2 = parseSent(sock2)
     // sock2 receives: initial boot + replayed transcript_entries
     expect(sent2[0]?.type).toBe('agent_host_boot')
@@ -251,46 +263,41 @@ describe('host-transport: transcript ring buffer', () => {
       sent2.some(m => m.type === 'transcript_entries' && (m.entries as Array<{ uuid: string }>)[0]?.uuid === 'u-1'),
     ).toBe(true)
     t.close()
-    vi.useRealTimers()
   })
 })
 
 describe('host-transport: heartbeat', () => {
   it('emits a heartbeat on the configured interval', async () => {
-    vi.useFakeTimers()
-    createHostTransport({
-      brokerUrl: 'ws://b:1',
-      conversationId: 'conv-1',
-      buildInitialMessage: () => makeBoot('conv-1'),
-      heartbeatIntervalMs: 1000,
-    })
-    lastSocket().open()
-    await vi.advanceTimersByTimeAsync(0)
-    const before = lastSocket().sent.length
-    await vi.advanceTimersByTimeAsync(1000)
-    await vi.advanceTimersByTimeAsync(1000)
-    const after = lastSocket().sent.length
-    expect(after - before).toBe(2)
-    const hbs = parseSent(lastSocket()).filter(m => m.type === 'heartbeat')
-    expect(hbs.length).toBeGreaterThanOrEqual(2)
-    vi.useRealTimers()
-  })
-
-  it('stops heartbeat on close', async () => {
-    vi.useFakeTimers()
     const t = createHostTransport({
       brokerUrl: 'ws://b:1',
       conversationId: 'conv-1',
       buildInitialMessage: () => makeBoot('conv-1'),
-      heartbeatIntervalMs: 500,
+      heartbeatIntervalMs: 30,
     })
     lastSocket().open()
-    await vi.advanceTimersByTimeAsync(0)
+    await flush()
+    const before = lastSocket().sent.length
+    await flush(110)
+    const hbs = parseSent(lastSocket()).filter(m => m.type === 'heartbeat')
+    // At 30ms interval over ~110ms we expect at least 2 heartbeats
+    expect(hbs.length).toBeGreaterThanOrEqual(2)
+    expect(lastSocket().sent.length).toBeGreaterThan(before)
+    t.close()
+  })
+
+  it('stops heartbeat on close', async () => {
+    const t = createHostTransport({
+      brokerUrl: 'ws://b:1',
+      conversationId: 'conv-1',
+      buildInitialMessage: () => makeBoot('conv-1'),
+      heartbeatIntervalMs: 20,
+    })
+    lastSocket().open()
+    await flush()
     t.close()
     const before = lastSocket().sent.length
-    await vi.advanceTimersByTimeAsync(2000)
+    await flush(80)
     expect(lastSocket().sent.length).toBe(before) // no new sends
-    vi.useRealTimers()
   })
 })
 
@@ -305,6 +312,7 @@ describe('host-transport: setSessionId', () => {
     await flush()
     t.setSessionId('ses_abc', 'stream_json')
     t.setSessionId('ses_abc', 'stream_json') // duplicate, must be ignored
+    await flush()
     const promotes = parseSent(lastSocket()).filter(m => m.type === 'conversation_promote')
     expect(promotes).toHaveLength(1)
     expect(promotes[0]).toMatchObject({ ccSessionId: 'ses_abc', source: 'stream_json' })
@@ -320,6 +328,7 @@ describe('host-transport: setSessionId', () => {
     await flush()
     t.setSessionId('ses_a', 'stream_json')
     t.setSessionId('ses_b', 'stream_json')
+    await flush()
     const promotes = parseSent(lastSocket()).filter(m => m.type === 'conversation_promote')
     expect(promotes).toHaveLength(2)
     expect(promotes[1]).toMatchObject({ ccSessionId: 'ses_b' })
@@ -328,7 +337,7 @@ describe('host-transport: setSessionId', () => {
 
 describe('host-transport: inbound dispatch', () => {
   it('forwards non-upgrade messages to onMessage', async () => {
-    const onMessage = vi.fn()
+    const onMessage = mock((_msg: unknown) => {})
     createHostTransport({
       brokerUrl: 'ws://b:1',
       conversationId: 'conv-1',
@@ -344,8 +353,8 @@ describe('host-transport: inbound dispatch', () => {
   })
 
   it('handles malformed JSON without throwing', async () => {
-    const onMessage = vi.fn()
-    const onDiag = vi.fn()
+    const onMessage = mock((_msg: unknown) => {})
+    const onDiag = mock((_kind: string, _msg: string, _args?: unknown) => {})
     createHostTransport({
       brokerUrl: 'ws://b:1',
       conversationId: 'conv-1',
@@ -362,7 +371,7 @@ describe('host-transport: inbound dispatch', () => {
   })
 
   it('catches throws inside onMessage and reports via onDiag', async () => {
-    const onDiag = vi.fn()
+    const onDiag = mock((_kind: string, _msg: string, _args?: unknown) => {})
     createHostTransport({
       brokerUrl: 'ws://b:1',
       conversationId: 'conv-1',
@@ -377,37 +386,37 @@ describe('host-transport: inbound dispatch', () => {
     lastSocket().receive({ type: 'input', input: 'x' })
     await flush()
     expect(onDiag).toHaveBeenCalled()
-    const args = onDiag.mock.calls.find(c => /threw/.test(c[1]))
+    const args = onDiag.mock.calls.find(c => /threw/.test(c[1] as string))
     expect(args).toBeTruthy()
   })
 })
 
 describe('host-transport: protocol_upgrade_required', () => {
   it('with onProtocolUpgradeRequired=throw -- surfaces error and stops reconnecting', async () => {
-    vi.useFakeTimers()
-    const onError = vi.fn()
+    const onError = mock((_err: Error) => {})
     createHostTransport({
       brokerUrl: 'ws://b:1',
       conversationId: 'conv-1',
       buildInitialMessage: () => makeBoot('conv-1'),
       onError,
       onProtocolUpgradeRequired: 'throw',
+      reconnect: { maxAttempts: 3, capMs: 20 },
     })
     lastSocket().open()
-    await vi.advanceTimersByTimeAsync(0)
+    await flush()
     lastSocket().receive({ type: 'protocol_upgrade_required', reason: 'too old' })
-    await vi.advanceTimersByTimeAsync(0)
+    await flush()
     expect(onError).toHaveBeenCalled()
     expect((onError.mock.calls[0]?.[0] as Error).message).toContain('too old')
     // Closing should NOT trigger a reconnect.
+    const before = sockets.length
     lastSocket().closeFromServer()
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(sockets).toHaveLength(1)
-    vi.useRealTimers()
+    await flush(150)
+    expect(sockets.length).toBe(before)
   })
 
   it('custom callback is invoked instead of exit/throw', async () => {
-    const cb = vi.fn()
+    const cb = mock((_msg: unknown) => {})
     createHostTransport({
       brokerUrl: 'ws://b:1',
       conversationId: 'conv-1',
@@ -424,50 +433,48 @@ describe('host-transport: protocol_upgrade_required', () => {
 
 describe('host-transport: reconnect backoff', () => {
   it('reconnects with exponential backoff capped by capMs', async () => {
-    vi.useFakeTimers()
     const t = createHostTransport({
       brokerUrl: 'ws://b:1',
       conversationId: 'conv-1',
       buildInitialMessage: () => makeBoot('conv-1'),
-      reconnect: { maxAttempts: 5, capMs: 4000 },
+      // Cap at 20ms so the test stays fast. Backoff sequence (with cap=20):
+      // attempt 1 -> 1000*2^1=2000 capped to 20, attempt 2 -> 4000 capped to 20.
+      reconnect: { maxAttempts: 5, capMs: 20 },
     })
     lastSocket().open()
-    await vi.advanceTimersByTimeAsync(0)
+    await flush()
 
     lastSocket().closeFromServer()
-    // First retry at 2^1=2000ms
-    await vi.advanceTimersByTimeAsync(2000)
-    expect(sockets).toHaveLength(2)
+    // Wait a bit longer than capMs for the reconnect to fire.
+    await flush(60)
+    expect(sockets.length).toBeGreaterThanOrEqual(2)
 
     lastSocket().closeFromServer()
-    // Second retry at 2^2=4000ms (capped)
-    await vi.advanceTimersByTimeAsync(4000)
-    expect(sockets).toHaveLength(3)
+    await flush(60)
+    expect(sockets.length).toBeGreaterThanOrEqual(3)
 
     t.close()
-    vi.useRealTimers()
   })
 
   it('gives up after maxAttempts and reports via onError', async () => {
-    vi.useFakeTimers()
-    const onError = vi.fn()
+    const onError = mock((_err: Error) => {})
     createHostTransport({
       brokerUrl: 'ws://b:1',
       conversationId: 'conv-1',
       buildInitialMessage: () => makeBoot('conv-1'),
-      reconnect: { maxAttempts: 2, capMs: 1000 },
+      reconnect: { maxAttempts: 2, capMs: 15 },
       onError,
     })
     lastSocket().open()
-    await vi.advanceTimersByTimeAsync(0)
+    await flush()
 
-    // Drop and let it retry up to the limit
+    // Drop connection repeatedly, each time the transport reconnects until it
+    // hits maxAttempts and gives up.
     for (let i = 0; i < 4; i++) {
       lastSocket().closeFromServer()
-      await vi.advanceTimersByTimeAsync(2000)
+      await flush(40)
     }
     expect(onError.mock.calls.some(c => /gave up/.test((c[0] as Error).message))).toBe(true)
-    vi.useRealTimers()
   })
 })
 

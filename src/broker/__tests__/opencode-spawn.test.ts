@@ -6,7 +6,7 @@
  * staging integration test, not here.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'bun:test'
 import type { SpawnRequest } from '../../shared/spawn-schema'
 import { _internal as opencodeInternal } from '../backends/opencode'
 import { type ConversationStore, createConversationStore } from '../conversation-store'

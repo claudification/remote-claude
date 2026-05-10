@@ -29,7 +29,7 @@
 import { type ChildProcess, spawn as nodeSpawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
 import {
   cleanup,
   connectDashboard,
