@@ -4,6 +4,7 @@
 if (typeof globalThis.KeyboardEvent === 'undefined') {
   globalThis.KeyboardEvent = class KeyboardEvent extends Event {
     readonly key: string
+    readonly code: string
     readonly ctrlKey: boolean
     readonly metaKey: boolean
     readonly altKey: boolean
@@ -11,6 +12,7 @@ if (typeof globalThis.KeyboardEvent === 'undefined') {
     constructor(type: string, init: KeyboardEventInit = {}) {
       super(type, init)
       this.key = init.key ?? ''
+      this.code = init.code ?? ''
       this.ctrlKey = init.ctrlKey ?? false
       this.metaKey = init.metaKey ?? false
       this.altKey = init.altKey ?? false
@@ -52,7 +54,7 @@ const { pushLayer, popLayer, dispatch, normalizeEvent, layers, resetDoubleTap } 
 
 function key(
   key: string,
-  mods: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean }> = {},
+  mods: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean; code: string }> = {},
 ): KeyboardEvent {
   return new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...mods })
 }
@@ -82,6 +84,16 @@ describe('key-layers', () => {
 
     it('normalizes shift+letter to lowercase', () => {
       expect(normalizeEvent(key('D', { shiftKey: true }))).toBe('shift+d')
+    })
+
+    it('normalizes alt+digit via e.code (macOS Option mutates e.key into ¡/™/etc)', () => {
+      // Simulates macOS Option+1 -- e.key is the special character but e.code is layout-stable.
+      expect(normalizeEvent(key('¡', { altKey: true, code: 'Digit1' }))).toBe('alt+1')
+      expect(normalizeEvent(key('™', { altKey: true, code: 'Digit2' }))).toBe('alt+2')
+      // Numpad path
+      expect(normalizeEvent(key('1', { altKey: true, code: 'Numpad1' }))).toBe('alt+1')
+      // Letters under Option get mutated too (Alt+c -> ç)
+      expect(normalizeEvent(key('ç', { altKey: true, code: 'KeyC' }))).toBe('alt+c')
     })
 
     it('ignores bare modifier presses', () => {

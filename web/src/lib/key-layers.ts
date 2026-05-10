@@ -111,10 +111,23 @@ function normalizeEvent(e: KeyboardEvent): string {
   // Don't include modifier keys themselves as the key part
   const ignoreKeys = new Set(['Control', 'Meta', 'Alt', 'Shift'])
   if (!ignoreKeys.has(e.key)) {
-    // Normalize single letter keys to lowercase so bindings are case-insensitive
-    // (Shift+D produces e.key='D', but we want 'shift+d' to match)
-    // Spacebar normalizes to 'Space' so chord bindings like 'mod+g Space' parse cleanly
-    const key = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toLowerCase() : e.key
+    // On macOS, Option+digit / Option+letter mutates `e.key` into a special
+    // character (Alt+1 -> '¡', Alt+c -> 'ç'). Bindings like `alt+1` would
+    // never match. Fall back to the layout-agnostic `e.code` for Digit*/Key*
+    // when alt is held so `alt+1` and `alt+a` resolve consistently.
+    let key: string
+    if (e.altKey && e.code.startsWith('Digit')) {
+      key = e.code.slice(5) // 'Digit1' -> '1'
+    } else if (e.altKey && e.code.startsWith('Numpad') && /^Numpad\d$/.test(e.code)) {
+      key = e.code.slice(6) // 'Numpad1' -> '1'
+    } else if (e.altKey && e.code.startsWith('Key') && e.code.length === 4) {
+      key = e.code.slice(3).toLowerCase() // 'KeyA' -> 'a'
+    } else {
+      // Normalize single letter keys to lowercase so bindings are case-insensitive
+      // (Shift+D produces e.key='D', but we want 'shift+d' to match)
+      // Spacebar normalizes to 'Space' so chord bindings like 'mod+g Space' parse cleanly
+      key = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toLowerCase() : e.key
+    }
     parts.push(key)
   }
 
