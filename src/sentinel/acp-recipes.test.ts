@@ -20,7 +20,7 @@ describe('listAcpRecipes', () => {
 })
 
 describe('OPENCODE_RECIPE.prepare', () => {
-  it('writes an opencode.json with permission: ask for tier safe', () => {
+  it('writes an opencode.json with permission: ask for tier safe and preserves user config', () => {
     const out = OPENCODE_RECIPE.prepare?.({
       conversationId: 'test-' + Math.random().toString(36).slice(2),
       cwd: '/tmp',
@@ -28,12 +28,15 @@ describe('OPENCODE_RECIPE.prepare', () => {
     })
     expect(out).toBeDefined()
     expect(out!.env.OPENCODE_CONFIG).toMatch(/opencode\.json$/)
-    expect(out!.env.OPENCODE_DISABLE_PROJECT_CONFIG).toBe('true')
+    // We DON'T disable project config -- the user's project-level opencode.json
+    // can still apply on top, consistent with OpenCode's normal layering.
+    expect(out!.env.OPENCODE_DISABLE_PROJECT_CONFIG).toBeUndefined()
     const cfgText = readFileSync(out!.env.OPENCODE_CONFIG, 'utf8')
     const cfg = JSON.parse(cfgText)
     expect(cfg.permission.bash).toBe('ask')
     expect(cfg.permission.edit).toBe('ask')
     expect(cfg.permission.write).toBe('ask')
+    expect(cfg.$schema).toBe('https://opencode.ai/config.json')
     out!.cleanup?.()
     expect(existsSync(out!.env.OPENCODE_CONFIG)).toBe(false)
   })

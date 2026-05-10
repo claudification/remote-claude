@@ -427,6 +427,12 @@ export function flushTurn(state: TranslatorState): TranscriptEntry[] {
   }
 
   const durationMs = Date.now() - state.turnStartedAt
+  // The system turn_duration entry is the agnostic "turn ended" signal.
+  // We deliberately do NOT carry the agent-specific stopReason here -- ACP
+  // emits values like 'end_turn' that look Claude-flavored to dashboards
+  // rendering OpenCode/Codex/Gemini conversations. The stopReason is still
+  // recoverable from session/prompt result.usage if a future feature needs
+  // it; the transcript stays vendor-neutral.
   const sysEntry: TranscriptSystemEntry = {
     type: 'system',
     subtype: 'turn_duration',
@@ -434,7 +440,6 @@ export function flushTurn(state: TranslatorState): TranscriptEntry[] {
     content: formatTurnSummary(state, durationMs),
     uuid: randomUUID(),
     timestamp: new Date().toISOString(),
-    ...(state.stopReason ? { stopReason: state.stopReason } : {}),
   }
   entries.push(sysEntry)
 

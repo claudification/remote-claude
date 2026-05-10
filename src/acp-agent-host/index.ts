@@ -54,7 +54,12 @@ interface InitializeResult {
 }
 interface SessionNewResult {
   sessionId: string
-  configOptions?: Array<{ id: string; type?: string; currentValue?: unknown }>
+  configOptions?: Array<{
+    id: string
+    type?: string
+    currentValue?: unknown
+    options?: Array<{ value: string; name?: string }>
+  }>
 }
 interface SessionPromptResult {
   stopReason?: string
@@ -164,6 +169,10 @@ async function main() {
   let state: TranslatorState = createTranslatorState()
   let acpSessionId: string | null = cfg.resumeSessionId ?? null
   let activeTurn: Promise<unknown> | null = null
+  /** Cached set of model values the agent advertised in session/new's
+   *  configOptions. Used to reject typos before they become silent-fail
+   *  empty turns. Empty set means "no list available" -- skip validation. */
+  let availableModels: Set<string> = new Set()
 
   // ─── Broker transport ─────────────────────────────────────────────────
   let transport: HostTransport
@@ -308,7 +317,25 @@ async function main() {
     if (!acpSessionId) {
       const newRes = await client.call<SessionNewResult>('session/new', { cwd: cfg.cwd, mcpServers }, 30_000)
       acpSessionId = newRes.sessionId
-      log(`session created ${acpSessionId}`)
+      // Cache the available model values so we can validate user-requested
+      // models locally before sending set_config_option. OpenCode silently
+      // accepts bogus values otherwise, leading to empty-turn failures.
+      const modelOpt = newRes.configOptions?.find(o => o.id === 'model')
+      if (modelOpt?.options?.length) {
+        availableModels = new Set(modelOpt.options.map(o => o.value))
+      }
+      // Capture the agent's current/default model so the dashboard can show
+      // "Running on <X>" without having to round-trip through us. Stored on
+      // agentHostMeta -- read on broker restart from SQLite.
+      const currentModel = typeof modelOpt?.currentValue === 'string' ? modelOpt.currentValue : undefined
+      if (currentModel) {
+        transport.send({
+          type: 'update_conversation_metadata',
+          conversationId: cfg.conversationId,
+          metadata: { acpCurrentModel: currentModel, acpAvailableModelCount: availableModels.size },
+        })
+      }
+      log(`session created ${acpSessionId} model=${currentModel ?? '?'} (${availableModels.size} available)`)
       transport.setSessionId(acpSessionId, 'stream_json')
     } else {
       transport.setSessionId(acpSessionId, 'stream_json')
@@ -316,21 +343,92 @@ async function main() {
 
     // Apply the initial model selection if the recipe asks for one.
     if (cfg.recipe.initialModel) {
+      const requested = cfg.recipe.initialModel
+      // Pre-flight: if the agent advertised an explicit model list and the
+      // requested value isn't in it, reject locally with a helpful error
+      // instead of letting OpenCode silently accept and fail mid-turn.
+      if (availableModels.size > 0 && !availableModels.has(requested)) {
+        const sample = [...availableModels].slice(0, 6).join(', ')
+        const msg = `Unknown model "${requested}". Agent advertises ${availableModels.size} models (e.g. ${sample}, ...). Check spelling or run \`opencode auth login\` for the relevant provider.`
+        log(msg)
+        transport.sendTranscriptEntries(
+          [
+            {
+              type: 'system',
+              subtype: 'chat_api_error',
+              level: 'error',
+              content: msg,
+              uuid: randomUUID(),
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          false,
+        )
+        return  // skip set_config_option; conversation continues with agent default
+      }
       try {
-        await client.call('session/set_config_option', {
-          sessionId: acpSessionId,
-          configId: 'model',
-          value: cfg.recipe.initialModel,
-        }, 30_000)
-        log(`model set to ${cfg.recipe.initialModel}`)
+        const setRes = await client.call<{ configOptions?: Array<{ id?: string; currentValue?: unknown }> }>(
+          'session/set_config_option',
+          { sessionId: acpSessionId, configId: 'model', value: requested },
+          30_000,
+        )
+        // OpenCode (and likely other agents) return success even if the model
+        // value is bogus -- the failure surfaces silently as an empty turn.
+        // Inspect the returned configOptions to verify the model actually
+        // applied. If the post-call currentValue doesn't match, treat as a
+        // hard error so the user sees something useful.
+        const updated = setRes?.configOptions?.find(o => o?.id === 'model')
+        if (updated && typeof updated.currentValue === 'string' && updated.currentValue !== requested) {
+          throw new Error(
+            `agent ignored model selection (requested "${requested}", current "${updated.currentValue}") -- check spelling and provider availability`,
+          )
+        }
+        log(`model set to ${requested}`)
       } catch (e) {
-        log(`session/set_config_option failed (${(e as Error).message}); proceeding with agent default`)
+        const msg = `failed to set model "${requested}": ${(e as Error).message}`
+        log(msg)
+        transport.sendTranscriptEntries(
+          [
+            {
+              type: 'system',
+              subtype: 'chat_api_error',
+              level: 'error',
+              content: msg,
+              uuid: randomUUID(),
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          false,
+        )
+        // Don't throw -- let the conversation continue with the agent's
+        // default model. The error is visible in the transcript so the user
+        // can correct + restart.
       }
     }
   }
 
   // ─── Per-turn driver ─────────────────────────────────────────────────
   async function handleTurn(input: string) {
+    // Reject empty / whitespace-only prompts at the host. OpenCode's
+    // `session/prompt` hangs forever on empty input -- we'd rather emit a
+    // clean error to the dashboard than block the conversation.
+    if (input.trim().length === 0) {
+      log('rejecting empty prompt')
+      transport.sendTranscriptEntries(
+        [
+          {
+            type: 'system',
+            subtype: 'chat_api_error',
+            level: 'error',
+            content: 'Empty prompt rejected. Type a message and try again.',
+            uuid: randomUUID(),
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        false,
+      )
+      return
+    }
     await ensureBootstrapped()
     // Echo the user message into the transcript so the dashboard sees it.
     const userEntry: TranscriptUserEntry = {
@@ -376,6 +474,13 @@ async function main() {
   try {
     await ensureBootstrapped()
   } catch (err) {
+    // Common case: terminate_conversation arrived during bootstrap, the
+    // child got SIGTERM, JsonRpcClient rejected the in-flight call. The
+    // shutdown path is already underway -- don't log FATAL.
+    if (terminating) {
+      debug(`bootstrap aborted by terminate (${(err as Error).message})`)
+      return
+    }
     log(`FATAL bootstrap: ${(err as Error).stack ?? err}`)
     transport.close()
     try { proc.kill() } catch {}

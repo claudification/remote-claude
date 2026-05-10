@@ -174,7 +174,10 @@ describe('translator: flushTurn output', () => {
     expect((sys as { subtype?: string }).subtype).toBe('turn_duration')
     expect((sys as { content?: string }).content).toMatch(/100\/5 tok/)
     expect((sys as { content?: string }).content).toMatch(/\$0\.0042/)
-    expect((sys as { stopReason?: string }).stopReason).toBe('end_turn')
+    // stopReason is intentionally NOT carried on the system entry to keep
+    // transcripts vendor-neutral (ACP emits Claude-flavored 'end_turn'
+    // values that would leak into OpenCode/Codex/Gemini conversations).
+    expect((sys as { stopReason?: string }).stopReason).toBeUndefined()
   })
 
   it('emits only turn_duration when no content was produced', () => {
