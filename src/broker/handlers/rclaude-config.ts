@@ -83,13 +83,7 @@ const rclaudeConfigOk: MessageHandler = (ctx, data) => {
 
 export function registerRclaudeConfigHandlers(): void {
   // Dashboard issues read/write requests.
-  registerHandlers(
-    { rclaude_config_get: rclaudeConfigGet, rclaude_config_set: rclaudeConfigSet },
-    DASHBOARD_ROLES,
-  )
+  registerHandlers({ rclaude_config_get: rclaudeConfigGet, rclaude_config_set: rclaudeConfigSet }, DASHBOARD_ROLES)
   // Agent host returns config data / save status.
-  registerHandlers(
-    { rclaude_config_data: rclaudeConfigData, rclaude_config_ok: rclaudeConfigOk },
-    AGENT_HOST_ONLY,
-  )
+  registerHandlers({ rclaude_config_data: rclaudeConfigData, rclaude_config_ok: rclaudeConfigOk }, AGENT_HOST_ONLY)
 }

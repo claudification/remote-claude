@@ -147,4 +147,3 @@ export function registerDialogHandlers(): void {
   // Dashboard -> agent host (user response / keepalive).
   registerHandlers({ dialog_result: dialogResult, dialog_keepalive: dialogKeepalive }, DASHBOARD_ROLES)
 }
-

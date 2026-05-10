@@ -53,10 +53,7 @@ const jsonStreamData: MessageHandler = (ctx, data) => {
 
 export function registerJsonStreamHandlers(): void {
   // Dashboard attaches to / detaches from the JSON stream relay.
-  registerHandlers(
-    { json_stream_attach: jsonStreamAttach, json_stream_detach: jsonStreamDetach },
-    DASHBOARD_ROLES,
-  )
+  registerHandlers({ json_stream_attach: jsonStreamAttach, json_stream_detach: jsonStreamDetach }, DASHBOARD_ROLES)
   // Agent host emits the raw NDJSON data.
   registerHandlers({ json_stream_data: jsonStreamData }, AGENT_HOST_ONLY)
 }
