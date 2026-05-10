@@ -30,6 +30,9 @@ const GlobalSettingsSchema = z.object({
   defaultMaxBudgetUsd: z.number().min(0).default(0), // 0 = no limit
   defaultIncludePartialMessages: z.boolean().default(true),
   defaultEnvText: z.string().max(5000).default(''),
+  // OpenCode model ID. Empty = fall back to per-project setting, then to
+  // OPENCODE_FALLBACK_MODEL ('opencode-go/glm-5.1') in src/shared/opencode-config.ts.
+  defaultOpenCodeModel: z.string().max(200).default(''),
 })
 
 export type GlobalSettings = z.infer<typeof GlobalSettingsSchema>

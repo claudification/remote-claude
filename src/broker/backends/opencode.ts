@@ -18,7 +18,8 @@
 
 import { randomUUID } from 'node:crypto'
 import { generateConversationName } from '../../shared/conversation-names'
-import { DEFAULT_OPENCODE_TOOL_PERMISSION, normalizeTier } from '../../shared/opencode-config'
+import { DEFAULT_OPENCODE_TOOL_PERMISSION, normalizeTier, resolveOpenCodeModel } from '../../shared/opencode-config'
+import { cwdToProjectUri } from '../../shared/project-uri'
 import type {
   Conversation,
   LaunchProgressEvent,
@@ -122,9 +123,24 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
   deps.conversationStore.createJob(jobId, conversationId)
   emitProgress(deps.conversationStore, jobId, 'job_created', 'done', { conversationId })
 
+  // Resolve the effective OpenCode model: explicit > source-project default >
+  // global default > OPENCODE_FALLBACK_MODEL ('opencode-go/glm-5.1'). The
+  // source project URI is the cwd the user spawned from (claude://...) -- the
+  // place to store "when I spawn from project X, default to model Y". Note
+  // this is distinct from the opencode://{slug} project below, which keys the
+  // running OpenCode conversation's tier.
+  const sourceUri = req.cwd.includes('://') ? req.cwd : req.cwd.startsWith('/') ? cwdToProjectUri(req.cwd) : null
+  const sourceProjSettings = sourceUri ? deps.getProjectSettings(sourceUri) : null
+  const globalSettings = deps.getGlobalSettings()
+  const resolvedModel = resolveOpenCodeModel(
+    req.openCodeModel ?? req.model,
+    sourceProjSettings?.defaultOpenCodeModel,
+    globalSettings.defaultOpenCodeModel,
+  )
+
   // Build a project URI of the form `opencode://{slug}` where slug is derived
   // from the model or a config name. Falls back to "default".
-  const slug = deriveOpenCodeSlug(req)
+  const slug = deriveOpenCodeSlug({ ...req, openCodeModel: resolvedModel })
   const project = `opencode://${slug}`
 
   // Resolve the OpenCode tool permission tier:
@@ -167,7 +183,7 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
       mkdir: req.mkdir,
       mode: req.mode || 'fresh',
       headless: true,
-      model: req.openCodeModel ?? req.model,
+      model: resolvedModel,
       bare: false,
       repl: false,
       leaveRunning: req.leaveRunning,
@@ -176,7 +192,7 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
 
     deps.conversationStore.setPendingLaunchConfig(conversationId, {
       headless: true,
-      model: req.openCodeModel ?? req.model,
+      model: resolvedModel,
       bare: false,
       repl: false,
       env: req.env || undefined,
@@ -199,14 +215,14 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
           cwd: req.cwd,
           mkdir: req.mkdir || false,
           mode: req.mode || 'fresh',
-          model: req.openCodeModel ?? req.model,
+          model: resolvedModel,
           sessionName,
           sessionDescription: req.description || undefined,
           prompt: req.prompt || undefined,
           worktree: req.worktree || undefined,
           env: req.env || undefined,
           // Pass through OpenCode-specific extras (later: from req.backendExtras).
-          openCodeModel: req.openCodeModel ?? req.model,
+          openCodeModel: resolvedModel,
           toolPermission,
         }),
       )
@@ -241,7 +257,7 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
     conv = deps.conversationStore.createConversation(
       conversationId,
       project,
-      req.openCodeModel ?? req.model,
+      resolvedModel,
       [],
       ['headless', 'channel'],
     )
@@ -250,7 +266,7 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
   conv.agentHostMeta = {
     [META_BACKEND]: 'opencode',
     acpAgent: 'opencode',
-    [META_PROVIDER_MODEL]: req.openCodeModel ?? req.model,
+    [META_PROVIDER_MODEL]: resolvedModel,
     [META_TOOL_PERMISSION]: toolPermission,
   }
   conv.project = project

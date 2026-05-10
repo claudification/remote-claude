@@ -593,6 +593,7 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
   const [launchMode, setLaunchMode] = useState<string>(current.defaultLaunchMode || 'headless')
   const [effort, setEffort] = useState<string>(current.defaultEffort || 'default')
   const [model, setModel] = useState<string>(current.defaultModel || '')
+  const [openCodeModel, setOpenCodeModel] = useState<string>(current.defaultOpenCodeModel || '')
   const [openCodeToolPermission, setOpenCodeToolPermission] = useState<OpenCodeToolPermission>(
     (current.defaultOpenCodeToolPermission ?? 'safe') as OpenCodeToolPermission,
   )
@@ -612,6 +613,8 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
     setTrustLevel(c.trustLevel || 'default')
     setLaunchMode(c.defaultLaunchMode || 'headless')
     setEffort(c.defaultEffort || 'default')
+    setModel(c.defaultModel || '')
+    setOpenCodeModel(c.defaultOpenCodeModel || '')
     setOpenCodeToolPermission((c.defaultOpenCodeToolPermission ?? 'safe') as OpenCodeToolPermission)
   }, [projectSettings, project])
 
@@ -633,6 +636,7 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
       defaultLaunchMode: launchMode === 'headless' ? undefined : (launchMode as 'pty'),
       defaultEffort: effort === 'default' ? undefined : (effort as 'low' | 'medium' | 'high' | 'xhigh' | 'max'),
       defaultModel: model.trim() || undefined,
+      defaultOpenCodeModel: openCodeModel.trim() || undefined,
       defaultOpenCodeToolPermission: openCodeToolPermission === 'safe' ? undefined : openCodeToolPermission,
     }
     updateProjectSettings(project, settings)
@@ -684,6 +688,7 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
     launchMode !== (current.defaultLaunchMode || 'headless') ||
     effort !== (current.defaultEffort || 'default') ||
     model.trim() !== (current.defaultModel || '') ||
+    openCodeModel.trim() !== (current.defaultOpenCodeModel || '') ||
     openCodeToolPermission !== ((current.defaultOpenCodeToolPermission ?? 'safe') as OpenCodeToolPermission)
 
   const hasAnySettings =
@@ -986,6 +991,22 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
                 onChange={e => setModel(e.target.value)}
                 placeholder="e.g. sonnet, opus"
                 className="w-36 bg-background border border-border px-2 py-1.5 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50"
+                style={{ fontSize: '16px' }}
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="OpenCode model"
+              description="Default for OpenCode spawns from this project (empty = use global, then opencode-go/glm-5.1)"
+            >
+              <input
+                type="text"
+                value={openCodeModel}
+                onChange={e => setOpenCodeModel(e.target.value)}
+                placeholder="opencode-go/glm-5.1"
+                spellCheck={false}
+                autoCapitalize="off"
+                className="w-72 bg-background border border-border px-2 py-1.5 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-foreground/50"
                 style={{ fontSize: '16px' }}
               />
             </SettingRow>

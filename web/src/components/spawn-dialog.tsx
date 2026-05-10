@@ -9,6 +9,8 @@ import type { ChatApiConnection } from '@shared/chat-api-types'
 import type { CcSessionEntry } from '@shared/protocol'
 import { buildSpawnDiagnostics } from '@shared/spawn-diagnostics'
 import { OPENCODE_TOOL_PERMISSION_OPTIONS, type OpenCodeToolPermission, type SpawnRequest } from '@shared/spawn-schema'
+import { ChevronDown, Zap } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   OPENCODE_CURATED_VALUES,
   OPENCODE_CUSTOM_SENTINEL,
@@ -16,8 +18,6 @@ import {
   OPENCODE_GO_MODELS,
   OPENCODE_ZEN_MODELS,
 } from '@/components/spawn-dialog/opencode-models'
-import { ChevronDown, Zap } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
 import { TileToggleRow } from '@/components/ui/tile-toggle-row'
@@ -171,8 +171,16 @@ export function SpawnDialog() {
       setChatConnectionId('')
       setHermesGateways([])
       setHermesGatewayId('')
-      const initialOpenCodeModel = 'openrouter/openai/gpt-oss-20b:free'
+      // Resolve initial OpenCode model: source-project default > global default >
+      // hardcoded fallback. Mirrors src/shared/opencode-config.ts
+      // resolveOpenCodeModel + OPENCODE_FALLBACK_MODEL so the dashboard pre-fill
+      // matches what the broker would have picked anyway.
+      const initialOpenCodeModel =
+        (ps?.defaultOpenCodeModel as string | undefined)?.trim() ||
+        (gs.defaultOpenCodeModel as string | undefined)?.trim() ||
+        'opencode-go/glm-5.1'
       setOpenCodeModel(initialOpenCodeModel)
+      setOpenCodeModelCustom(!OPENCODE_CURATED_VALUES.has(initialOpenCodeModel))
       // Default tier from the saved opencode://{slug} project (the same URI
       // the broker keys on). Falls back to 'safe' so we never silently grant
       // bash/write/edit on a fresh project.
@@ -387,6 +395,30 @@ export function SpawnDialog() {
         if (phase !== 'config') return
         setConfigTab('advanced')
         haptic('tick')
+      },
+      // Backend selector hotkeys (alt+1..4 = Claude/Chat/Hermes/OpenCode).
+      // Modifier-prefixed so they work even when the prompt textarea is focused.
+      'alt+1': () => {
+        if (phase !== 'config') return
+        setBackend('claude')
+        haptic('tap')
+      },
+      'alt+2': () => {
+        if (phase !== 'config') return
+        if (!chatConnections.some(c => c.enabled)) return
+        setBackend('chat-api')
+        haptic('tap')
+      },
+      'alt+3': () => {
+        if (phase !== 'config') return
+        if (!hermesGateways.some(g => g.connected)) return
+        setBackend('hermes')
+        haptic('tap')
+      },
+      'alt+4': () => {
+        if (phase !== 'config') return
+        setBackend('opencode')
+        haptic('tap')
       },
     },
     { id: 'spawn-dialog', enabled: state.open },
@@ -622,8 +654,8 @@ export function SpawnDialog() {
                     ) : null}
                     <div className="text-[10px] font-mono text-muted-foreground/70 pl-0.5 leading-relaxed">
                       <div>
-                        OpenCode Go / Zen require <span className="text-foreground/80">opencode auth login</span> on
-                        the sentinel host (~/.local/share/opencode/auth.json).
+                        OpenCode Go / Zen require <span className="text-foreground/80">opencode auth login</span> on the
+                        sentinel host (~/.local/share/opencode/auth.json).
                       </div>
                       <div>
                         OpenRouter / Anthropic / OpenAI direct-providers use{' '}

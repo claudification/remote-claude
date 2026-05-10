@@ -712,6 +712,25 @@ const SETTINGS: SettingItem[] = [
     ),
   },
   {
+    tab: 'sessions',
+    group: 'Conversations',
+    label: 'Default OpenCode model',
+    description:
+      'Default model for new OpenCode conversations (per-project overrides this; empty = opencode-go/glm-5.1)',
+    keywords: 'opencode model glm gpt qwen claude haiku openrouter zen go',
+    render: ctx => (
+      <input
+        type="text"
+        value={(ctx.server.defaultOpenCodeModel as string) || ''}
+        onChange={e => ctx.setServer('defaultOpenCodeModel', e.target.value)}
+        placeholder="opencode-go/glm-5.1"
+        spellCheck={false}
+        autoCapitalize="off"
+        className="bg-muted border border-border px-2 py-1 text-xs font-mono text-foreground w-72 placeholder:text-muted-foreground/50"
+      />
+    ),
+  },
+  {
     tab: 'display',
     group: 'Display',
     label: 'Show streaming',

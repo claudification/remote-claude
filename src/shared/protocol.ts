@@ -1359,6 +1359,10 @@ export interface ProjectSettings {
    *  - 'full' = all tools including bash + write + edit (uses --dangerously-skip-permissions)
    *  Unset = treated as 'safe' at spawn time. */
   defaultOpenCodeToolPermission?: 'none' | 'safe' | 'full'
+  /** Default OpenCode model for spawns from this project (e.g. 'opencode-go/glm-5.1',
+   *  'openrouter/anthropic/claude-haiku-4.5'). Empty/unset = fall back to global default,
+   *  then to OPENCODE_FALLBACK_MODEL ('opencode-go/glm-5.1'). */
+  defaultOpenCodeModel?: string
   allowPlanMode?: boolean // default: true. Set false to auto-deny EnterPlanMode
   verbs?: string[] // custom spinner verbs (merged with defaults)
   pinned?: boolean

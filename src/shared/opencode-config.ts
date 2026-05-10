@@ -174,3 +174,25 @@ export function normalizeTier(value: unknown): OpenCodeToolPermissionTier {
   if (value === 'none' || value === 'safe' || value === 'full') return value
   return DEFAULT_OPENCODE_TOOL_PERMISSION
 }
+
+/**
+ * Hard-coded fallback OpenCode model ID. Used when neither the spawn request,
+ * the per-project default, nor the global default supplied a model. Picked
+ * because opencode-go/glm-5.1 is the OpenCode Go default and ships with a
+ * working free tier under the user's `opencode auth login` token.
+ */
+export const OPENCODE_FALLBACK_MODEL = 'opencode-go/glm-5.1'
+
+/**
+ * Resolve the effective OpenCode model from explicit > project > global > fallback.
+ * Empty strings are treated as unset. Returns OPENCODE_FALLBACK_MODEL when
+ * everything is empty -- callers that want the empty / "OpenCode default"
+ * sentinel should check before calling this.
+ */
+export function resolveOpenCodeModel(
+  explicit: string | undefined,
+  projectDefault: string | undefined,
+  globalDefault: string | undefined,
+): string {
+  return (explicit?.trim() || projectDefault?.trim() || globalDefault?.trim() || OPENCODE_FALLBACK_MODEL) as string
+}
