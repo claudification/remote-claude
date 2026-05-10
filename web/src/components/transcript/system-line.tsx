@@ -78,6 +78,10 @@ export function SystemLine({ group, time }: { group: DisplayGroup; time: string 
       text = 'Background agents stopped'
       color = 'text-red-400/70'
       break
+    case 'chat_api_error':
+      text = content
+      color = 'text-red-400'
+      break
     case 'permission_retry':
       text = `Allowed: ${(entry.commands as string[])?.join(', ') || content}`
       color = 'text-green-400/70'

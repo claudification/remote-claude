@@ -5,7 +5,12 @@
 
 import { randomUUID } from 'node:crypto'
 import type { ChatApiConnection } from '../../shared/chat-api-types'
-import type { TranscriptAssistantEntry, TranscriptEntry, TranscriptUserEntry } from '../../shared/protocol'
+import type {
+  TranscriptAssistantEntry,
+  TranscriptEntry,
+  TranscriptSystemEntry,
+  TranscriptUserEntry,
+} from '../../shared/protocol'
 import type { ConversationStore } from '../conversation-store'
 import type { KVStore } from '../store/types'
 import type { BackendDeps, ConversationBackend, InputResult } from './types'
@@ -27,11 +32,20 @@ export const chatApiBackend: ConversationBackend = {
     if (!conv) return { ok: false, error: 'Conversation not found' }
 
     const chatConnectionId = conv.agentHostMeta?.chatConnectionId as string | undefined
-    if (!chatConnectionId) return { ok: false, error: 'Not a Chat API conversation' }
+    if (!chatConnectionId) {
+      emitErrorEntry(conversationId, 'Not a Chat API conversation', deps)
+      return { ok: false, error: 'Not a Chat API conversation' }
+    }
 
     const connection = getChatApiConnection(kv, chatConnectionId)
-    if (!connection) return { ok: false, error: 'Chat API connection not found' }
-    if (!connection.enabled) return { ok: false, error: 'Chat API connection is disabled' }
+    if (!connection) {
+      emitErrorEntry(conversationId, 'Chat API connection not found -- was it deleted?', deps)
+      return { ok: false, error: 'Chat API connection not found' }
+    }
+    if (!connection.enabled) {
+      emitErrorEntry(conversationId, `Connection "${connection.name}" is disabled`, deps)
+      return { ok: false, error: 'Chat API connection is disabled' }
+    }
 
     const userEntry: TranscriptUserEntry = {
       type: 'user',
@@ -71,9 +85,11 @@ export const chatApiBackend: ConversationBackend = {
 
       if (!resp.ok) {
         const errText = await resp.text()
+        const error = `${connection.name}: HTTP ${resp.status} -- ${errText.slice(0, 200)}`
         conv.status = 'idle'
         conversationStore.broadcastConversationUpdate(conversationId)
-        return { ok: false, error: `Chat API error: ${resp.status} ${errText}` }
+        emitErrorEntry(conversationId, error, deps)
+        return { ok: false, error }
       }
 
       const broadcast = deps.broadcastScoped
@@ -105,11 +121,31 @@ export const chatApiBackend: ConversationBackend = {
 
       return { ok: true }
     } catch (err) {
+      const error = `${connection.name}: ${err instanceof Error ? err.message : String(err)}`
       conv.status = 'idle'
       conversationStore.broadcastConversationUpdate(conversationId)
-      return { ok: false, error: `Chat API request failed: ${err instanceof Error ? err.message : String(err)}` }
+      emitErrorEntry(conversationId, error, deps)
+      return { ok: false, error }
     }
   },
+}
+
+function emitErrorEntry(conversationId: string, error: string, deps: BackendDeps): void {
+  const entry: TranscriptSystemEntry = {
+    type: 'system',
+    uuid: randomUUID(),
+    timestamp: new Date().toISOString(),
+    subtype: 'chat_api_error',
+    content: error,
+    level: 'error',
+  }
+  deps.conversationStore.addTranscriptEntries(conversationId, [entry], false)
+  deps.broadcastToChannel?.('conversation:transcript', conversationId, {
+    type: 'transcript_entries',
+    conversationId,
+    entries: [entry],
+    isInitial: false,
+  })
 }
 
 // --- Helpers ------------------------------------------------------------------
