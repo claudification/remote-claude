@@ -431,16 +431,15 @@ function AskQuestionCard({
     <div
       className={cn(
         'flex flex-col gap-3 px-5 py-4 rounded-lg border-2 font-mono',
-        'bg-emerald-950/80 border-emerald-400/70 shadow-xl shadow-emerald-500/20',
-        'ring-1 ring-emerald-400/20 ring-offset-1 ring-offset-transparent',
+        'bg-[#0a1a14] border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.15),0_0_40px_rgba(16,185,129,0.05)]',
       )}
     >
       <div className="flex items-center gap-2">
-        <span className="font-bold text-emerald-300 text-sm tracking-wider">QUESTION</span>
+        <span className="font-bold text-cyan-300 text-sm tracking-wider">QUESTION</span>
         <span
           className={cn(
             'text-xs tabular-nums ml-auto',
-            isExpiring ? 'text-red-400 font-bold animate-pulse' : 'text-emerald-400/70',
+            isExpiring ? 'text-red-400 font-bold animate-pulse' : 'text-cyan-500/70',
           )}
         >
           {timeLeft}s
@@ -449,10 +448,10 @@ function AskQuestionCard({
       {request.questions.map(q => (
         <div key={q.question} className="space-y-2.5">
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 bg-emerald-400/25 text-emerald-200 text-xs font-bold uppercase rounded">
+            <span className="px-2.5 py-1 bg-teal-500/20 text-teal-200 text-xs font-bold uppercase rounded border border-teal-500/30">
               {q.header}
             </span>
-            {q.multiSelect && <span className="text-[10px] text-emerald-400/70">(select multiple)</span>}
+            {q.multiSelect && <span className="text-[10px] text-teal-400/70">(select multiple)</span>}
           </div>
           <div className="text-foreground text-sm leading-relaxed font-medium">{q.question}</div>
           <div className="space-y-2">
@@ -466,8 +465,8 @@ function AskQuestionCard({
                   className={cn(
                     'w-full text-left px-3.5 py-2.5 border rounded-md transition-all cursor-pointer',
                     isSelected
-                      ? 'border-emerald-400 bg-emerald-400/20 text-foreground shadow-sm shadow-emerald-500/20'
-                      : 'border-emerald-800/60 hover:border-emerald-400/60 hover:bg-emerald-400/10 text-foreground/80',
+                      ? 'border-emerald-300 bg-emerald-400/25 text-foreground shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                      : 'border-emerald-700/50 hover:border-emerald-400/70 hover:bg-emerald-400/10 text-foreground/80',
                   )}
                 >
                   <div className="flex items-center gap-2.5">
@@ -492,7 +491,7 @@ function AskQuestionCard({
             placeholder="Other (type your answer)"
             value={notes[q.question] || ''}
             onChange={e => setNotes(prev => ({ ...prev, [q.question]: e.target.value }))}
-            className="w-full px-3 py-2 text-xs bg-emerald-950/50 border border-emerald-800/40 rounded-md text-foreground placeholder:text-emerald-600/50 focus:outline-none focus:border-emerald-400/60"
+            className="w-full px-3 py-2 text-xs bg-background/40 border border-emerald-800/30 rounded-md text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-emerald-400/60"
           />
         </div>
       ))}
@@ -504,7 +503,7 @@ function AskQuestionCard({
           className={cn(
             'px-6 py-2.5 font-bold text-sm rounded-md border-2 transition-all',
             allAnswered
-              ? 'bg-emerald-500 text-emerald-950 border-emerald-400 hover:bg-emerald-400 shadow-md shadow-emerald-500/30 cursor-pointer'
+              ? 'bg-emerald-400 text-emerald-950 border-emerald-300 hover:bg-emerald-300 shadow-[0_0_16px_rgba(16,185,129,0.4)] cursor-pointer'
               : 'bg-muted/20 text-muted-foreground border-border/30 cursor-not-allowed',
           )}
         >
