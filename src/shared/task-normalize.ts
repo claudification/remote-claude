@@ -1,6 +1,11 @@
-import type { TodoTaskStatus } from '../shared/protocol'
-import { debug } from './debug'
+import type { TodoTaskStatus } from './protocol'
 
+/**
+ * Map free-text todo status values from any agent host (CC TodoWrite, opencode
+ * NDJSON, ACP) to the strict `TodoTaskStatus` enum the broker accepts. Unknown
+ * values coerce to 'pending' so the wire boundary is the only place statuses
+ * are normalized.
+ */
 const TODO_STATUS_ALIASES: Record<string, TodoTaskStatus> = {
   pending: 'pending',
   open: 'pending',
@@ -26,6 +31,5 @@ export function normalizeTodoStatus(raw: unknown): TodoTaskStatus {
   const key = raw.trim().toLowerCase()
   const mapped = TODO_STATUS_ALIASES[key]
   if (mapped) return mapped
-  debug(`unknown todo status "${raw}", coercing to pending`)
   return 'pending'
 }
