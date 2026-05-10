@@ -9,6 +9,13 @@ import type { ChatApiConnection } from '@shared/chat-api-types'
 import type { CcSessionEntry } from '@shared/protocol'
 import { buildSpawnDiagnostics } from '@shared/spawn-diagnostics'
 import { OPENCODE_TOOL_PERMISSION_OPTIONS, type OpenCodeToolPermission, type SpawnRequest } from '@shared/spawn-schema'
+import {
+  OPENCODE_CURATED_VALUES,
+  OPENCODE_CUSTOM_SENTINEL,
+  OPENCODE_DEFAULT_SENTINEL,
+  OPENCODE_GO_MODELS,
+  OPENCODE_ZEN_MODELS,
+} from '@/components/spawn-dialog/opencode-models'
 import { ChevronDown, Zap } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -99,9 +106,14 @@ export function SpawnDialog() {
   const [hermesGateways, setHermesGateways] = useState<HermesGateway[]>([])
   const [hermesGatewayId, setHermesGatewayId] = useState('')
   // OpenCode-specific: model identifier in the OpenCode provider/model format
-  // (e.g. "openrouter/anthropic/claude-haiku-4.5"). Free-text because OpenCode
-  // supports 75+ providers and we don't want a static dropdown that goes stale.
-  const [openCodeModel, setOpenCodeModel] = useState('openrouter/openai/gpt-oss-20b:free')
+  // (e.g. "openrouter/anthropic/claude-haiku-4.5"). Optional -- empty string
+  // sends `undefined` to the broker and OpenCode uses its own configured
+  // default. Common picks are exposed via a dropdown (OpenCode Go + Zen);
+  // power users can pick "Custom..." to type any of OpenCode's 200+ models.
+  const [openCodeModel, setOpenCodeModel] = useState('')
+  // Tracks whether the user picked "Custom..." in the model dropdown. When
+  // true, the free-text input replaces the dropdown.
+  const [openCodeModelCustom, setOpenCodeModelCustom] = useState(false)
   // OpenCode tool permission tier. Defaults to 'safe' (read-only); project
   // settings can override this default per-project. The dropdown lives in the
   // OpenCode tab next to the model field.
@@ -553,20 +565,72 @@ export function SpawnDialog() {
                 <div className="space-y-3 px-1.5 py-1">
                   <div className="space-y-2">
                     <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
-                      Model (provider/model)
+                      Model (optional)
                     </div>
-                    <input
-                      type="text"
-                      value={openCodeModel}
-                      onChange={e => setOpenCodeModel(e.target.value)}
-                      placeholder="openrouter/anthropic/claude-haiku-4.5"
-                      spellCheck={false}
-                      autoCapitalize="off"
+                    <select
+                      value={
+                        openCodeModelCustom
+                          ? OPENCODE_CUSTOM_SENTINEL
+                          : openCodeModel === ''
+                            ? OPENCODE_DEFAULT_SENTINEL
+                            : OPENCODE_CURATED_VALUES.has(openCodeModel)
+                              ? openCodeModel
+                              : OPENCODE_CUSTOM_SENTINEL
+                      }
+                      onChange={e => {
+                        const v = e.target.value
+                        if (v === OPENCODE_DEFAULT_SENTINEL) {
+                          setOpenCodeModel('')
+                          setOpenCodeModelCustom(false)
+                        } else if (v === OPENCODE_CUSTOM_SENTINEL) {
+                          // Switch to free-text -- preserve any non-curated value already typed.
+                          setOpenCodeModelCustom(true)
+                        } else {
+                          setOpenCodeModel(v)
+                          setOpenCodeModelCustom(false)
+                        }
+                      }}
                       className="w-full bg-surface-inset border border-border rounded px-2 py-1.5 text-[11px] font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    />
-                    <div className="text-[10px] font-mono text-muted-foreground/70 pl-0.5">
-                      OpenCode supports 75+ providers. Set the matching API key on the sentinel host (e.g.{' '}
-                      <span className="text-foreground/80">OPENROUTER_API_KEY</span>).
+                    >
+                      <option value={OPENCODE_DEFAULT_SENTINEL}>(OpenCode default)</option>
+                      <optgroup label="OpenCode Go">
+                        {OPENCODE_GO_MODELS.map(m => (
+                          <option key={m.value} value={m.value}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="OpenCode Zen">
+                        {OPENCODE_ZEN_MODELS.map(m => (
+                          <option key={m.value} value={m.value}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <option value={OPENCODE_CUSTOM_SENTINEL}>Custom...</option>
+                    </select>
+                    {openCodeModelCustom ? (
+                      <input
+                        type="text"
+                        value={openCodeModel}
+                        onChange={e => setOpenCodeModel(e.target.value)}
+                        placeholder="openrouter/anthropic/claude-haiku-4.5"
+                        spellCheck={false}
+                        autoCapitalize="off"
+                        className="w-full bg-surface-inset border border-border rounded px-2 py-1.5 text-[11px] font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                    ) : null}
+                    <div className="text-[10px] font-mono text-muted-foreground/70 pl-0.5 leading-relaxed">
+                      <div>
+                        OpenCode Go / Zen require <span className="text-foreground/80">opencode auth login</span> on
+                        the sentinel host (~/.local/share/opencode/auth.json).
+                      </div>
+                      <div>
+                        OpenRouter / Anthropic / OpenAI direct-providers use{' '}
+                        <span className="text-foreground/80">OPENROUTER_API_KEY</span> /{' '}
+                        <span className="text-foreground/80">ANTHROPIC_API_KEY</span> /{' '}
+                        <span className="text-foreground/80">OPENAI_API_KEY</span> in the sentinel env.
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-2">
