@@ -149,14 +149,13 @@ const channelListSessions: MessageHandler = (ctx, data) => {
   const isBenevolent = ctx.callerSettings?.trustLevel === 'benevolent'
   const all = Array.from(ctx.conversations.getAllConversations())
 
-  // Filter by status and exclude self
+  // Filter by status (include self, annotated later)
   const filtered = all
     .filter(s => {
       if (status === 'all') return true
       const isLive = ctx.conversations.getActiveConversationCount(s.id) > 0
       return status === 'live' ? isLive : !isLive
     })
-    .filter(s => s.id !== callerSession)
     .filter(s => {
       // Hide ad-hoc conversations unless they have an established link with the caller
       const isAdHoc = s.capabilities?.includes('ad-hoc')
@@ -198,18 +197,28 @@ const channelListSessions: MessageHandler = (ctx, data) => {
     const projGroup = projectGroups.get(s.project) || [s]
     const localId = computeLocalId(s, projectSlug, projGroup)
 
+    const isSelf = s.id === callerSession
+
     return {
       id: localId, // stable local address (use for send_message, etc.)
       project: projectSlug, // project-level grouping ID
       conversation_id: s.id,
       name: sessionName,
       projectUri: s.project,
-      cwd: showFull ? parseProjectUri(s.project).path : shortProject, // backward compat for MCP consumers
+      cwd: showFull || isSelf ? parseProjectUri(s.project).path : shortProject, // backward compat for MCP consumers
       status: (isLive ? 'live' : 'inactive') as 'live' | 'inactive',
       capabilities: s.capabilities,
+      ...(isSelf
+        ? {
+            self: true,
+            model: deriveModelName(s.model, s.configuredModel),
+            permissionMode: s.permissionMode,
+            effortLevel: s.effortLevel,
+          }
+        : {}),
       ...(projSettings?.label && projSettings.label !== sessionName ? { label: projSettings.label } : {}),
       ...(s.description ? { description: s.description } : {}),
-      link: isLinked ? 'connected' : linkStatus === 'blocked' ? 'blocked' : undefined,
+      link: isSelf ? undefined : isLinked ? 'connected' : linkStatus === 'blocked' ? 'blocked' : undefined,
       title: s.title,
       summary: s.summary,
       ...(queueSize > 0 ? { queued: queueSize } : {}),

@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react'
 import { BannerButton, BannerStack, ConversationBanner } from '@/components/ui/conversation-banner'
 import { useConversationsStore } from '@/hooks/use-conversations'
-import { projectPath } from '@/lib/types'
+import { canTerminal, projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -365,6 +365,10 @@ function AskQuestionCard({
   const [selections, setSelections] = useState<Record<string, Set<string>>>({})
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [elapsed, setElapsed] = useState(0)
+  const hasTty = useConversationsStore(s => {
+    const sess = s.sessionsById[request.conversationId]
+    return sess ? canTerminal(sess) : false
+  })
 
   // Countdown timer
   useEffect(() => {
@@ -422,7 +426,7 @@ function AskQuestionCard({
 
   return (
     <ConversationBanner
-      accent="violet"
+      accent="amber"
       label="QUESTION"
       meta={
         <span className={cn('tabular-nums', isExpiring && 'text-red-400 font-bold animate-pulse')}>{timeLeft}s</span>
@@ -431,20 +435,22 @@ function AskQuestionCard({
       actions={
         <>
           <BannerButton
-            accent="violet"
+            accent="amber"
             label="SUBMIT"
             onClick={handleSubmit}
             disabled={!allAnswered}
             className="px-4 py-1.5"
           />
-          <BannerButton accent="muted" label="SKIP TO TERMINAL" onClick={handleSkip} className="px-3 py-1.5" />
+          {hasTty && (
+            <BannerButton accent="muted" label="SKIP TO TERMINAL" onClick={handleSkip} className="px-3 py-1.5" />
+          )}
         </>
       }
     >
       {request.questions.map(q => (
         <div key={q.question} className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <span className="px-1.5 py-0.5 bg-violet-500/20 text-violet-400 text-[10px] font-bold uppercase">
+            <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-bold uppercase">
               {q.header}
             </span>
             {q.multiSelect && <span className="text-[9px] text-muted-foreground">(select multiple)</span>}
@@ -461,8 +467,8 @@ function AskQuestionCard({
                   className={cn(
                     'w-full text-left px-2.5 py-1.5 border rounded transition-all',
                     isSelected
-                      ? 'border-violet-400/70 bg-violet-500/25 text-violet-200'
-                      : 'border-border hover:border-violet-400/50 hover:bg-violet-500/10 text-foreground/90',
+                      ? 'border-amber-400/70 bg-amber-500/20 text-amber-100'
+                      : 'border-border hover:border-amber-400/50 hover:bg-amber-500/10 text-foreground/90',
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -470,7 +476,7 @@ function AskQuestionCard({
                       className={cn(
                         'shrink-0 w-3.5 h-3.5 border flex items-center justify-center text-[9px]',
                         q.multiSelect ? 'rounded-sm' : 'rounded-full',
-                        isSelected ? 'border-violet-400 bg-violet-500/40' : 'border-muted-foreground/50',
+                        isSelected ? 'border-amber-400 bg-amber-500/40' : 'border-muted-foreground/50',
                       )}
                     >
                       {isSelected && (q.multiSelect ? '\u2713' : '\u25CF')}
@@ -482,13 +488,12 @@ function AskQuestionCard({
               )
             })}
           </div>
-          {/* Optional notes field */}
           <input
             type="text"
             placeholder="Add a note (optional)"
             value={notes[q.question] || ''}
             onChange={e => setNotes(prev => ({ ...prev, [q.question]: e.target.value }))}
-            className="w-full px-2 py-1 text-[10px] bg-muted/30 border border-border/30 rounded text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-violet-500/50"
+            className="w-full px-2 py-1 text-[10px] bg-muted/30 border border-border/30 rounded text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-amber-500/50"
           />
         </div>
       ))}

@@ -71,7 +71,7 @@ describe('inter-session messaging', () => {
       expect(found?.id).toBeTruthy()
     })
 
-    it('does not include self', async () => {
+    it('includes self with self: true annotation', async () => {
       const sessionA = testId('sess-a')
       const convA = testId('conv-a')
 
@@ -87,9 +87,10 @@ describe('inter-session messaging', () => {
       const result = agentA.messagesOfType('channel_conversations_list')
       expect(result.length).toBe(1)
 
-      const sessions = result[0].conversations as Array<{ id: string }>
-      const self = sessions.find(s => s.id?.includes(sessionA))
-      expect(self).toBeUndefined()
+      const sessions = result[0].conversations as Array<{ id: string; conversation_id: string; self?: boolean }>
+      const selfEntry = sessions.find(s => s.conversation_id === convA)
+      expect(selfEntry).toBeDefined()
+      expect(selfEntry?.self).toBe(true)
     })
   })
 
