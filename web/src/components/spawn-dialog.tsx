@@ -68,10 +68,14 @@ export function SpawnDialog() {
   const [configTab, setConfigTab] = useState<'basic' | 'advanced'>('basic')
   const [resumeId, setResumeId] = useState('')
   const [envText, setEnvText] = useState('')
-  const [backend, setBackend] = useState<'claude' | 'chat-api' | 'hermes'>('claude')
+  const [backend, setBackend] = useState<'claude' | 'chat-api' | 'hermes' | 'opencode'>('claude')
   const [chatConnectionId, setChatConnectionId] = useState('')
   const [chatConnections, setChatConnections] = useState<ChatApiConnection[]>([])
   const [hermesAvailable, setHermesAvailable] = useState(false)
+  // OpenCode-specific: model identifier in the OpenCode provider/model format
+  // (e.g. "openrouter/anthropic/claude-haiku-4.5"). Free-text because OpenCode
+  // supports 75+ providers and we don't want a static dropdown that goes stale.
+  const [openCodeModel, setOpenCodeModel] = useState('openrouter/openai/gpt-oss-20b:free')
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [savedFeedback, setSavedFeedback] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -123,6 +127,7 @@ export function SpawnDialog() {
       )
       setBackend('claude')
       setChatConnectionId('')
+      setOpenCodeModel('openrouter/openai/gpt-oss-20b:free')
       setConfigTab('basic')
       setSavedFeedback(null)
       setPhase('config')
@@ -252,6 +257,7 @@ export function SpawnDialog() {
       chatConnectionId: backend === 'chat-api' ? chatConnectionId || undefined : undefined,
       chatConnectionName:
         backend === 'chat-api' ? chatConnections.find(a => a.id === chatConnectionId)?.name : undefined,
+      openCodeModel: backend === 'opencode' ? openCodeModel.trim() || undefined : undefined,
     }
     const result = await sendSpawnRequest(spawnReq)
     if (result.ok) {
@@ -290,6 +296,7 @@ export function SpawnDialog() {
     backend,
     chatConnectionId,
     chatConnections,
+    openCodeModel,
     progress,
     description.trim,
   ])
@@ -472,43 +479,76 @@ export function SpawnDialog() {
           {/* ── Config Phase ── */}
           {phase === 'config' && (
             <>
-              {/* Backend selector (Claude / Chat / Hermes) */}
-              {(chatConnections.length > 0 || hermesAvailable) && (
-                <div className="flex gap-1.5 shrink-0">
+              {/* Backend selector (Claude / Chat / Hermes / OpenCode) */}
+              <div className="flex gap-1.5 shrink-0">
+                <TogglePill
+                  active={backend === 'claude'}
+                  onClick={() => {
+                    setBackend('claude')
+                    haptic('tap')
+                  }}
+                  label="Claude"
+                />
+                {chatConnections.length > 0 && (
                   <TogglePill
-                    active={backend === 'claude'}
+                    active={backend === 'chat-api'}
                     onClick={() => {
-                      setBackend('claude')
+                      setBackend('chat-api')
                       haptic('tap')
                     }}
-                    label="Claude"
+                    label="Chat"
                   />
-                  {chatConnections.length > 0 && (
-                    <TogglePill
-                      active={backend === 'chat-api'}
-                      onClick={() => {
-                        setBackend('chat-api')
-                        haptic('tap')
-                      }}
-                      label="Chat"
-                    />
-                  )}
-                  {hermesAvailable && (
-                    <TogglePill
-                      active={backend === 'hermes'}
-                      onClick={() => {
-                        setBackend('hermes')
-                        haptic('tap')
-                      }}
-                      label="Hermes"
-                    />
-                  )}
-                </div>
-              )}
+                )}
+                {hermesAvailable && (
+                  <TogglePill
+                    active={backend === 'hermes'}
+                    onClick={() => {
+                      setBackend('hermes')
+                      haptic('tap')
+                    }}
+                    label="Hermes"
+                  />
+                )}
+                <TogglePill
+                  active={backend === 'opencode'}
+                  onClick={() => {
+                    setBackend('opencode')
+                    haptic('tap')
+                  }}
+                  label="OpenCode"
+                />
+              </div>
 
               {/* -- Hermes config -- */}
               {backend === 'hermes' ? (
                 <div className="space-y-3 px-1.5 py-1">
+                  <LaunchConfigFields
+                    value={fieldsValue}
+                    onChange={applyFieldsPatch}
+                    show={{ name: true, description: true }}
+                  />
+                </div>
+              ) : /* -- OpenCode config -- */
+              backend === 'opencode' ? (
+                <div className="space-y-3 px-1.5 py-1">
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
+                      Model (provider/model)
+                    </div>
+                    <input
+                      type="text"
+                      value={openCodeModel}
+                      onChange={e => setOpenCodeModel(e.target.value)}
+                      placeholder="openrouter/anthropic/claude-haiku-4.5"
+                      spellCheck={false}
+                      autoCapitalize="off"
+                      className="w-full bg-surface-inset border border-border rounded px-2 py-1.5 text-[11px] font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    />
+                    <div className="text-[10px] font-mono text-muted-foreground/70 pl-0.5">
+                      OpenCode supports 75+ providers. Set the matching API key on the sentinel host (e.g.{' '}
+                      <span className="text-foreground/80">OPENROUTER_API_KEY</span>).
+                    </div>
+                  </div>
                   <LaunchConfigFields
                     value={fieldsValue}
                     onChange={applyFieldsPatch}
