@@ -6,7 +6,7 @@
  */
 
 import type { MessageHandler } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { AGENT_HOST_ONLY, DASHBOARD_ROLES, registerHandlers } from '../message-router'
 
 // Agent Host -> dashboard: file response (also handles server-side requests like keyterms)
 const fileResponse: MessageHandler = (ctx, data) => {
@@ -70,42 +70,46 @@ const fileRequest: MessageHandler = (ctx, data) => {
 }
 
 export function registerFileHandlers(): void {
-  registerHandlers({
-    file_response: fileResponse,
-    // Dashboard -> agent host requests (all share the same handler)
-    file_list_request: fileEditorRequest,
-    file_content_request: fileEditorRequest,
-    file_save: fileEditorRequest,
-    file_watch: fileEditorRequest,
-    file_unwatch: fileEditorRequest,
-    file_history_request: fileEditorRequest,
-    file_restore: fileEditorRequest,
-    project_quick_add: fileEditorRequest,
-    // Project board (dashboard -> agent host)
-    project_list: fileEditorRequest,
-    project_create: fileEditorRequest,
-    project_move: fileEditorRequest,
-    project_delete: fileEditorRequest,
-    project_read: fileEditorRequest,
-    project_update: fileEditorRequest,
-    // Agent Host -> dashboard responses (all share the same handler)
-    file_list_response: fileEditorResponse,
-    file_content_response: fileEditorResponse,
-    file_save_response: fileEditorResponse,
-    file_history_response: fileEditorResponse,
-    file_restore_response: fileEditorResponse,
-    project_quick_add_response: fileEditorResponse,
-    file_changed: fileEditorResponse,
-    // Project board responses (agent host -> dashboard)
-    project_list_response: fileEditorResponse,
-    project_create_response: fileEditorResponse,
-    project_move_response: fileEditorResponse,
-    project_delete_response: fileEditorResponse,
-    project_read_response: fileEditorResponse,
-    project_update_response: fileEditorResponse,
-    // Project board filesystem change notification (agent host -> dashboard)
-    project_changed: fileEditorResponse,
-    // File proxy
-    file_request: fileRequest,
-  })
+  // Dashboard -> agent host (file/project requests).
+  registerHandlers(
+    {
+      file_list_request: fileEditorRequest,
+      file_content_request: fileEditorRequest,
+      file_save: fileEditorRequest,
+      file_watch: fileEditorRequest,
+      file_unwatch: fileEditorRequest,
+      file_history_request: fileEditorRequest,
+      file_restore: fileEditorRequest,
+      project_quick_add: fileEditorRequest,
+      project_list: fileEditorRequest,
+      project_create: fileEditorRequest,
+      project_move: fileEditorRequest,
+      project_delete: fileEditorRequest,
+      project_read: fileEditorRequest,
+      project_update: fileEditorRequest,
+      file_request: fileRequest,
+    },
+    DASHBOARD_ROLES,
+  )
+  // Agent host -> dashboard (responses + change notifications).
+  registerHandlers(
+    {
+      file_response: fileResponse,
+      file_list_response: fileEditorResponse,
+      file_content_response: fileEditorResponse,
+      file_save_response: fileEditorResponse,
+      file_history_response: fileEditorResponse,
+      file_restore_response: fileEditorResponse,
+      project_quick_add_response: fileEditorResponse,
+      file_changed: fileEditorResponse,
+      project_list_response: fileEditorResponse,
+      project_create_response: fileEditorResponse,
+      project_move_response: fileEditorResponse,
+      project_delete_response: fileEditorResponse,
+      project_read_response: fileEditorResponse,
+      project_update_response: fileEditorResponse,
+      project_changed: fileEditorResponse,
+    },
+    AGENT_HOST_ONLY,
+  )
 }

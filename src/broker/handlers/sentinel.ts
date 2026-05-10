@@ -4,7 +4,7 @@
  */
 
 import type { MessageHandler } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { ANY_ROLE, registerHandlers, SENTINEL_ONLY } from '../message-router'
 
 const sentinelIdentify: MessageHandler = (ctx, data) => {
   // Prefer auth-derived sentinel identity from WS upgrade (per-sentinel secret)
@@ -175,15 +175,25 @@ const usageUpdate: MessageHandler = (ctx, data) => {
 }
 
 export function registerSentinelHandlers(): void {
-  registerHandlers({
-    sentinel_identify: sentinelIdentify,
-    revive_result: reviveResult,
-    spawn_result: spawnResult,
-    spawn_failed: spawnFailed,
-    list_dirs_result: listDirsResult,
-    list_cc_sessions_result: listCcSessionsResult,
-    launch_log: launchLog,
-    sentinel_diag: sentinelDiag,
-    usage_update: usageUpdate,
-  })
+  // sentinel_identify is the bootstrap message that sets `isSentinel = true`
+  // on the connection. With per-sentinel secrets (snt_ prefix), the WS is
+  // already tagged as 'sentinel' at upgrade. With the legacy shared rclaude
+  // secret, it arrives as 'agent-host' and self-elevates -- known issue
+  // tracked under H1 (deprecate shared secret).
+  registerHandlers({ sentinel_identify: sentinelIdentify }, ANY_ROLE)
+
+  // All other sentinel result/diag messages must come from a sentinel role.
+  registerHandlers(
+    {
+      revive_result: reviveResult,
+      spawn_result: spawnResult,
+      spawn_failed: spawnFailed,
+      list_dirs_result: listDirsResult,
+      list_cc_sessions_result: listCcSessionsResult,
+      launch_log: launchLog,
+      sentinel_diag: sentinelDiag,
+      usage_update: usageUpdate,
+    },
+    SENTINEL_ONLY,
+  )
 }

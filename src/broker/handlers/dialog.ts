@@ -8,7 +8,7 @@
  */
 
 import type { MessageHandler } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { AGENT_HOST_ONLY, DASHBOARD_ROLES, registerHandlers } from '../message-router'
 
 // Dialog show: agent host -> broker -> dashboard (broadcast)
 const dialogShow: MessageHandler = (ctx, data) => {
@@ -142,10 +142,9 @@ const dialogKeepalive: MessageHandler = (ctx, data) => {
 }
 
 export function registerDialogHandlers(): void {
-  registerHandlers({
-    dialog_show: dialogShow,
-    dialog_result: dialogResult,
-    dialog_dismiss: dialogDismiss,
-    dialog_keepalive: dialogKeepalive,
-  })
+  // Agent host -> dashboard (show/dismiss).
+  registerHandlers({ dialog_show: dialogShow, dialog_dismiss: dialogDismiss }, AGENT_HOST_ONLY)
+  // Dashboard -> agent host (user response / keepalive).
+  registerHandlers({ dialog_result: dialogResult, dialog_keepalive: dialogKeepalive }, DASHBOARD_ROLES)
 }
+

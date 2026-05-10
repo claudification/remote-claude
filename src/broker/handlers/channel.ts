@@ -9,7 +9,7 @@ import type { SubscriptionChannel } from '../../shared/protocol'
 import { slugify } from '../address-book'
 import { getUser } from '../auth'
 import type { MessageHandler } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { AGENT_HOST_ONLY, DASHBOARD_ROLES, registerHandlers } from '../message-router'
 import { resolvePermissionFlags } from '../permissions'
 import { computeLocalId, formatAmbiguityError, resolveSendTarget } from './channel-id'
 
@@ -634,25 +634,29 @@ const channelUnlink: MessageHandler = (ctx, data) => {
 }
 
 export function registerChannelHandlers(): void {
-  registerHandlers({
-    // Dashboard
-    subscribe,
-    refresh_sessions: refreshSessions,
-    sync_check: syncCheck,
-    // Channel subscriptions
-    channel_subscribe: channelSubscribe,
-    channel_unsubscribe: channelUnsubscribe,
-    channel_unsubscribe_all: channelUnsubscribeAll,
-    // Conversation discovery
-    channel_list_conversations: channelListSessions,
-    // Inter-conversation messaging
-    channel_send: channelSend,
-    // Conversation terminate relay
-    terminate_conversation: quitConversation,
-    // Notification badge
-    conversation_viewed: sessionViewed,
-    // Link management
-    channel_link_response: channelLinkResponse,
-    channel_unlink: channelUnlink,
-  })
+  // Dashboard / share viewer subscribe + control.
+  registerHandlers(
+    {
+      subscribe,
+      refresh_sessions: refreshSessions,
+      sync_check: syncCheck,
+      channel_subscribe: channelSubscribe,
+      channel_unsubscribe: channelUnsubscribe,
+      channel_unsubscribe_all: channelUnsubscribeAll,
+      terminate_conversation: quitConversation,
+      conversation_viewed: sessionViewed,
+      channel_link_response: channelLinkResponse,
+      channel_unlink: channelUnlink,
+    },
+    DASHBOARD_ROLES,
+  )
+  // Inter-conversation messaging: agent hosts list peers + send messages.
+  // Agents read ctx.ws.data.conversationId (set by their own boot/meta).
+  registerHandlers(
+    {
+      channel_list_conversations: channelListSessions,
+      channel_send: channelSend,
+    },
+    AGENT_HOST_ONLY,
+  )
 }

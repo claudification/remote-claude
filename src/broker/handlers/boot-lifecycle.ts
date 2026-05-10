@@ -19,7 +19,7 @@ import type {
   TranscriptLaunchEntry,
 } from '../../shared/protocol'
 import type { MessageHandler } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { AGENT_HOST_ONLY, registerHandlers } from '../message-router'
 import { requireProtocolVersion } from './validate'
 
 function deterministicUuid(key: string): string {
@@ -210,10 +210,15 @@ const conversationPromote: MessageHandler = (ctx, data) => {
 }
 
 export function registerBootLifecycleHandlers(): void {
-  registerHandlers({
-    agent_host_boot: agentHostBoot,
-    boot_event: bootEvent,
-    launch_event: launchEvent,
-    conversation_promote: conversationPromote,
-  })
+  // Boot lifecycle messages are emitted exclusively by agent host processes
+  // as they spin up. (Audit C3)
+  registerHandlers(
+    {
+      agent_host_boot: agentHostBoot,
+      boot_event: bootEvent,
+      launch_event: launchEvent,
+      conversation_promote: conversationPromote,
+    },
+    AGENT_HOST_ONLY,
+  )
 }

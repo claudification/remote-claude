@@ -6,7 +6,7 @@
 import { cwdToProjectUri, extractProjectLabel } from '../../shared/project-uri'
 import { slugify } from '../address-book'
 import type { MessageHandler } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { AGENT_HOST_ONLY, ANY_ROLE, registerHandlers } from '../message-router'
 import { rejectBadMessage, requireProtocolVersion, requireStrings } from './validate'
 
 // ─── Session meta (agent host connecting) ─────────────────────────────
@@ -299,14 +299,20 @@ const conversationStatus: MessageHandler = (ctx, data) => {
 }
 
 export function registerConversationLifecycleHandlers(): void {
-  registerHandlers({
-    meta,
-    hook,
-    heartbeat,
-    conversation_reset: conversationReset,
-    update_conversation_metadata: updateMetadata,
-    conversation_status: conversationStatus,
-    notify,
-    end,
-  })
+  // Agent-host-only -- dashboards / sentinels / shares should never send these.
+  // (Audit C3, H4, H5, H7)
+  registerHandlers(
+    {
+      meta,
+      hook,
+      conversation_reset: conversationReset,
+      update_conversation_metadata: updateMetadata,
+      conversation_status: conversationStatus,
+      notify,
+      end,
+    },
+    AGENT_HOST_ONLY,
+  )
+  // Heartbeat is sent by sentinels (and harmlessly by other roles for keepalive).
+  registerHandlers({ heartbeat }, ANY_ROLE)
 }

@@ -8,7 +8,7 @@
 
 import { AGENT_HOST_PROTOCOL_VERSION } from '../../shared/protocol'
 import type { MessageHandler } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { GATEWAY_ONLY, registerHandlers } from '../message-router'
 
 const gatewayRegister: MessageHandler = (ctx, data) => {
   const protocolVersion = data.protocolVersion as number | undefined
@@ -72,8 +72,14 @@ const gatewayHeartbeat: MessageHandler = ctx => {
 }
 
 export function registerGatewayHandlers(): void {
-  registerHandlers({
-    gateway_register: gatewayRegister,
-    gateway_heartbeat: gatewayHeartbeat,
-  })
+  // Gateway-only at the router level too (Audit M3). The handler still
+  // double-checks ws.data.isGateway in case the role detection logic is
+  // ever loosened.
+  registerHandlers(
+    {
+      gateway_register: gatewayRegister,
+      gateway_heartbeat: gatewayHeartbeat,
+    },
+    GATEWAY_ONLY,
+  )
 }

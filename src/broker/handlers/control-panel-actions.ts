@@ -13,7 +13,7 @@ import { resolveBackend } from '../backends'
 import { buildReviveMessage } from '../build-revive'
 import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
 import { GuardError, type MessageHandler, type WsData } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { DASHBOARD_ROLES, registerHandlers } from '../message-router'
 import { resolvePermissions } from '../permissions'
 import { getProjectOrder, type ProjectOrder, setProjectOrder } from '../project-order'
 import {
@@ -362,20 +362,24 @@ const renameConversation: MessageHandler = (ctx, data) => {
 // ─── Register all dashboard action handlers ───────────────────────
 
 export function registerDashboardActionHandlers(): void {
-  registerHandlers({
-    send_input: sendInput,
-    send_interrupt: sendInterrupt,
-    dismiss_conversation: dismissConversation,
-    dismiss_session: dismissConversation, // backward compat
-    update_settings: updateSettings,
-    update_project_settings: updateProjectSettings,
-    delete_project_settings: deleteProjectSettingsHandler,
-    update_project_order: updateProjectOrder,
-    revive_conversation: reviveConversation,
-    revive_session: reviveConversation, // backward compat
-    rename_conversation: renameConversation,
-    rename_session: renameConversation, // backward compat
-    subscribe_job: subscribeJob,
-    unsubscribe_job: unsubscribeJob,
-  })
+  // All dashboard actions originate from a dashboard or share viewer.
+  registerHandlers(
+    {
+      send_input: sendInput,
+      send_interrupt: sendInterrupt,
+      dismiss_conversation: dismissConversation,
+      dismiss_session: dismissConversation, // backward compat
+      update_settings: updateSettings,
+      update_project_settings: updateProjectSettings,
+      delete_project_settings: deleteProjectSettingsHandler,
+      update_project_order: updateProjectOrder,
+      revive_conversation: reviveConversation,
+      revive_session: reviveConversation, // backward compat
+      rename_conversation: renameConversation,
+      rename_session: renameConversation, // backward compat
+      subscribe_job: subscribeJob,
+      unsubscribe_job: unsubscribeJob,
+    },
+    DASHBOARD_ROLES,
+  )
 }

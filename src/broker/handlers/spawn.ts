@@ -12,7 +12,7 @@ import { mapProjectTrust, type SpawnCallerContext } from '../../shared/spawn-per
 import { spawnRequestSchema } from '../../shared/spawn-schema'
 import { getGlobalSettings } from '../global-settings'
 import type { MessageHandler } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { DASHBOARD_ROLES, registerHandlers } from '../message-router'
 import { getProjectSettings } from '../project-settings'
 import { dispatchSpawn } from '../spawn-dispatch'
 
@@ -123,8 +123,12 @@ const handleGetSpawnDiagnostics: MessageHandler = (ctx, data) => {
 }
 
 export function registerSpawnHandlers(): void {
-  registerHandlers({
-    spawn_request: handleSpawnRequest,
-    get_spawn_diagnostics: handleGetSpawnDiagnostics,
-  })
+  // Dashboard initiates spawns; spawn_request handler enforces `spawn` perm.
+  registerHandlers(
+    {
+      spawn_request: handleSpawnRequest,
+      get_spawn_diagnostics: handleGetSpawnDiagnostics,
+    },
+    DASHBOARD_ROLES,
+  )
 }
