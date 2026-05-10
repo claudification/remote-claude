@@ -7,9 +7,14 @@ import type { ConversationBackend, InputResult } from './types'
 
 export const claudeBackend: ConversationBackend = {
   type: 'claude',
+  scheme: 'claude',
   requiresAgentSocket: true,
 
   async handleInput(): Promise<InputResult> {
-    return { ok: false, error: 'Claude input is handled via agent host socket, not backend proxy' }
+    // Tell the caller to forward over the conversation socket. The legacy
+    // path in control-panel-actions.ts gates on requiresAgentSocket and
+    // forwards there; this branch exists for callers that uniformly call
+    // backend.handleInput() and need the same behaviour.
+    return { ok: false, useSocket: true, error: 'Claude input is handled via agent host socket' }
   },
 }

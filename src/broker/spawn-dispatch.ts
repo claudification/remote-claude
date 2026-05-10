@@ -1,8 +1,10 @@
 /**
  * Shared spawn dispatch logic.
  *
- * Single source of truth for "send a spawn to the sentinel, wait for ack,
- * register pending launch config, optionally register an MCP-caller rendezvous".
+ * Single source of truth for "spawn a conversation". Resolves the right
+ * backend from the registry and delegates. The Claude path stays inline here
+ * (it's the legacy default; Phase 4 of plan-pluggable-backends.md will move
+ * it into claudeBackend.spawn but that's a much bigger mechanical PR).
  *
  * Called from:
  * - HTTP `/api/spawn` route (src/broker/routes.ts)
@@ -23,6 +25,7 @@ import { resolveSpawnConfig } from '../shared/spawn-defaults'
 import { deriveConversationName, validateConversationName } from '../shared/spawn-naming'
 import { assertSpawnAllowed, type SpawnCallerContext, SpawnPermissionError } from '../shared/spawn-permissions'
 import type { SpawnRequest } from '../shared/spawn-schema'
+import { resolveBackendByName, type SpawnDeps } from './backends'
 import type { ConversationStore } from './conversation-store'
 import type { GlobalSettings } from './global-settings'
 
@@ -63,14 +66,15 @@ export type SpawnDispatchResult =
   | { ok: false; error: string; statusCode?: number }
 
 /**
- * Send a spawn request to the sentinel, await ack, register pending launch config.
+ * Send a spawn request to the right backend. Resolves via the registry; falls
+ * back to the legacy inline Claude path if the resolved backend has no
+ * `spawn()` method (only true for the Claude backend today).
  *
- * Does NOT enforce permissions - callers must check first. Does NOT validate the
- * SpawnRequest - callers should have parsed it via spawnRequestSchema already.
+ * Does NOT enforce permissions - callers must check first. Does NOT validate
+ * the SpawnRequest - callers should have parsed it via spawnRequestSchema
+ * already.
  */
 export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): Promise<SpawnDispatchResult> {
-  // path can be absolute (/…), ~-relative (~/…), or relative (./… | ../… | bare).
-  // Relative paths are resolved on the sentinel side against spawnRoot ($HOME).
   try {
     assertSpawnAllowed(deps.callerContext, req)
   } catch (err) {
@@ -80,16 +84,34 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
     throw err
   }
 
-  // --- Chat API backend: bypass sentinel entirely -------------------------
-  if (req.backend === 'chat-api') {
-    return dispatchChatApiSpawn(req, deps)
+  // --- Registry-driven dispatch -------------------------------------------
+  // If the requested backend has its own spawn() implementation, delegate.
+  // Otherwise fall through to the legacy Claude path below.
+  if (req.backend) {
+    const backend = resolveBackendByName(req.backend)
+    if (!backend) {
+      return { ok: false, error: `Unknown backend: ${req.backend}`, statusCode: 400 }
+    }
+    if (backend.spawn) {
+      const spawnDeps: SpawnDeps = {
+        conversationStore: deps.conversationStore,
+        getProjectSettings: deps.getProjectSettings,
+        getGlobalSettings: deps.getGlobalSettings,
+        callerContext: deps.callerContext,
+        rendezvousCallerConversationId: deps.rendezvousCallerConversationId,
+      }
+      const result = await backend.spawn(req, spawnDeps)
+      return result
+    }
+    // No spawn() method -- backend handles input only (e.g. legacy Claude).
+    // Fall through to the inline Claude path.
   }
 
-  // --- Hermes gateway backend: bypass sentinel, routes via gateway socket --
-  if (req.backend === 'hermes') {
-    return dispatchHermesSpawn(req, deps)
-  }
+  // --- Inline Claude path (legacy; to be moved into claudeBackend.spawn) ---
+  return dispatchClaudeSpawn(req, deps)
+}
 
+async function dispatchClaudeSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): Promise<SpawnDispatchResult> {
   // Route to the specified sentinel, or default
   const targetAlias = req.sentinel
   let sentinel: ReturnType<typeof deps.conversationStore.getSentinel>
@@ -334,111 +356,4 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
   }
 
   return { ok: true, conversationId, jobId, tmuxSession: result.tmuxSession }
-}
-
-/**
- * Spawn a Chat API conversation directly -- no sentinel, no process.
- * Creates the conversation record immediately and returns.
- */
-function dispatchChatApiSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): SpawnDispatchResult {
-  if (!req.chatConnectionId) {
-    return { ok: false, error: 'chatConnectionId is required for backend=chat-api', statusCode: 400 }
-  }
-
-  const conversationId = randomUUID()
-  const jobId = req.jobId ?? randomUUID()
-  const connectionName = req.chatConnectionName || 'default'
-  const slug = connectionName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-  const project = `chat://${slug || 'default'}`
-
-  deps.conversationStore.createJob(jobId, conversationId)
-
-  const conv = deps.conversationStore.createConversation(
-    conversationId,
-    project,
-    req.model,
-    [],
-    ['headless', 'channel'],
-  )
-  conv.status = 'active'
-  conv.agentHostType = 'chat-api'
-  conv.agentHostMeta = {
-    chatConnectionId: req.chatConnectionId,
-    backend: 'chat-api',
-  }
-  conv.title =
-    req.name ||
-    deriveConversationName(req) ||
-    generateConversationName(
-      new Set(
-        deps.conversationStore
-          .getAllConversations()
-          .map((s: Conversation) => s.title)
-          .filter(Boolean) as string[],
-      ),
-    )
-  if (req.description) conv.description = req.description
-
-  deps.conversationStore.persistConversationById(conversationId)
-  deps.conversationStore.broadcastConversationUpdate(conversationId)
-  emitProgress(deps.conversationStore, jobId, 'session_connected', 'done', { conversationId })
-
-  return { ok: true, conversationId, jobId }
-}
-
-/**
- * Spawn a Hermes gateway conversation -- no sentinel, no process.
- * Creates the conversation record and relies on the Hermes gateway adapter
- * (connected via gateway_register) to handle input when it arrives.
- */
-function dispatchHermesSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): SpawnDispatchResult {
-  const conversationId = randomUUID()
-  const jobId = req.jobId ?? randomUUID()
-
-  const connectionName = 'gateway'
-  const nameSlug = (req.name || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-  const project = nameSlug ? `hermes://${connectionName}/${nameSlug}` : `hermes://${connectionName}`
-
-  deps.conversationStore.createJob(jobId, conversationId)
-
-  const gatewayWs = deps.conversationStore.getGatewaySocket('hermes')
-  if (!gatewayWs) {
-    deps.conversationStore.failJob(jobId, 'Hermes gateway not connected')
-    return { ok: false, error: 'Hermes gateway not connected', statusCode: 503 }
-  }
-
-  const conv = deps.conversationStore.createConversation(
-    conversationId,
-    project,
-    req.model,
-    [],
-    ['headless', 'channel'],
-  )
-  conv.status = 'idle'
-  conv.agentHostType = 'hermes'
-  conv.agentHostMeta = { backend: 'hermes' }
-  conv.title =
-    req.name ||
-    deriveConversationName(req) ||
-    generateConversationName(
-      new Set(
-        deps.conversationStore
-          .getAllConversations()
-          .map((s: Conversation) => s.title)
-          .filter(Boolean) as string[],
-      ),
-    )
-  if (req.description) conv.description = req.description
-
-  deps.conversationStore.persistConversationById(conversationId)
-  deps.conversationStore.broadcastConversationUpdate(conversationId)
-  emitProgress(deps.conversationStore, jobId, 'session_connected', 'done', { conversationId })
-
-  return { ok: true, conversationId, jobId }
 }
