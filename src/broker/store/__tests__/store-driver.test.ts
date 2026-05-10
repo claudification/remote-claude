@@ -117,6 +117,55 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
         expect(conv.stats!.outputTokens).toBe(50)
         expect(conv.stats!.toolCalls).toBe(3)
       })
+
+      // ACP-specific persistence: agentHostType + agentHostMeta.acpAgent +
+      // backend identifier all live inside the meta blob and must survive a
+      // round-trip so a broker restart doesn't lose recipe routing info.
+      it('persists agentHostType=acp + agentHostMeta.acpAgent across round-trip', () => {
+        store.conversations.create({
+          id: 'acp-conv-1',
+          scope: 'opencode://default/tmp/test',
+          agentType: 'rclaude',
+          meta: {
+            agentHostType: 'acp',
+            agentHostMeta: {
+              backend: 'opencode',
+              acpAgent: 'opencode',
+              openCodeModel: 'openrouter/anthropic/claude-haiku-4.5',
+              openCodeToolPermission: 'safe',
+              ccSessionId: 'ses_abc123',
+            },
+          },
+        })
+        const reloaded = store.conversations.get('acp-conv-1')!
+        const meta = reloaded.meta as Record<string, unknown>
+        expect(meta.agentHostType).toBe('acp')
+        const ahm = meta.agentHostMeta as Record<string, unknown>
+        expect(ahm.acpAgent).toBe('opencode')
+        expect(ahm.backend).toBe('opencode')
+        expect(ahm.openCodeModel).toBe('openrouter/anthropic/claude-haiku-4.5')
+        expect(ahm.openCodeToolPermission).toBe('safe')
+        expect(ahm.ccSessionId).toBe('ses_abc123')
+      })
+
+      it('update preserves agentHostMeta.acpAgent when patching unrelated fields', () => {
+        store.conversations.create({
+          id: 'acp-conv-2',
+          scope: 'opencode://default/tmp/test',
+          agentType: 'rclaude',
+          meta: {
+            agentHostType: 'acp',
+            agentHostMeta: { acpAgent: 'opencode', ccSessionId: 'ses_xyz' },
+          },
+        })
+        store.conversations.update('acp-conv-2', { title: 'Renamed' })
+        const reloaded = store.conversations.get('acp-conv-2')!
+        expect(reloaded.title).toBe('Renamed')
+        const meta = reloaded.meta as Record<string, unknown>
+        const ahm = meta.agentHostMeta as Record<string, unknown>
+        expect(ahm.acpAgent).toBe('opencode')
+        expect(ahm.ccSessionId).toBe('ses_xyz')
+      })
     })
 
     // -----------------------------------------------------------------
