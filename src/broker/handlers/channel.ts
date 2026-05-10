@@ -516,11 +516,27 @@ const channelSend: MessageHandler = (ctx, data) => {
 const quitConversation: MessageHandler = (ctx, data) => {
   const conversationId = data.conversationId as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
-  if (conversation) ctx.requirePermission('chat', conversation.project)
-  const targetWs = conversationId ? ctx.conversations.getConversationSocket(conversationId) : null
+  if (!conversation) return
+  ctx.requirePermission('chat', conversation.project)
+
+  const targetWs = ctx.conversations.getConversationSocket(conversationId)
   if (targetWs) {
     targetWs.send(JSON.stringify({ type: 'terminate_conversation', conversationId }))
     ctx.log.debug(`Conversation ${conversationId.slice(0, 8)} - SIGTERM sent to wrapper`)
+    return
+  }
+
+  // Gateway-backed conversations (hermes, chat-api) have no per-conversation
+  // socket. Notify the gateway adapter if connected, then end directly.
+  const hostType = conversation.agentHostType
+  if (hostType && hostType !== 'claude') {
+    const gatewayWs = ctx.conversations.getGatewaySocket(hostType)
+    if (gatewayWs) {
+      gatewayWs.send(JSON.stringify({ type: 'terminate_conversation', conversationId }))
+    }
+    ctx.conversations.endConversation(conversationId, 'user_terminate')
+    ctx.conversations.broadcastConversationUpdate(conversationId)
+    ctx.log.debug(`Conversation ${conversationId.slice(0, 8)} - ended (${hostType} backend)`)
   }
 }
 
