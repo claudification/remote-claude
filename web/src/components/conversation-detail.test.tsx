@@ -31,7 +31,7 @@ vi.mock('./conversation-detail/empty-state', () => ({
   EmptyState: () => <div data-testid="empty-state" />,
 }))
 vi.mock('./conversation-detail/revive-footer', () => ({
-  ReviveFooter: (props: { canRevive: boolean }) => (
+  ReviveFooter: (props: { canRevive: boolean; backend?: string }) => (
     <div data-testid="revive-footer" data-can-revive={props.canRevive} />
   ),
 }))

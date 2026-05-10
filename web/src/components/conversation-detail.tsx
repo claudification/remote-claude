@@ -197,6 +197,7 @@ export const ConversationDetail = memo(function SessionDetail() {
           project={session.project}
           sentinelConnected={sentinelConnected}
           canRevive={!!canRevive}
+          backend={session.backend}
         />
       )}
     </div>
