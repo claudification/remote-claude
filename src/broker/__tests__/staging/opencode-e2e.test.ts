@@ -305,4 +305,95 @@ run('opencode-host e2e', () => {
       proc.kill()
     } catch {}
   }, 120_000)
+
+  // Phase 3a: MCP bridge. With a broker URL + secret in the host env, the
+  // host writes an opencode.json carrying an `mcp.claudwerk` remote entry
+  // pointing at http://broker/mcp. OpenCode's native MCP client connects out,
+  // discovers `notify` etc. as MCP tools, and the model can call them. We
+  // assert the round-trip end-to-end: model -> opencode MCP client -> broker
+  // /mcp endpoint -> notify handler -> WS broadcast back to the dashboard.
+  it('mcp bridge: model can call broker `notify` tool, dashboard sees the broadcast', async () => {
+    const dashboard = await connectDashboard()
+    await waitForMessage(dashboard, 'conversations_list')
+    const conversationId = testId('oc-mcp')
+
+    const childEnv: Record<string, string> = {}
+    for (const [k, v] of Object.entries(process.env)) {
+      if (v === undefined) continue
+      if (k.startsWith('RCLAUDE_') || k.startsWith('CLAUDWERK_') || k === 'CLAUDECODE') continue
+      childEnv[k] = v
+    }
+    Object.assign(childEnv, {
+      RCLAUDE_BROKER: `ws://${process.env.STAGING_BROKER_URL}`,
+      RCLAUDE_SECRET: getBrokerSecret(),
+      RCLAUDE_CONVERSATION_ID: conversationId,
+      OPENCODE_MODEL: 'openrouter/openai/gpt-oss-20b:free',
+      // 'full' tier so we don't fight tool permission while testing MCP. The
+      // MCP block is tier-orthogonal -- it works on any tier -- but mixing
+      // 'safe' + a free model that may not understand MCP semantics adds
+      // failure modes that aren't what this test is asserting.
+      OPENCODE_TOOL_PERMISSION: 'full',
+      OPENCODE_HOST_DEBUG: '1',
+    })
+    const proc = nodeSpawn(OPENCODE_BIN, {
+      cwd: TEST_CWD,
+      stdio: 'inherit',
+      env: childEnv,
+    })
+    spawned.push(proc)
+
+    await waitForMatch(
+      dashboard,
+      'conversation_update',
+      m => (m as { conversation?: { id?: string } }).conversation?.id === conversationId,
+      15_000,
+    )
+
+    dashboard.send({
+      type: 'channel_subscribe',
+      channel: 'conversation:transcript',
+      conversationId,
+    })
+    await waitForMessage(dashboard, 'channel_ack')
+    dashboard.received.length = 0
+
+    const NOTIFY_BODY = `mcp-bridge-${conversationId.slice(-8)}`
+    dashboard.send({
+      type: 'send_input',
+      conversationId,
+      input:
+        `Use the MCP tool named "notify" (provided by the claudwerk MCP server) to send a notification with the message exactly: "${NOTIFY_BODY}". Then say done.`,
+    })
+
+    // The notify handler broadcasts a 'notification' WS message to all
+    // subscribers (see broker/routes/mcp-server.ts notify tool). We wait for
+    // it. If the model didn't call notify -- or notify failed -- this times
+    // out and the test fails, which is exactly the assertion we want.
+    const notif = await waitForMatch(
+      dashboard,
+      'notification',
+      m => {
+        const body = (m as { body?: string }).body
+        return typeof body === 'string' && body.includes(NOTIFY_BODY)
+      },
+      90_000,
+    )
+    expect(notif).toBeTruthy()
+    expect((notif as { body?: string }).body).toContain(NOTIFY_BODY)
+
+    // And the turn finishes cleanly.
+    await waitForMatch(
+      dashboard,
+      'transcript_entries',
+      m => {
+        const entries = (m as { entries?: Array<{ type?: string; subtype?: string }> }).entries
+        return !!entries?.some(e => e.type === 'system' && e.subtype === 'turn_duration')
+      },
+      90_000,
+    )
+
+    try {
+      proc.kill()
+    } catch {}
+  }, 180_000)
 })

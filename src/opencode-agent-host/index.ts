@@ -43,6 +43,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHostTransport, type HostTransport } from '../shared/host-transport'
 import {
+  brokerMcpUrlFromWs,
   buildOpenCodeConfig,
   DEFAULT_OPENCODE_TOOL_PERMISSION,
   normalizeTier,
@@ -101,7 +102,11 @@ function parseConfig(): CliConfig {
     }
   }
   const toolPermission = normalizeTier(process.env.OPENCODE_TOOL_PERMISSION ?? DEFAULT_OPENCODE_TOOL_PERMISSION)
-  const opencodeConfigPath = writeOpenCodeConfigIfNeeded(toolPermission, conversationId)
+  const brokerMcpUrl = brokerMcpUrlFromWs(brokerUrl)
+  const opencodeConfigPath = writeOpenCodeConfigIfNeeded(toolPermission, conversationId, {
+    brokerMcpUrl: brokerMcpUrl ?? undefined,
+    secret: brokerSecret,
+  })
 
   return {
     brokerUrl,
@@ -119,12 +124,21 @@ function parseConfig(): CliConfig {
 }
 
 /**
- * Generate the per-conversation opencode.json (if the tier requires it) and
- * write it to a temp file outside the user's cwd so we don't pollute the
- * repo. Returns the absolute path or null if no config is needed (tier=full).
+ * Generate the per-conversation opencode.json (if needed) and write it to a
+ * temp file outside the user's cwd so we don't pollute the repo. Returns the
+ * absolute path or null if neither the tier nor the MCP bridge needs a file.
+ *
+ * The 'full' tier alone produces no config (caller passes
+ * --dangerously-skip-permissions). But 'full' + an MCP bridge still needs a
+ * file (the only way to register the broker MCP server). The buildOpenCodeConfig
+ * helper handles that decision; we just write whatever it returns.
  */
-function writeOpenCodeConfigIfNeeded(tier: OpenCodeToolPermissionTier, conversationId: string): string | null {
-  const cfg = buildOpenCodeConfig(tier)
+function writeOpenCodeConfigIfNeeded(
+  tier: OpenCodeToolPermissionTier,
+  conversationId: string,
+  mcp: { brokerMcpUrl?: string; secret?: string },
+): string | null {
+  const cfg = buildOpenCodeConfig(tier, mcp)
   if (!cfg) return null
   const dir = join(tmpdir(), 'opencode-host', conversationId)
   try {
@@ -178,7 +192,9 @@ async function runOpenCodeTurn(opts: {
 
   // Per-spawn env: layer OPENCODE_CONFIG (and disable user project config so
   // the tier is authoritative -- a user's repo opencode.json can't re-enable
-  // bash on a 'safe' tier conversation). 'full' tier sets neither.
+  // bash on a 'safe' tier conversation). The 'full' tier writes a config only
+  // when the MCP bridge is wired -- in that case the file carries the broker
+  // MCP entry and we still treat it as authoritative.
   const turnEnv: Record<string, string | undefined> = { ...process.env }
   if (cfg.opencodeConfigPath) {
     turnEnv.OPENCODE_CONFIG = cfg.opencodeConfigPath
@@ -244,8 +260,9 @@ async function runOpenCodeTurn(opts: {
 
 async function main() {
   const cfg = parseConfig()
+  const mcpBridgeWired = !!(cfg.brokerSecret && brokerMcpUrlFromWs(cfg.brokerUrl))
   log(
-    `starting conv=${cfg.conversationId.slice(0, 8)} model=${cfg.model} cwd=${cfg.cwd} broker=${cfg.brokerUrl} tier=${cfg.toolPermission}${cfg.opencodeConfigPath ? ` config=${cfg.opencodeConfigPath}` : ''}`,
+    `starting conv=${cfg.conversationId.slice(0, 8)} model=${cfg.model} cwd=${cfg.cwd} broker=${cfg.brokerUrl} tier=${cfg.toolPermission} mcp=${mcpBridgeWired ? 'on' : 'off'}${cfg.opencodeConfigPath ? ` config=${cfg.opencodeConfigPath}` : ''}`,
   )
 
   let openCodeSessionId: string | null = null

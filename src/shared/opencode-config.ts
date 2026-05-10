@@ -38,19 +38,60 @@ export const OPENCODE_ALL_TOOLS = [
 /** Tools that are safe to expose without filesystem-write or shell access. */
 export const OPENCODE_SAFE_TOOLS = ['read', 'grep', 'glob', 'ls', 'webfetch'] as const
 
+export interface OpenCodeMcpRemoteEntry {
+  type: 'remote'
+  url: string
+  headers?: Record<string, string>
+  enabled?: boolean
+}
+
 export interface OpenCodeConfig {
   $schema?: string
   tools?: Record<string, boolean>
   permission?: Record<string, 'allow' | 'ask' | 'deny'>
+  mcp?: Record<string, OpenCodeMcpRemoteEntry>
 }
 
 /**
- * Build an opencode.json config for a given permission tier.
- * Returns null for 'full' (caller should pass --dangerously-skip-permissions
- * and not write a config file).
+ * Optional MCP wiring. When `brokerMcpUrl` AND `secret` are present, an
+ * `mcp.claudwerk` block is emitted that points OpenCode's native MCP client
+ * at the broker's `/mcp` endpoint with bearer auth. If either is missing,
+ * no block is emitted (defensive: we never expose tools without a target).
  */
-export function buildOpenCodeConfig(tier: OpenCodeToolPermissionTier): OpenCodeConfig | null {
-  if (tier === 'full') return null
+export interface OpenCodeMcpBridgeOptions {
+  brokerMcpUrl?: string
+  secret?: string
+}
+
+/** The single MCP server name we register with OpenCode. Mirrors the
+ *  Claude-side `claudwerk` MCP server name so dashboards and hooks key on the
+ *  same identifier across backends. */
+export const OPENCODE_MCP_SERVER_NAME = 'claudwerk'
+
+/**
+ * Build an opencode.json config for a given permission tier.
+ * Returns null for 'full' WHEN no MCP bridge is configured -- in that case
+ * the caller passes --dangerously-skip-permissions and writes no file.
+ *
+ * If `mcp` options are supplied with both `brokerMcpUrl` and `secret`, the
+ * resulting config carries an `mcp.claudwerk` remote-server entry. For the
+ * 'full' tier this means a config IS written (so MCP can be discovered) but
+ * without `tools` / `permission` -- those keys remain absent and OpenCode
+ * keeps its default everything-allowed behaviour.
+ */
+export function buildOpenCodeConfig(
+  tier: OpenCodeToolPermissionTier,
+  mcp?: OpenCodeMcpBridgeOptions,
+): OpenCodeConfig | null {
+  const mcpBlock = buildMcpBlock(mcp)
+
+  if (tier === 'full') {
+    if (!mcpBlock) return null
+    return {
+      $schema: 'https://opencode.ai/config.json',
+      mcp: mcpBlock,
+    }
+  }
 
   const tools: Record<string, boolean> = {}
   const permission: Record<string, 'allow' | 'ask' | 'deny'> = {}
@@ -70,10 +111,50 @@ export function buildOpenCodeConfig(tier: OpenCodeToolPermissionTier): OpenCodeC
     }
   }
 
-  return {
+  const cfg: OpenCodeConfig = {
     $schema: 'https://opencode.ai/config.json',
     tools,
     permission,
+  }
+  if (mcpBlock) cfg.mcp = mcpBlock
+  return cfg
+}
+
+function buildMcpBlock(mcp?: OpenCodeMcpBridgeOptions): Record<string, OpenCodeMcpRemoteEntry> | null {
+  if (!mcp) return null
+  const { brokerMcpUrl, secret } = mcp
+  if (!brokerMcpUrl || !secret) return null
+  return {
+    [OPENCODE_MCP_SERVER_NAME]: {
+      type: 'remote',
+      url: brokerMcpUrl,
+      headers: { Authorization: `Bearer ${secret}` },
+      enabled: true,
+    },
+  }
+}
+
+/**
+ * Convert a broker WebSocket URL (ws:// or wss://) to its HTTP MCP endpoint
+ * (http(s)://<host>/mcp). The broker mounts MCP at `/mcp` regardless of the
+ * WebSocket entrypoint. Returns null when the URL is missing or unparseable
+ * so the caller skips MCP wiring rather than emitting a broken config.
+ */
+export function brokerMcpUrlFromWs(brokerWsUrl: string | undefined): string | null {
+  if (!brokerWsUrl) return null
+  try {
+    const u = new URL(brokerWsUrl)
+    if (u.protocol === 'ws:') u.protocol = 'http:'
+    else if (u.protocol === 'wss:') u.protocol = 'https:'
+    else if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+    // Broker mounts the MCP router at the root path /mcp, regardless of any
+    // path prefix on the WS URL. Replace the pathname outright.
+    u.pathname = '/mcp'
+    u.search = ''
+    u.hash = ''
+    return u.toString()
+  } catch {
+    return null
   }
 }
 
