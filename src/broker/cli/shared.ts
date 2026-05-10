@@ -78,6 +78,7 @@ COMMANDS:
   delete-passkey --name <name> --credential-id <id>        Delete a passkey (kills sessions)
   migrate [--cache-dir <dir>] [--data-dir <dir>] [--dry-run]  Migrate legacy JSON to SQLite
   query [--db <name>] [--json] "SQL"                        Read-only SQL against store/analytics/projects
+  exec  [--db <name>] [--json] "SQL"                        Read-write SQL (admin tool, use with care)
   resolve-path <path>                                       Debug: test path jail resolution
 
 SENTINEL COMMANDS:

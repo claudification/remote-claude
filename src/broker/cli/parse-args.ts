@@ -116,7 +116,7 @@ export function parseArgs(argv: string[], defaultCacheDir: string): ParsedArgs {
     } else if (!arg.startsWith('-')) {
       if (result.command === 'resolve-path' && !result.testPath) {
         result.testPath = arg
-      } else if (result.command === 'query' && !result.queryArg) {
+      } else if ((result.command === 'query' || result.command === 'exec') && !result.queryArg) {
         result.queryArg = arg
       } else if (result.command === 'sentinel' && !result.subCommand) {
         result.subCommand = arg

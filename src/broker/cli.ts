@@ -23,7 +23,7 @@ import {
 } from './cli/user-commands'
 import { addAllowedRoot, addPathMapping, resolveInJail } from './path-jail'
 import { runMigrateCli } from './store/migrate-cli'
-import { parseDbName, runQueryCli } from './store/query-cli'
+import { parseDbName, runExecCli, runQueryCli } from './store/query-cli'
 
 function handleResolvePath(args: ParsedArgs): void {
   for (const root of args.allowRoots) addAllowedRoot(root)
@@ -64,6 +64,20 @@ async function main(): Promise<void> {
       process.exit(1)
     }
     runQueryCli({
+      cacheDir: args.cacheDir,
+      dbName: parseDbName(args.dbArg || undefined),
+      sql: args.queryArg,
+      json: args.jsonFlag,
+    })
+    process.exit(0)
+  }
+
+  if (args.command === 'exec') {
+    if (!args.queryArg) {
+      console.error('ERROR: provide a SQL string, e.g. broker-cli exec "UPDATE conversations SET ..."')
+      process.exit(1)
+    }
+    runExecCli({
       cacheDir: args.cacheDir,
       dbName: parseDbName(args.dbArg || undefined),
       sql: args.queryArg,

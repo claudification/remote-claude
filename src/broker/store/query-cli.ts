@@ -90,6 +90,70 @@ function formatCell(v: unknown): string {
   return JSON.stringify(v)
 }
 
+export interface ExecCliArgs {
+  cacheDir: string
+  dbName: DbName
+  sql: string
+  json: boolean
+}
+
+export function runExecCli(args: ExecCliArgs): void {
+  const { cacheDir, dbName, sql, json } = args
+  const filename = DB_FILES[dbName]
+  if (!filename) {
+    console.error(`ERROR: unknown --db: ${dbName}. Use store | analytics | projects`)
+    process.exit(1)
+  }
+
+  const dbPath = join(cacheDir, filename)
+  if (!existsSync(dbPath)) {
+    console.error(`ERROR: ${dbPath} does not exist`)
+    process.exit(1)
+  }
+
+  let db: Database
+  try {
+    db = new Database(dbPath)
+  } catch (err) {
+    console.error(`ERROR: cannot open ${dbPath}: ${err instanceof Error ? err.message : String(err)}`)
+    process.exit(1)
+  }
+
+  try {
+    const isSelect = /^\s*(select|pragma|explain)\b/i.test(sql)
+    if (isSelect) {
+      const rows = db.query(sql).all() as Array<Record<string, unknown>>
+      if (rows.length === 0) {
+        if (json) console.log('[]')
+        else console.error('(no rows)')
+        return
+      }
+      if (json) {
+        console.log(JSON.stringify(rows, null, 2))
+        return
+      }
+      const headers = Object.keys(rows[0])
+      console.log(headers.join('\t'))
+      for (const row of rows) {
+        console.log(headers.map(h => formatCell(row[h])).join('\t'))
+      }
+    } else {
+      const result = db.run(sql)
+      const info = { changes: result.changes }
+      if (json) {
+        console.log(JSON.stringify(info, null, 2))
+      } else {
+        console.log(`OK: ${info.changes} row(s) affected`)
+      }
+    }
+  } catch (err) {
+    console.error(`ERROR: exec failed: ${err instanceof Error ? err.message : String(err)}`)
+    process.exit(1)
+  } finally {
+    db.close()
+  }
+}
+
 export function parseDbName(raw: string | undefined): DbName {
   if (!raw || raw === 'store') return 'store'
   if (raw === 'analytics' || raw === 'projects') return raw
