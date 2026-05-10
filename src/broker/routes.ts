@@ -13,9 +13,10 @@ import { resolveInJail } from './path-jail'
 import { createAdminRouter } from './routes/admin'
 import { createApiRouter } from './routes/api'
 import { blobDir, initBlobStore, initSharedFilesLog } from './routes/blob-store'
-import { createConversationsRouter } from './routes/conversations'
 import { createChatApiRouter } from './routes/chat-api'
+import { createConversationsRouter } from './routes/conversations'
 import { createMcpRouter } from './routes/mcp-server'
+import { createGatewayRouter } from './routes/gateways'
 import { createSentinelRouter } from './routes/sentinels'
 import { createRouteHelpers } from './routes/shared'
 import { createSpawnRouter } from './routes/spawn'
@@ -79,6 +80,7 @@ export interface RouteOptions {
   serverStartTime?: number
   publicOrigin?: string // public base URL from --origin (e.g. "https://your-host.example.com")
   sentinelRegistry?: import('./sentinel-registry').SentinelRegistry
+  gatewayRegistry?: import('./gateway-registry').GatewayRegistry
 }
 
 export function createRouter(options: RouteOptions): Hono {
@@ -92,6 +94,7 @@ export function createRouter(options: RouteOptions): Hono {
     serverStartTime = Date.now(),
     publicOrigin,
     sentinelRegistry,
+    gatewayRegistry,
   } = options
 
   // Initialize disk-backed blob store + shared files log
@@ -222,6 +225,9 @@ export function createRouter(options: RouteOptions): Hono {
   app.route('/', createAdminRouter(conversationStore, helpers, rclaudeSecret))
   if (sentinelRegistry) {
     app.route('/', createSentinelRouter(sentinelRegistry, conversationStore, helpers))
+  }
+  if (gatewayRegistry) {
+    app.route('/', createGatewayRouter(gatewayRegistry, conversationStore, helpers))
   }
 
   // ─── Static file serving ───────────────────────────────────────────

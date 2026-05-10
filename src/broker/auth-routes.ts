@@ -39,12 +39,15 @@ import {
   validateInvite,
 } from './auth'
 
+import type { GatewayRegistry } from './gateway-registry'
+import { isGatewaySecret } from './gateway-registry'
 import type { SentinelRegistry } from './sentinel-registry'
 import { isSentinelSecret } from './sentinel-registry'
 
 let rclaudeSecret: string | undefined
 let validateShareFn: ((token: string) => boolean) | undefined
 let sentinelRegistryRef: SentinelRegistry | undefined
+let gatewayRegistryRef: GatewayRegistry | undefined
 
 export function setRclaudeSecret(secret: string): void {
   rclaudeSecret = secret
@@ -58,7 +61,15 @@ export function setSentinelRegistry(registry: SentinelRegistry): void {
   sentinelRegistryRef = registry
 }
 
-export type AuthResult = { role: 'admin' } | { role: 'sentinel'; sentinelId: string; alias: string } | { role: 'none' }
+export function setGatewayRegistry(registry: GatewayRegistry): void {
+  gatewayRegistryRef = registry
+}
+
+export type AuthResult =
+  | { role: 'admin' }
+  | { role: 'sentinel'; sentinelId: string; alias: string }
+  | { role: 'gateway'; gatewayId: string; alias: string; gatewayType: string }
+  | { role: 'none' }
 
 export function resolveAuth(secret: string): AuthResult {
   if (rclaudeSecret && safeStringEqual(secret, rclaudeSecret)) {
@@ -68,6 +79,12 @@ export function resolveAuth(secret: string): AuthResult {
     const sentinel = sentinelRegistryRef.findBySecret(secret)
     if (sentinel) {
       return { role: 'sentinel', sentinelId: sentinel.sentinelId, alias: sentinel.aliases[0] }
+    }
+  }
+  if (gatewayRegistryRef && isGatewaySecret(secret)) {
+    const gw = gatewayRegistryRef.findBySecret(secret)
+    if (gw) {
+      return { role: 'gateway', gatewayId: gw.gatewayId, alias: gw.alias, gatewayType: gw.gatewayType }
     }
   }
   return { role: 'none' }

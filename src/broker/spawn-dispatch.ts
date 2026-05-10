@@ -348,7 +348,8 @@ function dispatchChatApiSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): Spawn
   const conversationId = randomUUID()
   const jobId = req.jobId ?? randomUUID()
   const connectionName = req.chatConnectionName || 'default'
-  const project = `chat://${connectionName}`
+  const slug = connectionName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  const project = `chat://${slug || 'default'}`
 
   deps.conversationStore.createJob(jobId, conversationId)
 

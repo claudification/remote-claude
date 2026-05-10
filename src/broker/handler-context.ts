@@ -28,6 +28,7 @@ export interface WsData {
   // Gateway adapter (e.g. Hermes)
   isGateway?: boolean
   gatewayType?: string
+  gatewayId?: string
 }
 
 /** Thrown by guard methods (requireBenevolent, requireAgent, etc.) */

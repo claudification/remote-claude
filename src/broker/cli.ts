@@ -10,6 +10,7 @@ import { handleBackup } from './cli/backup-commands'
 import { type ParsedArgs, parseArgs } from './cli/parse-args'
 import { handleDeletePasskey, handleListPasskeys } from './cli/passkey-commands'
 import { handleRemoveRole, handleSetRole } from './cli/role-commands'
+import { handleGateway } from './cli/gateway-commands'
 import { handleSentinel } from './cli/sentinel-commands'
 import { DEFAULT_CACHE_DIR, printUsage } from './cli/shared'
 import {
@@ -116,6 +117,9 @@ async function main(): Promise<void> {
       break
     case 'sentinel':
       handleSentinel(args)
+      break
+    case 'gateway':
+      handleGateway(args)
       break
     default:
       console.error(`Unknown command: ${args.command}`)

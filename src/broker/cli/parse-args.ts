@@ -26,6 +26,7 @@ export interface ParsedArgs {
   includeBlobs: boolean
   retainHoursArg: string
   retainDaysArg: string
+  typeArg: string
 }
 
 export function parseArgs(argv: string[], defaultCacheDir: string): ParsedArgs {
@@ -57,6 +58,7 @@ export function parseArgs(argv: string[], defaultCacheDir: string): ParsedArgs {
     includeBlobs: false,
     retainHoursArg: '',
     retainDaysArg: '',
+    typeArg: '',
   }
 
   for (let i = 0; i < argv.length; i++) {
@@ -109,12 +111,16 @@ export function parseArgs(argv: string[], defaultCacheDir: string): ParsedArgs {
       result.retainHoursArg = argv[++i]
     } else if (arg === '--retain-days') {
       result.retainDaysArg = argv[++i]
+    } else if (arg === '--type') {
+      result.typeArg = argv[++i]
     } else if (!arg.startsWith('-')) {
       if (result.command === 'resolve-path' && !result.testPath) {
         result.testPath = arg
       } else if (result.command === 'query' && !result.queryArg) {
         result.queryArg = arg
       } else if (result.command === 'sentinel' && !result.subCommand) {
+        result.subCommand = arg
+      } else if (result.command === 'gateway' && !result.subCommand) {
         result.subCommand = arg
       } else if (result.command === 'backup' && !result.subCommand) {
         result.subCommand = arg

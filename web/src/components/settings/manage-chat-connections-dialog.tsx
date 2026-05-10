@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn, haptic } from '@/lib/utils'
 import type { ChatApiConnection } from '../../../../src/shared/chat-api-types'
+import type { ProviderPreset } from './chat-provider-presets'
+import { ModelPicker } from './model-picker'
+import { ProviderSelect } from './provider-select'
 
 const API_BASE = `${window.location.protocol}//${window.location.host}/api`
 
@@ -224,6 +227,19 @@ export function ManageChatConnectionsDialog() {
           {(view === 'add' || view === 'edit') && (
             <>
               <div className="space-y-2">
+                {view === 'add' && (
+                  <ProviderSelect
+                    selectedUrl={form.url}
+                    onSelect={(preset: ProviderPreset) => {
+                      setForm(f => ({
+                        ...f,
+                        name: preset.id === 'custom' ? f.name : preset.name,
+                        url: preset.url,
+                        model: preset.defaultModel || (preset.id === 'custom' ? f.model : ''),
+                      }))
+                    }}
+                  />
+                )}
                 <FormField
                   label="Name"
                   value={form.name}
@@ -243,11 +259,11 @@ export function ManageChatConnectionsDialog() {
                   placeholder="your-api-key"
                   type="password"
                 />
-                <FormField
-                  label="Model"
+                <ModelPicker
                   value={form.model}
                   onChange={v => setForm(f => ({ ...f, model: v }))}
-                  placeholder="(optional)"
+                  url={form.url}
+                  apiKey={form.apiKey}
                 />
               </div>
               {error && <div className="text-xs text-red-400 font-mono">{error}</div>}

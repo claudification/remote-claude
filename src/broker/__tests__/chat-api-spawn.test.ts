@@ -72,7 +72,7 @@ describe('Chat API spawn bypass', () => {
     if (!result.ok) return
 
     const conv = conversationStore.getConversation(result.conversationId)
-    expect(conv?.project).toBe('chat://Work')
+    expect(conv?.project).toBe('chat://work')
   })
 
   it('defaults project to chat://default when no connection name', async () => {

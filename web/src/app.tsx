@@ -44,6 +44,9 @@ const UserAdminDialog = lazy(() => import('@/components/user-admin').then(m => (
 const SentinelManagerDialog = lazy(() =>
   import('@/components/sentinel-manager').then(m => ({ default: m.SentinelManagerDialog })),
 )
+const GatewayManagerDialog = lazy(() =>
+  import('@/components/gateway-manager').then(m => ({ default: m.GatewayManagerDialog })),
+)
 const SearchIndexManagerDialog = lazy(() =>
   import('@/components/search-index-manager').then(m => ({ default: m.SearchIndexManagerDialog })),
 )
@@ -55,6 +58,7 @@ function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === 'true')
   const [showUserAdmin, setShowUserAdmin] = useState(false)
   const [showSentinelManager, setShowSentinelManager] = useState(false)
+  const [showGatewayManager, setShowGatewayManager] = useState(false)
   const [showSearchIndex, setShowSearchIndex] = useState(false)
 
   const { swUpdate, setSwUpdate } = useBuildUpdate()
@@ -93,6 +97,15 @@ function Dashboard() {
     }
     window.addEventListener('open-sentinel-manager', handleOpen)
     return () => window.removeEventListener('open-sentinel-manager', handleOpen)
+  }, [])
+
+  // Listen for gateway manager open event (from command palette)
+  useEffect(() => {
+    function handleOpen() {
+      setShowGatewayManager(true)
+    }
+    window.addEventListener('open-gateway-manager', handleOpen)
+    return () => window.removeEventListener('open-gateway-manager', handleOpen)
   }, [])
 
   // Listen for search-index manager open event (from command palette)
@@ -237,6 +250,12 @@ function Dashboard() {
       {showSentinelManager && (
         <Suspense fallback={null}>
           <SentinelManagerDialog open={showSentinelManager} onOpenChange={setShowSentinelManager} />
+        </Suspense>
+      )}
+
+      {showGatewayManager && (
+        <Suspense fallback={null}>
+          <GatewayManagerDialog open={showGatewayManager} onOpenChange={setShowGatewayManager} />
         </Suspense>
       )}
 

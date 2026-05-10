@@ -90,6 +90,38 @@ export function createChatApiRouter(conversationStore: ConversationStore, kv: KV
     return c.json({ success: true })
   })
 
+  // --- Probe Models (before save) --------------------------------------------
+
+  app.post('/api/chat/connections/probe', async c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
+
+    const body = await c.req.json<{ url: string; apiKey: string }>()
+    if (!body.url || !body.apiKey) {
+      return c.json({ error: 'url and apiKey are required' }, 400)
+    }
+
+    const url = normalizeUrl(body.url)
+    try {
+      const resp = await fetch(`${url}/v1/models`, {
+        headers: { Authorization: `Bearer ${body.apiKey}` },
+        signal: AbortSignal.timeout(8000),
+      })
+      if (!resp.ok) {
+        return c.json({ ok: false, status: resp.status, error: await resp.text() })
+      }
+      const data = (await resp.json()) as { data?: Array<{ id: string }> }
+      const models: string[] = Array.isArray(data?.data)
+        ? data.data
+            .map(m => m.id)
+            .filter(Boolean)
+            .sort()
+        : []
+      return c.json({ ok: true, models })
+    } catch (err) {
+      return c.json({ ok: false, error: err instanceof Error ? err.message : String(err) })
+    }
+  })
+
   // --- Test Connection -------------------------------------------------------
 
   app.post('/api/chat/connections/:id/test', async c => {

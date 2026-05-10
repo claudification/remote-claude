@@ -86,6 +86,11 @@ SENTINEL COMMANDS:
   sentinel set-default --alias <alias>                      Set default sentinel
   sentinel revoke --alias <alias>                           Revoke sentinel secret
 
+GATEWAY COMMANDS:
+  gateway create --alias <alias> [--type <type>]           Create gateway with dedicated secret
+  gateway list                                              List all registered gateways
+  gateway revoke --alias <alias>                            Revoke gateway secret
+
 BACKUP COMMANDS:
   backup create [--dest <dir>] [--include-blobs]           Create backup (VACUUM INTO + tar.gz)
     [--retain-hours N] [--retain-days N]                     Tiered retention (default: 24h + 7d)

@@ -3,8 +3,8 @@
  */
 
 import type { Conversation } from '../../shared/protocol'
-import { claudeBackend } from './claude'
 import { chatApiBackend } from './chat-api'
+import { claudeBackend } from './claude'
 import { hermesBackend } from './hermes'
 import type { ConversationBackend } from './types'
 

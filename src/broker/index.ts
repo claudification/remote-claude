@@ -19,6 +19,7 @@ import {
   getAuthenticatedUser,
   requireAuth,
   resolveAuth,
+  setGatewayRegistry,
   setRclaudeSecret,
   setSentinelRegistry,
   setShareValidator,
@@ -49,6 +50,7 @@ import { getAllProjectSettings, getProjectSettings, initProjectSettings, setProj
 import { closeProjectStore, initProjectStore } from './project-store'
 import { initPush, isPushConfigured, sendPushToAll } from './push'
 import { createRouter } from './routes'
+import { createGatewayRegistry } from './gateway-registry'
 import { createSentinelRegistry } from './sentinel-registry'
 import {
   cleanExpired as cleanExpiredShares,
@@ -364,6 +366,10 @@ async function main() {
   const sentinelRegistry = authCacheDir ? createSentinelRegistry(authCacheDir) : undefined
   if (sentinelRegistry) setSentinelRegistry(sentinelRegistry)
 
+  // Initialize gateway registry (persisted gateway adapter records)
+  const gatewayRegistry = authCacheDir ? createGatewayRegistry(authCacheDir) : undefined
+  if (gatewayRegistry) setGatewayRegistry(gatewayRegistry)
+
   const conversationStore = createConversationStore({
     cacheDir,
     enablePersistence: !noPersistence,
@@ -555,6 +561,7 @@ async function main() {
     serverStartTime,
     publicOrigin: origins[0],
     sentinelRegistry,
+    gatewayRegistry,
   })
 
   if (apiPort && apiPort !== port) {
@@ -639,6 +646,10 @@ async function main() {
           if (authResult?.role === 'sentinel') {
             wsData.sentinelId = authResult.sentinelId
             wsData.sentinelAlias = authResult.alias
+          } else if (authResult?.role === 'gateway') {
+            wsData.isGateway = true
+            wsData.gatewayType = authResult.gatewayType
+            wsData.gatewayId = authResult.gatewayId
           }
           const success = server.upgrade(req, { data: wsData })
           if (success) return undefined

@@ -240,7 +240,8 @@ export function SpawnDialog() {
       jobId: newJobId,
       backend: backend !== 'claude' ? backend : undefined,
       chatConnectionId: backend === 'chat-api' ? chatConnectionId || undefined : undefined,
-      chatConnectionName: backend === 'chat-api' ? chatConnections.find(a => a.id === chatConnectionId)?.name : undefined,
+      chatConnectionName:
+        backend === 'chat-api' ? chatConnections.find(a => a.id === chatConnectionId)?.name : undefined,
     }
     const result = await sendSpawnRequest(spawnReq)
     if (result.ok) {

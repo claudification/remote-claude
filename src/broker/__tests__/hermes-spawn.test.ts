@@ -4,11 +4,11 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SpawnRequest } from '../../shared/spawn-schema'
+import { hermesBackend } from '../backends/hermes'
 import { type ConversationStore, createConversationStore } from '../conversation-store'
 import { dispatchSpawn, type SpawnDispatchDeps } from '../spawn-dispatch'
 import { createMemoryDriver } from '../store/memory/driver'
 import type { StoreDriver } from '../store/types'
-import { hermesBackend } from '../backends/hermes'
 
 let conversationStore: ConversationStore
 let store: StoreDriver
