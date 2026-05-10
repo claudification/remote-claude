@@ -10,7 +10,7 @@
  *   STAGING_SECRET=<hex>
  */
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'bun:test'
 import {
   cleanup,
   connectAgentHost,

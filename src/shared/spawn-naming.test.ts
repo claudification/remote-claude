@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { deriveConversationName, sanitizeConversationName, validateConversationName } from './spawn-naming'
 import type { TaskMeta } from './spawn-prompt'
 

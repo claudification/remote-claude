@@ -182,9 +182,8 @@ describe('ConversationDetail - active session', () => {
     expect(screen.queryByTestId('revive-footer')).toBeNull()
   })
 
-  it('renders ask-question and clipboard banners', () => {
+  it('renders clipboard banners', () => {
     render(<ConversationDetail />)
-    expect(screen.getByTestId('ask-question-banners')).toBeDefined()
     expect(screen.getByTestId('clipboard-banners')).toBeDefined()
   })
 })

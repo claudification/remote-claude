@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { createGatewayRegistry, isGatewaySecret, isValidGatewayAlias } from '../gateway-registry'
 
 const TEST_DIR = join(import.meta.dir, '.test-gateway-registry')

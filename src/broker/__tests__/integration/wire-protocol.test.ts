@@ -7,7 +7,7 @@
  * state management, and broadcast behavior is real production code.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { createTestHarness, type TestHarness, testId } from './test-harness'
 
 let h: TestHarness

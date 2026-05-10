@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { type DefaultsSource, resolveSpawnConfig } from './spawn-defaults'
 import type { SpawnRequest } from './spawn-schema'
 

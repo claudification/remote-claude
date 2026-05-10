@@ -9,7 +9,7 @@
  * 5. Unknown targets produce clean errors
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { createTestHarness, type TestHarness, testId } from './test-harness'
 
 describe('inter-session messaging', () => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'bun:test'
 import { getBook, getOrAssign, initAddressBook, resolve, slugify } from './address-book'
 import type { KVStore } from './store/types'
 

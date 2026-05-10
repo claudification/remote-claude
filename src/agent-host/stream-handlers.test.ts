@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'bun:test'
 import type { TranscriptEntry } from '../shared/protocol'
 import { type HandlerContext, handleMessage } from './stream-handlers'
 import { createReplayBuffer } from './stream-replay'

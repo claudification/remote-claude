@@ -2,7 +2,7 @@
  * Tests for Hermes gateway spawn and backend
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import type { SpawnRequest } from '../../shared/spawn-schema'
 import { hermesBackend } from '../backends/hermes'
 import { type ConversationStore, createConversationStore } from '../conversation-store'
@@ -30,7 +30,7 @@ function makeDeps(overrides: Partial<SpawnDispatchDeps> = {}): SpawnDispatchDeps
 
 function makeGatewaySocket() {
   return {
-    send: vi.fn(),
+    send: mock(),
     readyState: WebSocket.OPEN,
     data: { isGateway: true, gatewayType: 'hermes' },
   } as unknown as import('bun').ServerWebSocket<unknown>
@@ -112,7 +112,7 @@ describe('Hermes backend handleInput', () => {
     const conv = conversationStore.createConversation('conv-1', 'hermes://gateway')
     conv.agentHostType = 'hermes'
 
-    const broadcastToChannel = vi.fn()
+    const broadcastToChannel = mock()
     const result = await hermesBackend.handleInput('conv-1', 'hello world', {
       conversationStore,
       kv: store.kv,
@@ -123,7 +123,7 @@ describe('Hermes backend handleInput', () => {
 
     // Should have sent input to gateway
     expect(ws.send).toHaveBeenCalledTimes(1)
-    const sent = JSON.parse((ws.send as ReturnType<typeof vi.fn>).mock.calls[0][0])
+    const sent = JSON.parse((ws.send as ReturnType<typeof mock>).mock.calls[0][0])
     expect(sent.type).toBe('input')
     expect(sent.conversationId).toBe('conv-1')
     expect(sent.input).toBe('hello world')
@@ -173,7 +173,7 @@ describe('Gateway socket management', () => {
 
   it('prunes dead gateway sockets', () => {
     const ws = {
-      send: vi.fn(),
+      send: mock(),
       readyState: WebSocket.CLOSED,
       data: {},
     } as unknown as import('bun').ServerWebSocket<unknown>

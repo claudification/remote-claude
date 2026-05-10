@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { type BuildDiagnosticsInput, buildSpawnDiagnostics } from './spawn-diagnostics'
 
 function makeInput(over: Partial<BuildDiagnosticsInput> = {}): BuildDiagnosticsInput {

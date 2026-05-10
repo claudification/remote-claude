@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'bun:test'
 import type { AgentHostContext } from './agent-host-context'
 import { observeClaudeSessionId, type SessionTransition } from './session-transition'
 
@@ -75,7 +75,7 @@ describe('observeClaudeSessionId', () => {
 
     const t = observeClaudeSessionId(ctx, 'sess-abc', 'hook', 'claude-opus-4-7')
 
-    expect(t).toMatchObject<Partial<SessionTransition>>({
+    expect(t).toMatchObject({
       kind: 'boot',
       source: 'hook',
       reason: 'first-init',
@@ -114,14 +114,14 @@ describe('observeClaudeSessionId', () => {
 
     const t = observeClaudeSessionId(ctx, 'sess-new', 'hook', 'claude-opus-4-7')
 
-    expect(t).toMatchObject<Partial<SessionTransition>>({
+    expect(t).toMatchObject({
       kind: 'rekey',
       reason: 'post-clear',
       from: 'sess-old',
       to: 'sess-new',
     })
     expect(ctx.claudeSessionId).toBe('sess-new')
-    expect(ctx.pendingClearFromId).toBe(null)
+    expect(ctx.pendingClearFromId).toBeNull()
     expect(wsCalls).toEqual([
       { fn: 'sendConversationReset', project: 'claude://default/test/cwd', model: 'claude-opus-4-7' },
       { fn: 'sendMetadataUpdate', metadata: { ccSessionId: 'sess-new' } },
@@ -138,7 +138,7 @@ describe('observeClaudeSessionId', () => {
 
     const t = observeClaudeSessionId(ctx, 'sess-new', 'stream_json')
 
-    expect(t).toMatchObject<Partial<SessionTransition>>({
+    expect(t).toMatchObject({
       kind: 'confirm',
       reason: 'duplicate',
       from: 'sess-new',
@@ -174,7 +174,7 @@ describe('observeClaudeSessionId', () => {
 
     const t = observeClaudeSessionId(ctx, 'sess-new', 'hook')
 
-    expect(t).toMatchObject<Partial<SessionTransition>>({
+    expect(t).toMatchObject({
       kind: 'rekey',
       reason: 'unexpected',
       from: 'sess-old',
@@ -217,7 +217,7 @@ describe('observeClaudeSessionId', () => {
     expect(ctx.subagentWatchers.size).toBe(0)
     expect(ctx.lastTasksJson).toBe('')
     expect(taskWatcherClosed).toBe(true)
-    expect(ctx.taskWatcher).toBe(null)
+    expect(ctx.taskWatcher).toBeNull()
     expect(taskRestart).toBe(1)
     expect(projectRestart).toBe(1)
     expect(wsCalls).toHaveLength(3) // sendConversationReset + sendMetadataUpdate + setSessionId
@@ -231,7 +231,7 @@ describe('observeClaudeSessionId', () => {
 
     expect(t.kind).toBe('rekey')
     expect(ctx.claudeSessionId).toBe('sess-new')
-    expect(ctx.pendingClearFromId).toBe(null)
+    expect(ctx.pendingClearFromId).toBeNull()
   })
 
   test('same id observed twice in a row on cold start: second call is confirm', () => {

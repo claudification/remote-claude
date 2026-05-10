@@ -37,12 +37,12 @@
     "fallow:dupes": "fallow dupes",
     "fallow:health": "fallow health",
     "fallow:audit": "fallow audit",
-    "test": "vitest run && bun test src/broker/store/__tests__/ src/broker/__tests__/backup-fts.test.ts",
-    "test:integration": "vitest run src/broker/__tests__/integration/",
+    "test": "bun test",
+    "test:integration": "bun test src/broker/__tests__/integration/",
     "test:sqlite": "bun test src/broker/store/__tests__/ src/broker/__tests__/backup-fts.test.ts",
     "test:staging": "scripts/staging-test.sh",
     "test:staging:keep": "scripts/staging-test.sh --keep",
-    "test:watch": "vitest",
+    "test:watch": "bun test --watch",
     "install-cli": "bun install && cd web && bun install && cd .. && bun run build && mkdir -p ~/.local/bin && ln -sf \"$(pwd)/bin/rclaude\" ~/.local/bin/rclaude && ln -sf \"$(pwd)/bin/broker\" ~/.local/bin/broker && ln -sf \"$(pwd)/bin/broker-cli\" ~/.local/bin/broker-cli && ln -sf \"$(pwd)/bin/sentinel\" ~/.local/bin/sentinel && ln -sf \"$(pwd)/scripts/revive-session.sh\" ~/.local/bin/revive-session.sh && echo 'Symlinked rclaude, broker, broker-cli, sentinel, and revive-session.sh to ~/.local/bin'"
   },
   "bin": {
@@ -59,8 +59,7 @@
     "@types/web-push": "^3.6.4",
     "fallow": "^2.61.0",
     "typescript": "^6.0.2",
-    "vite": "8.0.6",
-    "vitest": "^4.1.4"
+    "vite": "8.0.6"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",

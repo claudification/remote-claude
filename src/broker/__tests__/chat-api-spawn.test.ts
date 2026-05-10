@@ -2,7 +2,7 @@
  * Tests for Chat API spawn bypass in dispatchSpawn
  */
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'bun:test'
 import type { SpawnRequest } from '../../shared/spawn-schema'
 import { type ConversationStore, createConversationStore } from '../conversation-store'
 import { dispatchSpawn, type SpawnDispatchDeps } from '../spawn-dispatch'
