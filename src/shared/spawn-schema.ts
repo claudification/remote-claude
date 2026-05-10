@@ -49,6 +49,18 @@ export const EFFORT_OPTIONS = [
   { value: 'max', label: 'Max', info: 'Maximum thinking budget' },
 ] as const
 
+export const OPENCODE_TOOL_PERMISSION_OPTIONS = [
+  { value: 'safe', label: 'Safe', info: 'Read-only tools (read, glob, grep, ls, webfetch); no bash/write/edit' },
+  { value: 'none', label: 'None', info: 'Pure chat -- no tools at all' },
+  {
+    value: 'full',
+    label: 'Full (dangerous)',
+    info: 'All tools incl. bash + write + edit; --dangerously-skip-permissions',
+  },
+] as const
+
+export type OpenCodeToolPermission = (typeof OPENCODE_TOOL_PERMISSION_OPTIONS)[number]['value']
+
 export const PERMISSION_MODE_OPTIONS = [
   { value: DEFAULT_SENTINEL, label: 'Default', info: 'CC default prompting behaviour' },
   { value: 'plan', label: 'Plan', info: 'Plan-first mode' },
@@ -132,6 +144,12 @@ export const spawnRequestSchema = z.object({
     .optional()
     .describe(
       'OpenCode model (any string in OpenCode\'s provider/model format, e.g. "openrouter/anthropic/claude-haiku-4.5"). Used when backend=opencode.',
+    ),
+  toolPermission: z
+    .enum(['none', 'safe', 'full'])
+    .optional()
+    .describe(
+      'OpenCode tool permission tier. "none" disables every tool (pure chat). "safe" (default) allows read-only tools (read, glob, grep, ls, webfetch); bash/write/edit are denied. "full" allows everything via --dangerously-skip-permissions. Used when backend=opencode.',
     ),
 })
 export type SpawnRequest = z.infer<typeof spawnRequestSchema>

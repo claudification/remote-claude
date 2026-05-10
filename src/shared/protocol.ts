@@ -1353,6 +1353,12 @@ export interface ProjectSettings {
   defaultMaxBudgetUsd?: number // 0 = no limit
   defaultIncludePartialMessages?: boolean // default: true. Set false to disable token streaming
   defaultEnvText?: string
+  /** Default OpenCode tool permission tier for spawns from this project.
+   *  - 'none' = pure chat, no tools
+   *  - 'safe' = read-only tools (read, glob, grep, ls, webfetch); no bash/write/edit
+   *  - 'full' = all tools including bash + write + edit (uses --dangerously-skip-permissions)
+   *  Unset = treated as 'safe' at spawn time. */
+  defaultOpenCodeToolPermission?: 'none' | 'safe' | 'full'
   allowPlanMode?: boolean // default: true. Set false to auto-deny EnterPlanMode
   verbs?: string[] // custom spinner verbs (merged with defaults)
   pinned?: boolean
@@ -1763,6 +1769,10 @@ export interface SpawnConversation {
   /** OpenCode-specific model identifier (e.g. 'openrouter/anthropic/claude-haiku-4.5').
    *  Used when agentHostType === 'opencode'; passed to opencode-host via OPENCODE_MODEL. */
   openCodeModel?: string
+  /** OpenCode tool permission tier. 'none' = no tools, 'safe' = read-only,
+   *  'full' = all tools (--dangerously-skip-permissions). Defaults to 'safe'
+   *  at spawn time when not specified by request or project settings. */
+  toolPermission?: 'none' | 'safe' | 'full'
 }
 
 export interface ListDirs {
