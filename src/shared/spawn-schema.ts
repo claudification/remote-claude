@@ -139,6 +139,12 @@ export const spawnRequestSchema = z.object({
     ),
   chatConnectionId: z.string().optional().describe('Chat API connection ID (required when backend=chat-api)'),
   chatConnectionName: z.string().optional().describe('Chat API connection display name (for project URI)'),
+  gatewayId: z
+    .string()
+    .optional()
+    .describe(
+      'Hermes gateway ID (required when backend=hermes and multiple gateways are connected; auto-picked when only one is available)',
+    ),
   openCodeModel: z
     .string()
     .optional()

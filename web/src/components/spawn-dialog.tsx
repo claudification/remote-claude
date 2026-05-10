@@ -29,6 +29,7 @@ import { cwdToProjectUri } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { LaunchConfigFields, type LaunchFieldsValue } from './launch-config-fields'
 import { LaunchDialogBottom } from './launch-monitor'
+import { BackendSelect } from './spawn-dialog/backend-select'
 
 /** Mirrors src/broker/backends/opencode.ts deriveOpenCodeSlug -- needed
  *  client-side so the dialog can look up project settings under the same
@@ -50,6 +51,14 @@ interface SpawnDialogOptions {
   path: string
   mkdir?: boolean
   sentinel?: string
+}
+
+interface HermesGateway {
+  gatewayId: string
+  alias: string
+  gatewayType: string
+  label?: string
+  connected: boolean
 }
 
 interface SpawnDialogState {
@@ -87,7 +96,8 @@ export function SpawnDialog() {
   const [backend, setBackend] = useState<'claude' | 'chat-api' | 'hermes' | 'opencode'>('claude')
   const [chatConnectionId, setChatConnectionId] = useState('')
   const [chatConnections, setChatConnections] = useState<ChatApiConnection[]>([])
-  const [hermesAvailable, setHermesAvailable] = useState(false)
+  const [hermesGateways, setHermesGateways] = useState<HermesGateway[]>([])
+  const [hermesGatewayId, setHermesGatewayId] = useState('')
   // OpenCode-specific: model identifier in the OpenCode provider/model format
   // (e.g. "openrouter/anthropic/claude-haiku-4.5"). Free-text because OpenCode
   // supports 75+ providers and we don't want a static dropdown that goes stale.
@@ -147,6 +157,8 @@ export function SpawnDialog() {
       )
       setBackend('claude')
       setChatConnectionId('')
+      setHermesGateways([])
+      setHermesGatewayId('')
       const initialOpenCodeModel = 'openrouter/openai/gpt-oss-20b:free'
       setOpenCodeModel(initialOpenCodeModel)
       // Default tier from the saved opencode://{slug} project (the same URI
@@ -167,13 +179,15 @@ export function SpawnDialog() {
         .catch(() => setChatConnections([]))
       fetch(`${window.location.protocol}//${window.location.host}/api/gateways`)
         .then(r => (r.ok ? r.json() : []))
-        .then(gws =>
-          setHermesAvailable(
-            Array.isArray(gws) &&
-              gws.some((g: { gatewayType: string; connected: boolean }) => g.gatewayType === 'hermes' && g.connected),
-          ),
-        )
-        .catch(() => setHermesAvailable(false))
+        .then(gws => {
+          if (!Array.isArray(gws)) return setHermesGateways([])
+          const hermesOnes = (gws as HermesGateway[]).filter(g => g.gatewayType === 'hermes')
+          setHermesGateways(hermesOnes)
+          // Auto-select when exactly one is connected (matches "default to single one" requirement)
+          const connectedOnes = hermesOnes.filter(g => g.connected)
+          if (connectedOnes.length === 1) setHermesGatewayId(connectedOnes[0].gatewayId)
+        })
+        .catch(() => setHermesGateways([]))
       // Drop any stale error/steps from a prior failed launch so reopening
       // the dialog doesn't show the old "Session failed to connect" banner.
       progressReset()
@@ -286,6 +300,7 @@ export function SpawnDialog() {
         backend === 'chat-api' ? chatConnections.find(a => a.id === chatConnectionId)?.name : undefined,
       openCodeModel: backend === 'opencode' ? openCodeModel.trim() || undefined : undefined,
       toolPermission: backend === 'opencode' ? openCodeToolPermission : undefined,
+      gatewayId: backend === 'hermes' ? hermesGatewayId || undefined : undefined,
     }
     const result = await sendSpawnRequest(spawnReq)
     if (result.ok) {
@@ -326,6 +341,7 @@ export function SpawnDialog() {
     chatConnections,
     openCodeModel,
     openCodeToolPermission,
+    hermesGatewayId,
     progress,
     description.trim,
   ])
@@ -509,48 +525,23 @@ export function SpawnDialog() {
           {phase === 'config' && (
             <>
               {/* Backend selector (Claude / Chat / Hermes / OpenCode) */}
-              <div className="flex gap-1.5 shrink-0">
-                <TogglePill
-                  active={backend === 'claude'}
-                  onClick={() => {
-                    setBackend('claude')
-                    haptic('tap')
-                  }}
-                  label="Claude"
-                />
-                {chatConnections.length > 0 && (
-                  <TogglePill
-                    active={backend === 'chat-api'}
-                    onClick={() => {
-                      setBackend('chat-api')
-                      haptic('tap')
-                    }}
-                    label="Chat"
-                  />
-                )}
-                {hermesAvailable && (
-                  <TogglePill
-                    active={backend === 'hermes'}
-                    onClick={() => {
-                      setBackend('hermes')
-                      haptic('tap')
-                    }}
-                    label="Hermes"
-                  />
-                )}
-                <TogglePill
-                  active={backend === 'opencode'}
-                  onClick={() => {
-                    setBackend('opencode')
-                    haptic('tap')
-                  }}
-                  label="OpenCode"
+              <div className="shrink-0">
+                <BackendSelect
+                  value={backend}
+                  onChange={setBackend}
+                  chatAvailable={chatConnections.some(c => c.enabled)}
+                  hermesAvailable={hermesGateways.some(g => g.connected)}
                 />
               </div>
 
               {/* -- Hermes config -- */}
               {backend === 'hermes' ? (
                 <div className="space-y-3 px-1.5 py-1">
+                  <HermesGatewayPicker
+                    gateways={hermesGateways}
+                    value={hermesGatewayId}
+                    onChange={setHermesGatewayId}
+                  />
                   <LaunchConfigFields
                     value={fieldsValue}
                     onChange={applyFieldsPatch}
@@ -941,6 +932,60 @@ function ResumeSessionField({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Hermes Gateway Picker ────────────────────────────────────────────
+// Picker only renders when there's something meaningful to choose. Single
+// connected gateway = nothing to choose, hide the picker entirely (auto-select
+// already happened during fetch). Zero connected = show a hint that deep-links
+// to the manage dialog. >1 connected = show the actual select.
+
+function HermesGatewayPicker({
+  gateways,
+  value,
+  onChange,
+}: {
+  gateways: HermesGateway[]
+  value: string
+  onChange: (id: string) => void
+}) {
+  const connected = gateways.filter(g => g.connected)
+
+  if (connected.length === 0) {
+    return (
+      <div className="text-[10px] font-mono text-amber-400/80 bg-amber-950/20 border border-amber-400/30 rounded px-2 py-1.5 leading-snug">
+        No Hermes gateway connected.{' '}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new Event('open-gateway-manager'))}
+          className="underline hover:text-amber-300"
+        >
+          Manage Hermes connections...
+        </button>
+      </div>
+    )
+  }
+
+  if (connected.length === 1) return null
+
+  return (
+    <div className="space-y-2">
+      <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">Gateway</div>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full bg-surface-inset border border-border rounded px-2 py-1.5 text-[11px] font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+      >
+        <option value="">Select gateway...</option>
+        {connected.map(g => (
+          <option key={g.gatewayId} value={g.gatewayId}>
+            {g.alias}
+            {g.label ? ` -- ${g.label}` : ''}
+          </option>
+        ))}
+      </select>
     </div>
   )
 }

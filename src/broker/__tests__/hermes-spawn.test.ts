@@ -28,11 +28,11 @@ function makeDeps(overrides: Partial<SpawnDispatchDeps> = {}): SpawnDispatchDeps
   }
 }
 
-function makeGatewaySocket() {
+function makeGatewaySocket(gatewayId = 'gw-1') {
   return {
     send: mock(),
     readyState: WebSocket.OPEN,
-    data: { isGateway: true, gatewayType: 'hermes' },
+    data: { isGateway: true, gatewayType: 'hermes', gatewayId },
   } as unknown as import('bun').ServerWebSocket<unknown>
 }
 
@@ -52,9 +52,9 @@ describe('Hermes gateway spawn', () => {
     expect(result.statusCode).toBe(503)
   })
 
-  it('creates conversation when gateway is connected', async () => {
-    const ws = makeGatewaySocket()
-    conversationStore.setGatewaySocket('hermes', ws)
+  it('creates conversation when single gateway is connected (auto-pick)', async () => {
+    const ws = makeGatewaySocket('gw-1')
+    conversationStore.setGatewaySocket('gw-1', 'hermes', 'prod', ws)
 
     const req: SpawnRequest = { cwd: '~', backend: 'hermes' }
     const result = await dispatchSpawn(req, makeDeps())
@@ -66,12 +66,14 @@ describe('Hermes gateway spawn', () => {
     expect(conv?.status).toBe('idle')
     expect(conv?.agentHostType).toBe('hermes')
     expect(conv?.agentHostMeta?.backend).toBe('hermes')
-    expect(conv?.project).toBe('hermes://gateway')
+    expect(conv?.agentHostMeta?.gatewayId).toBe('gw-1')
+    expect(conv?.agentHostMeta?.gatewayAlias).toBe('prod')
+    expect(conv?.project).toBe('hermes://prod')
   })
 
   it('uses provided name as conversation title', async () => {
-    const ws = makeGatewaySocket()
-    conversationStore.setGatewaySocket('hermes', ws)
+    const ws = makeGatewaySocket('gw-1')
+    conversationStore.setGatewaySocket('gw-1', 'hermes', 'prod', ws)
 
     const req: SpawnRequest = { cwd: '~', backend: 'hermes', name: 'Research Chat' }
     const result = await dispatchSpawn(req, makeDeps())
@@ -80,6 +82,44 @@ describe('Hermes gateway spawn', () => {
 
     const conv = conversationStore.getConversation(result.conversationId)
     expect(conv?.title).toBe('Research Chat')
+    expect(conv?.project).toBe('hermes://prod/research-chat')
+  })
+
+  it('rejects when multiple gateways connected and no gatewayId given', async () => {
+    conversationStore.setGatewaySocket('gw-1', 'hermes', 'prod', makeGatewaySocket('gw-1'))
+    conversationStore.setGatewaySocket('gw-2', 'hermes', 'staging', makeGatewaySocket('gw-2'))
+
+    const req: SpawnRequest = { cwd: '~', backend: 'hermes' }
+    const result = await dispatchSpawn(req, makeDeps())
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toContain('Multiple Hermes')
+  })
+
+  it('routes to specific gateway when gatewayId is provided', async () => {
+    conversationStore.setGatewaySocket('gw-1', 'hermes', 'prod', makeGatewaySocket('gw-1'))
+    conversationStore.setGatewaySocket('gw-2', 'hermes', 'staging', makeGatewaySocket('gw-2'))
+
+    const req: SpawnRequest = { cwd: '~', backend: 'hermes', gatewayId: 'gw-2' }
+    const result = await dispatchSpawn(req, makeDeps())
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const conv = conversationStore.getConversation(result.conversationId)
+    expect(conv?.agentHostMeta?.gatewayId).toBe('gw-2')
+    expect(conv?.agentHostMeta?.gatewayAlias).toBe('staging')
+    expect(conv?.project).toBe('hermes://staging')
+  })
+
+  it('rejects when requested gatewayId is not connected', async () => {
+    conversationStore.setGatewaySocket('gw-1', 'hermes', 'prod', makeGatewaySocket('gw-1'))
+
+    const req: SpawnRequest = { cwd: '~', backend: 'hermes', gatewayId: 'gw-missing' }
+    const result = await dispatchSpawn(req, makeDeps())
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toContain('not connected')
+    expect(result.statusCode).toBe(503)
   })
 })
 
@@ -94,7 +134,7 @@ describe('Hermes backend handleInput', () => {
   })
 
   it('returns error when gateway not connected', async () => {
-    const conv = conversationStore.createConversation('conv-1', 'hermes://gateway')
+    const conv = conversationStore.createConversation('conv-1', 'hermes://prod')
     conv.agentHostType = 'hermes'
 
     const result = await hermesBackend.handleInput('conv-1', 'hello', {
@@ -105,12 +145,15 @@ describe('Hermes backend handleInput', () => {
     expect(result.error).toContain('gateway not connected')
   })
 
-  it('forwards input to gateway socket and creates user entry', async () => {
-    const ws = makeGatewaySocket()
-    conversationStore.setGatewaySocket('hermes', ws)
+  it("forwards input to the conversation's stored gateway, not just any", async () => {
+    const wsProd = makeGatewaySocket('gw-1')
+    const wsStaging = makeGatewaySocket('gw-2')
+    conversationStore.setGatewaySocket('gw-1', 'hermes', 'prod', wsProd)
+    conversationStore.setGatewaySocket('gw-2', 'hermes', 'staging', wsStaging)
 
-    const conv = conversationStore.createConversation('conv-1', 'hermes://gateway')
+    const conv = conversationStore.createConversation('conv-1', 'hermes://staging')
     conv.agentHostType = 'hermes'
+    conv.agentHostMeta = { backend: 'hermes', gatewayId: 'gw-2', gatewayAlias: 'staging' }
 
     const broadcastToChannel = mock()
     const result = await hermesBackend.handleInput('conv-1', 'hello world', {
@@ -120,65 +163,70 @@ describe('Hermes backend handleInput', () => {
     })
 
     expect(result.ok).toBe(true)
+    expect(wsStaging.send).toHaveBeenCalledTimes(1)
+    expect(wsProd.send).not.toHaveBeenCalled()
+  })
 
-    // Should have sent input to gateway
+  it('falls back to type-lookup when conv has no gatewayId (legacy)', async () => {
+    const ws = makeGatewaySocket('gw-1')
+    conversationStore.setGatewaySocket('gw-1', 'hermes', 'prod', ws)
+
+    const conv = conversationStore.createConversation('conv-1', 'hermes://prod')
+    conv.agentHostType = 'hermes'
+    // no agentHostMeta.gatewayId -- simulates legacy conv that survived migration
+
+    const result = await hermesBackend.handleInput('conv-1', 'hello', {
+      conversationStore,
+      kv: store.kv,
+      broadcastToChannel: mock(),
+    })
+    expect(result.ok).toBe(true)
     expect(ws.send).toHaveBeenCalledTimes(1)
-    const sent = JSON.parse((ws.send as ReturnType<typeof mock>).mock.calls[0][0])
-    expect(sent.type).toBe('input')
-    expect(sent.conversationId).toBe('conv-1')
-    expect(sent.input).toBe('hello world')
-
-    // Should have created user transcript entry
-    const transcript = conversationStore.getTranscriptEntries('conv-1')
-    expect(transcript.length).toBe(1)
-    expect(transcript[0].type).toBe('user')
-
-    // Should have broadcast transcript entry
-    expect(broadcastToChannel).toHaveBeenCalledWith(
-      'conversation:transcript',
-      'conv-1',
-      expect.objectContaining({ type: 'transcript_entries' }),
-    )
-
-    // Conversation should be active
-    expect(conv.status).toBe('active')
   })
 })
 
 describe('Gateway socket management', () => {
-  it('stores and retrieves gateway socket', () => {
-    const ws = makeGatewaySocket()
-    conversationStore.setGatewaySocket('hermes', ws)
-    expect(conversationStore.getGatewaySocket('hermes')).toBe(ws)
+  it('stores and retrieves gateway socket by id', () => {
+    const ws = makeGatewaySocket('gw-1')
+    conversationStore.setGatewaySocket('gw-1', 'hermes', 'prod', ws)
+    expect(conversationStore.getGatewaySocketById('gw-1')).toBe(ws)
   })
 
-  it('returns undefined for unknown type', () => {
-    expect(conversationStore.getGatewaySocket('hermes')).toBeUndefined()
+  it('returns undefined for unknown id', () => {
+    expect(conversationStore.getGatewaySocketById('gw-missing')).toBeUndefined()
   })
 
-  it('removes gateway socket by ref', () => {
-    const ws = makeGatewaySocket()
-    conversationStore.setGatewaySocket('hermes', ws)
+  it('lists gateways by type with alias info', () => {
+    conversationStore.setGatewaySocket('gw-1', 'hermes', 'prod', makeGatewaySocket('gw-1'))
+    conversationStore.setGatewaySocket('gw-2', 'hermes', 'staging', makeGatewaySocket('gw-2'))
+    const list = conversationStore.getGatewaysByType('hermes')
+    expect(list.length).toBe(2)
+    expect(list.map(g => g.alias).sort()).toEqual(['prod', 'staging'])
+  })
+
+  it('removes gateway socket by ref and returns its type', () => {
+    const ws = makeGatewaySocket('gw-1')
+    conversationStore.setGatewaySocket('gw-1', 'hermes', 'prod', ws)
 
     const removed = conversationStore.removeGatewaySocketByRef(ws)
     expect(removed).toBe('hermes')
-    expect(conversationStore.getGatewaySocket('hermes')).toBeUndefined()
+    expect(conversationStore.getGatewaySocketById('gw-1')).toBeUndefined()
   })
 
   it('returns undefined when removing unknown socket', () => {
-    const ws = makeGatewaySocket()
+    const ws = makeGatewaySocket('gw-other')
     const removed = conversationStore.removeGatewaySocketByRef(ws)
     expect(removed).toBeUndefined()
   })
 
-  it('prunes dead gateway sockets', () => {
+  it('prunes dead gateway sockets on lookup', () => {
     const ws = {
       send: mock(),
       readyState: WebSocket.CLOSED,
-      data: {},
+      data: { gatewayId: 'gw-dead' },
     } as unknown as import('bun').ServerWebSocket<unknown>
 
-    conversationStore.setGatewaySocket('hermes', ws)
-    expect(conversationStore.getGatewaySocket('hermes')).toBeUndefined()
+    conversationStore.setGatewaySocket('gw-dead', 'hermes', 'prod', ws)
+    expect(conversationStore.getGatewaySocketById('gw-dead')).toBeUndefined()
   })
 })

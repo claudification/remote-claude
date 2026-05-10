@@ -690,8 +690,11 @@ function canonicalizeUris(cacheDir: string): CanonicalizeResult {
  * - 2: all project URIs canonicalized to `claude://default/{path}` form
  *      (collapses claude:////path scar AND upgrades claude:///path to include
  *      the default sentinel authority)
+ * - 3: kill legacy `hermes://gateway` / `hermes://gateway/...` conversations
+ *      (the URI authority used to be the literal string "gateway"; now it's
+ *      the gateway's alias, so old rows can no longer be routed)
  */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 const SCHEMA_VERSION_KEY = 'schema-version'
 
@@ -700,6 +703,7 @@ export interface StartupMigrationResult {
   toVersion: number
   migrated?: MigrationResult
   canonicalized?: CanonicalizeResult
+  legacyHermesDeleted?: number
   skipped: boolean
 }
 
@@ -731,8 +735,34 @@ export function runStartupMigration(store: StoreDriver, cacheDir: string): Start
     out.canonicalized = canonicalizeUris(cacheDir)
   }
 
+  // v3: drop legacy hermes://gateway/... conversations -- the URI authority
+  // is now the gateway alias, so these rows can't be routed anymore.
+  if (current < 3) {
+    out.legacyHermesDeleted = dropLegacyHermesConversations(cacheDir)
+  }
+
   store.kv.set(SCHEMA_VERSION_KEY, SCHEMA_VERSION)
   return out
+}
+
+function dropLegacyHermesConversations(cacheDir: string): number {
+  const storeDbPath = join(cacheDir, 'store.db')
+  if (!existsSync(storeDbPath)) return 0
+  const db = new Database(storeDbPath)
+  try {
+    const ids = db
+      .prepare("SELECT id FROM conversations WHERE scope = 'hermes://gateway' OR scope LIKE 'hermes://gateway/%'")
+      .all() as Array<{ id: string }>
+    if (ids.length === 0) return 0
+    const idList = ids.map(r => r.id)
+    const placeholders = idList.map(() => '?').join(',')
+    db.prepare(`DELETE FROM transcript_entries WHERE conversation_id IN (${placeholders})`).run(...idList)
+    db.prepare(`DELETE FROM events WHERE conversation_id IN (${placeholders})`).run(...idList)
+    db.prepare(`DELETE FROM conversations WHERE id IN (${placeholders})`).run(...idList)
+    return idList.length
+  } finally {
+    db.close()
+  }
 }
 
 export function dryRunScan(cacheDir: string): { files: Record<string, { exists: boolean; entries?: number }> } {

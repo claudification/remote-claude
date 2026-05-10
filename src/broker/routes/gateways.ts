@@ -61,7 +61,7 @@ export function createGatewayRouter(
     }> = []
 
     for (const [gatewayId, record] of all) {
-      const gwSocket = conversationStore.getGatewaySocket(record.gatewayType)
+      const gwSocket = conversationStore.getGatewaySocketById(gatewayId)
       result.push({
         gatewayId,
         alias: record.alias,

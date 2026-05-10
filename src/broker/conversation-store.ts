@@ -276,9 +276,13 @@ export interface ConversationStore {
   clearState: () => Promise<void>
   flushTranscripts: () => Promise<void>
   persistConversationById: (id: string) => void
-  // Gateway sockets (adapters like Hermes that serve multiple conversations on one WS)
-  setGatewaySocket: (agentHostType: string, ws: ServerWebSocket<unknown>) => void
-  getGatewaySocket: (agentHostType: string) => ServerWebSocket<unknown> | undefined
+  // Gateway sockets (adapters like Hermes that serve multiple conversations on one WS).
+  // Keyed per gatewayId so multiple Hermes gateways can be connected at once.
+  setGatewaySocket: (gatewayId: string, gatewayType: string, alias: string, ws: ServerWebSocket<unknown>) => void
+  getGatewaySocketById: (gatewayId: string) => ServerWebSocket<unknown> | undefined
+  getGatewaysByType: (gatewayType: string) => Array<{ gatewayId: string; alias: string; ws: ServerWebSocket<unknown> }>
+  /** Legacy: returns any open socket of the type. Prefer getGatewaySocketById. */
+  getGatewaySocket: (gatewayType: string) => ServerWebSocket<unknown> | undefined
   removeGatewaySocketByRef: (ws: ServerWebSocket<unknown>) => string | undefined
 }
 
@@ -295,8 +299,12 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   const terminalRegistry = createTerminalRegistry()
   // JSON stream viewers keyed by conversationId (raw NDJSON tail for headless conversations)
   const jsonStreamRegistry = createViewerRegistry()
-  // Gateway sockets: agentHostType -> WS (adapters like Hermes serving multiple conversations)
-  const gatewaySockets = new Map<string, ServerWebSocket<unknown>>()
+  // Gateway sockets: gatewayId -> { type, alias, ws }. Each connected gateway
+  // adapter (e.g. a Hermes plugin) keeps its own entry so multi-gateway routing
+  // can target a specific gateway by id. `alias` is the human-readable label
+  // surfaced in URIs (hermes://{alias}/{name}). `type` lets callers fan out by
+  // kind ("hermes", "custom", ...) when an id isn't supplied.
+  const gatewaySockets = new Map<string, { type: string; alias: string; ws: ServerWebSocket<unknown> }>()
   const controlPanelSubscribers = new Set<ServerWebSocket<unknown>>()
   let subscriberIdCounter = 0
 
@@ -377,6 +385,10 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   const subagentTranscriptSeqCounters = new Map<string, number>()
   // Transcript kick tracking: conversationId -> last kick timestamp (debounce 60s)
   const lastTranscriptKick = new Map<string, number>()
+  /** Hashes of fired mention-notifications (`${conversationId}:${uuid}:${userName}`).
+   *  Memory-only: a stale binary or restart re-firing a few notifications is
+   *  cheaper than persisting per-entry dedup state to disk. */
+  const notifiedMentions = new Set<string>()
   // Background task output cache: taskId -> accumulated output string
   const bgTaskOutputCache = new Map<string, string>()
 
@@ -396,6 +408,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     processedClipboardIds,
     pendingAgentDescriptions,
     lastTranscriptKick,
+    notifiedMentions,
     store,
     scheduleConversationUpdate,
     broadcastToChannel,
@@ -496,6 +509,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       recapFresh: conv.recapFresh,
       hostSentinelId: conv.hostSentinelId,
       hostSentinelAlias: conv.hostSentinelAlias,
+      backend: conv.agentHostType || 'claude',
     }
   }
 
@@ -1337,24 +1351,50 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return wrappers ? Array.from(wrappers.keys()) : []
   }
 
-  function setGatewaySocket(agentHostType: string, ws: ServerWebSocket<unknown>): void {
-    gatewaySockets.set(agentHostType, ws)
+  function setGatewaySocket(gatewayId: string, gatewayType: string, alias: string, ws: ServerWebSocket<unknown>): void {
+    gatewaySockets.set(gatewayId, { type: gatewayType, alias, ws })
   }
 
-  function getGatewaySocket(agentHostType: string): ServerWebSocket<unknown> | undefined {
-    const ws = gatewaySockets.get(agentHostType)
-    if (ws && (ws as { readyState?: number }).readyState !== WebSocket.OPEN) {
-      gatewaySockets.delete(agentHostType)
+  function getGatewaySocketById(gatewayId: string): ServerWebSocket<unknown> | undefined {
+    const entry = gatewaySockets.get(gatewayId)
+    if (!entry) return undefined
+    if ((entry.ws as { readyState?: number }).readyState !== WebSocket.OPEN) {
+      gatewaySockets.delete(gatewayId)
       return undefined
     }
-    return ws
+    return entry.ws
+  }
+
+  /**
+   * Return all currently-connected gateway sockets of a given type.
+   * Caller can pick one (e.g. when only one is connected) or fail when
+   * a gatewayId is required but missing.
+   */
+  function getGatewaysByType(
+    gatewayType: string,
+  ): Array<{ gatewayId: string; alias: string; ws: ServerWebSocket<unknown> }> {
+    const result: Array<{ gatewayId: string; alias: string; ws: ServerWebSocket<unknown> }> = []
+    for (const [gatewayId, entry] of gatewaySockets) {
+      if (entry.type !== gatewayType) continue
+      if ((entry.ws as { readyState?: number }).readyState !== WebSocket.OPEN) {
+        gatewaySockets.delete(gatewayId)
+        continue
+      }
+      result.push({ gatewayId, alias: entry.alias, ws: entry.ws })
+    }
+    return result
+  }
+
+  /** Legacy: pick any open socket of the given type. Prefer getGatewaySocketById. */
+  function getGatewaySocket(gatewayType: string): ServerWebSocket<unknown> | undefined {
+    return getGatewaysByType(gatewayType)[0]?.ws
   }
 
   function removeGatewaySocketByRef(ws: ServerWebSocket<unknown>): string | undefined {
-    for (const [type, gws] of gatewaySockets) {
-      if (gws === ws) {
-        gatewaySockets.delete(type)
-        return type
+    for (const [gatewayId, entry] of gatewaySockets) {
+      if (entry.ws === ws) {
+        gatewaySockets.delete(gatewayId)
+        return entry.type
       }
     }
     return undefined
@@ -2000,6 +2040,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     scheduleRecap: (conversationId: string) => scheduleRecap(self, conversationId),
     cancelRecap,
     setGatewaySocket,
+    getGatewaySocketById,
+    getGatewaysByType,
     getGatewaySocket,
     removeGatewaySocketByRef,
   }

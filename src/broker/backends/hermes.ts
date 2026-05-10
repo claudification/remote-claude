@@ -36,7 +36,13 @@ export const hermesBackend: ConversationBackend = {
     const conv = conversationStore.getConversation(conversationId)
     if (!conv) return { ok: false, error: 'Conversation not found' }
 
-    const gatewayWs = conversationStore.getGatewaySocket(GATEWAY_TYPE)
+    // Route to the specific gateway this conversation was spawned with.
+    // Falls back to type-lookup when conv has no gatewayId (legacy data not yet
+    // wiped by the migration, or handcrafted test rows).
+    const storedGatewayId = (conv.agentHostMeta as { gatewayId?: string } | undefined)?.gatewayId
+    const gatewayWs = storedGatewayId
+      ? conversationStore.getGatewaySocketById(storedGatewayId)
+      : conversationStore.getGatewaySocket(GATEWAY_TYPE)
     if (!gatewayWs) return { ok: false, error: 'Hermes gateway not connected' }
 
     const userEntry: TranscriptUserEntry = {
@@ -84,23 +90,44 @@ export const hermesBackend: ConversationBackend = {
 function spawnHermes(req: SpawnRequest, deps: SpawnDeps): SpawnResult {
   const conversationId = randomUUID()
   const jobId = req.jobId ?? randomUUID()
-  // Per main's Hermes Phase 2: named conversations get a path-suffixed URI so
-  // they group separately in the sidebar (one bucket per conversation name).
-  // Unnamed conversations stay on the bare gateway URI.
-  const connectionName = 'gateway'
+
+  deps.conversationStore.createJob(jobId, conversationId)
+
+  // Resolve which Hermes gateway to use:
+  //  - explicit gatewayId from request (multi-gateway case)
+  //  - else: auto-pick the only connected one
+  //  - else: error -- no gateway available, or ambiguous when >1 connected
+  const connectedGateways = deps.conversationStore.getGatewaysByType(GATEWAY_TYPE)
+  let chosen: { gatewayId: string; alias: string } | undefined
+  if (req.gatewayId) {
+    const found = connectedGateways.find(g => g.gatewayId === req.gatewayId)
+    if (!found) {
+      deps.conversationStore.failJob(jobId, 'Requested Hermes gateway not connected')
+      return { ok: false, error: 'Requested Hermes gateway not connected', statusCode: 503 }
+    }
+    chosen = { gatewayId: found.gatewayId, alias: found.alias }
+  } else if (connectedGateways.length === 1) {
+    chosen = { gatewayId: connectedGateways[0].gatewayId, alias: connectedGateways[0].alias }
+  } else if (connectedGateways.length === 0) {
+    deps.conversationStore.failJob(jobId, 'Hermes gateway not connected')
+    return { ok: false, error: 'Hermes gateway not connected', statusCode: 503 }
+  } else {
+    deps.conversationStore.failJob(jobId, 'Multiple Hermes gateways connected; gatewayId required')
+    return {
+      ok: false,
+      error: 'Multiple Hermes gateways connected; specify gatewayId',
+      statusCode: 400,
+    }
+  }
+
+  // URI authority is the gateway alias so each gateway gets its own sidebar
+  // bucket. Named conversations get a path-suffix so they group separately
+  // within their gateway.
   const nameSlug = (req.name || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
-  const project = nameSlug ? `hermes://${connectionName}/${nameSlug}` : `hermes://${connectionName}`
-
-  deps.conversationStore.createJob(jobId, conversationId)
-
-  const gatewayWs = deps.conversationStore.getGatewaySocket(GATEWAY_TYPE)
-  if (!gatewayWs) {
-    deps.conversationStore.failJob(jobId, 'Hermes gateway not connected')
-    return { ok: false, error: 'Hermes gateway not connected', statusCode: 503 }
-  }
+  const project = nameSlug ? `hermes://${chosen.alias}/${nameSlug}` : `hermes://${chosen.alias}`
 
   const conv = deps.conversationStore.createConversation(
     conversationId,
@@ -111,7 +138,7 @@ function spawnHermes(req: SpawnRequest, deps: SpawnDeps): SpawnResult {
   )
   conv.status = 'idle'
   conv.agentHostType = 'hermes'
-  conv.agentHostMeta = { backend: 'hermes' }
+  conv.agentHostMeta = { backend: 'hermes', gatewayId: chosen.gatewayId, gatewayAlias: chosen.alias }
   conv.title =
     req.name ||
     deriveConversationName(req) ||

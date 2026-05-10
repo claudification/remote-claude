@@ -29,6 +29,7 @@ export interface WsData {
   isGateway?: boolean
   gatewayType?: string
   gatewayId?: string
+  gatewayAlias?: string
 }
 
 /** Thrown by guard methods (requireBenevolent, requireAgent, etc.) */

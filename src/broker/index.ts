@@ -311,6 +311,9 @@ async function main() {
         if (c.storeAddressBook) parts.push(`${c.storeAddressBook} address book`)
         if (parts.length) summary.push(`canonicalized URIs: ${parts.join(', ')}`)
       }
+      if (result.legacyHermesDeleted) {
+        summary.push(`dropped ${result.legacyHermesDeleted} legacy hermes://gateway conversations`)
+      }
       console.log(
         `[store] Migrated schema v${result.fromVersion} -> v${result.toVersion}` +
           (summary.length ? ` (${summary.join('; ')})` : ''),
@@ -650,6 +653,7 @@ async function main() {
             wsData.isGateway = true
             wsData.gatewayType = authResult.gatewayType
             wsData.gatewayId = authResult.gatewayId
+            wsData.gatewayAlias = authResult.alias
           }
           const success = server.upgrade(req, { data: wsData })
           if (success) return undefined

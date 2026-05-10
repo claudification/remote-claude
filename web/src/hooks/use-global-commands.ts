@@ -285,7 +285,7 @@ export function useGlobalCommands(toggleSidebar: () => void) {
   })
 
   useCommand('manage-gateways', () => window.dispatchEvent(new Event('open-gateway-manager')), {
-    label: 'Manage gateways',
+    label: 'Manage Hermes connections',
     group: 'System',
     when: () => useConversationsStore.getState().permissions.canAdmin,
   })

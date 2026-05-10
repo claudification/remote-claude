@@ -28,12 +28,23 @@ const gatewayRegister: MessageHandler = (ctx, data) => {
     return
   }
 
+  // gatewayId is set by auth-routes when the gateway secret is verified at WS upgrade.
+  // Without it we cannot route per-gateway, so refuse the registration -- a gateway
+  // connecting without an authenticated id is misconfigured.
+  const gatewayId = ctx.ws.data.gatewayId
+  if (!gatewayId) {
+    ctx.reply({ type: 'gateway_register_result', ok: false, error: 'Gateway not authenticated' })
+    ctx.ws.close(4002, 'gateway_unauthenticated')
+    return
+  }
+
   ctx.ws.data.isGateway = true
   ctx.ws.data.gatewayType = agentHostType
-  ctx.conversations.setGatewaySocket(agentHostType, ctx.ws)
+  const alias = ctx.ws.data.gatewayAlias || gatewayId.slice(0, 8)
+  ctx.conversations.setGatewaySocket(gatewayId, agentHostType, alias, ctx.ws)
 
   const version = (data.version as string) || 'unknown'
-  ctx.log.info(`[gateway] ${agentHostType} adapter connected (v${version})`)
+  ctx.log.info(`[gateway] ${agentHostType} adapter "${alias}" connected (v${version})`)
 
   ctx.reply({
     type: 'gateway_register_result',
@@ -42,10 +53,12 @@ const gatewayRegister: MessageHandler = (ctx, data) => {
   })
 }
 
-const gatewayHeartbeat: MessageHandler = (ctx, data) => {
+const gatewayHeartbeat: MessageHandler = ctx => {
   const agentHostType = ctx.ws.data.gatewayType
-  if (!agentHostType) return
-  ctx.conversations.setGatewaySocket(agentHostType, ctx.ws)
+  const gatewayId = ctx.ws.data.gatewayId
+  if (!agentHostType || !gatewayId) return
+  const alias = ctx.ws.data.gatewayAlias || gatewayId.slice(0, 8)
+  ctx.conversations.setGatewaySocket(gatewayId, agentHostType, alias, ctx.ws)
 }
 
 export function registerGatewayHandlers(): void {
