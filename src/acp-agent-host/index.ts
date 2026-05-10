@@ -38,6 +38,7 @@ import {
   AGENT_HOST_PROTOCOL_VERSION,
   type AgentHostBoot,
   type BrokerMessage,
+  type ControlDeliver,
   DEFAULT_BROKER_URL,
   type TranscriptUserEntry,
 } from '../shared/protocol'
@@ -185,7 +186,9 @@ async function main() {
         const su = parsed.params?.update?.sessionUpdate as string | undefined
         if (su === 'agent_message_chunk' || su === 'agent_thought_chunk') return
       }
-    } catch { /* keep unparseable lines */ }
+    } catch {
+      /* keep unparseable lines */
+    }
     jsonStreamBuffer.push(line)
     if (jsonStreamBuffer.length > 200) jsonStreamBuffer.splice(0, jsonStreamBuffer.length - 200)
   }
@@ -259,6 +262,22 @@ async function main() {
    *  empty turns. Empty set means "no list available" -- skip validation. */
   let availableModels: Set<string> = new Set()
 
+  // Build MCP server list (single 'claudwerk' entry pointing at our broker).
+  const mcpServers: Array<{
+    name: string
+    type: 'http'
+    url: string
+    headers: Array<{ name: string; value: string }>
+  }> = []
+  if (mcpWired && brokerMcpUrl && cfg.brokerSecret) {
+    mcpServers.push({
+      name: cfg.recipe.mcpServerName,
+      type: 'http',
+      url: brokerMcpUrl,
+      headers: [{ name: 'Authorization', value: `Bearer ${cfg.brokerSecret}` }],
+    })
+  }
+
   // ─── JSON stream relay state ──────────────────────────────────────────
   // When a dashboard viewer attaches to the JSON stream, we relay every
   // JSON-RPC line in both directions to the browser (like the Claude headless
@@ -307,6 +326,17 @@ async function main() {
       debug('JSON stream detached')
       return
     }
+    if (t === 'interrupt' || (t === 'control' && (msg as { action?: string }).action === 'interrupt')) {
+      log('interrupt requested')
+      if (activeTurn) {
+        client.notify('session/cancel')
+      }
+      return
+    }
+    if (t === 'control') {
+      handleControl(msg as ControlDeliver)
+      return
+    }
     if (t !== 'input') return
     const input = (msg as { input?: unknown }).input
     if (typeof input !== 'string') return
@@ -317,6 +347,166 @@ async function main() {
     activeTurn = handleTurn(input).finally(() => {
       activeTurn = null
     })
+  }
+
+  function handleControl(msg: ControlDeliver) {
+    const { action, model, effort, permissionMode } = msg
+    const source = msg.fromSession ? `inter-session:${msg.fromSession.slice(0, 8)}` : 'control-channel'
+    switch (action) {
+      case 'clear': {
+        log(`clear requested (${source}) -- creating new session`)
+        void handleClear()
+        break
+      }
+      case 'quit': {
+        log(`quit requested (${source})`)
+        client.notify('session/cancel')
+        shutdown('quit')
+        break
+      }
+      case 'set_model': {
+        if (!model) {
+          log('set_model: no model value provided, ignoring')
+          return
+        }
+        void handleSetConfig('model', model, source)
+        break
+      }
+      case 'set_effort': {
+        if (!effort) {
+          log('set_effort: no effort value provided, ignoring')
+          return
+        }
+        void handleSetConfig('effort', effort, source)
+        break
+      }
+      case 'set_permission_mode': {
+        if (!permissionMode) {
+          log('set_permission_mode: no mode provided, ignoring')
+          return
+        }
+        log(`set_permission_mode: "${permissionMode}" requested (${source}) -- not yet supported by ACP host`)
+        break
+      }
+      default:
+        debug(`control: unknown action "${action}"`)
+    }
+  }
+
+  async function handleClear() {
+    if (!acpSessionId) {
+      log('clear: no active session, nothing to clear')
+      return
+    }
+    // Cancel any in-flight turn before creating the new session.
+    if (activeTurn) {
+      client.notify('session/cancel')
+    }
+    try {
+      const res = await client.call<SessionNewResult>('session/new', { cwd: cfg.cwd, mcpServers }, 30_000)
+      const oldSessionId = acpSessionId
+      acpSessionId = res.sessionId
+      log(`clear: new session ${acpSessionId.slice(0, 8)} (was ${oldSessionId.slice(0, 8)})`)
+      state = createTranslatorState()
+      transport.send({
+        type: 'conversation_reset',
+        conversationId: cfg.conversationId,
+        project: cwdToProjectUri(cfg.cwd, cfg.recipe.agentName || 'acp'),
+      })
+      transport.setSessionId(acpSessionId, 'stream_json')
+      availableModels = new Set()
+      const modelOpt = res.configOptions?.find(o => o.id === 'model')
+      if (modelOpt?.options?.length) {
+        availableModels = new Set(modelOpt.options.map(o => o.value))
+      }
+      const currentModel = typeof modelOpt?.currentValue === 'string' ? modelOpt.currentValue : undefined
+      if (currentModel) {
+        transport.send({
+          type: 'update_conversation_metadata',
+          conversationId: cfg.conversationId,
+          metadata: { acpCurrentModel: currentModel, acpAvailableModelCount: availableModels.size },
+        })
+      }
+    } catch (e) {
+      log(`clear: session/new failed: ${(e as Error).message}`)
+      transport.sendTranscriptEntries(
+        [
+          {
+            type: 'system',
+            subtype: 'chat_api_error',
+            level: 'error',
+            content: `Failed to clear conversation: ${(e as Error).message}`,
+            uuid: randomUUID(),
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        false,
+      )
+    }
+  }
+
+  async function handleSetConfig(configId: string, value: string, source: string) {
+    if (!acpSessionId) {
+      log(`set_config: no active session, ignoring ${configId}=${value}`)
+      return
+    }
+    if (configId === 'model' && availableModels.size > 0 && !availableModels.has(value)) {
+      const sample = [...availableModels].slice(0, 6).join(', ')
+      const msg = `Unknown model "${value}". Agent advertises ${availableModels.size} models (e.g. ${sample}). Check spelling or run \`opencode auth login\` for the relevant provider.`
+      log(msg)
+      transport.sendTranscriptEntries(
+        [
+          {
+            type: 'system',
+            subtype: 'chat_api_error',
+            level: 'error',
+            content: msg,
+            uuid: randomUUID(),
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        false,
+      )
+      return
+    }
+    log(`set_config: ${configId}=${value} (${source})`)
+    try {
+      const res = await client.call<{ configOptions?: Array<{ id?: string; currentValue?: unknown }> }>(
+        'session/set_config_option',
+        { sessionId: acpSessionId, configId, value },
+        30_000,
+      )
+      const updated = res?.configOptions?.find(o => o?.id === configId)
+      if (updated && typeof updated.currentValue === 'string' && updated.currentValue !== value) {
+        throw new Error(
+          `agent rejected ${configId} selection (requested "${value}", current "${updated.currentValue}")`,
+        )
+      }
+      log(`set_config: ${configId}=${value} applied`)
+      if (configId === 'model') {
+        transport.send({
+          type: 'update_conversation_metadata',
+          conversationId: cfg.conversationId,
+          metadata: { acpCurrentModel: value, acpAvailableModelCount: availableModels.size },
+        })
+      }
+    } catch (e) {
+      const msg = `Failed to set ${configId} "${value}": ${(e as Error).message}`
+      log(msg)
+      transport.sendTranscriptEntries(
+        [
+          {
+            type: 'system',
+            subtype: 'chat_api_error',
+            level: 'error',
+            content: msg,
+            uuid: randomUUID(),
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        false,
+      )
+    }
   }
 
   transport = createHostTransport({
@@ -428,22 +618,6 @@ async function main() {
     log(
       `initialized agent=${initRes.agentInfo?.name ?? '?'}/${initRes.agentInfo?.version ?? '?'} acpVer=${initRes.protocolVersion}`,
     )
-
-    // Build mcpServers list (single 'claudwerk' entry pointing at our broker).
-    const mcpServers: Array<{
-      name: string
-      type: 'http'
-      url: string
-      headers: Array<{ name: string; value: string }>
-    }> = []
-    if (mcpWired && brokerMcpUrl && cfg.brokerSecret) {
-      mcpServers.push({
-        name: cfg.recipe.mcpServerName,
-        type: 'http',
-        url: brokerMcpUrl,
-        headers: [{ name: 'Authorization', value: `Bearer ${cfg.brokerSecret}` }],
-      })
-    }
 
     if (acpSessionId) {
       try {
