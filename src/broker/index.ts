@@ -60,11 +60,8 @@ import {
 } from './shares'
 import { createStore } from './store'
 import { cleanupVoiceForWs } from './voice-stream'
-import { createWsServer } from './ws-server'
-
 interface Args {
   port: number
-  apiPort?: number
   verbose: boolean
   cacheDir?: string
   clearCache: boolean
@@ -82,7 +79,6 @@ interface Args {
 function parseArgs(): Args {
   const args = process.argv.slice(2)
   let port = DEFAULT_BROKER_PORT
-  let apiPort: number | undefined
   let verbose = false
   let cacheDir: string | undefined
   let clearCache = false
@@ -100,8 +96,6 @@ function parseArgs(): Args {
 
     if (arg === '--port' || arg === '-p') {
       port = parseInt(args[++i], 10)
-    } else if (arg === '--api-port') {
-      apiPort = parseInt(args[++i], 10)
     } else if (arg === '--verbose' || arg === '-v') {
       verbose = true
     } else if (arg === '--cache-dir') {
@@ -139,7 +133,6 @@ function parseArgs(): Args {
 
   return {
     port,
-    apiPort,
     verbose,
     cacheDir,
     clearCache,
@@ -166,7 +159,6 @@ USAGE:
 
 OPTIONS:
   -p, --port <port>      WebSocket port (default: ${DEFAULT_BROKER_PORT})
-  --api-port <port>      REST API port (default: same as WebSocket)
   -v, --verbose          Enable verbose logging
   -w, --web-dir <dir>    Serve web dashboard from directory
   --cache-dir <dir>      Session cache directory (default: ~/.cache/broker)
@@ -210,7 +202,6 @@ function formatDuration(ms: number): string {
 async function main() {
   const {
     port,
-    apiPort,
     verbose,
     cacheDir,
     clearCache,
@@ -500,58 +491,6 @@ async function main() {
     writeFileSync(pidFile, String(process.pid))
   }
 
-  // Create WebSocket server
-  const wsServer = createWsServer({
-    port,
-    conversationStore,
-    onConversationStart(conversationId, meta) {
-      if (verbose) {
-        console.log(`[+] Session started: ${conversationId.slice(0, 8)}... (${meta.project})`)
-      }
-    },
-    onConversationEnd(conversationId, reason) {
-      if (verbose) {
-        console.log(`[-] Session ended: ${conversationId.slice(0, 8)}... (${reason})`)
-      }
-    },
-    onHookEvent(conversationId, event) {
-      if (verbose) {
-        const toolName = 'tool_name' in event.data ? (event.data.tool_name as string) : ''
-        const suffix = toolName ? ` (${toolName})` : ''
-        console.log(`[*] ${conversationId.slice(0, 8)}... ${event.hookEvent}${suffix}`)
-      }
-
-      // Auto-send push notification on Notification hook events
-      if (event.hookEvent === 'Notification' && isPushConfigured()) {
-        const conv = conversationStore.getConversation(conversationId)
-        const label = conv?.project ? extractProjectLabel(conv.project) : conversationId.slice(0, 8)
-        const d = event.data as Record<string, unknown>
-        const message = (d?.message as string) || 'Awaiting input...'
-        const notifType = (d?.notification_type as string) || 'Notification'
-        sendPushToAll({
-          title: `${notifType} - ${label}`,
-          body: message,
-          conversationId,
-          tag: `notification-${conversationId}`,
-        }).catch(() => {})
-      }
-
-      // Auto-send push on conversation Stop (Claude finished working)
-      if (event.hookEvent === 'Stop' && isPushConfigured()) {
-        const conv = conversationStore.getConversation(conversationId)
-        const label = conv?.project ? extractProjectLabel(conv.project) : conversationId.slice(0, 8)
-        const d = event.data as Record<string, unknown>
-        const reason = (d?.stop_hook_reason as string) || 'completed'
-        sendPushToAll({
-          title: `Session stopped - ${label}`,
-          body: reason,
-          conversationId,
-          tag: `stop-${conversationId}`,
-        }).catch(() => {})
-      }
-    },
-  })
-
   // Create Hono router with all HTTP routes
   const serverStartTime = Date.now()
   const router = createRouter({
@@ -567,17 +506,9 @@ async function main() {
     gatewayRegistry,
   })
 
-  if (apiPort && apiPort !== port) {
-    // Separate API server (Hono handles all HTTP)
-    Bun.serve({
-      port: apiPort,
-      fetch: router.fetch,
-    })
-    console.log(`REST API listening on http://localhost:${apiPort}`)
-  } else {
-    // Combined HTTP + WebSocket server
-    wsServer.stop()
-
+  // Combined HTTP + WebSocket server. (The legacy unauthenticated
+  // `ws-server.ts` and split-port mode were removed; see SECURITY-AUDIT.md C1.)
+  {
     // Register message handlers
     registerAllHandlers()
 
@@ -865,7 +796,7 @@ async function main() {
 │  CLAUDE CONCENTRATOR                                                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  WebSocket:  ws://localhost:${String(port).padEnd(5)}                                          │
-│  REST API:   http://localhost:${String(apiPort || port).padEnd(5)}                                        │
+│  REST API:   http://localhost:${String(port).padEnd(5)}                                        │
 │  Dashboard:  ${webDirDisplay} │
 │  Verbose:    ${verbose ? 'ON ' : 'OFF'}                                                         │
 └─────────────────────────────────────────────────────────────────────────────┘

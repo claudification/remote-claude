@@ -29,7 +29,6 @@ const ALLOWED_FILES = new Set([
   'handlers/sentinel.ts',
   'build-revive.ts',
   'spawn-dispatch.ts',
-  'ws-server.ts',
   'conversation-store.ts',
 ])
 
