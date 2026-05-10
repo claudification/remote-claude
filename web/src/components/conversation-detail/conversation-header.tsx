@@ -89,25 +89,32 @@ function RecapPreview({ session }: { session: Session }) {
         e.stopPropagation()
         setExpanded(v => !v)
       }}
-      className="w-full text-left px-3 pb-1.5 -mt-0.5 space-y-0.5"
+      className="w-full text-left px-3 pb-1 -mt-1"
     >
-      {session.description && session.recap && (
-        <div className="text-[10px] text-muted-foreground/70 italic truncate">{session.description}</div>
+      {expanded ? (
+        <div className="space-y-0.5 pb-0.5">
+          {session.description && session.recap && (
+            <div className="text-[10px] text-muted-foreground/70 italic truncate">{session.description}</div>
+          )}
+          <div
+            className={cn(
+              'text-[10px] whitespace-pre-wrap',
+              session.recap && session.recapFresh
+                ? 'text-zinc-300 border-l-2 border-zinc-500/60 pl-2 bg-zinc-800/20 rounded-r py-1'
+                : session.recap
+                  ? 'text-zinc-400'
+                  : 'text-muted-foreground/70 italic',
+            )}
+          >
+            {session.recap?.title && <span className="font-medium text-zinc-300/90">{session.recap.title}: </span>}
+            {text}
+          </div>
+        </div>
+      ) : (
+        <div className="text-[10px] text-muted-foreground/50 truncate">
+          {session.recap?.title ? `${session.recap.title}...` : text.slice(0, 60).trim() + (text.length > 60 ? '...' : '')}
+        </div>
       )}
-      <div
-        className={cn(
-          'text-[10px] overflow-hidden transition-all duration-300',
-          expanded ? 'whitespace-pre-wrap max-h-[50vh]' : 'truncate max-h-[1.4em]',
-          session.recap && session.recapFresh
-            ? 'text-zinc-300 border-l-2 border-zinc-500/60 ml-0 pl-2 bg-zinc-800/20 rounded-r py-1'
-            : session.recap
-              ? 'text-zinc-400'
-              : 'text-muted-foreground/70 italic',
-        )}
-      >
-        {session.recap?.title && <span className="font-medium text-zinc-300/90">{session.recap.title}: </span>}
-        {text}
-      </div>
     </button>
   )
 }
