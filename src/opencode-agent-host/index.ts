@@ -105,7 +105,11 @@ function buildBoot(cfg: CliConfig): AgentHostBoot {
     type: 'agent_host_boot',
     protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
     conversationId: cfg.conversationId,
-    project: cwdToProjectUri(cfg.cwd),
+    // Use the 'opencode' URI scheme so the broker's opencode backend owns
+    // these conversations and they group separately from claude:// in the
+    // sidebar. The default authority is omitted (matches the
+    // chat:// / hermes:// pattern in shared/project-uri.ts).
+    project: cwdToProjectUri(cfg.cwd, 'opencode'),
     capabilities: ['headless', 'channel'],
     claudeArgs: [],
     version: `opencode-host/${BUILD_VERSION.gitHashShort}`,
