@@ -2,7 +2,7 @@
  * API routes -- push, crashes, files, transcription, settings, project-order
  */
 
-import { randomUUID } from 'node:crypto'
+import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Hono } from 'hono'
@@ -200,7 +200,10 @@ export function createApiRouter(
     // Extra auth: requires rclaude secret specifically (not just any cookie)
     const authHeader = c.req.header('authorization')
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-    if (!rclaudeSecret || !token || token !== rclaudeSecret) {
+    if (!rclaudeSecret || !token || token.length !== rclaudeSecret.length) {
+      return c.json({ error: 'Unauthorized' }, 401)
+    }
+    if (!timingSafeEqual(Buffer.from(token), Buffer.from(rclaudeSecret))) {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 

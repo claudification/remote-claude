@@ -125,6 +125,9 @@ const dialogKeepalive: MessageHandler = (ctx, data) => {
   const dialogId = data.dialogId as string
   if (!conversationId || !dialogId) return
 
+  const conversation = ctx.conversations.getConversation(conversationId)
+  if (conversation) ctx.requirePermission('chat', conversation.project)
+
   const targetWs = ctx.conversations.getConversationSocket(conversationId)
   if (targetWs) {
     targetWs.send(JSON.stringify({ type: 'dialog_keepalive', dialogId }))
