@@ -101,10 +101,13 @@ const namePassthroughHandlers: Record<string, ToolHandlerWithName> = {
 }
 
 export function dispatchToolCase(name: string, ctx: ToolCaseInput): ToolCaseResult {
-  const handler = toolHandlers[name]
+  // ACP agents (OpenCode, etc.) send lowercase tool names like "read", "bash",
+  // "grep" while our handlers use PascalCase ("Read", "Bash", "Grep"). Normalize.
+  const normalizedName = name.charAt(0).toUpperCase() + name.slice(1)
+  const handler = toolHandlers[name] ?? toolHandlers[normalizedName]
   if (handler) return handler(ctx)
 
-  const namedHandler = namePassthroughHandlers[name]
+  const namedHandler = namePassthroughHandlers[name] ?? namePassthroughHandlers[normalizedName]
   if (namedHandler) return namedHandler(name, ctx)
 
   if (name.startsWith('mcp__')) return renderMcpDefault(name, ctx)

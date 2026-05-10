@@ -290,6 +290,76 @@ describe('translator: tool_call lifecycle (live commits)', () => {
     expect(s.activeRunUuid).not.toBe(firstUuid)
     expect(s.pendingBlocks).toEqual([{ type: 'text', text: 'after' }])
   })
+
+  it('does not overwrite stable tool name with description string from completed update', () => {
+    // OpenCode sends title="read" on pending/in_progress, then title="src/foo/bar.ts"
+    // on completed. The transcript should keep "read" as the name.
+    const s = createTranslatorState()
+    applyUpdate(
+      update({
+        sessionUpdate: 'tool_call',
+        toolCallId: 'call_read1',
+        status: 'pending',
+        kind: 'read',
+        title: 'read',
+        rawInput: {},
+      }),
+      s,
+    )
+    const o2 = applyUpdate(
+      update({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'call_read1',
+        status: 'in_progress',
+        kind: 'read',
+        title: 'read',
+        rawInput: { filePath: '/some/file.ts' },
+      }),
+      s,
+    )
+    // tool_use committed with stable name "read"
+    const toolUse = o2.entries[0] as TranscriptAssistantEntry
+    const block = (toolUse.message?.content as TranscriptContentBlock[])[0]
+    expect(block.name).toBe('read')
+
+    // completed event tries to overwrite title with a file path
+    const o3 = applyUpdate(
+      update({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'call_read1',
+        status: 'completed',
+        kind: 'read',
+        title: 'src/acp-agent-host/translator.ts',
+        rawInput: { filePath: '/some/file.ts' },
+        rawOutput: { output: 'file contents here' },
+      }),
+      s,
+    )
+    const result = o3.entries[0] as TranscriptUserEntry
+    expect(result.type).toBe('user')
+    // Name in state should still be "read" (the description title was ignored)
+    // The tool_use entry was already committed with "read" so it's immutable
+  })
+
+  it('resolves name from kind when title is a description', () => {
+    // If initial title already looks like a description, fall back to kind
+    const s = createTranslatorState()
+    const out = applyUpdate(
+      update({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'call_orphan',
+        status: 'completed',
+        kind: 'read',
+        title: 'path/to/file.ts',
+        rawInput: { filePath: '/x' },
+        rawOutput: { output: 'data' },
+      }),
+      s,
+    )
+    const toolUse = out.entries.find(e => e.type === 'assistant') as TranscriptAssistantEntry
+    const block = (toolUse.message?.content as TranscriptContentBlock[])[0]
+    expect(block.name).toBe('read')
+  })
 })
 
 describe('translator: usage_update + applyPromptUsage', () => {

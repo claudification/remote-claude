@@ -276,6 +276,9 @@ const CALENDAR_TOOL_STYLE = { color: 'text-blue-400', Icon: Clock }
 
 export function getToolStyle(name: string) {
   if (TOOL_STYLES[name]) return TOOL_STYLES[name]
+  // ACP agents send lowercase tool names; normalize for style lookup
+  const normalized = name.charAt(0).toUpperCase() + name.slice(1)
+  if (TOOL_STYLES[normalized]) return TOOL_STYLES[normalized]
   if (name.startsWith('mcp__gmail__')) return GMAIL_TOOL_STYLE
   if (name.startsWith('mcp__claude_ai_Google_Calendar__')) return CALENDAR_TOOL_STYLE
   if (name.startsWith('mcp__')) return MCP_TOOL_STYLE

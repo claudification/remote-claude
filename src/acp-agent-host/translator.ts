@@ -137,6 +137,9 @@ export interface AcpPlanUpdate {
  *  the moment status reaches a terminal value. */
 interface PendingToolCall {
   toolCallId: string
+  /** The stable tool name for the transcript (captured from the first title/kind
+   *  that looks like a tool name, NOT a human-readable description). Once set,
+   *  subsequent updates that change title to a description string are ignored. */
   name: string
   input: Record<string, unknown>
   output: string
@@ -212,6 +215,22 @@ export interface TranslatorOutput {
 
 function emptyOutput(): TranslatorOutput {
   return { entries: [], streamDeltas: [] }
+}
+
+/** Resolve the stable tool name from ACP's `title` and `kind` fields.
+ *
+ *  OpenCode sends `title` with changing semantics across the tool lifecycle:
+ *  - `pending`/`in_progress`: title = tool name (e.g. "read", "bash", "grep")
+ *  - `completed`:           title = description (e.g. "src/foo/bar.ts")
+ *
+ *  We assume a title that contains `/`, `.`, or spaces is a description, not a
+ *  tool name. The ACP `kind` field is stable but uses different categories
+ *  ("read", "edit", "execute", "search", "other") so we use it only as a
+ *  last resort. */
+function resolveToolName(title: string | undefined, kind: string | undefined): string {
+  if (title && !/[/.]/.test(title) && !title.includes(' ')) return title
+  if (kind) return kind
+  return 'tool'
 }
 
 /**
@@ -304,9 +323,16 @@ function handleToolCall(update: AcpToolCallEvent, state: TranslatorState): Trans
   // Pre-create the pending state. We don't commit a tool_use entry yet --
   // typically rawInput is empty here and arrives in the first
   // tool_call_update. Reserve UUIDs upfront so re-entry can't double-commit.
+  //
+  // Name resolution: prefer `title` (tool name) from the initial event, fall
+  // back to `kind` (ACP category), then generic "tool". The `title` field
+  // changes semantics across the lifecycle: it starts as the tool name on
+  // `pending`/`in_progress` but mutates into a human-readable description on
+  // `completed`. We freeze the name at first sight to avoid description strings
+  // overwriting the tool name in the transcript.
   const pending: PendingToolCall = {
     toolCallId: update.toolCallId,
-    name: update.title || update.kind || 'tool',
+    name: resolveToolName(update.title, update.kind),
     input: (update.rawInput as Record<string, unknown> | undefined) ?? {},
     output: '',
     isError: false,
@@ -338,7 +364,7 @@ function handleToolCallUpdate(update: AcpToolCallUpdateEvent, state: TranslatorS
     // Update arrived without a preceding tool_call -- create on the fly.
     pending = {
       toolCallId: update.toolCallId,
-      name: update.title || update.kind || 'tool',
+      name: resolveToolName(update.title, update.kind),
       input: {},
       output: '',
       isError: false,
@@ -350,8 +376,18 @@ function handleToolCallUpdate(update: AcpToolCallUpdateEvent, state: TranslatorS
     }
     state.toolCalls.set(update.toolCallId, pending)
   }
-  if (update.title) pending.name = update.title
-  if (update.kind && !pending.name) pending.name = update.kind
+  // Only update name if it hasn't been committed yet AND the new title looks
+  // like a tool name rather than a description. Once the tool_use entry is
+  // committed the name is frozen in the transcript; we also avoid overwriting
+  // a stable tool name with a description string that OpenCode sends at
+  // `completed` time (e.g. "src/acp-agent-host/translator.ts" for a `read`
+  // tool).
+  if (!pending.useCommitted) {
+    const candidate = resolveToolName(update.title, update.kind)
+    if (candidate && candidate !== pending.name) {
+      pending.name = candidate
+    }
+  }
   if (update.rawInput && typeof update.rawInput === 'object') {
     pending.input = update.rawInput as Record<string, unknown>
   }
