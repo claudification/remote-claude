@@ -1864,6 +1864,9 @@ export interface ConversationSummary {
   capabilities?: AgentHostCapability[]
   version?: string
   buildTime?: string
+  /** Which backend produced this conversation -- 'claude' (default), 'opencode',
+   *  'hermes', 'chat-api', or 'acp'. Used by the dashboard for badges + filtering. */
+  backend?: string
   claudeVersion?: string
   claudeAuth?: { email?: string; orgId?: string; orgName?: string; subscriptionType?: string }
   connectionIds: string[]
