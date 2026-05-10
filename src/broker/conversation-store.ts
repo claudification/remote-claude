@@ -63,7 +63,7 @@ import { resolvePermissionFlags, resolvePermissions } from './permissions'
 import { cancelRecap, generateRecapOnEnd, scheduleRecap } from './recap-generator'
 import type { SentinelRegistry } from './sentinel-registry'
 import { listShares } from './shares'
-import type { StoreDriver } from './store/types'
+import type { StoreDriver, TaskRecord } from './store/types'
 
 export type { ControlPanelMessage, ConversationSummary }
 
@@ -93,6 +93,7 @@ export interface ConversationStore {
   removeConversation: (conversationId: string) => void
   getConversationEvents: (conversationId: string, limit?: number, since?: number) => HookEvent[]
   updateTasks: (conversationId: string, tasks: TaskInfo[]) => void
+  markAllTasksDone: (conversationId: string) => TaskInfo[]
   setConversationSocket: (conversationId: string, connectionId: string, ws: ServerWebSocket<unknown>) => void
   getConversationSocket: (conversationId: string) => ServerWebSocket<unknown> | undefined
   findSocketByConversationId: (connectionId: string) => ServerWebSocket<unknown> | undefined
@@ -672,6 +673,24 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
 
   // StoreDriver writes are immediate -- no debounced save needed
 
+  // Prune archived tasks older than 90 days, hourly.
+  const ARCHIVED_TASK_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
+  setInterval(
+    () => {
+      if (!store) return
+      try {
+        const cutoff = Date.now() - ARCHIVED_TASK_RETENTION_MS
+        const removed = store.tasks.pruneArchivedBefore(cutoff)
+        if (removed > 0) {
+          console.log(`[tasks] Pruned ${removed} archived task(s) older than 90 days`)
+        }
+      } catch (err) {
+        console.error(`[tasks] Prune failed: ${err}`)
+      }
+    },
+    60 * 60 * 1000,
+  )
+
   function loadFromStore(): void {
     if (!store) return
     try {
@@ -704,8 +723,16 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
             status: 'stopped' as const,
             stoppedAt: a.stoppedAt || a.startedAt,
           })),
-          tasks: (fullMeta.tasks as Conversation['tasks']) || [],
-          archivedTasks: (fullMeta.archivedTasks as Conversation['archivedTasks']) || [],
+          // Tasks live in the dedicated `tasks` SQLite table now (see Phase 1
+          // task-table migration). The legacy meta.tasks/archivedTasks fields
+          // are migrated into the table by `migrateTasksFromMeta` -- once
+          // migrated, the meta values are stripped. Hydrate from the table.
+          tasks: store
+            ? store.tasks.getForConversation(rec.id, { kind: 'todo', archived: false }).map(taskRecordToInfo)
+            : (fullMeta.tasks as Conversation['tasks']) || [],
+          archivedTasks: store
+            ? hydrateArchivedTaskGroups(rec.id)
+            : (fullMeta.archivedTasks as Conversation['archivedTasks']) || [],
           bgTasks: ((fullMeta.bgTasks as Conversation['bgTasks']) || []).map(t => ({
             ...t,
             status: t.status === 'running' ? ('completed' as const) : t.status,
@@ -803,8 +830,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       const existing = store.conversations.get(conv.id)
       const meta: Record<string, unknown> = {
         subagents: conv.subagents,
-        tasks: conv.tasks,
-        archivedTasks: conv.archivedTasks,
+        // tasks/archivedTasks live in the dedicated `tasks` SQLite table now;
+        // do not duplicate them in meta. Hydration reads from the table.
         bgTasks: conv.bgTasks,
         monitors: conv.monitors,
         teammates: conv.teammates,
@@ -1230,6 +1257,9 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       try {
         store.conversations.delete(conversationId)
       } catch {}
+      try {
+        store.tasks.deleteForConversation(conversationId)
+      } catch {}
     }
   }
 
@@ -1491,22 +1521,130 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
   }
 
+  function taskInfoToRecord(conversationId: string, task: TaskInfo, opts?: { archivedAt?: number }): TaskRecord {
+    const now = Date.now()
+    const ts = task.updatedAt || now
+    const isDone = task.status === 'completed' || task.status === 'done'
+    const completedAt = task.completedAt ?? (isDone ? now : undefined)
+    return {
+      id: task.id,
+      conversationId,
+      kind: task.kind || 'todo',
+      status: task.status,
+      name: task.subject,
+      description: task.description,
+      priority: task.priority,
+      blockedBy: task.blockedBy,
+      blocks: task.blocks,
+      owner: task.owner,
+      data: task.data,
+      createdAt: ts,
+      updatedAt: ts,
+      completedAt,
+      archivedAt: opts?.archivedAt,
+    }
+  }
+
+  /**
+   * Group archived tasks back into ArchivedTaskGroup buckets keyed by archived_at.
+   * The original wire shape was a list of groups (each group = one batch of tasks
+   * that disappeared together). The SQLite shape is flat with archived_at on each
+   * row -- regroup by exact archived_at timestamp on hydrate.
+   */
+  function hydrateArchivedTaskGroups(conversationId: string): Conversation['archivedTasks'] {
+    if (!store) return []
+    const records = store.tasks.getForConversation(conversationId, { archived: true })
+    const groups = new Map<number, TaskInfo[]>()
+    for (const r of records) {
+      const at = r.archivedAt ?? r.updatedAt ?? r.createdAt
+      const list = groups.get(at) || []
+      list.push(taskRecordToInfo(r))
+      groups.set(at, list)
+    }
+    return [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([archivedAt, tasks]) => ({ archivedAt, tasks }))
+  }
+
+  function taskRecordToInfo(rec: TaskRecord): TaskInfo {
+    return {
+      id: rec.id,
+      subject: rec.name || '',
+      description: rec.description,
+      status: rec.status as TaskInfo['status'],
+      kind: (rec.kind as TaskInfo['kind']) || 'todo',
+      priority: rec.priority,
+      blockedBy: rec.blockedBy,
+      blocks: rec.blocks,
+      owner: rec.owner,
+      updatedAt: rec.updatedAt || rec.createdAt,
+      completedAt: rec.completedAt,
+      data: rec.data,
+    }
+  }
+
   function updateTasks(conversationId: string, tasks: TaskInfo[]): void {
     const conv = conversations.get(conversationId)
     if (!conv) return
 
-    // Diff: find tasks that disappeared (deleted by Claude after completion)
+    const now = Date.now()
+    // Diff: find tasks that disappeared (deleted by Claude after completion).
+    // Persist the archived snapshot so history survives broker restart.
     const incomingIds = new Set(tasks.map(t => t.id))
     const disappeared = conv.tasks.filter(t => !incomingIds.has(t.id))
     if (disappeared.length > 0) {
-      conv.archivedTasks.push({
-        archivedAt: Date.now(),
-        tasks: disappeared,
-      })
+      conv.archivedTasks.push({ archivedAt: now, tasks: disappeared })
+      if (store) {
+        for (const t of disappeared) {
+          try {
+            store.tasks.upsert(conversationId, taskInfoToRecord(conversationId, t, { archivedAt: now }))
+          } catch (err) {
+            console.error(`[store] tasks.upsert (archive) failed: ${err}`)
+          }
+        }
+      }
     }
 
     conv.tasks = tasks
+    if (store) {
+      for (const t of tasks) {
+        try {
+          store.tasks.upsert(conversationId, taskInfoToRecord(conversationId, t))
+        } catch (err) {
+          console.error(`[store] tasks.upsert failed: ${err}`)
+        }
+      }
+    }
     scheduleConversationUpdate(conversationId)
+  }
+
+  /**
+   * Mark every active todo task as completed. Used by the dashboard's right-click
+   * "Mark all tasks as done" action. Operates on broker-side state only -- the
+   * agent host (if connected) is authoritative on next reconnect/refresh and may
+   * reintroduce tasks. Returns the new task list.
+   */
+  function markAllTasksDone(conversationId: string): TaskInfo[] {
+    const conv = conversations.get(conversationId)
+    if (!conv) return []
+    const now = Date.now()
+    let changed = 0
+    conv.tasks = conv.tasks.map(t => {
+      if (t.kind && t.kind !== 'todo') return t
+      if (t.status === 'completed' || t.status === 'done') return t
+      changed++
+      return { ...t, status: 'completed' as const, completedAt: now, updatedAt: now }
+    })
+    if (changed === 0) return conv.tasks
+    if (store) {
+      for (const t of conv.tasks) {
+        try {
+          store.tasks.upsert(conversationId, taskInfoToRecord(conversationId, t))
+        } catch (err) {
+          console.error(`[store] tasks.upsert (mark all done) failed: ${err}`)
+        }
+      }
+    }
+    scheduleConversationUpdate(conversationId)
+    return conv.tasks
   }
 
   function getSubscriberCount(): number {
@@ -1920,6 +2058,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     addEvent,
     updateActivity,
     updateTasks,
+    markAllTasksDone,
     endConversation,
     removeConversation,
     getConversationEvents,

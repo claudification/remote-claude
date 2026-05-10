@@ -17,6 +17,7 @@ import type {
 import type { AgentHostContext } from './agent-host-context'
 import { debug as _debug, DEBUG } from './debug'
 import { translateClaudeToolResult, translateClaudeToolUse } from './dialect/from-claude'
+import { normalizeTodoStatus } from './task-normalize'
 import { createTranscriptWatcher } from './transcript-watcher'
 
 const debug = (msg: string) => _debug(msg)
@@ -143,16 +144,12 @@ function interceptTodoWrite(ctx: AgentHostContext, entries: TranscriptEntry[]) {
       if (block.type !== 'tool_use' || block.name !== 'TodoWrite') continue
       const input = block.input as { todos?: Array<{ content: string; status: string; activeForm?: string }> }
       if (!Array.isArray(input?.todos)) continue
-      const STATUS_MAP: Record<string, TaskInfo['status']> = {
-        pending: 'pending',
-        in_progress: 'in_progress',
-        completed: 'completed',
-      }
       const tasks: TaskInfo[] = input.todos.map((todo, i) => ({
         id: `todo-${i}`,
         subject: todo.content,
         description: todo.activeForm,
-        status: STATUS_MAP[todo.status] || 'pending',
+        status: normalizeTodoStatus(todo.status),
+        kind: 'todo',
         updatedAt: Date.now(),
       }))
       const msg: TasksUpdate = { type: 'tasks_update', conversationId: ctx.conversationId, tasks }

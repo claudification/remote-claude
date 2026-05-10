@@ -196,6 +196,7 @@ function createMockStoreDriver(): StoreDriver {
       getForConversation: () => [],
       delete: () => false,
       deleteForConversation: () => 0,
+      pruneArchivedBefore: () => 0,
     },
     costs: noopCosts,
     init: noop,

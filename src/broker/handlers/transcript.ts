@@ -507,6 +507,21 @@ const resultText: MessageHandler = (ctx, data) => {
   }
 }
 
+const markAllTasksDone: MessageHandler = (ctx, data) => {
+  const fields = requireStrings(ctx, data, ['conversationId'] as const, 'mark_all_tasks_done')
+  if (!fields) return
+  const conversation = ctx.conversations.getConversation(fields.conversationId)
+  if (!conversation) return
+  ctx.requirePermission('chat', conversation.project)
+  const tasks = ctx.conversations.markAllTasksDone(fields.conversationId)
+  ctx.conversations.broadcastToChannel('conversation:tasks', fields.conversationId, {
+    type: 'tasks_update',
+    conversationId: fields.conversationId,
+    tasks,
+  })
+  ctx.log.info(`mark_all_tasks_done: ${tasks.length} tasks (${fields.conversationId.slice(0, 8)})`)
+}
+
 const recapRequest: MessageHandler = (ctx, data) => {
   const fields = requireStrings(ctx, data, ['conversationId'] as const, 'recap_request')
   if (!fields) return
@@ -550,6 +565,7 @@ export function registerTranscriptHandlers(): void {
       transcript_request: transcriptRequest,
       subagent_transcript_request: subagentTranscriptRequest,
       recap_request: recapRequest,
+      mark_all_tasks_done: markAllTasksDone,
     },
     DASHBOARD_ROLES,
   )

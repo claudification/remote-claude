@@ -693,8 +693,13 @@ function canonicalizeUris(cacheDir: string): CanonicalizeResult {
  * - 3: kill legacy `hermes://gateway` / `hermes://gateway/...` conversations
  *      (the URI authority used to be the literal string "gateway"; now it's
  *      the gateway's alias, so old rows can no longer be routed)
+ * - 4: backfill the `tasks` table from `conversations.meta.tasks` and
+ *      `conversations.meta.archivedTasks`, then strip those keys from meta.
+ *      Restores the "tasks survive broker restart" invariant -- before this,
+ *      tasks lived only in meta which was loaded but updates weren't always
+ *      persisted on every change.
  */
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 const SCHEMA_VERSION_KEY = 'schema-version'
 
@@ -704,6 +709,7 @@ export interface StartupMigrationResult {
   migrated?: MigrationResult
   canonicalized?: CanonicalizeResult
   legacyHermesDeleted?: number
+  tasksBackfilled?: { conversations: number; tasks: number; archived: number }
   skipped: boolean
 }
 
@@ -741,8 +747,144 @@ export function runStartupMigration(store: StoreDriver, cacheDir: string): Start
     out.legacyHermesDeleted = dropLegacyHermesConversations(cacheDir)
   }
 
+  // v4: backfill tasks/archivedTasks from conversation meta into the dedicated
+  // tasks table. After backfill, strip the keys from meta (next persist will
+  // re-write meta without them).
+  if (current < 4) {
+    out.tasksBackfilled = backfillTasksFromMeta(store)
+  }
+
   store.kv.set(SCHEMA_VERSION_KEY, SCHEMA_VERSION)
   return out
+}
+
+interface LegacyTaskShape {
+  id?: string
+  subject?: string
+  description?: string
+  status?: string
+  blockedBy?: string[]
+  blocks?: string[]
+  owner?: string
+  updatedAt?: number
+  priority?: number
+  kind?: string
+  completedAt?: number
+  data?: Record<string, unknown>
+}
+
+interface LegacyArchivedGroup {
+  archivedAt?: number
+  tasks?: LegacyTaskShape[]
+}
+
+function legacyToTaskRecord(conversationId: string, t: LegacyTaskShape, archivedAt?: number) {
+  const baseTime = t.updatedAt || archivedAt || Date.now()
+  return {
+    id: String(t.id),
+    conversationId,
+    kind: t.kind || 'todo',
+    status: t.status || 'pending',
+    name: t.subject,
+    description: t.description,
+    priority: t.priority,
+    blockedBy: t.blockedBy,
+    blocks: t.blocks,
+    owner: t.owner,
+    data: t.data,
+    createdAt: baseTime,
+    updatedAt: t.updatedAt || archivedAt,
+    completedAt: t.completedAt,
+    archivedAt,
+  }
+}
+
+function upsertOrSwallow(
+  store: StoreDriver,
+  conversationId: string,
+  record: ReturnType<typeof legacyToTaskRecord>,
+): boolean {
+  try {
+    store.tasks.upsert(conversationId, record)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function backfillActiveTasks(
+  store: StoreDriver,
+  id: string,
+  tasks: LegacyTaskShape[],
+  stats: { tasks: number },
+): boolean {
+  let touched = false
+  for (const t of tasks) {
+    if (!t.id) continue
+    if (upsertOrSwallow(store, id, legacyToTaskRecord(id, t))) {
+      stats.tasks++
+      touched = true
+    }
+  }
+  return touched
+}
+
+function backfillArchivedGroups(
+  store: StoreDriver,
+  id: string,
+  groups: LegacyArchivedGroup[],
+  stats: { archived: number },
+): boolean {
+  let touched = false
+  for (const group of groups) {
+    const archivedAt = group.archivedAt || Date.now()
+    for (const t of group.tasks || []) {
+      if (!t.id) continue
+      if (upsertOrSwallow(store, id, legacyToTaskRecord(id, t, archivedAt))) {
+        stats.archived++
+        touched = true
+      }
+    }
+  }
+  return touched
+}
+
+function stripTaskMeta(store: StoreDriver, id: string, meta: Record<string, unknown>): boolean {
+  const newMeta = { ...meta }
+  delete newMeta.tasks
+  delete newMeta.archivedTasks
+  try {
+    store.conversations.update(id, { meta: newMeta })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function backfillConversation(
+  store: StoreDriver,
+  id: string,
+  meta: Record<string, unknown>,
+  stats: { conversations: number; tasks: number; archived: number },
+): void {
+  const tasks = (meta.tasks as LegacyTaskShape[] | undefined) || []
+  const archivedGroups = (meta.archivedTasks as LegacyArchivedGroup[] | undefined) || []
+  if (tasks.length === 0 && archivedGroups.length === 0) return
+
+  const activeTouched = backfillActiveTasks(store, id, tasks, stats)
+  const archivedTouched = backfillArchivedGroups(store, id, archivedGroups, stats)
+  if (!activeTouched && !archivedTouched) return
+  if (stripTaskMeta(store, id, meta)) stats.conversations++
+}
+
+function backfillTasksFromMeta(store: StoreDriver): { conversations: number; tasks: number; archived: number } {
+  const stats = { conversations: 0, tasks: 0, archived: 0 }
+  for (const summary of store.conversations.list()) {
+    const full = store.conversations.get(summary.id)
+    const meta = (full?.meta || {}) as Record<string, unknown>
+    backfillConversation(store, summary.id, meta, stats)
+  }
+  return stats
 }
 
 function dropLegacyHermesConversations(cacheDir: string): number {

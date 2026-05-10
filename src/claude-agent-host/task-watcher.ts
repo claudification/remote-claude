@@ -13,6 +13,7 @@ import { TASK_STATUS_PATTERN } from '../shared/task-statuses'
 import type { AgentHostContext } from './agent-host-context'
 import { debug } from './debug'
 import { listProjectTasks } from './project-tasks'
+import { normalizeTodoStatus } from './task-normalize'
 
 export function readAndSendTasks(ctx: AgentHostContext) {
   if (!ctx.wsClient?.isConnected() || !ctx.claudeSessionId) {
@@ -47,7 +48,9 @@ export function readAndSendTasks(ctx: AgentHostContext) {
           id: String(task.id || ''),
           subject: String(task.subject || ''),
           description: task.description ? String(task.description) : undefined,
-          status: task.status || 'pending',
+          status: normalizeTodoStatus(task.status),
+          kind: 'todo',
+          priority: typeof task.priority === 'number' ? task.priority : undefined,
           blockedBy: Array.isArray(task.blockedBy) ? task.blockedBy.map(String) : undefined,
           blocks: Array.isArray(task.blocks) ? task.blocks.map(String) : undefined,
           owner: task.owner ? String(task.owner) : undefined,

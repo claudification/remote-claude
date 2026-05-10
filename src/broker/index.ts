@@ -306,6 +306,12 @@ async function main() {
       if (result.legacyHermesDeleted) {
         summary.push(`dropped ${result.legacyHermesDeleted} legacy hermes://gateway conversations`)
       }
+      if (result.tasksBackfilled) {
+        const t = result.tasksBackfilled
+        if (t.tasks || t.archived) {
+          summary.push(`backfilled tasks: ${t.tasks} active, ${t.archived} archived (${t.conversations} conversations)`)
+        }
+      }
       console.log(
         `[store] Migrated schema v${result.fromVersion} -> v${result.toVersion}` +
           (summary.length ? ` (${summary.join('; ')})` : ''),

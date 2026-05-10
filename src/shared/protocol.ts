@@ -175,6 +175,18 @@ export interface TasksUpdate {
   tasks: TaskInfo[]
 }
 
+/**
+ * Dashboard -> broker: mark every active todo (kind='todo' AND status != 'completed')
+ * as done. Useful when a conversation has disconnected and the user wants to clear
+ * the visible task badge. The agent host (if connected) is NOT involved -- the broker
+ * mutates its own task records and broadcasts. On reconnect, the agent host's view
+ * is authoritative and may reintroduce tasks.
+ */
+export interface MarkAllTasksDone {
+  type: 'mark_all_tasks_done'
+  conversationId: string
+}
+
 // Transcript streaming: rclaude -> broker
 export interface TranscriptEntries {
   type: 'transcript_entries'
@@ -941,6 +953,7 @@ export type BrokerMessage =
   | RclaudeConfigSet
   | JsonStreamAttach
   | JsonStreamDetach
+  | MarkAllTasksDone
 
 export interface NotifyConfigUpdated {
   type: 'notify_config_updated'
@@ -1402,16 +1415,35 @@ export interface FileInfo {
   modifiedAt: number
 }
 
+/**
+ * Strict per-kind status enums. The agent host normalizes raw input from the
+ * source (CC's TodoWrite tool, project board files, etc.) into these values
+ * before sending over the wire. Anything outside the enum gets coerced to a
+ * default ('pending' for todo, 'open' for project) with a debug warn so the
+ * broker never has to reason about unexpected statuses.
+ */
+export type TodoTaskStatus = 'pending' | 'in_progress' | 'completed' | 'deleted'
+export type ProjectTaskStatus = 'inbox' | 'open' | 'in-progress' | 'in-review' | 'done' | 'archived'
+export type TaskStatus = TodoTaskStatus | ProjectTaskStatus
+
+/** Source/flavor of a task. Determines which status enum applies and which UI renders it. */
+export type TaskKind = 'todo' | 'project'
+
 // Session state in broker
 export interface TaskInfo {
   id: string
   subject: string
   description?: string
-  status: 'pending' | 'in_progress' | 'completed' | 'deleted'
+  status: TaskStatus
+  kind?: TaskKind // optional for back-compat; defaults to 'todo' when absent
+  priority?: number
   blockedBy?: string[]
   blocks?: string[]
   owner?: string
   updatedAt: number
+  completedAt?: number
+  /** Catch-all for kind-specific extras (e.g. project board path, tags). */
+  data?: Record<string, unknown>
 }
 
 export interface ArchivedTaskGroup {

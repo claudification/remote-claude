@@ -757,7 +757,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
           createdAt: now,
         })
 
-        const tasks = store.tasks.getForConversation('ks', 'task')
+        const tasks = store.tasks.getForConversation('ks', { kind: 'task' })
         expect(tasks).toHaveLength(1)
         expect(tasks[0].id).toBe('k1')
       })

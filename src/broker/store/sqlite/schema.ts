@@ -171,14 +171,39 @@ export function createSchema(db: Database) {
       kind TEXT NOT NULL,
       status TEXT NOT NULL,
       name TEXT,
+      description TEXT,
+      priority INTEGER,
+      order_index INTEGER,
+      blocked_by TEXT,
+      blocks TEXT,
+      owner TEXT,
       data TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER,
+      completed_at INTEGER,
+      archived_at INTEGER,
       PRIMARY KEY(conversation_id, id)
     )
   `)
+  // ALTER ADD COLUMN for upgrades from the v0 shape (id/conv/kind/status/name/data/created_at/updated_at).
+  // SQLite ALTER ADD COLUMN is idempotent only if you guard it -- check column list first.
+  const taskCols = new Set((db.prepare("PRAGMA table_info('tasks')").all() as Array<{ name: string }>).map(r => r.name))
+  for (const [col, ddl] of [
+    ['description', 'description TEXT'],
+    ['priority', 'priority INTEGER'],
+    ['order_index', 'order_index INTEGER'],
+    ['blocked_by', 'blocked_by TEXT'],
+    ['blocks', 'blocks TEXT'],
+    ['owner', 'owner TEXT'],
+    ['completed_at', 'completed_at INTEGER'],
+    ['archived_at', 'archived_at INTEGER'],
+  ] as const) {
+    if (!taskCols.has(col)) db.run(`ALTER TABLE tasks ADD COLUMN ${ddl}`)
+  }
   db.run('CREATE INDEX IF NOT EXISTS idx_tasks_conversation ON tasks(conversation_id)')
   db.run('CREATE INDEX IF NOT EXISTS idx_tasks_conversation_kind ON tasks(conversation_id, kind)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_tasks_conversation_active ON tasks(conversation_id) WHERE archived_at IS NULL')
+  db.run('CREATE INDEX IF NOT EXISTS idx_tasks_archived_at ON tasks(archived_at) WHERE archived_at IS NOT NULL')
 
   db.run(`
     CREATE TABLE IF NOT EXISTS shares (

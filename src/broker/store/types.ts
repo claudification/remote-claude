@@ -392,19 +392,42 @@ export interface ScopeLinkStore {
 export interface TaskRecord {
   id: string
   conversationId: string
-  kind: 'task' | 'bg_task' | 'archived'
+  /** 'todo' | 'project' | future kinds. Free string so the store stays neutral. */
+  kind: string
   status: string
+  /** Short label / subject. Stored in the `name` column for legacy reasons. */
   name?: string
+  description?: string
+  priority?: number
+  orderIndex?: number
+  blockedBy?: string[]
+  blocks?: string[]
+  owner?: string
+  /** Catch-all JSON for kind-specific extras. */
   data?: Record<string, unknown>
   createdAt: number
   updatedAt?: number
+  completedAt?: number
+  /** Non-null = the task has been archived (no longer in the active list). */
+  archivedAt?: number
+}
+
+export interface TaskQuery {
+  kind?: string
+  /** true = archived only, false = active only, undefined = both */
+  archived?: boolean
+  /** archived_at >= since (ms epoch) */
+  archivedSince?: number
+  limit?: number
 }
 
 export interface TaskStore {
   upsert(conversationId: string, task: TaskRecord): void
-  getForConversation(conversationId: string, kind?: string): TaskRecord[]
+  getForConversation(conversationId: string, query?: TaskQuery): TaskRecord[]
   delete(conversationId: string, taskId: string): boolean
   deleteForConversation(conversationId: string): number
+  /** Delete archived tasks where archived_at < cutoffMs. Returns rows deleted. */
+  pruneArchivedBefore(cutoffMs: number): number
 }
 
 // ---------------------------------------------------------------------------

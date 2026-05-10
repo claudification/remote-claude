@@ -154,6 +154,23 @@ export function ConversationContextMenu({
           >
             Recap
           </ContextMenu.Item>
+          {session.pendingTaskCount > 0 && (
+            <ContextMenu.Item
+              className={menuItemClass}
+              onSelect={() => {
+                haptic('tap')
+                if (
+                  confirm(
+                    `Mark ${session.pendingTaskCount} pending task(s) as done?\n\nThis only updates the dashboard view. If the conversation reconnects, the agent host's task list will overwrite this.`,
+                  )
+                ) {
+                  wsSend('mark_all_tasks_done', { conversationId: session.id })
+                }
+              }}
+            >
+              Mark all tasks as done
+            </ContextMenu.Item>
+          )}
           {onOpenSettings && (
             <ContextMenu.Item
               className={menuItemClass}

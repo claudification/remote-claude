@@ -31,6 +31,7 @@ import type {
   ShareRecord,
   ShareStore,
   StoreDriver,
+  TaskQuery,
   TaskRecord,
   TaskStore,
   TranscriptEntryRecord,
@@ -662,11 +663,19 @@ function createTaskStore(): TaskStore {
       getConversation(conversationId).set(task.id, { ...task, conversationId })
     },
 
-    getForConversation(conversationId, kind?) {
+    getForConversation(conversationId, query?: TaskQuery) {
       const m = tasks.get(conversationId)
       if (!m) return []
       let results = [...m.values()]
-      if (kind) results = results.filter(t => t.kind === kind)
+      if (query?.kind) results = results.filter(t => t.kind === query.kind)
+      if (query?.archived === true) results = results.filter(t => t.archivedAt != null)
+      else if (query?.archived === false) results = results.filter(t => t.archivedAt == null)
+      if (query?.archivedSince != null) {
+        const since = query.archivedSince
+        results = results.filter(t => t.archivedAt != null && t.archivedAt >= since)
+      }
+      results.sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0) || a.createdAt - b.createdAt)
+      if (query?.limit) results = results.slice(0, Math.max(1, Math.floor(query.limit)))
       return results
     },
 
@@ -680,6 +689,19 @@ function createTaskStore(): TaskStore {
       const count = m.size
       tasks.delete(conversationId)
       return count
+    },
+
+    pruneArchivedBefore(cutoffMs) {
+      let removed = 0
+      for (const m of tasks.values()) {
+        for (const [id, task] of m) {
+          if (task.archivedAt != null && task.archivedAt < cutoffMs) {
+            m.delete(id)
+            removed++
+          }
+        }
+      }
+      return removed
     },
   }
 }
