@@ -11,6 +11,10 @@ export interface ReviveOverrides {
   autocompactPct?: number
   maxBudgetUsd?: number
   env?: Record<string, string>
+  agentHostType?: string
+  openCodeModel?: string
+  acpAgent?: string
+  toolPermission?: 'none' | 'safe' | 'full'
 }
 
 /**
@@ -44,5 +48,11 @@ export function buildReviveMessage(
     maxBudgetUsd: overrides?.maxBudgetUsd ?? lc?.maxBudgetUsd ?? conversation.maxBudgetUsd,
     adHocWorktree: conversation.adHocWorktree || undefined,
     env: overrides?.env ?? lc?.env ?? undefined,
+    // Agent host routing -- must be preserved through revive so the sentinel
+    // launches the correct binary (rclaude / opencode-host / acp-host).
+    agentHostType: overrides?.agentHostType ?? lc?.agentHostType ?? conversation.agentHostType ?? undefined,
+    openCodeModel: overrides?.openCodeModel ?? lc?.openCodeModel ?? (meta.openCodeModel as string | undefined) ?? undefined,
+    acpAgent: overrides?.acpAgent ?? lc?.acpAgent ?? (meta.acpAgent as string | undefined) ?? undefined,
+    toolPermission: overrides?.toolPermission ?? lc?.toolPermission ?? (meta.openCodeToolPermission as 'none' | 'safe' | 'full' | undefined) ?? undefined,
   }
 }

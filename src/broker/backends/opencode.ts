@@ -196,6 +196,10 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
       bare: false,
       repl: false,
       env: req.env || undefined,
+      agentHostType: 'acp',
+      openCodeModel: resolvedModel,
+      acpAgent: 'opencode',
+      toolPermission,
     })
 
     try {

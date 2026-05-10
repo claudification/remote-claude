@@ -1580,10 +1580,172 @@ function connect(
         case 'revive': {
           const reviveMsg = msg as ReviveConversation
           const reviveCwd = parseProjectUri(reviveMsg.project).path
+          const aht = reviveMsg.agentHostType || 'claude'
           log(
-            `Reviving ccSession=${reviveMsg.ccSessionId.slice(0, 8)} conv=${reviveMsg.conversationId.slice(0, 8)} mode=${reviveMsg.mode || 'default'} headless=${reviveMsg.headless !== false}${reviveMsg.effort ? ` effort=${reviveMsg.effort}` : ''}${reviveMsg.model ? ` model=${reviveMsg.model}` : ''}${reviveMsg.maxBudgetUsd ? ` maxBudget=$${reviveMsg.maxBudgetUsd}` : ''}${reviveMsg.jobId ? ` job=${reviveMsg.jobId.slice(0, 8)}` : ''} (${reviveCwd})`,
+            `Reviving ccSession=${reviveMsg.ccSessionId.slice(0, 8)} conv=${reviveMsg.conversationId.slice(0, 8)} mode=${reviveMsg.mode || 'default'} headless=${reviveMsg.headless !== false} agentHostType=${aht}${reviveMsg.effort ? ` effort=${reviveMsg.effort}` : ''}${reviveMsg.model ? ` model=${reviveMsg.model}` : ''}${reviveMsg.maxBudgetUsd ? ` maxBudget=$${reviveMsg.maxBudgetUsd}` : ''}${reviveMsg.jobId ? ` job=${reviveMsg.jobId?.slice(0, 8)}` : ''} (${reviveCwd})`,
           )
           launchLog(reviveMsg.jobId, 'Sentinel received revive request', 'ok')
+
+          // ─── ACP-host revive path (headless only) ────────────────────
+          // OpenCode and other ACP agents are always headless. Route to
+          // acp-host with a resumeSessionId so the agent can restore context.
+          if (aht === 'acp') {
+            const acpAgent = reviveMsg.acpAgent
+            if (!acpAgent) {
+              launchLog(reviveMsg.jobId, 'ACP revive rejected', 'error', 'Missing acpAgent field')
+              ws.send(
+                JSON.stringify({
+                  type: 'revive_result',
+                  ccSessionId: reviveMsg.ccSessionId,
+                  conversationId: reviveMsg.conversationId,
+                  project: reviveMsg.project,
+                  jobId: reviveMsg.jobId,
+                  success: false,
+                  continued: false,
+                  error: 'ACP revive missing acpAgent field',
+                }),
+              )
+              break
+            }
+            const acpBin = findAcpHostBinary()
+            if (!acpBin) {
+              const err =
+                'acp-host binary not found in PATH or known locations. Install with: bun install -g @claudewerk/acp-host'
+              launchLog(reviveMsg.jobId, 'acp-host not found', 'error', err)
+              ws.send(
+                JSON.stringify({
+                  type: 'revive_result',
+                  ccSessionId: reviveMsg.ccSessionId,
+                  conversationId: reviveMsg.conversationId,
+                  project: reviveMsg.project,
+                  jobId: reviveMsg.jobId,
+                  success: false,
+                  continued: false,
+                  error: err,
+                }),
+              )
+              break
+            }
+            if (!existsSync(reviveCwd)) {
+              const err = `Directory not found: ${reviveCwd}`
+              launchLog(reviveMsg.jobId, 'ACP revive directory missing', 'error', err)
+              ws.send(
+                JSON.stringify({
+                  type: 'revive_result',
+                  ccSessionId: reviveMsg.ccSessionId,
+                  conversationId: reviveMsg.conversationId,
+                  project: reviveMsg.project,
+                  jobId: reviveMsg.jobId,
+                  success: false,
+                  continued: false,
+                  error: err,
+                }),
+              )
+              break
+            }
+            const acpRes = spawnAcpHostDirect({
+              bin: acpBin,
+              cwd: reviveCwd,
+              conversationId: reviveMsg.conversationId,
+              secret,
+              jobId: reviveMsg.jobId,
+              acpAgent,
+              model: reviveMsg.openCodeModel || reviveMsg.model,
+              sessionName: reviveMsg.sessionName,
+              env: reviveMsg.env,
+              toolPermission: reviveMsg.toolPermission,
+              resumeSessionId: reviveMsg.ccSessionId,
+            })
+            ws.send(
+              JSON.stringify({
+                type: 'revive_result',
+                ccSessionId: reviveMsg.ccSessionId,
+                conversationId: reviveMsg.conversationId,
+                project: reviveMsg.project,
+                jobId: reviveMsg.jobId,
+                success: acpRes.success,
+                continued: true,
+                error: acpRes.error,
+              }),
+            )
+            if (acpRes.success) {
+              launchLog(reviveMsg.jobId, 'Waiting for ACP conversation to connect', 'info')
+            } else {
+              log(`ACP revive failed: ${acpRes.error}`)
+            }
+            break
+          }
+
+          // ─── opencode-host revive path (headless only, legacy NDJSON) ─
+          if (aht === 'opencode') {
+            const ocBin = findOpenCodeHostBinary()
+            if (!ocBin) {
+              const err =
+                'opencode-host binary not found in PATH or known locations. Install with: bun install -g @claudewerk/opencode-host'
+              launchLog(reviveMsg.jobId, 'opencode-host not found', 'error', err)
+              ws.send(
+                JSON.stringify({
+                  type: 'revive_result',
+                  ccSessionId: reviveMsg.ccSessionId,
+                  conversationId: reviveMsg.conversationId,
+                  project: reviveMsg.project,
+                  jobId: reviveMsg.jobId,
+                  success: false,
+                  continued: false,
+                  error: err,
+                }),
+              )
+              break
+            }
+            if (!existsSync(reviveCwd)) {
+              const err = `Directory not found: ${reviveCwd}`
+              launchLog(reviveMsg.jobId, 'opencode-host revive directory missing', 'error', err)
+              ws.send(
+                JSON.stringify({
+                  type: 'revive_result',
+                  ccSessionId: reviveMsg.ccSessionId,
+                  conversationId: reviveMsg.conversationId,
+                  project: reviveMsg.project,
+                  jobId: reviveMsg.jobId,
+                  success: false,
+                  continued: false,
+                  error: err,
+                }),
+              )
+              break
+            }
+            const ocRes = spawnOpenCodeHostDirect({
+              bin: ocBin,
+              cwd: reviveCwd,
+              conversationId: reviveMsg.conversationId,
+              secret,
+              jobId: reviveMsg.jobId,
+              model: reviveMsg.openCodeModel || reviveMsg.model,
+              sessionName: reviveMsg.sessionName,
+              env: reviveMsg.env,
+              toolPermission: reviveMsg.toolPermission,
+            })
+            ws.send(
+              JSON.stringify({
+                type: 'revive_result',
+                ccSessionId: reviveMsg.ccSessionId,
+                conversationId: reviveMsg.conversationId,
+                project: reviveMsg.project,
+                jobId: reviveMsg.jobId,
+                success: ocRes.success,
+                continued: false,
+                error: ocRes.error,
+              }),
+            )
+            if (ocRes.success) {
+              launchLog(reviveMsg.jobId, 'Waiting for OpenCode conversation to connect', 'info')
+            } else {
+              log(`OpenCode revive failed: ${ocRes.error}`)
+            }
+            break
+          }
+
+          // ─── Default: rclaude (claude) revive path ──────────────────
           const result = await reviveConversation(
             reviveMsg.ccSessionId,
             reviveCwd,

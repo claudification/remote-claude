@@ -1550,6 +1550,10 @@ export interface LaunchConfig {
   maxBudgetUsd?: number
   includePartialMessages?: boolean
   env?: Record<string, string>
+  agentHostType?: string
+  openCodeModel?: string
+  acpAgent?: string
+  toolPermission?: 'none' | 'safe' | 'full'
 }
 
 // ─── Launch Jobs (request-scoped event channels for spawn/revive) ────
@@ -1758,6 +1762,16 @@ export interface ReviveConversation {
   // Context
   adHocWorktree?: string
   env?: Record<string, string>
+  /** Which agent host binary to use. Defaults to 'claude' (rclaude).
+   *  Mirrors SpawnConversation.agentHostType for revive-time dispatch. */
+  agentHostType?: string
+  /** OpenCode-specific model identifier. Passed to opencode-host via OPENCODE_MODEL
+   *  or to acp-host via ACP_AGENT_INITIAL_MODEL. */
+  openCodeModel?: string
+  /** Which ACP agent recipe to use when agentHostType === 'acp'. */
+  acpAgent?: string
+  /** Tool permission tier: 'none' | 'safe' | 'full'. */
+  toolPermission?: 'none' | 'safe' | 'full'
 }
 
 export interface SpawnConversation {
