@@ -137,7 +137,8 @@ export function SpawnDialog() {
         .then(r => (r.ok ? r.json() : []))
         .then(gws =>
           setHermesAvailable(
-            Array.isArray(gws) && gws.some((g: { gatewayType: string; connected: boolean }) => g.gatewayType === 'hermes' && g.connected),
+            Array.isArray(gws) &&
+              gws.some((g: { gatewayType: string; connected: boolean }) => g.gatewayType === 'hermes' && g.connected),
           ),
         )
         .catch(() => setHermesAvailable(false))

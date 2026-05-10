@@ -5,7 +5,7 @@
 
 import { Hono } from 'hono'
 import type { ConversationStore } from '../conversation-store'
-import { isValidGatewayAlias, type GatewayRegistry } from '../gateway-registry'
+import { type GatewayRegistry, isValidGatewayAlias } from '../gateway-registry'
 import type { RouteHelpers } from './shared'
 
 export function createGatewayRouter(

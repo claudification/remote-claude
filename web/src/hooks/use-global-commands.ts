@@ -114,7 +114,7 @@ export function useGlobalCommands(toggleSidebar: () => void) {
       const session = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
       const spawnPath = session
         ? projectPath(session.project) || store.controlPanelPrefs.defaultConversationCwd
-        : store.controlPanelPrefs.defaultConversationCwd
+        : projectPath(store.selectedProjectUri ?? '') || store.controlPanelPrefs.defaultConversationCwd
       openSpawnDialog({ path: spawnPath || '~' })
     },
     { label: 'Launch conversation', key: 'l', group: 'Conversation' },

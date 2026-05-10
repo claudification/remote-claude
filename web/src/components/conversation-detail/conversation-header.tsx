@@ -112,7 +112,9 @@ function RecapPreview({ session }: { session: Session }) {
         </div>
       ) : (
         <div className="text-[10px] text-muted-foreground/50 truncate">
-          {session.recap?.title ? `${session.recap.title}...` : text.slice(0, 60).trim() + (text.length > 60 ? '...' : '')}
+          {session.recap?.title
+            ? `${session.recap.title}...`
+            : text.slice(0, 60).trim() + (text.length > 60 ? '...' : '')}
         </div>
       )}
     </button>

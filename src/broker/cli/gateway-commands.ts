@@ -1,4 +1,4 @@
-import { createGatewayRegistry, isValidGatewayAlias, type GatewayRegistry } from '../gateway-registry'
+import { createGatewayRegistry, type GatewayRegistry, isValidGatewayAlias } from '../gateway-registry'
 import type { ParsedArgs } from './parse-args'
 import { notifyServer } from './shared'
 

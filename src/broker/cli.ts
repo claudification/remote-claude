@@ -7,10 +7,10 @@ checkBunVersion()
 import { existsSync } from 'node:fs'
 import { initAuth } from './auth'
 import { handleBackup } from './cli/backup-commands'
+import { handleGateway } from './cli/gateway-commands'
 import { type ParsedArgs, parseArgs } from './cli/parse-args'
 import { handleDeletePasskey, handleListPasskeys } from './cli/passkey-commands'
 import { handleRemoveRole, handleSetRole } from './cli/role-commands'
-import { handleGateway } from './cli/gateway-commands'
 import { handleSentinel } from './cli/sentinel-commands'
 import { DEFAULT_CACHE_DIR, printUsage } from './cli/shared'
 import {

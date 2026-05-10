@@ -348,7 +348,10 @@ function dispatchChatApiSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): Spawn
   const conversationId = randomUUID()
   const jobId = req.jobId ?? randomUUID()
   const connectionName = req.chatConnectionName || 'default'
-  const slug = connectionName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  const slug = connectionName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
   const project = `chat://${slug || 'default'}`
 
   deps.conversationStore.createJob(jobId, conversationId)
@@ -377,12 +380,11 @@ function dispatchChatApiSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): Spawn
           .filter(Boolean) as string[],
       ),
     )
+  if (req.description) conv.description = req.description
 
+  deps.conversationStore.persistConversationById(conversationId)
   deps.conversationStore.broadcastConversationUpdate(conversationId)
   emitProgress(deps.conversationStore, jobId, 'session_connected', 'done', { conversationId })
-
-  // If prompt provided, proxy it immediately via the chat endpoint
-  // (done async by the caller -- we just return the conversationId)
 
   return { ok: true, conversationId, jobId }
 }
@@ -426,7 +428,9 @@ function dispatchHermesSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): SpawnD
           .filter(Boolean) as string[],
       ),
     )
+  if (req.description) conv.description = req.description
 
+  deps.conversationStore.persistConversationById(conversationId)
   deps.conversationStore.broadcastConversationUpdate(conversationId)
   emitProgress(deps.conversationStore, jobId, 'session_connected', 'done', { conversationId })
 

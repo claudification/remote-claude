@@ -28,6 +28,7 @@ import { buildReviveMessage } from './build-revive'
 import { createConversationStore } from './conversation-store'
 import { type ContextDeps, createContext } from './create-context'
 import { startExternalStatusPolling, stopExternalStatusPolling } from './external-status'
+import { createGatewayRegistry } from './gateway-registry'
 import { initGlobalSettings } from './global-settings'
 import type { WsData } from './handler-context'
 import { registerAllHandlers } from './handlers'
@@ -50,7 +51,6 @@ import { getAllProjectSettings, getProjectSettings, initProjectSettings, setProj
 import { closeProjectStore, initProjectStore } from './project-store'
 import { initPush, isPushConfigured, sendPushToAll } from './push'
 import { createRouter } from './routes'
-import { createGatewayRegistry } from './gateway-registry'
 import { createSentinelRegistry } from './sentinel-registry'
 import {
   cleanExpired as cleanExpiredShares,

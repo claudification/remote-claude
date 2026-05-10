@@ -11,13 +11,7 @@ interface GatewayEntry {
   createdAt: number
 }
 
-function GatewayRow({
-  gateway,
-  onRevoke,
-}: {
-  gateway: GatewayEntry
-  onRevoke: () => void
-}) {
+function GatewayRow({ gateway, onRevoke }: { gateway: GatewayEntry; onRevoke: () => void }) {
   return (
     <div className="flex items-center gap-2 p-2 border border-border rounded text-xs font-mono">
       <span className={`text-sm ${gateway.connected ? 'text-active' : 'text-muted-foreground/40'}`}>
@@ -152,11 +146,7 @@ function GatewayList() {
 
       <div className="space-y-2">
         {gateways.map(g => (
-          <GatewayRow
-            key={g.gatewayId}
-            gateway={g}
-            onRevoke={() => handleRevoke(g.gatewayId, g.alias)}
-          />
+          <GatewayRow key={g.gatewayId} gateway={g} onRevoke={() => handleRevoke(g.gatewayId, g.alias)} />
         ))}
         {gateways.length === 0 && (
           <div className="text-xs text-muted-foreground/50 text-center py-2">
@@ -201,13 +191,7 @@ function GatewayList() {
   )
 }
 
-export function GatewayManagerDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
+export function GatewayManagerDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[80vh] p-0">
