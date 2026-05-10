@@ -425,38 +425,28 @@ function AskQuestionCard({
   })
 
   return (
-    <ConversationBanner
-      accent="amber"
-      label="QUESTION"
-      meta={
-        <span className={cn('tabular-nums', isExpiring && 'text-red-400 font-bold animate-pulse')}>{timeLeft}s</span>
-      }
-      className="gap-2 py-2.5"
-      actions={
-        <>
-          <BannerButton
-            accent="amber"
-            label="SUBMIT"
-            onClick={handleSubmit}
-            disabled={!allAnswered}
-            className="px-4 py-1.5"
-          />
-          {hasTty && (
-            <BannerButton accent="muted" label="SKIP TO TERMINAL" onClick={handleSkip} className="px-3 py-1.5" />
-          )}
-        </>
-      }
+    <div
+      className={cn(
+        'flex flex-col gap-2 px-4 py-3 rounded-lg border-2 font-mono text-xs',
+        'bg-emerald-950/80 border-emerald-400/60 shadow-lg shadow-emerald-500/10',
+      )}
     >
+      <div className="flex items-center gap-2">
+        <span className="font-bold text-emerald-300 text-xs tracking-wide">QUESTION</span>
+        <span className={cn('text-[10px] tabular-nums ml-auto', isExpiring ? 'text-red-400 font-bold animate-pulse' : 'text-emerald-400/70')}>
+          {timeLeft}s
+        </span>
+      </div>
       {request.questions.map(q => (
-        <div key={q.question} className="space-y-1.5">
+        <div key={q.question} className="space-y-2">
           <div className="flex items-center gap-2">
-            <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-bold uppercase">
+            <span className="px-2 py-0.5 bg-emerald-400/20 text-emerald-200 text-[10px] font-bold uppercase rounded">
               {q.header}
             </span>
-            {q.multiSelect && <span className="text-[9px] text-muted-foreground">(select multiple)</span>}
+            {q.multiSelect && <span className="text-[9px] text-emerald-400/60">(select multiple)</span>}
           </div>
-          <div className="text-foreground text-[11px] leading-relaxed">{q.question}</div>
-          <div className="space-y-1">
+          <div className="text-foreground text-[12px] leading-relaxed font-medium">{q.question}</div>
+          <div className="space-y-1.5">
             {q.options.map(opt => {
               const isSelected = selections[q.question]?.has(opt.label)
               return (
@@ -465,25 +455,27 @@ function AskQuestionCard({
                   key={opt.label}
                   onClick={() => toggleOption(q.question, opt.label, q.multiSelect)}
                   className={cn(
-                    'w-full text-left px-2.5 py-1.5 border rounded transition-all',
+                    'w-full text-left px-3 py-2 border rounded-md transition-all cursor-pointer',
                     isSelected
-                      ? 'border-amber-400/70 bg-amber-500/20 text-amber-100'
-                      : 'border-border hover:border-amber-400/50 hover:bg-amber-500/10 text-foreground/90',
+                      ? 'border-emerald-400 bg-emerald-400/20 text-foreground shadow-sm shadow-emerald-500/20'
+                      : 'border-emerald-800/60 hover:border-emerald-400/60 hover:bg-emerald-400/10 text-foreground/80',
                   )}
                 >
                   <div className="flex items-center gap-2">
                     <span
                       className={cn(
-                        'shrink-0 w-3.5 h-3.5 border flex items-center justify-center text-[9px]',
+                        'shrink-0 w-4 h-4 border-2 flex items-center justify-center text-[10px] font-bold',
                         q.multiSelect ? 'rounded-sm' : 'rounded-full',
-                        isSelected ? 'border-amber-400 bg-amber-500/40' : 'border-muted-foreground/50',
+                        isSelected
+                          ? 'border-emerald-300 bg-emerald-400 text-emerald-950'
+                          : 'border-emerald-600/50',
                       )}
                     >
                       {isSelected && (q.multiSelect ? '\u2713' : '\u25CF')}
                     </span>
-                    <span className="font-bold text-[11px]">{opt.label}</span>
+                    <span className="font-bold text-[12px]">{opt.label}</span>
                   </div>
-                  <div className="text-[10px] text-muted-foreground/80 ml-5.5 mt-0.5">{opt.description}</div>
+                  <div className="text-[10px] text-foreground/50 ml-6 mt-0.5">{opt.description}</div>
                 </button>
               )
             })}
@@ -493,10 +485,34 @@ function AskQuestionCard({
             placeholder="Add a note (optional)"
             value={notes[q.question] || ''}
             onChange={e => setNotes(prev => ({ ...prev, [q.question]: e.target.value }))}
-            className="w-full px-2 py-1 text-[10px] bg-muted/30 border border-border/30 rounded text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-amber-500/50"
+            className="w-full px-2.5 py-1.5 text-[11px] bg-emerald-950/50 border border-emerald-800/40 rounded-md text-foreground placeholder:text-emerald-600/40 focus:outline-none focus:border-emerald-400/60"
           />
         </div>
       ))}
-    </ConversationBanner>
+      <div className="flex items-center gap-2 mt-1">
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!allAnswered}
+          className={cn(
+            'px-5 py-2 font-bold text-[12px] rounded-md border-2 transition-all',
+            allAnswered
+              ? 'bg-emerald-500 text-emerald-950 border-emerald-400 hover:bg-emerald-400 shadow-md shadow-emerald-500/30 cursor-pointer'
+              : 'bg-muted/20 text-muted-foreground border-border/30 cursor-not-allowed',
+          )}
+        >
+          SUBMIT
+        </button>
+        {hasTty && (
+          <button
+            type="button"
+            onClick={handleSkip}
+            className="px-3 py-2 text-[11px] font-bold text-muted-foreground hover:text-foreground border border-border/40 hover:border-border rounded-md transition-colors cursor-pointer"
+          >
+            SKIP TO TERMINAL
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
