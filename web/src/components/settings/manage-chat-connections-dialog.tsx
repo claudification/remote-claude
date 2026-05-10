@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
 import { DropdownMenu } from 'radix-ui'
+import { useCallback, useEffect, useState } from 'react'
+import { SafeCodeMirror } from '@/components/codemirror/safe-codemirror'
+import { buildFileEditorExtensions } from '@/components/codemirror-setup'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn, haptic } from '@/lib/utils'
 import type { ChatApiConnection } from '../../../../src/shared/chat-api-types'
 import type { ProviderPreset } from './chat-provider-presets'
 import { ModelPicker } from './model-picker'
 import { ProviderSelect } from './provider-select'
-import { SafeCodeMirror } from '@/components/codemirror/safe-codemirror'
-import { buildFileEditorExtensions } from '@/components/codemirror-setup'
 
 const API_BASE = `${window.location.protocol}//${window.location.host}/api`
 
