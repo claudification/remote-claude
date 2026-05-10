@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
-import { BACKENDS } from '../project-list/backend-icon'
 import { projectPath } from '@/lib/types'
 import { haptic } from '@/lib/utils'
+import { BACKENDS } from '../project-list/backend-icon'
 import { openReviveDialog } from '../revive-dialog'
 
 interface ReviveFooterProps {

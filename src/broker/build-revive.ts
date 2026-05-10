@@ -51,8 +51,13 @@ export function buildReviveMessage(
     // Agent host routing -- must be preserved through revive so the sentinel
     // launches the correct binary (rclaude / opencode-host / acp-host).
     agentHostType: overrides?.agentHostType ?? lc?.agentHostType ?? conversation.agentHostType ?? undefined,
-    openCodeModel: overrides?.openCodeModel ?? lc?.openCodeModel ?? (meta.openCodeModel as string | undefined) ?? undefined,
+    openCodeModel:
+      overrides?.openCodeModel ?? lc?.openCodeModel ?? (meta.openCodeModel as string | undefined) ?? undefined,
     acpAgent: overrides?.acpAgent ?? lc?.acpAgent ?? (meta.acpAgent as string | undefined) ?? undefined,
-    toolPermission: overrides?.toolPermission ?? lc?.toolPermission ?? (meta.openCodeToolPermission as 'none' | 'safe' | 'full' | undefined) ?? undefined,
+    toolPermission:
+      overrides?.toolPermission ??
+      lc?.toolPermission ??
+      (meta.openCodeToolPermission as 'none' | 'safe' | 'full' | undefined) ??
+      undefined,
   }
 }

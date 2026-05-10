@@ -30,7 +30,13 @@ const FILTER_TYPES = [
 ] as const
 type FilterType = (typeof FILTER_TYPES)[number]
 
-const NOISE_TYPES = new Set(['stream_event', 'rate_limit_event', 'session_update:agent_message_chunk', 'session_update:agent_thought_chunk', 'session_update:usage_update'])
+const NOISE_TYPES = new Set([
+  'stream_event',
+  'rate_limit_event',
+  'session_update:agent_message_chunk',
+  'session_update:agent_thought_chunk',
+  'session_update:usage_update',
+])
 
 function parseLine(raw: string): ParsedLine {
   try {

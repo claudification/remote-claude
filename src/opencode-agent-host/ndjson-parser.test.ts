@@ -39,7 +39,7 @@ describe('opencode-host NDJSON parser', () => {
     // Assert legacy shape via toMatchObject.
     expect(state.pendingBlocks).toHaveLength(2)
     // input is now the CANONICAL shape (path, not filePath) -- harmonized at
-     // the agent host edge. Original ACP camelCase lives on raw.input.
+    // the agent host edge. Original ACP camelCase lives on raw.input.
     expect(state.pendingBlocks[0]).toMatchObject({
       type: 'tool_use',
       id: 'toolu_xyz',
