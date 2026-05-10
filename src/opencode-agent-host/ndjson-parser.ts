@@ -21,6 +21,7 @@ import type {
   TranscriptEntry,
   TranscriptSystemEntry,
 } from '../shared/protocol'
+import { translateOpencodeNdjsonToolResult, translateOpencodeNdjsonToolUse } from './dialect/from-opencode-ndjson'
 
 // --- Input shapes ---------------------------------------------------------
 
@@ -199,6 +200,9 @@ export function translateEvent(event: OpenCodeEvent, state: ParserState): Transl
         name: part.tool,
         input: (part.state?.input as Record<string, unknown> | undefined) ?? {},
       }
+      // Translate to canonical CLAUDEWERK shape (kind/canonicalInput/raw).
+      // Backend identifier is `opencode` (vs `acp:opencode` for the ACP host).
+      translateOpencodeNdjsonToolUse(toolUseBlock)
 
       // tool_result part: paired by tool_use_id, content from state.output
       const status = part.state?.status
@@ -210,6 +214,14 @@ export function translateEvent(event: OpenCodeEvent, state: ParserState): Transl
         content: outputContent,
         ...(isError ? { is_error: true } : {}),
       }
+      const startMs = part.state?.time?.start
+      const endMs = part.state?.time?.end
+      const durationMs = typeof startMs === 'number' && typeof endMs === 'number' ? endMs - startMs : undefined
+      translateOpencodeNdjsonToolResult(toolResultBlock, {
+        sourceToolName: part.tool,
+        status,
+        durationMs,
+      })
 
       state.pendingBlocks.push(toolUseBlock, toolResultBlock)
       // A tool block ends the current text block; force a fresh one on next text.

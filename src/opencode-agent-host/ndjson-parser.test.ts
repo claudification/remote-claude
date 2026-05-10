@@ -35,10 +35,20 @@ describe('opencode-host NDJSON parser', () => {
       },
       state,
     )
-    expect(state.pendingBlocks).toEqual([
-      { type: 'tool_use', id: 'toolu_xyz', name: 'read', input: { filePath: '/workspace/hello.txt' } },
-      { type: 'tool_result', tool_use_id: 'toolu_xyz', content: '1: Hello' },
-    ])
+    // Additive canonical fields (kind/canonicalInput/result/raw) ride along.
+    // Assert legacy shape via toMatchObject.
+    expect(state.pendingBlocks).toHaveLength(2)
+    expect(state.pendingBlocks[0]).toMatchObject({
+      type: 'tool_use',
+      id: 'toolu_xyz',
+      name: 'read',
+      input: { filePath: '/workspace/hello.txt' },
+    })
+    expect(state.pendingBlocks[1]).toMatchObject({
+      type: 'tool_result',
+      tool_use_id: 'toolu_xyz',
+      content: '1: Hello',
+    })
   })
 
   it('marks tool results as is_error when the call failed', () => {
