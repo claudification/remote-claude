@@ -755,7 +755,12 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           lastTurnEndedAt: fullMeta.lastTurnEndedAt as number | undefined,
         }
         if (!resolveBackend(conv).requiresAgentSocket) {
-          conv.status = 'idle'
+          // Respect deliberate termination: if the conversation was ended with
+          // an endedAt timestamp, it was user-terminated -- don't resurrect it.
+          const wasTerminated = rec.status === 'ended' && rec.endedAt
+          if (!wasTerminated) {
+            conv.status = 'idle'
+          }
         }
         conversations.set(conv.id, conv)
       }
