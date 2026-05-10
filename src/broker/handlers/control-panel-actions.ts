@@ -312,11 +312,15 @@ const reviveConversation: MessageHandler = (ctx, data) => {
 }
 
 // ─── Launch Job Subscriptions ─────────────────────────────────────
-// No auth needed - the jobId is the capability token.
+// jobIds are randomUUID() (128 bits) so guessing is infeasible, but we
+// still gate subscribe on `spawn` permission so users without spawn
+// rights can't observe other users' launches by replaying captured ids.
+// (Audit M5)
 
 const subscribeJob: MessageHandler = (ctx, data) => {
   const jobId = data.jobId as string
   if (!jobId) throw new GuardError('Missing jobId')
+  ctx.requirePermission('spawn')
   ctx.conversations.subscribeJob(jobId, ctx.ws)
   ctx.log.debug(`[job] Subscribed: ${jobId.slice(0, 8)}`)
 }

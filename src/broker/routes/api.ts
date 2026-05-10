@@ -231,10 +231,50 @@ export function createApiRouter(
   })
 
   // ─── Crash reports ─────────────────────────────────────────────────
+  // Rate limiter for /api/crash: it's a public unauthenticated endpoint
+  // (Audit M4). 10 reports per IP per 60s, 64KB max payload.
+  const crashRate = new Map<string, { count: number; resetAt: number }>()
+  const CRASH_LIMIT = 10
+  const CRASH_WINDOW_MS = 60_000
+  const CRASH_MAX_BYTES = 64 * 1024
+
   app.post('/api/crash', async c => {
     if (!cacheDir) return c.json({ error: 'No cache dir configured' }, 503)
 
-    const body = await c.req.json()
+    const ip =
+      c.req.header('cf-connecting-ip') ||
+      c.req.header('x-real-ip') ||
+      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
+      'unknown'
+    const now = Date.now()
+    let bucket = crashRate.get(ip)
+    if (!bucket || bucket.resetAt < now) {
+      bucket = { count: 0, resetAt: now + CRASH_WINDOW_MS }
+      crashRate.set(ip, bucket)
+    }
+    if (bucket.count >= CRASH_LIMIT) {
+      return c.json({ error: 'Rate limited' }, 429)
+    }
+    bucket.count++
+
+    // Opportunistic cleanup of expired buckets to keep the map bounded.
+    if (crashRate.size > 1000) {
+      for (const [k, v] of crashRate) {
+        if (v.resetAt < now) crashRate.delete(k)
+      }
+    }
+
+    const raw = await c.req.text()
+    if (raw.length > CRASH_MAX_BYTES) {
+      return c.json({ error: 'Payload too large' }, 413)
+    }
+    let body: unknown
+    try {
+      body = JSON.parse(raw)
+    } catch {
+      return c.json({ error: 'Invalid JSON' }, 400)
+    }
+
     const crashDir = join(cacheDir, 'crashes')
     if (!existsSync(crashDir)) mkdirSync(crashDir, { recursive: true })
 
