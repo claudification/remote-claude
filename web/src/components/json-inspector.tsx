@@ -12,7 +12,14 @@ interface InspectorStore {
   data: Record<string, unknown> | null
   result?: string
   extra?: Record<string, unknown>
-  show: (title: string, data: Record<string, unknown>, result?: string, extra?: Record<string, unknown>) => void
+  raw?: unknown
+  show: (
+    title: string,
+    data: Record<string, unknown>,
+    result?: string,
+    extra?: Record<string, unknown>,
+    raw?: unknown,
+  ) => void
   close: () => void
 }
 
@@ -22,7 +29,8 @@ const useInspectorStore = create<InspectorStore>(set => ({
   data: null,
   result: undefined,
   extra: undefined,
-  show: (title, data, result, extra) => set({ open: true, title, data, result, extra }),
+  raw: undefined,
+  show: (title, data, result, extra, raw) => set({ open: true, title, data, result, extra, raw }),
   close: () => set({ open: false }),
 }))
 
@@ -31,9 +39,10 @@ interface JsonInspectorProps {
   data: Record<string, unknown>
   result?: string
   extra?: Record<string, unknown>
+  raw?: unknown
 }
 
-export function JsonInspector({ title, data, result, extra }: JsonInspectorProps) {
+export function JsonInspector({ title, data, result, extra, raw }: JsonInspectorProps) {
   const show = useInspectorStore(s => s.show)
 
   return (
@@ -43,7 +52,7 @@ export function JsonInspector({ title, data, result, extra }: JsonInspectorProps
       title="Inspect raw data"
       onClick={e => {
         e.stopPropagation()
-        show(title, data, result, extra)
+        show(title, data, result, extra, raw)
       }}
     >
       <Info className="w-3 h-3" />
@@ -56,19 +65,22 @@ function CopyBar({
   data,
   result,
   extra,
+  raw,
 }: {
   title: string
   data: Record<string, unknown> | null
   result?: string
   extra?: Record<string, unknown>
+  raw?: unknown
 }) {
   const [copied, setCopied] = useState(false)
   function handleCopy() {
-    const payload: Record<string, unknown> = {}
-    if (data) payload.input = data
-    if (result) payload.result = result
-    if (extra && Object.keys(extra).length > 0) payload.extra = extra
-    navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
+    const out: Record<string, unknown> = {}
+    if (raw !== undefined) out.raw = raw
+    if (data) out.input = data
+    if (result) out.result = result
+    if (extra && Object.keys(extra).length > 0) out.extra = extra
+    navigator.clipboard.writeText(JSON.stringify(out, null, 2))
     haptic('success')
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
@@ -90,7 +102,8 @@ function CopyBar({
 
 /** Render once at the top level - dialog is global, not per-item */
 export function JsonInspectorDialog() {
-  const { open, title, data, result, extra, close } = useInspectorStore()
+  const { open, title, data, result, extra, raw, close } = useInspectorStore()
+  const rawIsObject = raw !== undefined && raw !== null && typeof raw === 'object'
 
   return (
     <Dialog
@@ -100,14 +113,28 @@ export function JsonInspectorDialog() {
       }}
     >
       <DialogContent>
-        <CopyBar title={title} data={data} result={result} extra={extra} />
+        <CopyBar title={title} data={data} result={result} extra={extra} raw={raw} />
         <div className="flex-1 overflow-y-auto p-4 font-mono text-xs">
-          {open && data && (
+          {open && (
             <div className="space-y-4">
-              <section>
-                <div className="text-muted-foreground text-[10px] uppercase tracking-wider mb-2">Input</div>
-                <JsonHighlight data={data} />
-              </section>
+              {raw !== undefined && (
+                <section>
+                  <div className="text-muted-foreground text-[10px] uppercase tracking-wider mb-2">Raw</div>
+                  {rawIsObject ? (
+                    <JsonHighlight data={raw as Record<string, unknown>} />
+                  ) : (
+                    <pre className="whitespace-pre-wrap text-foreground/80 bg-black/20 p-3 max-h-60 overflow-auto">
+                      {String(raw)}
+                    </pre>
+                  )}
+                </section>
+              )}
+              {data && (
+                <section>
+                  <div className="text-muted-foreground text-[10px] uppercase tracking-wider mb-2">Input</div>
+                  <JsonHighlight data={data} />
+                </section>
+              )}
               {result && (
                 <section>
                   <div className="text-muted-foreground text-[10px] uppercase tracking-wider mb-2">Result</div>

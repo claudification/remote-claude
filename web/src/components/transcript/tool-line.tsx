@@ -97,7 +97,7 @@ export function ToolLine({
           {summary}
         </span>
         {agentBadge}
-        <JsonInspector title={name} data={input} result={result} extra={toolUseResult} />
+        <JsonInspector title={name} data={input} result={result} extra={toolUseResult} raw={tool} />
       </div>
       {inlineContent}
       {details && (

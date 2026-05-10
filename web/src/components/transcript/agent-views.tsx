@@ -165,6 +165,7 @@ function AgentGroupView({
                         <JsonInspector
                           title="encrypted thinking block"
                           data={item.rawBlock as unknown as Record<string, unknown>}
+                          raw={item.rawBlock}
                         />
                       )}
                     </>

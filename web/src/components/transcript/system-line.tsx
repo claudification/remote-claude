@@ -110,7 +110,7 @@ export function SystemLine({ group, time }: { group: DisplayGroup; time: string 
               <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-zinc-400/70">recap</span>
               <span className="flex-1 h-px bg-zinc-600/30" />
               <span className="text-muted-foreground/40 text-[10px]">{time}</span>
-              <JsonInspector title="away_summary" data={entry as Record<string, unknown>} />
+              <JsonInspector title="away_summary" data={entry as Record<string, unknown>} raw={entry} />
             </div>
             <div className="text-[11px] text-zinc-300/80 leading-relaxed">
               {parsed.title && <span className="font-medium text-zinc-200/90">{parsed.title}: </span>}
@@ -131,7 +131,7 @@ export function SystemLine({ group, time }: { group: DisplayGroup; time: string 
     <div className="mb-1 flex items-center justify-center gap-2 text-[10px]">
       <span className={color}>{text}</span>
       <span className="text-muted-foreground/40">{time}</span>
-      <JsonInspector title={sub || 'system'} data={entry as Record<string, unknown>} />
+      <JsonInspector title={sub || 'system'} data={entry as Record<string, unknown>} raw={entry} />
     </div>
   )
 }

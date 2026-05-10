@@ -68,7 +68,11 @@ function LaunchLine({ entry, startTs }: { entry: TranscriptLaunchEntry; startTs:
       {entry.detail && <span className="text-foreground/70 truncate">{entry.detail}</span>}
       {hasRaw && (
         <span className="ml-auto shrink-0">
-          <JsonInspector title={`launch: ${STEP_LABEL[step]}`} data={entry.raw as Record<string, unknown>} />
+          <JsonInspector
+            title={`launch: ${STEP_LABEL[step]}`}
+            data={entry.raw as Record<string, unknown>}
+            raw={entry}
+          />
         </span>
       )}
     </div>

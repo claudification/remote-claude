@@ -24,6 +24,7 @@ export function ThinkingItem({ item }: { item: Extract<RenderItem, { kind: 'thin
               <JsonInspector
                 title="encrypted thinking block"
                 data={item.rawBlock as unknown as Record<string, unknown>}
+                raw={item.rawBlock}
               />
             )}
           </>
