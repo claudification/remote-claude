@@ -56,9 +56,11 @@ import {
   type AgentHostBoot,
   type BrokerMessage,
   DEFAULT_BROKER_URL,
+  type TasksUpdate,
   type TranscriptEntry,
   type TranscriptUserEntry,
 } from '../shared/protocol'
+import { extractTodoTasksFromEntries } from '../shared/task-extract'
 import { BUILD_VERSION } from '../shared/version'
 import { createParserState, flushTurn, type OpenCodeEvent, parseNdjsonChunk, translateEvent } from './ndjson-parser'
 
@@ -268,6 +270,26 @@ async function main() {
   let openCodeSessionId: string | null = null
   let activeTurn: Promise<unknown> | null = null
   let transport: HostTransport
+  // Diff-dedup for tasks_update: opencode replays the entire TodoWrite list on
+  // every change, so without this we'd spam the broker with identical messages
+  // every time TodoWrite is called.
+  let lastTasksJson: string | null = null
+
+  function maybeEmitTasksUpdate(entries: TranscriptEntry[]) {
+    const tasks = extractTodoTasksFromEntries(entries)
+    if (!tasks) return
+    const json = JSON.stringify(tasks)
+    if (json === lastTasksJson) return
+    lastTasksJson = json
+    const msg: TasksUpdate = { type: 'tasks_update', conversationId: cfg.conversationId, tasks }
+    transport.send(msg)
+    debug(`tasks_update: ${tasks.length} tasks`)
+  }
+
+  function emitEntries(entries: TranscriptEntry[]) {
+    transport.sendTranscriptEntries(entries, false)
+    maybeEmitTasksUpdate(entries)
+  }
 
   function handleInbound(msg: BrokerMessage) {
     const t = (msg as { type?: string }).type
@@ -323,7 +345,7 @@ async function main() {
         cfg,
         input,
         sessionId: openCodeSessionId,
-        onEntries: entries => transport.sendTranscriptEntries(entries, false),
+        onEntries: emitEntries,
         onSessionId,
       })
     } catch (err) {

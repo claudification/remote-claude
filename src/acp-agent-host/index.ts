@@ -40,8 +40,11 @@ import {
   type BrokerMessage,
   type ControlDeliver,
   DEFAULT_BROKER_URL,
+  type TasksUpdate,
+  type TranscriptEntry,
   type TranscriptUserEntry,
 } from '../shared/protocol'
+import { extractTodoTasksFromEntries } from '../shared/task-extract'
 import { BUILD_VERSION } from '../shared/version'
 import {
   type AcpPermissionOption,
@@ -289,6 +292,21 @@ async function main() {
   // ─── Broker transport ─────────────────────────────────────────────────
   let transport: HostTransport
   let terminating = false
+  // Diff-dedup for tasks_update: agents replay the entire TodoWrite list on
+  // every change, so without this we'd spam the broker with identical
+  // messages every time the agent calls TodoWrite.
+  let lastTasksJson: string | null = null
+
+  function maybeEmitTasksUpdate(entries: TranscriptEntry[]) {
+    const tasks = extractTodoTasksFromEntries(entries)
+    if (!tasks) return
+    const json = JSON.stringify(tasks)
+    if (json === lastTasksJson) return
+    lastTasksJson = json
+    const msg: TasksUpdate = { type: 'tasks_update', conversationId: cfg.conversationId, tasks }
+    transport.send(msg)
+    debug(`tasks_update: ${tasks.length} tasks`)
+  }
   const shutdown = (sig: string, code = 0) => {
     if (terminating) return
     terminating = true
@@ -592,6 +610,7 @@ async function main() {
     }
     if (out.entries.length > 0) {
       transport.sendTranscriptEntries(out.entries, false)
+      maybeEmitTasksUpdate(out.entries)
     }
   }
 
@@ -793,6 +812,7 @@ async function main() {
     }
     if (finalOut.entries.length > 0) {
       transport.sendTranscriptEntries(finalOut.entries, false)
+      maybeEmitTasksUpdate(finalOut.entries)
     }
   }
 

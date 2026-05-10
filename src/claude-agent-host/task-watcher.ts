@@ -13,7 +13,7 @@ import { TASK_STATUS_PATTERN } from '../shared/task-statuses'
 import type { AgentHostContext } from './agent-host-context'
 import { debug } from './debug'
 import { listProjectTasks } from './project-tasks'
-import { normalizeTodoStatus } from './task-normalize'
+import { normalizeTodoStatus } from '../shared/task-normalize'
 
 export function readAndSendTasks(ctx: AgentHostContext) {
   if (!ctx.wsClient?.isConnected() || !ctx.claudeSessionId) {

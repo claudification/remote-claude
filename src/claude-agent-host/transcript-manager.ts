@@ -17,7 +17,7 @@ import type {
 import type { AgentHostContext } from './agent-host-context'
 import { debug as _debug, DEBUG } from './debug'
 import { translateClaudeToolResult, translateClaudeToolUse } from './dialect/from-claude'
-import { normalizeTodoStatus } from './task-normalize'
+import { normalizeTodoStatus } from '../shared/task-normalize'
 import { createTranscriptWatcher } from './transcript-watcher'
 
 const debug = (msg: string) => _debug(msg)
