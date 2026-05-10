@@ -24,15 +24,31 @@ const FILTER_TYPES = [
   'result',
   'stream_event',
   'rate_limit_event',
+  'session_update',
+  'request',
+  'response',
 ] as const
 type FilterType = (typeof FILTER_TYPES)[number]
 
-const NOISE_TYPES = new Set(['stream_event', 'rate_limit_event'])
+const NOISE_TYPES = new Set(['stream_event', 'rate_limit_event', 'session_update:agent_message_chunk', 'session_update:agent_thought_chunk', 'session_update:usage_update'])
 
 function parseLine(raw: string): ParsedLine {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>
-    const type = (parsed.type as string) || null
+    // Claude Code NDJSON: top-level .type field
+    let type = (parsed.type as string) || null
+    // ACP JSON-RPC: classify by method and direction
+    if (!type && parsed.jsonrpc === '2.0') {
+      const method = parsed.method as string | undefined
+      if (method === 'session/update') {
+        const su = (parsed.params as Record<string, unknown> | undefined)?.update as Record<string, unknown> | undefined
+        type = su ? `session_update:${su.sessionUpdate ?? 'unknown'}` : 'session_update'
+      } else if (method) {
+        type = parsed.id != null ? 'request' : 'notification'
+      } else if (parsed.result != null || parsed.error != null) {
+        type = 'response'
+      }
+    }
     return { raw, parsed, type }
   } catch {
     return { raw, parsed: null, type: null }
@@ -54,9 +70,23 @@ function typeColor(type: string | null): string {
     case 'system':
       return 'text-rose-400'
     case 'stream_event':
-      return 'text-muted-foreground/60'
     case 'rate_limit_event':
       return 'text-muted-foreground/60'
+    case 'session_update':
+    case 'session_update:agent_message_chunk':
+    case 'session_update:agent_thought_chunk':
+      return 'text-teal-400'
+    case 'session_update:tool_call':
+    case 'session_update:tool_call_update':
+      return 'text-amber-400'
+    case 'session_update:usage_update':
+      return 'text-muted-foreground/60'
+    case 'request':
+      return 'text-blue-400'
+    case 'response':
+      return 'text-violet-400'
+    case 'notification':
+      return 'text-cyan-400'
     default:
       return 'text-muted-foreground'
   }
@@ -232,7 +262,7 @@ export function JsonStreamPanel({ conversationId }: JsonStreamPanelProps) {
   }
 
   const filtered = lines.filter(l => {
-    if (filter !== 'all' && l.type !== filter) return false
+    if (filter !== 'all' && l.type !== filter && !l.type?.startsWith(filter + ':')) return false
     if (hideNoise && filter === 'all' && l.type && NOISE_TYPES.has(l.type)) return false
     return true
   })

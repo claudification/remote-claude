@@ -99,7 +99,7 @@ function buildBoot(cfg: ParsedHostConfig): AgentHostBoot {
     protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
     conversationId: cfg.conversationId,
     project: cwdToProjectUri(cfg.cwd, uriScheme),
-    capabilities: ['headless', 'channel'],
+    capabilities: ['headless', 'channel', 'json_stream'],
     claudeArgs: [],
     version: `acp-host/${BUILD_VERSION.gitHashShort}`,
     buildTime: BUILD_VERSION.buildTime,
@@ -153,16 +153,42 @@ async function main() {
       traceFile = null
     }
   }
-  const traceWrite = traceFile
-    ? (dir: 'send' | 'recv' | 'note', msg: object) => {
-        try {
-          appendFileSync(traceFile!, `${JSON.stringify({ t: Date.now(), dir, msg })}\n`)
-        } catch {
-          // Drop trace lines silently if disk fills -- we'd rather lose log
-          // entries than crash the host on a write error.
-        }
+  // ─── NDJSON traffic log + JSON stream relay ──────────────────────────────
+  // Write to disk (trace file), relay to dashboard viewers (JSON stream),
+  // and buffer for backfill. All three share the same logic to avoid drift.
+  const writeDisk = !!traceFile
+  function traceWrite(dir: 'send' | 'recv' | 'note', msg: object) {
+    if (writeDisk) {
+      try {
+        appendFileSync(traceFile!, `${JSON.stringify({ t: Date.now(), dir, msg })}\n`)
+      } catch {
+        // Drop silently on disk error.
       }
-    : () => {}
+    }
+    // Only relay/buffer agent traffic, not host-lifecycle notes/sterr.
+    if (dir === 'note') return
+    const line = JSON.stringify(msg)
+    // Live relay to attached dashboard viewers.
+    if (jsonStreamAttached && transport.isConnected()) {
+      transport.send({
+        type: 'json_stream_data',
+        conversationId: cfg.conversationId,
+        lines: [line],
+        isBackfill: false,
+      })
+    }
+    // Buffer for backfill on late attach. Skip streaming chunks
+    // (they're already rendered via stream_delta) to keep buffer lean.
+    try {
+      const parsed = JSON.parse(line)
+      if (parsed?.method === 'session/update') {
+        const su = parsed.params?.update?.sessionUpdate as string | undefined
+        if (su === 'agent_message_chunk' || su === 'agent_thought_chunk') return
+      }
+    } catch { /* keep unparseable lines */ }
+    jsonStreamBuffer.push(line)
+    if (jsonStreamBuffer.length > 200) jsonStreamBuffer.splice(0, jsonStreamBuffer.length - 200)
+  }
 
   log(
     `starting conv=${cfg.conversationId.slice(0, 8)} agent=${cfg.recipe.agentName} cmd=${cfg.recipe.agentCmd.join(' ')} cwd=${cfg.cwd} broker=${cfg.brokerUrl} tier=${cfg.recipe.toolPermission} mcp=${mcpWired ? 'on' : 'off'}${cfg.resumeSessionId ? ` resume=${cfg.resumeSessionId}` : ''}${traceFile ? ` trace=${traceFile}` : ''}`,
@@ -233,6 +259,14 @@ async function main() {
    *  empty turns. Empty set means "no list available" -- skip validation. */
   let availableModels: Set<string> = new Set()
 
+  // ─── JSON stream relay state ──────────────────────────────────────────
+  // When a dashboard viewer attaches to the JSON stream, we relay every
+  // JSON-RPC line in both directions to the browser (like the Claude headless
+  // host does). The buffer holds the last 200 non-noise lines for backfill
+  // on late attach.
+  let jsonStreamAttached = false
+  const jsonStreamBuffer: string[] = []
+
   // ─── Broker transport ─────────────────────────────────────────────────
   let transport: HostTransport
   let terminating = false
@@ -253,6 +287,24 @@ async function main() {
     if (t === 'terminate_conversation') {
       log('broker requested termination')
       shutdown('terminate_conversation')
+      return
+    }
+    if (t === 'json_stream_attach') {
+      jsonStreamAttached = true
+      debug(`JSON stream attached, sending ${jsonStreamBuffer.length} backfill lines`)
+      if (transport.isConnected() && jsonStreamBuffer.length > 0) {
+        transport.send({
+          type: 'json_stream_data',
+          conversationId: cfg.conversationId,
+          lines: jsonStreamBuffer.slice(-100),
+          isBackfill: true,
+        })
+      }
+      return
+    }
+    if (t === 'json_stream_detach') {
+      jsonStreamAttached = false
+      debug('JSON stream detached')
       return
     }
     if (t !== 'input') return
