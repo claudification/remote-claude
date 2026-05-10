@@ -1756,6 +1756,13 @@ export interface SpawnConversation {
   includePartialMessages?: boolean
   worktree?: string
   env?: Record<string, string>
+  /** Which agent host binary to spawn. Defaults to 'claude' (rclaude). When
+   *  set to 'opencode', the sentinel launches the opencode-host binary with
+   *  OPENCODE_MODEL set and forwards provider env vars (OPENROUTER_API_KEY etc). */
+  agentHostType?: string
+  /** OpenCode-specific model identifier (e.g. 'openrouter/anthropic/claude-haiku-4.5').
+   *  Used when agentHostType === 'opencode'; passed to opencode-host via OPENCODE_MODEL. */
+  openCodeModel?: string
 }
 
 export interface ListDirs {
