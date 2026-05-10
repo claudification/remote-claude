@@ -6,7 +6,6 @@
  * list_conversations, project_list, project_set_status.
  */
 
-import { randomUUID } from 'node:crypto'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { Hono } from 'hono'
@@ -21,7 +20,7 @@ import type { StoreDriver } from '../store/types'
 
 function createMcpServer(conversationStore: ConversationStore, store: StoreDriver): McpServer {
   const mcp = new McpServer(
-    { name: 'claudwerk', version: String(BUILD_VERSION || '0.1.0') },
+    { name: 'claudwerk', version: BUILD_VERSION?.gitHashShort || '0.1.0' },
     { capabilities: { tools: {} } },
   )
 
@@ -264,11 +263,15 @@ export function createMcpRouter(
 ): Hono {
   const app = new Hono()
 
-  // Per-session transport map for stateful MCP
-  const transports = new Map<string, WebStandardStreamableHTTPServerTransport>()
-
+  // Stateless mode: no session tracking, JSON responses (no SSE).
+  // Tools are pure request/response with no server-initiated notifications,
+  // so we don't need session state or long-lived SSE streams. Stateful mode
+  // would force clients to open a standalone GET SSE stream that the server
+  // never writes to, causing client-side read timeouts (~5min) that kill the
+  // anyio TaskGroup and break subsequent tool calls. See Hermes incident
+  // 2026-05-10: "MCP server 'claudwerk' connection lost ... unhandled errors
+  // in a TaskGroup".
   app.all('/mcp', async c => {
-    // Auth: require Bearer token
     const authHeader = c.req.header('authorization')
     const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
     if (!bearer) {
@@ -279,27 +282,19 @@ export function createMcpRouter(
       return c.json({ error: 'Invalid token' }, 403)
     }
 
-    // Check for existing session
-    const sessionId = c.req.header('mcp-session-id')
-    if (sessionId && transports.has(sessionId)) {
-      const transport = transports.get(sessionId)!
-      return transport.handleRequest(c.req.raw)
-    }
-
-    // New session: create transport + server
     const mcp = createMcpServer(conversationStore, store)
     const transport = new WebStandardStreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-      onsessioninitialized: sid => {
-        transports.set(sid, transport)
-      },
-      onsessionclosed: sid => {
-        transports.delete(sid)
-      },
+      sessionIdGenerator: undefined,
+      enableJsonResponse: true,
     })
 
-    await mcp.connect(transport)
-    return transport.handleRequest(c.req.raw)
+    try {
+      await mcp.connect(transport)
+      return await transport.handleRequest(c.req.raw)
+    } finally {
+      await transport.close().catch(() => {})
+      await mcp.close().catch(() => {})
+    }
   })
 
   return app
