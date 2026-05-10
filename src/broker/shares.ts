@@ -7,6 +7,7 @@
  */
 
 import { randomBytes } from 'node:crypto'
+import { cwdToProjectUri } from '../shared/project-uri'
 import type { UserGrant } from './permissions'
 import type { KVStore } from './store/types'
 
@@ -131,11 +132,18 @@ export function getShare(token: string): ConversationShare | undefined {
   return shares.find(s => s.token === token)
 }
 
-/** Build synthetic UserGrant[] from a share (for WS permission resolution). */
+/** Build synthetic UserGrant[] from a share (for WS permission resolution).
+ *
+ * The share's `project` field can be either a canonical URI (`claude://...`)
+ * or a legacy bare CWD path. We always emit `scope` (canonical), so the
+ * permission resolver doesn't have to fall back through `legacyCwd`.
+ * (Audit M2)
+ */
 export function shareToGrants(share: ConversationShare): UserGrant[] {
+  const scope = share.project.includes('://') ? share.project : cwdToProjectUri(share.project)
   return [
     {
-      legacyCwd: share.project,
+      scope,
       permissions: share.permissions as UserGrant['permissions'],
     },
   ]
