@@ -15,6 +15,7 @@ import { resolveAuth } from '../auth-routes'
 import type { ConversationStore } from '../conversation-store'
 import { getGlobalSettings } from '../global-settings'
 import { getProjectSettings } from '../project-settings'
+import { isPushConfigured, sendPushToAll } from '../push'
 import { dispatchSpawn, type SpawnDispatchDeps } from '../spawn-dispatch'
 import type { StoreDriver } from '../store/types'
 
@@ -30,21 +31,41 @@ function createMcpServer(conversationStore: ConversationStore, store: StoreDrive
     "Send a push notification to the user's devices",
     { message: z.string(), title: z.string().optional() },
     async ({ message, title }) => {
-      const subscribers = conversationStore.getSubscribers()
-      const payload = JSON.stringify({
+      const wsPayload = JSON.stringify({
         type: 'notification',
         title: title || 'Claudwerk',
         body: message,
         timestamp: Date.now(),
       })
-      for (const ws of subscribers) {
+      let wsDelivered = 0
+      for (const ws of conversationStore.getSubscribers()) {
         try {
-          ws.send(payload)
+          ws.send(wsPayload)
+          wsDelivered++
         } catch {
           /* dead socket */
         }
       }
-      return { content: [{ type: 'text', text: `Notification sent: ${message}` }] }
+
+      let pushSent = 0
+      let pushFailed = 0
+      if (isPushConfigured()) {
+        const result = await sendPushToAll({
+          title: title || 'Claudwerk',
+          body: message,
+        })
+        pushSent = result.sent
+        pushFailed = result.failed
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Notification dispatched: ws=${wsDelivered}, push_sent=${pushSent}, push_failed=${pushFailed}`,
+          },
+        ],
+      }
     },
   )
 
