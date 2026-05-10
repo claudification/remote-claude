@@ -28,6 +28,7 @@ import { Markdown } from '../markdown'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from '../project-settings-editor'
 import { ShareIndicator } from '../share-panel'
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog'
+import { BackendIcon } from './backend-icon'
 import { ConversationContextMenu } from './conversation-context-menu'
 import { InlineConfirmButton } from './inline-confirm-button'
 
@@ -127,6 +128,7 @@ function LaunchParamsSection({ session }: { session: Session }) {
   const maxBudgetUsd = lc?.maxBudgetUsd
 
   const hasAnyCore =
+    (session.backend && session.backend !== 'claude') ||
     headless !== undefined ||
     !!permissionMode ||
     bare ||
@@ -149,6 +151,17 @@ function LaunchParamsSection({ session }: { session: Session }) {
           )}
         </div>
         <div className="space-y-1 pl-1">
+          {session.backend && session.backend !== 'claude' && (
+            <LaunchParamRow
+              label="backend"
+              value={
+                <span className="flex items-center gap-1">
+                  <BackendIcon backend={session.backend} size={10} />
+                  {session.backend}
+                </span>
+              }
+            />
+          )}
           {headless !== undefined && (
             <LaunchParamRow
               label="mode"
@@ -765,6 +778,7 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
     >
       <div className="flex items-center gap-1.5">
         <StatusIndicator status={session.status} adHoc={session.capabilities?.includes('ad-hoc')} />
+        <BackendIcon backend={session.backend} />
         {ps?.icon && (
           <span style={displayColor && !isSelected ? { color: displayColor } : undefined}>
             {renderProjectIcon(ps.icon)}
@@ -1023,6 +1037,7 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
     >
       <div className="flex items-center gap-1.5">
         <StatusIndicator status={session.status} adHoc={session.capabilities?.includes('ad-hoc')} />
+        <BackendIcon backend={session.backend} size={11} />
         {isRenaming ? (
           <div className="flex-1 min-w-0">
             <InlineRename session={session} />

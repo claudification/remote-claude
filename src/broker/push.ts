@@ -75,6 +75,50 @@ export interface PushPayload {
   data?: Record<string, unknown>
 }
 
+/**
+ * Send push to a single named user. Respects `notifications` permission for
+ * the conversation's project (same rule as sendPushToAll). Used for @mention
+ * synthesis so we don't leak content from a project the mentioned user can't
+ * see. Returns { sent: 0 } silently if the user is unknown / revoked / lacks
+ * permission -- not a hard error, mentions are best-effort.
+ */
+export async function sendPushToUser(
+  userName: string,
+  payload: PushPayload,
+): Promise<{ sent: number; failed: number }> {
+  if (!vapidConfigured) return { sent: 0, failed: 0 }
+  const user = getUser(userName)
+  if (!user || user.revoked || !user.pushSubscriptions?.length) return { sent: 0, failed: 0 }
+
+  if (payload.project) {
+    const { permissions } = resolvePermissions(user.grants, payload.project)
+    if (!permissions.has('notifications')) return { sent: 0, failed: 0 }
+  }
+
+  const jsonPayload = JSON.stringify(payload)
+  let sent = 0
+  let failed = 0
+  const staleEndpoints: string[] = []
+
+  for (const entry of user.pushSubscriptions) {
+    try {
+      await webpush.sendNotification(entry.subscription, jsonPayload, { TTL: 60, urgency: 'high' })
+      sent++
+    } catch (error: unknown) {
+      const statusCode = (error as Record<string, unknown>)?.statusCode
+      if (statusCode === 404 || statusCode === 410) staleEndpoints.push(entry.subscription.endpoint)
+      failed++
+    }
+  }
+
+  for (const endpoint of staleEndpoints) {
+    console.log(`[push] Removing stale subscription for "${userName}" (endpoint gone: ${endpoint.slice(0, 60)}...)`)
+    removeSubscription(userName, endpoint)
+  }
+
+  return { sent, failed }
+}
+
 /** Send push to all users who have notifications permission for the conversation's project */
 export async function sendPushToAll(payload: PushPayload): Promise<{ sent: number; failed: number }> {
   if (!vapidConfigured) return { sent: 0, failed: 0 }

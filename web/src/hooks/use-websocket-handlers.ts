@@ -95,6 +95,7 @@ function toSession(summary: ConversationSummary): Session {
     claudeAuth: summary.claudeAuth,
     spinnerVerbs: summary.spinnerVerbs,
     autocompactPct: summary.autocompactPct,
+    backend: summary.backend,
   }
 }
 

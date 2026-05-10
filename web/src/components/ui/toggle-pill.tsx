@@ -13,12 +13,13 @@ interface TogglePillProps {
   active: boolean
   onClick: () => void
   label: string
+  icon?: React.ReactNode
   small?: boolean
   shortcut?: string
   title?: string
 }
 
-export function TogglePill({ active, onClick, label, small, shortcut, title }: TogglePillProps) {
+export function TogglePill({ active, onClick, label, icon, small, shortcut, title }: TogglePillProps) {
   return (
     <button
       type="button"
@@ -34,6 +35,7 @@ export function TogglePill({ active, onClick, label, small, shortcut, title }: T
           : 'bg-transparent text-comment border border-border hover:text-foreground hover:border-foreground/30',
       )}
     >
+      {icon}
       {label}
       {shortcut && <Kbd className="text-[10px]">{shortcut}</Kbd>}
     </button>

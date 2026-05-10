@@ -1940,6 +1940,7 @@ export interface ConversationSummary {
   recapFresh?: boolean
   hostSentinelId?: string
   hostSentinelAlias?: string
+  backend?: string
 }
 
 // Subscription channels (dashboard <-> broker pub/sub)

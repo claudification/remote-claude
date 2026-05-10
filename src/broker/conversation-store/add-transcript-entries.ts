@@ -15,6 +15,7 @@ import { MAX_TRANSCRIPT_ENTRIES } from './constants'
 import { assignTranscriptSeqs, type ConversationStoreContext } from './event-context'
 import { handleAssistantEntry } from './transcript-handlers/assistant-entry'
 import { detectBgTaskNotifications } from './transcript-handlers/bg-task-notifications'
+import { handleMentionNotifications } from './transcript-handlers/mention-notify'
 import {
   handleAgentNameEntry,
   handleCustomTitleEntry,
@@ -117,13 +118,16 @@ function dispatchUserEntry(
 }
 
 function dispatchAssistantEntry(
-  _ctx: ConversationStoreContext,
+  ctx: ConversationStoreContext,
   _conversationId: string,
   conv: Conversation,
   entry: TranscriptEntry,
-  _isInitial: boolean,
+  isInitial: boolean,
 ): boolean {
-  return handleAssistantEntry(conv, entry as TranscriptAssistantEntry)
+  const assistantEntry = entry as TranscriptAssistantEntry
+  const changed = handleAssistantEntry(conv, assistantEntry)
+  handleMentionNotifications(ctx, conv, assistantEntry, isInitial)
+  return changed
 }
 
 function dispatchSystemEntry(

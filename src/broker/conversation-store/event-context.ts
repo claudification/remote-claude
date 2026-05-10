@@ -22,6 +22,14 @@ export interface ConversationStoreContext {
   processedClipboardIds: Set<string>
   pendingAgentDescriptions: Map<string, string[]>
   lastTranscriptKick: Map<string, number>
+  /**
+   * Hashes of mention-notifications already fired, keyed by
+   * `${conversationId}:${entryUuid}:${userName}`. Prevents duplicate pushes
+   * when the same assistant entry is re-ingested (reconnect, re-stream,
+   * sentinel revive). Bounded by mentionNotifyCap with FIFO-ish eviction
+   * inside the dispatch helper.
+   */
+  notifiedMentions: Set<string>
 
   store?: StoreDriver
 

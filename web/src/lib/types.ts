@@ -134,6 +134,7 @@ export interface Session {
   }
   hostSentinelId?: string
   hostSentinelAlias?: string
+  backend?: string
 }
 
 // Project order tree types -- each leaf is a project keyed by project URI
