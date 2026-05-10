@@ -62,8 +62,7 @@ export function SpawnResults({
   if (!path) {
     return (
       <div className="px-3 py-4 text-center text-[10px] text-comment">
-        Type a path (e.g. ~/projects/my-app) -- routing to{' '}
-        <span className="text-foreground">@{resolvedSentinel}</span>
+        Type a path (e.g. ~/projects/my-app) -- routing to <span className="text-foreground">@{resolvedSentinel}</span>
       </div>
     )
   }

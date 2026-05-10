@@ -16,7 +16,7 @@
  * Run: `bun scripts/acp-failures.ts`. Exits 0 on completion, prints a
  * per-case verdict.
  */
-import { spawn, type ChildProcess } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -40,7 +40,9 @@ class WsClient {
   constructor(url: string, secret: string) {
     this.ws = new WebSocket(`${url}/?secret=${encodeURIComponent(secret)}`)
     this.ws.onmessage = e => {
-      try { this.received.push(JSON.parse(e.data as string)) } catch {}
+      try {
+        this.received.push(JSON.parse(e.data as string))
+      } catch {}
     }
     this.open = new Promise<void>((res, rej) => {
       this.ws.onopen = () => {
@@ -50,7 +52,9 @@ class WsClient {
       this.ws.onerror = e => rej(new Error(`ws error: ${(e as ErrorEvent).message ?? '?'}`))
     })
   }
-  send(o: object) { this.ws.send(JSON.stringify(o)) }
+  send(o: object) {
+    this.ws.send(JSON.stringify(o))
+  }
   async waitFor(predicate: (m: any) => boolean, timeoutMs = 30_000): Promise<any | null> {
     const t0 = Date.now()
     while (Date.now() - t0 < timeoutMs) {
@@ -60,7 +64,11 @@ class WsClient {
     }
     return null
   }
-  close() { try { this.ws.close() } catch {} }
+  close() {
+    try {
+      this.ws.close()
+    } catch {}
+  }
 }
 
 function spawnHost(opts: {
@@ -72,7 +80,14 @@ function spawnHost(opts: {
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) {
     if (v === undefined) continue
-    if (k.startsWith('RCLAUDE_') || k.startsWith('CLAUDWERK_') || k === 'CLAUDECODE' || k.startsWith('ACP_') || k === 'OPENCODE_CONFIG') continue
+    if (
+      k.startsWith('RCLAUDE_') ||
+      k.startsWith('CLAUDWERK_') ||
+      k === 'CLAUDECODE' ||
+      k.startsWith('ACP_') ||
+      k === 'OPENCODE_CONFIG'
+    )
+      continue
     env[k] = v
   }
   Object.assign(env, {
@@ -94,7 +109,8 @@ const verdicts: Array<{ case: string; result: string }> = []
 async function caseInvalidModel() {
   const cid = `acp-fail-bad-model-${Date.now().toString(36)}`
   process.stderr.write(`\n=== CASE: invalid model name (cid=${cid}) ===\n`)
-  const dash = new WsClient(BROKER_WS, SECRET!); await dash.open
+  const dash = new WsClient(BROKER_WS, SECRET!)
+  await dash.open
   const proc = spawnHost({ conversationId: cid, initialModel: 'garbage/totally-not-a-model' })
   // Wait either for the conversation to register and a turn_duration to land, OR for the host to die.
   await dash.waitFor(m => m.type === 'conversation_update' && m.conversation?.id === cid, 15_000)
@@ -106,8 +122,8 @@ async function caseInvalidModel() {
   const settled = await dash.waitFor(m => {
     if (m.type !== 'transcript_entries') return false
     const entries = m.entries ?? []
-    return entries.some((e: any) =>
-      (e.type === 'system' && (e.subtype === 'turn_duration' || e.subtype === 'chat_api_error')),
+    return entries.some(
+      (e: any) => e.type === 'system' && (e.subtype === 'turn_duration' || e.subtype === 'chat_api_error'),
     )
   }, 60_000)
   if (!settled) {
@@ -116,7 +132,9 @@ async function caseInvalidModel() {
     const e = (settled.entries as any[]).find(x => x.type === 'system')
     verdicts.push({ case: 'invalid model', result: `${e.subtype}: ${(e.content || '').slice(0, 200)}` })
   }
-  try { proc.kill() } catch {}
+  try {
+    proc.kill()
+  } catch {}
   await new Promise(r => setTimeout(r, 500))
   dash.close()
 }
@@ -124,19 +142,28 @@ async function caseInvalidModel() {
 async function caseUnknownAgent() {
   process.stderr.write(`\n=== CASE: unknown ACP agent name ===\n`)
   const cid = `acp-fail-unknown-${Date.now().toString(36)}`
-  const proc = spawnHost({ conversationId: cid, acpAgent: 'codex' })  // codex isn't built into the recipe yet -- but the host doesn't know; it'll try to spawn `opencode acp` regardless because the cmd is in env. So this case ACTUALLY tests "host with bad agent name" (recipe lookup happens in the SENTINEL, not the host -- the host gets cmd directly). Skip.
-  try { proc.kill() } catch {}
-  verdicts.push({ case: 'unknown ACP agent', result: 'SKIPPED (recipe lookup is sentinel-side; host receives cmd via env)' })
+  const proc = spawnHost({ conversationId: cid, acpAgent: 'codex' }) // codex isn't built into the recipe yet -- but the host doesn't know; it'll try to spawn `opencode acp` regardless because the cmd is in env. So this case ACTUALLY tests "host with bad agent name" (recipe lookup happens in the SENTINEL, not the host -- the host gets cmd directly). Skip.
+  try {
+    proc.kill()
+  } catch {}
+  verdicts.push({
+    case: 'unknown ACP agent',
+    result: 'SKIPPED (recipe lookup is sentinel-side; host receives cmd via env)',
+  })
 }
 
 async function caseHostBinaryMissing() {
-  verdicts.push({ case: 'acp-host bin missing', result: 'SKIPPED (covered by sentinel-side check; host process never starts)' })
+  verdicts.push({
+    case: 'acp-host bin missing',
+    result: 'SKIPPED (covered by sentinel-side check; host process never starts)',
+  })
 }
 
 async function caseTerminateBeforeTurn() {
   process.stderr.write(`\n=== CASE: terminate before any turn ===\n`)
   const cid = `acp-fail-early-term-${Date.now().toString(36)}`
-  const dash = new WsClient(BROKER_WS, SECRET!); await dash.open
+  const dash = new WsClient(BROKER_WS, SECRET!)
+  await dash.open
   const proc = spawnHost({ conversationId: cid })
   await dash.waitFor(m => m.type === 'conversation_update' && m.conversation?.id === cid, 15_000)
   // Don't send any input. Terminate immediately.
@@ -144,18 +171,29 @@ async function caseTerminateBeforeTurn() {
   const t0 = Date.now()
   let exited = false
   while (Date.now() - t0 < 5_000) {
-    try { process.kill(proc.pid!, 0) } catch { exited = true; break }
+    try {
+      process.kill(proc.pid!, 0)
+    } catch {
+      exited = true
+      break
+    }
     await new Promise(r => setTimeout(r, 100))
   }
-  verdicts.push({ case: 'terminate before turn', result: exited ? `clean exit in ${Date.now() - t0}ms` : 'STILL ALIVE after 5s' })
-  try { proc.kill() } catch {}
+  verdicts.push({
+    case: 'terminate before turn',
+    result: exited ? `clean exit in ${Date.now() - t0}ms` : 'STILL ALIVE after 5s',
+  })
+  try {
+    proc.kill()
+  } catch {}
   dash.close()
 }
 
 async function caseEmptyPrompt() {
   process.stderr.write(`\n=== CASE: empty prompt ===\n`)
   const cid = `acp-fail-empty-prompt-${Date.now().toString(36)}`
-  const dash = new WsClient(BROKER_WS, SECRET!); await dash.open
+  const dash = new WsClient(BROKER_WS, SECRET!)
+  await dash.open
   const proc = spawnHost({ conversationId: cid })
   await dash.waitFor(m => m.type === 'conversation_update' && m.conversation?.id === cid, 15_000)
   dash.send({ type: 'channel_subscribe', channel: 'conversation:transcript', conversationId: cid })
@@ -165,8 +203,8 @@ async function caseEmptyPrompt() {
   const settled = await dash.waitFor(m => {
     if (m.type !== 'transcript_entries') return false
     const entries = m.entries ?? []
-    return entries.some((e: any) =>
-      (e.type === 'system' && (e.subtype === 'turn_duration' || e.subtype === 'chat_api_error')),
+    return entries.some(
+      (e: any) => e.type === 'system' && (e.subtype === 'turn_duration' || e.subtype === 'chat_api_error'),
     )
   }, 60_000)
   if (!settled) {
@@ -175,7 +213,9 @@ async function caseEmptyPrompt() {
     const e = (settled.entries as any[]).find(x => x.type === 'system')
     verdicts.push({ case: 'empty prompt', result: `${e.subtype}: ${(e.content || '').slice(0, 120)}` })
   }
-  try { proc.kill() } catch {}
+  try {
+    proc.kill()
+  } catch {}
   dash.close()
 }
 
@@ -189,4 +229,7 @@ async function main() {
   for (const v of verdicts) process.stderr.write(`  ${v.case.padEnd(30)} : ${v.result}\n`)
   process.exit(0)
 }
-main().catch(e => { process.stderr.write(`FATAL: ${(e as Error).stack ?? e}\n`); process.exit(1) })
+main().catch(e => {
+  process.stderr.write(`FATAL: ${(e as Error).stack ?? e}\n`)
+  process.exit(1)
+})

@@ -623,7 +623,11 @@ function spawnAcpHostDirect(opts: {
   const startTime = Date.now()
   const recipe = getAcpRecipe(opts.acpAgent)
   if (!recipe) {
-    const err = `No ACP recipe registered for agent "${opts.acpAgent}". Known: ${listAcpRecipes().map(r => r.name).join(', ') || 'none'}`
+    const err = `No ACP recipe registered for agent "${opts.acpAgent}". Known: ${
+      listAcpRecipes()
+        .map(r => r.name)
+        .join(', ') || 'none'
+    }`
     launchLog(opts.jobId, 'acp recipe missing', 'error', err)
     return { success: false, error: err }
   }
@@ -633,11 +637,17 @@ function spawnAcpHostDirect(opts: {
     launchLog(opts.jobId, 'acp agent CLI missing', 'error', err)
     return { success: false, error: err }
   }
-  launchLog(opts.jobId, `Spawning acp-host (${recipe.label})`, 'info', `${opts.bin} agent=${recipe.name} model=${opts.model ?? 'default'}`)
+  launchLog(
+    opts.jobId,
+    `Spawning acp-host (${recipe.label})`,
+    'info',
+    `${opts.bin} agent=${recipe.name} model=${opts.model ?? 'default'}`,
+  )
 
-  const tier = (opts.toolPermission === 'none' || opts.toolPermission === 'safe' || opts.toolPermission === 'full')
-    ? opts.toolPermission
-    : 'safe'
+  const tier =
+    opts.toolPermission === 'none' || opts.toolPermission === 'safe' || opts.toolPermission === 'full'
+      ? opts.toolPermission
+      : 'safe'
   const prepared = recipe.prepare?.({
     conversationId: opts.conversationId,
     cwd: opts.cwd,
@@ -1684,15 +1694,17 @@ function connect(
             if (!acpAgent) {
               const err = 'ACP spawn missing acpAgent field'
               launchLog(spawnMsg.jobId, 'ACP spawn rejected', 'error', err)
-              ws.send(JSON.stringify({
-                type: 'spawn_result',
-                requestId: spawnMsg.requestId,
-                jobId: spawnMsg.jobId,
-                success: false,
-                error: err,
-                project: resolvedProject,
-                conversationId: spawnMsg.conversationId,
-              } satisfies SpawnResult))
+              ws.send(
+                JSON.stringify({
+                  type: 'spawn_result',
+                  requestId: spawnMsg.requestId,
+                  jobId: spawnMsg.jobId,
+                  success: false,
+                  error: err,
+                  project: resolvedProject,
+                  conversationId: spawnMsg.conversationId,
+                } satisfies SpawnResult),
+              )
               break
             }
             const acpBin = findAcpHostBinary()
@@ -1700,15 +1712,17 @@ function connect(
               const err =
                 'acp-host binary not found in PATH or known locations. Install with: bun install -g @claudewerk/acp-host'
               launchLog(spawnMsg.jobId, 'acp-host not found', 'error', err)
-              ws.send(JSON.stringify({
-                type: 'spawn_result',
-                requestId: spawnMsg.requestId,
-                jobId: spawnMsg.jobId,
-                success: false,
-                error: err,
-                project: resolvedProject,
-                conversationId: spawnMsg.conversationId,
-              } satisfies SpawnResult))
+              ws.send(
+                JSON.stringify({
+                  type: 'spawn_result',
+                  requestId: spawnMsg.requestId,
+                  jobId: spawnMsg.jobId,
+                  success: false,
+                  error: err,
+                  project: resolvedProject,
+                  conversationId: spawnMsg.conversationId,
+                } satisfies SpawnResult),
+              )
               break
             }
             // Validate cwd same way as the rclaude path.
@@ -1718,38 +1732,44 @@ function connect(
                   mkdirSync(expandedCwd, { recursive: true })
                 } catch (e: unknown) {
                   const err = `Failed to create directory: ${(e as Error).message}`
-                  ws.send(JSON.stringify({
+                  ws.send(
+                    JSON.stringify({
+                      type: 'spawn_result',
+                      requestId: spawnMsg.requestId,
+                      jobId: spawnMsg.jobId,
+                      success: false,
+                      error: err,
+                    }),
+                  )
+                  break
+                }
+              } else {
+                ws.send(
+                  JSON.stringify({
                     type: 'spawn_result',
                     requestId: spawnMsg.requestId,
                     jobId: spawnMsg.jobId,
                     success: false,
-                    error: err,
-                  }))
-                  break
-                }
-              } else {
-                ws.send(JSON.stringify({
-                  type: 'spawn_result',
-                  requestId: spawnMsg.requestId,
-                  jobId: spawnMsg.jobId,
-                  success: false,
-                  error: `Directory not found: ${expandedCwd}`,
-                }))
+                    error: `Directory not found: ${expandedCwd}`,
+                  }),
+                )
                 break
               }
             }
             if (!isSpawnApproved(expandedCwd)) {
               const err = `Spawn not allowed: no .rclaude-spawn marker at or above ${expandedCwd}`
               launchLog(spawnMsg.jobId, 'spawn not approved', 'error', err)
-              ws.send(JSON.stringify({
-                type: 'spawn_result',
-                requestId: spawnMsg.requestId,
-                jobId: spawnMsg.jobId,
-                success: false,
-                error: err,
-                project: resolvedProject,
-                conversationId: spawnMsg.conversationId,
-              } satisfies SpawnResult))
+              ws.send(
+                JSON.stringify({
+                  type: 'spawn_result',
+                  requestId: spawnMsg.requestId,
+                  jobId: spawnMsg.jobId,
+                  success: false,
+                  error: err,
+                  project: resolvedProject,
+                  conversationId: spawnMsg.conversationId,
+                } satisfies SpawnResult),
+              )
               break
             }
             let promptFile: string | undefined
@@ -1776,15 +1796,17 @@ function connect(
               toolPermission: spawnMsg.toolPermission,
               resumeSessionId: spawnMsg.resumeId,
             })
-            ws.send(JSON.stringify({
-              type: 'spawn_result',
-              requestId: spawnMsg.requestId,
-              jobId: spawnMsg.jobId,
-              success: acpRes.success,
-              error: acpRes.error,
-              project: resolvedProject,
-              conversationId: spawnMsg.conversationId,
-            } satisfies SpawnResult))
+            ws.send(
+              JSON.stringify({
+                type: 'spawn_result',
+                requestId: spawnMsg.requestId,
+                jobId: spawnMsg.jobId,
+                success: acpRes.success,
+                error: acpRes.error,
+                project: resolvedProject,
+                conversationId: spawnMsg.conversationId,
+              } satisfies SpawnResult),
+            )
             if (acpRes.success) launchLog(spawnMsg.jobId, 'Waiting for conversation to connect', 'info')
             break
           }

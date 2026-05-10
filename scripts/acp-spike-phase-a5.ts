@@ -16,10 +16,10 @@
  * Re-run: `bun scripts/acp-spike-phase-a5.ts` (no API key needed for #1 + #2;
  *         #3 needs OPENROUTER_API_KEY because it runs a turn).
  */
-import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdirSync, writeFileSync, appendFileSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { type ChildProcess, spawn } from 'node:child_process'
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { join } from 'node:path'
 
 const OUT_DIR = join(process.cwd(), '.claude/docs/spike-acp-opencode/phase-a5')
 mkdirSync(OUT_DIR, { recursive: true })
@@ -29,9 +29,23 @@ const trace = (dir: 'send' | 'recv' | 'note', msg: unknown) => {
   appendFileSync(TRACE_PATH, JSON.stringify({ t: Date.now(), dir, msg }) + '\n')
 }
 
-interface JsonRpcReq { jsonrpc: '2.0'; id: number | string; method: string; params?: unknown }
-interface JsonRpcRes { jsonrpc: '2.0'; id: number | string; result?: unknown; error?: { code: number; message: string; data?: unknown } }
-interface JsonRpcNotify { jsonrpc: '2.0'; method: string; params?: unknown }
+interface JsonRpcReq {
+  jsonrpc: '2.0'
+  id: number | string
+  method: string
+  params?: unknown
+}
+interface JsonRpcRes {
+  jsonrpc: '2.0'
+  id: number | string
+  result?: unknown
+  error?: { code: number; message: string; data?: unknown }
+}
+interface JsonRpcNotify {
+  jsonrpc: '2.0'
+  method: string
+  params?: unknown
+}
 
 class AcpClient {
   private nextId = 1
@@ -54,33 +68,49 @@ class AcpClient {
       this.buf = this.buf.slice(idx + 1)
       if (!line.trim()) continue
       let msg: any
-      try { msg = JSON.parse(line) } catch { trace('note', { parse_error: line }); continue }
+      try {
+        msg = JSON.parse(line)
+      } catch {
+        trace('note', { parse_error: line })
+        continue
+      }
       trace('recv', msg)
       if (msg.id !== undefined && msg.method !== undefined) {
         // Agent-to-client request
         this.handleAgentRequest(msg as JsonRpcReq)
       } else if (msg.id !== undefined) {
         const cb = this.pending.get(msg.id)
-        if (cb) { this.pending.delete(msg.id); cb(msg as JsonRpcRes) }
+        if (cb) {
+          this.pending.delete(msg.id)
+          cb(msg as JsonRpcRes)
+        }
       } else if (msg.method !== undefined) {
         this.notifications.push(msg as JsonRpcNotify)
         if (msg.method === 'session/update') {
-          for (const cb of this.sessionUpdateListeners) { try { cb(msg) } catch {} }
+          for (const cb of this.sessionUpdateListeners) {
+            try {
+              cb(msg)
+            } catch {}
+          }
         }
       }
     }
   }
 
-  private writeLine(obj: unknown) { this.child.stdin!.write(JSON.stringify(obj) + '\n') }
+  private writeLine(obj: unknown) {
+    this.child.stdin!.write(JSON.stringify(obj) + '\n')
+  }
 
   private handleAgentRequest(req: JsonRpcReq) {
     const respond = (result: unknown) => {
       const res: JsonRpcRes = { jsonrpc: '2.0', id: req.id, result }
-      trace('send', res); this.writeLine(res)
+      trace('send', res)
+      this.writeLine(res)
     }
     const respondError = (code: number, message: string) => {
       const res: JsonRpcRes = { jsonrpc: '2.0', id: req.id, error: { code, message } }
-      trace('send', res); this.writeLine(res)
+      trace('send', res)
+      this.writeLine(res)
     }
     if (req.method === 'session/request_permission') {
       this.permissionRequests.push(req)
@@ -92,7 +122,9 @@ class AcpClient {
       try {
         const text = readFileSync((req.params as any).path, 'utf8')
         respond({ content: text })
-      } catch (e) { respondError(-32000, (e as Error).message) }
+      } catch (e) {
+        respondError(-32000, (e as Error).message)
+      }
       return
     }
     respondError(-32601, `spike: ${req.method} not implemented`)
@@ -101,9 +133,13 @@ class AcpClient {
   call<T = unknown>(method: string, params?: unknown, timeoutMs = 60_000): Promise<T> {
     const id = this.nextId++
     const req: JsonRpcReq = { jsonrpc: '2.0', id, method, params }
-    trace('send', req); this.writeLine(req)
+    trace('send', req)
+    this.writeLine(req)
     return new Promise<T>((resolve, reject) => {
-      const to = setTimeout(() => { this.pending.delete(id); reject(new Error(`timeout ${method} ${timeoutMs}ms`)) }, timeoutMs)
+      const to = setTimeout(() => {
+        this.pending.delete(id)
+        reject(new Error(`timeout ${method} ${timeoutMs}ms`))
+      }, timeoutMs)
       this.pending.set(id, res => {
         clearTimeout(to)
         if (res.error) reject(new Error(`${method} rpc error: ${JSON.stringify(res.error)}`))
@@ -113,7 +149,9 @@ class AcpClient {
   }
 
   close() {
-    try { this.child.kill() } catch {}
+    try {
+      this.child.kill()
+    } catch {}
   }
 }
 
@@ -123,10 +161,14 @@ function spawnOpencode(env: Record<string, string | undefined> = {}) {
 }
 
 async function initialize(c: AcpClient) {
-  return await c.call('initialize', {
-    protocolVersion: 1,
-    clientCapabilities: { fs: { readTextFile: true, writeTextFile: false }, terminal: false },
-  }, 30_000)
+  return await c.call(
+    'initialize',
+    {
+      protocolVersion: 1,
+      clientCapabilities: { fs: { readTextFile: true, writeTextFile: false }, terminal: false },
+    },
+    30_000,
+  )
 }
 
 interface MockMcpServer {
@@ -140,12 +182,16 @@ function startMockMcp(): Promise<MockMcpServer> {
     const reqs: MockMcpServer['requests'] = []
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
       let body = ''
-      req.on('data', c => { body += c })
+      req.on('data', c => {
+        body += c
+      })
       req.on('end', () => {
         reqs.push({
           method: req.method ?? '',
           path: req.url ?? '',
-          headers: Object.fromEntries(Object.entries(req.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : (v ?? '')])),
+          headers: Object.fromEntries(
+            Object.entries(req.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : (v ?? '')]),
+          ),
           body,
         })
         // Respond as a no-tool MCP server -- enough for opencode to see the connection succeed.
@@ -154,7 +200,17 @@ function startMockMcp(): Promise<MockMcpServer> {
         try {
           const j = JSON.parse(body || '{}')
           if (j.method === 'initialize') {
-            res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, result: { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'mock-mcp', version: '0' } } }))
+            res.end(
+              JSON.stringify({
+                jsonrpc: '2.0',
+                id: j.id,
+                result: {
+                  protocolVersion: '2024-11-05',
+                  capabilities: { tools: {} },
+                  serverInfo: { name: 'mock-mcp', version: '0' },
+                },
+              }),
+            )
             return
           }
           if (j.method === 'tools/list') {
@@ -200,17 +256,23 @@ async function probe1_setConfigOption() {
     let setRes: any
     let setErr: string | null = null
     try {
-      setRes = await c.call('session/set_config_option', {
-        sessionId,
-        configId: 'model',
-        value: altOption.value,
-      }, 30_000)
+      setRes = await c.call(
+        'session/set_config_option',
+        {
+          sessionId,
+          configId: 'model',
+          value: altOption.value,
+        },
+        30_000,
+      )
     } catch (e) {
       setErr = (e as Error).message
     }
 
-    writeFileSync(join(OUT_DIR, 'probe1-set-config-option.json'),
-      JSON.stringify({ initialModel, altOption, setRes, setErr }, null, 2))
+    writeFileSync(
+      join(OUT_DIR, 'probe1-set-config-option.json'),
+      JSON.stringify({ initialModel, altOption, setRes, setErr }, null, 2),
+    )
     return { ok: !setErr, currentValue, altValue: altOption.value, setRes, setErr }
   } finally {
     c.close()
@@ -224,12 +286,21 @@ async function probe2_mcpConnects() {
   const c = spawnOpencode()
   try {
     await initialize(c)
-    const newRes = await c.call<any>('session/new', {
-      cwd: process.cwd(),
-      mcpServers: [
-        { name: 'mock-mcp', type: 'http', url: mock.url, headers: [{ name: 'Authorization', value: 'Bearer test-secret' }] },
-      ],
-    }, 30_000)
+    const newRes = await c.call<any>(
+      'session/new',
+      {
+        cwd: process.cwd(),
+        mcpServers: [
+          {
+            name: 'mock-mcp',
+            type: 'http',
+            url: mock.url,
+            headers: [{ name: 'Authorization', value: 'Bearer test-secret' }],
+          },
+        ],
+      },
+      30_000,
+    )
     process.stderr.write(`[probe2] session ${newRes.sessionId}, waiting 3s for connection...\n`)
     await new Promise(r => setTimeout(r, 3_000))
 
@@ -255,10 +326,17 @@ async function probe3_requestPermissionTrigger() {
   const cfgDir = join(OUT_DIR, 'probe3-config')
   mkdirSync(cfgDir, { recursive: true })
   const cfgPath = join(cfgDir, 'opencode.json')
-  writeFileSync(cfgPath, JSON.stringify({
-    $schema: 'https://opencode.ai/config.json',
-    permission: { bash: 'ask', edit: 'ask', write: 'ask' },
-  }, null, 2))
+  writeFileSync(
+    cfgPath,
+    JSON.stringify(
+      {
+        $schema: 'https://opencode.ai/config.json',
+        permission: { bash: 'ask', edit: 'ask', write: 'ask' },
+      },
+      null,
+      2,
+    ),
+  )
 
   const c = spawnOpencode({ OPENCODE_CONFIG: cfgPath, OPENCODE_DISABLE_PROJECT_CONFIG: 'true' })
   try {
@@ -268,16 +346,26 @@ async function probe3_requestPermissionTrigger() {
 
     let promptResult: any
     try {
-      promptResult = await c.call('session/prompt', {
-        sessionId,
-        prompt: [{ type: 'text', text: 'Run `echo PROBE_TRIGGER_OK` via the bash tool. Then say done.' }],
-      }, 90_000)
+      promptResult = await c.call(
+        'session/prompt',
+        {
+          sessionId,
+          prompt: [{ type: 'text', text: 'Run `echo PROBE_TRIGGER_OK` via the bash tool. Then say done.' }],
+        },
+        90_000,
+      )
     } catch (e) {
       promptResult = { error: (e as Error).message }
     }
 
-    writeFileSync(join(OUT_DIR, 'probe3-prompt-result.json'),
-      JSON.stringify({ promptResult, permissionRequestCount: c.permissionRequests.length, permissionRequests: c.permissionRequests }, null, 2))
+    writeFileSync(
+      join(OUT_DIR, 'probe3-prompt-result.json'),
+      JSON.stringify(
+        { promptResult, permissionRequestCount: c.permissionRequests.length, permissionRequests: c.permissionRequests },
+        null,
+        2,
+      ),
+    )
 
     return {
       ok: c.permissionRequests.length > 0,

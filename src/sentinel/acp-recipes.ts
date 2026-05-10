@@ -103,16 +103,18 @@ export const OPENCODE_RECIPE: AcpRecipe = {
       return { env: empty }
     }
     const dir = join(tmpdir(), 'acp-host', conversationId)
-    try { mkdirSync(dir, { recursive: true }) } catch {}
+    try {
+      mkdirSync(dir, { recursive: true })
+    } catch {}
     const path = join(dir, 'opencode.json')
     const userConfig = readUserOpenCodeConfig()
     // Permission overlay: 'ask' on mutating tools so OpenCode emits
     // session/request_permission. The host's tier-driven decidePermission()
     // answers those requests. Merge (don't replace) any existing permission
     // block in the user's config so they can still tighten beyond our default.
-    const userPerm = (userConfig.permission && typeof userConfig.permission === 'object'
-      ? userConfig.permission
-      : {}) as Record<string, unknown>
+    const userPerm = (
+      userConfig.permission && typeof userConfig.permission === 'object' ? userConfig.permission : {}
+    ) as Record<string, unknown>
     const merged = {
       ...userConfig,
       $schema: 'https://opencode.ai/config.json',
@@ -133,7 +135,9 @@ export const OPENCODE_RECIPE: AcpRecipe = {
       // with how OpenCode normally layers config.
       env: { OPENCODE_CONFIG: path },
       cleanup: () => {
-        try { rmSync(dir, { recursive: true, force: true }) } catch {}
+        try {
+          rmSync(dir, { recursive: true, force: true })
+        } catch {}
       },
     }
   },

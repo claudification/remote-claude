@@ -9,7 +9,7 @@
  * Requires: OPENROUTER_API_KEY in env, opencode-ai 1.14.x on PATH.
  */
 import { spawn } from 'node:child_process'
-import { mkdirSync, writeFileSync, appendFileSync, readFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const OUT_DIR = join(process.cwd(), '.claude/docs/spike-acp-opencode')
@@ -142,7 +142,9 @@ child.stdout.on('data', d => {
       notifications.push(n)
       if (n.method === 'session/update') {
         for (const cb of sessionUpdateListeners) {
-          try { cb(n) } catch {}
+          try {
+            cb(n)
+          } catch {}
         }
       }
     }
@@ -173,13 +175,17 @@ async function main() {
 
   // 1. initialize
   process.stderr.write('[spike] initialize\n')
-  const initRes = await call<any>('initialize', {
-    protocolVersion: 1,
-    clientCapabilities: {
-      fs: { readTextFile: true, writeTextFile: true },
-      terminal: false,
+  const initRes = await call<any>(
+    'initialize',
+    {
+      protocolVersion: 1,
+      clientCapabilities: {
+        fs: { readTextFile: true, writeTextFile: true },
+        terminal: false,
+      },
     },
-  }, 30_000)
+    30_000,
+  )
   summary.initialize = initRes
   summary.cold_boot_ms = Date.now() - t0
   writeFileSync(join(OUT_DIR, 'initialize.json'), JSON.stringify(initRes, null, 2))
@@ -187,10 +193,14 @@ async function main() {
 
   // 2. session/new -- baseline, no MCP
   process.stderr.write('[spike] session/new (baseline)\n')
-  const newRes = await call<any>('session/new', {
-    cwd: process.cwd(),
-    mcpServers: [],
-  }, 30_000)
+  const newRes = await call<any>(
+    'session/new',
+    {
+      cwd: process.cwd(),
+      mcpServers: [],
+    },
+    30_000,
+  )
   summary.session_new = newRes
   writeFileSync(join(OUT_DIR, 'session-new.json'), JSON.stringify(newRes, null, 2))
   const sessionId = newRes.sessionId
@@ -199,9 +209,8 @@ async function main() {
   // 2b. capture available_commands_update
   // Wait briefly for any post-create notifications to land.
   await new Promise(r => setTimeout(r, 1_000))
-  const cmdNotif = notifications.find(n =>
-    n.method === 'session/update' &&
-    (n.params as any)?.update?.sessionUpdate === 'available_commands_update'
+  const cmdNotif = notifications.find(
+    n => n.method === 'session/update' && (n.params as any)?.update?.sessionUpdate === 'available_commands_update',
   )
   if (cmdNotif) {
     writeFileSync(join(OUT_DIR, 'available-commands.json'), JSON.stringify(cmdNotif, null, 2))
@@ -227,10 +236,14 @@ async function main() {
 
   let promptResult: any
   try {
-    promptResult = await call('session/prompt', {
-      sessionId,
-      prompt: [{ type: 'text', text: PROMPT }],
-    }, 120_000)
+    promptResult = await call(
+      'session/prompt',
+      {
+        sessionId,
+        prompt: [{ type: 'text', text: PROMPT }],
+      },
+      120_000,
+    )
   } catch (e) {
     process.stderr.write(`[spike] session/prompt failed: ${(e as Error).message}\n`)
     promptResult = { error: (e as Error).message }
@@ -243,12 +256,14 @@ async function main() {
 
   writeFileSync(join(OUT_DIR, 'session-prompt-result.json'), JSON.stringify(promptResult, null, 2))
   writeFileSync(join(OUT_DIR, 'session-update-stream.json'), JSON.stringify(updateLog, null, 2))
-  process.stderr.write(`[spike] prompt done in ${summary.session_prompt_ms}ms, ${updateLog.length} session/update events\n`)
+  process.stderr.write(
+    `[spike] prompt done in ${summary.session_prompt_ms}ms, ${updateLog.length} session/update events\n`,
+  )
 
   // Collect distinct event subtypes
   const subtypes = new Set<string>()
   for (const u of updateLog) {
-    const sub = (u.params?.update?.sessionUpdate) ?? '<no-sub>'
+    const sub = u.params?.update?.sessionUpdate ?? '<no-sub>'
     subtypes.add(sub)
   }
   summary.session_update_subtypes = [...subtypes]
@@ -292,17 +307,21 @@ async function main() {
   // 6. MCP via ACP -- array shape (per ACP spec)
   process.stderr.write('[spike] testing mcpServers (array shape)\n')
   try {
-    const mcpRes = await call<any>('session/new', {
-      cwd: process.cwd(),
-      mcpServers: [
-        {
-          name: 'spike-test',
-          type: 'http',
-          url: 'http://127.0.0.1:1/mcp',
-          headers: [{ name: 'Authorization', value: 'Bearer test' }],
-        },
-      ],
-    }, 30_000)
+    const mcpRes = await call<any>(
+      'session/new',
+      {
+        cwd: process.cwd(),
+        mcpServers: [
+          {
+            name: 'spike-test',
+            type: 'http',
+            url: 'http://127.0.0.1:1/mcp',
+            headers: [{ name: 'Authorization', value: 'Bearer test' }],
+          },
+        ],
+      },
+      30_000,
+    )
     summary.mcp_array_session_new = { ok: true, sessionId: mcpRes.sessionId }
     writeFileSync(join(OUT_DIR, 'mcp-array-session-new.json'), JSON.stringify(mcpRes, null, 2))
   } catch (e) {
@@ -313,17 +332,21 @@ async function main() {
   // 7. MCP via ACP -- alternative shape (sse)
   process.stderr.write('[spike] testing mcpServers (sse)\n')
   try {
-    const mcpRes2 = await call<any>('session/new', {
-      cwd: process.cwd(),
-      mcpServers: [
-        {
-          name: 'spike-test-sse',
-          type: 'sse',
-          url: 'http://127.0.0.1:1/sse',
-          headers: [{ name: 'Authorization', value: 'Bearer test' }],
-        },
-      ],
-    }, 30_000)
+    const mcpRes2 = await call<any>(
+      'session/new',
+      {
+        cwd: process.cwd(),
+        mcpServers: [
+          {
+            name: 'spike-test-sse',
+            type: 'sse',
+            url: 'http://127.0.0.1:1/sse',
+            headers: [{ name: 'Authorization', value: 'Bearer test' }],
+          },
+        ],
+      },
+      30_000,
+    )
     summary.mcp_sse_session_new = { ok: true, sessionId: mcpRes2.sessionId }
     writeFileSync(join(OUT_DIR, 'mcp-sse-session-new.json'), JSON.stringify(mcpRes2, null, 2))
   } catch (e) {

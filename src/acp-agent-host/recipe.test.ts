@@ -80,13 +80,16 @@ describe('parseHostConfig', () => {
   })
 
   it('forwards optional title / description / resumeSessionId / debug', () => {
-    const cfg = parseHostConfig({
-      ...baseEnv,
-      CLAUDWERK_CONVERSATION_NAME: 'my-conv',
-      CLAUDWERK_CONVERSATION_DESCRIPTION: 'desc',
-      ACP_RESUME_SESSION_ID: 'ses_abc',
-      ACP_HOST_DEBUG: '1',
-    }, DEFAULT_BROKER)
+    const cfg = parseHostConfig(
+      {
+        ...baseEnv,
+        CLAUDWERK_CONVERSATION_NAME: 'my-conv',
+        CLAUDWERK_CONVERSATION_DESCRIPTION: 'desc',
+        ACP_RESUME_SESSION_ID: 'ses_abc',
+        ACP_HOST_DEBUG: '1',
+      },
+      DEFAULT_BROKER,
+    )
     expect(cfg.conversationTitle).toBe('my-conv')
     expect(cfg.conversationDescription).toBe('desc')
     expect(cfg.resumeSessionId).toBe('ses_abc')

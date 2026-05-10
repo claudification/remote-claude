@@ -182,7 +182,9 @@ describe('JsonRpcClient (agent -> client requests)', () => {
     const { writer, lines } = mkWriter()
     const c = new JsonRpcClient({
       writer,
-      onRequest: () => { throw new Error('boom') },
+      onRequest: () => {
+        throw new Error('boom')
+      },
       onNotify: () => {},
     })
     c.feed(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'whatever' })}\n`)

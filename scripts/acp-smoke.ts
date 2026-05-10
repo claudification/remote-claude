@@ -19,7 +19,7 @@
  * landed.
  */
 
-import { spawn, type ChildProcess } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { OPENCODE_RECIPE } from '../src/sentinel/acp-recipes'
@@ -42,7 +42,9 @@ if (!OPENROUTER) fail('OPENROUTER_API_KEY not in env')
 if (!existsSync(BIN)) fail(`${BIN} not found -- run \`bun run build:acp-agent-host\` first`)
 
 // Sanity: the broker is up.
-const health = await fetch(`${BROKER_HTTP}/health`).catch(e => { fail(`broker /health unreachable: ${e.message}`) })
+const health = await fetch(`${BROKER_HTTP}/health`).catch(e => {
+  fail(`broker /health unreachable: ${e.message}`)
+})
 if (!health.ok) fail(`broker /health returned ${health.status}`)
 
 // Make a clean test cwd with the spawn marker.
@@ -59,7 +61,9 @@ class WsClient {
   constructor(url: string, secret: string) {
     this.ws = new WebSocket(`${url}/?secret=${encodeURIComponent(secret)}`)
     this.ws.onmessage = e => {
-      try { this.received.push(JSON.parse(e.data as string)) } catch {}
+      try {
+        this.received.push(JSON.parse(e.data as string))
+      } catch {}
     }
     this.open = new Promise<void>((resolve, reject) => {
       this.ws.onopen = () => {
@@ -70,7 +74,9 @@ class WsClient {
       this.ws.onclose = () => {}
     })
   }
-  send(o: object) { this.ws.send(JSON.stringify(o)) }
+  send(o: object) {
+    this.ws.send(JSON.stringify(o))
+  }
   async waitFor(predicate: (m: any) => boolean, timeoutMs = 30_000, label?: string): Promise<any> {
     const t0 = Date.now()
     while (Date.now() - t0 < timeoutMs) {
@@ -80,7 +86,11 @@ class WsClient {
     }
     fail(`timeout waiting for ${label ?? 'message'} after ${timeoutMs}ms`)
   }
-  close() { try { this.ws.close() } catch {} }
+  close() {
+    try {
+      this.ws.close()
+    } catch {}
+  }
 }
 
 const dash = new WsClient(BROKER_WS, SECRET)
@@ -119,8 +129,16 @@ const proc: ChildProcess = spawn(BIN, {
 })
 process.stderr.write(`[smoke] spawned acp-host pid=${proc.pid}\n`)
 
-const cleanup = () => { try { proc.kill() } catch {}; dash.close() }
-process.on('SIGINT', () => { cleanup(); process.exit(130) })
+const cleanup = () => {
+  try {
+    proc.kill()
+  } catch {}
+  dash.close()
+}
+process.on('SIGINT', () => {
+  cleanup()
+  process.exit(130)
+})
 
 // ─── Wait for conversation registration ───────────────────────────────
 await dash.waitFor(
@@ -145,10 +163,11 @@ const assistantMsg = await dash.waitFor(
   m => {
     if (m.type !== 'transcript_entries') return false
     const entries = m.entries ?? []
-    return entries.some((e: any) =>
-      e.type === 'assistant' &&
-      Array.isArray(e.message?.content) &&
-      e.message.content.some((b: any) => b.type === 'text' && !!b.text),
+    return entries.some(
+      (e: any) =>
+        e.type === 'assistant' &&
+        Array.isArray(e.message?.content) &&
+        e.message.content.some((b: any) => b.type === 'text' && !!b.text),
     )
   },
   120_000,
@@ -178,7 +197,7 @@ const diagRes = await fetch(`${BROKER_HTTP}/conversations/${CONV_ID}/diag`, {
   headers: { Authorization: `Bearer ${SECRET}` },
 })
 if (!diagRes.ok) fail(`/diag returned ${diagRes.status}`)
-const diag = await diagRes.json() as any
+const diag = (await diagRes.json()) as any
 process.stderr.write(`[smoke] diag agentHostType=${diag.agentHostType} project=${diag.project}\n`)
 if (diag.agentHostType !== 'acp') fail(`expected agentHostType=acp, got ${diag.agentHostType}`)
 const sessionId = diag.agentHostMeta?.ccSessionId ?? diag.agentHostMeta?.openCodeSessionId

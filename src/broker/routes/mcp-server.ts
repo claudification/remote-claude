@@ -72,7 +72,7 @@ function createMcpServer(conversationStore: ConversationStore, store: StoreDrive
   // ─── search_transcripts ─────────────────────────────────────────────
   mcp.tool(
     'search_transcripts',
-    "FTS5 full-text search across every conversation transcript stored by the broker. Use to find prior decisions, code snippets, or context from past conversations. Default `output: \"conversations\"` returns one row per matching conversation; `output: \"snippets\"` returns the actual matching transcript entries with seq numbers (feed seq into get_transcript_context to expand).",
+    'FTS5 full-text search across every conversation transcript stored by the broker. Use to find prior decisions, code snippets, or context from past conversations. Default `output: "conversations"` returns one row per matching conversation; `output: "snippets"` returns the actual matching transcript entries with seq numbers (feed seq into get_transcript_context to expand).',
     {
       query: z.string(),
       output: z.enum(['conversations', 'snippets']).optional(),
@@ -137,11 +137,20 @@ function createMcpServer(conversationStore: ConversationStore, store: StoreDrive
   // ─── send_message ───────────────────────────────────────────────────
   mcp.tool(
     'send_message',
-    "Send a message to another conversation (CC, Hermes, chat-api, etc.). The recipient sees the message wrapped in a <channel> tag with the from/intent/conversation_id attributes preserved -- they reply by calling this tool back with the same conversation_id. Use for delegating subtasks, asking sibling agents for help, or relaying findings.",
+    'Send a message to another conversation (CC, Hermes, chat-api, etc.). The recipient sees the message wrapped in a <channel> tag with the from/intent/conversation_id attributes preserved -- they reply by calling this tool back with the same conversation_id. Use for delegating subtasks, asking sibling agents for help, or relaying findings.',
     {
-      to: z.string().describe('Target conversation ID, title, or agent name. For replies, use the from_session value from the incoming <channel> wrapper.'),
-      message: z.string().describe('Message body. Markdown is fine; the recipient sees it inside <channel>...</channel>.'),
-      intent: z.enum(['request', 'response', 'notification']).optional().describe('request=needs answer, response=replying to them, notification=FYI no answer expected'),
+      to: z
+        .string()
+        .describe(
+          'Target conversation ID, title, or agent name. For replies, use the from_session value from the incoming <channel> wrapper.',
+        ),
+      message: z
+        .string()
+        .describe('Message body. Markdown is fine; the recipient sees it inside <channel>...</channel>.'),
+      intent: z
+        .enum(['request', 'response', 'notification'])
+        .optional()
+        .describe('request=needs answer, response=replying to them, notification=FYI no answer expected'),
     },
     async ({ to, message, intent }) => {
       // Resolve target -- could be a conversation ID or a scope slug
@@ -174,7 +183,10 @@ function createMcpServer(conversationStore: ConversationStore, store: StoreDrive
       prompt: z.string().optional().describe('Initial user prompt for the spawned agent.'),
       name: z.string().optional().describe('Display name for the conversation (auto-generated if omitted).'),
       model: z.string().optional().describe('Model override. Otherwise uses the project default.'),
-      backend: z.enum(['claude', 'chat-api']).optional().describe('claude=Claude Code (with tools); chat-api=plain LLM via OpenRouter/etc.'),
+      backend: z
+        .enum(['claude', 'chat-api'])
+        .optional()
+        .describe('claude=Claude Code (with tools); chat-api=plain LLM via OpenRouter/etc.'),
       chatConnectionId: z.string().optional().describe('For backend=chat-api, which configured connection to use.'),
       headless: z.boolean().optional().describe('Default true. Headless sessions run without a visible terminal.'),
     },
@@ -222,7 +234,10 @@ function createMcpServer(conversationStore: ConversationStore, store: StoreDrive
     'list_conversations',
     "List Claudwerk conversations (CC, Hermes, chat-api). Default excludes ended sessions. Pass status:'all' to see the full graveyard. Returns conversationId, title, project, status, model, agentHostType, startedAt, lastActivity for each.",
     {
-      status: z.enum(['active', 'idle', 'ended', 'all']).optional().describe("Filter. Default = active+idle (everything not ended)."),
+      status: z
+        .enum(['active', 'idle', 'ended', 'all'])
+        .optional()
+        .describe('Filter. Default = active+idle (everything not ended).'),
     },
     async ({ status }) => {
       let conversations = conversationStore.getAllConversations()
@@ -251,11 +266,12 @@ function createMcpServer(conversationStore: ConversationStore, store: StoreDrive
     "List tasks on the user's kanban-style project board. Status columns: inbox, open, in-progress, in-review, done, archived. Each task has id, title, priority, tags, refs.",
     { status: z.string().optional().describe('Filter by column. Omit for all tasks.') },
     async ({ status }) => {
-    // Read from project board files
-    const tasks = store.kv.get<Record<string, unknown>[]>('project:tasks') || []
-    const filtered = status ? tasks.filter(t => t.status === status) : tasks
-    return { content: [{ type: 'text', text: JSON.stringify(filtered, null, 2) }] }
-  })
+      // Read from project board files
+      const tasks = store.kv.get<Record<string, unknown>[]>('project:tasks') || []
+      const filtered = status ? tasks.filter(t => t.status === status) : tasks
+      return { content: [{ type: 'text', text: JSON.stringify(filtered, null, 2) }] }
+    },
+  )
 
   // ─── project_set_status ─────────────────────────────────────────────
   mcp.tool(

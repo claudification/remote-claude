@@ -361,8 +361,7 @@ run('opencode-host e2e', () => {
     dashboard.send({
       type: 'send_input',
       conversationId,
-      input:
-        `Use the MCP tool named "notify" (provided by the claudwerk MCP server) to send a notification with the message exactly: "${NOTIFY_BODY}". Then say done.`,
+      input: `Use the MCP tool named "notify" (provided by the claudwerk MCP server) to send a notification with the message exactly: "${NOTIFY_BODY}". Then say done.`,
     })
 
     // The notify handler broadcasts a 'notification' WS message to all

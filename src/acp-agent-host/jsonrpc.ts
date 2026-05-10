@@ -47,7 +47,12 @@ export type JsonRpcInbound = JsonRpcResponse | JsonRpcRequest | JsonRpcNotificat
 
 /** What an inbound line is, after parsing. The discriminant is structural --
  *  ACP doesn't put a `type` field on the wire. */
-export function classifyInbound(msg: { id?: unknown; method?: unknown; result?: unknown; error?: unknown }): 'response' | 'request' | 'notification' | 'invalid' {
+export function classifyInbound(msg: {
+  id?: unknown
+  method?: unknown
+  result?: unknown
+  error?: unknown
+}): 'response' | 'request' | 'notification' | 'invalid' {
   const hasId = msg.id !== undefined && msg.id !== null
   const hasMethod = typeof msg.method === 'string' && msg.method.length > 0
   const hasResult = msg.result !== undefined
@@ -68,7 +73,11 @@ export interface JsonRpcClientOptions {
   writer: JsonRpcWriter
   /** Called when an agent->client request arrives. Implementation must call
    *  `respond` or `respondError` exactly once for each. */
-  onRequest: (req: JsonRpcRequest, respond: (result: unknown) => void, respondError: (code: number, message: string, data?: unknown) => void) => void
+  onRequest: (
+    req: JsonRpcRequest,
+    respond: (result: unknown) => void,
+    respondError: (code: number, message: string, data?: unknown) => void,
+  ) => void
   /** Called for every notification from the agent. */
   onNotify: (notif: JsonRpcNotification) => void
   /** Called when an inbound line fails to parse or is structurally invalid.
@@ -161,7 +170,9 @@ export class JsonRpcClient {
   rejectAllPending(err: Error): void {
     for (const p of this.pending.values()) {
       if (p.timeout) clearTimeout(p.timeout)
-      try { p.reject(err) } catch {}
+      try {
+        p.reject(err)
+      } catch {}
     }
     this.pending.clear()
   }
@@ -214,7 +225,11 @@ export class JsonRpcClient {
         this.opts.writer.writeLine(JSON.stringify(out))
       }
       const respondError = (code: number, message: string, data?: unknown) => {
-        const out: JsonRpcErrorResponse = { jsonrpc: '2.0', id: req.id, error: { code, message, ...(data !== undefined ? { data } : {}) } }
+        const out: JsonRpcErrorResponse = {
+          jsonrpc: '2.0',
+          id: req.id,
+          error: { code, message, ...(data !== undefined ? { data } : {}) },
+        }
         this.opts.onTrace?.('send', out)
         this.opts.writer.writeLine(JSON.stringify(out))
       }
