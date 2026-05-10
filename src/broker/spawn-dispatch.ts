@@ -397,7 +397,13 @@ function dispatchChatApiSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): Spawn
 function dispatchHermesSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): SpawnDispatchResult {
   const conversationId = randomUUID()
   const jobId = req.jobId ?? randomUUID()
-  const project = 'hermes://gateway'
+
+  const connectionName = 'gateway'
+  const nameSlug = (req.name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+  const project = nameSlug ? `hermes://${connectionName}/${nameSlug}` : `hermes://${connectionName}`
 
   deps.conversationStore.createJob(jobId, conversationId)
 
