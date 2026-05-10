@@ -1,5 +1,5 @@
 {
-  "name": "@claudewerk/opencode-host",
+  "name": "@claudewerk/opencode-agent-host",
   "version": "0.1.0",
   "description": "Claudwerk agent host that wraps the OpenCode CLI for multi-provider tool-using conversations",
   "bin": {
@@ -13,7 +13,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/claudification/claudewerk.git",
-    "directory": "packages/opencode-host"
+    "directory": "packages/opencode-agent-host"
   },
   "keywords": [
     "claudewerk",
