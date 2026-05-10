@@ -123,9 +123,15 @@ describe('translator: tool_call lifecycle (live commits)', () => {
     expect(o2.entries).toHaveLength(1)
     const toolUseEntry = o2.entries[0] as TranscriptAssistantEntry
     expect(toolUseEntry.type).toBe('assistant')
-    expect(toolUseEntry.message?.content).toEqual([
-      { type: 'tool_use', id: 'call_1', name: 'bash', input: { command: 'ls' } },
-    ])
+    // Additive canonical fields (kind / canonicalInput / raw) ride along
+    // with each tool_use; assert the legacy shape is intact via toMatchObject.
+    expect(toolUseEntry.message?.content?.length).toBe(1)
+    expect(toolUseEntry.message?.content?.[0]).toMatchObject({
+      type: 'tool_use',
+      id: 'call_1',
+      name: 'bash',
+      input: { command: 'ls' },
+    })
     expect(toolUseEntry.uuid).toBeTruthy()
 
     const o3 = applyUpdate(
@@ -143,9 +149,12 @@ describe('translator: tool_call lifecycle (live commits)', () => {
     expect(o3.entries).toHaveLength(1)
     const resultEntry = o3.entries[0] as TranscriptUserEntry
     expect(resultEntry.type).toBe('user')
-    expect(resultEntry.message?.content).toEqual([
-      { type: 'tool_result', tool_use_id: 'call_1', content: 'file1\nfile2\n' },
-    ])
+    expect(resultEntry.message?.content?.length).toBe(1)
+    expect(resultEntry.message?.content?.[0]).toMatchObject({
+      type: 'tool_result',
+      tool_use_id: 'call_1',
+      content: 'file1\nfile2\n',
+    })
     expect(resultEntry.uuid).toBeTruthy()
     expect(resultEntry.uuid).not.toBe(toolUseEntry.uuid)
   })

@@ -37,6 +37,7 @@ import type {
   TranscriptSystemEntry,
   TranscriptUserEntry,
 } from '../shared/protocol'
+import { translateAcpToolResult, translateAcpToolUse } from './dialect/from-acp'
 
 // ─── Inbound shapes ──────────────────────────────────────────────────────
 
@@ -145,6 +146,16 @@ interface PendingToolCall {
   output: string
   isError: boolean
   status: string
+  /** Verbatim ACP `rawOutput` envelope from the most recent tool_call_update.
+   *  Preserved for the dialect translator's result envelope (and `block.raw`)
+   *  so things like exit code, truncation, and arbitrary metadata never get
+   *  dropped during commit. */
+  rawOutput?: unknown
+  rawOutputMetadata?: { exit?: number; truncated?: boolean; description?: string; output?: string }
+  /** Verbatim `locations` array from the original tool_call event (opencode
+   *  ships file refs here; preserved into raw so the dashboard can render
+   *  them later). */
+  locations?: unknown
   /** Stable UUID for the assistant entry we'll emit (or already emitted). */
   useEntryUuid: string
   /** Stable UUID for the user entry carrying the tool_result. */
@@ -182,9 +193,13 @@ export interface TranslatorState {
   /** Optional stopReason from the session/prompt response, set by host
    *  before flushTurn() if available. */
   stopReason: string | null
+  /** ACP agent name (e.g. 'opencode', 'codex', 'gemini-acp'). Threaded
+   *  into the dialect translator so each tool block carries the right
+   *  `acp:<agent>` backend identifier in `block.raw`. */
+  acpAgent: string
 }
 
-export function createTranslatorState(): TranslatorState {
+export function createTranslatorState(opts?: { acpAgent?: string }): TranslatorState {
   return {
     pendingBlocks: [],
     activeRunUuid: null,
@@ -201,6 +216,7 @@ export function createTranslatorState(): TranslatorState {
     reasoningTokens: 0,
     turnStartedAt: Date.now(),
     stopReason: null,
+    acpAgent: opts?.acpAgent ?? 'acp',
   }
 }
 
@@ -337,6 +353,7 @@ function handleToolCall(update: AcpToolCallEvent, state: TranslatorState): Trans
     output: '',
     isError: false,
     status: update.status ?? 'pending',
+    locations: update.locations,
     useEntryUuid: randomUUID(),
     resultEntryUuid: randomUUID(),
     useCommitted: false,
@@ -352,7 +369,7 @@ function handleToolCall(update: AcpToolCallEvent, state: TranslatorState): Trans
   // If rawInput is already populated (rare for `tool_call` itself), we can
   // also commit the tool_use right now.
   if (Object.keys(pending.input).length > 0) {
-    commitToolUse(pending, out)
+    commitToolUse(pending, out, state)
   }
   return out
 }
@@ -409,6 +426,8 @@ function handleToolCallUpdate(update: AcpToolCallUpdateEvent, state: TranslatorS
     if (typeof update.rawOutput.metadata?.exit === 'number' && update.rawOutput.metadata.exit !== 0) {
       pending.isError = true
     }
+    pending.rawOutput = update.rawOutput
+    if (update.rawOutput.metadata) pending.rawOutputMetadata = update.rawOutput.metadata
   }
 
   const out = emptyOutput()
@@ -417,7 +436,7 @@ function handleToolCallUpdate(update: AcpToolCallUpdateEvent, state: TranslatorS
   // of rawInput is the moment the model's intent is observable.
   if (!pending.useCommitted && Object.keys(pending.input).length > 0) {
     flushActiveRun(state, out)
-    commitToolUse(pending, out)
+    commitToolUse(pending, out, state)
   }
 
   // Terminal status -> commit the tool_result user entry.
@@ -428,10 +447,10 @@ function handleToolCallUpdate(update: AcpToolCallUpdateEvent, state: TranslatorS
     // the result against.
     if (!pending.useCommitted) {
       flushActiveRun(state, out)
-      commitToolUse(pending, out)
+      commitToolUse(pending, out, state)
     }
     if (!pending.resultCommitted) {
-      commitToolResult(pending, out)
+      commitToolResult(pending, out, state)
     }
   }
 
@@ -470,13 +489,20 @@ function flushActiveRun(state: TranslatorState, out: TranslatorOutput): void {
   state.lastThinkingBlockIdx = null
 }
 
-function commitToolUse(pending: PendingToolCall, out: TranslatorOutput): void {
+function commitToolUse(pending: PendingToolCall, out: TranslatorOutput, state: TranslatorState): void {
   if (pending.useCommitted) return
   const block: TranscriptContentBlock = {
     type: 'tool_use',
     id: pending.toolCallId,
     name: pending.name,
     input: pending.input,
+  }
+  // Translate to canonical CLAUDEWERK shape (kind / canonicalInput / raw).
+  // Locations the agent shipped on the original tool_call event would
+  // otherwise be dropped here -- preserve them on raw.
+  translateAcpToolUse(block, { acpAgent: state.acpAgent })
+  if (pending.locations !== undefined && block.raw) {
+    ;(block.raw as Record<string, unknown>).locations = pending.locations
   }
   const entry: TranscriptAssistantEntry = {
     type: 'assistant',
@@ -488,7 +514,7 @@ function commitToolUse(pending: PendingToolCall, out: TranslatorOutput): void {
   pending.useCommitted = true
 }
 
-function commitToolResult(pending: PendingToolCall, out: TranslatorOutput): void {
+function commitToolResult(pending: PendingToolCall, out: TranslatorOutput, state: TranslatorState): void {
   if (pending.resultCommitted) return
   const block: TranscriptContentBlock = {
     type: 'tool_result',
@@ -496,6 +522,19 @@ function commitToolResult(pending: PendingToolCall, out: TranslatorOutput): void
     content: pending.output,
     ...(pending.isError ? { is_error: true } : {}),
   }
+  // Translate to canonical CLAUDEWERK shape (result / raw). Threads
+  // pending.rawOutput + metadata so things like exit code survive into
+  // the canonical shell envelope -- and the original payload is kept on
+  // block.raw verbatim.
+  translateAcpToolResult(
+    block,
+    {
+      sourceToolName: pending.name,
+      rawOutput: pending.rawOutput,
+      metadata: pending.rawOutputMetadata,
+    },
+    { acpAgent: state.acpAgent },
+  )
   const entry: TranscriptUserEntry = {
     type: 'user',
     uuid: pending.resultEntryUuid,
@@ -545,7 +584,7 @@ export function flushTurn(state: TranslatorState): TranslatorOutput {
   for (const pending of state.toolCalls.values()) {
     if (!pending.useCommitted && Object.keys(pending.input).length > 0) {
       flushActiveRun(state, out)
-      commitToolUse(pending, out)
+      commitToolUse(pending, out, state)
     }
     if (
       !pending.resultCommitted &&
@@ -553,9 +592,9 @@ export function flushTurn(state: TranslatorState): TranslatorOutput {
     ) {
       if (!pending.useCommitted) {
         flushActiveRun(state, out)
-        commitToolUse(pending, out)
+        commitToolUse(pending, out, state)
       }
-      commitToolResult(pending, out)
+      commitToolResult(pending, out, state)
     }
   }
 

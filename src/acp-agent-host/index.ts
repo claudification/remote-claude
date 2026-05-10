@@ -254,7 +254,7 @@ async function main() {
   })().catch(() => {})
 
   // ─── Translator state -- one per turn ────────────────────────────────
-  let state: TranslatorState = createTranslatorState()
+  let state: TranslatorState = createTranslatorState({ acpAgent: cfg.recipe.agentName })
   let acpSessionId: string | null = cfg.resumeSessionId ?? null
   let activeTurn: Promise<unknown> | null = null
   /** Cached set of model values the agent advertised in session/new's
@@ -407,7 +407,7 @@ async function main() {
       const oldSessionId = acpSessionId
       acpSessionId = res.sessionId
       log(`clear: new session ${acpSessionId.slice(0, 8)} (was ${oldSessionId.slice(0, 8)})`)
-      state = createTranslatorState()
+      state = createTranslatorState({ acpAgent: cfg.recipe.agentName })
       transport.send({
         type: 'conversation_reset',
         conversationId: cfg.conversationId,
