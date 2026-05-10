@@ -31,6 +31,10 @@ const planApproval: MessageHandler = (ctx, data) => {
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
+  if (!conversation?.project) {
+    ctx.log.debug(`[plan] dropping approval: no project on ${conversationId.slice(0, 8)}`)
+    return
+  }
   const msg = {
     type: 'plan_approval',
     conversationId: conversationId,
@@ -40,8 +44,7 @@ const planApproval: MessageHandler = (ctx, data) => {
     planFilePath: data.planFilePath,
     allowedPrompts: data.allowedPrompts,
   }
-  if (conversation?.project) ctx.broadcastScoped(msg, conversation.project)
-  else ctx.broadcast(msg)
+  ctx.broadcastScoped(msg, conversation.project)
 
   ctx.log.info(
     `[plan] Approval request: ${(data.requestId as string)?.slice(0, 8)} conversation=${conversationId.slice(0, 8)}`,
@@ -64,9 +67,10 @@ const planApprovalResponse: MessageHandler = (ctx, data) => {
     }
     ctx.conversations.broadcastConversationUpdate(conversationId)
     // Dismiss the dialog on all dashboard clients (not just the one that responded)
-    const dismissMsg = { type: 'plan_approval_dismissed', conversationId: conversationId }
-    if (conversation.project) ctx.broadcastScoped(dismissMsg, conversation.project)
-    else ctx.broadcast(dismissMsg)
+    if (conversation.project) {
+      const dismissMsg = { type: 'plan_approval_dismissed', conversationId: conversationId }
+      ctx.broadcastScoped(dismissMsg, conversation.project)
+    }
   }
 
   const targetWs = ctx.conversations.getConversationSocket(conversationId)
@@ -99,9 +103,10 @@ const planModeChanged: MessageHandler = (ctx, data) => {
     if (!data.planMode) {
       if (conversation.pendingPlanApproval) delete conversation.pendingPlanApproval
       if (conversation.pendingAttention?.type === 'plan_approval') delete conversation.pendingAttention
-      const dismissMsg = { type: 'plan_approval_dismissed', conversationId: conversationId }
-      if (conversation.project) ctx.broadcastScoped(dismissMsg, conversation.project)
-      else ctx.broadcast(dismissMsg)
+      if (conversation.project) {
+        const dismissMsg = { type: 'plan_approval_dismissed', conversationId: conversationId }
+        ctx.broadcastScoped(dismissMsg, conversation.project)
+      }
     }
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }

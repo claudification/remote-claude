@@ -16,7 +16,7 @@ const fileResponse: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   if (conversation?.project) ctx.broadcastScoped(data, conversation.project)
-  else ctx.broadcast(data)
+  else ctx.log.debug(`[files] dropping file_response: no project on ${conversationId?.slice(0, 8) || 'unknown'}`)
 }
 
 // Dashboard -> agent host: file operation requests
@@ -52,7 +52,7 @@ const fileEditorResponse: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   if (conversation?.project) ctx.broadcastScoped(data, conversation.project)
-  else ctx.broadcast(data)
+  else ctx.log.debug(`[files] dropping ${data.type}: no project on ${conversationId?.slice(0, 8) || 'unknown'}`)
 }
 
 // Dashboard -> agent host: file request (proxy to rclaude)

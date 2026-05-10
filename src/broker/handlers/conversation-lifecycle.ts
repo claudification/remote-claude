@@ -202,10 +202,13 @@ const updateMetadata: MessageHandler = (ctx, data) => {
 const notify: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
-  const label =
-    (conversation?.project ? extractProjectLabel(conversation.project) : null) ||
-    conversationId?.slice(0, 8) ||
-    'rclaude'
+  // Reject notify for unknown conversations -- a global push + broadcast would
+  // leak notification content to users who lack access. (Audit C2)
+  if (!conversation?.project) {
+    ctx.log.debug(`[notify] dropping: no conversation/project for ${conversationId?.slice(0, 8) || 'unknown'}`)
+    return
+  }
+  const label = extractProjectLabel(conversation.project) || conversationId.slice(0, 8)
   const message = (data.message as string) || 'Notification'
   const title = (data.title as string) || label
   console.log(`[notify] ${title}: ${message}`)
@@ -215,8 +218,7 @@ const notify: MessageHandler = (ctx, data) => {
   }
 
   const toastMsg = { type: 'toast', title, message, conversationId: conversationId }
-  if (conversation?.project) ctx.broadcastScoped(toastMsg, conversation.project)
-  else ctx.broadcast(toastMsg)
+  ctx.broadcastScoped(toastMsg, conversation.project)
 }
 
 // ─── Session end ───────────────────────────────────────────────────
@@ -250,15 +252,17 @@ const end: MessageHandler = (ctx, data) => {
         taskId: conversation.adHocTaskId,
         conversationId: conversationId,
       }
-      if (conversation.project) ctx.broadcastScoped(toastMsg, conversation.project)
-      else ctx.broadcast(toastMsg)
-
-      ctx.push.sendToAll({
-        title: 'Task completed',
-        body: `${title} - completed in ${elapsedStr}${costStr}`,
-        data: { taskId: conversation.adHocTaskId, url: `/#task/${conversation.adHocTaskId}` },
-        tag: `adhoc-${conversationId}`,
-      })
+      if (conversation.project) {
+        ctx.broadcastScoped(toastMsg, conversation.project)
+        ctx.push.sendToAll({
+          title: 'Task completed',
+          body: `${title} - completed in ${elapsedStr}${costStr}`,
+          data: { taskId: conversation.adHocTaskId, url: `/#task/${conversation.adHocTaskId}` },
+          tag: `adhoc-${conversationId}`,
+        })
+      } else {
+        ctx.log.debug(`[ad-hoc] dropping completion toast: no project on ${conversationId.slice(0, 8)}`)
+      }
 
       ctx.log.info(`[ad-hoc] Task completed: ${conversation.adHocTaskId} (${elapsedStr}${costStr})`)
     }

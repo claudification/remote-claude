@@ -35,15 +35,20 @@ const dialogShow: MessageHandler = (ctx, data) => {
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
-  // Broadcast to dashboard subscribers with access to this conversation's project
+  // Broadcast to dashboard subscribers with access to this conversation's project.
+  // Drop on missing project -- a global broadcast would leak dialog content to
+  // users without access. (Audit C2 class)
+  if (!conversation?.project) {
+    ctx.log.debug(`[dialog] dropping show: no project on ${conversationId.slice(0, 8)}`)
+    return
+  }
   const dialogMsg = {
     type: 'dialog_show',
     conversationId: conversationId,
     dialogId,
     layout,
   }
-  if (conversation?.project) ctx.broadcastScoped(dialogMsg, conversation.project)
-  else ctx.broadcast(dialogMsg)
+  ctx.broadcastScoped(dialogMsg, conversation.project)
 
   ctx.log.info(
     `[dialog] Show: "${layout.title}" (${dialogId.toString().slice(0, 8)}) conversation=${conversationId.slice(0, 8)}`,
@@ -90,9 +95,10 @@ const dialogResult: MessageHandler = (ctx, data) => {
   }
 
   // Broadcast dismiss to other dashboard subscribers (clean up UI)
-  const dismissMsg = { type: 'dialog_dismiss', conversationId: conversationId, dialogId }
-  if (conversation?.project) ctx.broadcastScoped(dismissMsg, conversation.project)
-  else ctx.broadcast(dismissMsg)
+  if (conversation?.project) {
+    const dismissMsg = { type: 'dialog_dismiss', conversationId: conversationId, dialogId }
+    ctx.broadcastScoped(dismissMsg, conversation.project)
+  }
 }
 
 // Dialog dismiss: agent host -> broker -> dashboard
@@ -112,9 +118,10 @@ const dialogDismiss: MessageHandler = (ctx, data) => {
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
-  const dismissMsg2 = { type: 'dialog_dismiss', conversationId: conversationId, dialogId }
-  if (conversation?.project) ctx.broadcastScoped(dismissMsg2, conversation.project)
-  else ctx.broadcast(dismissMsg2)
+  if (conversation?.project) {
+    const dismissMsg2 = { type: 'dialog_dismiss', conversationId: conversationId, dialogId }
+    ctx.broadcastScoped(dismissMsg2, conversation.project)
+  }
 
   ctx.log.debug(`[dialog] Dismiss: ${dialogId.slice(0, 8)} conversation=${conversationId.slice(0, 8)}`)
 }

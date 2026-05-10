@@ -34,6 +34,10 @@ const permissionRequest: MessageHandler = (ctx, data) => {
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
+  if (!conversation?.project) {
+    ctx.log.debug(`[permission] dropping request: no project on ${conversationId.slice(0, 8)}`)
+    return
+  }
   const msg = {
     type: 'permission_request',
     conversationId: conversationId,
@@ -43,8 +47,7 @@ const permissionRequest: MessageHandler = (ctx, data) => {
     inputPreview: data.inputPreview,
     toolUseId: data.toolUseId,
   }
-  if (conversation?.project) ctx.broadcastScoped(msg, conversation.project)
-  else ctx.broadcast(msg)
+  ctx.broadcastScoped(msg, conversation.project)
   ctx.log.debug(`[permission] Request: ${data.requestId} ${data.toolName}`)
 }
 
@@ -99,6 +102,10 @@ const permissionAutoApproved: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
+  if (!conversation?.project) {
+    ctx.log.debug(`[permission] dropping auto-approved: no project on ${conversationId.slice(0, 8)}`)
+    return
+  }
   const msg = {
     type: 'permission_auto_approved',
     conversationId: conversationId,
@@ -106,8 +113,7 @@ const permissionAutoApproved: MessageHandler = (ctx, data) => {
     toolName: data.toolName,
     description: data.description,
   }
-  if (conversation?.project) ctx.broadcastScoped(msg, conversation.project)
-  else ctx.broadcast(msg)
+  ctx.broadcastScoped(msg, conversation.project)
 }
 
 // Clipboard capture: agent host -> dashboard (broadcast)
@@ -115,6 +121,10 @@ const clipboardCapture: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
+  if (!conversation?.project) {
+    ctx.log.debug(`[clipboard] dropping capture: no project on ${conversationId.slice(0, 8)}`)
+    return
+  }
   const msg = {
     type: 'clipboard_capture',
     conversationId: conversationId,
@@ -124,8 +134,7 @@ const clipboardCapture: MessageHandler = (ctx, data) => {
     mimeType: data.mimeType,
     timestamp: data.timestamp || Date.now(),
   }
-  if (conversation?.project) ctx.broadcastScoped(msg, conversation.project)
-  else ctx.broadcast(msg)
+  ctx.broadcastScoped(msg, conversation.project)
   ctx.log.debug(`[clipboard] ${data.contentType}${data.mimeType ? ` (${data.mimeType})` : ''}`)
 }
 
@@ -150,14 +159,17 @@ const askQuestion: MessageHandler = (ctx, data) => {
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
+  if (!conversation?.project) {
+    ctx.log.debug(`[ask] dropping question: no project on ${conversationId.slice(0, 8)}`)
+    return
+  }
   const msg = {
     type: 'ask_question',
     conversationId: conversationId,
     toolUseId: data.toolUseId,
     questions: data.questions,
   }
-  if (conversation?.project) ctx.broadcastScoped(msg, conversation.project)
-  else ctx.broadcast(msg)
+  ctx.broadcastScoped(msg, conversation.project)
   ctx.log.debug(
     `[ask] Question: ${(data.toolUseId as string)?.slice(0, 12)} ${(data.questions as unknown[])?.length || 0}q`,
   )
