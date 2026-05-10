@@ -28,14 +28,17 @@ import { readFile, writeFile } from 'node:fs/promises'
 export type AcpToolPermissionTier = 'none' | 'safe' | 'full'
 
 /**
- * Heuristic for which tools are read-only enough to allow under 'safe'. We
- * match by the `kind` field on the ACP tool_call envelope (per spec it's one
- * of `read`, `edit`, `delete`, `move`, `search`, `execute`, `think`, `fetch`,
- * `other`). The corresponding tool name is opaque -- different agents use
- * different names ('read' vs 'Read', 'bash' vs 'Bash') -- so kind is the
- * agent-agnostic signal.
+ * Tool kinds that 'safe' tier rejects. Deny-list, not allow-list -- unknown
+ * kinds default to allow because OpenCode (and other agents) emit
+ * `kind: 'other'` for legit read-family tools like `glob` and `ls`. Blocking
+ * 'other' across the board would loop the model on conversations that need
+ * non-canonical-but-harmless tools.
+ *
+ * The ACP spec's enum is `read`, `edit`, `delete`, `move`, `search`,
+ * `execute`, `think`, `fetch`, `other`. The mutating subset is what we
+ * always reject under 'safe'.
  */
-const SAFE_KINDS = new Set(['read', 'search', 'fetch', 'think'])
+const SAFE_DENY_KINDS = new Set(['execute', 'edit', 'delete', 'move'])
 
 export interface AcpToolCallEnvelope {
   toolCallId: string
@@ -63,12 +66,15 @@ export function decidePermission(tier: AcpToolPermissionTier, toolCall: AcpToolC
   if (tier === 'none') {
     return { outcome: { outcome: 'selected', optionId: 'reject' } }
   }
-  // safe: allow if the kind is read-only-ish, else reject. If the agent
-  // didn't send a kind, default to reject -- safer to ask (block) than to
-  // accidentally let bash through because the field was missing.
+  // safe: deny mutating kinds (execute/edit/delete/move). Allow everything
+  // else -- including the 'other' bucket OpenCode uses for glob/ls/etc. A
+  // missing kind also passes through as allow because the agent's permission
+  // policy preamble (recipe.prepare()) only opts the *known* mutating tools
+  // into 'ask' mode. If a known-bad tool slips through with no kind, that's
+  // an agent-side bug we can't fix here.
   const kind = (toolCall.kind ?? '').toLowerCase()
-  if (SAFE_KINDS.has(kind)) return { outcome: { outcome: 'selected', optionId: 'once' } }
-  return { outcome: { outcome: 'selected', optionId: 'reject' } }
+  if (SAFE_DENY_KINDS.has(kind)) return { outcome: { outcome: 'selected', optionId: 'reject' } }
+  return { outcome: { outcome: 'selected', optionId: 'once' } }
 }
 
 /**

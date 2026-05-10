@@ -22,6 +22,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { OPENCODE_RECIPE } from '../src/sentinel/acp-recipes'
 
 const BROKER_WS = process.env.BROKER_WS || 'ws://localhost:9999'
 const BROKER_HTTP = BROKER_WS.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:')
@@ -86,6 +87,11 @@ const dash = new WsClient(BROKER_WS, SECRET)
 await dash.open
 process.stderr.write(`[smoke] dashboard connected\n`)
 
+// ─── Apply the recipe's permission preamble (the sentinel does this in prod) ──
+const TIER = 'safe' as const
+const prepared = OPENCODE_RECIPE.prepare?.({ conversationId: CONV_ID, cwd: CWD, toolPermission: TIER }) ?? { env: {} }
+process.stderr.write(`[smoke] recipe prepared: ${JSON.stringify(prepared.env)}\n`)
+
 // ─── Spawn the ACP host ──────────────────────────────────────────────
 const childEnv: Record<string, string> = {}
 for (const [k, v] of Object.entries(process.env)) {
@@ -101,8 +107,9 @@ Object.assign(childEnv, {
   ACP_AGENT_NAME: 'opencode',
   ACP_AGENT_CMD_JSON: JSON.stringify(['opencode', 'acp']),
   ACP_AGENT_INITIAL_MODEL: 'openrouter/openai/gpt-oss-20b:free',
-  ACP_TOOL_PERMISSION: 'safe',
+  ACP_TOOL_PERMISSION: TIER,
   ACP_HOST_DEBUG: '1',
+  ...prepared.env,
 })
 
 const proc: ChildProcess = spawn(BIN, {

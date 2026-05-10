@@ -43,6 +43,7 @@ import type {
   UsageWindow,
 } from '../shared/protocol'
 import { DEFAULT_BROKER_URL, HEARTBEAT_INTERVAL_MS } from '../shared/protocol'
+import { getAcpRecipe, listAcpRecipes } from './acp-recipes'
 
 function getRawMachineId(): string {
   const platform = process.platform
@@ -258,6 +259,19 @@ function findOpenCodeHostBinary(): string | null {
   const binDir = dirname(resolve(process.argv[0]))
   const homeLocalBin = join(process.env.HOME || '/root', '.local', 'bin')
   const candidates = [resolve(binDir, 'opencode-host'), resolve(homeLocalBin, 'opencode-host')]
+  for (const path of candidates) {
+    if (existsSync(path)) return path
+  }
+  return null
+}
+
+/** Locate the acp-host binary. Same strategy as opencode-host. */
+function findAcpHostBinary(): string | null {
+  const fromPath = Bun.which('acp-host')
+  if (fromPath) return fromPath
+  const binDir = dirname(resolve(process.argv[0]))
+  const homeLocalBin = join(process.env.HOME || '/root', '.local', 'bin')
+  const candidates = [resolve(binDir, 'acp-host'), resolve(homeLocalBin, 'acp-host')]
   for (const path of candidates) {
     if (existsSync(path)) return path
   }
@@ -582,6 +596,135 @@ function spawnOpenCodeHostDirect(opts: {
   })
 
   launchLog(opts.jobId, 'opencode-host process started', 'ok', `PID ${pid}`)
+  return { success: true, pid }
+}
+
+/**
+ * Spawn an acp-host subprocess for a conversation. Mirrors
+ * spawnOpenCodeHostDirect but launches `bin/acp-host` and parameterizes it
+ * via the recipe registry (acp-recipes.ts). Recipe knowledge lives in the
+ * sentinel; the host stays agent-agnostic.
+ */
+function spawnAcpHostDirect(opts: {
+  bin: string
+  cwd: string
+  conversationId: string
+  secret: string
+  jobId?: string
+  acpAgent: string
+  model?: string
+  sessionName?: string
+  sessionDescription?: string
+  promptFile?: string
+  env?: Record<string, string>
+  toolPermission?: string
+  resumeSessionId?: string
+}): { success: boolean; error?: string; pid?: number } {
+  const startTime = Date.now()
+  const recipe = getAcpRecipe(opts.acpAgent)
+  if (!recipe) {
+    const err = `No ACP recipe registered for agent "${opts.acpAgent}". Known: ${listAcpRecipes().map(r => r.name).join(', ') || 'none'}`
+    launchLog(opts.jobId, 'acp recipe missing', 'error', err)
+    return { success: false, error: err }
+  }
+  const resolvedAgentBin = recipe.resolveBin()
+  if (!resolvedAgentBin) {
+    const err = `${recipe.label} CLI not installed (recipe="${recipe.name}", expected: ${recipe.cmd[0]})`
+    launchLog(opts.jobId, 'acp agent CLI missing', 'error', err)
+    return { success: false, error: err }
+  }
+  launchLog(opts.jobId, `Spawning acp-host (${recipe.label})`, 'info', `${opts.bin} agent=${recipe.name} model=${opts.model ?? 'default'}`)
+
+  const tier = (opts.toolPermission === 'none' || opts.toolPermission === 'safe' || opts.toolPermission === 'full')
+    ? opts.toolPermission
+    : 'safe'
+  const prepared = recipe.prepare?.({
+    conversationId: opts.conversationId,
+    cwd: opts.cwd,
+    toolPermission: tier,
+  }) ?? { env: {} as Record<string, string> }
+
+  const env: Record<string, string | undefined> = cleanSentinelEnv()
+  env.RCLAUDE_SECRET = opts.secret
+  env.RCLAUDE_CONVERSATION_ID = opts.conversationId
+  env.RCLAUDE_HEADLESS = '1'
+  env.RCLAUDE_CWD = opts.cwd
+  if (opts.sessionName) env.CLAUDWERK_CONVERSATION_NAME = opts.sessionName
+  if (opts.sessionDescription) env.CLAUDWERK_CONVERSATION_DESCRIPTION = opts.sessionDescription
+  if (opts.promptFile) env.RCLAUDE_INITIAL_PROMPT_FILE = opts.promptFile
+  // ACP recipe envelope -- the host reads these to build the recipe object.
+  env.ACP_AGENT_NAME = recipe.name
+  env.ACP_AGENT_CMD_JSON = JSON.stringify(recipe.cmd)
+  if (opts.model) env.ACP_AGENT_INITIAL_MODEL = opts.model
+  env.ACP_TOOL_PERMISSION = tier
+  if (opts.resumeSessionId) env.ACP_RESUME_SESSION_ID = opts.resumeSessionId
+  // Recipe-supplied env (e.g. OPENCODE_CONFIG path).
+  Object.assign(env, prepared.env)
+  // Caller-supplied extras (provider keys, etc.) take precedence over
+  // recipe env (so a user can override).
+  if (opts.env) Object.assign(env, opts.env)
+
+  let proc: Subprocess
+  try {
+    proc = Bun.spawn([opts.bin], {
+      cwd: opts.cwd,
+      env,
+      stdout: 'ignore',
+      stderr: 'pipe',
+    })
+  } catch (e: unknown) {
+    const err = `Bun.spawn failed: ${(e as Error).message}`
+    launchLog(opts.jobId, 'Spawn failed', 'error', err)
+    prepared.cleanup?.()
+    return { success: false, error: err }
+  }
+  const pid = proc.pid
+  log(`acp-host spawn: PID ${pid} agent=${recipe.name} conv=${opts.conversationId.slice(0, 8)} cwd=${opts.cwd}`)
+
+  const child: TrackedChild = {
+    proc,
+    conversationId: opts.conversationId,
+    pid,
+    cwd: opts.cwd,
+    startedAt: new Date().toISOString(),
+  }
+  trackedChildren.set(opts.conversationId, child)
+  writePidRegistry()
+  captureChildStderr(proc, opts.conversationId)
+
+  proc.exited.then(exitCode => {
+    const elapsedMs = Date.now() - startTime
+    trackedChildren.delete(opts.conversationId)
+    writePidRegistry()
+    prepared.cleanup?.()
+    if (exitCode === 0) {
+      log(`acp-host exited normally: PID ${pid} conv=${opts.conversationId.slice(0, 8)} (${elapsedMs}ms)`)
+    } else {
+      const earlyFailure = elapsedMs < 5000
+      log(
+        `acp-host FAILED: PID ${pid} exit=${exitCode} elapsed=${elapsedMs}ms conv=${opts.conversationId.slice(0, 8)}${earlyFailure ? ' (EARLY)' : ''}`,
+      )
+      if (activeWs?.readyState === WebSocket.OPEN) {
+        const detail = earlyFailure
+          ? `acp-host (${recipe.name}) exited in ${elapsedMs}ms (exit ${exitCode}) -- check that ${recipe.cmd[0]} is installed and provider API keys are set`
+          : `acp-host (${recipe.name}) exited with code ${exitCode} after ${Math.round(elapsedMs / 1000)}s`
+        const msg: SpawnFailed = {
+          type: 'spawn_failed',
+          conversationId: opts.conversationId,
+          project: cwdToProjectUri(opts.cwd, recipe.name),
+          pid,
+          exitCode,
+          elapsedMs,
+          error: detail,
+        }
+        try {
+          activeWs.send(JSON.stringify(msg))
+        } catch {}
+      }
+    }
+  })
+
+  launchLog(opts.jobId, `acp-host process started (${recipe.label})`, 'ok', `PID ${pid}`)
   return { success: true, pid }
 }
 
@@ -1532,11 +1675,128 @@ function connect(
             agentHostType: spawnMsg.agentHostType,
           })
 
-          // ─── opencode-host spawn path ────────────────────────────
+          // ─── acp-host spawn path ─────────────────────────────────
+          // Routed when the broker tags a spawn with agentHostType: 'acp'.
+          // The recipe (acp-recipes.ts, keyed by spawnMsg.acpAgent) supplies
+          // the underlying agent's spawn cmd, permission preamble, etc.
+          if (spawnMsg.agentHostType === 'acp') {
+            const acpAgent = (spawnMsg as { acpAgent?: string }).acpAgent
+            if (!acpAgent) {
+              const err = 'ACP spawn missing acpAgent field'
+              launchLog(spawnMsg.jobId, 'ACP spawn rejected', 'error', err)
+              ws.send(JSON.stringify({
+                type: 'spawn_result',
+                requestId: spawnMsg.requestId,
+                jobId: spawnMsg.jobId,
+                success: false,
+                error: err,
+                project: resolvedProject,
+                conversationId: spawnMsg.conversationId,
+              } satisfies SpawnResult))
+              break
+            }
+            const acpBin = findAcpHostBinary()
+            if (!acpBin) {
+              const err =
+                'acp-host binary not found in PATH or known locations. Install with: bun install -g @claudewerk/acp-host'
+              launchLog(spawnMsg.jobId, 'acp-host not found', 'error', err)
+              ws.send(JSON.stringify({
+                type: 'spawn_result',
+                requestId: spawnMsg.requestId,
+                jobId: spawnMsg.jobId,
+                success: false,
+                error: err,
+                project: resolvedProject,
+                conversationId: spawnMsg.conversationId,
+              } satisfies SpawnResult))
+              break
+            }
+            // Validate cwd same way as the rclaude path.
+            if (!existsSync(expandedCwd)) {
+              if (spawnMsg.mkdir) {
+                try {
+                  mkdirSync(expandedCwd, { recursive: true })
+                } catch (e: unknown) {
+                  const err = `Failed to create directory: ${(e as Error).message}`
+                  ws.send(JSON.stringify({
+                    type: 'spawn_result',
+                    requestId: spawnMsg.requestId,
+                    jobId: spawnMsg.jobId,
+                    success: false,
+                    error: err,
+                  }))
+                  break
+                }
+              } else {
+                ws.send(JSON.stringify({
+                  type: 'spawn_result',
+                  requestId: spawnMsg.requestId,
+                  jobId: spawnMsg.jobId,
+                  success: false,
+                  error: `Directory not found: ${expandedCwd}`,
+                }))
+                break
+              }
+            }
+            if (!isSpawnApproved(expandedCwd)) {
+              const err = `Spawn not allowed: no .rclaude-spawn marker at or above ${expandedCwd}`
+              launchLog(spawnMsg.jobId, 'spawn not approved', 'error', err)
+              ws.send(JSON.stringify({
+                type: 'spawn_result',
+                requestId: spawnMsg.requestId,
+                jobId: spawnMsg.jobId,
+                success: false,
+                error: err,
+                project: resolvedProject,
+                conversationId: spawnMsg.conversationId,
+              } satisfies SpawnResult))
+              break
+            }
+            let promptFile: string | undefined
+            if (spawnMsg.prompt) {
+              promptFile = `/tmp/acp-prompt-${spawnMsg.conversationId}`
+              try {
+                await Bun.write(promptFile, spawnMsg.prompt)
+              } catch {
+                promptFile = undefined
+              }
+            }
+            const acpRes = spawnAcpHostDirect({
+              bin: acpBin,
+              cwd: expandedCwd,
+              conversationId: spawnMsg.conversationId,
+              secret,
+              jobId: spawnMsg.jobId,
+              acpAgent,
+              model: spawnMsg.openCodeModel || spawnMsg.model,
+              sessionName: spawnMsg.sessionName,
+              sessionDescription: spawnMsg.sessionDescription,
+              promptFile,
+              env: spawnMsg.env,
+              toolPermission: spawnMsg.toolPermission,
+              resumeSessionId: spawnMsg.resumeId,
+            })
+            ws.send(JSON.stringify({
+              type: 'spawn_result',
+              requestId: spawnMsg.requestId,
+              jobId: spawnMsg.jobId,
+              success: acpRes.success,
+              error: acpRes.error,
+              project: resolvedProject,
+              conversationId: spawnMsg.conversationId,
+            } satisfies SpawnResult))
+            if (acpRes.success) launchLog(spawnMsg.jobId, 'Waiting for conversation to connect', 'info')
+            break
+          }
+
+          // ─── opencode-host spawn path (legacy NDJSON) ────────────
           // Routed when the broker-side opencode backend tags the spawn
           // message with agentHostType: 'opencode'. We launch the
           // opencode-host binary instead of rclaude and skip the rclaude-
           // specific arg/env machinery (model/effort/permissionMode/etc).
+          // The default OpenCode path is now ACP (above); this branch
+          // remains as a fallback for callers that pin agentHostType to
+          // 'opencode' explicitly.
           if (spawnMsg.agentHostType === 'opencode') {
             const ocBin = findOpenCodeHostBinary()
             if (!ocBin) {

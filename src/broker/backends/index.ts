@@ -5,6 +5,7 @@
  */
 
 import type { Conversation } from '../../shared/protocol'
+import { acpBackend } from './acp'
 import { chatApiBackend } from './chat-api'
 import { claudeBackend } from './claude'
 import { hermesBackend } from './hermes'
@@ -25,6 +26,7 @@ registerBackend(claudeBackend)
 registerBackend(chatApiBackend)
 registerBackend(hermesBackend)
 registerBackend(opencodeBackend)
+registerBackend(acpBackend)
 
 /** Resolve a backend for an existing conversation. Falls back to claude. */
 export function resolveBackend(conversation: Conversation): ConversationBackend {

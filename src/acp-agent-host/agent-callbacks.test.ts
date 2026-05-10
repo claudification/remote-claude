@@ -34,8 +34,23 @@ describe('decidePermission', () => {
     expect(decidePermission('safe', edit).outcome).toEqual({ outcome: 'selected', optionId: 'reject' })
   })
 
-  it('safe tier rejects when kind is missing (defensive)', () => {
-    expect(decidePermission('safe', noKind).outcome).toEqual({ outcome: 'selected', optionId: 'reject' })
+  it('safe tier rejects delete and move kinds', () => {
+    expect(decidePermission('safe', { toolCallId: 'd', kind: 'delete' }).outcome).toEqual({ outcome: 'selected', optionId: 'reject' })
+    expect(decidePermission('safe', { toolCallId: 'm', kind: 'move' }).outcome).toEqual({ outcome: 'selected', optionId: 'reject' })
+  })
+
+  it('safe tier ALLOWS unknown / other kinds (deny-list, not allow-list)', () => {
+    // OpenCode emits kind: 'other' for glob/ls -- legit read-family tools.
+    // Allow them; only reject the explicitly mutating subset.
+    expect(decidePermission('safe', { toolCallId: 'o', kind: 'other' }).outcome).toEqual({ outcome: 'selected', optionId: 'once' })
+    expect(decidePermission('safe', { toolCallId: 'u', kind: 'unknown_future_kind' }).outcome).toEqual({ outcome: 'selected', optionId: 'once' })
+  })
+
+  it('safe tier allows when kind is missing (recipe preamble is the gate)', () => {
+    // The recipe.prepare() preamble only opts known mutating tools into
+    // session/request_permission. If something arrives with no kind it
+    // means the agent already considered it allowed under its own policy.
+    expect(decidePermission('safe', noKind).outcome).toEqual({ outcome: 'selected', optionId: 'once' })
   })
 })
 

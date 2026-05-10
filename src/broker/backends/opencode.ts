@@ -1,15 +1,19 @@
 /**
- * OpenCode backend -- spawns the `opencode-host` agent host binary on a
- * sentinel. The host wraps `opencode run --format json` and translates its
- * NDJSON events to the Claudwerk wire protocol over a per-conversation
- * WebSocket (same shape as the Claude backend).
+ * OpenCode backend -- spawns OpenCode behind the generic ACP agent host.
  *
- * The broker doesn't know or care that opencode is being used internally --
- * the wire protocol is identical to Claude's. The differences live entirely
- * inside the agent-host binary and inside this spawn() function (which tells
- * the sentinel which binary to launch and which model/provider to use).
+ * The dashboard still requests `backend: 'opencode'`, the URI scheme stays
+ * `opencode://`, and the user-facing identity is "OpenCode conversation" --
+ * but under the hood we spawn `bin/acp-host` (the multi-agent ACP-speaking
+ * binary, see plan-acp-agent-host.md) and tag agentHostType='acp' with
+ * acpAgent='opencode'. The sentinel routes to bin/acp-host and applies the
+ * OpenCode recipe (src/sentinel/acp-recipes.ts).
  *
- * See `.claude/docs/plan-opencode-backend.md` for the full design.
+ * The legacy NDJSON path (`bin/opencode-host`, src/opencode-agent-host/)
+ * remains in the tree as a fallback during the ACP rollout. It's no longer
+ * reachable from the dashboard -- to reach it, set agentHostType='opencode'
+ * directly via API.
+ *
+ * See plan-acp-agent-host.md and plan-opencode-backend.md.
  */
 
 import { randomUUID } from 'node:crypto'
@@ -185,8 +189,13 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
           requestId,
           conversationId,
           jobId,
-          // Sentinel branches on agentHostType to decide which binary to spawn.
-          agentHostType: 'opencode',
+          // Sentinel routes ACP-tagged spawns to bin/acp-host. acpAgent
+          // selects the recipe (acp-recipes.ts) used to launch the underlying
+          // agent CLI (e.g. `opencode acp`). The wire protocol the host
+          // speaks back to the broker is identical to the legacy NDJSON
+          // path's, so the broker doesn't care which one is in use.
+          agentHostType: 'acp',
+          acpAgent: 'opencode',
           cwd: req.cwd,
           mkdir: req.mkdir || false,
           mode: req.mode || 'fresh',
@@ -237,9 +246,10 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
       ['headless', 'channel'],
     )
   }
-  conv.agentHostType = 'opencode'
+  conv.agentHostType = 'acp'
   conv.agentHostMeta = {
     [META_BACKEND]: 'opencode',
+    acpAgent: 'opencode',
     [META_PROVIDER_MODEL]: req.openCodeModel ?? req.model,
     [META_TOOL_PERMISSION]: toolPermission,
   }
