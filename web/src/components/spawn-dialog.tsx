@@ -68,9 +68,10 @@ export function SpawnDialog() {
   const [configTab, setConfigTab] = useState<'basic' | 'advanced'>('basic')
   const [resumeId, setResumeId] = useState('')
   const [envText, setEnvText] = useState('')
-  const [backend, setBackend] = useState<'claude' | 'chat-api'>('claude')
+  const [backend, setBackend] = useState<'claude' | 'chat-api' | 'hermes'>('claude')
   const [chatConnectionId, setChatConnectionId] = useState('')
   const [chatConnections, setChatConnections] = useState<ChatApiConnection[]>([])
+  const [hermesAvailable, setHermesAvailable] = useState(false)
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [savedFeedback, setSavedFeedback] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -127,11 +128,19 @@ export function SpawnDialog() {
       setPhase('config')
       setJobId(null)
       setWrapperId(null)
-      // Fetch chat connections
+      // Fetch chat connections + gateway availability
       fetch(`${window.location.protocol}//${window.location.host}/api/chat/connections`)
         .then(r => (r.ok ? r.json() : { connections: [] }))
         .then(d => setChatConnections(d.connections || []))
         .catch(() => setChatConnections([]))
+      fetch(`${window.location.protocol}//${window.location.host}/api/gateways`)
+        .then(r => (r.ok ? r.json() : []))
+        .then(gws =>
+          setHermesAvailable(
+            Array.isArray(gws) && gws.some((g: { gatewayType: string; connected: boolean }) => g.gatewayType === 'hermes' && g.connected),
+          ),
+        )
+        .catch(() => setHermesAvailable(false))
       // Drop any stale error/steps from a prior failed launch so reopening
       // the dialog doesn't show the old "Session failed to connect" banner.
       progressReset()
@@ -462,8 +471,8 @@ export function SpawnDialog() {
           {/* ── Config Phase ── */}
           {phase === 'config' && (
             <>
-              {/* Backend selector (Claude / Chat) */}
-              {chatConnections.length > 0 && (
+              {/* Backend selector (Claude / Chat / Hermes) */}
+              {(chatConnections.length > 0 || hermesAvailable) && (
                 <div className="flex gap-1.5 shrink-0">
                   <TogglePill
                     active={backend === 'claude'}
@@ -473,19 +482,40 @@ export function SpawnDialog() {
                     }}
                     label="Claude"
                   />
-                  <TogglePill
-                    active={backend === 'chat-api'}
-                    onClick={() => {
-                      setBackend('chat-api')
-                      haptic('tap')
-                    }}
-                    label="Chat"
-                  />
+                  {chatConnections.length > 0 && (
+                    <TogglePill
+                      active={backend === 'chat-api'}
+                      onClick={() => {
+                        setBackend('chat-api')
+                        haptic('tap')
+                      }}
+                      label="Chat"
+                    />
+                  )}
+                  {hermesAvailable && (
+                    <TogglePill
+                      active={backend === 'hermes'}
+                      onClick={() => {
+                        setBackend('hermes')
+                        haptic('tap')
+                      }}
+                      label="Hermes"
+                    />
+                  )}
                 </div>
               )}
 
-              {/* -- Chat API config -- */}
-              {backend === 'chat-api' ? (
+              {/* -- Hermes config -- */}
+              {backend === 'hermes' ? (
+                <div className="space-y-3 px-1.5 py-1">
+                  <LaunchConfigFields
+                    value={fieldsValue}
+                    onChange={applyFieldsPatch}
+                    show={{ name: true, description: true }}
+                  />
+                </div>
+              ) : /* -- Chat API config -- */
+              backend === 'chat-api' ? (
                 <div className="space-y-3 px-1.5 py-1">
                   <div className="space-y-2">
                     <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
