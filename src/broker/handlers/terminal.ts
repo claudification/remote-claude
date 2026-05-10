@@ -27,6 +27,8 @@ const terminalAttach: MessageHandler = (ctx, data) => {
 
 const terminalDetach: MessageHandler = (ctx, data) => {
   const wid = data.conversationId as string
+  const sess = ctx.conversations.findConversationByConversationId(wid)
+  if (sess) ctx.requirePermission('terminal:read', sess.project)
   ctx.conversations.removeTerminalViewer(wid, ctx.ws)
   if (!ctx.conversations.hasTerminalViewers(wid)) {
     const detachSocket = ctx.conversations.findSocketByConversationId(wid)
