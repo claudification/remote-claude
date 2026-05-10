@@ -62,6 +62,12 @@ const agentHostBoot: MessageHandler = (ctx, data) => {
     existing.status = 'booting'
     existing.lastActivity = Date.now()
     existing.project = resolvedProject
+    // Agent host is the source of truth for its own capabilities. A backend
+    // that pre-creates the conversation (e.g. opencodeBackend) seeds caps as
+    // a stub; the host's agent_host_boot replaces them. Without this, hosts
+    // that advertise json_stream / channel never get the dashboard to honor
+    // it because the stub's narrower caps win.
+    if (capabilities.length > 0) existing.capabilities = capabilities
     if (agentHostVersion) existing.version = agentHostVersion
     if (agentHostBuildTime) existing.buildTime = agentHostBuildTime
     existing.agentHostType = agentHostType
@@ -98,6 +104,11 @@ const agentHostBoot: MessageHandler = (ctx, data) => {
   // Register the WS as this conversation's socket so messages (including boot
   // events) can be tagged with it.
   ctx.conversations.setConversationSocket(conversationId, conversationId, ctx.ws)
+  // Persist now: ACP-spawned conversations only send agent_host_boot (no
+  // separate `meta`), so without this the host-supplied capabilities,
+  // version, agentHostType etc. are memory-only and vanish on broker
+  // restart -- a violation of the SQLite covenant in CLAUDE.md.
+  ctx.conversations.persistConversationById(conversationId)
   ctx.conversations.broadcastConversationUpdate(conversationId)
   const versionInfo = agentHostVersion ? ` version=${agentHostVersion}` : ''
   ctx.log.info(`[boot] ${conversationId.slice(0, 8)} type=${agentHostType}${versionInfo} project=${resolvedProject}`)
