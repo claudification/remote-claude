@@ -200,17 +200,43 @@ export interface FileResponse {
 }
 
 // Content block in a Claude API message (text, tool_use, tool_result, thinking)
+//
+// Tool blocks (tool_use, tool_result) carry both LEGACY fields (name/input/
+// content -- Claude API shape, kept for backward compat with persisted
+// transcripts) and CANONICAL fields (kind/canonicalInput/raw/result --
+// CLAUDEWERK's agnostic vocabulary, populated by every agent host's
+// dialect translator). See `src/shared/tool-vocab.ts` for the vocab and
+// `.claude/docs/plan-fabric.md` for the rationale.
+//
+// New emissions MUST populate the canonical fields. Old persisted entries
+// won't have them; readers that need agnostic data can derive it via the
+// `legacyToCanonical` shim (Phase 5 of the dialect-translation rollout).
 export interface TranscriptContentBlock {
   type: string // 'text' | 'tool_use' | 'thinking' | 'tool_result' | ...
   text?: string
   thinking?: string
   signature?: string
+  // ----- legacy Claude-API fields (still populated as derived aliases) -----
   name?: string
   id?: string
   input?: Record<string, unknown>
   tool_use_id?: string
   content?: string | unknown
   is_error?: boolean
+  // ----- canonical CLAUDEWERK fields (new emissions only) -----
+  /** Canonical agnostic tool kind, e.g. 'file.read', 'shell.exec',
+   *  'mcp.claudewerk.notify'. See ToolKind in src/shared/tool-vocab.ts. */
+  kind?: string
+  /** Canonical tool input keyed by the canonical-kind input shape (see
+   *  ToolKindInputs in src/shared/tool-vocab.ts). Distinct from `input`
+   *  (legacy Claude-API shape with the original backend's keys). */
+  canonicalInput?: Record<string, unknown>
+  /** Canonical tool result envelope. See ToolResult in tool-vocab.ts. */
+  result?: { kind: string; [k: string]: unknown }
+  /** Origin payload, NEVER lost in translation. For tool_use this carries
+   *  { backend, name, input }; for tool_result { backend, content, isError? }.
+   *  See ToolOrigin / ToolResultOrigin in src/shared/tool-vocab.ts. */
+  raw?: { backend: string; [k: string]: unknown }
 }
 
 // Common fields present on most JSONL transcript entries
