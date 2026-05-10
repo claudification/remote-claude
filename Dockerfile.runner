@@ -74,7 +74,7 @@ ENV PATH="/home/claude/.local/bin:${PATH}"
 
 # claudewerk agent-host + sentinel (from npm, runs under bun)
 USER claude
-RUN bun add -g @claudewerk/agent-host @claudewerk/sentinel
+RUN bun add -g @claudewerk/claude-agent-host @claudewerk/sentinel
 USER root
 
 # Entrypoint
