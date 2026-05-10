@@ -1,6 +1,7 @@
 import { memo, type ReactNode } from 'react'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { resolveToolDisplay, type ToolDisplayKey } from '@/lib/control-panel-prefs'
+import { ensureCanonical } from '@/lib/legacy-to-canonical'
 import { projectPath, type TranscriptContentBlock } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { JsonInspector } from '../json-inspector'
@@ -40,6 +41,9 @@ export function ToolLine({
   }>
   renderAgentInline?: (agentId: string, toolId?: string) => ReactNode
 }) {
+  // Synthesize canonical fields (kind / canonicalInput) for legacy entries
+  // that pre-date Phase 2 translators. Idempotent for already-translated blocks.
+  ensureCanonical(tool)
   const name = tool.name || 'Tool'
   const input = tool.input || {}
   const style = getToolStyle(name)
@@ -68,7 +72,7 @@ export function ToolLine({
     planPath,
   }
 
-  const caseResult = dispatchToolCase(name, ctx)
+  const caseResult = dispatchToolCase(name, ctx, tool.kind)
   let { summary, details } = caseResult
   const { inlineContent, agentBadge, matchedAgentId } = caseResult
 

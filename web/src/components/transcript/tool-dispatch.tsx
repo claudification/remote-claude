@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { canonicalizeToolUse } from '@/lib/legacy-to-canonical'
 import type { ToolCaseInput, ToolCaseResult } from './tool-case-types'
 import { renderAgentTask, renderAskUserQuestion } from './tool-cases-agent'
 import { renderBash, renderEdit, renderRead, renderRepl, renderWrite } from './tool-cases-core'
@@ -39,6 +40,28 @@ import { renderTaskCreate, renderTaskMisc, renderTaskUpdate, renderTodoWrite } f
 
 type ToolHandler = (ctx: ToolCaseInput) => ToolCaseResult
 type ToolHandlerWithName = (name: string, ctx: ToolCaseInput) => ToolCaseResult
+
+/** Canonical-kind dispatch table. The agent host's dialect translator
+ *  populates `block.kind` for every new tool block; old persisted entries
+ *  get a synthesized kind via the legacy shim at the dispatcher entry.
+ *  Either way, by the time we look up a renderer, every tool has a kind. */
+const kindHandlers: Record<string, ToolHandler> = {
+  'shell.exec': renderBash,
+  'repl.exec': renderRepl,
+  'file.read': renderRead,
+  'file.edit': renderEdit,
+  'file.write': renderWrite,
+  'web.search': renderWebSearch,
+  'web.fetch': renderWebFetch,
+  'todo.write': renderTodoWrite,
+  'notebook.edit': renderNotebookEdit,
+}
+
+const kindHandlersWithName: Record<string, ToolHandlerWithName> = {
+  'file.glob': renderGlobGrep,
+  'text.search': renderGlobGrep,
+  'task.spawn': renderAgentTask,
+}
 
 const toolHandlers: Record<string, ToolHandler> = {
   Bash: renderBash,
@@ -100,9 +123,43 @@ const namePassthroughHandlers: Record<string, ToolHandlerWithName> = {
   mcp__gmail__get_inbox_with_threads: renderGmailInbox,
 }
 
-export function dispatchToolCase(name: string, ctx: ToolCaseInput): ToolCaseResult {
-  // ACP agents (OpenCode, etc.) send lowercase tool names like "read", "bash",
-  // "grep" while our handlers use PascalCase ("Read", "Bash", "Grep"). Normalize.
+export function dispatchToolCase(name: string, ctx: ToolCaseInput, kind?: string): ToolCaseResult {
+  // CANONICAL DISPATCH: prefer the agnostic `kind` when present. The legacy
+  // shim derives one from `name`+`input` for old persisted entries so we
+  // don't fall back into the legacy paths for blocks shipped pre-Phase 2.
+  const resolvedKind = kind ?? canonicalizeToolUse(name, ctx.input).kind
+  const kindHandler = kindHandlers[resolvedKind]
+  if (kindHandler) return kindHandler(ctx)
+  const kindHandlerNamed = kindHandlersWithName[resolvedKind]
+  if (kindHandlerNamed) return kindHandlerNamed(name, ctx)
+  if (resolvedKind.startsWith('mcp.')) {
+    // Map back to the legacy mcp__server__tool form the existing MCP
+    // renderers key on. e.g. mcp.claudewerk.notify -> mcp__claudewerk__notify.
+    // Also try the brand-drift aliases mcp__rclaude__ / mcp__claudwerk__
+    // so renderers registered under the legacy keys still match.
+    const parts = resolvedKind.split('.')
+    if (parts.length >= 3) {
+      const tool = parts.slice(2).join('__')
+      const candidates =
+        parts[1] === 'claudewerk'
+          ? [`mcp__claudewerk__${tool}`, `mcp__rclaude__${tool}`, `mcp__claudwerk__${tool}`]
+          : [`mcp__${parts[1]}__${tool}`]
+      for (const candidate of candidates) {
+        const direct = toolHandlers[candidate]
+        if (direct) return direct(ctx)
+        const named = namePassthroughHandlers[candidate]
+        if (named) return named(candidate, ctx)
+      }
+      return renderMcpDefault(candidates[0], ctx)
+    }
+  }
+
+  // LEGACY FALLBACK -- handlers keyed by tool name. Catches everything the
+  // canonical vocabulary doesn't yet cover (Skill, TaskCreate/Update,
+  // CronCreate/List/Delete, Monitor, ScheduleWakeup, Team, SendMessage,
+  // EnterPlanMode/ExitPlanMode, gmail/* MCP renderers keyed by long
+  // mcp__gmail__* names, ...). ACP lowercase normalized to PascalCase
+  // for the legacy table.
   const normalizedName = name.charAt(0).toUpperCase() + name.slice(1)
   const handler = toolHandlers[name] ?? toolHandlers[normalizedName]
   if (handler) return handler(ctx)
