@@ -78,6 +78,10 @@ export interface AgentHostContext {
   readonly pendingReadPaths: Map<string, string> // tool_use_id -> file_path for image upload
   readonly agentToolUseMap: Map<string, string>
   readonly pendingAskRequests: Map<string, { requestId: string; questions: unknown[] }>
+  /** tool_use_id -> Claude tool name. Populated by the dialect translator
+   *  on each tool_use block; consumed when the matching tool_result block
+   *  arrives so the result envelope mapper knows the source tool kind. */
+  readonly toolNameByUseId: Map<string, string>
 
   // Transcript entries received before claudeSessionId was set (e.g. initial prompt in headless mode).
   // Flushed by session-transition once claudeSessionId becomes available.

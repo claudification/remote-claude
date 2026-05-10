@@ -7,9 +7,16 @@
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { structuredPatch as computeStructuredPatch } from 'diff'
-import type { ConversationNameUpdate, TaskInfo, TasksUpdate, TranscriptEntry } from '../shared/protocol'
+import type {
+  ConversationNameUpdate,
+  TaskInfo,
+  TasksUpdate,
+  TranscriptContentBlock,
+  TranscriptEntry,
+} from '../shared/protocol'
 import type { AgentHostContext } from './agent-host-context'
 import { debug as _debug, DEBUG } from './debug'
+import { translateClaudeToolResult, translateClaudeToolUse } from './dialect/from-claude'
 import { createTranscriptWatcher } from './transcript-watcher'
 
 const debug = (msg: string) => _debug(msg)
@@ -17,6 +24,37 @@ const debug = (msg: string) => _debug(msg)
 const TRANSCRIPT_CHUNK_SIZE = 50 // entries per chunk (was 200 -- smaller to avoid oversized WS frames)
 const MAX_SUBAGENT_WATCHERS = 50
 const MAX_BG_TASK_WATCHERS = 50
+
+/**
+ * Translate every tool_use / tool_result block in the entries to the
+ * canonical CLAUDEWERK vocabulary BEFORE the broker sees them. Each tool_use
+ * block gets `kind`, `canonicalInput`, and `raw` (origin payload preserved).
+ * Each tool_result block gets `result` and `raw`. The legacy `name`/`input`/
+ * `content` fields are kept untouched as derived aliases for old readers.
+ *
+ * Idempotent: blocks that already have `kind` / `result` are skipped.
+ */
+function translateClaudeBlocks(ctx: AgentHostContext, entries: TranscriptEntry[]): void {
+  for (const entry of entries) {
+    const msg = (entry as { message?: { content?: unknown[] } }).message
+    if (!Array.isArray(msg?.content)) continue
+    if (entry.type === 'assistant') {
+      for (const block of msg.content as TranscriptContentBlock[]) {
+        if (block.type !== 'tool_use') continue
+        translateClaudeToolUse(block)
+        const useId = block.id ?? ''
+        const name = block.name ?? ''
+        if (useId && name) ctx.toolNameByUseId.set(useId, name)
+      }
+    } else if (entry.type === 'user') {
+      const tur = (entry as Record<string, unknown>).toolUseResult
+      for (const block of msg.content as TranscriptContentBlock[]) {
+        if (block.type !== 'tool_result') continue
+        translateClaudeToolResult(block, tur, ctx.toolNameByUseId)
+      }
+    }
+  }
+}
 
 /**
  * Augment entries with structuredPatch for Edit diffs.
@@ -261,6 +299,11 @@ export async function sendTranscriptEntriesChunked(
 
   // Upload image Read results and strip base64 before sending over WS
   await processImageReadResults(ctx, entries)
+
+  // Translate Claude's tool_use / tool_result blocks into the canonical
+  // CLAUDEWERK vocabulary (kind / canonicalInput / result / raw) before the
+  // broker sees them. The legacy name/input/content fields are preserved.
+  translateClaudeBlocks(ctx, entries)
 
   // Augment Edit tool results with structuredPatch for diff rendering
   const augmented = augmentEditPatches(ctx, entries)
