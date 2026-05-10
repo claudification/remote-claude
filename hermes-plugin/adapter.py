@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -72,6 +73,14 @@ class ClaudwerkAdapter(BasePlatformAdapter):
 
         # Active processing state per conversation
         self._active_turns: Dict[str, str] = {}  # conversationId -> current assistant uuid
+
+        # Rolling window of inter-session messages received via <channel>
+        # wrappers. pre_llm_call surfaces recent traffic so Hermes has
+        # context about which other conversations are talking to it
+        # without having to call list_conversations every turn.
+        # Each entry: {ts: float (epoch), from: str, intent: str,
+        # conversation_id: str, preview: str}.
+        self._recent_channel: list[dict[str, Any]] = []
 
         # Length of cumulative streaming text already pushed to the
         # broker per conversation. The gateway stream consumer sends
@@ -395,6 +404,11 @@ class ClaudwerkAdapter(BasePlatformAdapter):
             self._save_session_map()
             logger.info("New conversation: %s -> %s", conv_id[:8], chat_id)
 
+        # Detect inter-session <channel> wrappers and record in the
+        # rolling inbox so pre_llm_call can surface recent traffic.
+        if text.lstrip().startswith("<channel "):
+            self._record_channel_traffic(text)
+
         # Signal active
         await self._send_json({
             "type": "conversation_status",
@@ -458,6 +472,67 @@ class ClaudwerkAdapter(BasePlatformAdapter):
             self._chat_to_conv.pop(chat_id, None)
             self._save_session_map()
             logger.info("Terminated conversation %s", conv_id[:8])
+
+    # ─── Inter-session inbox ────────────────────────────────────────────
+
+    _CHANNEL_INBOX_TTL = 30 * 60  # 30 minutes
+    _CHANNEL_INBOX_MAX = 10
+
+    def _record_channel_traffic(self, text: str) -> None:
+        """Parse a <channel ...> wrapper and stash a summary entry."""
+        attrs: dict[str, str] = {}
+        head_match = re.search(r"<channel\b([^>]*)>", text)
+        if head_match:
+            for m in re.finditer(r'(\w+)="([^"]*)"', head_match.group(1)):
+                attrs[m.group(1)] = m.group(2)
+        body_match = re.search(r"<channel[^>]*>(.*?)</channel>", text, re.DOTALL)
+        body = body_match.group(1).strip() if body_match else ""
+        preview = body[:140].replace("\n", " ")
+        if len(body) > 140:
+            preview += "…"
+        entry = {
+            "ts": time.time(),
+            "from": attrs.get("from_session") or attrs.get("sender") or "unknown",
+            "intent": attrs.get("intent", "request"),
+            "conversation_id": attrs.get("conversation_id", ""),
+            "preview": preview,
+        }
+        self._recent_channel.append(entry)
+        # Evict by age + cap.
+        cutoff = time.time() - self._CHANNEL_INBOX_TTL
+        self._recent_channel = [
+            e for e in self._recent_channel if e["ts"] >= cutoff
+        ][-self._CHANNEL_INBOX_MAX :]
+
+    def _build_inbox_context(self) -> str:
+        """Render a compact context block for pre_llm_call injection."""
+        lines: list[str] = []
+
+        # Sibling claudwerk conversations Hermes is participating in.
+        if len(self._chat_to_conv) > 1:
+            lines.append(
+                f"You are participating in {len(self._chat_to_conv)} "
+                "Claudwerk conversations simultaneously."
+            )
+
+        # Recent inter-session traffic (last 30 min).
+        cutoff = time.time() - self._CHANNEL_INBOX_TTL
+        recent = [e for e in self._recent_channel if e["ts"] >= cutoff]
+        if recent:
+            lines.append("Recent inter-session messages (past 30 min):")
+            for e in recent[-5:]:
+                age_min = int((time.time() - e["ts"]) / 60)
+                lines.append(
+                    f"  - from={e['from']} intent={e['intent']} "
+                    f"({age_min}m ago, conversation_id={e['conversation_id']})"
+                )
+                if e["preview"]:
+                    lines.append(f"      → {e['preview']}")
+            lines.append(
+                "Use mcp_claudwerk_send_message to reply -- pass `from` as `to` "
+                "and include the matching conversation_id."
+            )
+        return "\n".join(lines)
 
     # ─── JSON send helper ───────────────────────────────────────────────
 
@@ -633,6 +708,62 @@ def _on_post_tool_call(**kwargs: Any) -> None:
     _schedule_on_adapter_loop(adapter, _async_post_tool_call(adapter, **kwargs))
 
 
+# ─── pre_llm_call: ephemeral per-turn context ──────────────────────────
+
+def _on_pre_llm_call(**kwargs: Any) -> Optional[Dict[str, Any]]:
+    """Inject inter-session inbox + sibling-conversation summary as
+    ephemeral context for the current turn.
+
+    Hermes appends this string to the user message (not the system
+    prompt) so the prompt cache prefix stays stable across turns.
+    Filter by platform="claudwerk" so we don't pollute other adapters.
+    """
+    if kwargs.get("platform") != "claudwerk":
+        return None
+    adapter = _adapter_instance
+    if not adapter:
+        return None
+    block = adapter._build_inbox_context()
+    if not block.strip():
+        return None
+    return {"context": f"[claudwerk-state]\n{block}"}
+
+
+# ─── Static system-prompt guidance ─────────────────────────────────────
+
+_PLATFORM_HINT = """\
+You are running on the Claudwerk control panel, a multi-conversation
+dashboard. Markdown renders fully (headers, lists, fenced code).
+
+══ INTER-SESSION MESSAGES (<channel> wrapper) ══
+
+Messages from other Claudwerk conversations arrive wrapped like:
+
+  <channel sender="session" from_session="myproject:funky-llama"
+           intent="request" conversation_id="conv_abc123">
+  body from another agent
+  </channel>
+
+When you see a <channel> wrapper:
+  • The "user" is the OTHER agent, not the human.
+  • Reply with `mcp_claudwerk_send_message`. Pass `from_session` as `to`,
+    and ALWAYS include the wrapper's `conversation_id` for thread context.
+  • intent values: request (needs answer), response (reply to you),
+    notify (FYI), progress (status update).
+
+══ CLAUDWERK MCP TOOLS ══
+
+  mcp_claudwerk_notify              Push notification to the user's devices.
+                                    Use when long work finishes.
+  mcp_claudwerk_send_message        Reply to another conversation.
+  mcp_claudwerk_search_transcripts  FTS5 search across past transcripts.
+  mcp_claudwerk_list_conversations  List active/idle conversations.
+  mcp_claudwerk_spawn_session       Spawn a new coding/chat-api session.
+  mcp_claudwerk_project_list        List project-board tasks.
+  mcp_claudwerk_project_set_status  Move a task between status columns.
+"""
+
+
 # ─── Utility ────────────────────────────────────────────────────────────
 
 def _now_iso() -> str:
@@ -690,13 +821,13 @@ def register(ctx: Any) -> None:
         env_enablement_fn=_env_enablement,
         cron_deliver_env_var="CLAUDWERK_DEFAULT_PROJECT",
         max_message_length=100000,
-        platform_hint=(
-            "You are chatting via the Claudwerk dashboard. "
-            "Rich formatting (markdown, code blocks) is fully supported."
-        ),
+        platform_hint=_PLATFORM_HINT,
         emoji="",
     )
 
-    # Register tool hooks for visibility in the dashboard
+    # Register hooks. Tool hooks render tool_use/tool_result cards; the
+    # pre_llm_call hook injects ephemeral per-turn context (inter-session
+    # inbox + sibling conversations) into the user message.
     ctx.register_hook("pre_tool_call", _on_pre_tool_call)
     ctx.register_hook("post_tool_call", _on_post_tool_call)
+    ctx.register_hook("pre_llm_call", _on_pre_llm_call)
