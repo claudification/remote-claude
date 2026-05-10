@@ -15,6 +15,7 @@ import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
 import { markdown } from '@codemirror/lang-markdown'
 import { python } from '@codemirror/lang-python'
+import { yaml } from '@codemirror/lang-yaml'
 import { bracketMatching, HighlightStyle, type LanguageSupport, syntaxTree } from '@codemirror/language'
 import { type Extension, RangeSetBuilder } from '@codemirror/state'
 import {
@@ -188,6 +189,9 @@ function langFromPath(filePath: string | undefined): LanguageSupport | Extension
       return html()
     case 'py':
       return python()
+    case 'yaml':
+    case 'yml':
+      return yaml()
     default:
       return markdown()
   }
