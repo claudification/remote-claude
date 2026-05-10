@@ -62,7 +62,7 @@ const rclaudeConfigData: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   if (conversation?.project) ctx.broadcastScoped(data, conversation.project)
-  else ctx.broadcast(data)
+  else ctx.log.debug(`[rclaude-config] dropping data: no project on ${conversationId?.slice(0, 8) || 'unknown'}`)
 }
 
 const rclaudeConfigOk: MessageHandler = (ctx, data) => {
@@ -77,7 +77,7 @@ const rclaudeConfigOk: MessageHandler = (ctx, data) => {
       ctx.log.info(`Config saved for ${project} -- notified ${notified} wrapper(s)`)
     }
   } else {
-    ctx.broadcast(data)
+    ctx.log.debug(`[rclaude-config] dropping ok: no project on ${conversationId?.slice(0, 8) || 'unknown'}`)
   }
 }
 
