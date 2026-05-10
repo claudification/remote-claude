@@ -22,14 +22,37 @@ const gatewayRegister: MessageHandler = (ctx, data) => {
     return
   }
 
-  const agentHostType = data.agentHostType as string
-  if (!agentHostType) {
-    ctx.reply({ type: 'gateway_register_result', ok: false, error: 'Missing agentHostType' })
+  // Reject if the WS wasn't authenticated as a gateway at upgrade. The
+  // gatewayType is set from the gateway-registry record at auth time;
+  // the handler used to self-elevate (Audit M3), letting any authenticated
+  // WS connection register itself as a gateway adapter.
+  if (!ctx.ws.data.isGateway || !ctx.ws.data.gatewayType) {
+    ctx.reply({
+      type: 'gateway_register_result',
+      ok: false,
+      error: 'Connection not authenticated as gateway',
+    })
+    ctx.ws.close(4003, 'forbidden')
     return
   }
 
-  ctx.ws.data.isGateway = true
-  ctx.ws.data.gatewayType = agentHostType
+  const claimedType = data.agentHostType as string
+  if (!claimedType) {
+    ctx.reply({ type: 'gateway_register_result', ok: false, error: 'Missing agentHostType' })
+    return
+  }
+  // The gateway type is fixed at registry creation -- reject mismatches rather
+  // than letting the message body override the trusted auth-time value.
+  if (claimedType !== ctx.ws.data.gatewayType) {
+    ctx.reply({
+      type: 'gateway_register_result',
+      ok: false,
+      error: `agentHostType mismatch: registered as "${ctx.ws.data.gatewayType}", got "${claimedType}"`,
+    })
+    return
+  }
+
+  const agentHostType = ctx.ws.data.gatewayType
   ctx.conversations.setGatewaySocket(agentHostType, ctx.ws)
 
   const version = (data.version as string) || 'unknown'
@@ -42,7 +65,7 @@ const gatewayRegister: MessageHandler = (ctx, data) => {
   })
 }
 
-const gatewayHeartbeat: MessageHandler = (ctx, data) => {
+const gatewayHeartbeat: MessageHandler = ctx => {
   const agentHostType = ctx.ws.data.gatewayType
   if (!agentHostType) return
   ctx.conversations.setGatewaySocket(agentHostType, ctx.ws)
