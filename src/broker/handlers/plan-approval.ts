@@ -5,7 +5,7 @@
  */
 
 import type { MessageHandler } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { AGENT_HOST_ONLY, DASHBOARD_ROLES, registerHandlers } from '../message-router'
 
 // Plan approval request: agent host -> broker -> dashboard
 const planApproval: MessageHandler = (ctx, data) => {
@@ -115,9 +115,8 @@ const planModeChanged: MessageHandler = (ctx, data) => {
 }
 
 export function registerPlanApprovalHandlers(): void {
-  registerHandlers({
-    plan_approval: planApproval,
-    plan_approval_response: planApprovalResponse,
-    plan_mode_changed: planModeChanged,
-  })
+  // Agent host announces plan and reports mode changes.
+  registerHandlers({ plan_approval: planApproval, plan_mode_changed: planModeChanged }, AGENT_HOST_ONLY)
+  // Dashboard responds to plan approval requests.
+  registerHandlers({ plan_approval_response: planApprovalResponse }, DASHBOARD_ROLES)
 }

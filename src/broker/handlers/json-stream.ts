@@ -4,7 +4,7 @@
  */
 
 import type { MessageHandler } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { AGENT_HOST_ONLY, DASHBOARD_ROLES, registerHandlers } from '../message-router'
 
 const jsonStreamAttach: MessageHandler = (ctx, data) => {
   const wid = data.conversationId as string
@@ -52,9 +52,11 @@ const jsonStreamData: MessageHandler = (ctx, data) => {
 }
 
 export function registerJsonStreamHandlers(): void {
-  registerHandlers({
-    json_stream_attach: jsonStreamAttach,
-    json_stream_detach: jsonStreamDetach,
-    json_stream_data: jsonStreamData,
-  })
+  // Dashboard attaches to / detaches from the JSON stream relay.
+  registerHandlers(
+    { json_stream_attach: jsonStreamAttach, json_stream_detach: jsonStreamDetach },
+    DASHBOARD_ROLES,
+  )
+  // Agent host emits the raw NDJSON data.
+  registerHandlers({ json_stream_data: jsonStreamData }, AGENT_HOST_ONLY)
 }

@@ -2,26 +2,83 @@
  * Message router: dispatches WS messages to handler functions.
  * Handlers register by message type. Guards throw GuardError
  * which the router catches and sends as error replies.
+ *
+ * Each message type may also declare a role allowlist; the router rejects
+ * messages from connections whose role is not in the set. (Audit C3)
  */
 
-import { GuardError, type HandlerContext, type MessageData, type MessageHandler } from './handler-context'
+import { GuardError, type HandlerContext, type MessageData, type MessageHandler, type WsData } from './handler-context'
 
-const handlers = new Map<string, MessageHandler>()
+/**
+ * Connection role. Determined from WsData fields set at WS upgrade
+ * (or by a self-declared role-marker handler like sentinel_identify
+ * for the legacy sentinel auth path).
+ */
+export type WsRole = 'agent-host' | 'control-panel' | 'sentinel' | 'gateway' | 'share'
 
-/** Register multiple handlers at once */
-export function registerHandlers(map: Record<string, MessageHandler>): void {
+/** Common role groups for `registerHandlers` second arg. */
+export const AGENT_HOST_ONLY: WsRole[] = ['agent-host']
+export const SENTINEL_ONLY: WsRole[] = ['sentinel']
+export const GATEWAY_ONLY: WsRole[] = ['gateway']
+/** Control panel + share viewers (dashboards). */
+export const DASHBOARD_ROLES: WsRole[] = ['control-panel', 'share']
+/** Everyone (the implicit default before C3). */
+export const ANY_ROLE: WsRole[] = ['agent-host', 'control-panel', 'sentinel', 'gateway', 'share']
+
+/**
+ * Derive the connection's role from its WsData. Order of precedence:
+ *   share > gateway > sentinel > control-panel > agent-host
+ *
+ * The `agent-host` role is the default for bearer-secret authentication
+ * with no other role marker (the legacy "rclaude secret" path).
+ */
+export function detectRole(data: WsData): WsRole {
+  if (data.isShare) return 'share'
+  if (data.isGateway) return 'gateway'
+  if (data.isSentinel || data.sentinelId) return 'sentinel'
+  if (data.userName || data.isControlPanel) return 'control-panel'
+  return 'agent-host'
+}
+
+interface HandlerEntry {
+  handler: MessageHandler
+  /** Allowed roles. `undefined` = any role allowed (legacy default). */
+  roles?: WsRole[]
+}
+
+const handlers = new Map<string, HandlerEntry>()
+
+/**
+ * Register multiple handlers at once. If `roles` is provided, the router
+ * will reject messages of these types from connections whose role is not
+ * in the set. Omit `roles` to keep the legacy any-role behavior.
+ */
+export function registerHandlers(map: Record<string, MessageHandler>, roles?: WsRole[]): void {
   for (const [type, handler] of Object.entries(map)) {
-    handlers.set(type, handler)
+    handlers.set(type, { handler, roles })
   }
 }
 
 /** Route a message to its handler. Returns true if handled. */
 export function routeMessage(ctx: HandlerContext, type: string, data: MessageData): boolean {
-  const handler = handlers.get(type)
-  if (!handler) return false
+  const entry = handlers.get(type)
+  if (!entry) return false
+
+  // Role gate (Audit C3). When a handler declares allowed roles, reject
+  // messages from connections whose role isn't in the set. The reply uses
+  // the `_result` suffix so the dashboard surfaces the error consistently
+  // with GuardError.
+  if (entry.roles) {
+    const role = detectRole(ctx.ws.data)
+    if (!entry.roles.includes(role)) {
+      ctx.reply({ type: `${type}_result`, ok: false, error: `Forbidden: ${type} not allowed for ${role}` })
+      ctx.log.debug(`[router] rejected ${type} from role=${role} (allowed=[${entry.roles.join(',')}])`)
+      return true
+    }
+  }
 
   try {
-    const result = handler(ctx, data)
+    const result = entry.handler(ctx, data)
     if (result instanceof Promise) {
       result.catch(err => {
         console.error(`[router] Async handler error for ${type}:`, err)

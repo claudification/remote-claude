@@ -9,7 +9,7 @@ import { resolveModelFamily } from '../../shared/models'
 import type { AgentHostLaunchStep, TranscriptLaunchEntry } from '../../shared/protocol'
 import { filterDisplayEntries } from '../../shared/transcript-filter'
 import type { MessageHandler } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { AGENT_HOST_ONLY, DASHBOARD_ROLES, registerHandlers } from '../message-router'
 import { generateRecapManual } from '../recap-generator'
 import { requireStrings } from './validate'
 
@@ -525,22 +525,32 @@ const recapRequest: MessageHandler = (ctx, data) => {
 }
 
 export function registerTranscriptHandlers(): void {
-  registerHandlers({
-    conversation_name: conversationName,
-    turn_cost: turnCost,
-    tasks_update: tasksUpdate,
-    diag: diagHandler,
-    transcript_entries: transcriptEntries,
-    subagent_transcript: subagentTranscript,
-    bg_task_output: bgTaskOutput,
-    transcript_request: transcriptRequest,
-    subagent_transcript_request: subagentTranscriptRequest,
-    stream_delta: streamDelta,
-    rate_limit_status: rateLimitStatusHandler,
-    conversation_info: conversationInfo,
-    result_text: resultText,
-    monitor_update: monitorUpdate,
-    scheduled_task_fire: scheduledTaskFire,
-    recap_request: recapRequest,
-  })
+  // Agent host emissions (transcript flow + telemetry).
+  registerHandlers(
+    {
+      conversation_name: conversationName,
+      turn_cost: turnCost,
+      tasks_update: tasksUpdate,
+      diag: diagHandler,
+      transcript_entries: transcriptEntries,
+      subagent_transcript: subagentTranscript,
+      bg_task_output: bgTaskOutput,
+      stream_delta: streamDelta,
+      rate_limit_status: rateLimitStatusHandler,
+      conversation_info: conversationInfo,
+      result_text: resultText,
+      monitor_update: monitorUpdate,
+      scheduled_task_fire: scheduledTaskFire,
+    },
+    AGENT_HOST_ONLY,
+  )
+  // Dashboard pull/refresh requests.
+  registerHandlers(
+    {
+      transcript_request: transcriptRequest,
+      subagent_transcript_request: subagentTranscriptRequest,
+      recap_request: recapRequest,
+    },
+    DASHBOARD_ROLES,
+  )
 }

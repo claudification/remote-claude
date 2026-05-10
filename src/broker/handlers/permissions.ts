@@ -8,7 +8,7 @@
  */
 
 import type { MessageHandler } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { AGENT_HOST_ONLY, DASHBOARD_ROLES, registerHandlers } from '../message-router'
 
 // Permission relay: agent host -> dashboard (broadcast + store for reconnect recovery)
 const permissionRequest: MessageHandler = (ctx, data) => {
@@ -205,13 +205,23 @@ const askAnswer: MessageHandler = (ctx, data) => {
 }
 
 export function registerPermissionHandlers(): void {
-  registerHandlers({
-    permission_request: permissionRequest,
-    permission_response: permissionResponse,
-    permission_rule: permissionRule,
-    permission_auto_approved: permissionAutoApproved,
-    clipboard_capture: clipboardCapture,
-    ask_question: askQuestion,
-    ask_answer: askAnswer,
-  })
+  // Agent host -> dashboard.
+  registerHandlers(
+    {
+      permission_request: permissionRequest,
+      permission_auto_approved: permissionAutoApproved,
+      clipboard_capture: clipboardCapture,
+      ask_question: askQuestion,
+    },
+    AGENT_HOST_ONLY,
+  )
+  // Dashboard -> agent host.
+  registerHandlers(
+    {
+      permission_response: permissionResponse,
+      permission_rule: permissionRule,
+      ask_answer: askAnswer,
+    },
+    DASHBOARD_ROLES,
+  )
 }

@@ -4,7 +4,7 @@
  */
 
 import type { MessageHandler } from '../handler-context'
-import { registerHandlers } from '../message-router'
+import { AGENT_HOST_ONLY, ANY_ROLE, DASHBOARD_ROLES, registerHandlers } from '../message-router'
 
 const terminalAttach: MessageHandler = (ctx, data) => {
   const wid = data.conversationId as string
@@ -86,11 +86,18 @@ const terminalError: MessageHandler = (ctx, data) => {
 }
 
 export function registerTerminalHandlers(): void {
-  registerHandlers({
-    terminal_attach: terminalAttach,
-    terminal_detach: terminalDetach,
-    terminal_data: terminalData,
-    terminal_resize: terminalResize,
-    terminal_error: terminalError,
-  })
+  // Dashboard-driven (attach/detach/resize the PTY viewer).
+  registerHandlers(
+    {
+      terminal_attach: terminalAttach,
+      terminal_detach: terminalDetach,
+      terminal_resize: terminalResize,
+    },
+    DASHBOARD_ROLES,
+  )
+  // Agent-host-only error broadcast. (Audit H3)
+  registerHandlers({ terminal_error: terminalError }, AGENT_HOST_ONLY)
+  // Bidirectional PTY data. The handler itself branches on isControlPanel
+  // to decide direction (dashboard input vs agent host output).
+  registerHandlers({ terminal_data: terminalData }, ANY_ROLE)
 }
