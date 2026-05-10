@@ -1,28 +1,32 @@
 /**
- * ACP `session/update` notifications -> Claudwerk transcript entries.
+ * ACP `session/update` notifications -> Claudwerk transcript entries + live
+ * stream deltas.
  *
- * The shape we produce matches what the existing dashboard renders for
- * Claude and OpenCode-NDJSON conversations: `TranscriptAssistantEntry` with
- * text/thinking/tool_use/tool_result content blocks, plus a closing
- * `TranscriptSystemEntry` of subtype `turn_duration` carrying cost/tokens.
+ * Streaming model (the FLOW):
+ *   - Token-level text/thinking are mirrored to `stream_delta` SSE events
+ *     (Anthropic-shaped) so the dashboard's live "streaming" buffer renders
+ *     them as the model types. Same wire shape headless CC + chat-api use.
+ *   - Each text/thinking RUN (a contiguous streak of message/thought chunks
+ *     not interrupted by a tool call) is committed as ONE write-once
+ *     assistant entry the moment the run ends -- on tool boundary or at
+ *     end-of-turn. UUIDs are stable per run; entries are sent exactly once.
+ *   - Each tool_use is committed as its own write-once assistant entry the
+ *     moment the agent has populated rawInput. The dashboard's tool-call UI
+ *     lights up immediately, not at end-of-turn.
+ *   - Each tool_result is committed as its own write-once USER entry (paired
+ *     by tool_use_id, matching Claude's transcript convention so
+ *     buildResultMap renders it next to the tool_use). Committed the moment
+ *     the tool reaches a terminal status (completed / failed / cancelled).
+ *   - flushTurn closes any in-flight text run, emits a `message_stop` to
+ *     clear the live buffer, and emits the turn_duration system entry.
  *
- * Aggregation pattern (mirrors src/opencode-agent-host/ndjson-parser.ts):
- *   - One `TranslatorState` per running prompt turn.
- *   - `applyUpdate()` is called for each `session/update` notification; it
- *     mutates state and returns any entries that should be flushed
- *     immediately (currently empty -- all output is held until flushTurn).
- *   - `flushTurn()` is called when `session/prompt` resolves; it produces
- *     the final assistant + turn_duration entries and resets state.
- *
- * Streaming-friendly: incremental flushes (e.g., emit assistant entry on
- * partial text) can be added later without changing the public surface.
- * For now we hold until turn end -- matches NDJSON semantics and avoids
- * partial-entry rendering bugs the dashboard hasn't been hardened against.
+ * State accumulators (cost, tokens, lastTextBlockIdx, ...) reset per turn.
+ * The translator is pure (no I/O); the host is responsible for actually
+ * dispatching the stream_delta wire messages and transcript_entries flushes.
  *
  * Pure module: no I/O, no Bun-specifics, no broker types beyond the shared
  * TranscriptEntry types. Easy to unit-test with synthetic event streams
- * (see translator.test.ts and the spike artifacts in
- * .claude/docs/spike-acp-opencode/).
+ * (see translator.test.ts).
  */
 
 import { randomUUID } from 'node:crypto'
@@ -31,6 +35,7 @@ import type {
   TranscriptContentBlock,
   TranscriptEntry,
   TranscriptSystemEntry,
+  TranscriptUserEntry,
 } from '../shared/protocol'
 
 // ─── Inbound shapes ──────────────────────────────────────────────────────
@@ -89,7 +94,10 @@ export interface AcpToolCallUpdateEvent {
   title?: string
   kind?: string
   rawInput?: unknown
-  rawOutput?: { output?: string; metadata?: { exit?: number; truncated?: boolean; description?: string; output?: string } }
+  rawOutput?: {
+    output?: string
+    metadata?: { exit?: number; truncated?: boolean; description?: string; output?: string }
+  }
   content?: Array<{ type: string; content?: AcpContentBlock }>
 }
 
@@ -123,10 +131,10 @@ export interface AcpPlanUpdate {
 
 // ─── State ───────────────────────────────────────────────────────────────
 
-/**
- * Live tool-call we've seen via `tool_call` but not yet flushed (still
- * accumulating updates). Keyed by toolCallId.
- */
+/** Tool call we've seen via `tool_call` / `tool_call_update`. The tool_use
+ *  block is committed (with UUID `useEntryUuid`) the moment rawInput is
+ *  populated. The tool_result block is committed (with UUID `resultEntryUuid`)
+ *  the moment status reaches a terminal value. */
 interface PendingToolCall {
   toolCallId: string
   name: string
@@ -134,25 +142,31 @@ interface PendingToolCall {
   output: string
   isError: boolean
   status: string
-  /** Index in `pendingBlocks` of the tool_use block we already pushed.
-   *  null means we haven't pushed it yet. */
-  toolUseBlockIdx: number | null
-  /** Index in `pendingBlocks` of the tool_result block. null until completed. */
-  toolResultBlockIdx: number | null
+  /** Stable UUID for the assistant entry we'll emit (or already emitted). */
+  useEntryUuid: string
+  /** Stable UUID for the user entry carrying the tool_result. */
+  resultEntryUuid: string
+  /** True once the tool_use assistant entry has been emitted. */
+  useCommitted: boolean
+  /** True once the tool_result user entry has been emitted. */
+  resultCommitted: boolean
 }
 
 export interface TranslatorState {
-  /** Accumulated content blocks for the current turn. Emitted as a single
-   *  TranscriptAssistantEntry on flushTurn. */
+  /** Blocks accumulated for the current text/thinking run. Flushed as one
+   *  assistant entry on tool boundary or end-of-turn. */
   pendingBlocks: TranscriptContentBlock[]
-  /** Index of the last text block (for chunk coalescing). */
+  /** Stable UUID for the assistant entry that will commit pendingBlocks. */
+  activeRunUuid: string | null
+  /** Index of the last text block in pendingBlocks (for chunk coalescing). */
   lastTextBlockIdx: number | null
-  /** Index of the last thinking block (for chunk coalescing). */
+  /** Index of the last thinking block in pendingBlocks. */
   lastThinkingBlockIdx: number | null
+  /** True once we've emitted `message_start` for the current run. */
+  streamRunActive: boolean
   /** Active tool calls keyed by toolCallId. */
   toolCalls: Map<string, PendingToolCall>
-  /** Cost amount in USD (or whatever the agent reports; we trust currency
-   *  but normalize at display time). */
+  /** Cost amount in USD (or whatever the agent reports). */
   cost: number
   costCurrency: string | null
   inputTokens: number
@@ -170,8 +184,10 @@ export interface TranslatorState {
 export function createTranslatorState(): TranslatorState {
   return {
     pendingBlocks: [],
+    activeRunUuid: null,
     lastTextBlockIdx: null,
     lastThinkingBlockIdx: null,
+    streamRunActive: false,
     toolCalls: new Map(),
     cost: 0,
     costCurrency: null,
@@ -188,79 +204,106 @@ export function createTranslatorState(): TranslatorState {
 // ─── Apply ───────────────────────────────────────────────────────────────
 
 export interface TranslatorOutput {
-  /** Entries to flush immediately. Currently always empty -- we hold until
-   *  flushTurn -- but reserved for future per-event flushing. */
+  /** Transcript entries to flush right now (write-once, stable UUIDs). */
   entries: TranscriptEntry[]
+  /** Anthropic-shaped SSE events to emit as `stream_delta` messages. */
+  streamDeltas: Record<string, unknown>[]
+}
+
+function emptyOutput(): TranslatorOutput {
+  return { entries: [], streamDeltas: [] }
 }
 
 /**
- * Mutate state given one ACP session/update notification. Unknown subtypes
- * are silently ignored (defensive against future ACP additions).
+ * Mutate state given one ACP session/update notification. Returns any
+ * transcript entries to commit and any stream deltas to broadcast.
+ * Unknown subtypes are silently ignored (defensive against future ACP
+ * additions).
  */
 export function applyUpdate(params: AcpSessionUpdateParams, state: TranslatorState): TranslatorOutput {
   const update = params.update
   switch ((update as { sessionUpdate?: string }).sessionUpdate) {
     case 'agent_message_chunk':
-      handleAgentMessageChunk(update as AcpAgentMessageChunk, state)
-      return { entries: [] }
+      return handleAgentMessageChunk(update as AcpAgentMessageChunk, state)
     case 'agent_thought_chunk':
-      handleAgentThoughtChunk(update as AcpAgentThoughtChunk, state)
-      return { entries: [] }
+      return handleAgentThoughtChunk(update as AcpAgentThoughtChunk, state)
     case 'tool_call':
-      handleToolCall(update as AcpToolCallEvent, state)
-      return { entries: [] }
+      return handleToolCall(update as AcpToolCallEvent, state)
     case 'tool_call_update':
-      handleToolCallUpdate(update as AcpToolCallUpdateEvent, state)
-      return { entries: [] }
+      return handleToolCallUpdate(update as AcpToolCallUpdateEvent, state)
     case 'usage_update':
       handleUsageUpdate(update as AcpUsageUpdate, state)
-      return { entries: [] }
+      return emptyOutput()
     default:
       // available_commands_update, current_mode_update, config_option_update,
       // plan -- ignored for transcript synthesis. Host surfaces these via a
       // separate channel (broker `agentHostMeta` updates).
-      return { entries: [] }
+      return emptyOutput()
   }
 }
 
-function handleAgentMessageChunk(update: AcpAgentMessageChunk, state: TranslatorState): void {
+function ensureActiveRun(state: TranslatorState, out: TranslatorOutput): void {
+  if (state.activeRunUuid !== null) return
+  state.activeRunUuid = randomUUID()
+  state.streamRunActive = true
+  // message_start resets the dashboard's streamingText buffer if it has
+  // leftover content from a prior run we already committed.
+  out.streamDeltas.push({ type: 'message_start', message: { role: 'assistant' } })
+}
+
+function handleAgentMessageChunk(update: AcpAgentMessageChunk, state: TranslatorState): TranslatorOutput {
   const text = update.content?.text ?? ''
-  if (!text) return
+  if (!text) return emptyOutput()
+  const out = emptyOutput()
+  ensureActiveRun(state, out)
   if (state.lastTextBlockIdx !== null) {
     const block = state.pendingBlocks[state.lastTextBlockIdx]
     if (block && block.type === 'text') {
       block.text = (block.text ?? '') + text
-      return
     }
+  } else {
+    state.pendingBlocks.push({ type: 'text', text })
+    state.lastTextBlockIdx = state.pendingBlocks.length - 1
+    state.lastThinkingBlockIdx = null
   }
-  state.pendingBlocks.push({ type: 'text', text })
-  state.lastTextBlockIdx = state.pendingBlocks.length - 1
-  // A new text block ends any active thinking block (coalescing-wise).
-  state.lastThinkingBlockIdx = null
+  out.streamDeltas.push({
+    type: 'content_block_delta',
+    index: state.lastTextBlockIdx ?? 0,
+    delta: { type: 'text_delta', text },
+  })
+  return out
 }
 
-function handleAgentThoughtChunk(update: AcpAgentThoughtChunk, state: TranslatorState): void {
+function handleAgentThoughtChunk(update: AcpAgentThoughtChunk, state: TranslatorState): TranslatorOutput {
   const text = update.content?.text ?? ''
-  if (!text) return
+  if (!text) return emptyOutput()
+  const out = emptyOutput()
+  ensureActiveRun(state, out)
   if (state.lastThinkingBlockIdx !== null) {
     const block = state.pendingBlocks[state.lastThinkingBlockIdx]
     if (block && block.type === 'thinking') {
       block.thinking = (block.thinking ?? '') + text
-      return
     }
+  } else {
+    state.pendingBlocks.push({ type: 'thinking', thinking: text })
+    state.lastThinkingBlockIdx = state.pendingBlocks.length - 1
+    state.lastTextBlockIdx = null
   }
-  state.pendingBlocks.push({ type: 'thinking', thinking: text })
-  state.lastThinkingBlockIdx = state.pendingBlocks.length - 1
-  state.lastTextBlockIdx = null
+  out.streamDeltas.push({
+    type: 'content_block_delta',
+    index: state.lastThinkingBlockIdx ?? 0,
+    delta: { type: 'thinking_delta', thinking: text },
+  })
+  return out
 }
 
-function handleToolCall(update: AcpToolCallEvent, state: TranslatorState): void {
-  if (!update.toolCallId) return
-  // First sighting -- pre-create the pending state. We don't push the
-  // tool_use block yet because we may not have rawInput; tool_call_update
-  // typically arrives with the args populated.
-  const existing = state.toolCalls.get(update.toolCallId)
-  if (existing) return
+function handleToolCall(update: AcpToolCallEvent, state: TranslatorState): TranslatorOutput {
+  if (!update.toolCallId) return emptyOutput()
+  if (state.toolCalls.has(update.toolCallId)) return emptyOutput()
+
+  // Pre-create the pending state. We don't commit a tool_use entry yet --
+  // typically rawInput is empty here and arrives in the first
+  // tool_call_update. Reserve UUIDs upfront so re-entry can't double-commit.
   const pending: PendingToolCall = {
     toolCallId: update.toolCallId,
     name: update.title || update.kind || 'tool',
@@ -268,17 +311,28 @@ function handleToolCall(update: AcpToolCallEvent, state: TranslatorState): void 
     output: '',
     isError: false,
     status: update.status ?? 'pending',
-    toolUseBlockIdx: null,
-    toolResultBlockIdx: null,
+    useEntryUuid: randomUUID(),
+    resultEntryUuid: randomUUID(),
+    useCommitted: false,
+    resultCommitted: false,
   }
   state.toolCalls.set(update.toolCallId, pending)
-  // Reset coalescing pointers -- a tool boundary ends the current text run.
-  state.lastTextBlockIdx = null
-  state.lastThinkingBlockIdx = null
+
+  // A tool boundary ends the current text/thinking run. Commit it now so it
+  // appears in the transcript BEFORE the tool, in the right order.
+  const out = emptyOutput()
+  flushActiveRun(state, out)
+
+  // If rawInput is already populated (rare for `tool_call` itself), we can
+  // also commit the tool_use right now.
+  if (Object.keys(pending.input).length > 0) {
+    commitToolUse(pending, out)
+  }
+  return out
 }
 
-function handleToolCallUpdate(update: AcpToolCallUpdateEvent, state: TranslatorState): void {
-  if (!update.toolCallId) return
+function handleToolCallUpdate(update: AcpToolCallUpdateEvent, state: TranslatorState): TranslatorOutput {
+  if (!update.toolCallId) return emptyOutput()
   let pending = state.toolCalls.get(update.toolCallId)
   if (!pending) {
     // Update arrived without a preceding tool_call -- create on the fly.
@@ -289,8 +343,10 @@ function handleToolCallUpdate(update: AcpToolCallUpdateEvent, state: TranslatorS
       output: '',
       isError: false,
       status: update.status ?? 'pending',
-      toolUseBlockIdx: null,
-      toolResultBlockIdx: null,
+      useEntryUuid: randomUUID(),
+      resultEntryUuid: randomUUID(),
+      useCommitted: false,
+      resultCommitted: false,
     }
     state.toolCalls.set(update.toolCallId, pending)
   }
@@ -301,34 +357,11 @@ function handleToolCallUpdate(update: AcpToolCallUpdateEvent, state: TranslatorS
   }
   if (update.status) pending.status = update.status
 
-  // Push the tool_use block as soon as we have rawInput (the model's intent
-  // is now visible). Once pushed, we update name/input in place if they
-  // change later. The tool_use block has a stable identity tied to toolCallId.
-  if (pending.toolUseBlockIdx === null && Object.keys(pending.input).length > 0) {
-    const block: TranscriptContentBlock = {
-      type: 'tool_use',
-      id: pending.toolCallId,
-      name: pending.name,
-      input: pending.input,
-    }
-    state.pendingBlocks.push(block)
-    pending.toolUseBlockIdx = state.pendingBlocks.length - 1
-    state.lastTextBlockIdx = null
-    state.lastThinkingBlockIdx = null
-  } else if (pending.toolUseBlockIdx !== null) {
-    // Update name/input in place -- the model may refine args mid-call.
-    const block = state.pendingBlocks[pending.toolUseBlockIdx]
-    if (block && block.type === 'tool_use') {
-      block.name = pending.name
-      block.input = pending.input
-    }
-  }
-
   // Capture intermediate / final output. Streaming tool output arrives as
   // `content: [{ type: 'content', content: { type: 'text', text: '...' } }]`.
   if (Array.isArray(update.content)) {
     const collected = update.content
-      .map(c => (c?.content && typeof c.content === 'object' ? c.content.text ?? '' : ''))
+      .map(c => (c?.content && typeof c.content === 'object' ? (c.content.text ?? '') : ''))
       .join('')
     if (collected.length > 0) pending.output = collected
   }
@@ -342,29 +375,31 @@ function handleToolCallUpdate(update: AcpToolCallUpdateEvent, state: TranslatorS
     }
   }
 
-  // Terminal status -> emit the tool_result block (or attach error if failed).
+  const out = emptyOutput()
+
+  // Commit the tool_use as soon as we have rawInput populated. The arrival
+  // of rawInput is the moment the model's intent is observable.
+  if (!pending.useCommitted && Object.keys(pending.input).length > 0) {
+    flushActiveRun(state, out)
+    commitToolUse(pending, out)
+  }
+
+  // Terminal status -> commit the tool_result user entry.
   if (pending.status === 'completed' || pending.status === 'failed' || pending.status === 'cancelled') {
     if (pending.status === 'failed' || pending.status === 'cancelled') pending.isError = true
-    if (pending.toolResultBlockIdx === null) {
-      const block: TranscriptContentBlock = {
-        type: 'tool_result',
-        tool_use_id: pending.toolCallId,
-        content: pending.output,
-        ...(pending.isError ? { is_error: true } : {}),
-      }
-      state.pendingBlocks.push(block)
-      pending.toolResultBlockIdx = state.pendingBlocks.length - 1
-    } else {
-      // Update existing result with the final content.
-      const block = state.pendingBlocks[pending.toolResultBlockIdx]
-      if (block && block.type === 'tool_result') {
-        block.content = pending.output
-        if (pending.isError) block.is_error = true
-      }
+    // Defensive: if rawInput never showed up but we got a terminal status,
+    // emit a synthetic tool_use first so the dashboard has something to pair
+    // the result against.
+    if (!pending.useCommitted) {
+      flushActiveRun(state, out)
+      commitToolUse(pending, out)
     }
-    state.lastTextBlockIdx = null
-    state.lastThinkingBlockIdx = null
+    if (!pending.resultCommitted) {
+      commitToolResult(pending, out)
+    }
   }
+
+  return out
 }
 
 function handleUsageUpdate(update: AcpUsageUpdate, state: TranslatorState): void {
@@ -373,6 +408,66 @@ function handleUsageUpdate(update: AcpUsageUpdate, state: TranslatorState): void
     state.cost = update.cost.amount
     state.costCurrency = update.cost.currency || state.costCurrency
   }
+}
+
+/** Commit the in-flight text/thinking run as a write-once assistant entry.
+ *  Mutates state to reset run pointers and clear pendingBlocks. Emits the
+ *  closing `message_stop` so the dashboard's live buffer clears. Safe to
+ *  call when no run is active. */
+function flushActiveRun(state: TranslatorState, out: TranslatorOutput): void {
+  if (state.activeRunUuid !== null && state.pendingBlocks.length > 0) {
+    const assistant: TranscriptAssistantEntry = {
+      type: 'assistant',
+      uuid: state.activeRunUuid,
+      timestamp: new Date().toISOString(),
+      message: { role: 'assistant', content: state.pendingBlocks },
+    }
+    out.entries.push(assistant)
+  }
+  if (state.streamRunActive) {
+    out.streamDeltas.push({ type: 'message_stop' })
+    state.streamRunActive = false
+  }
+  state.activeRunUuid = null
+  state.pendingBlocks = []
+  state.lastTextBlockIdx = null
+  state.lastThinkingBlockIdx = null
+}
+
+function commitToolUse(pending: PendingToolCall, out: TranslatorOutput): void {
+  if (pending.useCommitted) return
+  const block: TranscriptContentBlock = {
+    type: 'tool_use',
+    id: pending.toolCallId,
+    name: pending.name,
+    input: pending.input,
+  }
+  const entry: TranscriptAssistantEntry = {
+    type: 'assistant',
+    uuid: pending.useEntryUuid,
+    timestamp: new Date().toISOString(),
+    message: { role: 'assistant', content: [block] },
+  }
+  out.entries.push(entry)
+  pending.useCommitted = true
+}
+
+function commitToolResult(pending: PendingToolCall, out: TranslatorOutput): void {
+  if (pending.resultCommitted) return
+  const block: TranscriptContentBlock = {
+    type: 'tool_result',
+    tool_use_id: pending.toolCallId,
+    content: pending.output,
+    ...(pending.isError ? { is_error: true } : {}),
+  }
+  const entry: TranscriptUserEntry = {
+    type: 'user',
+    uuid: pending.resultEntryUuid,
+    timestamp: new Date().toISOString(),
+    message: { role: 'user', content: [block] },
+  }
+  out.entries.push(entry)
+  pending.resultCommitted = true
 }
 
 /** Optional: feed token totals from the `session/prompt` response.usage when
@@ -396,17 +491,43 @@ export function applyPromptUsage(usage: AcpPromptUsage, state: TranslatorState):
 // ─── Flush ───────────────────────────────────────────────────────────────
 
 /**
- * End-of-turn flush: produce the final entries, reset state for the next
- * turn. Called by the host when `session/prompt` resolves. If pendingBlocks
- * is empty (turn finished with no model output -- unusual), only the
- * turn_duration system entry is emitted.
+ * End-of-turn flush. Called by the host when `session/prompt` resolves.
+ * Closes any in-flight text/thinking run, commits any tools that haven't
+ * been finalized yet, attaches the turn's usage to the final assistant
+ * entry (if there is one), and emits the turn_duration system entry.
+ * Resets state for the next turn.
+ *
+ * Returns `{ entries, streamDeltas }`. Callers must dispatch the stream
+ * deltas (`message_stop` to clear the dashboard's live buffer) and then the
+ * transcript entries.
  */
-export function flushTurn(state: TranslatorState): TranscriptEntry[] {
-  const entries: TranscriptEntry[] = []
-  if (state.pendingBlocks.length > 0) {
+export function flushTurn(state: TranslatorState): TranslatorOutput {
+  const out = emptyOutput()
+
+  // Defensive: any tool that's still in-flight at end-of-turn gets committed
+  // as-is so the transcript isn't missing entries.
+  for (const pending of state.toolCalls.values()) {
+    if (!pending.useCommitted && Object.keys(pending.input).length > 0) {
+      flushActiveRun(state, out)
+      commitToolUse(pending, out)
+    }
+    if (
+      !pending.resultCommitted &&
+      (pending.status === 'completed' || pending.status === 'failed' || pending.status === 'cancelled')
+    ) {
+      if (!pending.useCommitted) {
+        flushActiveRun(state, out)
+        commitToolUse(pending, out)
+      }
+      commitToolResult(pending, out)
+    }
+  }
+
+  // Close the final text/thinking run, attaching turn usage onto its message.
+  if (state.activeRunUuid !== null && state.pendingBlocks.length > 0) {
     const assistant: TranscriptAssistantEntry = {
       type: 'assistant',
-      uuid: randomUUID(),
+      uuid: state.activeRunUuid,
       timestamp: new Date().toISOString(),
       message: {
         role: 'assistant',
@@ -423,7 +544,11 @@ export function flushTurn(state: TranslatorState): TranscriptEntry[] {
           : {}),
       },
     }
-    entries.push(assistant)
+    out.entries.push(assistant)
+  }
+  if (state.streamRunActive) {
+    out.streamDeltas.push({ type: 'message_stop' })
+    state.streamRunActive = false
   }
 
   const durationMs = Date.now() - state.turnStartedAt
@@ -441,11 +566,11 @@ export function flushTurn(state: TranslatorState): TranscriptEntry[] {
     uuid: randomUUID(),
     timestamp: new Date().toISOString(),
   }
-  entries.push(sysEntry)
+  out.entries.push(sysEntry)
 
   // Reset for next turn.
   Object.assign(state, createTranslatorState())
-  return entries
+  return out
 }
 
 function formatTurnSummary(state: TranslatorState, durationMs: number): string {
@@ -455,7 +580,7 @@ function formatTurnSummary(state: TranslatorState, durationMs: number): string {
     parts.push(`${state.inputTokens}/${state.outputTokens} tok`)
   }
   if (state.cost > 0) {
-    const symbol = state.costCurrency === 'USD' ? '$' : (state.costCurrency ? `${state.costCurrency} ` : '$')
+    const symbol = state.costCurrency === 'USD' ? '$' : state.costCurrency ? `${state.costCurrency} ` : '$'
     parts.push(`${symbol}${state.cost.toFixed(4)}`)
   }
   return parts.join(' · ')

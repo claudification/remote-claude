@@ -94,16 +94,30 @@ const StreamingBlock = memo(function StreamingBlock({ conversationId }: { conver
   const streamingText = useConversationsStore(
     state => (conversationId ? state.streamingText[conversationId] : null) || EMPTY_STREAMING,
   )
-  if (!showStreaming || !streamingText) return null
+  const streamingThinking = useConversationsStore(
+    state => (conversationId ? state.streamingThinking[conversationId] : null) || EMPTY_STREAMING,
+  )
+  if (!showStreaming || (!streamingText && !streamingThinking)) return null
   return (
-    <div className="mt-2 pl-4">
-      <div className="border-l-2 border-emerald-400/40 pl-3 py-1">
-        <div className="text-[10px] text-emerald-400/70 uppercase font-bold tracking-wider mb-1">streaming</div>
-        <div className="text-sm opacity-75">
-          <Markdown>{streamingText}</Markdown>
-          <span className="inline-block w-1.5 h-4 bg-emerald-500 animate-pulse ml-0.5 align-text-bottom" />
+    <div className="mt-2 pl-4 space-y-2">
+      {streamingThinking && (
+        <div className="border-l-2 border-purple-400/40 pl-3 py-1">
+          <div className="text-[10px] text-purple-400/70 uppercase font-bold tracking-wider mb-1">thinking</div>
+          <div className="text-sm opacity-60 italic">
+            <Markdown>{streamingThinking}</Markdown>
+            <span className="inline-block w-1.5 h-4 bg-purple-500 animate-pulse ml-0.5 align-text-bottom" />
+          </div>
         </div>
-      </div>
+      )}
+      {streamingText && (
+        <div className="border-l-2 border-emerald-400/40 pl-3 py-1">
+          <div className="text-[10px] text-emerald-400/70 uppercase font-bold tracking-wider mb-1">streaming</div>
+          <div className="text-sm opacity-75">
+            <Markdown>{streamingText}</Markdown>
+            <span className="inline-block w-1.5 h-4 bg-emerald-500 animate-pulse ml-0.5 align-text-bottom" />
+          </div>
+        </div>
+      )}
     </div>
   )
 })

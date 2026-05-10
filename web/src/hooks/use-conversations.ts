@@ -109,6 +109,7 @@ interface ConversationsState {
    *      goes stale harmlessly (new conversationId entry in this map starts fresh). */
   lastAppliedTranscriptSeq: Record<string, number>
   streamingText: Record<string, string> // conversationId -> accumulating text from headless stream deltas
+  streamingThinking: Record<string, string> // conversationId -> accumulating thinking from stream deltas
   sessionInfo: Record<
     string,
     {
@@ -446,6 +447,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   transcripts: {},
   lastAppliedTranscriptSeq: {},
   streamingText: {},
+  streamingThinking: {},
   sessionInfo: {},
   subagentTranscripts: {},
   tasks: {},

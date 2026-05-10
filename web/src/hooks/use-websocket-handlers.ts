@@ -323,8 +323,9 @@ function handleTranscriptEntries(msg: DashboardMessage) {
         `[ws] transcript ${sid.slice(0, 8)}: +${newEntries.length} ${initial ? (skipped ? 'INITIAL-SKIP' : 'INITIAL') : 'incremental'} (total=${result.length})`,
       )
     }
-    // Clear streaming text when an assistant entry arrives (defensive cleanup
-    // in case message_stop was lost or arrived after the transcript entry)
+    // Clear streaming buffers when an assistant entry arrives (defensive
+    // cleanup in case message_stop was lost or arrived after the transcript
+    // entry).
     const hasAssistant = newEntries.some(e => e.type === 'assistant')
     const streamingText =
       hasAssistant && state.streamingText[sid]
@@ -333,6 +334,13 @@ function handleTranscriptEntries(msg: DashboardMessage) {
             return rest
           })()
         : state.streamingText
+    const streamingThinking =
+      hasAssistant && state.streamingThinking[sid]
+        ? (() => {
+            const { [sid]: _, ...rest } = state.streamingThinking
+            return rest
+          })()
+        : state.streamingThinking
     // Update lastAppliedTranscriptSeq. For isInitial, ALWAYS take the snapshot's
     // max seq (even when skipped) so a broker restart that resets the counter
     // doesn't leave a stale high-water mark that filters all future entries.
@@ -347,6 +355,7 @@ function handleTranscriptEntries(msg: DashboardMessage) {
       lastAppliedTranscriptSeq:
         newSeq !== prevSeq ? { ...state.lastAppliedTranscriptSeq, [sid]: newSeq } : state.lastAppliedTranscriptSeq,
       streamingText,
+      streamingThinking,
       newDataSeq: state.newDataSeq + 1,
     }
   })
@@ -377,7 +386,8 @@ function handleConversationInfo(msg: DashboardMessage) {
 }
 
 function handleStreamDelta(msg: DashboardMessage) {
-  // Headless token streaming - accumulate text deltas
+  // Token streaming -- accumulate text + thinking deltas. Sources today:
+  // headless CC `--include-partial-messages`, chat-api SSE, ACP agent host.
   const sid = msg.conversationId as string
   const event = msg.event as Record<string, unknown> | undefined
   if (!(sid && event)) return
@@ -385,8 +395,9 @@ function handleStreamDelta(msg: DashboardMessage) {
   if (eventType === 'content_block_delta') {
     const delta = event.delta as Record<string, unknown> | undefined
     if (delta?.type === 'text_delta' && typeof delta.text === 'string') {
+      const text = delta.text as string
       useConversationsStore.setState(state => {
-        const updated = (state.streamingText[sid] || '') + delta.text
+        const updated = (state.streamingText[sid] || '') + text
         // Bump newDataSeq every ~500 chars to trigger auto-scroll without thrashing
         const prevLen = (state.streamingText[sid] || '').length
         const bumpScroll = Math.floor(updated.length / 500) > Math.floor(prevLen / 500)
@@ -395,23 +406,49 @@ function handleStreamDelta(msg: DashboardMessage) {
           ...(bumpScroll ? { newDataSeq: state.newDataSeq + 1 } : {}),
         }
       })
+    } else if (delta?.type === 'thinking_delta' && typeof delta.thinking === 'string') {
+      const text = delta.thinking as string
+      useConversationsStore.setState(state => {
+        const updated = (state.streamingThinking[sid] || '') + text
+        const prevLen = (state.streamingThinking[sid] || '').length
+        const bumpScroll = Math.floor(updated.length / 500) > Math.floor(prevLen / 500)
+        return {
+          streamingThinking: { ...state.streamingThinking, [sid]: updated },
+          ...(bumpScroll ? { newDataSeq: state.newDataSeq + 1 } : {}),
+        }
+      })
     }
   } else if (eventType === 'message_start') {
-    // New turn -- reset streaming buffer. Do NOT reset on content_block_start:
-    // a single assistant message can have multiple text blocks (interleaved with
-    // tool_use / thinking) and resetting on each block wipes earlier text_deltas
-    // before message_stop flushes the final assistant entry, making the first
-    // block look "missed" to the viewer.
+    // New text/thinking run -- reset streaming buffers. Do NOT reset on
+    // content_block_start: a single assistant message can have multiple
+    // blocks (interleaved with tool_use / thinking) and resetting on each
+    // block wipes earlier deltas before message_stop flushes the final
+    // assistant entry, making the first block look "missed" to the viewer.
     useConversationsStore.setState(state => {
-      if (!state.streamingText[sid]) return state
-      return { streamingText: { ...state.streamingText, [sid]: '' } }
+      const hasText = !!state.streamingText[sid]
+      const hasThinking = !!state.streamingThinking[sid]
+      if (!hasText && !hasThinking) return state
+      return {
+        streamingText: hasText ? { ...state.streamingText, [sid]: '' } : state.streamingText,
+        streamingThinking: hasThinking ? { ...state.streamingThinking, [sid]: '' } : state.streamingThinking,
+      }
     })
   } else if (eventType === 'message_stop') {
-    // Turn complete -- clear streaming buffer entirely
+    // Run / turn complete -- clear streaming buffers entirely
     useConversationsStore.setState(state => {
-      if (!state.streamingText[sid]) return state
-      const { [sid]: _, ...rest } = state.streamingText
-      return { streamingText: rest }
+      const hasText = !!state.streamingText[sid]
+      const hasThinking = !!state.streamingThinking[sid]
+      if (!hasText && !hasThinking) return state
+      const next: Partial<typeof state> = {}
+      if (hasText) {
+        const { [sid]: _, ...rest } = state.streamingText
+        next.streamingText = rest
+      }
+      if (hasThinking) {
+        const { [sid]: _, ...rest } = state.streamingThinking
+        next.streamingThinking = rest
+      }
+      return next
     })
   }
 }

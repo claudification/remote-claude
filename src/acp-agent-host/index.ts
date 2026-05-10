@@ -42,10 +42,24 @@ import {
   type TranscriptUserEntry,
 } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
-import { decidePermission, handleFsRead, handleFsWrite, pickOptionId, TERMINAL_NOT_IMPLEMENTED_ERROR, type AcpPermissionOption } from './agent-callbacks'
+import {
+  type AcpPermissionOption,
+  decidePermission,
+  handleFsRead,
+  handleFsWrite,
+  pickOptionId,
+  TERMINAL_NOT_IMPLEMENTED_ERROR,
+} from './agent-callbacks'
 import { JsonRpcClient } from './jsonrpc'
-import { parseHostConfig, RecipeParseError, type ParsedHostConfig } from './recipe'
-import { applyPromptUsage, applyUpdate, createTranslatorState, flushTurn, type AcpSessionUpdateParams, type TranslatorState } from './translator'
+import { type ParsedHostConfig, parseHostConfig, RecipeParseError } from './recipe'
+import {
+  type AcpSessionUpdateParams,
+  applyPromptUsage,
+  applyUpdate,
+  createTranslatorState,
+  flushTurn,
+  type TranslatorState,
+} from './translator'
 
 const log = (msg: string) => process.stderr.write(`[acp-host] ${msg}\n`)
 
@@ -122,10 +136,18 @@ async function main() {
   // Override with ACP_HOST_TRACE_FILE to a custom path; set =0 to disable.
   let traceFile: string | null = null
   if (process.env.ACP_HOST_TRACE_FILE !== '0') {
-    traceFile = process.env.ACP_HOST_TRACE_FILE || join(homedir(), '.rclaude', 'settings', `acp-${cfg.conversationId}.ndjsonl`)
+    traceFile =
+      process.env.ACP_HOST_TRACE_FILE || join(homedir(), '.rclaude', 'settings', `acp-${cfg.conversationId}.ndjsonl`)
     try {
       mkdirSync(dirname(traceFile), { recursive: true })
-      appendFileSync(traceFile, JSON.stringify({ t: Date.now(), dir: 'note', msg: { type: 'host_start', conversationId: cfg.conversationId, agent: cfg.recipe.agentName } }) + '\n')
+      appendFileSync(
+        traceFile,
+        `${JSON.stringify({
+          t: Date.now(),
+          dir: 'note',
+          msg: { type: 'host_start', conversationId: cfg.conversationId, agent: cfg.recipe.agentName },
+        })}\n`,
+      )
     } catch (e) {
       log(`could not open trace file ${traceFile}: ${(e as Error).message}`)
       traceFile = null
@@ -134,7 +156,7 @@ async function main() {
   const traceWrite = traceFile
     ? (dir: 'send' | 'recv' | 'note', msg: object) => {
         try {
-          appendFileSync(traceFile!, JSON.stringify({ t: Date.now(), dir, msg }) + '\n')
+          appendFileSync(traceFile!, `${JSON.stringify({ t: Date.now(), dir, msg })}\n`)
         } catch {
           // Drop trace lines silently if disk fills -- we'd rather lose log
           // entries than crash the host on a write error.
@@ -158,7 +180,7 @@ async function main() {
 
   // ─── JSON-RPC plumbing ────────────────────────────────────────────────
   const client = new JsonRpcClient({
-    writer: { writeLine: line => proc.stdin.write(line + '\n') },
+    writer: { writeLine: line => proc.stdin.write(`${line}\n`) },
     onRequest: (req, respond, respondError) => {
       void handleAgentRequest(req, respond, respondError)
     },
@@ -218,8 +240,12 @@ async function main() {
     if (terminating) return
     terminating = true
     log(`shutdown: ${sig}`)
-    try { transport.close() } catch {}
-    try { proc.kill() } catch {}
+    try {
+      transport.close()
+    } catch {}
+    try {
+      proc.kill()
+    } catch {}
     setTimeout(() => process.exit(code), 200)
   }
   function handleInbound(msg: BrokerMessage) {
@@ -236,7 +262,9 @@ async function main() {
       log('input received while a turn is active -- queuing not yet supported, ignoring')
       return
     }
-    activeTurn = handleTurn(input).finally(() => { activeTurn = null })
+    activeTurn = handleTurn(input).finally(() => {
+      activeTurn = null
+    })
   }
 
   transport = createHostTransport({
@@ -271,7 +299,10 @@ async function main() {
           return
         }
         case 'session/request_permission': {
-          const params = req.params as { toolCall: { toolCallId: string; kind?: string; title?: string }; options: AcpPermissionOption[] }
+          const params = req.params as {
+            toolCall: { toolCallId: string; kind?: string; title?: string }
+            options: AcpPermissionOption[]
+          }
           const decision = decidePermission(cfg.recipe.toolPermission, params.toolCall)
           if (decision.outcome.outcome === 'cancelled') {
             respond({ outcome: { outcome: 'cancelled' } })
@@ -286,7 +317,9 @@ async function main() {
             respond({ outcome: { outcome: 'cancelled' } })
             return
           }
-          debug(`permission decision: ${cfg.recipe.toolPermission}/${params.toolCall.kind ?? '?'} -> ${action} (${optionId})`)
+          debug(
+            `permission decision: ${cfg.recipe.toolPermission}/${params.toolCall.kind ?? '?'} -> ${action} (${optionId})`,
+          )
           respond({ outcome: { outcome: 'selected', optionId } })
           return
         }
@@ -306,8 +339,15 @@ async function main() {
   }
 
   async function handleSessionUpdate(params: AcpSessionUpdateParams) {
-    if (!params || !params.update) return
+    if (!params?.update) return
     const out = applyUpdate(params, state)
+    // Stream deltas first so the dashboard's live buffer is updated before
+    // the committed transcript entries land. (When an assistant entry
+    // arrives, handleTranscriptEntries clears streamingText for that
+    // conversation -- so emitting deltas after entries would be wasted.)
+    for (const event of out.streamDeltas) {
+      transport.send({ type: 'stream_delta', conversationId: cfg.conversationId, event })
+    }
     if (out.entries.length > 0) {
       transport.sendTranscriptEntries(out.entries, false)
     }
@@ -322,17 +362,28 @@ async function main() {
     return bootstrapPromise
   }
   async function bootstrap() {
-    const initRes = await client.call<InitializeResult>('initialize', {
-      protocolVersion: 1,
-      clientCapabilities: {
-        fs: { readTextFile: true, writeTextFile: true },
-        terminal: false,
+    const initRes = await client.call<InitializeResult>(
+      'initialize',
+      {
+        protocolVersion: 1,
+        clientCapabilities: {
+          fs: { readTextFile: true, writeTextFile: true },
+          terminal: false,
+        },
       },
-    }, 30_000)
-    log(`initialized agent=${initRes.agentInfo?.name ?? '?'}/${initRes.agentInfo?.version ?? '?'} acpVer=${initRes.protocolVersion}`)
+      30_000,
+    )
+    log(
+      `initialized agent=${initRes.agentInfo?.name ?? '?'}/${initRes.agentInfo?.version ?? '?'} acpVer=${initRes.protocolVersion}`,
+    )
 
     // Build mcpServers list (single 'claudwerk' entry pointing at our broker).
-    const mcpServers: Array<{ name: string; type: 'http'; url: string; headers: Array<{ name: string; value: string }> }> = []
+    const mcpServers: Array<{
+      name: string
+      type: 'http'
+      url: string
+      headers: Array<{ name: string; value: string }>
+    }> = []
     if (mcpWired && brokerMcpUrl && cfg.brokerSecret) {
       mcpServers.push({
         name: cfg.recipe.mcpServerName,
@@ -401,7 +452,7 @@ async function main() {
           ],
           false,
         )
-        return  // skip set_config_option; conversation continues with agent default
+        return // skip set_config_option; conversation continues with agent default
       }
       try {
         const setRes = await client.call<{ configOptions?: Array<{ id?: string; currentValue?: unknown }> }>(
@@ -480,10 +531,14 @@ async function main() {
     state = createTranslatorState()
 
     try {
-      const res = await client.call<SessionPromptResult>('session/prompt', {
-        sessionId: acpSessionId,
-        prompt: [{ type: 'text', text: input }],
-      }, 30 * 60_000) // 30 minutes -- model may take a while on long turns
+      const res = await client.call<SessionPromptResult>(
+        'session/prompt',
+        {
+          sessionId: acpSessionId,
+          prompt: [{ type: 'text', text: input }],
+        },
+        30 * 60_000,
+      ) // 30 minutes -- model may take a while on long turns
       if (res?.usage) applyPromptUsage(res.usage, state)
       if (res?.stopReason) state.stopReason = res.stopReason
     } catch (err) {
@@ -503,8 +558,16 @@ async function main() {
       )
     }
 
-    // Always flush -- emits the assistant entry (if any blocks) + turn_duration system entry.
-    transport.sendTranscriptEntries(flushTurn(state), false)
+    // Always flush -- closes any in-flight text run, commits orphan tools,
+    // emits the turn_duration system entry, and broadcasts a closing
+    // `message_stop` so the dashboard's streaming buffer clears.
+    const finalOut = flushTurn(state)
+    for (const event of finalOut.streamDeltas) {
+      transport.send({ type: 'stream_delta', conversationId: cfg.conversationId, event })
+    }
+    if (finalOut.entries.length > 0) {
+      transport.sendTranscriptEntries(finalOut.entries, false)
+    }
   }
 
   // ─── Wire it up ──────────────────────────────────────────────────────
@@ -520,15 +583,18 @@ async function main() {
     }
     log(`FATAL bootstrap: ${(err as Error).stack ?? err}`)
     transport.close()
-    try { proc.kill() } catch {}
+    try {
+      proc.kill()
+    } catch {}
     process.exit(1)
   }
 
   if (initialPrompt) {
     debug('dispatching initial prompt')
-    activeTurn = handleTurn(initialPrompt).finally(() => { activeTurn = null })
+    activeTurn = handleTurn(initialPrompt).finally(() => {
+      activeTurn = null
+    })
   }
-
   // Watch for agent process exit -- if the child dies, we have nothing left
   // to do. Surface the error to the broker and shut down.
   ;(async () => {
@@ -555,7 +621,11 @@ async function main() {
 }
 
 function safeRead(path: string): string | null {
-  try { return readFileSync(path, 'utf8') } catch { return null }
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return null
+  }
 }
 
 main().catch(err => {
