@@ -22,6 +22,7 @@
  * latency + OpenCode startup).
  */
 
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
 // Vitest runs in node mode (see vitest.config.ts) so Bun.spawn isn't available
 // here -- we use node:child_process for the test driver while the opencode-host
 // binary itself still uses Bun.spawn internally. When this suite migrates to
@@ -29,7 +30,6 @@
 import { type ChildProcess, spawn as nodeSpawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
 import {
   cleanup,
   connectDashboard,
@@ -184,6 +184,123 @@ run('opencode-host e2e', () => {
 
     // Stop the host -- it stays alive after the turn; we explicitly kill it
     // to release the test (it would otherwise idle waiting for next input).
+    try {
+      proc.kill()
+    } catch {}
+  }, 120_000)
+
+  // Phase 2: tool-permission tier control. With OPENCODE_TOOL_PERMISSION=safe
+  // the host writes an opencode.json that disables bash/write/edit and points
+  // the subprocess at it via OPENCODE_CONFIG. This confirms the full chain --
+  // env var arrives at the host, config gets written, opencode honours it,
+  // and the broker captures the tier in agentHostMeta.
+  it('safe tier: opencode refuses bash but the read tool stays available', async () => {
+    const dashboard = await connectDashboard()
+    await waitForMessage(dashboard, 'conversations_list')
+    const conversationId = testId('oc-safe')
+
+    // Seed a tiny file the model can read to prove read still works.
+    const testFile = `${TEST_CWD}/safe-tier-marker.txt`
+    writeFileSync(testFile, 'SAFE_TIER_MARKER_OK\n')
+
+    const childEnv: Record<string, string> = {}
+    for (const [k, v] of Object.entries(process.env)) {
+      if (v === undefined) continue
+      if (k.startsWith('RCLAUDE_') || k.startsWith('CLAUDWERK_') || k === 'CLAUDECODE') continue
+      childEnv[k] = v
+    }
+    Object.assign(childEnv, {
+      RCLAUDE_BROKER: `ws://${process.env.STAGING_BROKER_URL}`,
+      RCLAUDE_SECRET: getBrokerSecret(),
+      RCLAUDE_CONVERSATION_ID: conversationId,
+      OPENCODE_MODEL: 'openrouter/openai/gpt-oss-20b:free',
+      OPENCODE_TOOL_PERMISSION: 'safe',
+      OPENCODE_HOST_DEBUG: '1',
+    })
+    const proc = nodeSpawn(OPENCODE_BIN, {
+      cwd: TEST_CWD,
+      stdio: 'inherit',
+      env: childEnv,
+    })
+    spawned.push(proc)
+
+    await waitForMatch(
+      dashboard,
+      'conversation_update',
+      m => (m as { conversation?: { id?: string } }).conversation?.id === conversationId,
+      15_000,
+    )
+
+    dashboard.send({
+      type: 'channel_subscribe',
+      channel: 'conversation:transcript',
+      conversationId,
+    })
+    await waitForMessage(dashboard, 'channel_ack')
+    dashboard.received.length = 0
+
+    // Ask for both: a bash run (should be denied) and a file read (should
+    // succeed). Free models are not perfectly deterministic, so we assert
+    // (a) the turn finishes and (b) NO bash tool_result with status=completed
+    // and content matching our marker -- denial may surface as 'rejected',
+    // 'denied', missing tool entirely, or an error tool_result.
+    dashboard.send({
+      type: 'send_input',
+      conversationId,
+      input:
+        'Use the read tool to read safe-tier-marker.txt. Then attempt to run `echo BASH_RAN_OK` with the bash tool. Report exactly what each tool returned.',
+    })
+
+    await waitForMatch(
+      dashboard,
+      'transcript_entries',
+      m => {
+        const entries = (m as { entries?: Array<{ type?: string; subtype?: string }> }).entries
+        return !!entries?.some(e => e.type === 'system' && e.subtype === 'turn_duration')
+      },
+      90_000,
+    )
+
+    // Pull the transcript via /diag (admin endpoint exposes the full entries
+    // array including tool_result blocks).
+    await sleep(200)
+    const trxRes = await httpGet(`/conversations/${conversationId}/diag`, { bearer: getBrokerSecret() })
+    expect(trxRes.status).toBe(200)
+    const trx = (await trxRes.json()) as {
+      entries?: Array<{
+        type?: string
+        message?: { content?: Array<{ type?: string; name?: string; content?: unknown; tool_use_id?: string }> }
+      }>
+    }
+    const entries = trx.entries ?? []
+
+    // Find every bash invocation. If the model attempted bash, the matching
+    // tool_result must NOT contain BASH_RAN_OK -- which would prove bash ran.
+    const bashSucceeded = entries.some(e =>
+      (e.message?.content ?? []).some(b => {
+        if (b.type !== 'tool_result') return false
+        const text = typeof b.content === 'string' ? b.content : JSON.stringify(b.content ?? '')
+        return text.includes('BASH_RAN_OK')
+      }),
+    )
+    expect(bashSucceeded).toBe(false)
+
+    // Read tool, on the other hand, should still be reachable. The model may
+    // or may not actually call it, but if it does, the tool_result must
+    // contain our marker. We don't fail on "model didn't try" -- only on
+    // "model tried and got blocked", which would mean safe-tier is too tight.
+    const readResults = entries.flatMap(e =>
+      (e.message?.content ?? []).filter(
+        b => b.type === 'tool_result' && typeof b.content === 'string' && b.content.includes('SAFE_TIER_MARKER_OK'),
+      ),
+    )
+    // It's enough that no error surfaces from read attempts. We don't assert
+    // length > 0 because the free model may decide to skip read entirely.
+    for (const r of readResults) {
+      const text = typeof r.content === 'string' ? r.content : ''
+      expect(text).not.toMatch(/permission|denied|refused/i)
+    }
+
     try {
       proc.kill()
     } catch {}

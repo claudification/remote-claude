@@ -8,7 +8,7 @@
 import type { ChatApiConnection } from '@shared/chat-api-types'
 import type { CcSessionEntry } from '@shared/protocol'
 import { buildSpawnDiagnostics } from '@shared/spawn-diagnostics'
-import type { SpawnRequest } from '@shared/spawn-schema'
+import { OPENCODE_TOOL_PERMISSION_OPTIONS, type OpenCodeToolPermission, type SpawnRequest } from '@shared/spawn-schema'
 import { ChevronDown, Zap } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -29,6 +29,22 @@ import { cwdToProjectUri } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { LaunchConfigFields, type LaunchFieldsValue } from './launch-config-fields'
 import { LaunchDialogBottom } from './launch-monitor'
+
+/** Mirrors src/broker/backends/opencode.ts deriveOpenCodeSlug -- needed
+ *  client-side so the dialog can look up project settings under the same
+ *  `opencode://{slug}` URI the broker keys on. Keep in sync. */
+function deriveOpenCodeSlug(model: string | undefined): string {
+  if (!model) return 'default'
+  const tail = model.split('/').pop() || model
+  const provider = model.split('/')[0]
+  const base = provider && provider !== tail ? `${provider}-${tail}` : tail
+  return (
+    base
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'default'
+  )
+}
 
 interface SpawnDialogOptions {
   path: string
@@ -76,6 +92,10 @@ export function SpawnDialog() {
   // (e.g. "openrouter/anthropic/claude-haiku-4.5"). Free-text because OpenCode
   // supports 75+ providers and we don't want a static dropdown that goes stale.
   const [openCodeModel, setOpenCodeModel] = useState('openrouter/openai/gpt-oss-20b:free')
+  // OpenCode tool permission tier. Defaults to 'safe' (read-only); project
+  // settings can override this default per-project. The dropdown lives in the
+  // OpenCode tab next to the model field.
+  const [openCodeToolPermission, setOpenCodeToolPermission] = useState<OpenCodeToolPermission>('safe')
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [savedFeedback, setSavedFeedback] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -127,7 +147,14 @@ export function SpawnDialog() {
       )
       setBackend('claude')
       setChatConnectionId('')
-      setOpenCodeModel('openrouter/openai/gpt-oss-20b:free')
+      const initialOpenCodeModel = 'openrouter/openai/gpt-oss-20b:free'
+      setOpenCodeModel(initialOpenCodeModel)
+      // Default tier from the saved opencode://{slug} project (the same URI
+      // the broker keys on). Falls back to 'safe' so we never silently grant
+      // bash/write/edit on a fresh project.
+      const opencodeProjectUri = `opencode://${deriveOpenCodeSlug(initialOpenCodeModel)}`
+      const ocPs = projectSettings[opencodeProjectUri]
+      setOpenCodeToolPermission((ocPs?.defaultOpenCodeToolPermission ?? 'safe') as OpenCodeToolPermission)
       setConfigTab('basic')
       setSavedFeedback(null)
       setPhase('config')
@@ -258,6 +285,7 @@ export function SpawnDialog() {
       chatConnectionName:
         backend === 'chat-api' ? chatConnections.find(a => a.id === chatConnectionId)?.name : undefined,
       openCodeModel: backend === 'opencode' ? openCodeModel.trim() || undefined : undefined,
+      toolPermission: backend === 'opencode' ? openCodeToolPermission : undefined,
     }
     const result = await sendSpawnRequest(spawnReq)
     if (result.ok) {
@@ -297,6 +325,7 @@ export function SpawnDialog() {
     chatConnectionId,
     chatConnections,
     openCodeModel,
+    openCodeToolPermission,
     progress,
     description.trim,
   ])
@@ -547,6 +576,25 @@ export function SpawnDialog() {
                     <div className="text-[10px] font-mono text-muted-foreground/70 pl-0.5">
                       OpenCode supports 75+ providers. Set the matching API key on the sentinel host (e.g.{' '}
                       <span className="text-foreground/80">OPENROUTER_API_KEY</span>).
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
+                      Tools
+                    </div>
+                    <select
+                      value={openCodeToolPermission}
+                      onChange={e => setOpenCodeToolPermission(e.target.value as OpenCodeToolPermission)}
+                      className="w-full bg-surface-inset border border-border rounded px-2 py-1.5 text-[11px] font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    >
+                      {OPENCODE_TOOL_PERMISSION_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="text-[10px] font-mono text-muted-foreground/70 pl-0.5">
+                      {OPENCODE_TOOL_PERMISSION_OPTIONS.find(o => o.value === openCodeToolPermission)?.info}
                     </div>
                   </div>
                   <LaunchConfigFields

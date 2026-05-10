@@ -1,3 +1,4 @@
+import { OPENCODE_TOOL_PERMISSION_OPTIONS, type OpenCodeToolPermission } from '@shared/spawn-schema'
 import {
   Activity,
   AirVent,
@@ -592,6 +593,9 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
   const [launchMode, setLaunchMode] = useState<string>(current.defaultLaunchMode || 'headless')
   const [effort, setEffort] = useState<string>(current.defaultEffort || 'default')
   const [model, setModel] = useState<string>(current.defaultModel || '')
+  const [openCodeToolPermission, setOpenCodeToolPermission] = useState<OpenCodeToolPermission>(
+    (current.defaultOpenCodeToolPermission ?? 'safe') as OpenCodeToolPermission,
+  )
   const [keytermInput, setKeytermInput] = useState('')
   const [iconSearch, setIconSearch] = useState('')
   const [saving, setSaving] = useState(false)
@@ -608,6 +612,7 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
     setTrustLevel(c.trustLevel || 'default')
     setLaunchMode(c.defaultLaunchMode || 'headless')
     setEffort(c.defaultEffort || 'default')
+    setOpenCodeToolPermission((c.defaultOpenCodeToolPermission ?? 'safe') as OpenCodeToolPermission)
   }, [projectSettings, project])
 
   const filteredIcons = useMemo(() => {
@@ -628,6 +633,7 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
       defaultLaunchMode: launchMode === 'headless' ? undefined : (launchMode as 'pty'),
       defaultEffort: effort === 'default' ? undefined : (effort as 'low' | 'medium' | 'high' | 'xhigh' | 'max'),
       defaultModel: model.trim() || undefined,
+      defaultOpenCodeToolPermission: openCodeToolPermission === 'safe' ? undefined : openCodeToolPermission,
     }
     updateProjectSettings(project, settings)
     setSaving(false)
@@ -677,7 +683,8 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
     trustLevel !== (current.trustLevel || 'default') ||
     launchMode !== (current.defaultLaunchMode || 'headless') ||
     effort !== (current.defaultEffort || 'default') ||
-    model.trim() !== (current.defaultModel || '')
+    model.trim() !== (current.defaultModel || '') ||
+    openCodeToolPermission !== ((current.defaultOpenCodeToolPermission ?? 'safe') as OpenCodeToolPermission)
 
   const hasAnySettings =
     current.label ||
@@ -982,6 +989,29 @@ export function ProjectSettingsEditor({ project, onClose }: ProjectSettingsEdito
                 style={{ fontSize: '16px' }}
               />
             </SettingRow>
+
+            {project.startsWith('opencode://') && (
+              <SettingRow
+                label="OpenCode tools"
+                description={
+                  OPENCODE_TOOL_PERMISSION_OPTIONS.find(o => o.value === openCodeToolPermission)?.info ||
+                  'Tool permission tier for OpenCode spawns in this project'
+                }
+              >
+                <select
+                  value={openCodeToolPermission}
+                  onChange={e => setOpenCodeToolPermission(e.target.value as OpenCodeToolPermission)}
+                  className="bg-background border border-border px-2 py-1.5 text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+                  style={{ fontSize: '16px' }}
+                >
+                  {OPENCODE_TOOL_PERMISSION_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </SettingRow>
+            )}
           </>
         )}
 
