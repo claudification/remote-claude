@@ -3,6 +3,7 @@ import { CopyMenu } from '../copy-menu'
 import { JsonInspector } from '../json-inspector'
 import { Markdown } from '../markdown'
 import { AgentTranscriptInline } from './agent-views'
+import { makeEncryptedGlyphs } from './encrypted-thinking-glyphs'
 import type { RenderItem, SubagentRef } from './group-view-types'
 import { MemoizedToolLine } from './tool-line'
 import { BashOutput } from './tool-renderers'
@@ -12,6 +13,11 @@ export { ChannelItem } from './channel-renderers'
 export function ThinkingItem({ item }: { item: Extract<RenderItem, { kind: 'thinking' }> }) {
   const isEncrypted = !item.text && typeof item.encryptedBytes === 'number'
   const estBytes = isEncrypted ? Math.round((item.encryptedBytes as number) * 0.75) : 0
+  const sigSeed =
+    isEncrypted && item.rawBlock
+      ? (item.rawBlock as { signature?: string }).signature || String(item.encryptedBytes)
+      : ''
+  const glyphs = isEncrypted ? makeEncryptedGlyphs(sigSeed, estBytes) : ''
 
   return (
     <div className="border-l-2 border-purple-400/40 pl-3 py-1">
@@ -30,9 +36,12 @@ export function ThinkingItem({ item }: { item: Extract<RenderItem, { kind: 'thin
         )}
       </div>
       {isEncrypted ? (
-        <div className="text-[11px] text-muted-foreground/50 italic font-mono">
-          Anthropic ships Claude 4.7 thinking as a signed/encrypted blob. Plaintext is not available to the client.
-        </div>
+        <pre
+          className="text-[10px] font-mono text-purple-400/35 leading-[1.15] whitespace-pre overflow-x-auto"
+          title="Anthropic ships Claude 4.7 thinking as a signed/encrypted blob. Plaintext is not available to the client."
+        >
+          {glyphs}
+        </pre>
       ) : (
         <div className="text-sm opacity-75">
           <Markdown>{item.text}</Markdown>
