@@ -403,11 +403,14 @@ function AskQuestionCard({
     const annots: Record<string, { notes?: string }> = {}
     for (const q of request.questions) {
       const selected = selections[q.question]
+      const note = notes[q.question]?.trim()
       if (selected && selected.size > 0) {
         answers[q.question] = [...selected].join(', ')
+      } else if (note) {
+        answers[q.question] = 'Other'
       }
-      if (notes[q.question]?.trim()) {
-        annots[q.question] = { notes: notes[q.question].trim() }
+      if (note) {
+        annots[q.question] = { notes: note }
       }
     }
     const hasAnnotations = Object.keys(annots).length > 0
@@ -421,32 +424,38 @@ function AskQuestionCard({
 
   const allAnswered = request.questions.every(q => {
     const selected = selections[q.question]
-    return selected && selected.size > 0
+    return (selected && selected.size > 0) || !!notes[q.question]?.trim()
   })
 
   return (
     <div
       className={cn(
-        'flex flex-col gap-2 px-4 py-3 rounded-lg border-2 font-mono text-xs',
-        'bg-emerald-950/80 border-emerald-400/60 shadow-lg shadow-emerald-500/10',
+        'flex flex-col gap-3 px-5 py-4 rounded-lg border-2 font-mono',
+        'bg-emerald-950/80 border-emerald-400/70 shadow-xl shadow-emerald-500/20',
+        'ring-1 ring-emerald-400/20 ring-offset-1 ring-offset-transparent',
       )}
     >
       <div className="flex items-center gap-2">
-        <span className="font-bold text-emerald-300 text-xs tracking-wide">QUESTION</span>
-        <span className={cn('text-[10px] tabular-nums ml-auto', isExpiring ? 'text-red-400 font-bold animate-pulse' : 'text-emerald-400/70')}>
+        <span className="font-bold text-emerald-300 text-sm tracking-wider">QUESTION</span>
+        <span
+          className={cn(
+            'text-xs tabular-nums ml-auto',
+            isExpiring ? 'text-red-400 font-bold animate-pulse' : 'text-emerald-400/70',
+          )}
+        >
           {timeLeft}s
         </span>
       </div>
       {request.questions.map(q => (
-        <div key={q.question} className="space-y-2">
+        <div key={q.question} className="space-y-2.5">
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 bg-emerald-400/20 text-emerald-200 text-[10px] font-bold uppercase rounded">
+            <span className="px-2.5 py-1 bg-emerald-400/25 text-emerald-200 text-xs font-bold uppercase rounded">
               {q.header}
             </span>
-            {q.multiSelect && <span className="text-[9px] text-emerald-400/60">(select multiple)</span>}
+            {q.multiSelect && <span className="text-[10px] text-emerald-400/70">(select multiple)</span>}
           </div>
-          <div className="text-foreground text-[12px] leading-relaxed font-medium">{q.question}</div>
-          <div className="space-y-1.5">
+          <div className="text-foreground text-sm leading-relaxed font-medium">{q.question}</div>
+          <div className="space-y-2">
             {q.options.map(opt => {
               const isSelected = selections[q.question]?.has(opt.label)
               return (
@@ -455,47 +464,45 @@ function AskQuestionCard({
                   key={opt.label}
                   onClick={() => toggleOption(q.question, opt.label, q.multiSelect)}
                   className={cn(
-                    'w-full text-left px-3 py-2 border rounded-md transition-all cursor-pointer',
+                    'w-full text-left px-3.5 py-2.5 border rounded-md transition-all cursor-pointer',
                     isSelected
                       ? 'border-emerald-400 bg-emerald-400/20 text-foreground shadow-sm shadow-emerald-500/20'
                       : 'border-emerald-800/60 hover:border-emerald-400/60 hover:bg-emerald-400/10 text-foreground/80',
                   )}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     <span
                       className={cn(
-                        'shrink-0 w-4 h-4 border-2 flex items-center justify-center text-[10px] font-bold',
+                        'shrink-0 w-4.5 h-4.5 border-2 flex items-center justify-center text-[11px] font-bold',
                         q.multiSelect ? 'rounded-sm' : 'rounded-full',
-                        isSelected
-                          ? 'border-emerald-300 bg-emerald-400 text-emerald-950'
-                          : 'border-emerald-600/50',
+                        isSelected ? 'border-emerald-300 bg-emerald-400 text-emerald-950' : 'border-emerald-600/50',
                       )}
                     >
                       {isSelected && (q.multiSelect ? '\u2713' : '\u25CF')}
                     </span>
-                    <span className="font-bold text-[12px]">{opt.label}</span>
+                    <span className="font-bold text-[13px]">{opt.label}</span>
                   </div>
-                  <div className="text-[10px] text-foreground/50 ml-6 mt-0.5">{opt.description}</div>
+                  <div className="text-[11px] text-foreground/50 ml-7 mt-0.5">{opt.description}</div>
                 </button>
               )
             })}
           </div>
           <input
             type="text"
-            placeholder="Add a note (optional)"
+            placeholder="Other (type your answer)"
             value={notes[q.question] || ''}
             onChange={e => setNotes(prev => ({ ...prev, [q.question]: e.target.value }))}
-            className="w-full px-2.5 py-1.5 text-[11px] bg-emerald-950/50 border border-emerald-800/40 rounded-md text-foreground placeholder:text-emerald-600/40 focus:outline-none focus:border-emerald-400/60"
+            className="w-full px-3 py-2 text-xs bg-emerald-950/50 border border-emerald-800/40 rounded-md text-foreground placeholder:text-emerald-600/50 focus:outline-none focus:border-emerald-400/60"
           />
         </div>
       ))}
-      <div className="flex items-center gap-2 mt-1">
+      <div className="flex items-center gap-3 mt-1">
         <button
           type="button"
           onClick={handleSubmit}
           disabled={!allAnswered}
           className={cn(
-            'px-5 py-2 font-bold text-[12px] rounded-md border-2 transition-all',
+            'px-6 py-2.5 font-bold text-sm rounded-md border-2 transition-all',
             allAnswered
               ? 'bg-emerald-500 text-emerald-950 border-emerald-400 hover:bg-emerald-400 shadow-md shadow-emerald-500/30 cursor-pointer'
               : 'bg-muted/20 text-muted-foreground border-border/30 cursor-not-allowed',
@@ -507,7 +514,7 @@ function AskQuestionCard({
           <button
             type="button"
             onClick={handleSkip}
-            className="px-3 py-2 text-[11px] font-bold text-muted-foreground hover:text-foreground border border-border/40 hover:border-border rounded-md transition-colors cursor-pointer"
+            className="px-4 py-2.5 text-xs font-bold text-muted-foreground hover:text-foreground border border-border/40 hover:border-border rounded-md transition-colors cursor-pointer"
           >
             SKIP TO TERMINAL
           </button>
