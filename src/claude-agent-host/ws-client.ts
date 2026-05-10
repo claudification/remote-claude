@@ -3,6 +3,7 @@
  * Connects to broker with automatic reconnection and offline queuing
  */
 
+import { createHostTransport, type HostTransport } from '../shared/host-transport'
 import { cwdToProjectUri } from '../shared/project-uri'
 import type {
   AgentHostBoot,
@@ -14,10 +15,8 @@ import type {
   BrokerMessage,
   ConversationEnd,
   ConversationMeta,
-  ConversationPromote,
   ConversationReset,
   FileResponse,
-  Heartbeat,
   HookEvent,
   InterConversationListResponse,
   InterSessionDelivery,
@@ -25,7 +24,6 @@ import type {
   ProjectLinkRequest,
   SubagentTranscript,
   TerminalData,
-  TranscriptEntries,
   TranscriptEntry,
 } from '../shared/protocol'
 import { AGENT_HOST_PROTOCOL_VERSION, DEFAULT_BROKER_URL } from '../shared/protocol'
@@ -237,49 +235,16 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onConfigGet,
     onConfigSet,
     onControl,
+    onDiag,
   } = options
 
   const project = cwdToProjectUri(cwd)
 
+  // Per-host state. The transport (created below) owns connection plumbing,
+  // queue, heartbeat, ring buffer, reconnect, and protocol_upgrade handling --
+  // see src/shared/host-transport. We keep ccSessionId here because the
+  // initial-message decision (meta vs boot) is claude-specific.
   let ccSessionId: string | null = initialCcSessionId
-  let ws: WebSocket | null = null
-  let connected = false
-  let shouldReconnect = true
-  let reconnectAttempts = 0
-  const maxReconnectAttempts = 50
-  const messageQueue: AgentHostMessage[] = []
-  const MAX_QUEUE_SIZE = 5000
-  let heartbeatInterval: Timer | null = null
-
-  // Ring buffer: last N transcript entry messages, replayed on every reconnect.
-  // Broker deduplicates via UUID (SQLite INSERT OR IGNORE) and client deduplicates
-  // via seq (filters entries with seq <= lastAppliedSeq).
-  const TRANSCRIPT_RING_SIZE = 50
-  const transcriptRing: AgentHostMessage[] = []
-  let transcriptRingHead = 0
-  let transcriptRingCount = 0
-
-  function pushToTranscriptRing(msg: AgentHostMessage) {
-    transcriptRing[transcriptRingHead] = msg
-    transcriptRingHead = (transcriptRingHead + 1) % TRANSCRIPT_RING_SIZE
-    if (transcriptRingCount < TRANSCRIPT_RING_SIZE) transcriptRingCount++
-  }
-
-  function flushTranscriptRing() {
-    if (transcriptRingCount === 0) return
-    const start = (transcriptRingHead - transcriptRingCount + TRANSCRIPT_RING_SIZE) % TRANSCRIPT_RING_SIZE
-    for (let i = 0; i < transcriptRingCount; i++) {
-      const idx = (start + i) % TRANSCRIPT_RING_SIZE
-      const msg = transcriptRing[idx]
-      if (msg) {
-        try {
-          ws?.send(JSON.stringify(msg))
-        } catch {
-          break
-        }
-      }
-    }
-  }
 
   /** Stable conversation identity for all outbound messages. Always returns
    *  the agent host's conversationId (the broker's primary key). ccSessionId
@@ -288,406 +253,295 @@ export function createWsClient(options: WsClientOptions): WsClient {
     return conversationId
   }
 
-  function connect() {
-    try {
-      const wsUrl = brokerSecret
-        ? `${brokerUrl}${brokerUrl.includes('?') ? '&' : '?'}secret=${encodeURIComponent(brokerSecret)}`
-        : brokerUrl
-      debug(`Connecting to: ${wsUrl.replace(/secret=[^&]+/, 'secret=***')}`)
-      ws = new WebSocket(wsUrl)
-
-      ws.onopen = () => {
-        try {
-          connected = true
-          reconnectAttempts = 0
-          debug('WebSocket connected')
-
-          if (ccSessionId) {
-            // Normal flow: CC session id already known -> `meta` creates/resumes
-            // the real session on the broker.
-            const meta: ConversationMeta = {
-              type: 'meta',
-              protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
-              ccSessionId: ccSessionId,
-              conversationId,
-              project,
-              startedAt: Date.now(),
-              model,
-              configuredModel,
-              capabilities,
-              args,
-              version: `rclaude/${BUILD_VERSION.gitHashShort}`,
-              buildTime: BUILD_VERSION.buildTime,
-              agentHostType: 'claude',
-              claudeVersion,
-              claudeAuth,
-              spinnerVerbs,
-              autocompactPct,
-              maxBudgetUsd,
-              adHocTaskId,
-              adHocWorktree,
-            }
-            ws?.send(JSON.stringify(meta))
-          } else {
-            // Early-connect: no CC session id yet. Tell the broker we're
-            // booting so a placeholder session shows up in the dashboard.
-            const boot: AgentHostBoot = {
-              type: 'agent_host_boot',
-              protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
-              conversationId,
-              project,
-              capabilities: capabilities || [],
-              claudeArgs: options.initialBoot?.claudeArgs || args || [],
-              version: `rclaude/${BUILD_VERSION.gitHashShort}`,
-              buildTime: BUILD_VERSION.buildTime,
-              agentHostType: 'claude',
-              claudeVersion,
-              claudeAuth,
-              launchConfig: options.initialBoot?.launchConfig,
-              title: options.initialBoot?.title,
-              description: options.initialBoot?.description,
-              startedAt: Date.now(),
-              configuredModel,
-            }
-            ws?.send(JSON.stringify(boot))
-          }
-
-          // Flush queued messages
-          while (messageQueue.length > 0) {
-            const msg = messageQueue.shift()
-            if (msg) {
-              try {
-                ws?.send(JSON.stringify(msg))
-              } catch (err) {
-                debug(`Failed to flush queued message: ${err instanceof Error ? err.message : err}`)
-              }
-            }
-          }
-
-          // Replay transcript ring buffer -- last 50 transcript entry messages.
-          // Broker deduplicates via UUID; client deduplicates via seq.
-          flushTranscriptRing()
-
-          // Start heartbeat (uses conversationId as route key during boot phase)
-          heartbeatInterval = setInterval(() => {
-            if (connected) {
-              try {
-                const heartbeat: Heartbeat = {
-                  type: 'heartbeat',
-                  conversationId: routeId(),
-                  timestamp: Date.now(),
-                }
-                ws?.send(JSON.stringify(heartbeat))
-              } catch (err) {
-                debug(`Heartbeat send failed: ${err instanceof Error ? err.message : err}`)
-              }
-            }
-          }, 30000) // 30 seconds
-
-          onConnected?.()
-        } catch (err) {
-          debug(`onopen handler error: ${err instanceof Error ? err.message : err}`)
-        }
+  /** Build the first wire message sent on every (re)connect. Mirrors the
+   *  pre-extraction behaviour: send `meta` if we already know the CC session
+   *  id (resume path), else `agent_host_boot` (early-connect path). */
+  function buildInitialMessage(): AgentHostMessage {
+    if (ccSessionId) {
+      const meta: ConversationMeta = {
+        type: 'meta',
+        protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
+        ccSessionId,
+        conversationId,
+        project,
+        startedAt: Date.now(),
+        model,
+        configuredModel,
+        capabilities,
+        args,
+        version: `rclaude/${BUILD_VERSION.gitHashShort}`,
+        buildTime: BUILD_VERSION.buildTime,
+        agentHostType: 'claude',
+        claudeVersion,
+        claudeAuth,
+        spinnerVerbs,
+        autocompactPct,
+        maxBudgetUsd,
+        adHocTaskId,
+        adHocWorktree,
       }
+      return meta
+    }
+    const boot: AgentHostBoot = {
+      type: 'agent_host_boot',
+      protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
+      conversationId,
+      project,
+      capabilities: capabilities || [],
+      claudeArgs: options.initialBoot?.claudeArgs || args || [],
+      version: `rclaude/${BUILD_VERSION.gitHashShort}`,
+      buildTime: BUILD_VERSION.buildTime,
+      agentHostType: 'claude',
+      claudeVersion,
+      claudeAuth,
+      launchConfig: options.initialBoot?.launchConfig,
+      title: options.initialBoot?.title,
+      description: options.initialBoot?.description,
+      startedAt: Date.now(),
+      configuredModel,
+    }
+    return boot
+  }
 
-      ws.onclose = (event: CloseEvent) => {
-        debug(`WebSocket closed: code=${event.code} reason=${event.reason || 'none'} wasClean=${event.wasClean}`)
-        connected = false
-        if (heartbeatInterval) {
-          clearInterval(heartbeatInterval)
-          heartbeatInterval = null
+  /**
+   * Route a single inbound broker message to the right callback. Pulled out
+   * of the original `ws.onmessage` handler when the transport plumbing was
+   * extracted to src/shared/host-transport. Behaviour is byte-identical --
+   * the transport handles `protocol_upgrade_required` itself (same banner +
+   * exit(2)) so this function never sees that case.
+   */
+  function routeBrokerMessage(message: BrokerMessage): void {
+    if (process.env.RCLAUDE_SHOW_WEBSOCKET_MESSAGES) {
+      const m = message as unknown as Record<string, unknown>
+      const summary = message.type === 'input' ? `input: "${m.input}"` : message.type
+      debug(`WS <<< ${summary}`)
+    }
+    switch (message.type) {
+      case 'error':
+        onError?.(new Error(message.message))
+        break
+      case 'input':
+        // Forward input to PTY
+        onInput?.(message.input, message.crDelay)
+        break
+      case 'terminal_attach':
+        onTerminalAttach?.(message.cols, message.rows)
+        break
+      case 'terminal_detach':
+        onTerminalDetach?.()
+        break
+      case 'json_stream_attach':
+        onJsonStreamAttach?.()
+        break
+      case 'json_stream_detach':
+        onJsonStreamDetach?.()
+        break
+      case 'terminal_data':
+        // Raw terminal input from browser (keystrokes, no mangling)
+        onTerminalInput?.(message.data)
+        break
+      case 'terminal_resize':
+        onTerminalResize?.(message.cols, message.rows)
+        break
+      case 'transcript_request':
+        onTranscriptRequest?.(message.limit)
+        break
+      case 'subagent_transcript_request':
+        onSubagentTranscriptRequest?.(message.agentId, message.limit)
+        break
+      case 'file_request':
+        onFileRequest?.(message.requestId, message.path)
+        break
+      case 'ack':
+        onAck?.(message.origins || [])
+        break
+      case 'transcript_kick':
+        onTranscriptKick?.()
+        break
+      case 'notify_config_updated':
+        onConfigUpdated?.()
+        break
+      case 'rclaude_config_get':
+        onConfigGet?.(message.requestId)
+        break
+      case 'rclaude_config_set':
+        onConfigSet?.(message.requestId, message.config)
+        break
+      case 'channel_conversations_list':
+        onChannelConversationsList?.(message.conversations, message.self)
+        break
+      case 'channel_deliver':
+        onChannelDeliver?.(message)
+        break
+      case 'channel_link_request':
+        onChannelLinkRequest?.(message)
+        break
+      case 'permission_response':
+        onPermissionResponse?.(message.requestId, message.behavior, message.toolUseId)
+        break
+      case 'ask_answer':
+        onAskAnswer?.(message.toolUseId, message.answers, message.annotations, message.skip)
+        break
+      case 'dialog_result':
+        onDialogResult?.(message.dialogId, message.result)
+        break
+      case 'plan_approval_response':
+        onPlanApprovalResponse?.(message.requestId, message.action, message.feedback, message.toolUseId)
+        break
+      case 'interrupt':
+        onInterrupt?.()
+        break
+      case 'terminate_conversation':
+        onQuitConversation?.()
+        break
+      case 'control': {
+        const action = message.action
+        if (
+          action === 'clear' ||
+          action === 'quit' ||
+          action === 'interrupt' ||
+          action === 'set_model' ||
+          action === 'set_effort' ||
+          action === 'set_permission_mode'
+        ) {
+          onControl?.(action, {
+            model: typeof message.model === 'string' ? message.model : undefined,
+            effort: typeof message.effort === 'string' ? message.effort : undefined,
+            permissionMode: typeof message.permissionMode === 'string' ? message.permissionMode : undefined,
+            fromSession: typeof message.fromSession === 'string' ? message.fromSession : undefined,
+          })
+        } else {
+          debug(`control: unknown action "${String(action)}"`)
         }
-
-        onDisconnected?.()
-
-        // Attempt reconnect with exponential backoff, capped at 60s
-        if (shouldReconnect && reconnectAttempts < maxReconnectAttempts) {
-          reconnectAttempts++
-          const delay = Math.min(1000 * 2 ** Math.min(reconnectAttempts, 6), 60_000)
-          debug(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${maxReconnectAttempts})`)
-          setTimeout(connect, delay)
-        } else if (shouldReconnect) {
-          onError?.(new Error(`WebSocket reconnection gave up after ${maxReconnectAttempts} attempts`))
+        break
+      }
+      default: {
+        const msgType = (message as unknown as Record<string, unknown>).type as string
+        if (msgType === 'dialog_keepalive') {
+          const m = message as unknown as Record<string, unknown>
+          onDialogKeepalive?.(m.dialogId as string)
+          break
         }
-      }
-
-      ws.onerror = event => {
-        const errorEvent = event as ErrorEvent
-        const detail = errorEvent.message || errorEvent.error || 'unknown'
-        debug(`WebSocket error: ${detail}`)
-        const error = new Error(`WebSocket error: ${detail}`)
-        onError?.(error)
-      }
-
-      ws.onmessage = event => {
-        try {
-          const message = JSON.parse(event.data as string) as BrokerMessage
-          if (process.env.RCLAUDE_SHOW_WEBSOCKET_MESSAGES) {
-            const m = message as unknown as Record<string, unknown>
-            const summary = message.type === 'input' ? `input: "${m.input}"` : message.type
-            debug(`WS <<< ${summary}`)
-          }
-          // Handle messages from broker
-          switch (message.type) {
-            case 'error':
-              onError?.(new Error(message.message))
-              break
-            case 'protocol_upgrade_required': {
-              // Fatal: this binary cannot talk to this broker. Print a
-              // visible block to stderr so the user sees it even if the
-              // process gets restarted by tmux/sentinel/Bun.spawn -- and
-              // exit so we don't burn reconnect attempts forever.
-              const banner = [
-                '',
-                '════════════════════════════════════════════════════════════════════',
-                '  rclaude is OUT OF DATE -- broker rejected the connection',
-                '════════════════════════════════════════════════════════════════════',
-                `  reason:   ${message.reason}`,
-                `  broker:   v${message.serverProtocolVersion}`,
-                `  this CLI: v${message.clientProtocolVersion ?? '<missing>'}`,
-                '',
-                '  Upgrade with:',
-                '',
-                `      ${message.upgradeCommand}`,
-                '',
-                ...(message.details ? [`  Details: ${message.details}`, ''] : []),
-                '════════════════════════════════════════════════════════════════════',
-                '',
-              ].join('\n')
-              process.stderr.write(banner)
-              onError?.(new Error(`protocol upgrade required: ${message.reason}`))
-              try {
-                ws?.close(1002, 'protocol upgrade required')
-              } catch {}
-              process.exit(2)
-              break
-            }
-            case 'input':
-              // Forward input to PTY
-              onInput?.(message.input, message.crDelay)
-              break
-            case 'terminal_attach':
-              onTerminalAttach?.(message.cols, message.rows)
-              break
-            case 'terminal_detach':
-              onTerminalDetach?.()
-              break
-            case 'json_stream_attach':
-              onJsonStreamAttach?.()
-              break
-            case 'json_stream_detach':
-              onJsonStreamDetach?.()
-              break
-            case 'terminal_data':
-              // Raw terminal input from browser (keystrokes, no mangling)
-              onTerminalInput?.(message.data)
-              break
-            case 'terminal_resize':
-              onTerminalResize?.(message.cols, message.rows)
-              break
-            case 'transcript_request':
-              onTranscriptRequest?.(message.limit)
-              break
-            case 'subagent_transcript_request':
-              onSubagentTranscriptRequest?.(message.agentId, message.limit)
-              break
-            case 'file_request':
-              onFileRequest?.(message.requestId, message.path)
-              break
-            case 'ack':
-              onAck?.(message.origins || [])
-              break
-            case 'transcript_kick':
-              onTranscriptKick?.()
-              break
-            case 'notify_config_updated':
-              onConfigUpdated?.()
-              break
-            case 'rclaude_config_get':
-              onConfigGet?.(message.requestId)
-              break
-            case 'rclaude_config_set':
-              onConfigSet?.(message.requestId, message.config)
-              break
-            case 'channel_conversations_list':
-              onChannelConversationsList?.(message.conversations, message.self)
-              break
-            case 'channel_deliver':
-              onChannelDeliver?.(message)
-              break
-            case 'channel_link_request':
-              onChannelLinkRequest?.(message)
-              break
-            case 'permission_response':
-              onPermissionResponse?.(message.requestId, message.behavior, message.toolUseId)
-              break
-            case 'ask_answer':
-              onAskAnswer?.(message.toolUseId, message.answers, message.annotations, message.skip)
-              break
-            case 'dialog_result':
-              onDialogResult?.(message.dialogId, message.result)
-              break
-            case 'plan_approval_response':
-              onPlanApprovalResponse?.(message.requestId, message.action, message.feedback, message.toolUseId)
-              break
-            case 'interrupt':
-              onInterrupt?.()
-              break
-            case 'terminate_conversation':
-              onQuitConversation?.()
-              break
-            case 'control': {
-              const action = message.action
-              if (
-                action === 'clear' ||
-                action === 'quit' ||
-                action === 'interrupt' ||
-                action === 'set_model' ||
-                action === 'set_effort' ||
-                action === 'set_permission_mode'
-              ) {
-                onControl?.(action, {
-                  model: typeof message.model === 'string' ? message.model : undefined,
-                  effort: typeof message.effort === 'string' ? message.effort : undefined,
-                  permissionMode: typeof message.permissionMode === 'string' ? message.permissionMode : undefined,
-                  fromSession: typeof message.fromSession === 'string' ? message.fromSession : undefined,
-                })
-              } else {
-                debug(`control: unknown action "${String(action)}"`)
-              }
-              break
-            }
-            default: {
-              const msgType = (message as unknown as Record<string, unknown>).type as string
-              if (msgType === 'dialog_keepalive') {
-                const m = message as unknown as Record<string, unknown>
-                onDialogKeepalive?.(m.dialogId as string)
-                break
-              }
-              // Inter-session send result (not in formal BrokerMessage type)
-              if (msgType === 'channel_send_result') {
-                onChannelSendResult?.(message)
-                break
-              }
-              if (msgType === 'permission_rule') {
-                const m = message as unknown as Record<string, unknown>
-                onPermissionRule?.(m.toolName as string, m.behavior as 'allow' | 'deny')
-                break
-              }
-              if (msgType === 'channel_revive_result') {
-                onChannelReviveResult?.(message as unknown as { ok: boolean; error?: string; name?: string })
-                break
-              }
-              if (msgType === 'channel_restart_result') {
-                onChannelRestartResult?.(
-                  message as unknown as {
-                    ok: boolean
-                    error?: string
-                    name?: string
-                    selfRestart?: boolean
-                    alreadyEnded?: boolean
-                  },
-                )
-                break
-              }
-              if (msgType === 'channel_spawn_result') {
-                onChannelSpawnResult?.(
-                  message as unknown as { ok: boolean; error?: string; conversationId?: string; requestId?: string },
-                )
-                break
-              }
-              if (msgType === 'spawn_diagnostics_result') {
-                onSpawnDiagnosticsResult?.(
-                  message as unknown as {
-                    ok: boolean
-                    jobId?: string
-                    error?: string
-                    diagnostics?: Record<string, unknown>
-                  },
-                )
-                break
-              }
-              if (
-                msgType === 'launch_progress' ||
-                msgType === 'launch_log' ||
-                msgType === 'job_complete' ||
-                msgType === 'job_failed'
-              ) {
-                onLaunchJobEvent?.(message as unknown as Record<string, unknown>)
-                break
-              }
-              if (msgType === 'channel_configure_result') {
-                onChannelConfigureResult?.(message as unknown as { ok: boolean; error?: string })
-                break
-              }
-              if (msgType === 'rename_session_result') {
-                onChannelRenameResult?.(message as unknown as { ok: boolean; error?: string })
-                break
-              }
-              if (msgType === 'conversation_control_result') {
-                onConversationControlResult?.(
-                  message as unknown as { ok: boolean; error?: string; name?: string; action?: string },
-                )
-                break
-              }
-              if (
-                msgType === 'spawn_ready' ||
-                msgType === 'spawn_timeout' ||
-                msgType === 'revive_ready' ||
-                msgType === 'revive_timeout' ||
-                msgType === 'restart_ready' ||
-                msgType === 'restart_timeout'
-              ) {
-                onRendezvousResult?.(message as unknown as Record<string, unknown>)
-                break
-              }
-              if (msgType?.startsWith('file_') || msgType?.startsWith('project_') || msgType === 'project_quick_add') {
-                onFileEditorMessage?.(message as unknown as Record<string, unknown>)
-              }
-              break
-            }
-          }
-        } catch {
-          // Ignore parse errors
+        // Inter-session send result (not in formal BrokerMessage type)
+        if (msgType === 'channel_send_result') {
+          onChannelSendResult?.(message)
+          break
         }
-      }
-    } catch (error) {
-      onError?.(error as Error)
-      // Attempt reconnect on connection failure
-      if (shouldReconnect && reconnectAttempts < maxReconnectAttempts) {
-        reconnectAttempts++
-        const delay = Math.min(1000 * 2 ** Math.min(reconnectAttempts, 6), 60_000)
-        setTimeout(connect, delay)
+        if (msgType === 'permission_rule') {
+          const m = message as unknown as Record<string, unknown>
+          onPermissionRule?.(m.toolName as string, m.behavior as 'allow' | 'deny')
+          break
+        }
+        if (msgType === 'channel_revive_result') {
+          onChannelReviveResult?.(message as unknown as { ok: boolean; error?: string; name?: string })
+          break
+        }
+        if (msgType === 'channel_restart_result') {
+          onChannelRestartResult?.(
+            message as unknown as {
+              ok: boolean
+              error?: string
+              name?: string
+              selfRestart?: boolean
+              alreadyEnded?: boolean
+            },
+          )
+          break
+        }
+        if (msgType === 'channel_spawn_result') {
+          onChannelSpawnResult?.(
+            message as unknown as { ok: boolean; error?: string; conversationId?: string; requestId?: string },
+          )
+          break
+        }
+        if (msgType === 'spawn_diagnostics_result') {
+          onSpawnDiagnosticsResult?.(
+            message as unknown as {
+              ok: boolean
+              jobId?: string
+              error?: string
+              diagnostics?: Record<string, unknown>
+            },
+          )
+          break
+        }
+        if (
+          msgType === 'launch_progress' ||
+          msgType === 'launch_log' ||
+          msgType === 'job_complete' ||
+          msgType === 'job_failed'
+        ) {
+          onLaunchJobEvent?.(message as unknown as Record<string, unknown>)
+          break
+        }
+        if (msgType === 'channel_configure_result') {
+          onChannelConfigureResult?.(message as unknown as { ok: boolean; error?: string })
+          break
+        }
+        if (msgType === 'rename_session_result') {
+          onChannelRenameResult?.(message as unknown as { ok: boolean; error?: string })
+          break
+        }
+        if (msgType === 'conversation_control_result') {
+          onConversationControlResult?.(
+            message as unknown as { ok: boolean; error?: string; name?: string; action?: string },
+          )
+          break
+        }
+        if (
+          msgType === 'spawn_ready' ||
+          msgType === 'spawn_timeout' ||
+          msgType === 'revive_ready' ||
+          msgType === 'revive_timeout' ||
+          msgType === 'restart_ready' ||
+          msgType === 'restart_timeout'
+        ) {
+          onRendezvousResult?.(message as unknown as Record<string, unknown>)
+          break
+        }
+        if (msgType?.startsWith('file_') || msgType?.startsWith('project_') || msgType === 'project_quick_add') {
+          onFileEditorMessage?.(message as unknown as Record<string, unknown>)
+        }
+        break
       }
     }
   }
 
+  // Transport owns: WS lifecycle, queue, heartbeat, ring buffer, reconnect,
+  // protocol_upgrade_required handling, conversation_promote dispatch.
+  // See src/shared/host-transport for the contract.
+  const transport: HostTransport = createHostTransport({
+    brokerUrl,
+    brokerSecret,
+    conversationId,
+    buildInitialMessage,
+    onMessage: routeBrokerMessage,
+    onConnected,
+    onDisconnected,
+    onError,
+    onDiag: (_kind, msg, args) => {
+      onDiag?.('transport', msg, args)
+      debug(`[ws] ${msg}${args ? ` ${JSON.stringify(args)}` : ''}`)
+    },
+    trace: process.env.RCLAUDE_SHOW_WEBSOCKET_MESSAGES
+      ? (dir, m) => {
+          const summary =
+            (m as { type?: string }).type === 'input'
+              ? `input: "${(m as { input?: string }).input ?? ''}"`
+              : (m as { type?: string }).type
+          debug(`WS ${dir === 'in' ? '<<<' : '>>>'} ${summary ?? '?'}`)
+        }
+      : undefined,
+  })
+
   function send(message: AgentHostMessage) {
-    try {
-      if (connected && ws?.readyState === WebSocket.OPEN) {
-        if (process.env.RCLAUDE_SHOW_WEBSOCKET_MESSAGES) {
-          debug(`WS >>> ${message.type}`)
-        }
-        const json = JSON.stringify(message)
-        // Log large messages for debugging disconnects
-        if (json.length > 100_000) {
-          onError?.(new Error(`Large WS message: type=${message.type} size=${(json.length / 1024).toFixed(0)}KB`))
-        }
-        ws.send(json)
-      } else {
-        // Queue for later, cap size to prevent unbounded growth
-        if (messageQueue.length >= MAX_QUEUE_SIZE) {
-          const dropped = messageQueue.shift()
-          debug(`Queue full (${MAX_QUEUE_SIZE}), dropping oldest message: type=${dropped?.type}`)
-        }
-        messageQueue.push(message)
-      }
-    } catch (err) {
-      debug(`WS send failed (type=${message.type}): ${err instanceof Error ? err.message : err} -- queuing`)
-      if (messageQueue.length < MAX_QUEUE_SIZE) {
-        messageQueue.push(message)
-      }
+    // Surface oversized payloads -- 100KB+ correlates with WS disconnects on
+    // some routers. Transport handles the actual delivery + queueing.
+    const json = JSON.stringify(message)
+    if (json.length > 100_000) {
+      onError?.(new Error(`Large WS message: type=${message.type} size=${(json.length / 1024).toFixed(0)}KB`))
     }
+    transport.send(message)
   }
 
   function sendHookEvent(event: HookEvent) {
@@ -729,14 +583,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
   }
 
   function sendTranscriptEntries(entries: TranscriptEntry[], isInitial: boolean) {
-    const msg: TranscriptEntries = {
-      type: 'transcript_entries',
-      conversationId: routeId(),
-      entries,
-      isInitial,
-    }
-    pushToTranscriptRing(msg)
-    send(msg)
+    // Transport handles the ring buffer + replay-on-reconnect.
+    transport.sendTranscriptEntries(entries, isInitial)
   }
 
   function sendSubagentTranscript(agentId: string, entries: TranscriptEntry[], isInitial: boolean) {
@@ -788,16 +636,10 @@ export function createWsClient(options: WsClientOptions): WsClient {
     const wasBoot = !ccSessionId
     ccSessionId = newSessionId
     if (!wasBoot) return // already had a session id, nothing to promote
-    // Tell the broker to migrate the booting session to the real one.
-    const promote: ConversationPromote = {
-      type: 'conversation_promote',
-      conversationId,
-      ccSessionId: newSessionId,
-      source,
-    }
-    send(promote)
-    // Then send meta so the broker resumes/creates the real session with
+    // Transport handles conversation_promote (idempotent). We follow up with
+    // a fresh `meta` so the broker resumes/creates the real session with
     // full metadata (the boot payload only had a subset of fields).
+    transport.setSessionId(newSessionId, source)
     const meta: ConversationMeta = {
       type: 'meta',
       protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
@@ -823,24 +665,12 @@ export function createWsClient(options: WsClientOptions): WsClient {
   }
 
   function close() {
-    shouldReconnect = false
-    if (heartbeatInterval) {
-      clearInterval(heartbeatInterval)
-      heartbeatInterval = null
-    }
-    if (ws) {
-      ws.close()
-      ws = null
-    }
-    connected = false
+    transport.close()
   }
 
   function isConnected() {
-    return connected
+    return transport.isConnected()
   }
-
-  // Start connection
-  connect()
 
   return {
     send,

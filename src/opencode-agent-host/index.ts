@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * opencode-host -- agent host that wraps the OpenCode CLI.
+ * opencode-agent-host -- agent host that wraps the OpenCode CLI.
  *
  * Spawned by the sentinel when a user spawns a conversation with
  * `backend: 'opencode'`. Connects back to the broker via WebSocket using the
@@ -20,6 +20,11 @@
  * multi-turn we resume; later we can swap to `opencode serve` + `--attach`
  * for lower per-turn latency (see plan-opencode-backend.md).
  *
+ * The transport plumbing (WS reconnect, queue, heartbeat, ring buffer,
+ * conversation_promote, protocol-upgrade-required) lives in
+ * `src/shared/host-transport/`. This file owns only the OpenCode-specific
+ * parts: NDJSON parsing, subprocess management, turn dispatch.
+ *
  * Env vars (set by the sentinel):
  *   RCLAUDE_BROKER             ws://broker (default: ws://localhost:9999)
  *   RCLAUDE_SECRET             broker auth token
@@ -33,27 +38,19 @@ import { checkBunVersion } from '../shared/bun-version'
 checkBunVersion()
 
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { createHostTransport, type HostTransport } from '../shared/host-transport'
 import { cwdToProjectUri } from '../shared/project-uri'
 import {
   AGENT_HOST_PROTOCOL_VERSION,
   type AgentHostBoot,
-  type AgentHostMessage,
-  type ConversationPromote,
+  type BrokerMessage,
   DEFAULT_BROKER_URL,
-  type Heartbeat,
-  type TranscriptEntries,
   type TranscriptEntry,
   type TranscriptUserEntry,
 } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
-import {
-  createParserState,
-  flushTurn,
-  type OpenCodeEvent,
-  type ParserState,
-  parseNdjsonChunk,
-  translateEvent,
-} from './ndjson-parser'
+import { createParserState, flushTurn, type OpenCodeEvent, parseNdjsonChunk, translateEvent } from './ndjson-parser'
 
 const log = (msg: string) => process.stderr.write(`[opencode-host] ${msg}\n`)
 const debugEnabled = !!process.env.OPENCODE_HOST_DEBUG
@@ -85,7 +82,7 @@ function parseConfig(): CliConfig {
   let initialPrompt: string | null = null
   if (process.env.RCLAUDE_INITIAL_PROMPT_FILE) {
     try {
-      initialPrompt = require('node:fs').readFileSync(process.env.RCLAUDE_INITIAL_PROMPT_FILE, 'utf-8')
+      initialPrompt = readFileSync(process.env.RCLAUDE_INITIAL_PROMPT_FILE, 'utf-8')
     } catch (err) {
       log(`Failed to read initial prompt file: ${(err as Error).message}`)
     }
@@ -121,140 +118,9 @@ function buildBoot(cfg: CliConfig): AgentHostBoot {
   }
 }
 
-interface BrokerConnection {
-  send(msg: AgentHostMessage | Record<string, unknown>): void
-  emitTranscript(entries: TranscriptEntry[]): void
-  close(): void
-}
-
-function connectBroker(cfg: CliConfig, onInput: (text: string) => void): BrokerConnection {
-  const wsUrl = cfg.brokerSecret
-    ? `${cfg.brokerUrl}${cfg.brokerUrl.includes('?') ? '&' : '?'}secret=${encodeURIComponent(cfg.brokerSecret)}`
-    : cfg.brokerUrl
-
-  let ws: WebSocket | null = null
-  let connected = false
-  let shouldReconnect = true
-  let reconnectAttempts = 0
-  const queue: unknown[] = []
-  const MAX_QUEUE = 5000
-  let heartbeat: ReturnType<typeof setInterval> | null = null
-
-  function flushQueue() {
-    while (queue.length > 0 && ws && connected) {
-      const m = queue.shift()
-      try {
-        ws.send(JSON.stringify(m))
-      } catch {
-        queue.unshift(m)
-        return
-      }
-    }
-  }
-
-  function send(msg: AgentHostMessage | Record<string, unknown>) {
-    if (ws && connected) {
-      try {
-        ws.send(JSON.stringify(msg))
-        return
-      } catch {
-        /* fall through */
-      }
-    }
-    if (queue.length < MAX_QUEUE) queue.push(msg)
-  }
-
-  function connect() {
-    debug(`connecting to ${cfg.brokerUrl.replace(/secret=[^&]+/, 'secret=***')}`)
-    ws = new WebSocket(wsUrl)
-    ws.onopen = () => {
-      connected = true
-      reconnectAttempts = 0
-      log(`connected to broker conv=${cfg.conversationId.slice(0, 8)}`)
-      send(buildBoot(cfg))
-      flushQueue()
-      heartbeat = setInterval(() => {
-        if (!connected) return
-        const hb: Heartbeat = {
-          type: 'heartbeat',
-          conversationId: cfg.conversationId,
-          timestamp: Date.now(),
-        }
-        try {
-          ws?.send(JSON.stringify(hb))
-        } catch {
-          /* dead socket */
-        }
-      }, 30_000)
-    }
-    ws.onclose = () => {
-      connected = false
-      if (heartbeat) {
-        clearInterval(heartbeat)
-        heartbeat = null
-      }
-      if (!shouldReconnect) return
-      reconnectAttempts++
-      const delay = Math.min(1000 * 2 ** Math.min(reconnectAttempts, 6), 60_000)
-      log(`broker disconnected; reconnecting in ${delay}ms`)
-      setTimeout(connect, delay)
-    }
-    ws.onerror = e => {
-      const evt = e as ErrorEvent
-      debug(`ws error: ${evt.message ?? evt.error ?? 'unknown'}`)
-    }
-    ws.onmessage = ev => {
-      let msg: Record<string, unknown>
-      try {
-        msg = JSON.parse(ev.data as string) as Record<string, unknown>
-      } catch {
-        return
-      }
-      const t = msg.type
-      if (t === 'input' && typeof msg.input === 'string') {
-        onInput(msg.input)
-      } else if (t === 'protocol_upgrade_required') {
-        log(`broker requested protocol upgrade: ${msg.reason}`)
-        shouldReconnect = false
-        process.exit(2)
-      }
-    }
-  }
-  connect()
-
-  return {
-    send,
-    emitTranscript(entries: TranscriptEntry[]) {
-      if (entries.length === 0) return
-      const msg: TranscriptEntries = {
-        type: 'transcript_entries',
-        conversationId: cfg.conversationId,
-        entries,
-        isInitial: false,
-      }
-      send(msg)
-    },
-    close() {
-      shouldReconnect = false
-      if (heartbeat) {
-        clearInterval(heartbeat)
-        heartbeat = null
-      }
-      try {
-        ws?.close()
-      } catch {
-        /* dead */
-      }
-    },
-  }
-}
-
 /**
  * Spawn `opencode run` for one user input. Pipes stdout through the NDJSON
  * parser, calls onEntries(...) for transcript entries to broadcast.
- *
- * Resolves when the subprocess exits. Resolves with the captured session id
- * if any (used for `--session` on the next turn).
  */
 async function runOpenCodeTurn(opts: {
   cfg: CliConfig
@@ -262,7 +128,7 @@ async function runOpenCodeTurn(opts: {
   sessionId: string | null
   onEntries: (entries: TranscriptEntry[]) => void
   onSessionId: (id: string) => void
-}): Promise<{ exitCode: number; finalState: ParserState }> {
+}): Promise<{ exitCode: number }> {
   const { cfg, input, sessionId, onEntries, onSessionId } = opts
   const args = ['run', '--format', 'json', '--dir', cfg.cwd, '--model', cfg.model, '--dangerously-skip-permissions']
   if (sessionId) args.push('--session', sessionId)
@@ -270,7 +136,6 @@ async function runOpenCodeTurn(opts: {
 
   debug(`spawn: ${cfg.opencodeBin} ${args.join(' ')}`)
 
-  // Use Bun.spawn so we get a stream<Uint8Array> for stdout
   const proc = Bun.spawn([cfg.opencodeBin, ...args], {
     cwd: cfg.cwd,
     stdout: 'pipe',
@@ -294,7 +159,6 @@ async function runOpenCodeTurn(opts: {
         if (out.entries.length > 0) onEntries(out.entries)
       })
     }
-    // Flush trailing partial line as a parse pass; defensive.
     if (carry.length > 0) {
       parseNdjsonChunk('\n', carry, (event: OpenCodeEvent) => {
         const out = translateEvent(event, state)
@@ -321,12 +185,10 @@ async function runOpenCodeTurn(opts: {
 
   const [exitCode] = await Promise.all([proc.exited, stdoutPromise, stderrPromise])
   debug(`opencode exited code=${exitCode} session=${state.sessionId ?? 'none'}`)
-  // If the process exited without a terminal step_finish, drain whatever was
-  // accumulated so the user still sees partial output.
   if (state.pendingBlocks.length > 0) {
     onEntries(flushTurn(state))
   }
-  return { exitCode, finalState: state }
+  return { exitCode }
 }
 
 async function main() {
@@ -335,15 +197,34 @@ async function main() {
 
   let openCodeSessionId: string | null = null
   let activeTurn: Promise<unknown> | null = null
+  let transport: HostTransport
 
-  const broker = connectBroker(cfg, input => {
-    if (activeTurn) {
-      log('input received while a turn is active -- queuing not yet supported, ignoring')
-      return
+  function handleInbound(msg: BrokerMessage) {
+    const t = (msg as { type?: string }).type
+    if (t === 'input') {
+      const input = (msg as { input?: unknown }).input
+      if (typeof input !== 'string') return
+      if (activeTurn) {
+        log('input received while a turn is active -- queuing not yet supported, ignoring')
+        return
+      }
+      activeTurn = handleTurn(input).finally(() => {
+        activeTurn = null
+      })
     }
-    activeTurn = handleTurn(input).finally(() => {
-      activeTurn = null
-    })
+  }
+
+  transport = createHostTransport({
+    brokerUrl: cfg.brokerUrl,
+    brokerSecret: cfg.brokerSecret,
+    conversationId: cfg.conversationId,
+    buildInitialMessage: () => buildBoot(cfg),
+    onMessage: handleInbound,
+    onConnected: () => log(`connected to broker conv=${cfg.conversationId.slice(0, 8)}`),
+    onDisconnected: () => debug('broker disconnected'),
+    onError: err => debug(`transport error: ${err.message}`),
+    onDiag: (_kind, m, args) => debug(`diag: ${m} ${args ? JSON.stringify(args) : ''}`),
+    trace: debugEnabled ? (dir, m) => debug(`${dir} ${(m as { type?: string }).type ?? '?'}`) : undefined,
   })
 
   async function handleTurn(input: string) {
@@ -354,21 +235,12 @@ async function main() {
       timestamp: new Date().toISOString(),
       message: { role: 'user', content: input },
     }
-    broker.emitTranscript([userEntry])
+    transport.sendTranscriptEntries([userEntry], false)
 
     const onSessionId = (id: string) => {
       if (openCodeSessionId === id) return
       openCodeSessionId = id
-      // Promote the conversation -- mirrors how the Claude host announces a
-      // CC session id once it knows one. The broker stores it on
-      // agentHostMeta.openCodeSessionId via the conversation_promote handler.
-      const promote: ConversationPromote = {
-        type: 'conversation_promote',
-        conversationId: cfg.conversationId,
-        ccSessionId: id,
-        source: 'stream_json',
-      }
-      broker.send(promote)
+      transport.setSessionId(id, 'stream_json')
     }
 
     try {
@@ -376,25 +248,27 @@ async function main() {
         cfg,
         input,
         sessionId: openCodeSessionId,
-        onEntries: entries => broker.emitTranscript(entries),
+        onEntries: entries => transport.sendTranscriptEntries(entries, false),
         onSessionId,
       })
     } catch (err) {
       log(`turn failed: ${(err as Error).message}`)
-      broker.emitTranscript([
-        {
-          type: 'system',
-          subtype: 'chat_api_error',
-          level: 'error',
-          content: `opencode-host turn failed: ${(err as Error).message}`,
-          uuid: randomUUID(),
-          timestamp: new Date().toISOString(),
-        },
-      ])
+      transport.sendTranscriptEntries(
+        [
+          {
+            type: 'system',
+            subtype: 'chat_api_error',
+            level: 'error',
+            content: `opencode-host turn failed: ${(err as Error).message}`,
+            uuid: randomUUID(),
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        false,
+      )
     }
   }
 
-  // If the sentinel passed an initial prompt, dispatch it now.
   if (cfg.initialPrompt) {
     debug('dispatching initial prompt')
     activeTurn = handleTurn(cfg.initialPrompt).finally(() => {
@@ -402,10 +276,9 @@ async function main() {
     })
   }
 
-  // Keep the process alive. Signals are handled below.
   const shutdown = (sig: string) => {
     log(`shutdown: ${sig}`)
-    broker.close()
+    transport.close()
     setTimeout(() => process.exit(0), 200)
   }
   process.on('SIGINT', () => shutdown('SIGINT'))
