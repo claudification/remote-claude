@@ -117,7 +117,12 @@ export function normalizeProjectUri(uri: string): string {
     return `${uri.slice(0, uri.indexOf(':')).toLowerCase()}:*`
   }
 
-  const parsed = parseProjectUri(uri)
+  let parsed: ProjectUri
+  try {
+    parsed = parseProjectUri(uri)
+  } catch {
+    return uri
+  }
   let path = parsed.path
   // Collapse runs of leading slashes to a single slash. Pre-2026-04-25 data
   // produced by `'claude:///' || cwd` concatenation (where cwd was already
@@ -144,9 +149,14 @@ function projectWithoutConversation(uri: string): string {
 export function extractProjectLabel(uri: string): string {
   if (uri === '*' || /^[a-z][a-z0-9+.-]*:\*$/i.test(uri)) return uri
 
-  const parsed = parseProjectUri(uri)
-  const segments = parsed.path.split('/').filter(Boolean)
-  return segments.length > 0 ? segments[segments.length - 1] : parsed.path
+  try {
+    const parsed = parseProjectUri(uri)
+    const segments = parsed.path.split('/').filter(Boolean)
+    return segments.length > 0 ? segments[segments.length - 1] : parsed.path
+  } catch {
+    const colon = uri.indexOf('://')
+    return colon >= 0 ? uri.slice(colon + 3) : uri
+  }
 }
 
 function cmp(a: string, b: string): number {
