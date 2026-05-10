@@ -246,6 +246,24 @@ function findRclaudeBinary(): string | null {
   return null
 }
 
+/**
+ * Locate the opencode-host binary. Same lookup strategy as rclaude:
+ * PATH first, then sentinel's bin dir, then ~/.local/bin. Returns null
+ * if not found -- the sentinel rejects opencode spawns with a helpful
+ * error in that case.
+ */
+function findOpenCodeHostBinary(): string | null {
+  const fromPath = Bun.which('opencode-host')
+  if (fromPath) return fromPath
+  const binDir = dirname(resolve(process.argv[0]))
+  const homeLocalBin = join(process.env.HOME || '/root', '.local', 'bin')
+  const candidates = [resolve(binDir, 'opencode-host'), resolve(homeLocalBin, 'opencode-host')]
+  for (const path of candidates) {
+    if (existsSync(path)) return path
+  }
+  return null
+}
+
 // ─── Env Sanitization ──────────────────────────────────────────────
 
 /** Conversation-scoped RCLAUDE_* vars that must NOT leak from the sentinel's own
@@ -463,6 +481,105 @@ function spawnHeadlessDirect(
   })
 
   launchLog(jobId, 'Headless process started', 'ok', `PID ${pid}`)
+  return { success: true, pid }
+}
+
+/**
+ * Spawn an opencode-host subprocess for a conversation. Mirrors
+ * spawnHeadlessDirect but launches `opencode-host` instead of `rclaude` and
+ * sets OpenCode-specific env vars (OPENCODE_MODEL etc).
+ *
+ * The opencode-host binary connects to the broker over WebSocket, just like
+ * rclaude does -- the broker can't tell them apart over the wire.
+ */
+function spawnOpenCodeHostDirect(opts: {
+  bin: string
+  cwd: string
+  conversationId: string
+  secret: string
+  jobId?: string
+  model?: string
+  sessionName?: string
+  sessionDescription?: string
+  promptFile?: string
+  env?: Record<string, string>
+}): { success: boolean; error?: string; pid?: number } {
+  const startTime = Date.now()
+  launchLog(opts.jobId, 'Spawning opencode-host (direct)', 'info', `${opts.bin} model=${opts.model ?? 'default'}`)
+
+  // Start from sanitized sentinel env, then add opencode-specific vars.
+  const env: Record<string, string | undefined> = cleanSentinelEnv()
+  env.RCLAUDE_SECRET = opts.secret
+  env.RCLAUDE_CONVERSATION_ID = opts.conversationId
+  env.RCLAUDE_HEADLESS = '1'
+  if (opts.model) env.OPENCODE_MODEL = opts.model
+  if (opts.sessionName) env.CLAUDWERK_CONVERSATION_NAME = opts.sessionName
+  if (opts.sessionDescription) env.CLAUDWERK_CONVERSATION_DESCRIPTION = opts.sessionDescription
+  if (opts.promptFile) env.RCLAUDE_INITIAL_PROMPT_FILE = opts.promptFile
+  // Provider credentials forwarded transparently from the sentinel's env
+  // (OPENROUTER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, etc. -- already
+  // present after cleanSentinelEnv since they don't match the strip rules).
+  if (opts.env) Object.assign(env, opts.env)
+
+  let proc: Subprocess
+  try {
+    proc = Bun.spawn([opts.bin], {
+      cwd: opts.cwd,
+      env,
+      stdout: 'ignore',
+      stderr: 'pipe',
+    })
+  } catch (e: unknown) {
+    const err = `Bun.spawn failed: ${(e as Error).message}`
+    launchLog(opts.jobId, 'Spawn failed', 'error', err)
+    return { success: false, error: err }
+  }
+  const pid = proc.pid
+  log(`opencode-host spawn: PID ${pid} conv=${opts.conversationId.slice(0, 8)} cwd=${opts.cwd}`)
+
+  const child: TrackedChild = {
+    proc,
+    conversationId: opts.conversationId,
+    pid,
+    cwd: opts.cwd,
+    startedAt: new Date().toISOString(),
+  }
+  trackedChildren.set(opts.conversationId, child)
+  writePidRegistry()
+  captureChildStderr(proc, opts.conversationId)
+
+  proc.exited.then(exitCode => {
+    const elapsedMs = Date.now() - startTime
+    trackedChildren.delete(opts.conversationId)
+    writePidRegistry()
+    if (exitCode === 0) {
+      log(`opencode-host exited normally: PID ${pid} conv=${opts.conversationId.slice(0, 8)} (${elapsedMs}ms)`)
+    } else {
+      const earlyFailure = elapsedMs < 5000
+      log(
+        `opencode-host FAILED: PID ${pid} exit=${exitCode} elapsed=${elapsedMs}ms conv=${opts.conversationId.slice(0, 8)}${earlyFailure ? ' (EARLY)' : ''}`,
+      )
+      if (activeWs?.readyState === WebSocket.OPEN) {
+        const detail = earlyFailure
+          ? `opencode-host exited in ${elapsedMs}ms (exit ${exitCode}) - check OPENCODE_MODEL and provider API keys`
+          : `opencode-host exited with code ${exitCode} after ${Math.round(elapsedMs / 1000)}s`
+        const msg: SpawnFailed = {
+          type: 'spawn_failed',
+          conversationId: opts.conversationId,
+          project: cwdToProjectUri(opts.cwd),
+          pid,
+          exitCode,
+          elapsedMs,
+          error: detail,
+        }
+        try {
+          activeWs.send(JSON.stringify(msg))
+        } catch {}
+      }
+    }
+  })
+
+  launchLog(opts.jobId, 'opencode-host process started', 'ok', `PID ${pid}`)
   return { success: true, pid }
 }
 
@@ -1410,7 +1527,113 @@ function connect(
             mode: spawnMsg.mode,
             headless: spawnMsg.headless,
             resumeId: spawnMsg.resumeId,
+            agentHostType: spawnMsg.agentHostType,
           })
+
+          // ─── opencode-host spawn path ────────────────────────────
+          // Routed when the broker-side opencode backend tags the spawn
+          // message with agentHostType: 'opencode'. We launch the
+          // opencode-host binary instead of rclaude and skip the rclaude-
+          // specific arg/env machinery (model/effort/permissionMode/etc).
+          if (spawnMsg.agentHostType === 'opencode') {
+            const ocBin = findOpenCodeHostBinary()
+            if (!ocBin) {
+              const err =
+                'opencode-host binary not found in PATH or known locations. Install with: bun install -g @claudewerk/opencode-host'
+              launchLog(spawnMsg.jobId, 'opencode-host not found', 'error', err)
+              const failResp: SpawnResult = {
+                type: 'spawn_result',
+                requestId: spawnMsg.requestId,
+                jobId: spawnMsg.jobId,
+                success: false,
+                error: err,
+                project: resolvedProject,
+                conversationId: spawnMsg.conversationId,
+              }
+              ws.send(JSON.stringify(failResp))
+              break
+            }
+            // Validate cwd same way as the rclaude path (spawn-approval marker).
+            if (!existsSync(expandedCwd)) {
+              if (spawnMsg.mkdir) {
+                try {
+                  mkdirSync(expandedCwd, { recursive: true })
+                } catch (e: unknown) {
+                  const err = `Failed to create directory: ${(e as Error).message}`
+                  ws.send(
+                    JSON.stringify({
+                      type: 'spawn_result',
+                      requestId: spawnMsg.requestId,
+                      jobId: spawnMsg.jobId,
+                      success: false,
+                      error: err,
+                    }),
+                  )
+                  break
+                }
+              } else {
+                ws.send(
+                  JSON.stringify({
+                    type: 'spawn_result',
+                    requestId: spawnMsg.requestId,
+                    jobId: spawnMsg.jobId,
+                    success: false,
+                    error: `Directory not found: ${expandedCwd}`,
+                  }),
+                )
+                break
+              }
+            }
+            if (!isSpawnApproved(expandedCwd)) {
+              const err = `Spawn not allowed: no .rclaude-spawn marker at or above ${expandedCwd}`
+              const failResp: SpawnResult = {
+                type: 'spawn_result',
+                requestId: spawnMsg.requestId,
+                jobId: spawnMsg.jobId,
+                success: false,
+                error: err,
+                project: resolvedProject,
+                conversationId: spawnMsg.conversationId,
+              }
+              ws.send(JSON.stringify(failResp))
+              break
+            }
+            // Optional initial prompt -- write to file (avoids shell escaping).
+            let promptFile: string | undefined
+            if (spawnMsg.prompt) {
+              promptFile = `/tmp/opencode-prompt-${spawnMsg.conversationId}`
+              try {
+                await Bun.write(promptFile, spawnMsg.prompt)
+              } catch {
+                promptFile = undefined
+              }
+            }
+            const ocRes = spawnOpenCodeHostDirect({
+              bin: ocBin,
+              cwd: expandedCwd,
+              conversationId: spawnMsg.conversationId,
+              secret,
+              jobId: spawnMsg.jobId,
+              model: spawnMsg.openCodeModel || spawnMsg.model,
+              sessionName: spawnMsg.sessionName,
+              sessionDescription: spawnMsg.sessionDescription,
+              promptFile,
+              env: spawnMsg.env,
+            })
+            const ocResp: SpawnResult = {
+              type: 'spawn_result',
+              requestId: spawnMsg.requestId,
+              jobId: spawnMsg.jobId,
+              success: ocRes.success,
+              error: ocRes.error,
+              project: resolvedProject,
+              conversationId: spawnMsg.conversationId,
+            }
+            ws.send(JSON.stringify(ocResp))
+            if (ocRes.success) launchLog(spawnMsg.jobId, 'Waiting for conversation to connect', 'info')
+            break
+          }
+
           const spawnRes = await spawnConversation(
             expandedCwd,
             spawnMsg.conversationId,
