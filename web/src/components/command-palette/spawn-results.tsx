@@ -1,9 +1,12 @@
-import { FolderPlus } from 'lucide-react'
+import { FolderPlus, Server } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SpawnResultsProps } from './types'
 
 export function SpawnResults({
   dirs,
+  sentinels,
+  isSentinelEntry,
+  resolvedSentinel,
   loading,
   error,
   path,
@@ -13,10 +16,39 @@ export function SpawnResults({
   activeIndex,
   setActiveIndex,
   onDirSelect,
+  onSentinelSelect,
   onSpawn,
 }: SpawnResultsProps) {
   if (!sentinelConnected) {
     return <div className="px-3 py-4 text-center text-[10px] text-red-400">No sentinel connected</div>
+  }
+
+  // Sentinel autocomplete: user is typing the @<alias> token.
+  if (isSentinelEntry) {
+    if (sentinels.length === 0) {
+      return <div className="px-3 py-4 text-center text-[10px] text-comment">No matching sentinel</div>
+    }
+    return (
+      <>
+        {sentinels.map((s, i) => (
+          <button
+            key={s.alias}
+            type="button"
+            onClick={() => onSentinelSelect(s.alias)}
+            onMouseEnter={() => setActiveIndex(i)}
+            className={cn(
+              'w-full px-3 py-2 flex items-center gap-3 text-left transition-colors',
+              i === activeIndex ? 'bg-primary/20' : 'hover:bg-primary/10',
+            )}
+          >
+            <Server className={cn('w-3.5 h-3.5 shrink-0', s.connected ? 'text-active' : 'text-comment')} />
+            <span className="text-xs text-foreground">@{s.alias}</span>
+            {s.isDefault && <span className="text-[9px] text-active uppercase tracking-wide">default</span>}
+            {!s.connected && <span className="text-[9px] text-comment">offline</span>}
+          </button>
+        ))}
+      </>
+    )
   }
 
   if (loading) {
@@ -28,7 +60,12 @@ export function SpawnResults({
   }
 
   if (!path) {
-    return <div className="px-3 py-4 text-center text-[10px] text-comment">Type a path (e.g. ~/projects/my-app)</div>
+    return (
+      <div className="px-3 py-4 text-center text-[10px] text-comment">
+        Type a path (e.g. ~/projects/my-app) -- routing to{' '}
+        <span className="text-foreground">@{resolvedSentinel}</span>
+      </div>
+    )
   }
 
   return (

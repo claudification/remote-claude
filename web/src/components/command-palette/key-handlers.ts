@@ -71,14 +71,18 @@ function handleArrowUp(e: React.KeyboardEvent, ctx: KeyHandlerContext): void {
 }
 
 function handleTab(e: React.KeyboardEvent, ctx: KeyHandlerContext): void {
-  // Tab only autocompletes in spawn mode (path completion). Other modes let
-  // the browser keep its native focus-cycling behavior.
-  if (!(ctx.isSpawnMode && ctx.spawn.filteredSpawnDirs.length > 0)) return
-  e.preventDefault()
-  const selected = ctx.spawn.filteredSpawnDirs[ctx.activeIndex]
-  if (selected) {
-    ctx.setFilter(`S:${ctx.spawn.spawnParentDir}${selected}/`)
-    ctx.setActiveIndex(0)
+  // Tab autocompletes in spawn mode (sentinel alias, then path).
+  if (!ctx.isSpawnMode) return
+  if (ctx.spawn.isSentinelEntry && ctx.spawn.filteredSentinels.length > 0) {
+    e.preventDefault()
+    const sel = ctx.spawn.filteredSentinels[ctx.activeIndex] || ctx.spawn.filteredSentinels[0]
+    if (sel) ctx.spawn.handleSentinelSelect(sel.alias)
+    return
+  }
+  if (ctx.spawn.filteredSpawnDirs.length > 0) {
+    e.preventDefault()
+    const selected = ctx.spawn.filteredSpawnDirs[ctx.activeIndex]
+    if (selected) ctx.spawn.handleDirSelect(selected)
   }
 }
 
@@ -110,12 +114,14 @@ function submitCommand(ctx: KeyHandlerContext): void {
 
 function submitSpawn(ctx: KeyHandlerContext): void {
   const spawn = ctx.spawn
+  if (spawn.isSentinelEntry) {
+    const sel = spawn.filteredSentinels[ctx.activeIndex] || spawn.filteredSentinels[0]
+    if (sel) spawn.handleSentinelSelect(sel.alias)
+    return
+  }
   if (spawn.filteredSpawnDirs.length > 0 && !spawn.spawnPath.endsWith('/')) {
     const selected = spawn.filteredSpawnDirs[ctx.activeIndex]
-    if (selected) {
-      ctx.setFilter(`S:${spawn.spawnParentDir}${selected}/`)
-      ctx.setActiveIndex(0)
-    }
+    if (selected) spawn.handleDirSelect(selected)
     return
   }
   if (spawn.spawnPath) {

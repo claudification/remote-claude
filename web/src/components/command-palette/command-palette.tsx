@@ -95,6 +95,9 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
           ) : palette.mode === 'spawn' ? (
             <SpawnResults
               dirs={palette.filteredSpawnDirs}
+              sentinels={palette.filteredSentinels}
+              isSentinelEntry={palette.isSentinelEntry}
+              resolvedSentinel={palette.spawnSentinel}
               loading={palette.spawnLoading}
               error={palette.spawnError}
               path={palette.spawnPath}
@@ -104,6 +107,7 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
               activeIndex={palette.activeIndex}
               setActiveIndex={palette.setActiveIndex}
               onDirSelect={palette.handleDirSelect}
+              onSentinelSelect={palette.handleSentinelSelect}
               onSpawn={palette.handleSpawn}
             />
           ) : palette.mode === 'task' ? (

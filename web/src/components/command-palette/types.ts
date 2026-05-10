@@ -47,6 +47,9 @@ export interface FileResultsProps extends ResultListProps {
 
 export interface SpawnResultsProps extends ResultListProps {
   dirs: string[]
+  sentinels: import('./use-spawn-mode').SentinelSuggestion[]
+  isSentinelEntry: boolean
+  resolvedSentinel: string
   loading: boolean
   error: string | null
   path: string
@@ -54,6 +57,7 @@ export interface SpawnResultsProps extends ResultListProps {
   sentinelConnected: boolean
   canCreateDir: boolean
   onDirSelect: (dir: string) => void
+  onSentinelSelect: (alias: string) => void
   onSpawn: (path: string, mkdir?: boolean) => void
 }
 
