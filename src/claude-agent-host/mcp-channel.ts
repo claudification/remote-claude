@@ -11,7 +11,7 @@
  *
  * Two-way: Claude calls mcp tools (reply, notify) -> rclaude -> broker -> dashboard
  *
- * Tool handlers are in src/agent-host/mcp-tools/ -- each file registers a group
+ * Tool handlers are in src/claude-agent-host/mcp-tools/ -- each file registers a group
  * of related tools. This file owns the MCP server lifecycle and transport plumbing.
  */
 

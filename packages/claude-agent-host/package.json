@@ -1,7 +1,7 @@
 {
-  "name": "@claudewerk/agent-host",
+  "name": "@claudewerk/claude-agent-host",
   "version": "2.1.0",
-  "description": "CLI agent host for Claude Code with hooks, MCP channel, and broker connectivity",
+  "description": "Claude Code agent host (rclaude) with hooks, MCP channel, and broker connectivity",
   "bin": {
     "rclaude": "bin/rclaude"
   },
@@ -13,7 +13,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/claudification/claudewerk.git",
-    "directory": "packages/agent-host"
+    "directory": "packages/claude-agent-host"
   },
   "keywords": [
     "claude",

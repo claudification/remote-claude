@@ -83,7 +83,7 @@ cd "$REPO_DIR"
 # ─── Build binaries ──────────────────────────────────────────────
 info "Building binaries..."
 mkdir -p "$BIN_DIR"
-bun run build:agent-host
+bun run build:claude-agent-host
 bun run build:sentinel
 ok "Built rclaude and sentinel"
 

@@ -72,7 +72,7 @@ cd web && bun install && cd ..
 bun run build
 
 # 3. Install agent host + sentinel globally (dogfood mode)
-bun install -g ./packages/agent-host ./packages/sentinel
+bun install -g ./packages/claude-agent-host ./packages/sentinel
 
 # 4. Set up environment
 export RCLAUDE_SECRET=$(openssl rand -hex 32)
@@ -184,7 +184,7 @@ Every machine running Claude Code needs the rclaude agent host installed.
 ### Option A: Install via npm (recommended)
 
 ```bash
-bun add -g @claudewerk/agent-host @claudewerk/sentinel
+bun add -g @claudewerk/claude-agent-host @claudewerk/sentinel
 ```
 
 This gives you `rclaude` and `sentinel` commands globally. Both run under Bun.
@@ -197,7 +197,7 @@ bun install
 bun run build:packages
 
 # Install globally via bun (creates symlink chain)
-bun install -g ./packages/agent-host ./packages/sentinel
+bun install -g ./packages/claude-agent-host ./packages/sentinel
 ```
 
 Verify:
@@ -207,7 +207,7 @@ which rclaude          # -> ~/.bun/bin/rclaude
 which sentinel         # -> ~/.bun/bin/sentinel
 ```
 
-After code changes in `src/agent-host/` or `src/sentinel/`:
+After code changes in `src/claude-agent-host/` or `src/sentinel/`:
 
 ```bash
 bun run build:packages
@@ -617,7 +617,7 @@ bun run build           # All: web + broker + agent host + sentinel
 
 | Command | Port | Description |
 |---------|------|-------------|
-| `bun run dev:agent-host` | - | rclaude without compile step |
+| `bun run dev:claude-agent-host` | - | rclaude without compile step |
 | `bun run dev:broker` | 9999 | Broker with hot reload |
 | `bun run dev:web` | 3456 | Vite dev server |
 
@@ -658,7 +658,7 @@ bun run test:staging:keep # Same but keeps broker running on :19999 for debuggin
 
 **npm install:**
 ```bash
-bun add -g @claudewerk/agent-host @claudewerk/sentinel
+bun add -g @claudewerk/claude-agent-host @claudewerk/sentinel
 ```
 
 **From source (dogfood mode):**
@@ -835,7 +835,7 @@ Old agent host binaries connecting to a new broker get a
 toast with an upgrade command. Fix:
 
 ```bash
-bun add -g @claudewerk/agent-host @claudewerk/sentinel
+bun add -g @claudewerk/claude-agent-host @claudewerk/sentinel
 # Or from source: bun run build:packages
 ```
 

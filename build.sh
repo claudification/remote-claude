@@ -7,7 +7,7 @@ echo "[1/5] Web dashboard"
 bun run build:web 2>/dev/null || (cd web && bunx vite build)
 
 echo "[2/5] rclaude (agent host)"
-bun build src/agent-host/index.ts --compile --minify --outfile bin/rclaude
+bun build src/claude-agent-host/index.ts --compile --minify --outfile bin/rclaude
 
 echo "[3/5] broker"
 bun run scripts/build-broker.ts

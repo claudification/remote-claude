@@ -97,9 +97,9 @@ Anthropic picks up `output_config.effort = "max"`. Setting the value to
 `auto` or `unset` falls back to model default.
 
 Exposed in rclaude as:
-- `StreamProcess.sendSetEffort(level)` in `src/agent-host/stream-backend.ts`
+- `StreamProcess.sendSetEffort(level)` in `src/claude-agent-host/stream-backend.ts`
 - `StreamProcess.sendUpdateEnv(variables)` for arbitrary env mutations
-- `executeControl('set_effort', { effort })` in `src/agent-host/index.ts` (PTY falls back to writing `/effort <level>\r`)
+- `executeControl('set_effort', { effort })` in `src/claude-agent-host/index.ts` (PTY falls back to writing `/effort <level>\r`)
 - `session_control` WS message with `action: 'set_effort', effort: string`
 - `/effort <level>` slash command typed into the dashboard input
 - MCP `control_session` tool with `action: 'set_effort'`
@@ -122,7 +122,7 @@ From Anthropic's migration docs (embedded in cli.js):
 On Opus 4.7+, `thinking: {type: "enabled", budget_tokens: N}` is a 400 error.
 Use `thinking: {type: "adaptive"}` + `output_config.effort` instead.
 
-**Files:** `src/agent-host/stream-backend.ts`, `docs/stream-json-protocol.md`
+**Files:** `src/claude-agent-host/stream-backend.ts`, `docs/stream-json-protocol.md`
 
 ## MCP Channel
 

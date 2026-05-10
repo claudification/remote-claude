@@ -21,7 +21,7 @@ import { AGENT_HOST_PROTOCOL_VERSION } from '../../shared/protocol'
 import type { HandlerContext, MessageData } from '../handler-context'
 
 /** Copy-pastable shell command we tell stale agent hosts to run. */
-const UPGRADE_COMMAND = 'bun install -g @claudewerk/agent-host @claudewerk/sentinel'
+const UPGRADE_COMMAND = 'bun install -g @claudewerk/claude-agent-host @claudewerk/sentinel'
 
 interface BadDataReport {
   /** Wire message type (e.g. "meta") */

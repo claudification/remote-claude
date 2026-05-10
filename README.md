@@ -15,7 +15,7 @@
 > Old agent hosts can't talk to a new broker, and vice versa. Upgrade
 > both sides at the same time:
 > ```bash
-> bun install -g @claudewerk/agent-host @claudewerk/sentinel
+> bun install -g @claudewerk/claude-agent-host @claudewerk/sentinel
 > ```
 > See [CHANGELOG.md](./CHANGELOG.md) for what changed and why. Old
 > binaries that try to connect get a `protocol_upgrade_required` reply
@@ -297,7 +297,7 @@ inspect any of the three SQLite databases (`store.db`, `analytics.db`,
 The fastest way to get the agent host and sentinel running:
 
 ```bash
-bun add -g @claudewerk/agent-host @claudewerk/sentinel
+bun add -g @claudewerk/claude-agent-host @claudewerk/sentinel
 ```
 
 This gives you `rclaude` and `sentinel` commands globally. Both run under Bun.
@@ -966,7 +966,7 @@ claudewerk/
 ```bash
 bun install && cd web && bun install && cd ..
 
-bun run dev:agent-host              # Agent host (hot reload)
+bun run dev:claude-agent-host              # Agent host (hot reload)
 bun run dev:broker               # Broker (hot reload)
 bun run dev:web                  # Control panel (Vite dev server)
 
@@ -975,7 +975,7 @@ bunx biome check --write .       # Lint + format
 
 bun run build                    # Build everything
 bun run build:web                # Control panel -> web/dist/
-bun run build:agent-host            # rclaude -> bin/rclaude
+bun run build:claude-agent-host            # rclaude -> bin/rclaude
 bun run build:broker             # broker -> bin/broker
 bun run build:cli                # broker-cli -> bin/broker-cli
 bun run build:sentinel           # sentinel -> bin/sentinel
@@ -1108,7 +1108,7 @@ Published under the [`@claudewerk`](https://www.npmjs.com/org/claudewerk) org:
 
 | Package | Binary | Install |
 |---------|--------|---------|
-| [`@claudewerk/agent-host`](https://www.npmjs.com/package/@claudewerk/agent-host) | `rclaude` | `bun add -g @claudewerk/agent-host` |
+| [`@claudewerk/claude-agent-host`](https://www.npmjs.com/package/@claudewerk/claude-agent-host) | `rclaude` | `bun add -g @claudewerk/claude-agent-host` |
 | [`@claudewerk/sentinel`](https://www.npmjs.com/package/@claudewerk/sentinel) | `sentinel` | `bun add -g @claudewerk/sentinel` |
 
 Both are single-file JS bundles with a `#!/usr/bin/env bun` shebang. Requires Bun.
@@ -1142,7 +1142,7 @@ file ownership issues with mounted volumes.
 # Build npm packages
 bun run build:packages
 cd packages/sentinel && npm publish --access public
-cd packages/agent-host && npm publish --access public
+cd packages/claude-agent-host && npm publish --access public
 
 # Build and push Docker image (automated via GitHub Actions on tag push)
 git tag v0.X.Y && git push --tags
