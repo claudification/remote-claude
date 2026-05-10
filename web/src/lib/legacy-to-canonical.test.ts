@@ -113,17 +113,31 @@ describe('ensureCanonical', () => {
     expect(block.canonicalInput).toEqual({ path: '/x' })
   })
 
-  test('idempotent on already-translated block', () => {
+  test('idempotent on already-translated block (kind + raw both present)', () => {
+    const block: TranscriptContentBlock = {
+      type: 'tool_use',
+      id: 'tu_1',
+      name: 'Read',
+      input: { path: '/canonical' },
+      kind: 'file.read',
+      canonicalInput: { path: '/canonical' },
+      raw: { backend: 'claude', name: 'Read', input: { file_path: '/canonical' } },
+    }
+    ensureCanonical(block)
+    expect(block.input).toEqual({ path: '/canonical' })
+    expect((block.raw as { input: { file_path: string } }).input.file_path).toBe('/canonical')
+  })
+
+  test('legacy entry without raw -- shim synthesizes raw and overwrites input with canonical', () => {
     const block: TranscriptContentBlock = {
       type: 'tool_use',
       id: 'tu_1',
       name: 'Read',
       input: { file_path: '/x' },
-      kind: 'file.read',
-      canonicalInput: { path: '/canonical' },
     }
     ensureCanonical(block)
-    expect(block.canonicalInput).toEqual({ path: '/canonical' })
+    expect(block.input).toEqual({ path: '/x' })
+    expect(block.raw).toEqual({ backend: 'claude', name: 'Read', input: { file_path: '/x' } })
   })
 
   test('non tool_use block unchanged', () => {

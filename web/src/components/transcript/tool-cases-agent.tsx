@@ -12,7 +12,8 @@ function formatTokenCount(tokens: number): string {
 export function renderAgentTask(name: string, ctx: ToolCaseInput): ToolCaseResult {
   const { input, subagents } = ctx
   const desc = input.description as string
-  const agentType = input.subagent_type as string
+  // Canonical: input.agent (was subagent_type in Claude legacy)
+  const agentType = input.agent as string
   const prompt = input.prompt as string
   const summary = agentType ? `${agentType}: ${desc}` : desc
   let details = null

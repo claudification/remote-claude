@@ -26,9 +26,9 @@ describe('translateClaudeToolUse -- canonical kinds', () => {
       name: 'Read',
       input: { file_path: '/etc/hosts', limit: 5 },
     })
-    // legacy fields preserved
+    // input is REPLACED with canonical shape; original dialect lives on raw.input
     expect(block.name).toBe('Read')
-    expect(block.input).toEqual({ file_path: '/etc/hosts', limit: 5 })
+    expect(block.input).toEqual({ path: '/etc/hosts', limit: 5 })
   })
 
   test('Write -> file.write', () => {

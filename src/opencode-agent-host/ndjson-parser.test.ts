@@ -38,12 +38,16 @@ describe('opencode-host NDJSON parser', () => {
     // Additive canonical fields (kind/canonicalInput/result/raw) ride along.
     // Assert legacy shape via toMatchObject.
     expect(state.pendingBlocks).toHaveLength(2)
+    // input is now the CANONICAL shape (path, not filePath) -- harmonized at
+     // the agent host edge. Original ACP camelCase lives on raw.input.
     expect(state.pendingBlocks[0]).toMatchObject({
       type: 'tool_use',
       id: 'toolu_xyz',
       name: 'read',
-      input: { filePath: '/workspace/hello.txt' },
+      input: { path: '/workspace/hello.txt' },
     })
+    const firstBlock = state.pendingBlocks[0] as { raw?: { input?: { filePath?: string } } }
+    expect(firstBlock.raw?.input).toEqual({ filePath: '/workspace/hello.txt' })
     expect(state.pendingBlocks[1]).toMatchObject({
       type: 'tool_result',
       tool_use_id: 'toolu_xyz',

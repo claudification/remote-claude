@@ -34,7 +34,8 @@ export function renderSkill({ input }: ToolCaseInput): ToolCaseResult {
 }
 
 export function renderNotebookEdit({ input }: ToolCaseInput): ToolCaseResult {
-  const cellId = input.cell_id as string
+  // Canonical: input.cellId (was cell_id in Claude legacy)
+  const cellId = input.cellId as string
   return { summary: cellId ? `cell ${cellId}` : 'edit', details: null }
 }
 

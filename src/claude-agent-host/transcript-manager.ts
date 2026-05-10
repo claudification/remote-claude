@@ -300,13 +300,16 @@ export async function sendTranscriptEntriesChunked(
   // Upload image Read results and strip base64 before sending over WS
   await processImageReadResults(ctx, entries)
 
-  // Translate Claude's tool_use / tool_result blocks into the canonical
-  // CLAUDEWERK vocabulary (kind / canonicalInput / result / raw) before the
-  // broker sees them. The legacy name/input/content fields are preserved.
-  translateClaudeBlocks(ctx, entries)
-
-  // Augment Edit tool results with structuredPatch for diff rendering
+  // Augment Edit tool results with structuredPatch for diff rendering.
+  // MUST run before translateClaudeBlocks: augment reads the legacy
+  // snake_case input.old_string / input.new_string keys, and the translator
+  // overwrites block.input with canonical keys.
   const augmented = augmentEditPatches(ctx, entries)
+
+  // Translate Claude's tool_use / tool_result blocks into the canonical
+  // CLAUDEWERK vocabulary. Mutates block.input -> canonical shape; original
+  // dialect lives on block.raw.input afterwards.
+  translateClaudeBlocks(ctx, augmented)
   const send = (chunk: TranscriptEntry[], initial: boolean) =>
     agentId
       ? ctx.wsClient?.sendSubagentTranscript(agentId, chunk, initial)

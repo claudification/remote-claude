@@ -44,7 +44,11 @@ export function translateGenericAcpToolUse(block: TranscriptContentBlock, backen
   block.raw = { backend, name: rawName, input: rawInput }
   const { kind, canonicalInput } = mapAcpToolUse(rawName, rawInput)
   block.kind = kind
-  block.canonicalInput = canonicalInput as Record<string, unknown>
+  // Replace input with the canonical shape -- harmonize at the edge so the
+  // broker and web see canonical-only on `input`. Original ACP camelCase
+  // lives on `raw.input` as the dialect escape hatch.
+  block.input = canonicalInput as Record<string, unknown>
+  block.canonicalInput = block.input
 }
 
 export function translateGenericAcpToolResult(

@@ -27,18 +27,31 @@ interface CanonicalSlice {
   canonicalInput: Record<string, unknown>
 }
 
-/** Mutate `block` to add `kind` + `canonicalInput` if missing. Idempotent.
- *  Safe to call on non-tool blocks (no-op). Returns the same reference. */
+/** Mutate `block` so `input` carries the canonical shape and `kind` is set.
+ *  For pre-Phase-2 persisted entries (no `raw` field), the dialect input is
+ *  preserved into a synthesized `block.raw.input` first, then `block.input`
+ *  is overwritten with the canonical shape. Idempotent: blocks that already
+ *  have `kind` + `raw` pass through untouched. Safe to call on non-tool
+ *  blocks (no-op). Returns the same reference. */
 export function ensureCanonical(block: TranscriptContentBlock): TranscriptContentBlock {
-  if (block.type === 'tool_use') {
-    if (block.kind && block.canonicalInput) return block
-    const { kind, canonicalInput } = canonicalizeToolUse(
-      block.name ?? '',
-      (block.input ?? {}) as Record<string, unknown>,
-    )
-    if (!block.kind) block.kind = kind
-    if (!block.canonicalInput) block.canonicalInput = canonicalInput
+  if (block.type !== 'tool_use') return block
+  if (block.kind && block.raw) return block
+
+  const dialectInput = (block.input ?? {}) as Record<string, unknown>
+  const { kind, canonicalInput } = canonicalizeToolUse(block.name ?? '', dialectInput)
+
+  if (!block.raw) {
+    // Synthesize a raw envelope so downstream readers always have it.
+    // Backend is unknown for legacy entries -- best-effort guess based on
+    // tool name casing (PascalCase first char => Claude, otherwise opencode).
+    const backend = /^[A-Z]/.test(block.name ?? '') ? 'claude' : 'opencode'
+    block.raw = { backend, name: block.name ?? '', input: dialectInput }
   }
+  if (!block.kind) block.kind = kind
+  // Always overwrite input with canonical so renderers can read canonical
+  // keys exclusively. The dialect copy lives on raw.input.
+  block.input = canonicalInput
+  block.canonicalInput = canonicalInput
   return block
 }
 

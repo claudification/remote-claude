@@ -32,8 +32,9 @@ import {
 const CLAUDE_BACKEND = 'claude'
 
 /** Translate a Claude API `tool_use` block into canonical CLAUDEWERK shape.
- *  Mutates the block in place. The legacy `name` and `input` fields are
- *  preserved as derived aliases so old readers still work. */
+ *  Mutates the block in place: `block.input` is REPLACED with the canonical
+ *  shape (path/oldText/newText/...). The original Claude-API payload is
+ *  preserved verbatim under `block.raw.input` -- never lost. */
 export function translateClaudeToolUse(block: TranscriptContentBlock): void {
   if (block.type !== 'tool_use') return
   if (block.kind) return // idempotent: already translated
@@ -49,7 +50,10 @@ export function translateClaudeToolUse(block: TranscriptContentBlock): void {
 
   const { kind, canonicalInput } = mapClaudeToolUse(rawName, rawInput)
   block.kind = kind
-  block.canonicalInput = canonicalInput as Record<string, unknown>
+  block.input = canonicalInput as Record<string, unknown>
+  // canonicalInput kept as a redundant alias for any reader that explicitly
+  // wants the canonical-only field (e.g. tests asserting on it).
+  block.canonicalInput = block.input
 }
 
 /** Translate a Claude API `tool_result` block. Reads the per-entry

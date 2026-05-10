@@ -42,7 +42,9 @@ export function translateOpencodeNdjsonToolUse(block: TranscriptContentBlock): v
   block.raw = { backend: OPENCODE_BACKEND, name: rawName, input: rawInput }
   const { kind, canonicalInput } = mapToolUse(rawName, rawInput)
   block.kind = kind
-  block.canonicalInput = canonicalInput as Record<string, unknown>
+  // Harmonize at the edge: input becomes canonical, raw.input keeps dialect.
+  block.input = canonicalInput as Record<string, unknown>
+  block.canonicalInput = block.input
 }
 
 /** Translate an opencode NDJSON tool_result block. The NDJSON path packs

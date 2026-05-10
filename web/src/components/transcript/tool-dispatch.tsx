@@ -41,6 +41,16 @@ import { renderTaskCreate, renderTaskMisc, renderTaskUpdate, renderTodoWrite } f
 type ToolHandler = (ctx: ToolCaseInput) => ToolCaseResult
 type ToolHandlerWithName = (name: string, ctx: ToolCaseInput) => ToolCaseResult
 
+/** Detect whether `current` already carries the canonical shape. We compare
+ *  the keys of `canonical` against `current`: if every canonical key is
+ *  present in current, no normalization is needed. */
+function looksCanonical(current: Record<string, unknown>, canonical: Record<string, unknown>): boolean {
+  for (const key of Object.keys(canonical)) {
+    if (!(key in current)) return false
+  }
+  return true
+}
+
 /** Canonical-kind dispatch table. The agent host's dialect translator
  *  populates `block.kind` for every new tool block; old persisted entries
  *  get a synthesized kind via the legacy shim at the dispatcher entry.
@@ -124,10 +134,15 @@ const namePassthroughHandlers: Record<string, ToolHandlerWithName> = {
 }
 
 export function dispatchToolCase(name: string, ctx: ToolCaseInput, kind?: string): ToolCaseResult {
-  // CANONICAL DISPATCH: prefer the agnostic `kind` when present. The legacy
-  // shim derives one from `name`+`input` for old persisted entries so we
-  // don't fall back into the legacy paths for blocks shipped pre-Phase 2.
-  const resolvedKind = kind ?? canonicalizeToolUse(name, ctx.input).kind
+  // CANONICAL DISPATCH: derive the kind AND ensure ctx.input carries the
+  // canonical shape. Agent-host translators normalize at the wire boundary
+  // for new entries, but old persisted entries (and direct test callers)
+  // can land here with legacy keys still on input. Normalize defensively.
+  const { kind: derivedKind, canonicalInput } = canonicalizeToolUse(name, ctx.input)
+  const resolvedKind = kind ?? derivedKind
+  if (resolvedKind !== 'agent.unknown' && !looksCanonical(ctx.input, canonicalInput)) {
+    ctx = { ...ctx, input: canonicalInput }
+  }
   const kindHandler = kindHandlers[resolvedKind]
   if (kindHandler) return kindHandler(ctx)
   const kindHandlerNamed = kindHandlersWithName[resolvedKind]

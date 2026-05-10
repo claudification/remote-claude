@@ -36,7 +36,7 @@ export function renderRepl({ input, result, toolUseResult, isError }: ToolCaseIn
 }
 
 export function renderRead({ input, result, toolUseResult }: ToolCaseInput): ToolCaseResult {
-  const path = input.file_path as string
+  const path = input.path as string
   const readPath = shortPath(path) || path
 
   if (toolUseResult?.type && toolUseResult.type !== 'text') {
@@ -158,7 +158,9 @@ function renderTextRead(
 }
 
 export function renderEdit({ input, toolUseResult, isError }: ToolCaseInput): ToolCaseResult {
-  const path = input.file_path as string
+  const path = input.path as string
+  const oldText = input.oldText as string | undefined
+  const newText = input.newText as string | undefined
   const summary = shortPath(path) || path
   let details = null
   if (!isError) {
@@ -166,9 +168,9 @@ export function renderEdit({ input, toolUseResult, isError }: ToolCaseInput): To
       ?.structuredPatch
     if (patches?.length) {
       details = <DiffView patches={patches} filePath={path} />
-    } else if (input.old_string && input.new_string) {
-      const oldStr = input.old_string as string
-      const newStr = input.new_string as string
+    } else if (oldText && newText) {
+      const oldStr = oldText
+      const newStr = newText
       const originalFile = (toolUseResult as { originalFile?: string })?.originalFile
       let patch: ReturnType<typeof structuredPatch>
       if (originalFile) {
@@ -186,7 +188,7 @@ export function renderEdit({ input, toolUseResult, isError }: ToolCaseInput): To
 }
 
 export function renderWrite({ input }: ToolCaseInput): ToolCaseResult {
-  const path = input.file_path as string
+  const path = input.path as string
   const content = input.content as string
   const summary = `${shortPath(path)} (${content?.length || 0} chars)`
   let details = null
