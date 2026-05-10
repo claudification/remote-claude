@@ -5,12 +5,13 @@
   "scripts": {
     "dev:claude-agent-host": "bun run src/claude-agent-host/index.ts",
     "dev:opencode-agent-host": "bun run src/opencode-agent-host/index.ts",
+    "dev:acp-agent-host": "bun run src/acp-agent-host/index.ts",
     "dev:broker": "bun run src/broker/index.ts",
     "dev:web": "cd web && bun run dev",
     "config": "bun run scripts/rclaude-config.ts",
     "build": "bun run gen-version && bun run build:server && bun run build:client",
     "build:server": "bun run build:web && bun run build:broker && bun run build:cli",
-    "build:client": "bun run build:claude-agent-host && bun run build:opencode-agent-host && bun run build:sentinel",
+    "build:client": "bun run build:claude-agent-host && bun run build:opencode-agent-host && bun run build:acp-agent-host && bun run build:sentinel",
     "gen-version": "bun run scripts/gen-version.ts",
     "build:cli": "bun build src/broker/cli.ts --compile --minify --outfile bin/broker-cli && bun run codesign bin/broker-cli",
     "build:sentinel": "bun build src/sentinel/index.ts --compile --minify --outfile bin/sentinel && bun run codesign bin/sentinel",
@@ -20,6 +21,9 @@
     "build:opencode-agent-host": "bun run gen-version && bun build src/opencode-agent-host/index.ts --compile --minify --outfile bin/opencode-host && bun run codesign bin/opencode-host",
     "build:opencode-agent-host:linux-x64": "bun run gen-version && bun build src/opencode-agent-host/index.ts --compile --minify --target=bun-linux-x64-baseline --outfile bin/opencode-host-linux-x64",
     "build:opencode-agent-host:linux-arm64": "bun run gen-version && bun build src/opencode-agent-host/index.ts --compile --minify --target=bun-linux-arm64 --outfile bin/opencode-host-linux-arm64",
+    "build:acp-agent-host": "bun run gen-version && bun build src/acp-agent-host/index.ts --compile --minify --outfile bin/acp-host && bun run codesign bin/acp-host",
+    "build:acp-agent-host:linux-x64": "bun run gen-version && bun build src/acp-agent-host/index.ts --compile --minify --target=bun-linux-x64-baseline --outfile bin/acp-host-linux-x64",
+    "build:acp-agent-host:linux-arm64": "bun run gen-version && bun build src/acp-agent-host/index.ts --compile --minify --target=bun-linux-arm64 --outfile bin/acp-host-linux-arm64",
     "build:claude-agent-host:linux-x64": "bun run gen-version && bun build src/claude-agent-host/index.ts --compile --minify --target=bun-linux-x64-baseline --outfile bin/rclaude-linux-x64",
     "build:sentinel:linux-x64": "bun run gen-version && bun build src/sentinel/index.ts --compile --minify --target=bun-linux-x64-baseline --outfile bin/sentinel-linux-x64",
     "build:claude-agent-host:linux-arm64": "bun run gen-version && bun build src/claude-agent-host/index.ts --compile --minify --target=bun-linux-arm64 --outfile bin/rclaude-linux-arm64",
@@ -52,6 +56,7 @@
   "bin": {
     "rclaude": "./bin/rclaude",
     "opencode-host": "./bin/opencode-host",
+    "acp-host": "./bin/acp-host",
     "broker": "./bin/broker",
     "broker-cli": "./bin/broker-cli",
     "sentinel": "./bin/sentinel"

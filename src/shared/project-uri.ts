@@ -70,9 +70,13 @@ export function parseProjectUri(uri: string): ProjectUri {
 
 export function buildProjectUri(parts: ProjectUriParts): string {
   const scheme = parts.scheme.toLowerCase()
-  // Claude scheme defaults to DEFAULT_SENTINEL_NAME when authority is omitted.
-  // Other schemes keep the legacy empty-authority behavior.
-  const authority = parts.authority ?? (scheme === 'claude' ? DEFAULT_SENTINEL_NAME : '')
+  // Every URI carries a sentinel name in the authority slot, regardless of
+  // scheme. claude://, opencode://, hermes://, chat-api://, codex:// all
+  // share the shape `<scheme>://<sentinel>/<path>`. When authority is
+  // omitted we fill in DEFAULT_SENTINEL_NAME ('default'). Empty-authority
+  // forms ('claude:///path', 'opencode:///path') still parse fine -- they
+  // get upgraded to the canonical form on normalize / match.
+  const authority = parts.authority ?? DEFAULT_SENTINEL_NAME
   const fragment = parts.fragment ? `#${parts.fragment}` : ''
   return `${scheme}://${authority}${parts.path}${fragment}`
 }
@@ -81,11 +85,12 @@ export function cwdToProjectUri(cwd: string, scheme = 'claude', authority?: stri
   return buildProjectUri({ scheme, authority, path: cwd })
 }
 
-/** Authority for matching purposes: empty/undefined on the `claude` scheme is
- *  treated as `default` so pre-canonicalization URIs still match current ones. */
+/** Authority for matching purposes: empty/undefined authority on any scheme
+ *  is treated as DEFAULT_SENTINEL_NAME so pre-canonicalization URIs still
+ *  match current ones. */
 function authorityForMatch(parsed: ProjectUri): string {
   if (parsed.authority) return parsed.authority
-  return parsed.scheme === 'claude' ? DEFAULT_SENTINEL_NAME : ''
+  return DEFAULT_SENTINEL_NAME
 }
 
 export function matchProjectUri(pattern: string, uri: string): boolean {
@@ -134,10 +139,11 @@ export function normalizeProjectUri(uri: string): string {
   }
 
   const fragment = parsed.fragment ? `#${parsed.fragment}` : ''
-  // Upgrade empty authority to DEFAULT_SENTINEL_NAME for the `claude` scheme,
-  // so both legacy (`claude:///path`) and current (`claude://default/path`)
-  // forms canonicalize identically. Other schemes keep their literal authority.
-  const authority = parsed.authority || (parsed.scheme === 'claude' ? DEFAULT_SENTINEL_NAME : '')
+  // Upgrade empty authority to DEFAULT_SENTINEL_NAME on every scheme so
+  // legacy ('claude:///path', 'opencode:///path') and current
+  // ('claude://default/path', 'opencode://default/path') forms canonicalize
+  // identically. The authority slot IS the sentinel name regardless of scheme.
+  const authority = parsed.authority || DEFAULT_SENTINEL_NAME
   return `${parsed.scheme}://${authority}${path}${fragment}`
 }
 

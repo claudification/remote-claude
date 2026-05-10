@@ -68,11 +68,16 @@ interface SessionPromptResult {
 }
 
 function buildBoot(cfg: ParsedHostConfig): AgentHostBoot {
+  // Project URI uses the agent name, not 'acp'. ACP is a transport detail;
+  // the user-facing identity is "this is an OpenCode (or Codex, or Gemini)
+  // conversation". Sidebar grouping, dashboard styling, and existing project
+  // settings keyed on opencode:// continue to work unchanged.
+  const uriScheme = cfg.recipe.agentName || 'acp'
   return {
     type: 'agent_host_boot',
     protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
     conversationId: cfg.conversationId,
-    project: cwdToProjectUri(cfg.cwd, 'acp'),
+    project: cwdToProjectUri(cfg.cwd, uriScheme),
     capabilities: ['headless', 'channel'],
     claudeArgs: [],
     version: `acp-host/${BUILD_VERSION.gitHashShort}`,
@@ -162,8 +167,22 @@ async function main() {
 
   // ─── Broker transport ─────────────────────────────────────────────────
   let transport: HostTransport
+  let terminating = false
+  const shutdown = (sig: string, code = 0) => {
+    if (terminating) return
+    terminating = true
+    log(`shutdown: ${sig}`)
+    try { transport.close() } catch {}
+    try { proc.kill() } catch {}
+    setTimeout(() => process.exit(code), 200)
+  }
   function handleInbound(msg: BrokerMessage) {
     const t = (msg as { type?: string }).type
+    if (t === 'terminate_conversation') {
+      log('broker requested termination')
+      shutdown('terminate_conversation')
+      return
+    }
     if (t !== 'input') return
     const input = (msg as { input?: unknown }).input
     if (typeof input !== 'string') return
@@ -249,6 +268,13 @@ async function main() {
   }
 
   // ─── Bootstrap the ACP session ───────────────────────────────────────
+  // Bootstrap is run exactly once -- both the startup path and the
+  // first-input path may race to it; both share the same promise.
+  let bootstrapPromise: Promise<void> | null = null
+  function ensureBootstrapped(): Promise<void> {
+    if (!bootstrapPromise) bootstrapPromise = bootstrap()
+    return bootstrapPromise
+  }
   async function bootstrap() {
     const initRes = await client.call<InitializeResult>('initialize', {
       protocolVersion: 1,
@@ -305,10 +331,7 @@ async function main() {
 
   // ─── Per-turn driver ─────────────────────────────────────────────────
   async function handleTurn(input: string) {
-    if (!acpSessionId) {
-      log('handleTurn called before session initialized; bootstrapping now')
-      await bootstrap()
-    }
+    await ensureBootstrapped()
     // Echo the user message into the transcript so the dashboard sees it.
     const userEntry: TranscriptUserEntry = {
       type: 'user',
@@ -351,7 +374,7 @@ async function main() {
 
   // ─── Wire it up ──────────────────────────────────────────────────────
   try {
-    await bootstrap()
+    await ensureBootstrapped()
   } catch (err) {
     log(`FATAL bootstrap: ${(err as Error).stack ?? err}`)
     transport.close()
@@ -385,12 +408,6 @@ async function main() {
     setTimeout(() => process.exit(code ?? 1), 500)
   })()
 
-  const shutdown = (sig: string) => {
-    log(`shutdown: ${sig}`)
-    transport.close()
-    try { proc.kill() } catch {}
-    setTimeout(() => process.exit(0), 200)
-  }
   process.on('SIGINT', () => shutdown('SIGINT'))
   process.on('SIGTERM', () => shutdown('SIGTERM'))
 }

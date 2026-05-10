@@ -117,9 +117,10 @@ describe('buildProjectUri', () => {
     expect(result).toBe('claude://default/Users/jonas/projects/foo')
   })
 
-  test('builds non-claude URI without authority when omitted', () => {
+  test('defaults non-claude URIs to default authority too', () => {
+    // Every URI carries a sentinel name; the slot is uniform across schemes.
     const result = buildProjectUri({ scheme: 'codex', path: '/foo' })
-    expect(result).toBe('codex:///foo')
+    expect(result).toBe('codex://default/foo')
   })
 
   test('builds URI with fragment', () => {
@@ -164,9 +165,9 @@ describe('cwdToProjectUri', () => {
     expect(result).toBe('claude://studio/Users/jonas/projects/foo')
   })
 
-  test('converts CWD with non-claude scheme (no default authority)', () => {
+  test('converts CWD with non-claude scheme (default authority filled in)', () => {
     const result = cwdToProjectUri('/Users/jonas/projects/foo', 'codex')
-    expect(result).toBe('codex:///Users/jonas/projects/foo')
+    expect(result).toBe('codex://default/Users/jonas/projects/foo')
   })
 
   test('handles root CWD', () => {
@@ -278,9 +279,13 @@ describe('normalizeProjectUri', () => {
     )
   })
 
-  test('does not force default authority on non-claude schemes', () => {
-    expect(normalizeProjectUri('codex:///path')).toBe('codex:///path')
-    expect(normalizeProjectUri('open-claw:///path')).toBe('open-claw:///path')
+  test('upgrades empty authority to default on every scheme', () => {
+    // Pre-canonicalization data ('opencode:///path', 'codex:///path') is
+    // upgraded to the canonical sentinel form -- the authority slot IS the
+    // sentinel name, regardless of scheme.
+    expect(normalizeProjectUri('codex:///path')).toBe('codex://default/path')
+    expect(normalizeProjectUri('open-claw:///path')).toBe('open-claw://default/path')
+    expect(normalizeProjectUri('opencode:///cwd')).toBe('opencode://default/cwd')
   })
 
   test('is idempotent', () => {

@@ -271,6 +271,11 @@ async function main() {
 
   function handleInbound(msg: BrokerMessage) {
     const t = (msg as { type?: string }).type
+    if (t === 'terminate_conversation') {
+      log('broker requested termination')
+      shutdown('terminate_conversation')
+      return
+    }
     if (t === 'input') {
       const input = (msg as { input?: unknown }).input
       if (typeof input !== 'string') return

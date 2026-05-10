@@ -1764,15 +1764,22 @@ export interface SpawnConversation {
   env?: Record<string, string>
   /** Which agent host binary to spawn. Defaults to 'claude' (rclaude). When
    *  set to 'opencode', the sentinel launches the opencode-host binary with
-   *  OPENCODE_MODEL set and forwards provider env vars (OPENROUTER_API_KEY etc). */
+   *  OPENCODE_MODEL set. When set to 'acp', the sentinel launches the
+   *  generic acp-host binary parameterized by `acpAgent` (see acp-recipes). */
   agentHostType?: string
   /** OpenCode-specific model identifier (e.g. 'openrouter/anthropic/claude-haiku-4.5').
-   *  Used when agentHostType === 'opencode'; passed to opencode-host via OPENCODE_MODEL. */
+   *  Used when agentHostType === 'opencode'; passed to opencode-host via OPENCODE_MODEL.
+   *  When agentHostType === 'acp' we read this same field as the initial model
+   *  to apply via session/set_config_option after session/new. */
   openCodeModel?: string
   /** OpenCode tool permission tier. 'none' = no tools, 'safe' = read-only,
    *  'full' = all tools (--dangerously-skip-permissions). Defaults to 'safe'
-   *  at spawn time when not specified by request or project settings. */
+   *  at spawn time when not specified by request or project settings. Reused
+   *  by the ACP path (drives the acp-host's session/request_permission policy). */
   toolPermission?: 'none' | 'safe' | 'full'
+  /** Which ACP agent recipe to use when agentHostType === 'acp'. The sentinel
+   *  resolves this against its acp-recipes registry. e.g. 'opencode'. */
+  acpAgent?: string
 }
 
 export interface ListDirs {
