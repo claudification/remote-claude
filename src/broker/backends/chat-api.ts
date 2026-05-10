@@ -5,15 +5,19 @@
 
 import { randomUUID } from 'node:crypto'
 import type { ChatApiConnection } from '../../shared/chat-api-types'
+import { generateConversationName } from '../../shared/conversation-names'
 import type {
+  Conversation,
   TranscriptAssistantEntry,
   TranscriptEntry,
   TranscriptSystemEntry,
   TranscriptUserEntry,
 } from '../../shared/protocol'
+import { deriveConversationName } from '../../shared/spawn-naming'
+import type { SpawnRequest } from '../../shared/spawn-schema'
 import type { ConversationStore } from '../conversation-store'
 import type { KVStore } from '../store/types'
-import type { BackendDeps, ConversationBackend, InputResult } from './types'
+import type { BackendDeps, ConversationBackend, InputResult, SpawnDeps, SpawnResult } from './types'
 
 const KV_PREFIX = 'chat:connection:'
 
@@ -23,7 +27,12 @@ export function getChatApiConnection(kv: KVStore, id: string): ChatApiConnection
 
 export const chatApiBackend: ConversationBackend = {
   type: 'chat-api',
+  scheme: 'chat',
   requiresAgentSocket: false,
+
+  async spawn(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnResult> {
+    return spawnChatApi(req, deps)
+  },
 
   async handleInput(conversationId: string, input: string, deps: BackendDeps): Promise<InputResult> {
     const { conversationStore, kv } = deps
@@ -260,4 +269,68 @@ async function streamChatApiResponse(
   }
 
   return fullText
+}
+
+// --- Spawn ----------------------------------------------------------------
+
+/**
+ * Spawn a Chat API conversation directly -- no sentinel, no process.
+ * Creates the conversation record immediately and returns.
+ *
+ * Moved here from spawn-dispatch.ts as part of the pluggable-backends refactor.
+ */
+function spawnChatApi(req: SpawnRequest, deps: SpawnDeps): SpawnResult {
+  if (!req.chatConnectionId) {
+    return { ok: false, error: 'chatConnectionId is required for backend=chat-api', statusCode: 400 }
+  }
+
+  const conversationId = randomUUID()
+  const jobId = req.jobId ?? randomUUID()
+  const connectionName = req.chatConnectionName || 'default'
+  const slug = connectionName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+  const project = `chat://${slug || 'default'}`
+
+  deps.conversationStore.createJob(jobId, conversationId)
+
+  const conv = deps.conversationStore.createConversation(
+    conversationId,
+    project,
+    req.model,
+    [],
+    ['headless', 'channel'],
+  )
+  conv.status = 'active'
+  conv.agentHostType = 'chat-api'
+  conv.agentHostMeta = {
+    chatConnectionId: req.chatConnectionId,
+    backend: 'chat-api',
+  }
+  conv.title =
+    req.name ||
+    deriveConversationName(req) ||
+    generateConversationName(
+      new Set(
+        deps.conversationStore
+          .getAllConversations()
+          .map((s: Conversation) => s.title)
+          .filter(Boolean) as string[],
+      ),
+    )
+  if (req.description) conv.description = req.description
+
+  deps.conversationStore.persistConversationById(conversationId)
+  deps.conversationStore.broadcastConversationUpdate(conversationId)
+  deps.conversationStore.forwardJobEvent(jobId, {
+    type: 'launch_progress',
+    jobId,
+    step: 'session_connected',
+    status: 'done',
+    t: Date.now(),
+    conversationId,
+  })
+
+  return { ok: true, conversationId, jobId }
 }
