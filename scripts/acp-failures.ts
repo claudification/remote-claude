@@ -21,7 +21,6 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const BROKER_WS = process.env.BROKER_WS || 'ws://localhost:9999'
-const BROKER_HTTP = BROKER_WS.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:')
 const SECRET = process.env.RCLAUDE_SECRET
 const BIN = resolve(process.cwd(), 'bin/acp-host')
 const CWD = '/tmp/acp-smoke-test'

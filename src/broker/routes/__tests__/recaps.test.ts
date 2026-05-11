@@ -126,7 +126,7 @@ describe('GET /api/recaps', () => {
   test('respects ?projectUri filter', async () => {
     seedRecap({ id: 'recap_a', projectUri: 'claude://default/p/one' })
     seedRecap({ id: 'recap_b', projectUri: 'claude://default/p/two' })
-    const res = await app.request('/api/recaps?projectUri=' + encodeURIComponent('claude://default/p/one'), {
+    const res = await app.request(`/api/recaps?projectUri=${encodeURIComponent('claude://default/p/one')}`, {
       headers: adminHeaders(),
     })
     const body = (await res.json()) as { recaps: Array<{ id: string }> }

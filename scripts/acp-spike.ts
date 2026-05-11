@@ -18,7 +18,7 @@ const TRACE_PATH = join(OUT_DIR, 'trace.ndjson')
 writeFileSync(TRACE_PATH, '')
 
 const trace = (dir: 'send' | 'recv' | 'note', msg: unknown) => {
-  appendFileSync(TRACE_PATH, JSON.stringify({ t: Date.now(), dir, msg }) + '\n')
+  appendFileSync(TRACE_PATH, `${JSON.stringify({ t: Date.now(), dir, msg })}\n`)
 }
 
 interface JsonRpcReq {
@@ -59,7 +59,7 @@ const notifications: JsonRpcNotify[] = []
 const sessionUpdateListeners: Array<(n: JsonRpcNotify) => void> = []
 
 function writeLine(obj: unknown) {
-  child.stdin.write(JSON.stringify(obj) + '\n')
+  child.stdin.write(`${JSON.stringify(obj)}\n`)
 }
 
 function handleAgentRequest(req: JsonRpcReq) {
@@ -122,7 +122,7 @@ child.stdout.on('data', d => {
     let msg: any
     try {
       msg = JSON.parse(line)
-    } catch (e) {
+    } catch (_e) {
       trace('note', { parse_error: line })
       continue
     }

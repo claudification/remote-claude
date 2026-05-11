@@ -22,7 +22,7 @@ describe('listAcpRecipes', () => {
 describe('OPENCODE_RECIPE.prepare', () => {
   it('writes an opencode.json with permission: ask for tier safe and preserves user config', () => {
     const out = OPENCODE_RECIPE.prepare?.({
-      conversationId: 'test-' + Math.random().toString(36).slice(2),
+      conversationId: `test-${Math.random().toString(36).slice(2)}`,
       cwd: '/tmp',
       toolPermission: 'safe',
     })
@@ -43,7 +43,7 @@ describe('OPENCODE_RECIPE.prepare', () => {
 
   it('also writes the config for tier none (host rejects all requests)', () => {
     const out = OPENCODE_RECIPE.prepare?.({
-      conversationId: 'test-' + Math.random().toString(36).slice(2),
+      conversationId: `test-${Math.random().toString(36).slice(2)}`,
       cwd: '/tmp',
       toolPermission: 'none',
     })

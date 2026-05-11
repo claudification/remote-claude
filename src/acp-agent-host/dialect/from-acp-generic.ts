@@ -304,7 +304,7 @@ function mediaTypeFor(fileType: string, ext: string): string {
       case 'webp':
         return 'image/webp'
       default:
-        return 'image/' + (ext || 'octet-stream')
+        return `image/${ext || 'octet-stream'}`
     }
   }
   if (ext === 'json') return 'application/json'

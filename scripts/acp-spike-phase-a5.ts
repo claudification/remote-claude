@@ -26,7 +26,7 @@ mkdirSync(OUT_DIR, { recursive: true })
 const TRACE_PATH = join(OUT_DIR, 'trace.ndjson')
 writeFileSync(TRACE_PATH, '')
 const trace = (dir: 'send' | 'recv' | 'note', msg: unknown) => {
-  appendFileSync(TRACE_PATH, JSON.stringify({ t: Date.now(), dir, msg }) + '\n')
+  appendFileSync(TRACE_PATH, `${JSON.stringify({ t: Date.now(), dir, msg })}\n`)
 }
 
 interface JsonRpcReq {
@@ -99,7 +99,7 @@ class AcpClient {
   }
 
   private writeLine(obj: unknown) {
-    this.child.stdin!.write(JSON.stringify(obj) + '\n')
+    this.child.stdin!.write(`${JSON.stringify(obj)}\n`)
   }
 
   private handleAgentRequest(req: JsonRpcReq) {
@@ -397,7 +397,7 @@ async function main() {
   }
   writeFileSync(join(OUT_DIR, 'summary.json'), JSON.stringify(summary, null, 2))
   process.stderr.write(`\n[phase-a5] DONE -- artifacts in ${OUT_DIR}\n`)
-  process.stderr.write(JSON.stringify(summary, null, 2) + '\n')
+  process.stderr.write(`${JSON.stringify(summary, null, 2)}\n`)
   setTimeout(() => process.exit(0), 200)
 }
 

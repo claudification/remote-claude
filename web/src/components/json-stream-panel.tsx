@@ -268,7 +268,7 @@ export function JsonStreamPanel({ conversationId }: JsonStreamPanelProps) {
   }
 
   const filtered = lines.filter(l => {
-    if (filter !== 'all' && l.type !== filter && !l.type?.startsWith(filter + ':')) return false
+    if (filter !== 'all' && l.type !== filter && !l.type?.startsWith(`${filter}:`)) return false
     if (hideNoise && filter === 'all' && l.type && NOISE_TYPES.has(l.type)) return false
     return true
   })

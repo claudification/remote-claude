@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { AgentHostContext } from './agent-host-context'
-import { observeClaudeSessionId, type SessionTransition } from './session-transition'
+import { observeClaudeSessionId } from './session-transition'
 
 /**
  * Behavioural tests for observeClaudeSessionId. Every known call ordering

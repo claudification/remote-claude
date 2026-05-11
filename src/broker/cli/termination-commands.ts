@@ -43,9 +43,7 @@ function formatRow(rec: TerminationRecord): string {
 }
 
 function tableHeader(): string {
-  return (
-    'TIMESTAMP                 CONV      SOURCE                        INITIATOR             NOTE\n' + '-'.repeat(120)
-  )
+  return `TIMESTAMP                 CONV      SOURCE                        INITIATOR             NOTE\n${'-'.repeat(120)}`
 }
 
 export function handleTermination(args: ParsedArgs): void {

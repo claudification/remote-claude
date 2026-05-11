@@ -18,7 +18,7 @@ export function renderFinalMarkdown(inputs: FinalDocumentInputs): string {
   const header = renderHeader(inputs)
   const subtitleLine = inputs.subtitle ? `_${inputs.subtitle}_\n\n` : ''
   const costTable = renderCostTable(inputs.cost)
-  return [header, `# ${inputs.title}`, '', subtitleLine, costTable, '', inputs.body].join('\n').trimEnd() + '\n'
+  return `${[header, `# ${inputs.title}`, '', subtitleLine, costTable, '', inputs.body].join('\n').trimEnd()}\n`
 }
 
 function renderHeader(inputs: FinalDocumentInputs): string {
