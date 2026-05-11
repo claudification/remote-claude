@@ -6,7 +6,7 @@ import type {
   RecapStatus,
   RecapSummary,
 } from '../shared/protocol'
-import { startRecap, type StartArgs, type StartResult } from './recap/period/orchestrator'
+import { type StartArgs, type StartResult, startRecap } from './recap/period/orchestrator'
 import type { ProgressBroadcaster } from './recap/period/progress'
 import { createPeriodRecapStore, type PeriodRecapStore, type RecapRow } from './recap/period/store'
 import type { StoreDriver } from './store/types'
@@ -60,20 +60,18 @@ export function initRecapOrchestrator(opts: InitOptions): RecapOrchestrator {
       return { recap, logs: store.getLogs(recapId) as RecapLogEntry[] }
     },
     search(query, opts) {
-      return store
-        .searchFts(query, { projectUri: opts.projectFilter, limit: opts.limit })
-        .map(hit => ({
-          id: hit.recapId,
-          projectUri: hit.projectUri,
-          periodLabel: 'custom' as RecapPeriodLabel,
-          periodStart: 0,
-          periodEnd: 0,
-          title: '',
-          subtitle: '',
-          snippet: hit.snippet,
-          score: hit.rank,
-          createdAt: 0,
-        }))
+      return store.searchFts(query, { projectUri: opts.projectFilter, limit: opts.limit }).map(hit => ({
+        id: hit.recapId,
+        projectUri: hit.projectUri,
+        periodLabel: 'custom' as RecapPeriodLabel,
+        periodStart: 0,
+        periodEnd: 0,
+        title: '',
+        subtitle: '',
+        snippet: hit.snippet,
+        score: hit.rank,
+        createdAt: 0,
+      }))
     },
     getMarkdown(recapId) {
       return store.get(recapId)?.markdown ?? null

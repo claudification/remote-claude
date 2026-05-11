@@ -24,6 +24,7 @@ import {
   resolveDialog,
   sendPermissionResponse,
 } from './mcp-channel'
+import { clearBrokerRpcPending, dispatchBrokerRpcResponse, setBrokerRpcSender } from './mcp-tools/lib/broker-rpc'
 import { clearInteraction, replayInteractions } from './pending-interactions'
 import type { RulesEngine } from './permission-rules'
 import { getTerminalSize } from './pty-spawn'
@@ -215,10 +216,16 @@ export function connectToBroker(ctx: AgentHostContext, deps: BrokerConnectionDep
           description: process.env.CLAUDWERK_CONVERSATION_DESCRIPTION || undefined,
         },
     onConnected() {
+      if (ctx.wsClient) setBrokerRpcSender(msg => ctx.wsClient!.send(msg))
       handleConnected(ctx, deps, ccSessionId)
     },
     onDisconnected() {
       debug('Disconnected from broker')
+      clearBrokerRpcPending('broker disconnected')
+      setBrokerRpcSender(null)
+    },
+    onBrokerRpcResponse(msg) {
+      dispatchBrokerRpcResponse(msg)
     },
     onError(error) {
       debug(`Broker error: ${error.message}`)

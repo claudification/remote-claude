@@ -147,7 +147,10 @@ function renderTasksSection(tasks: TaskDigest): string {
 function renderToolsSection(tools: ToolUseDigest): string {
   if (tools.perConversation.length === 0) return 'TOOL USE: (none)'
   const lines = tools.perConversation.slice(0, 10).map(p => {
-    const top = p.perTool.slice(0, 5).map(t => `${t.tool}=${t.count}`).join(', ')
+    const top = p.perTool
+      .slice(0, 5)
+      .map(t => `${t.tool}=${t.count}`)
+      .join(', ')
     return `  ${shortId(p.conversationId)}: total=${p.total} (${top})`
   })
   return `TOOL USE (top 10 conversations):\n${lines.join('\n')}`

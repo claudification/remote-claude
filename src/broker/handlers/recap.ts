@@ -1,7 +1,4 @@
-import type {
-  RecapCreateMessage,
-  RecapStatus,
-} from '../../shared/protocol'
+import type { RecapCreateMessage, RecapStatus } from '../../shared/protocol'
 import type { HandlerContext, MessageData, MessageHandler } from '../handler-context'
 import { DASHBOARD_ROLES, registerHandlers } from '../message-router'
 import { getRecapOrchestrator } from '../recap-orchestrator'
@@ -10,14 +7,16 @@ import { requireStrings } from './validate'
 function recapCreate(ctx: HandlerContext, data: MessageData): void {
   const fields = requireStrings(ctx, data, ['projectUri', 'timeZone'] as const, 'recap_create')
   if (!fields) return
+  const requestId = typeof data.requestId === 'string' ? data.requestId : undefined
+  const echo = requestId ? { requestId } : {}
   const orchestrator = getRecapOrchestrator()
   if (!orchestrator) {
-    ctx.reply({ type: 'recap_error', error: 'recap orchestrator not initialised' })
+    ctx.reply({ type: 'recap_error', error: 'recap orchestrator not initialised', ...echo })
     return
   }
   const period = (data.period as RecapCreateMessage['period']) ?? null
   if (!period?.label) {
-    ctx.reply({ type: 'recap_error', error: 'period.label is required' })
+    ctx.reply({ type: 'recap_error', error: 'period.label is required', ...echo })
     return
   }
   if (fields.projectUri !== '*') ctx.requirePermission('chat:read', fields.projectUri)
@@ -30,8 +29,8 @@ function recapCreate(ctx: HandlerContext, data: MessageData): void {
       signals: data.signals as RecapCreateMessage['signals'],
       force: Boolean(data.force),
     })
-    .then(result => ctx.reply({ type: 'recap_created', recapId: result.recapId, cached: result.cached }))
-    .catch((err: unknown) => ctx.reply({ type: 'recap_error', error: describe(err) }))
+    .then(result => ctx.reply({ type: 'recap_created', recapId: result.recapId, cached: result.cached, ...echo }))
+    .catch((err: unknown) => ctx.reply({ type: 'recap_error', error: describe(err), ...echo }))
 }
 
 function recapCancel(ctx: HandlerContext, data: MessageData): void {
@@ -87,7 +86,12 @@ function recapSearch(ctx: HandlerContext, data: MessageData): void {
   if (!fields) return
   const orchestrator = getRecapOrchestrator()
   if (!orchestrator) {
-    ctx.reply({ type: 'recap_search_result', requestId: fields.requestId, ok: false, error: 'orchestrator not initialised' })
+    ctx.reply({
+      type: 'recap_search_result',
+      requestId: fields.requestId,
+      ok: false,
+      error: 'orchestrator not initialised',
+    })
     return
   }
   const results = orchestrator.search(fields.query, {
