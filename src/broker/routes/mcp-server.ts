@@ -2,7 +2,7 @@
  * MCP Server endpoint -- exposes Claudwerk tools via Streamable HTTP MCP.
  *
  * External agents (Chat API, etc.) connect to /mcp to use Claudwerk's capabilities:
- * notify, share_file, search_transcripts, send_message, spawn_session,
+ * notify, share_file, search_transcripts, send_message, spawn_conversation,
  * list_conversations, project_list, project_set_status.
  */
 
@@ -194,7 +194,7 @@ function createMcpServer(conversationStore: ConversationStore, store: StoreDrive
 
   // ─── spawn_session ──────────────────────────────────────────────────
   mcp.tool(
-    'spawn_session',
+    'spawn_conversation',
     'Spawn a new conversation (a fresh Claude Code session or chat-api worker). Use when the user asks to "delegate this", "start a new session", or when a task needs an isolated context. Returns the conversationId so you can send_message to coordinate with it.',
     {
       cwd: z.string().describe('Absolute working directory for the spawned session.'),
