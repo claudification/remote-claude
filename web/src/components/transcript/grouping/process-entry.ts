@@ -111,14 +111,30 @@ function handleSystem(entry: TranscriptEntry, state: GroupingState): boolean {
   // + permissionMode). Already converted to dedicated wire signals
   // (sendConversationStatus('active'), plan_mode_changed) at the agent host.
   // The raw entry still flows to the broker and is persisted -- visible in
-  // events log + JsonInspector -- but rendering it shatters assistant runs
-  // (handleSystem nulls state.current per system entry, splitting every
-  // tool call into its own avatar+timestamp banner). Skip in transcript view.
+  // events log + JsonInspector -- but pure noise in the transcript view.
   if (sub === 'status') return true
-  state.current = null
+
   const content = (entry as Record<string, unknown>).content as string | undefined
   // Skip raw slash command input entries (the output entry has the useful info)
   if (sub === 'local_command' && content?.includes('<command-name>')) return true
+
+  // Inline into the current assistant run if active. Without this, every
+  // system blip (api_retry, turn_duration, informational, etc.) splits a
+  // run of tool calls into one-robot-per-call by resetting state.current.
+  // Folding the entry into state.current.entries keeps a single avatar +
+  // timestamp header while preserving timeline order -- the renderer
+  // walks entries in order and emits an inline 'system' RenderItem for
+  // each system entry it encounters in an assistant group.
+  //
+  // away_summary is the one exception: it renders as a full-width bordered
+  // recap card that would look wrong nested inside an assistant body, so
+  // it always gets its own group.
+  if (state.current?.type === 'assistant' && sub !== 'away_summary') {
+    state.current.entries.push(entry)
+    return true
+  }
+
+  state.current = null
   state.groups.push({
     type: 'system',
     timestamp: entry.timestamp || '',

@@ -79,7 +79,12 @@ export type RenderItem =
       systemKind?: string
     }
   | { kind: 'images'; images: Array<{ hash: string; ext: string; url: string; originalPath: string }> }
+  // Inline system entry rendered inside an assistant group (api_retry,
+  // informational, turn_duration, etc.). Carries the raw entry so the
+  // renderer can dispatch on subtype just like the standalone SystemLine.
+  | { kind: 'system'; entry: Record<string, unknown>; subtype: string; timestamp?: string }
 
+// fallow-ignore-next-line duplication
 export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
   const s = ms / 1000

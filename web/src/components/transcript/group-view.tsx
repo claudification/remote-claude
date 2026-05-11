@@ -7,7 +7,7 @@ import type { DisplayGroup } from './grouping'
 import { BashItem, ChannelItem, ImagesItem, ProjectTaskItem, TextItem, ThinkingItem, ToolItem } from './item-renderers'
 import { LaunchTimeline } from './launch-timeline'
 import { parseGroupEntries } from './parse-entries'
-import { SystemLine } from './system-line'
+import { SystemLine, SystemLineInline } from './system-line'
 import { TaskNotificationLine } from './task-notification-line'
 
 export { CompactedDivider, CompactingBanner } from './compacted-divider'
@@ -211,6 +211,10 @@ function GroupItem({
       return <BashItem item={item} />
     case 'tool':
       return <ToolItem item={item} expandAll={expandAll} subagents={subagents} planContext={planContext} />
+    case 'system': {
+      const inlineTime = item.timestamp ? new Date(item.timestamp).toLocaleTimeString('en-US', { hour12: false }) : ''
+      return <SystemLineInline entry={item.entry} subtype={item.subtype} time={inlineTime} />
+    }
     default:
       return null
   }

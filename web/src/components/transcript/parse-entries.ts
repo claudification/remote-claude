@@ -115,7 +115,24 @@ export function parseGroupEntries(entries: unknown[], getResult: ResultLookup): 
   const items: RenderItem[] = []
 
   for (const rawEntry of entries) {
-    const entry = rawEntry as RenderableTranscriptEntry
+    const entry = rawEntry as RenderableTranscriptEntry & {
+      type?: string
+      subtype?: string
+      timestamp?: string
+    }
+    // System entries can be inlined into an assistant group by the grouper
+    // (process-entry.ts handleSystem). They carry top-level subtype + content
+    // fields rather than a message envelope, so we surface them here as a
+    // dedicated RenderItem and let GroupItem dispatch to the inline renderer.
+    if (entry.type === 'system' && entry.subtype) {
+      items.push({
+        kind: 'system',
+        entry: entry as unknown as Record<string, unknown>,
+        subtype: entry.subtype,
+        timestamp: entry.timestamp,
+      })
+      continue
+    }
     if (entry.images?.length) {
       items.push({ kind: 'images', images: entry.images })
     }
