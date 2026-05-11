@@ -21,7 +21,7 @@
 import type { LaunchProfile } from '@shared/launch-profile'
 import type { SpawnRequest } from '@shared/spawn-schema'
 import { openSpawnDialog } from '@/components/spawn-dialog'
-import type { SentinelStatusInfo } from '@/hooks/use-conversations'
+import { type SentinelStatusInfo, useConversationsStore } from '@/hooks/use-conversations'
 import { sendSpawnRequest } from '@/hooks/use-spawn'
 import { putLaunchProfiles } from './api'
 import { openLaunchProfileManager } from './manager-state'
@@ -38,10 +38,9 @@ export interface RunProfileDeps {
 }
 
 export interface LaunchToast {
-  variant: 'launching' | 'blocked' | 'failed'
+  variant: 'blocked' | 'failed'
   title: string
   body: string
-  conversationId?: string
   profileId?: string
 }
 
@@ -98,13 +97,7 @@ async function spawnImmediate(
     })
     return
   }
-  emit(deps, {
-    variant: 'launching',
-    title: `Launching: ${profile.name}`,
-    body: cwd,
-    conversationId: result.conversationId,
-    profileId: profile.id,
-  })
+  useConversationsStore.getState().selectConversation(result.conversationId, 'launch-profile-chord')
   void recordProfileUse(profile.id)
 }
 
