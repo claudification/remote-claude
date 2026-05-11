@@ -116,12 +116,33 @@ function RecapHeader({ recap, mode, setMode }: { recap: PeriodRecapDoc; mode: Mo
           onClick={async () => {
             const url = await shareRecap(recap.recapId)
             if (url) {
-              navigator.clipboard.writeText(url).catch(() => {})
+              try {
+                await navigator.clipboard.writeText(url)
+                haptic('success')
+                window.dispatchEvent(new CustomEvent('rclaude-toast', {
+                  detail: {
+                    title: 'Copied',
+                    body: 'Share link copied to clipboard',
+                    variant: 'success'
+                  }
+                }))
+              } catch {
+                haptic('error')
+                window.dispatchEvent(new CustomEvent('rclaude-toast', {
+                  detail: {
+                    title: 'Copy failed',
+                    body: 'Could not copy to clipboard',
+                    variant: 'error'
+                  }
+                }))
+              }
+            } else {
+              haptic('error')
               window.dispatchEvent(new CustomEvent('rclaude-toast', {
                 detail: {
-                  title: 'Copied',
-                  body: 'Share link copied to clipboard',
-                  variant: 'success'
+                  title: 'Share failed',
+                  body: 'Could not create share link',
+                  variant: 'error'
                 }
               }))
             }
