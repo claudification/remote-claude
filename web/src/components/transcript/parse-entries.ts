@@ -55,8 +55,10 @@ function parseChannelContent(channelMatch: RegExpMatchArray, items: RenderItem[]
   const fromProject = getAttr('from_project')
   const intent = getAttr('intent')
 
-  if (sender === 'session' && fromProject) {
-    const fromConversationId = getAttr('from_session')
+  // Inter-conversation messages: broker now sends sender="conversation" + from_conversation
+  // (post-naming-covenant rename); accept legacy sender="session" + from_session as a fallback.
+  if ((sender === 'conversation' || sender === 'session') && fromProject) {
+    const fromConversationId = getAttr('from_conversation') || getAttr('from_session')
     items.push({
       kind: 'channel',
       text: msg,
