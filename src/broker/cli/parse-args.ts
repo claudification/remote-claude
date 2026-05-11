@@ -153,6 +153,8 @@ export function parseArgs(argv: string[], defaultCacheDir: string): ParsedArgs {
         result.backupArchive = arg
       } else if (result.command === 'termination' && !result.subCommand) {
         result.subCommand = arg
+      } else if (result.command === 'termination' && result.subCommand === 'grep' && !result.grepArg) {
+        result.grepArg = arg
       } else {
         result.command = arg
       }
