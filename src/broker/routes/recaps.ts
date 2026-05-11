@@ -242,10 +242,10 @@ export function createRecapsRouter(_conversationStore: ConversationStore, helper
     })
   })
 
-  // Pretty shorthand redirect: /r/:token -> /?share=:token&kind=recap
+  // Pretty shorthand redirect: /r/:token -> /shared/public/recap/:token
   app.get('/r/:token', c => {
     const token = c.req.param('token')
-    return c.redirect(`/?share=${encodeURIComponent(token)}&kind=recap`)
+    return c.redirect(`/shared/public/recap/${encodeURIComponent(token)}`)
   })
 
   return app
