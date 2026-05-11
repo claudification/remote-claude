@@ -140,12 +140,14 @@ export function createRecapsRouter(_conversationStore: ConversationStore, helper
       completedAt: row.completedAt ?? undefined,
       createdAt: row.createdAt,
     })
-    return new Response(markdown, {
-      headers: {
-        'Content-Type': 'text/markdown; charset=utf-8',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-      },
-    })
+    const accept = c.req.header('accept') || ''
+    const headers: Record<string, string> = {
+      'Content-Type': 'text/markdown; charset=utf-8',
+    }
+    if (!accept.includes('text/markdown')) {
+      headers['Content-Disposition'] = `attachment; filename="${filename}"`
+    }
+    return new Response(markdown, { headers })
   })
 
   app.get('/api/recaps/:id/logs', c => {
