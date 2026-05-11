@@ -3,8 +3,11 @@
  * Tabs: Traffic (WS stats), Cache (LIFO session cache), Subscriptions, Debug Log
  */
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+
+const ConnectionsTab = lazy(() => import('./nerd-connections-tab'))
+
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { getRates, subscribe as subscribeStats } from '@/hooks/ws-stats'
 import { clearLog, copyLogText, getLogEntries, subscribeLog } from '@/lib/debug-log'
@@ -66,7 +69,7 @@ function StatRow({ label, value, accent, dim }: { label: string; value: string; 
   )
 }
 
-type Tab = 'traffic' | 'cache' | 'sw' | 'log' | 'perf'
+type Tab = 'traffic' | 'cache' | 'sw' | 'log' | 'perf' | 'conns'
 
 function TrafficTab({ serverStats, fetchError }: { serverStats: ServerStats | null; fetchError: string | null }) {
   const clientRates = useSyncExternalStore(subscribeStats, getRates)
@@ -548,6 +551,7 @@ export function NerdModal({ open, onClose }: { open: boolean; onClose: () => voi
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'cache', label: 'Cache' },
+    { id: 'conns', label: 'Conns' },
     { id: 'traffic', label: 'Traffic' },
     { id: 'perf', label: 'Perf' },
     { id: 'sw', label: 'SW' },
@@ -587,6 +591,11 @@ export function NerdModal({ open, onClose }: { open: boolean; onClose: () => voi
         <div className="flex-1 overflow-y-auto px-4 pb-4">
           {tab === 'traffic' && <TrafficTab serverStats={serverStats} fetchError={fetchError} />}
           {tab === 'cache' && <CacheTab />}
+          {tab === 'conns' && (
+            <Suspense fallback={<div className="text-[11px] text-comment py-4 text-center">Loading…</div>}>
+              <ConnectionsTab />
+            </Suspense>
+          )}
           {tab === 'perf' && <PerfTab />}
           {tab === 'sw' && <SwTab />}
           {tab === 'log' && <LogTab />}

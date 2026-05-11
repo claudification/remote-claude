@@ -5,6 +5,8 @@ export type {
   BgTaskInfo as BgTaskSummary,
   ClaudeEfficiencyUpdate,
   ClaudeHealthUpdate,
+  ConnectionInfo,
+  ConnectionRole,
   ExtraUsage,
   FileInfo,
   HookEventType,
@@ -18,7 +20,13 @@ export type {
   UsageWindow,
 } from '@shared/protocol'
 
-import type { AgentHostCapability, BgTaskInfo as BgTaskSummary, ProjectSettings } from '@shared/protocol'
+import type {
+  AgentHostCapability,
+  BgTaskInfo as BgTaskSummary,
+  LaunchConfig,
+  MonitorInfo,
+  ProjectSettings,
+} from '@shared/protocol'
 
 // Re-export HookEvent but with a looser data type for generic property access
 // (dashboard does e.data?.model, e.data?.tool_name, etc.)
@@ -69,7 +77,7 @@ export interface Session {
   archivedTasks?: Array<{ id: string; subject: string }>
   runningBgTaskCount: number
   bgTasks: BgTaskSummary[]
-  monitors?: import('@shared/protocol').MonitorInfo[]
+  monitors?: MonitorInfo[]
   runningMonitorCount?: number
   teammates: Array<{
     name: string
@@ -124,7 +132,7 @@ export interface Session {
   autocompactPct?: number
   adHocTaskId?: string
   adHocWorktree?: string
-  launchConfig?: import('@shared/protocol').LaunchConfig
+  launchConfig?: LaunchConfig
   resultText?: string
   recap?: { content: string; title?: string; timestamp: number }
   recapFresh?: boolean
