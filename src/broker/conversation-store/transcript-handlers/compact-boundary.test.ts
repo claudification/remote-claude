@@ -49,6 +49,22 @@ describe('compact_boundary dedup', () => {
     expect(countMarkers(store.getTranscriptEntries('s1'))).toBe(2)
   })
 
+  it('does NOT emit a duplicate when the hook path already set compactedAt slightly before the JSONL timestamp', () => {
+    // Real-world race: PostCompact hook fires first (compact.ts sets
+    // conv.compactedAt = Date.now() and emits a synthetic marker), then
+    // the JSONL compact_boundary arrives with entry.timestamp a few
+    // hundred ms LATER. Both refer to the same compaction; only one
+    // marker should land.
+    const store = createConversationStore({ enablePersistence: false })
+    const conv = store.createConversation('s1', '/tmp')
+    // Simulate the hook path having run already
+    conv.compactedAt = new Date('2026-05-11T14:00:00.737Z').getTime()
+
+    store.addTranscriptEntries('s1', [compactBoundary('2026-05-11T14:00:00.908Z')], false)
+
+    expect(countMarkers(store.getTranscriptEntries('s1'))).toBe(0)
+  })
+
   it('initial-load compact_boundary does not emit a synthetic marker but does set compactedAt', () => {
     const store = createConversationStore({ enablePersistence: false })
     store.createConversation('s1', '/tmp')

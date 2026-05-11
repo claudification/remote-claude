@@ -56,16 +56,29 @@ function handleCompactBoundary(
     return false
   }
 
-  // Live: dedup against prior processing of this exact compact_boundary.
-  // The agent host's transcript ring buffer (50 entries) replays on every
-  // reconnect with isInitial=false, including across broker restarts. The
-  // old wall-clock check (Date.now() - compactedAt < 30s) silently broke
-  // when broker downtime exceeded 30s -- every restart stacked another
-  // synthetic marker into the transcript.
-  // Entry-time comparison is stable across restarts: compactedAt was set
-  // from this entry's timestamp on initial ingest, so a replay matches.
-  const alreadyProcessed = !!conv.compactedAt && entryTime > 0 && entryTime <= conv.compactedAt
-  if (alreadyProcessed || conv.compacting) return false
+  // Live: dedup against prior processing of the SAME compaction. Two
+  // independent paths can each emit a synthetic 'compacted' marker --
+  // the PostCompact hook (compact.ts, fires shortly after compaction
+  // completes) and this JSONL compact_boundary handler (fires when CC
+  // writes the boundary entry to the transcript file). They run within
+  // ~1s of each other for a real compaction.
+  //
+  // On top of that, the agent host's transcript ring buffer (50 entries
+  // in src/shared/host-transport) replays on every reconnect with the
+  // original isInitial=false, including across broker restarts -- and
+  // resendTranscriptFromFile chunks at 50 entries, so chunks 2+ also
+  // arrive with isInitial=false.
+  //
+  // Both sources collapse into one rule: if entryTime is within
+  // SAME_COMPACTION_WINDOW_MS of conv.compactedAt (either direction),
+  // we've already emitted a marker for this compaction. The window is
+  // wide enough to survive broker downtime (entry.timestamp matches the
+  // value we persisted to SQLite, so the difference is ~0) and the
+  // hook-vs-JSONL race (a few hundred ms apart).
+  const SAME_COMPACTION_WINDOW_MS = 60_000
+  const isSameCompaction =
+    !!conv.compactedAt && entryTime > 0 && Math.abs(entryTime - conv.compactedAt) < SAME_COMPACTION_WINDOW_MS
+  if (isSameCompaction || conv.compacting) return false
 
   conv.compactedAt = entryTime > 0 ? entryTime : Date.now()
   conv.stats.compactionCount++
