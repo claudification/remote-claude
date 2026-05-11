@@ -7,6 +7,7 @@
  *   -> broker -> forward to agent host -> resolve MCP tool call
  */
 
+import type { DialogLayout } from '../../shared/dialog-schema'
 import type { MessageHandler } from '../handler-context'
 import { AGENT_HOST_ONLY, DASHBOARD_ROLES, registerHandlers } from '../message-router'
 
@@ -24,7 +25,7 @@ const dialogShow: MessageHandler = (ctx, data) => {
   if (conversation) {
     conversation.pendingDialog = {
       dialogId,
-      layout: layout as unknown as import('../../shared/dialog-schema').DialogLayout,
+      layout: layout as unknown as DialogLayout,
       timestamp: Date.now(),
     }
     conversation.pendingAttention = {

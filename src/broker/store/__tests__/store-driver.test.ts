@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createMemoryDriver } from '../memory/driver'
 import { createSqliteDriver } from '../sqlite/driver'
-import type { StoreDriver, TranscriptEntryInput } from '../types'
+import type { StoreDriver, TranscriptEntryInput, TurnRecord } from '../types'
 
 function makeTranscriptEntry(
   type: string,
@@ -806,7 +806,7 @@ function runStoreTests(name: string, createDriver: () => StoreDriver) {
     // -----------------------------------------------------------------
 
     describe('costs', () => {
-      function baseTurn(overrides: Partial<import('../types').TurnRecord> = {}): import('../types').TurnRecord {
+      function baseTurn(overrides: Partial<TurnRecord> = {}): TurnRecord {
         return {
           timestamp: Date.now(),
           conversationId: 's1',

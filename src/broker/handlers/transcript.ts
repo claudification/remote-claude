@@ -6,7 +6,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { resolveModelFamily } from '../../shared/models'
-import type { AgentHostLaunchStep, TranscriptLaunchEntry } from '../../shared/protocol'
+import type { AgentHostLaunchStep, TranscriptLaunchEntry, TranscriptSystemEntry } from '../../shared/protocol'
 import { filterDisplayEntries } from '../../shared/transcript-filter'
 import type { MessageHandler } from '../handler-context'
 import { AGENT_HOST_ONLY, DASHBOARD_ROLES, registerHandlers } from '../message-router'
@@ -253,7 +253,7 @@ const conversationInfo: MessageHandler = (ctx, data) => {
       ctx.log.info(
         `Model mismatch: requested=${requestedModel} actual=${initModel} conversation=${conversationId.slice(0, 8)}`,
       )
-      const warningEntry: import('../../shared/protocol').TranscriptSystemEntry = {
+      const warningEntry: TranscriptSystemEntry = {
         type: 'system',
         subtype: 'model_mismatch',
         content: `Model mismatch: requested ${requestedModel} but CC is using ${initModel}`,

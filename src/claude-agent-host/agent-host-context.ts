@@ -5,7 +5,13 @@
  */
 
 import type { FSWatcher as ChokidarWatcher } from 'chokidar'
-import type { AgentHostMessage, HookEvent, TranscriptEntry } from '../shared/protocol'
+import type {
+  AgentHostLaunchEvent,
+  AgentHostLaunchPhase,
+  AgentHostMessage,
+  HookEvent,
+  TranscriptEntry,
+} from '../shared/protocol'
 import type { FileEditor } from './file-editor'
 import type { PtyProcess } from './pty-spawn'
 import type { StreamProcess } from './stream-backend'
@@ -47,10 +53,10 @@ export interface AgentHostContext {
    *  the agent host itself -- it's reserved for broker-synthesized
    *  change events (model_changed, mcp_servers_changed, etc.) that are
    *  appended directly to the transcript server-side. */
-  currentLaunchPhase: import('../shared/protocol').AgentHostLaunchPhase
+  currentLaunchPhase: AgentHostLaunchPhase
   /** Persistent, append-only log of every launch event emitted so far.
    *  Re-sent on WS reconnect so the dashboard catches up. */
-  readonly launchEvents: Array<import('../shared/protocol').AgentHostLaunchEvent>
+  readonly launchEvents: Array<AgentHostLaunchEvent>
   terminalAttached: boolean
   jsonStreamAttached: boolean
   readonly jsonStreamBuffer: string[]

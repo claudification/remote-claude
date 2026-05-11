@@ -26,7 +26,7 @@ export interface ContextDeps {
   addLink(projectA: string, projectB: string): void
   removeLink(projectA: string, projectB: string): void
   touchLink(projectA: string, projectB: string): void
-  logMessage(entry: Parameters<import('./handler-context').HandlerContext['logMessage']>[0]): void
+  logMessage(entry: Parameters<HandlerContext['logMessage']>[0]): void
   addressBook: {
     getOrAssign(callerProject: string, targetProject: string, targetName: string): string
     resolve(callerProject: string, localId: string): string | undefined

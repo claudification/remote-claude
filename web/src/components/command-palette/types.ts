@@ -1,5 +1,6 @@
 import type { FileInfo } from '@/hooks/use-file-editor'
 import type { Session } from '@/lib/types'
+import type { SentinelSuggestion } from './use-spawn-mode'
 
 export interface PaletteCommand {
   id: string
@@ -47,7 +48,7 @@ export interface FileResultsProps extends ResultListProps {
 
 export interface SpawnResultsProps extends ResultListProps {
   dirs: string[]
-  sentinels: import('./use-spawn-mode').SentinelSuggestion[]
+  sentinels: SentinelSuggestion[]
   isSentinelEntry: boolean
   resolvedSentinel: string
   loading: boolean

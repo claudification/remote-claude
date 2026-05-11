@@ -8,7 +8,9 @@
  * See `.claude/docs/plan-pluggable-backends.md` for the full design.
  */
 
-import type { SubscriptionChannel } from '../../shared/protocol'
+import type { ProjectSettings, SubscriptionChannel } from '../../shared/protocol'
+import type { SpawnCallerContext } from '../../shared/spawn-permissions'
+import type { SpawnRequest } from '../../shared/spawn-schema'
 import type { ConversationStore } from '../conversation-store'
 import type { GlobalSettings } from '../global-settings'
 import type { KVStore } from '../store/types'
@@ -38,9 +40,9 @@ export interface BackendDeps {
  */
 export interface SpawnDeps {
   conversationStore: ConversationStore
-  getProjectSettings: (project: string) => import('../../shared/protocol').ProjectSettings | null
+  getProjectSettings: (project: string) => ProjectSettings | null
   getGlobalSettings: () => GlobalSettings
-  callerContext: import('../../shared/spawn-permissions').SpawnCallerContext
+  callerContext: SpawnCallerContext
   rendezvousCallerConversationId?: string | null
 }
 
@@ -72,5 +74,5 @@ export interface ConversationBackend {
    * unified `dispatchSpawn` resolves the backend by `req.backend` (or scheme)
    * and delegates here. When undefined, the legacy Claude path is used.
    */
-  spawn?(req: import('../../shared/spawn-schema').SpawnRequest, deps: SpawnDeps): Promise<SpawnResult>
+  spawn?(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnResult>
 }

@@ -3,6 +3,7 @@
  * Three columns: Open | In Progress | Done, plus collapsible Archive
  */
 
+import type { EditorView } from '@codemirror/view'
 import {
   DndContext,
   type DragEndEvent,
@@ -145,7 +146,7 @@ function MarkdownEditorPane(props: {
   initialContent: string
   onChange: (value: string) => void
   onUpload: (file: File) => void
-  editorViewRef: React.RefObject<import('@codemirror/view').EditorView | null>
+  editorViewRef: React.RefObject<EditorView | null>
 }) {
   return (
     <Suspense fallback={<div className="relative w-full min-h-[200px]" />}>
@@ -181,7 +182,7 @@ export function TaskEditor({
   const [tagInput, setTagInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(!body.trim())
-  const editorViewRef = useRef<import('@codemirror/view').EditorView | null>(null)
+  const editorViewRef = useRef<EditorView | null>(null)
   const canWork = status === 'inbox' || status === 'open' || status === 'in-progress' || status === 'in-review'
 
   useKeyLayer(
