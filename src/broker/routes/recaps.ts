@@ -285,10 +285,10 @@ export function createRecapsRouter(_conversationStore: ConversationStore, helper
     }
   })
 
-  // Public share viewer data endpoint. No auth required -- the token IS the
-  // capability. Validates targetKind === 'recap' and returns only the
-  // recap's safe public surface (markdown + presentation metadata, never
-  // the createdBy / project URI / underlying conversation ids).
+  // Public share viewer. No auth required -- the token IS the capability.
+  // Validates targetKind === 'recap' and returns recap markdown + metadata.
+  // Respects Accept header: text/html (or browser default) returns rendered HTML,
+  // application/json returns JSON data, text/markdown returns raw markdown.
   app.get('/shared/public/recap/:token', c => {
     const orch = getRecapOrchestrator()
     if (!orch) return c.json({ error: 'recap orchestrator not initialised' }, 503)
@@ -302,7 +302,9 @@ export function createRecapsRouter(_conversationStore: ConversationStore, helper
     if (!row || row.status !== 'done' || !row.markdown) {
       return c.json({ error: 'recap not available' }, 404)
     }
-    return c.json({
+
+    const accept = c.req.header('accept') || ''
+    const data = {
       recapId: row.id,
       title: row.title,
       subtitle: row.subtitle,
@@ -316,7 +318,77 @@ export function createRecapsRouter(_conversationStore: ConversationStore, helper
       completedAt: row.completedAt,
       shareLabel: share.label,
       expiresAt: share.expiresAt,
-    })
+    }
+
+    // If explicitly requesting raw markdown, return it without rendering
+    if (accept.includes('text/markdown') || accept.includes('text/plain')) {
+      return new Response(row.markdown, {
+        headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
+      })
+    }
+
+    // Default for browsers: render as HTML
+    if (accept.includes('text/html') || accept.includes('*/*') || !accept) {
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <meta name=viewport content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(row.title || `Recap ${row.id.slice(0, 12)}`)}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; color: #333; background: #f9f9f9; }
+    .container { max-width: 48rem; margin: 0 auto; padding: 2.5rem 1.5rem; background: white; }
+    h1, h2, h3, h4, h5, h6 { margin: 1.5rem 0 0.5rem; font-weight: 600; }
+    h1 { font-size: 2rem; }
+    h2 { font-size: 1.5rem; }
+    h3 { font-size: 1.25rem; }
+    p { margin: 1rem 0; }
+    ul, ol { margin: 1rem 0; padding-left: 2rem; }
+    li { margin: 0.5rem 0; }
+    code { background: #f4f4f4; padding: 0.2rem 0.4rem; border-radius: 3px; font-family: monospace; }
+    pre { background: #f4f4f4; padding: 1rem; border-radius: 5px; overflow-x: auto; margin: 1rem 0; }
+    pre code { background: none; padding: 0; }
+    blockquote { border-left: 4px solid #ddd; padding-left: 1rem; margin: 1rem 0; color: #666; }
+    a { color: #0066cc; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { border: 1px solid #ddd; padding: 0.75rem; text-align: left; }
+    th { background: #f4f4f4; font-weight: 600; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #1a1a1a; color: #e0e0e0; }
+      .container { background: #2a2a2a; }
+      code { background: #333; }
+      pre { background: #333; }
+      table { border-color: #444; }
+      th { background: #333; }
+      blockquote { color: #999; }
+      a { color: #66b3ff; }
+    }
+  </style>
+</head>
+<body>
+  <div class=container>
+    <header class="mb-6 pb-4 border-b">
+      <h1>${escapeHtml(row.title || 'Recap')}</h1>
+      ${row.subtitle ? `<p class="italic text-muted">${escapeHtml(row.subtitle)}</p>` : ''}
+      <p class="text-sm text-muted" style="margin-top: 0.5rem; font-size: 0.875rem; color: #999;">
+        ${new Date(row.periodStart).toISOString().slice(0, 10)} - ${new Date(row.periodEnd).toISOString().slice(0, 10)}
+        ${row.model ? ` - ${escapeHtml(row.model)}` : ''}
+        ${share.expiresAt ? ` - share expires ${new Date(share.expiresAt).toISOString().slice(0, 10)}` : ''}
+      </p>
+    </header>
+    <main>${marked(row.markdown)}</main>
+  </div>
+</body>
+</html>`
+      return new Response(html, {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      })
+    }
+
+    // Default: return JSON
+    return c.json(data)
   })
 
   // Pretty shorthand redirect: /r/:token -> /shared/public/recap/:token
