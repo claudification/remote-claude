@@ -113,8 +113,9 @@ function handleAgentRequest(req: JsonRpcReq) {
 let buf = ''
 child.stdout.on('data', d => {
   buf += d.toString()
-  let idx: number
-  while ((idx = buf.indexOf('\n')) !== -1) {
+  while (true) {
+    const idx = buf.indexOf('\n')
+    if (idx === -1) break
     const line = buf.slice(0, idx)
     buf = buf.slice(idx + 1)
     if (!line.trim()) continue
