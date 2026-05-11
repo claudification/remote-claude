@@ -98,6 +98,24 @@ BACKUP COMMANDS:
   backup list [--dest <dir>]                                List available backups
   backup restore <archive> [--cache-dir <dir>]             Restore from backup (broker must be stopped)
 
+TERMINATION COMMANDS (NDJSON log: {cacheDir}/terminations/YYYY-MM-DD.ndjson):
+  termination list [--days N] [--limit N] [--source S]      Recent terminations, newest-first
+    [--initiator I] [--grep TEXT] [--json]                    (default: 7 days, 50 rows)
+  termination show --conv <conversationId> [--json]         All terminations for one conversation
+  termination grep <text> [--days N] [--json]               Substring search across NDJSON
+
+  Source enum values:
+    dashboard-context-menu, dashboard-terminate-dialog,
+    dashboard-launch-toast, dashboard-other,
+    inter-conversation-restart,
+    mcp-exit-session, headless-input,
+    cc-exit-normal, cc-exit-crash,
+    ws-close, reaper-phantom,
+    sentinel-kill, unknown
+
+  Inside Docker: docker exec broker broker-cli termination list
+  Retention: 30 days (auto-rotated daily)
+
 GRANT FORMAT:
   --grant "scope:permission,permission"   (repeatable)
   --grant "/Users/jonas/projects/foo:chat"
