@@ -960,7 +960,7 @@ claudewerk/
 │   │   ├── handlers/             WS message handlers (one file per domain)
 │   │   ├── routes.ts             HTTP routes composition root
 │   │   ├── routes/               Per-domain route modules
-│   │   ├── __tests__/            Vitest behavioral tests
+│   │   ├── __tests__/            bun:test behavioral tests
 │   │   ├── conversation-store.ts  Runtime conversation registry (hot cache over StoreDriver)
 │   │   ├── conversation-store/   Domain modules (sync-protocol, broadcast, spawn-jobs, ...)
 │   │   ├── store/                Unified StoreDriver (SQLite + in-memory)
