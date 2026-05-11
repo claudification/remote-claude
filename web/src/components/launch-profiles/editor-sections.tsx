@@ -58,10 +58,26 @@ export function BehaviorSection({ profile, onPatch }: { profile: LaunchProfile; 
   )
 }
 
-export function BackendSection({ backend, onChange }: { backend: BackendKind; onChange: (next: BackendKind) => void }) {
+export function BackendSection({
+  backend,
+  onChange,
+  hasIncompatibleFields,
+}: {
+  backend: BackendKind
+  onChange: (next: BackendKind) => void
+  hasIncompatibleFields: boolean
+}) {
+  function handleChange(next: BackendKind) {
+    if (next === backend) return
+    if (hasIncompatibleFields) {
+      const ok = window.confirm('Switching backend will clear fields the new backend cannot use. Continue?')
+      if (!ok) return
+    }
+    onChange(next)
+  }
   return (
     <Section title="Backend">
-      <BackendSelect value={backend} onChange={onChange} chatAvailable hermesAvailable />
+      <BackendSelect value={backend} onChange={handleChange} chatAvailable hermesAvailable />
     </Section>
   )
 }
