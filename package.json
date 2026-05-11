@@ -40,6 +40,7 @@
     "lint": "fallow audit && bunx biome check --fix . && bun run lint:boundary",
     "lint:biome": "bunx biome check --fix .",
     "lint:boundary": "bun run scripts/lint-boundary.ts",
+    "lint:inline-import-type": "bun run scripts/lint-inline-import-type.ts",
     "fallow": "fallow",
     "fallow:dead": "fallow dead-code",
     "fallow:dupes": "fallow dupes",
