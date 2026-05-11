@@ -177,6 +177,9 @@ export function requireAuth(req: Request): Response | null {
   // Uploaded files are public (Claude needs to fetch them without auth)
   if (url.pathname.startsWith('/file/')) return null
 
+  // Public shared content (token-based guest access, no additional auth needed)
+  if (url.pathname.startsWith('/shared/public/')) return null
+
   // Specific auth routes needed for login/registration flow (no cookie yet)
   if (PUBLIC_AUTH_ROUTES.has(url.pathname)) return null
 
