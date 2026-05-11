@@ -4,6 +4,7 @@ import { saveProjectOrder, updateProjectSettings, useConversationsStore, wsSend 
 import type { ProjectOrder, ProjectOrderGroup, Session } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
+import { RecapSubmenu } from '../recap-jobs/recap-submenu'
 import { openReviveDialog } from '../revive-dialog'
 import { openManageProjectLinks } from '../settings/manage-project-links-dialog'
 import { openSpawnDialog } from '../spawn-dialog'
@@ -145,6 +146,9 @@ export function ConversationContextMenu({
           >
             Edit description...
           </ContextMenu.Item>
+          {/* Conversation-level "old recap" (per-conversation away_summary)
+              kept for now; the new project-level period recap submenu lives
+              below. wsSend('recap_request') is the legacy 20-word summary. */}
           <ContextMenu.Item
             className={menuItemClass}
             onSelect={() => {
@@ -152,8 +156,9 @@ export function ConversationContextMenu({
               wsSend('recap_request', { conversationId: session.id })
             }}
           >
-            Recap
+            Quick recap (this conversation)
           </ContextMenu.Item>
+          <RecapSubmenu projectUri={session.project} label="Recap project" />
           {session.pendingTaskCount > 0 && (
             <ContextMenu.Item
               className={menuItemClass}
@@ -273,6 +278,7 @@ function ProjectMenuItems({ project, onOpenSettings }: { project: string; onOpen
       >
         Launch new...
       </ContextMenu.Item>
+      <RecapSubmenu projectUri={project} />
       <ContextMenu.Item
         className={menuItemClass}
         onSelect={() => {

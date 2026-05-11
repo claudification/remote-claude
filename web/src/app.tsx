@@ -15,6 +15,7 @@ import { LaunchProfileManager } from '@/components/launch-profiles/manager'
 import { MediaLightbox } from '@/components/media-lightbox'
 import { ProjectList } from '@/components/project-list'
 import { QuickTaskModal } from '@/components/quick-task-modal'
+import { RecapCustomRangeDialog } from '@/components/recap-jobs/recap-custom-range-dialog'
 import { RecapJobsWidget } from '@/components/recap-jobs/recap-jobs-widget'
 import { RenameModal } from '@/components/rename-modal'
 import { ReviveDialog } from '@/components/revive-dialog'
@@ -281,6 +282,7 @@ function Dashboard() {
       <ChordOverlay />
       <SpawnDialog />
       <ReviveDialog />
+      <RecapCustomRangeDialog />
       <ManageProjectLinksDialog />
       <ManageChatConnectionsDialog />
       <LaunchProfileManager />

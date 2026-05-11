@@ -2,6 +2,8 @@ import { useCallback, useEffect } from 'react'
 import { openLaunchProfileManager } from '@/components/launch-profiles/manager-state'
 import { openRenameModal } from '@/components/rename-modal'
 import { openManageChatConnections } from '@/components/settings/manage-chat-connections-dialog'
+import { openRecapCustomRangeDialog } from '@/components/recap-jobs/recap-custom-range-dialog'
+import { createRecap, openRecapHistory } from '@/components/recap-jobs/recap-submenu'
 import { openManageProjectLinks } from '@/components/settings/manage-project-links-dialog'
 import { openSpawnDialog } from '@/components/spawn-dialog'
 import { openTerminateConfirm } from '@/components/terminate-confirm'
@@ -307,6 +309,71 @@ export function useGlobalCommands(toggleSidebar: () => void) {
   useCommand('manage-launch-profiles', () => openLaunchProfileManager(), {
     label: 'Manage Launch Profiles',
     group: 'Launch',
+  })
+
+  // ─── Recap commands ───────────────────────────────────────────────────
+  // Resolves the "this project" target for project-scoped recaps. Falls back
+  // to '*' (cross-project) when no conversation is selected.
+  function selectedProjectOrCross(): string {
+    const sid = useConversationsStore.getState().selectedConversationId
+    const sessions = useConversationsStore.getState().sessions
+    const selected = sessions.find((s: { id: string; project?: string }) => s.id === sid)
+    return selected?.project ?? '*'
+  }
+
+  useCommand(
+    'recap-this-project-7',
+    () => {
+      const proj = selectedProjectOrCross()
+      createRecap({ projectUri: proj, label: 'last_7' })
+    },
+    { label: 'Recap this project (last 7 days)', group: 'Recap' },
+  )
+  useCommand(
+    'recap-this-project-today',
+    () => createRecap({ projectUri: selectedProjectOrCross(), label: 'today' }),
+    { label: 'Recap this project (today)', group: 'Recap' },
+  )
+  useCommand(
+    'recap-this-project-yesterday',
+    () => createRecap({ projectUri: selectedProjectOrCross(), label: 'yesterday' }),
+    { label: 'Recap this project (yesterday)', group: 'Recap' },
+  )
+  useCommand(
+    'recap-this-project-month',
+    () => createRecap({ projectUri: selectedProjectOrCross(), label: 'this_month' }),
+    { label: 'Recap this project (this month)', group: 'Recap' },
+  )
+  useCommand(
+    'recap-this-project-custom',
+    () => openRecapCustomRangeDialog({ projectUri: selectedProjectOrCross() }),
+    { label: 'Recap this project (custom range)...', group: 'Recap' },
+  )
+
+  useCommand('recap-cross-today', () => createRecap({ projectUri: '*', label: 'today' }), {
+    label: 'Recap all projects (today)',
+    group: 'Recap',
+  })
+  useCommand('recap-cross-yesterday', () => createRecap({ projectUri: '*', label: 'yesterday' }), {
+    label: 'Recap all projects (yesterday)',
+    group: 'Recap',
+  })
+  useCommand('recap-cross-7', () => createRecap({ projectUri: '*', label: 'last_7' }), {
+    label: 'Recap all projects (last 7 days)',
+    group: 'Recap',
+  })
+  useCommand('recap-cross-month', () => createRecap({ projectUri: '*', label: 'this_month' }), {
+    label: 'Recap all projects (this month)',
+    group: 'Recap',
+  })
+  useCommand('recap-cross-custom', () => openRecapCustomRangeDialog({ projectUri: '*' }), {
+    label: 'Recap all projects (custom range)...',
+    group: 'Recap',
+  })
+
+  useCommand('recap-view-all', () => openRecapHistory(), {
+    label: 'View recaps',
+    group: 'Recap',
   })
 
   useCommand(
