@@ -275,13 +275,14 @@ export function createRouter(options: RouteOptions): Hono {
       }
 
       // SPA fallback for non-API paths
+      // Note: /shared/public/recap/ paths are handled by SPA routing + React component
       if (
         !path.startsWith('/conversations') &&
         !path.startsWith('/health') &&
         !path.startsWith('/api') &&
         !path.startsWith('/file') &&
-        !path.startsWith('/shared') &&
-        !path.startsWith('/mcp')
+        !path.startsWith('/mcp') &&
+        !(path.startsWith('/shared') && !path.startsWith('/shared/public/recap/'))
       ) {
         const indexHtml = embeddedFiles.get('index.html')
         if (indexHtml) {
@@ -319,13 +320,14 @@ export function createRouter(options: RouteOptions): Hono {
       }
 
       // SPA fallback
+      // Note: /shared/public/recap/ paths are handled by SPA routing + React component
       if (
         !path.startsWith('/conversations') &&
         !path.startsWith('/health') &&
         !path.startsWith('/api') &&
         !path.startsWith('/file') &&
-        !path.startsWith('/shared') &&
-        !path.startsWith('/mcp')
+        !path.startsWith('/mcp') &&
+        !(path.startsWith('/shared') && !path.startsWith('/shared/public/recap/'))
       ) {
         try {
           const indexFile = Bun.file(`${webDir}/index.html`)
