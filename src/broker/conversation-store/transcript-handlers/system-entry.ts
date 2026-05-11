@@ -48,18 +48,26 @@ function handleCompactBoundary(
   entry: TranscriptSystemEntry,
   isInitial: boolean,
 ): boolean {
+  const entryTime = entry.timestamp ? new Date(entry.timestamp).getTime() : 0
+
   if (isInitial) {
     conv.stats.compactionCount++
-    conv.compactedAt = new Date(entry.timestamp || 0).getTime()
+    if (entryTime > 0) conv.compactedAt = entryTime
     return false
   }
 
-  // Live: cross-check against hook-based detection.
-  // If hooks already handled this compaction (compactedAt set recently), skip.
-  const recentlyCompacted = !!conv.compactedAt && Date.now() - conv.compactedAt < 30_000
-  if (recentlyCompacted || conv.compacting) return false
+  // Live: dedup against prior processing of this exact compact_boundary.
+  // The agent host's transcript ring buffer (50 entries) replays on every
+  // reconnect with isInitial=false, including across broker restarts. The
+  // old wall-clock check (Date.now() - compactedAt < 30s) silently broke
+  // when broker downtime exceeded 30s -- every restart stacked another
+  // synthetic marker into the transcript.
+  // Entry-time comparison is stable across restarts: compactedAt was set
+  // from this entry's timestamp on initial ingest, so a replay matches.
+  const alreadyProcessed = !!conv.compactedAt && entryTime > 0 && entryTime <= conv.compactedAt
+  if (alreadyProcessed || conv.compacting) return false
 
-  conv.compactedAt = Date.now()
+  conv.compactedAt = entryTime > 0 ? entryTime : Date.now()
   conv.stats.compactionCount++
   const marker = { type: 'compacted' as const, timestamp: entry.timestamp || new Date().toISOString() }
   ctx.addTranscriptEntries(conversationId, [marker], false)
