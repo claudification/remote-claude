@@ -132,10 +132,19 @@ export function HealthWidget() {
               </div>
             )}
 
-            <div className="border-t border-border/50 mt-2 pt-1">
+            <div className="border-t border-border/50 mt-2 pt-1 flex items-center justify-between gap-2">
               <span className="text-[9px] text-muted-foreground/40">
                 Polled {new Date(health.polledAt).toLocaleTimeString()}
               </span>
+              <a
+                href="https://clanker.watch"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground/80 hover:underline"
+                title="Data source -- click for details"
+              >
+                clanker.watch ↗
+              </a>
             </div>
           </div>
         </Popover.Content>

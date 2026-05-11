@@ -44,7 +44,8 @@ export function EfficiencyWidget() {
 
   if (!eff) return null
 
-  const pct = Math.min(eff.efficiency, 100)
+  const pct = eff.efficiency
+  const barPct = Math.min(pct, 100)
   const nowUtcHour = new Date().getUTCHours()
 
   return (
@@ -64,7 +65,7 @@ export function EfficiencyWidget() {
           <div className="w-10 sm:w-14 h-1.5 bg-muted rounded-full overflow-hidden">
             <div
               className={`h-full ${effColor(pct)} rounded-full transition-all duration-500`}
-              style={{ width: `${pct}%` }}
+              style={{ width: `${barPct}%` }}
             />
           </div>
           <span className={`text-[10px] tabular-nums ${effTextColor(pct)}`}>{Math.round(pct)}%</span>
@@ -93,7 +94,7 @@ export function EfficiencyWidget() {
               <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden min-w-20">
                 <div
                   className={`h-full ${effColor(pct)} rounded-full transition-all duration-500`}
-                  style={{ width: `${pct}%` }}
+                  style={{ width: `${barPct}%` }}
                 />
               </div>
               <span className={`text-[11px] tabular-nums font-medium w-8 ${effTextColor(pct)}`}>
@@ -125,7 +126,7 @@ export function EfficiencyWidget() {
                         <div className="w-full h-3 bg-muted rounded-sm overflow-hidden">
                           <div
                             className={`h-full ${effColor(block.efficiency)} rounded-sm transition-all duration-500`}
-                            style={{ width: `${block.efficiency}%` }}
+                            style={{ width: `${Math.min(block.efficiency, 100)}%` }}
                           />
                         </div>
                         <span className={`text-[8px] tabular-nums ${effTextColor(block.efficiency)}`}>
@@ -138,10 +139,19 @@ export function EfficiencyWidget() {
               </>
             )}
 
-            <div className="border-t border-border/50 mt-2 pt-1">
+            <div className="border-t border-border/50 mt-2 pt-1 flex items-center justify-between gap-2">
               <span className="text-[9px] text-muted-foreground/40">
                 Polled {new Date(eff.polledAt).toLocaleTimeString()}
               </span>
+              <a
+                href="https://usage.report"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground/80 hover:underline"
+                title="Data source -- click for details"
+              >
+                usage.report ↗
+              </a>
             </div>
           </div>
         </Popover.Content>
