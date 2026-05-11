@@ -11,6 +11,13 @@ import { dispatchToolCase, renderErrorFallback, renderPersistedOutput } from './
 
 export { dispatchToolCase, renderErrorFallback, renderPersistedOutput } from './tool-dispatch'
 
+function isDockerfileOperation(input: Record<string, unknown>): boolean {
+  const filePath = input.path as string | undefined
+  if (!filePath) return false
+  const filename = filePath.split('/').pop() || ''
+  return /^Dockerfile/i.test(filename)
+}
+
 export function ToolLine({
   tool,
   result,
@@ -90,9 +97,9 @@ export function ToolLine({
     : name
 
   return (
-    <div className={cn('font-mono text-xs', isError && 'border-l-2 border-red-500/60 pl-1.5')}>
+    <div className={cn('font-mono text-xs', isError && 'border-l-2 border-red-500/60 pl-1.5', isDockerfileOperation(input) && 'border-l-2 border-amber-500/60 pl-1.5 bg-amber-500/5')}>
       <div className="flex items-center gap-2">
-        <span className={cn('shrink-0 flex items-center gap-1', isError ? 'text-red-400' : style.color)} title={name}>
+        <span className={cn('shrink-0 flex items-center gap-1', isError ? 'text-red-400' : style.color, isDockerfileOperation(input) && 'font-bold')} title={name}>
           <Icon className="w-3 h-3 shrink-0" />
           <span className="truncate max-w-[120px]">{displayName}</span>
         </span>
