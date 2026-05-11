@@ -6,7 +6,13 @@
 import type { ServerWebSocket } from 'bun'
 import { resolveContextWindow } from '../shared/context-window'
 import { deriveModelName } from '../shared/models'
-import { buildProjectUri, cwdToProjectUri, DEFAULT_SENTINEL_NAME, parseProjectUri } from '../shared/project-uri'
+import {
+  buildProjectUri,
+  cwdToProjectUri,
+  DEFAULT_SENTINEL_NAME,
+  parseProjectUri,
+  validateProjectUri,
+} from '../shared/project-uri'
 import type {
   AgentHostCapability,
   Conversation,
@@ -971,6 +977,18 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
     const sentinelAlias = getDefaultSentinelAlias()
     const project = resolveProjectUri(projectOrCwd, sentinelAlias)
+    // Last-line defense: never persist a row whose project URI is unparseable.
+    // The chat-api backend used to allocate URIs like `chat://Mistral Dophin`
+    // (space in authority) which crashed every iteration over conversations.
+    // Validate at the only choke-point all callers go through.
+    if (project.includes('://')) {
+      const check = validateProjectUri(project)
+      if (!check.valid) {
+        throw new Error(
+          `createConversation: refusing to persist conversation ${id.slice(0, 8)} with invalid project URI -- ${check.error}`,
+        )
+      }
+    }
     const conv: Conversation = {
       id,
       project,

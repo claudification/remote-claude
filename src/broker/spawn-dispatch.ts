@@ -19,7 +19,7 @@
 import { randomUUID } from 'node:crypto'
 import { generateConversationName } from '../shared/conversation-names'
 import { validateModel } from '../shared/models'
-import { cwdToProjectUri } from '../shared/project-uri'
+import { cwdToProjectUri, validateProjectUri } from '../shared/project-uri'
 import type { Conversation, LaunchProgressEvent, LaunchStep, ProjectSettings, SpawnResult } from '../shared/protocol'
 import { resolveSpawnConfig } from '../shared/spawn-defaults'
 import { deriveConversationName, validateConversationName } from '../shared/spawn-naming'
@@ -82,6 +82,25 @@ export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps):
       return { ok: false, error: err.message, statusCode: 403 }
     }
     throw err
+  }
+
+  // FULL DENY for invalid project URIs. We never want a row in the
+  // conversation store whose project URI WHATWG URL rejects -- one such row
+  // used to poison list_conversations for every benevolent caller (see
+  // `parseProjectUri` incident comment). Validate any cwd that LOOKS like a
+  // URI attempt (contains `://` or a `scheme:*` wildcard). Absolute paths
+  // (`/...`), relative paths (`./...`, `../...`), and home paths (`~/...`)
+  // are wrapped by the sentinel via cwdToProjectUri (always safe) and skipped
+  // here.
+  if (typeof req.cwd === 'string') {
+    const looksLikeUri = req.cwd.includes('://') || /^[a-z][a-z0-9+.-]*:/i.test(req.cwd)
+    const isPlainPath = req.cwd.startsWith('/') || req.cwd.startsWith('.') || req.cwd.startsWith('~')
+    if (looksLikeUri && !isPlainPath) {
+      const check = validateProjectUri(req.cwd)
+      if (!check.valid) {
+        return { ok: false, error: check.error, statusCode: 400 }
+      }
+    }
   }
 
   // --- Registry-driven dispatch -------------------------------------------

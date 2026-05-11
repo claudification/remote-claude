@@ -87,6 +87,79 @@ export function parseProjectUri(uri: string): ProjectUri {
   return { scheme, authority, path, fragment, raw: uri }
 }
 
+/**
+ * Tolerant variant of `parseProjectUri` that returns `null` instead of
+ * throwing on truly garbage input (no `scheme://` prefix). Use this in code
+ * that iterates over arbitrary conversation rows from the store and only
+ * cares about results it can use -- never let a single bad row poison the
+ * whole iteration. For strict write-time validation, use `validateProjectUri`.
+ */
+export function tryParseProjectUri(uri: string): ProjectUri | null {
+  try {
+    return parseProjectUri(uri)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Strict write-time validation. Rejects URIs that WHATWG URL would reject
+ * (authorities with spaces, illegal chars, missing scheme, etc.), so we
+ * never persist a row that later poisons read-side iteration. Wildcards
+ * (`*`, `scheme:*`) are also rejected -- they're permission patterns,
+ * not real project addresses.
+ *
+ * Returns `{ valid: true }` on accept, or `{ valid: false, error }` with a
+ * human-readable explanation that callers can surface verbatim to the user.
+ */
+export function validateProjectUri(uri: string): { valid: true } | { valid: false; error: string } {
+  if (typeof uri !== 'string' || uri.length === 0) {
+    return { valid: false, error: 'Project URI is required (got empty string)' }
+  }
+  if (uri === '*' || /^[a-z][a-z0-9+.-]*:\*$/i.test(uri)) {
+    return { valid: false, error: `Wildcard URI "${uri}" is a permission pattern, not a valid project address` }
+  }
+  // Must be a `scheme://` shape. Bare paths or random strings are not valid
+  // project URIs at write time -- if a caller wants to spawn at /abs/path it
+  // should pass the path directly (the broker wraps it via cwdToProjectUri),
+  // not a hand-rolled URI fragment.
+  const schemeMatch = uri.match(/^([a-z][a-z0-9+.-]*):\/\/(.*)$/i)
+  if (!schemeMatch) {
+    return { valid: false, error: `Project URI "${uri}" is missing a scheme:// prefix` }
+  }
+  let url: URL
+  try {
+    url = new URL(uri)
+  } catch {
+    // WHATWG rejected this for some illegal character. Pinpoint the authority
+    // (most common source: a space or unencoded special char).
+    const rest = schemeMatch[2]
+    const slashIdx = rest.indexOf('/')
+    const authority = slashIdx >= 0 ? rest.slice(0, slashIdx) : rest
+    if (authority && /[\s<>"`{}|\\^[\]]/.test(authority)) {
+      return {
+        valid: false,
+        error: `Project URI "${uri}" has an invalid authority "${authority}" (contains whitespace or illegal URL characters)`,
+      }
+    }
+    return { valid: false, error: `Project URI "${uri}" is not a valid URL (rejected by WHATWG URL parser)` }
+  }
+  // Cross-check: WHATWG normalizes some forms in ways that change semantics
+  // (lowercasing the host, decoding percent-escapes). The authority we'd
+  // round-trip through buildProjectUri should still match the raw input for
+  // the authority slot.
+  if (url.username || url.password) {
+    return { valid: false, error: `Project URI "${uri}" must not include userinfo (user:pass@)` }
+  }
+  if (url.port) {
+    return { valid: false, error: `Project URI "${uri}" must not include a port` }
+  }
+  if (url.search) {
+    return { valid: false, error: `Project URI "${uri}" must not include a query string` }
+  }
+  return { valid: true }
+}
+
 export function buildProjectUri(parts: ProjectUriParts): string {
   const scheme = parts.scheme.toLowerCase()
   // Every URI carries a sentinel name in the authority slot, regardless of

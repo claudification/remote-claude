@@ -6,7 +6,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Hono } from 'hono'
-import { matchProjectUri, parseProjectUri } from '../../shared/project-uri'
+import { matchProjectUri, tryParseProjectUri } from '../../shared/project-uri'
 import { getAuthenticatedUser } from '../auth-routes'
 import type { ConversationStore } from '../conversation-store'
 import { getGlobalSettings, updateGlobalSettings } from '../global-settings'
@@ -375,9 +375,10 @@ export function createApiRouter(
     if (!projectPath) return c.json({ error: 'Missing project' }, 400)
 
     const allConversations = conversationStore.getAllConversations()
-    const sessionForCwd = allConversations.find(
-      s => parseProjectUri(s.project).path === projectPath && s.status === 'active',
-    )
+    const sessionForCwd = allConversations.find(s => {
+      const parsed = tryParseProjectUri(s.project)
+      return parsed?.path === projectPath && s.status === 'active'
+    })
     const wrapperSocket = sessionForCwd ? conversationStore.getConversationSocket(sessionForCwd.id) : null
     if (!wrapperSocket) {
       return c.json({ error: 'No active conversation connected for this project' }, 503)

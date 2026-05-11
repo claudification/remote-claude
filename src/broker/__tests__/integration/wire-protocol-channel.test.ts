@@ -397,11 +397,15 @@ describe('inter-session messaging', () => {
         project: 'claude:///home/user/project-healthy',
       })
 
-      // Manually create a conversation with a malformed project URI -- this
-      // simulates a backend that allocates URIs from human-readable labels
-      // (e.g. `chat://Mistral Dophin`). createConversation accepts whatever
-      // it's given; the store has no URI-shape check.
-      h.conversationStore.createConversation(badConv, 'chat://Mistral Dophin')
+      // Simulate legacy data: a row with a malformed URI that pre-dates the
+      // write-time validation gate. New rows can't get in (createConversation
+      // rejects them), but rows persisted before the fix MUST still degrade
+      // gracefully when read. Insert via createConversation then mutate the
+      // project URI to bypass validation -- matches what we'd see hydrating
+      // from SQLite where a bad row was written by an older binary.
+      h.conversationStore.createConversation(badConv, 'claude:///tmp/placeholder-will-be-rewritten')
+      const bad = h.conversationStore.getConversation(badConv)
+      if (bad) bad.project = 'chat://Mistral Dophin'
 
       await h.flushUpdates()
 

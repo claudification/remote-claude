@@ -164,3 +164,37 @@ describe('Non-Chat API spawn still requires sentinel', () => {
     expect(result.error).toContain('No sentinel')
   })
 })
+
+// Regression: spawn must FULL DENY invalid project URIs at the boundary so
+// the conversation store never receives a row that later poisons read-side
+// iteration. The chat-api backend used to allocate URIs like
+// "chat://Mistral Dophin" (space in authority) -- WHATWG URL rejected them,
+// parseProjectUri threw inside channel_list_conversations, and every
+// list_conversations caller got an empty `[]` even with 20+ healthy
+// conversations registered.
+describe('Spawn rejects invalid project URIs', () => {
+  it('rejects URI with whitespace in authority', async () => {
+    const result = await dispatchSpawn(
+      {
+        cwd: 'chat://Mistral Dophin',
+      } as SpawnRequest,
+      deps,
+    )
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toContain('invalid authority')
+    expect(result.statusCode).toBe(400)
+  })
+
+  it('rejects wildcard URIs', async () => {
+    const result = await dispatchSpawn(
+      {
+        cwd: 'claude:*',
+      } as SpawnRequest,
+      deps,
+    )
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.toLowerCase()).toContain('wildcard')
+  })
+})

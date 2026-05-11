@@ -11,6 +11,8 @@ import {
   matchProjectUri,
   normalizeProjectUri,
   parseProjectUri,
+  tryParseProjectUri,
+  validateProjectUri,
 } from './project-uri'
 
 describe('parseProjectUri', () => {
@@ -129,6 +131,73 @@ describe('parseProjectUri', () => {
   test('still throws on genuinely garbage input (no scheme://)', () => {
     expect(() => parseProjectUri('garbage')).toThrow()
     expect(() => parseProjectUri('')).toThrow()
+  })
+})
+
+describe('validateProjectUri', () => {
+  test('accepts well-formed claude URI', () => {
+    const r = validateProjectUri('claude://default/Users/jonas/projects/foo')
+    expect(r.valid).toBe(true)
+  })
+
+  test('accepts authority-less triple-slash form', () => {
+    const r = validateProjectUri('claude:///Users/jonas/projects/foo')
+    expect(r.valid).toBe(true)
+  })
+
+  test('accepts opencode authority-only URI', () => {
+    const r = validateProjectUri('opencode://default')
+    expect(r.valid).toBe(true)
+  })
+
+  test('rejects authority with whitespace', () => {
+    const r = validateProjectUri('chat://Mistral Dophin')
+    expect(r.valid).toBe(false)
+    if (!r.valid) expect(r.error).toContain('invalid authority')
+  })
+
+  test('rejects empty string', () => {
+    const r = validateProjectUri('')
+    expect(r.valid).toBe(false)
+  })
+
+  test('rejects bare path (no scheme://)', () => {
+    const r = validateProjectUri('/Users/jonas/projects/foo')
+    expect(r.valid).toBe(false)
+    if (!r.valid) expect(r.error).toContain('scheme://')
+  })
+
+  test('rejects garbage', () => {
+    const r = validateProjectUri('not a uri at all')
+    expect(r.valid).toBe(false)
+  })
+
+  test('rejects wildcards (permission patterns, not addresses)', () => {
+    expect(validateProjectUri('*').valid).toBe(false)
+    expect(validateProjectUri('claude:*').valid).toBe(false)
+  })
+
+  test('rejects URIs with userinfo / port / query', () => {
+    expect(validateProjectUri('claude://user:pass@host/path').valid).toBe(false)
+    expect(validateProjectUri('claude://default:9999/path').valid).toBe(false)
+    expect(validateProjectUri('claude://default/path?query=1').valid).toBe(false)
+  })
+})
+
+describe('tryParseProjectUri', () => {
+  test('returns parsed result on valid input', () => {
+    const r = tryParseProjectUri('claude://default/Users/jonas')
+    expect(r?.scheme).toBe('claude')
+  })
+
+  test('returns null on garbage', () => {
+    expect(tryParseProjectUri('garbage')).toBeNull()
+    expect(tryParseProjectUri('')).toBeNull()
+  })
+
+  test('tolerates malformed authority (no null)', () => {
+    const r = tryParseProjectUri('chat://Mistral Dophin')
+    expect(r?.scheme).toBe('chat')
   })
 })
 
