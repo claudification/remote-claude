@@ -1,7 +1,7 @@
 import type { LaunchProfile } from '@shared/launch-profile'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { blankProfile, findProfile, removeProfile, replaceProfile } from './draft'
+import { blankProfile, findDuplicateChord, findDuplicateName, findProfile, removeProfile, replaceProfile } from './draft'
 import { ManagerEditor } from './manager-editor'
 import { ManagerList } from './manager-list'
 import { closeLaunchProfileManager, useLaunchProfileManagerState } from './manager-state'
@@ -35,6 +35,13 @@ export function LaunchProfileManager() {
 
   const list = draft ?? []
   const selected = useMemo(() => findProfile(list, selectedId), [list, selectedId])
+  const validationError = useMemo(() => {
+    const dupName = findDuplicateName(list)
+    if (dupName) return `Duplicate profile name: ${dupName}`
+    const dupChord = findDuplicateChord(list)
+    if (dupChord) return `Duplicate chord: Cmd+J ${dupChord.toUpperCase()}`
+    return undefined
+  }, [list])
 
   const handleCreate = useCallback(() => {
     const created = blankProfile()
@@ -72,7 +79,9 @@ export function LaunchProfileManager() {
       <DialogContent className="!max-w-5xl w-[92vw] h-[80vh] flex flex-col">
         <header className="px-4 pt-3 pb-2 border-b border-border flex items-center justify-between">
           <DialogTitle>Launch Profiles</DialogTitle>
-          {error && <span className="text-xs text-destructive font-mono truncate max-w-md">{error}</span>}
+          {(error || validationError) && (
+            <span className="text-xs text-destructive font-mono truncate max-w-md">{error ?? validationError}</span>
+          )}
         </header>
         <div className="flex-1 flex min-h-0">
           <ManagerList profiles={list} selectedId={selectedId} onSelect={setSelectedId} onCreate={handleCreate} />
@@ -109,7 +118,8 @@ export function LaunchProfileManager() {
             <button
               type="button"
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || !!validationError}
+              title={validationError}
               className="text-xs px-3 py-1 bg-primary text-background font-bold disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Save'}
