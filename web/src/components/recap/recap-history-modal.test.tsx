@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { RecapSummary } from '@shared/protocol'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { RecapHistoryModal } from './recap-history-modal'
 
@@ -27,8 +27,8 @@ function dispatchOpen(projectUri?: string) {
 }
 
 function mockRecaps(items: RecapSummary[]) {
-  vi.spyOn(window, 'fetch').mockImplementation(async () =>
-    new Response(JSON.stringify({ recaps: items }), { status: 200 }),
+  vi.spyOn(window, 'fetch').mockImplementation(
+    async () => new Response(JSON.stringify({ recaps: items }), { status: 200 }),
   )
 }
 

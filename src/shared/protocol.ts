@@ -2251,7 +2251,6 @@ export interface ConnectionInfo {
   protocolVersion?: number
 }
 
-
 // ----------------------------------------------------------------------------
 // Period Recap (long-form markdown digest of a project over a period)
 // ----------------------------------------------------------------------------

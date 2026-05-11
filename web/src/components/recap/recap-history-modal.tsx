@@ -5,9 +5,9 @@
  * row opens the recap viewer via rclaude-recap-open.
  */
 
+import type { RecapSummary } from '@shared/protocol'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import { useCallback, useEffect, useState } from 'react'
-import type { RecapSummary } from '@shared/protocol'
 import { Kbd } from '@/components/ui/kbd'
 import { appendShareParam } from '@/lib/share-mode'
 import { haptic } from '@/lib/utils'
@@ -88,7 +88,8 @@ export function RecapHistoryModal() {
           <div className="px-4 pt-4 pb-2 border-b border-border flex items-center justify-between shrink-0">
             <div>
               <DialogPrimitive.Title className="text-sm font-semibold">
-                Past recaps {projectUri && projectUri !== '*' ? `for ${projectUri.split('/').filter(Boolean).pop()}` : '(all)'}
+                Past recaps{' '}
+                {projectUri && projectUri !== '*' ? `for ${projectUri.split('/').filter(Boolean).pop()}` : '(all)'}
               </DialogPrimitive.Title>
               <DialogPrimitive.Description className="text-xs text-muted-foreground mt-0.5">
                 {recaps.length} recap{recaps.length === 1 ? '' : 's'}

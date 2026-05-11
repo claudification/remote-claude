@@ -23,7 +23,6 @@ import type {
   TranscriptEntry,
 } from '@/lib/types'
 import { haptic } from '@/lib/utils'
-import { useRecapJobsStore } from './use-recap-jobs'
 import {
   applyHashRoute,
   buildConversationsById,
@@ -31,6 +30,7 @@ import {
   type ProjectSettingsMap,
   useConversationsStore,
 } from './use-conversations'
+import { useRecapJobsStore } from './use-recap-jobs'
 import { handleSpawnRequestAck } from './use-spawn'
 
 // Loose WS message type (mirror of use-websocket.ts -- intentionally duplicated

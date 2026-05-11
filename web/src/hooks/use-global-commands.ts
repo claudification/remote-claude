@@ -1,9 +1,9 @@
 import { useCallback, useEffect } from 'react'
 import { openLaunchProfileManager } from '@/components/launch-profiles/manager-state'
-import { openRenameModal } from '@/components/rename-modal'
-import { openManageChatConnections } from '@/components/settings/manage-chat-connections-dialog'
 import { openRecapCustomRangeDialog } from '@/components/recap-jobs/recap-custom-range-dialog'
 import { createRecap, openRecapHistory } from '@/components/recap-jobs/recap-submenu'
+import { openRenameModal } from '@/components/rename-modal'
+import { openManageChatConnections } from '@/components/settings/manage-chat-connections-dialog'
 import { openManageProjectLinks } from '@/components/settings/manage-project-links-dialog'
 import { openSpawnDialog } from '@/components/spawn-dialog'
 import { openTerminateConfirm } from '@/components/terminate-confirm'
@@ -329,11 +329,10 @@ export function useGlobalCommands(toggleSidebar: () => void) {
     },
     { label: 'Recap this project (last 7 days)', group: 'Recap' },
   )
-  useCommand(
-    'recap-this-project-today',
-    () => createRecap({ projectUri: selectedProjectOrCross(), label: 'today' }),
-    { label: 'Recap this project (today)', group: 'Recap' },
-  )
+  useCommand('recap-this-project-today', () => createRecap({ projectUri: selectedProjectOrCross(), label: 'today' }), {
+    label: 'Recap this project (today)',
+    group: 'Recap',
+  })
   useCommand(
     'recap-this-project-yesterday',
     () => createRecap({ projectUri: selectedProjectOrCross(), label: 'yesterday' }),
@@ -344,11 +343,10 @@ export function useGlobalCommands(toggleSidebar: () => void) {
     () => createRecap({ projectUri: selectedProjectOrCross(), label: 'this_month' }),
     { label: 'Recap this project (this month)', group: 'Recap' },
   )
-  useCommand(
-    'recap-this-project-custom',
-    () => openRecapCustomRangeDialog({ projectUri: selectedProjectOrCross() }),
-    { label: 'Recap this project (custom range)...', group: 'Recap' },
-  )
+  useCommand('recap-this-project-custom', () => openRecapCustomRangeDialog({ projectUri: selectedProjectOrCross() }), {
+    label: 'Recap this project (custom range)...',
+    group: 'Recap',
+  })
 
   useCommand('recap-cross-today', () => createRecap({ projectUri: '*', label: 'today' }), {
     label: 'Recap all projects (today)',

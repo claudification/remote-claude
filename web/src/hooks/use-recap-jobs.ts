@@ -199,7 +199,9 @@ export function selectVisibleJobs(state: RecapJobsState): RecapJob[] {
     return false
   })
   // Newest first so the bottom-anchored widget grows upward in chronological order.
-  return visible.sort((a, b) => (b.finishedAtLocal ?? Number.POSITIVE_INFINITY) - (a.finishedAtLocal ?? Number.POSITIVE_INFINITY))
+  return visible.sort(
+    (a, b) => (b.finishedAtLocal ?? Number.POSITIVE_INFINITY) - (a.finishedAtLocal ?? Number.POSITIVE_INFINITY),
+  )
 }
 
 export function selectJobCount(state: RecapJobsState): number {

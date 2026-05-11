@@ -11,9 +11,9 @@
  * (the widget already subscribes to recap_progress / recap_complete).
  */
 
+import type { PeriodRecapDoc } from '@shared/protocol'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { PeriodRecapDoc } from '@shared/protocol'
 import { Markdown } from '@/components/markdown'
 import { Kbd } from '@/components/ui/kbd'
 import { useRecapJobsStore } from '@/hooks/use-recap-jobs'
@@ -46,7 +46,15 @@ function formatPeriod(recap: PeriodRecapDoc): string {
   return `${start} - ${end}`
 }
 
-function ActionButton({ children, onClick, title }: { children: React.ReactNode; onClick: () => void; title?: string }) {
+function ActionButton({
+  children,
+  onClick,
+  title,
+}: {
+  children: React.ReactNode
+  onClick: () => void
+  title?: string
+}) {
   return (
     <button
       type="button"
@@ -136,7 +144,10 @@ function StreamingState({ recap }: { recap: PeriodRecapDoc | null }) {
         Generating recap... {status} {phase ? `(${phase})` : ''}
       </div>
       <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden mx-auto max-w-md">
-        <div className="h-full bg-cyan-500 transition-all" style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
+        <div
+          className="h-full bg-cyan-500 transition-all"
+          style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+        />
       </div>
       <div className="mt-2 text-xs text-muted-foreground">{progress}%</div>
     </div>
@@ -215,7 +226,9 @@ export function RecapViewer() {
               <RecapHeader recap={recap} mode={mode} setMode={setMode} />
               <div className="flex-1 overflow-y-auto px-4 py-3">
                 {mode === 'raw' ? (
-                  <pre className="text-xs whitespace-pre-wrap break-words bg-muted/30 p-3 rounded">{recap.markdown}</pre>
+                  <pre className="text-xs whitespace-pre-wrap break-words bg-muted/30 p-3 rounded">
+                    {recap.markdown}
+                  </pre>
                 ) : (
                   <Markdown copyable>{recap.markdown}</Markdown>
                 )}

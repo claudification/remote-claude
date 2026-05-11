@@ -12,9 +12,9 @@
  * (timeZone, period spec) doesn't drift across surfaces.
  */
 
+import type { RecapPeriodLabel } from '@shared/protocol'
 import { ContextMenu } from 'radix-ui'
 import { wsSend } from '@/hooks/use-conversations'
-import type { RecapPeriodLabel } from '@shared/protocol'
 import { haptic } from '@/lib/utils'
 import { openRecapCustomRangeDialog } from './recap-custom-range-dialog'
 

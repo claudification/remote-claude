@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { makePromptInputs } from '../../__tests__/synthetic-fixtures'
-import { buildPrompt } from './prompt-builder'
 import { pickModel } from './escalate'
+import { buildPrompt } from './prompt-builder'
 
 describe('pickModel', () => {
   test('small inputs pick haiku', () => {

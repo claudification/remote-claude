@@ -15,9 +15,9 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { chat } from '../shared/openrouter-client'
 import { buildPrompt } from '../period/llm/prompt-builder'
 import { parseRecapOutput } from '../period/render/parse-recap'
+import { chat } from '../shared/openrouter-client'
 import { makePromptInputs } from './synthetic-fixtures'
 
 const LIVE = process.env.RECAP_LIVE === '1' && !!process.env.OPENROUTER_API_KEY
