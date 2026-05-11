@@ -157,5 +157,12 @@ export const spawnRequestSchema = z.object({
     .describe(
       'OpenCode tool permission tier. "none" disables every tool (pure chat). "safe" (default) allows read-only tools (read, glob, grep, ls, webfetch); bash/write/edit are denied. "full" allows everything via --dangerously-skip-permissions. Used when backend=opencode.',
     ),
+  appendSystemPrompt: z
+    .string()
+    .max(16 * 1024)
+    .optional()
+    .describe(
+      'Appended to the generated system prompt. CC maps this to --append-system-prompt; chat-api prepends a system message. Ignored by backends that cannot honor it (hermes, opencode).',
+    ),
 })
 export type SpawnRequest = z.infer<typeof spawnRequestSchema>

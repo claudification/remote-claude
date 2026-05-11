@@ -313,6 +313,10 @@ export async function parseCliArgs(args: string[]): Promise<CliConfig> {
     claudeArgs.push('--agent', process.env.RCLAUDE_AGENT)
   }
 
+  if (process.env.CLAUDWERK_APPEND_SYSTEM_PROMPT) {
+    claudeArgs.push('--append-system-prompt', process.env.CLAUDWERK_APPEND_SYSTEM_PROMPT)
+  }
+
   // Headless mode implications
   if (headless) {
     noTerminal = true

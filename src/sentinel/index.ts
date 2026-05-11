@@ -305,6 +305,7 @@ const RCLAUDE_CONVERSATION_VARS = new Set([
   'RCLAUDE_PORT',
   'RCLAUDE_CUSTOM_ENV',
   'RCLAUDE_INCLUDE_PARTIAL_MESSAGES',
+  'CLAUDWERK_APPEND_SYSTEM_PROMPT',
 ])
 
 /**
@@ -347,6 +348,7 @@ function buildHeadlessEnv(opts: {
   bare?: boolean
   repl?: boolean
   includePartialMessages?: boolean
+  appendSystemPrompt?: string
   env?: Record<string, string>
 }): Record<string, string | undefined> {
   // Start from sanitized sentinel env (PATH, API keys, etc. but no conversation-scoped vars)
@@ -375,6 +377,7 @@ function buildHeadlessEnv(opts: {
   if (opts.worktree) env.RCLAUDE_WORKTREE = opts.worktree
   if (opts.agent) env.RCLAUDE_AGENT = opts.agent
   if (opts.includePartialMessages === false) env.RCLAUDE_INCLUDE_PARTIAL_MESSAGES = '0'
+  if (opts.appendSystemPrompt) env.CLAUDWERK_APPEND_SYSTEM_PROMPT = opts.appendSystemPrompt
   if (opts.env && Object.keys(opts.env).length) env.RCLAUDE_CUSTOM_ENV = JSON.stringify(opts.env)
 
   return env
@@ -1127,6 +1130,7 @@ async function spawnConversation(
   includePartialMessages?: boolean,
   env?: Record<string, string>,
   agent?: string,
+  appendSystemPrompt?: string,
 ): Promise<{ success: boolean; error?: string; tmuxSession?: string; tmuxPaneId?: string }> {
   launchLog(jobId, 'Validating directory', 'info', cwd)
 
@@ -1231,6 +1235,7 @@ async function spawnConversation(
       bare,
       repl,
       includePartialMessages,
+      appendSystemPrompt,
       env,
     })
 
@@ -2109,6 +2114,7 @@ function connect(
             spawnMsg.includePartialMessages,
             spawnMsg.env,
             spawnMsg.agent,
+            spawnMsg.appendSystemPrompt,
           )
           const response: SpawnResult = {
             type: 'spawn_result',

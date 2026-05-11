@@ -75,7 +75,8 @@ export const chatApiBackend: ConversationBackend = {
     conversationStore.broadcastConversationUpdate(conversationId)
 
     const transcript = conversationStore.getTranscriptEntries(conversationId, 200)
-    const messages = transcriptToMessages(transcript)
+    const appendSystemPrompt = conv.launchConfig?.appendSystemPrompt
+    const messages = transcriptToMessages(transcript, appendSystemPrompt)
 
     try {
       const resp = await fetch(`${connection.url}/v1/chat/completions`, {
@@ -164,8 +165,11 @@ interface ChatMessage {
   content: string
 }
 
-function transcriptToMessages(entries: TranscriptEntry[]): ChatMessage[] {
+function transcriptToMessages(entries: TranscriptEntry[], appendSystemPrompt?: string): ChatMessage[] {
   const messages: ChatMessage[] = []
+  if (appendSystemPrompt) {
+    messages.push({ role: 'system', content: appendSystemPrompt })
+  }
   for (const entry of entries) {
     if (entry.type === 'user') {
       const userEntry = entry as TranscriptUserEntry

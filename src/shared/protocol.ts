@@ -1591,6 +1591,7 @@ export interface LaunchConfig {
   maxBudgetUsd?: number
   includePartialMessages?: boolean
   env?: Record<string, string>
+  appendSystemPrompt?: string
   agentHostType?: string
   openCodeModel?: string
   acpAgent?: string
@@ -1847,6 +1848,10 @@ export interface SpawnConversation {
   includePartialMessages?: boolean
   worktree?: string
   env?: Record<string, string>
+  /** Text appended to the generated system prompt. CC maps to --append-system-prompt;
+   *  chat-api prepends as a system message. Ignored by backends that cannot honor
+   *  it cleanly (hermes, opencode). */
+  appendSystemPrompt?: string
   /** Which agent host binary to spawn. Defaults to 'claude' (rclaude). When
    *  set to 'opencode', the sentinel launches the opencode-host binary with
    *  OPENCODE_MODEL set. When set to 'acp', the sentinel launches the

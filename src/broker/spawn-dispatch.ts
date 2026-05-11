@@ -269,6 +269,7 @@ async function dispatchClaudeSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): 
       includePartialMessages,
       maxBudgetUsd,
       env: req.env || undefined,
+      appendSystemPrompt: req.appendSystemPrompt || undefined,
     })
 
     try {
@@ -309,6 +310,7 @@ async function dispatchClaudeSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): 
           leaveRunning: req.leaveRunning || undefined,
           worktree: req.worktree || undefined,
           env: req.env || undefined,
+          appendSystemPrompt: req.appendSystemPrompt || undefined,
         }),
       )
     } catch {
