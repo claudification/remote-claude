@@ -699,7 +699,7 @@ function canonicalizeUris(cacheDir: string): CanonicalizeResult {
  *      tasks lived only in meta which was loaded but updates weren't always
  *      persisted on every change.
  */
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 const SCHEMA_VERSION_KEY = 'schema-version'
 
@@ -710,6 +710,7 @@ export interface StartupMigrationResult {
   canonicalized?: CanonicalizeResult
   legacyHermesDeleted?: number
   tasksBackfilled?: { conversations: number; tasks: number; archived: number }
+  sharesBackfilled?: number
   skipped: boolean
 }
 
@@ -752,6 +753,13 @@ export function runStartupMigration(store: StoreDriver, cacheDir: string): Start
   // re-write meta without them).
   if (current < 4) {
     out.tasksBackfilled = backfillTasksFromMeta(store)
+  }
+
+  // v5: polymorphic shares + recap tables. The schema-level ALTER TABLE for
+  // target_kind/target_id ran in createSchema (idempotent). This step backfills
+  // target_id from conversation_id for legacy rows.
+  if (current < 5) {
+    out.sharesBackfilled = backfillShareTargets(cacheDir)
   }
 
   store.kv.set(SCHEMA_VERSION_KEY, SCHEMA_VERSION)
@@ -885,6 +893,23 @@ function backfillTasksFromMeta(store: StoreDriver): { conversations: number; tas
     backfillConversation(store, summary.id, meta, stats)
   }
   return stats
+}
+
+function backfillShareTargets(cacheDir: string): number {
+  const storeDbPath = join(cacheDir, 'store.db')
+  if (!existsSync(storeDbPath)) return 0
+  const db = new Database(storeDbPath)
+  try {
+    // Legacy rows have target_id = '' (the column default). Copy from
+    // conversation_id and tag them as conversation shares. Idempotent: rows
+    // already populated are left alone.
+    const result = db
+      .prepare("UPDATE shares SET target_id = conversation_id, target_kind = 'conversation' WHERE target_id = ''")
+      .run()
+    return Number(result.changes ?? 0)
+  } finally {
+    db.close()
+  }
 }
 
 function dropLegacyHermesConversations(cacheDir: string): number {
