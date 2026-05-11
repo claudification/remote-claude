@@ -12,6 +12,7 @@ import { JsonInspectorDialog } from '@/components/json-inspector'
 import { MediaLightbox } from '@/components/media-lightbox'
 import { ProjectList } from '@/components/project-list'
 import { QuickTaskModal } from '@/components/quick-task-modal'
+import { LaunchProfileManager } from '@/components/launch-profiles/manager'
 import { RenameModal } from '@/components/rename-modal'
 import { ReviveDialog } from '@/components/revive-dialog'
 import { ManageChatConnectionsDialog } from '@/components/settings/manage-chat-connections-dialog'
@@ -275,6 +276,7 @@ function Dashboard() {
       <ReviveDialog />
       <ManageProjectLinksDialog />
       <ManageChatConnectionsDialog />
+      <LaunchProfileManager />
       <TerminateConfirmDialog />
       <ToastContainer />
     </div>

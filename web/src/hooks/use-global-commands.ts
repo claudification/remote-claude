@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react'
+import { openLaunchProfileManager } from '@/components/launch-profiles/manager-state'
 import { openRenameModal } from '@/components/rename-modal'
 import { openManageChatConnections } from '@/components/settings/manage-chat-connections-dialog'
 import { openManageProjectLinks } from '@/components/settings/manage-project-links-dialog'
@@ -301,6 +302,11 @@ export function useGlobalCommands(toggleSidebar: () => void) {
     label: 'Manage chat connections',
     group: 'System',
     when: () => useConversationsStore.getState().permissions.canAdmin,
+  })
+
+  useCommand('manage-launch-profiles', () => openLaunchProfileManager(), {
+    label: 'Manage Launch Profiles',
+    group: 'Launch',
   })
 
   useCommand(
