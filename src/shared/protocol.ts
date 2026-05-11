@@ -553,6 +553,45 @@ export interface ConversationPromote {
   source: 'stream_json' | 'hook'
 }
 
+/**
+ * Agent host -> broker. Fired on EVERY (re)connect from the shared host
+ * transport, BEFORE business traffic resumes. Lets the broker correlate
+ * what the host saw at the wire level (close codes, reconnect attempt,
+ * queue/ring depth, which initial message type it chose) with what the
+ * broker observed on its side.
+ *
+ * The missing half of every "[unknown] [boot]" + "[ws] Connection closed
+ * code=1000 reason=none" diagnostic riddle.
+ */
+export interface HostTransportReconnect {
+  type: 'host_transport_reconnect'
+  conversationId: string
+  /** 0 on the very first connect of this transport, N>0 on subsequent retries. */
+  attempt: number
+  /** Close code from the PREVIOUS ws.onclose. Undefined on attempt=0. */
+  prevCloseCode?: number
+  /** Close reason from the PREVIOUS ws.onclose. Undefined on attempt=0. */
+  prevCloseReason?: string
+  /** ms between previous ws.onclose and this ws.onopen. Undefined on attempt=0. */
+  msSinceLastConnect?: number
+  /** Outbound queue depth at the moment we opened the new socket. */
+  queuedMessages: number
+  /** Transcript ring buffer depth (entries pending replay). */
+  ringBufferDepth: number
+  /**
+   * Which initial message type the transport sent. 'meta' on resume,
+   * 'agent_host_boot' on early-connect (no ccSessionId yet), or any
+   * future variant the host registers via buildInitialMessage.
+   */
+  initialMessageType: string
+  /** Whether the host's local lastSessionId was non-null at connect time. */
+  hasSessionId: boolean
+  /** rclaude/HASH version string of the agent host process. */
+  hostVersion?: string
+  /** Wall-clock timestamp the new ws.onopen fired. */
+  at: number
+}
+
 export type AgentHostMessage =
   | HookEvent
   | ConversationMeta
@@ -591,6 +630,7 @@ export type AgentHostMessage =
   | ScheduledTaskFire
   | ConversationStatusSignal
   | JsonStreamData
+  | HostTransportReconnect
 
 export interface ConversationNameUpdate {
   type: 'conversation_name'
@@ -1005,6 +1045,9 @@ export type BrokerMessage =
   | JsonStreamAttach
   | JsonStreamDetach
   | MarkAllTasksDone
+  | ConversationStatusTransition
+  | SocketReplaced
+  | PhantomReapCandidate
 
 export interface NotifyConfigUpdated {
   type: 'notify_config_updated'
@@ -1045,6 +1088,10 @@ export type TerminationSource =
   // Broker-driven cleanup
   | 'ws-close' // last live agent host socket closed without explicit `end`
   | 'reaper-phantom' // 30s reaper: no live sockets remaining
+  // Broker-driven RESURRECTION (used with kind='unend' to log a flap signal,
+  // not an actual termination -- a previously-ended conversation got
+  // un-ended because `meta` or `agent_host_boot` arrived for it).
+  | 'broker-unend' // status flipped from 'ended' back to active (flap)
   // Future-facing
   | 'sentinel-kill' // explicit sentinel kill (not yet wired)
   | 'unknown' // legacy paths until tagged
@@ -1057,6 +1104,20 @@ export interface TerminationDetail {
   lastActivityAt?: number
   /** Free-form message (e.g. "stdin EOF after CC exited"). */
   note?: string
+  /** Status the conversation held just BEFORE this termination/transition fired. */
+  statusBefore?: 'active' | 'idle' | 'ended' | 'starting' | 'booting'
+  /** Live socket count BEFORE the cleanup that triggered this record. */
+  liveSocketsBefore?: number
+  /** ms between `lastActivity` and the record timestamp. Helps spot half-dead conversations. */
+  lastActivityAgoMs?: number
+  /** Agent host version string (rclaude/HASH) for cross-deploy correlation. */
+  hostVersion?: string
+  /**
+   * Discriminator. Default 'termination'. 'unend' records are appended when
+   * `resumeConversation` flips a previously-`ended` conversation back to
+   * `idle` (the flap signal) -- they share the schema for one-file greppability.
+   */
+  kind?: 'termination' | 'unend'
 }
 
 export interface QuitConversation {
@@ -1081,6 +1142,72 @@ export interface ConversationTerminated {
   initiator?: string
   detail?: TerminationDetail
   endedAt: number
+}
+
+/**
+ * Broker -> dashboard. Fired on EVERY conversation status flip (NOT just
+ * end-state ones). Dashboard renders an inline transcript timeline entry;
+ * broker persists it. The single chokepoint for "did the status change,
+ * who/what caused it, what came before".
+ */
+export interface ConversationStatusTransition {
+  type: 'conversation_status_transition'
+  conversationId: string
+  from: 'active' | 'idle' | 'ended' | 'starting' | 'booting'
+  to: 'active' | 'idle' | 'ended' | 'starting' | 'booting'
+  /** Free-form but specific: 'meta-resume', 'meta-on-ended', 'boot-new',
+   *  'boot-on-active', 'reaper-no-sockets', 'ws-close-empty', 'end-handler',
+   *  'conversation_status-signal', etc. */
+  reason: string
+  source?: TerminationSource | string
+  initiator?: string
+  /** Socket count AFTER the transition. */
+  liveSockets: number
+  /** Last known ccSessionId (informational only, never used for routing). */
+  ccSessionId?: string
+  /** ms since lastActivity at the moment of transition. */
+  lastActivityAgoMs?: number
+  at: number
+}
+
+/**
+ * Broker -> dashboard. Fired when setConversationSocket replaces an
+ * existing socket under the same (conv, conn) key with a different ws.
+ * Silently overwriting a live socket is how the boot/meta race becomes
+ * an invisible flap; this event surfaces it.
+ */
+export interface SocketReplaced {
+  type: 'socket_replaced'
+  conversationId: string
+  connectionId: string
+  /** WebSocket.readyState of the socket being replaced. */
+  oldReadyState: number
+  /** Buffered outbound bytes on the socket being replaced (lossiness hint). */
+  oldBufferedAmount?: number
+  /** WebSocket.readyState of the new socket. */
+  newReadyState: number
+  /** Initial wire message type that drove the replacement: 'meta', 'agent_host_boot', etc. */
+  via: string
+  at: number
+}
+
+/**
+ * Broker -> dashboard. Fired EVERY reaper tick for a conversation the
+ * reaper considered (status !== ended, requiresAgentSocket). `willEnd`
+ * is true on the tick the reaper is about to end the conversation,
+ * false for survivors -- both are valuable: a conversation that
+ * survives the reaper repeatedly is a flapping conversation.
+ */
+export interface PhantomReapCandidate {
+  type: 'phantom_reap_candidate'
+  conversationId: string
+  status: 'active' | 'idle' | 'starting' | 'booting'
+  liveSockets: number
+  willEnd: boolean
+  /** ms since lastActivity. */
+  lastActivityAgoMs: number
+  ccSessionId?: string
+  at: number
 }
 
 export interface RecapRequest {

@@ -550,6 +550,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     brokerUrl,
     brokerSecret,
     conversationId,
+    hostVersion: `rclaude/${BUILD_VERSION.gitHashShort}`,
     buildInitialMessage,
     onMessage: routeBrokerMessage,
     onConnected,

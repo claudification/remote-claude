@@ -59,6 +59,15 @@ const meta: MessageHandler = (ctx, data) => {
   }
 
   if (existing) {
+    const prevStatus = existing.status
+    if (prevStatus === 'ended') {
+      // FLAP SIGNAL: meta is reviving an ended conversation. resumeConversation
+      // emits the structured transition + NDJSON unend record; we log the
+      // entry-point too so a future grep of [un-end-meta] points at this code.
+      ctx.log.info(
+        `[un-end-meta] ${conversationId.slice(0, 8)} cc=${ccSessionId.slice(0, 8)} prev-end=${existing.endedBy?.source ?? 'unknown'}/${existing.endedBy?.initiator ?? 'none'} version=${data.version ?? 'unknown'} -- meta arrived on an ENDED conversation; un-ending`,
+      )
+    }
     ctx.conversations.resumeConversation(conversationId)
     applyMetadata(existing)
     if (pendingLaunchConfig && !existing.launchConfig) {
@@ -67,7 +76,7 @@ const meta: MessageHandler = (ctx, data) => {
       if (pendingLaunchConfig.agent) existing.agentName = pendingLaunchConfig.agent
     }
     ctx.log.debug(
-      `Conversation resumed: ${conversationId.slice(0, 8)} cc=${ccSessionId.slice(0, 8)} (${project}) [${ctx.conversations.getActiveConversationCount(conversationId) + 1} connection(s)]${data.version ? ` [${data.version}]` : ''}`,
+      `Conversation resumed: ${conversationId.slice(0, 8)} cc=${ccSessionId.slice(0, 8)} (${project}) prevStatus=${prevStatus} [${ctx.conversations.getActiveConversationCount(conversationId) + 1} connection(s)]${data.version ? ` [${data.version}]` : ''}`,
     )
   } else {
     const newConversation = ctx.conversations.createConversation(
@@ -94,7 +103,7 @@ const meta: MessageHandler = (ctx, data) => {
     }
   }
 
-  ctx.conversations.setConversationSocket(conversationId, conversationId, ctx.ws)
+  ctx.conversations.setConversationSocket(conversationId, conversationId, ctx.ws, 'meta')
 
   const convProject = (existing || ctx.conversations.getConversation(conversationId))?.project
   if (convProject) {
@@ -176,7 +185,7 @@ const conversationReset: MessageHandler = (ctx, data) => {
   } else {
     ctx.log.debug(`conversation_reset: conversation ${conversationId.slice(0, 8)} not found, creating new`)
     ctx.conversations.createConversation(conversationId, resetProject, data.model as string)
-    ctx.conversations.setConversationSocket(conversationId, conversationId, ctx.ws)
+    ctx.conversations.setConversationSocket(conversationId, conversationId, ctx.ws, 'conversation_reset')
   }
 }
 
@@ -293,6 +302,41 @@ const end: MessageHandler = (ctx, data) => {
   }
 }
 
+// ─── Host transport reconnect telemetry ─────────────────────────────────
+// Fires from src/shared/host-transport on every (re)connect AFTER the
+// initial message. Lets us correlate broker-side close events with what
+// the host saw on its side (close code, attempt #, queue/ring depth, the
+// initial-message type the host chose). Log only -- no broadcast yet.
+// Per the LOG EVERYTHING covenant: surface every field, every time.
+
+// Intentional complexity: 12 cyclomatic comes from unpacking every wire field
+// into a typed local + a single structured log line per the LOG EVERYTHING
+// covenant. Splitting would scatter the telemetry across helpers and hide
+// what's being logged.
+// fallow-ignore-next-line complexity
+const hostTransportReconnect: MessageHandler = (ctx, data) => {
+  const conversationId = (data.conversationId as string | undefined) || ctx.ws.data.conversationId
+  if (!conversationId) {
+    ctx.log.debug(`[transport-reconnect] missing conversationId, ignoring`)
+    return
+  }
+  const attempt = (data.attempt as number | undefined) ?? -1
+  const prevCloseCode = data.prevCloseCode as number | undefined
+  const prevCloseReason = data.prevCloseReason as string | undefined
+  const msSinceLastConnect = data.msSinceLastConnect as number | undefined
+  const queuedMessages = (data.queuedMessages as number | undefined) ?? 0
+  const ringBufferDepth = (data.ringBufferDepth as number | undefined) ?? 0
+  const initialMessageType = (data.initialMessageType as string | undefined) ?? 'unknown'
+  const hasSessionId = (data.hasSessionId as boolean | undefined) ?? false
+  const hostVersion = data.hostVersion as string | undefined
+
+  // Single line, structured, all fields -- this is the missing half of the
+  // flap diagnostic that started this whole pass.
+  ctx.log.info(
+    `[transport-reconnect] ${conversationId.slice(0, 8)} attempt=${attempt} initialMsg=${initialMessageType} hasSessionId=${hasSessionId} prevCloseCode=${prevCloseCode ?? 'none'} prevCloseReason=${prevCloseReason || 'none'} msSinceLastConnect=${msSinceLastConnect ?? 'none'} queued=${queuedMessages} ringDepth=${ringBufferDepth} hostVersion=${hostVersion ?? 'unknown'}`,
+  )
+}
+
 // ─── Conversation status signal (backend-agnostic active/idle) ──────────
 
 const conversationStatus: MessageHandler = (ctx, data) => {
@@ -328,6 +372,7 @@ export function registerConversationLifecycleHandlers(): void {
       conversation_reset: conversationReset,
       update_conversation_metadata: updateMetadata,
       conversation_status: conversationStatus,
+      host_transport_reconnect: hostTransportReconnect,
       notify,
       end,
     },

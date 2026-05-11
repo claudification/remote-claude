@@ -37,6 +37,7 @@ import type {
   BrokerMessage,
   ConversationPromote,
   Heartbeat,
+  HostTransportReconnect,
   TranscriptEntries,
   TranscriptEntry,
 } from '../protocol'
@@ -105,6 +106,13 @@ export interface HostTransportOptions {
    *  Default: print a visible banner to stderr and call `process.exit(2)`.
    *  Tests pass `'throw'` to inspect the rejection without exiting. */
   onProtocolUpgradeRequired?: 'exit' | 'throw' | ((msg: BrokerMessage) => void)
+
+  /**
+   * Optional rclaude/HASH version string. Echoed in the
+   * `host_transport_reconnect` event so the broker can correlate flap
+   * patterns with deploy boundaries.
+   */
+  hostVersion?: string
 }
 
 export interface HostTransport {
@@ -155,6 +163,11 @@ export function createHostTransport(opts: HostTransportOptions): HostTransport {
   let reconnectAttempts = 0
   let heartbeat: ReturnType<typeof setInterval> | null = null
   let lastSessionId: string | null = null
+  // Reconnect telemetry -- populated by ws.onclose and consumed by ws.onopen
+  // so each `host_transport_reconnect` event carries the prior close cause.
+  let prevCloseCode: number | undefined
+  let prevCloseReason: string | undefined
+  let lastClosedAt: number | undefined
 
   const queue: AgentHostMessage[] = []
   function enqueue(msg: AgentHostMessage) {
@@ -314,6 +327,12 @@ export function createHostTransport(opts: HostTransportOptions): HostTransport {
     }
   }
 
+  // Intentional complexity: connect() owns the full ws onopen/onclose/
+  // onmessage/onerror lifecycle including the reconnect-telemetry emit that
+  // the LOG EVERYTHING covenant requires to land BEFORE business traffic
+  // resumes. Splitting these handlers out of the closure loses access to
+  // attemptSnapshot / prevCloseCode / queue / ring -- the whole point.
+  // fallow-ignore-next-line complexity
   function connect(): void {
     let initialMessage: AgentHostMessage
     try {
@@ -326,7 +345,13 @@ export function createHostTransport(opts: HostTransportOptions): HostTransport {
 
     ws = new WebSocket(wsUrl)
 
+    // Snapshot attempt number BEFORE onopen resets it. onopen below uses
+    // this constant -- not `reconnectAttempts` which gets zeroed.
+    const attemptSnapshot = reconnectAttempts
+    const initialMessageType = (initialMessage as { type?: string }).type ?? 'unknown'
+
     ws.onopen = () => {
+      const openedAt = Date.now()
       connected = true
       reconnectAttempts = 0
       try {
@@ -337,16 +362,58 @@ export function createHostTransport(opts: HostTransportOptions): HostTransport {
           error: err instanceof Error ? err.message : String(err),
         })
       }
+
+      // Emit reconnect telemetry IMMEDIATELY after the initial message so
+      // the broker can correlate "we just opened a WS" with "the host saw
+      // the previous one die with code=X". Fires on attempt=0 too -- the
+      // initial connect is the baseline future reconnects compare against.
+      const reconnectMsg: HostTransportReconnect = {
+        type: 'host_transport_reconnect',
+        conversationId: opts.conversationId,
+        attempt: attemptSnapshot,
+        prevCloseCode,
+        prevCloseReason,
+        msSinceLastConnect: lastClosedAt ? openedAt - lastClosedAt : undefined,
+        queuedMessages: queue.length,
+        ringBufferDepth: ringCount,
+        initialMessageType,
+        hasSessionId: lastSessionId !== null,
+        hostVersion: opts.hostVersion,
+        at: openedAt,
+      }
+      try {
+        opts.trace?.('out', reconnectMsg)
+        ws?.send(JSON.stringify(reconnectMsg))
+      } catch (err) {
+        opts.onDiag?.('transport', 'host_transport_reconnect send failed', {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+
       flush()
       flushRing()
       startHeartbeat()
       opts.onConnected?.()
     }
 
-    ws.onclose = () => {
+    ws.onclose = ev => {
+      const closedAt = Date.now()
       const wasConnected = connected
       connected = false
       stopHeartbeat()
+      // Capture close code/reason so the NEXT onopen can emit them in the
+      // reconnect event. Without this the broker only sees "[unknown] [boot]"
+      // and has to guess the prior close cause.
+      const closeEvent = ev as { code?: number; reason?: string } | undefined
+      prevCloseCode = closeEvent?.code
+      prevCloseReason = closeEvent?.reason
+      lastClosedAt = closedAt
+      opts.onDiag?.('transport', 'ws closed', {
+        code: prevCloseCode,
+        reason: prevCloseReason,
+        wasConnected,
+        willReconnect: shouldReconnect,
+      })
       if (wasConnected) opts.onDisconnected?.()
       if (!shouldReconnect) return
       reconnectAttempts++

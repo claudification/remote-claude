@@ -35,6 +35,10 @@ export interface ControlPanelMessage {
     | 'claude_health_update'
     | 'claude_efficiency_update'
     | 'launch_profiles_updated'
+    // Observability events (LOG EVERYTHING covenant)
+    | 'conversation_status_transition'
+    | 'socket_replaced'
+    | 'phantom_reap_candidate'
   conversationId?: string
   previousConversationId?: string
   conversation?: ConversationSummary
@@ -52,8 +56,23 @@ export interface ControlPanelMessage {
   userName?: string
   launchProfiles?: LaunchProfile[]
   // Termination metadata (only on conversation_terminated)
-  source?: TerminationSource
+  source?: TerminationSource | string
   initiator?: string
   detail?: TerminationDetail
   endedAt?: number
+  // Observability event fields (status transition, socket replace, reap candidate)
+  from?: string
+  to?: string
+  reason?: string
+  liveSockets?: number
+  ccSessionId?: string
+  lastActivityAgoMs?: number
+  at?: number
+  connectionId?: string
+  oldReadyState?: number
+  oldBufferedAmount?: number
+  newReadyState?: number
+  via?: string
+  status?: string
+  willEnd?: boolean
 }

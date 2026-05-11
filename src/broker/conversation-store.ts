@@ -119,7 +119,12 @@ export interface ConversationStore {
   getConversationEvents: (conversationId: string, limit?: number, since?: number) => HookEvent[]
   updateTasks: (conversationId: string, tasks: TaskInfo[]) => void
   markAllTasksDone: (conversationId: string) => TaskInfo[]
-  setConversationSocket: (conversationId: string, connectionId: string, ws: ServerWebSocket<unknown>) => void
+  setConversationSocket: (
+    conversationId: string,
+    connectionId: string,
+    ws: ServerWebSocket<unknown>,
+    via?: string,
+  ) => void
   getConversationSocket: (conversationId: string) => ServerWebSocket<unknown> | undefined
   findSocketByConversationId: (connectionId: string) => ServerWebSocket<unknown> | undefined
   findConversationByConversationId: (connectionId: string) => Conversation | undefined
@@ -1094,11 +1099,58 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return conv
   }
 
+  // Intentional complexity: single chokepoint for status->idle. Must surface
+  // the un-end flap signal (NDJSON kind='unend' + status transition broadcast
+  // + endedBy clear) before doing the stale-state reset. LOG EVERYTHING
+  // covenant requires all of it in one place.
+  // fallow-ignore-next-line complexity
   function resumeConversation(id: string): void {
     const conv = conversations.get(id)
     if (conv) {
+      const now = Date.now()
+      const prevStatus = conv.status
+      const wasEnded = prevStatus === 'ended'
+      const liveSocketsBefore = conversationSockets.get(id)?.size ?? 0
+      const lastActivityAgoMs = now - (conv.lastActivity || now)
+      const ccSessionIdHint = conv.agentHostMeta?.ccSessionId as string | undefined
+      const endedBy = conv.endedBy
+
+      if (wasEnded) {
+        // FLAP SIGNAL: a previously-ended conversation is being un-ended,
+        // almost certainly by meta or agent_host_boot arriving on a fresh WS.
+        // Surface loudly and persist to the termination NDJSON with kind='unend'
+        // so the kill/un-end pair is one grep away.
+        const endedAgoMs = endedBy ? now - endedBy.at : -1
+        console.warn(
+          `[un-end] ${id.slice(0, 8)} status=ended->idle prev-end=${endedBy?.source ?? 'unknown'}/${endedBy?.initiator ?? 'none'} endedAgoMs=${endedAgoMs} liveSocketsBefore=${liveSocketsBefore} lastActivityAgoMs=${lastActivityAgoMs} ccSession=${ccSessionIdHint?.slice(0, 8) ?? 'none'} hostVersion=${conv.version ?? 'unknown'} -- FLAP SIGNAL`,
+        )
+        if (options.terminationLog) {
+          options.terminationLog.append({
+            ts: new Date(now).toISOString(),
+            conversationId: id,
+            source: 'broker-unend',
+            initiator: 'system:resume',
+            project: conv.project,
+            title: conv.title,
+            detail: {
+              kind: 'unend',
+              statusBefore: prevStatus,
+              liveSocketsBefore,
+              lastActivityAgoMs,
+              hostVersion: conv.version,
+              ccSessionId: ccSessionIdHint,
+              note: endedBy
+                ? `prev end: source=${endedBy.source} initiator=${endedBy.initiator ?? 'none'} at=${new Date(endedBy.at).toISOString()}`
+                : 'no prior endedBy recorded',
+            },
+          })
+        }
+        // Clear endedBy so a future end re-records cleanly with fresh causality.
+        conv.endedBy = undefined
+      }
+
       conv.status = 'idle'
-      conv.lastActivity = Date.now()
+      conv.lastActivity = now
       // Reset stale state from previous run
       conv.subagents = []
       conv.teammates = []
@@ -1110,9 +1162,29 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       for (const bgTask of conv.bgTasks) {
         if (bgTask.status === 'running') {
           bgTask.status = 'killed'
-          bgTask.completedAt = Date.now()
+          bgTask.completedAt = now
         }
       }
+
+      // Emit a structured status transition event so the control panel can
+      // render an inline banner and the broker keeps a full transition trail.
+      broadcastConversationScoped(
+        {
+          type: 'conversation_status_transition',
+          conversationId: id,
+          from: prevStatus,
+          to: 'idle',
+          reason: wasEnded ? 'meta-on-ended' : 'resume',
+          source: wasEnded ? 'broker-unend' : undefined,
+          initiator: wasEnded ? 'system:resume' : undefined,
+          liveSockets: conversationSockets.get(id)?.size ?? 0,
+          ccSessionId: ccSessionIdHint,
+          lastActivityAgoMs,
+          at: now,
+        },
+        conv.project,
+      )
+
       // Notify dashboards that this conversation resumed - triggers transcript re-fetch
       broadcastConversationScoped(
         {
@@ -1268,14 +1340,48 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
   }
 
+  // Intentional complexity: single chokepoint for status->ended. Per the
+  // LOG EVERYTHING covenant it captures before-state + log + termination
+  // NDJSON + status transition broadcast + sub-resource cleanup in one
+  // place. Splitting would obscure the chokepoint property.
+  // fallow-ignore-next-line complexity
   function endConversation(conversationId: string, opts: EndConversationOpts): void {
     const conv = conversations.get(conversationId)
     if (conv) {
       const endedAt = Date.now()
+      const prevStatus = conv.status
+      const liveSocketsBefore = conversationSockets.get(conversationId)?.size ?? 0
+      const lastActivityAgoMs = endedAt - (conv.lastActivity || endedAt)
+      const ccSessionIdHint = conv.agentHostMeta?.ccSessionId as string | undefined
+
+      // Double-end guard: warn but don't return -- the existing code path
+      // already mutates idempotently below. Loud log so a re-end shows up.
+      if (prevStatus === 'ended') {
+        console.warn(
+          `[end-redundant] ${conversationId.slice(0, 8)} already ended by ${conv.endedBy?.source ?? 'unknown'}/${conv.endedBy?.initiator ?? 'none'}, re-end source=${opts.source} initiator=${opts.initiator ?? 'none'}`,
+        )
+      }
+
+      console.log(
+        `[end] ${conversationId.slice(0, 8)} status=${prevStatus}->ended source=${opts.source} initiator=${opts.initiator ?? 'none'} liveSocketsBefore=${liveSocketsBefore} lastActivityAgoMs=${lastActivityAgoMs} ccSession=${ccSessionIdHint?.slice(0, 8) ?? 'none'} hostVersion=${conv.version ?? 'unknown'}${opts.detail?.note ? ` note=${opts.detail.note}` : ''}`,
+      )
+
       conv.status = 'ended'
       conv.planMode = false
       conv.endedBy = { source: opts.source, initiator: opts.initiator, at: endedAt, detail: opts.detail }
       clearAnalyticsConversation(conversationId)
+
+      // Per the LOG EVERYTHING covenant: enrich every termination record
+      // with the state it killed, so a future grep tells the full story.
+      const enrichedDetail = {
+        ...(opts.detail || {}),
+        kind: 'termination' as const,
+        statusBefore: prevStatus,
+        liveSocketsBefore,
+        lastActivityAgoMs,
+        hostVersion: conv.version,
+        ccSessionId: ccSessionIdHint,
+      }
 
       // Append to NDJSON termination log (best-effort, never throws). The
       // single chokepoint: every status->ended transition goes through
@@ -1288,9 +1394,28 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           initiator: opts.initiator,
           project: conv.project,
           title: conv.title,
-          detail: opts.detail,
+          detail: enrichedDetail,
         })
       }
+
+      // Emit the structured status transition so the dashboard can render
+      // the kill inline with the same fields the NDJSON record carries.
+      broadcastConversationScoped(
+        {
+          type: 'conversation_status_transition',
+          conversationId,
+          from: prevStatus,
+          to: 'ended',
+          reason: 'end-handler',
+          source: opts.source,
+          initiator: opts.initiator,
+          liveSockets: liveSocketsBefore,
+          ccSessionId: ccSessionIdHint,
+          lastActivityAgoMs,
+          at: endedAt,
+        },
+        conv.project,
+      )
 
       // Broadcast structured termination event. Carries source/initiator
       // so the dashboard can render a badge and a transcript timeline
@@ -1397,16 +1522,56 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     return events
   }
 
-  function setConversationSocket(conversationId: string, connectionId: string, ws: ServerWebSocket<unknown>): void {
-    // Remove connectionId from any OTHER conversation first (agent host reconnected to different conversation)
+  function setConversationSocket(
+    conversationId: string,
+    connectionId: string,
+    ws: ServerWebSocket<unknown>,
+    via: string = 'unknown',
+  ): void {
+    // Detect cross-conversation reuse first (agent host reconnected with same
+    // connectionId but a different conversation) -- log it loudly because
+    // this is rare and almost always a sign of confused upstream state.
     for (const [convId, wrappers] of conversationSockets.entries()) {
       if (convId !== conversationId && wrappers.has(connectionId)) {
+        console.warn(
+          `[socket-cross-conv] conn=${connectionId.slice(0, 8)} migrated from conv=${convId.slice(0, 8)} to conv=${conversationId.slice(0, 8)} via=${via}`,
+        )
         wrappers.delete(connectionId)
         if (wrappers.size === 0) conversationSockets.delete(convId)
-        // Broadcast so dashboard drops the stale connectionId from the old conversation
         broadcastConversationUpdate(convId)
       }
     }
+
+    // Detect SAME-key socket replacement -- the silent overwrite that turns
+    // a healthy live socket into a phantom. This is the WS#1 / WS#2 race
+    // signal that surfaces the boot/meta flap.
+    const existingWrappers = conversationSockets.get(conversationId)
+    const existingWs = existingWrappers?.get(connectionId)
+    if (existingWs && existingWs !== ws) {
+      const oldReadyState = (existingWs as { readyState?: number }).readyState ?? -1
+      const oldBufferedAmount = (existingWs as { bufferedAmount?: number }).bufferedAmount
+      const newReadyState = (ws as { readyState?: number }).readyState ?? -1
+      console.warn(
+        `[socket-replace] ${conversationId.slice(0, 8)}/${connectionId.slice(0, 8)} via=${via} old.readyState=${oldReadyState} old.buffered=${oldBufferedAmount ?? '?'} new.readyState=${newReadyState}`,
+      )
+      const conv = conversations.get(conversationId)
+      if (conv?.project) {
+        broadcastConversationScoped(
+          {
+            type: 'socket_replaced',
+            conversationId,
+            connectionId,
+            oldReadyState,
+            oldBufferedAmount,
+            newReadyState,
+            via,
+            at: Date.now(),
+          },
+          conv.project,
+        )
+      }
+    }
+
     let wrappers = conversationSockets.get(conversationId)
     if (!wrappers) {
       wrappers = new Map()
@@ -1420,7 +1585,12 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     const wrappers = conversationSockets.get(conversationId)
     if (!wrappers) return 0
     for (const [connId, ws] of wrappers.entries()) {
-      if ((ws as { readyState?: number }).readyState !== WebSocket.OPEN) {
+      const readyState = (ws as { readyState?: number }).readyState
+      if (readyState !== WebSocket.OPEN) {
+        const bufferedAmount = (ws as { bufferedAmount?: number }).bufferedAmount
+        console.log(
+          `[prune] ${conversationId.slice(0, 8)}/${connId.slice(0, 8)} readyState=${readyState ?? '?'} buffered=${bufferedAmount ?? '?'} -- dropping dead socket`,
+        )
         wrappers.delete(connId)
       }
     }
@@ -1553,15 +1723,48 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
    */
   function reapPhantomConversations(): string[] {
     const ended: string[] = []
+    const now = Date.now()
     for (const [convId, conversation] of conversations.entries()) {
       if (conversation.status === 'ended') continue
       if (!resolveBackend(conversation).requiresAgentSocket) continue
+      const liveBefore = conversationSockets.get(convId)?.size ?? 0
       const live = pruneDeadSockets(convId)
-      if (live === 0) {
+      const willEnd = live === 0
+      const lastActivityAgoMs = now - (conversation.lastActivity || now)
+      const ccSessionIdHint = conversation.agentHostMeta?.ccSessionId as string | undefined
+
+      // Per LOG EVERYTHING covenant: log every consideration, not just the
+      // kills. A conversation that survives the reaper 100 ticks in a row
+      // is signal too -- it tells us the reaper is fine and the bug is
+      // elsewhere.
+      console.log(
+        `[reaper] consider ${convId.slice(0, 8)} status=${conversation.status} liveBefore=${liveBefore} liveAfter=${live} lastActivityAgoMs=${lastActivityAgoMs} ccSession=${ccSessionIdHint?.slice(0, 8) ?? 'none'} hostVersion=${conversation.version ?? 'unknown'} willEnd=${willEnd}`,
+      )
+
+      if (conversation.project) {
+        broadcastConversationScoped(
+          {
+            type: 'phantom_reap_candidate',
+            conversationId: convId,
+            // Cast is safe: we filtered out 'ended' above.
+            status: conversation.status as 'active' | 'idle' | 'starting' | 'booting',
+            liveSockets: live,
+            willEnd,
+            lastActivityAgoMs,
+            ccSessionId: ccSessionIdHint,
+            at: now,
+          },
+          conversation.project,
+        )
+      }
+
+      if (willEnd) {
         endConversation(convId, {
           source: 'reaper-phantom',
           initiator: 'system:reaper',
-          detail: { note: 'No live agent host sockets remaining' },
+          detail: {
+            note: `No live agent host sockets remaining (liveBefore=${liveBefore} lastActivityAgoMs=${lastActivityAgoMs})`,
+          },
         })
         ended.push(convId)
       }

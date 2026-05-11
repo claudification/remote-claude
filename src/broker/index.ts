@@ -647,10 +647,25 @@ async function main() {
           }
         },
         close(ws, code, reason) {
-          if (verbose) {
-            const id = ws.data.conversationId?.slice(0, 8) || (ws.data.isControlPanel ? 'dashboard' : 'unknown')
-            console.log(`[ws] Connection closed: ${id} code=${code} reason=${reason || 'none'}`)
-          }
+          // Always log -- per the LOG EVERYTHING covenant a bare close line
+          // hidden behind `verbose` is a bug. Include all routing context we
+          // have so the post-mortem grep is one line. Note: ccSessionId is
+          // off-limits in this file (CC concept, broker boundary) -- the
+          // boot/meta handlers log it on their side; close just logs role+ids.
+          const hintConv = ws.data.conversationId?.slice(0, 8)
+          const hintConn = (ws.data.connectionId as string | undefined)?.slice(0, 8)
+          const role = ws.data.isControlPanel
+            ? 'dashboard'
+            : ws.data.isSentinel
+              ? 'sentinel'
+              : ws.data.isGateway
+                ? 'gateway'
+                : hintConv
+                  ? 'agent-host'
+                  : 'unknown'
+          console.log(
+            `[ws] Connection closed: role=${role} conv=${hintConv ?? 'none'} conn=${hintConn ?? 'none'} code=${code} reason=${reason || 'none'}`,
+          )
 
           // Handle sentinel disconnection
           if (ws.data.isSentinel) {
@@ -697,6 +712,12 @@ async function main() {
           // find it (e.g. socket was never registered).
           const conversationIdsToCheck = new Set<string>(touchedConversationIds)
           if (hintConversationId) conversationIdsToCheck.add(hintConversationId)
+
+          // Log the cleanup pass with all knowable inputs so the next "[unknown]
+          // socket closed" never requires a code dive.
+          console.log(
+            `[ws] cleanup: hintConv=${hintConversationId?.slice(0, 8) ?? 'none'} touchedConvs=[${touchedConversationIds.map(c => c.slice(0, 8)).join(',')}] (${touchedConversationIds.length}) toCheckCount=${conversationIdsToCheck.size}`,
+          )
 
           if (conversationIdsToCheck.size > 0) {
             // Notify any terminal/json-stream viewers attached to these conversations.

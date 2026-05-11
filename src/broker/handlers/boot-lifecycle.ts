@@ -59,6 +59,25 @@ const agentHostBoot: MessageHandler = (ctx, data) => {
   const agentHostType = (data.agentHostType as string | undefined) || 'claude'
 
   if (existing) {
+    const prevStatus = existing.status
+    const prevConnIds = ctx.conversations.getConnectionIds(conversationId)
+
+    // BOOT-ON-ACTIVE: a fresh agent_host_boot for an already-active
+    // conversation is the WS#1 / WS#2 race that causes the kill/un-end
+    // flap. Loud log + transition event so we never miss it again.
+    if (prevStatus !== 'booting' && prevStatus !== 'ended') {
+      console.warn(
+        `[boot-on-active] ${conversationId.slice(0, 8)} prevStatus=${prevStatus} prevSockets=${prevConnIds.length} prevConnIds=[${prevConnIds.map(c => c.slice(0, 8)).join(',')}] newVersion=${agentHostVersion ?? 'unknown'} -- a fresh agent host boot arrived on an active conversation`,
+      )
+    } else if (prevStatus === 'ended') {
+      // This will trigger resumeConversation via the un-end path later (not
+      // here -- boot doesn't call resume). For now, just log that the boot
+      // is RESURRECTING an ended conversation.
+      console.warn(
+        `[boot-on-ended] ${conversationId.slice(0, 8)} resurrecting ended conversation prev-end=${existing.endedBy?.source ?? 'unknown'}/${existing.endedBy?.initiator ?? 'none'}`,
+      )
+    }
+
     existing.status = 'booting'
     existing.lastActivity = Date.now()
     existing.project = resolvedProject
@@ -102,8 +121,9 @@ const agentHostBoot: MessageHandler = (ctx, data) => {
   }
 
   // Register the WS as this conversation's socket so messages (including boot
-  // events) can be tagged with it.
-  ctx.conversations.setConversationSocket(conversationId, conversationId, ctx.ws)
+  // events) can be tagged with it. The 'via' tag flows into the socket_replaced
+  // wire event so we can see which initial-message kind drove a replacement.
+  ctx.conversations.setConversationSocket(conversationId, conversationId, ctx.ws, 'agent_host_boot')
   // Persist now: ACP-spawned conversations only send agent_host_boot (no
   // separate `meta`), so without this the host-supplied capabilities,
   // version, agentHostType etc. are memory-only and vanish on broker
