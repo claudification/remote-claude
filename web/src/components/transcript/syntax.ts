@@ -84,6 +84,7 @@ const LANG_ALIASES: Record<string, string> = {
   kt: 'kotlin',
   hbs: 'handlebars',
   gql: 'graphql',
+  docker: 'dockerfile',
 }
 
 export function normalizeLang(lang: string | undefined | null): string | undefined {
