@@ -15,6 +15,7 @@ import { LaunchProfileManager } from '@/components/launch-profiles/manager'
 import { MediaLightbox } from '@/components/media-lightbox'
 import { ProjectList } from '@/components/project-list'
 import { QuickTaskModal } from '@/components/quick-task-modal'
+import { RecapJobsWidget } from '@/components/recap-jobs/recap-jobs-widget'
 import { RenameModal } from '@/components/rename-modal'
 import { ReviveDialog } from '@/components/revive-dialog'
 import { ManageChatConnectionsDialog } from '@/components/settings/manage-chat-connections-dialog'
@@ -153,8 +154,11 @@ function Dashboard() {
             <SheetHeader className="sr-only">
               <SheetTitle>Conversations</SheetTitle>
             </SheetHeader>
-            <div className="flex-1 overflow-y-auto p-2 h-full">
-              <ProjectList />
+            <div className="flex flex-col h-full">
+              <div className="flex-1 overflow-y-auto p-2">
+                <ProjectList />
+              </div>
+              <RecapJobsWidget />
             </div>
           </SheetContent>
         </Sheet>
@@ -213,6 +217,7 @@ function Dashboard() {
             <div className="flex-1 min-h-0 overflow-y-auto p-2 pt-0">
               <ProjectList />
             </div>
+            <RecapJobsWidget />
           </div>
         )}
 
