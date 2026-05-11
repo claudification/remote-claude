@@ -157,26 +157,70 @@ describe('GET /api/recaps/:id', () => {
 })
 
 describe('GET /api/recaps/:id/markdown', () => {
-  test('with no Accept header: returns attachment with filename', async () => {
-    seedRecap({ id: 'recap_a', projectUri: 'claude://default/projects/foo', markdown: '# Hi\n' })
+  test('no Accept header: renders markdown as HTML', async () => {
+    seedRecap({ id: 'recap_a', projectUri: 'claude://default/projects/foo', markdown: '# Hi\nBody' })
     const res = await app.request('/api/recaps/recap_a/markdown', { headers: adminHeaders() })
     expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toContain('text/markdown')
-    const disp = res.headers.get('content-disposition') || ''
-    expect(disp).toContain('attachment')
-    expect(disp).toMatch(/recap-foo-last_7-\d{4}-\d{2}-\d{2}\.md/)
-    expect(await res.text()).toBe('# Hi\n')
+    expect(res.headers.get('content-type')).toContain('text/html')
+    const body = await res.text()
+    expect(body).toContain('<h1')
+    expect(body).toContain('Hi')
   })
 
-  test('with Accept: text/markdown: returns raw markdown without attachment', async () => {
-    seedRecap({ id: 'recap_b', projectUri: 'claude://default/projects/foo', markdown: '# Hi\n' })
+  test('Accept: text/html: renders markdown as HTML', async () => {
+    seedRecap({ id: 'recap_b', projectUri: 'claude://default/projects/foo', markdown: '# Test\n\nBody' })
     const res = await app.request('/api/recaps/recap_b/markdown', {
+      headers: { ...adminHeaders(), accept: 'text/html' },
+    })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('text/html')
+    const body = await res.text()
+    expect(body).toContain('<h1')
+    expect(body).toContain('Test')
+  })
+
+  test('Accept: */*: renders markdown as HTML', async () => {
+    seedRecap({ id: 'recap_c', projectUri: 'claude://default/projects/foo', markdown: '# Star\n' })
+    const res = await app.request('/api/recaps/recap_c/markdown', {
+      headers: { ...adminHeaders(), accept: '*/*' },
+    })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('text/html')
+    expect(await res.text()).toContain('<h1')
+  })
+
+  test('Accept: text/markdown: returns raw markdown without rendering', async () => {
+    seedRecap({ id: 'recap_d', projectUri: 'claude://default/projects/foo', markdown: '# Hi\n' })
+    const res = await app.request('/api/recaps/recap_d/markdown', {
       headers: { ...adminHeaders(), accept: 'text/markdown' },
     })
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('text/markdown')
     expect(res.headers.get('content-disposition')).toBeNull()
     expect(await res.text()).toBe('# Hi\n')
+  })
+
+  test('Accept: text/plain: returns raw markdown without rendering', async () => {
+    seedRecap({ id: 'recap_e', projectUri: 'claude://default/projects/foo', markdown: '# Plain\n' })
+    const res = await app.request('/api/recaps/recap_e/markdown', {
+      headers: { ...adminHeaders(), accept: 'text/plain' },
+    })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('text/markdown')
+    expect(res.headers.get('content-disposition')).toBeNull()
+    expect(await res.text()).toBe('# Plain\n')
+  })
+
+  test('other Accept header: returns as attachment download', async () => {
+    seedRecap({ id: 'recap_f', projectUri: 'claude://default/projects/foo', markdown: '# Download\n' })
+    const res = await app.request('/api/recaps/recap_f/markdown', {
+      headers: { ...adminHeaders(), accept: 'application/json' },
+    })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('text/markdown')
+    const disp = res.headers.get('content-disposition') || ''
+    expect(disp).toContain('attachment')
+    expect(disp).toMatch(/recap-foo-last_7-\d{4}-\d{2}-\d{2}\.md/)
   })
 
   test('409 when recap is not done', async () => {
