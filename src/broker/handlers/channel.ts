@@ -173,90 +173,113 @@ const channelListSessions: MessageHandler = (ctx, data) => {
     projectGroups.set(s.project, group)
   }
 
-  const result = filtered.map(s => {
-    const linkStatus = callerSession ? ctx.conversations.checkProjectLink(callerSession, s.id) : 'unknown'
-    const isLinked = linkStatus === 'linked'
-    const showFull = isBenevolent || isLinked
-    const shortProject = extractProjectLabel(s.project)
-    const projSettings = ctx.getProjectSettings(s.project)
-    const sessionName = s.title || projSettings?.label || extractProjectLabel(s.project)
-    const isLive = ctx.conversations.getActiveConversationCount(s.id) > 0
-    const queueSize = ctx.messageQueue.getQueueSize(s.project)
-
-    // Assign a stable project-level slug via the caller's address book.
-    // Slug is derived from the PROJECT (label or dirname), never the conversation title --
-    // multiple conversations can share a project; the project identity must not depend on
-    // whichever conversation happened to register first.
-    const projectName = projSettings?.label || extractProjectLabel(s.project)
-    const projectSlug = callerProject
-      ? ctx.addressBook.getOrAssign(callerProject, s.project, projectName)
-      : slugify(projectName)
-
-    // ALWAYS compound `project:conversation-slug` -- bare ids would silently flip
-    // shape when a second conversation spawns at the same project. See channel-id.ts.
-    const projGroup = projectGroups.get(s.project) || [s]
-    const localId = computeLocalId(s, projectSlug, projGroup)
-
-    const isSelf = s.id === callerSession
-
-    return {
-      id: localId, // stable local address (use for send_message, etc.)
-      project: projectSlug, // project-level grouping ID
-      conversation_id: s.id,
-      name: sessionName,
-      projectUri: s.project,
-      cwd: showFull || isSelf ? parseProjectUri(s.project).path : shortProject, // backward compat for MCP consumers
-      status: (isLive ? 'live' : 'inactive') as 'live' | 'inactive',
-      capabilities: s.capabilities,
-      ...(isSelf
-        ? {
-            self: true,
-            model: deriveModelName(s.model, s.configuredModel),
-            permissionMode: s.permissionMode,
-            effortLevel: s.effortLevel,
-          }
-        : {}),
-      ...(projSettings?.label && projSettings.label !== sessionName ? { label: projSettings.label } : {}),
-      ...(s.description ? { description: s.description } : {}),
-      link: isSelf ? undefined : isLinked ? 'connected' : linkStatus === 'blocked' ? 'blocked' : undefined,
-      title: s.title,
-      summary: s.summary,
-      ...(queueSize > 0 ? { queued: queueSize } : {}),
-      ...(showMetadata && isBenevolent && projSettings
-        ? {
-            metadata: {
-              label: projSettings.label,
-              icon: projSettings.icon,
-              color: projSettings.color,
-              keyterms: projSettings.keyterms,
-            },
-          }
-        : {}),
-    }
-  })
-  // Build self identity from caller's conversation
-  let self: Record<string, unknown> | undefined
-  if (callerSession) {
-    const s = ctx.conversations.getConversation(callerSession)
-    if (s) {
+  // Per-row try/catch: a single malformed conversation (bad project URI,
+  // corrupt settings, address-book divergence) must NEVER sink the whole list.
+  // Pre-2026-05-11 a throw here was swallowed by the router, replied as
+  // `channel_list_conversations_result` (a type the agent host doesn't listen
+  // for), and every caller's promise timed out at 5s returning empty `[]`.
+  // See parseProjectUri's incident comment for the originating case.
+  const result = filtered.flatMap(s => {
+    try {
+      const linkStatus = callerSession ? ctx.conversations.checkProjectLink(callerSession, s.id) : 'unknown'
+      const isLinked = linkStatus === 'linked'
+      const showFull = isBenevolent || isLinked
+      const shortProject = extractProjectLabel(s.project)
       const projSettings = ctx.getProjectSettings(s.project)
+      const sessionName = s.title || projSettings?.label || extractProjectLabel(s.project)
+      const isLive = ctx.conversations.getActiveConversationCount(s.id) > 0
+      const queueSize = ctx.messageQueue.getQueueSize(s.project)
+
+      // Assign a stable project-level slug via the caller's address book.
+      // Slug is derived from the PROJECT (label or dirname), never the conversation title --
+      // multiple conversations can share a project; the project identity must not depend on
+      // whichever conversation happened to register first.
       const projectName = projSettings?.label || extractProjectLabel(s.project)
       const projectSlug = callerProject
         ? ctx.addressBook.getOrAssign(callerProject, s.project, projectName)
         : slugify(projectName)
-      const allAtProject = all.filter(x => isSameProject(x.project, s.project))
-      const localId = computeLocalId(s, projectSlug, allAtProject)
-      self = {
-        id: localId,
-        project: projectSlug,
-        conversation_id: s.id,
-        name: s.title || projSettings?.label || extractProjectLabel(s.project),
-        projectUri: s.project,
-        cwd: parseProjectUri(s.project).path, // backward compat for MCP consumers
-        model: deriveModelName(s.model, s.configuredModel),
-        permissionMode: s.permissionMode,
-        effortLevel: s.effortLevel,
-        status: 'live' as const,
+
+      // ALWAYS compound `project:conversation-slug` -- bare ids would silently flip
+      // shape when a second conversation spawns at the same project. See channel-id.ts.
+      const projGroup = projectGroups.get(s.project) || [s]
+      const localId = computeLocalId(s, projectSlug, projGroup)
+
+      const isSelf = s.id === callerSession
+
+      return [
+        {
+          id: localId, // stable local address (use for send_message, etc.)
+          project: projectSlug, // project-level grouping ID
+          conversation_id: s.id,
+          name: sessionName,
+          projectUri: s.project,
+          cwd: showFull || isSelf ? parseProjectUri(s.project).path : shortProject, // backward compat for MCP consumers
+          status: (isLive ? 'live' : 'inactive') as 'live' | 'inactive',
+          capabilities: s.capabilities,
+          ...(isSelf
+            ? {
+                self: true,
+                model: deriveModelName(s.model, s.configuredModel),
+                permissionMode: s.permissionMode,
+                effortLevel: s.effortLevel,
+              }
+            : {}),
+          ...(projSettings?.label && projSettings.label !== sessionName ? { label: projSettings.label } : {}),
+          ...(s.description ? { description: s.description } : {}),
+          link: isSelf ? undefined : isLinked ? 'connected' : linkStatus === 'blocked' ? 'blocked' : undefined,
+          title: s.title,
+          summary: s.summary,
+          ...(queueSize > 0 ? { queued: queueSize } : {}),
+          ...(showMetadata && isBenevolent && projSettings
+            ? {
+                metadata: {
+                  label: projSettings.label,
+                  icon: projSettings.icon,
+                  color: projSettings.color,
+                  keyterms: projSettings.keyterms,
+                },
+              }
+            : {}),
+        },
+      ]
+    } catch (err) {
+      ctx.log.debug(
+        `[channel_list_conversations] skipped conversation ${s.id.slice(0, 8)} (project=${s.project}): ${err instanceof Error ? err.message : String(err)}`,
+      )
+      return []
+    }
+  })
+  // Build self identity from caller's conversation. Same defensive wrap as
+  // the per-row loop above -- a malformed caller project URI must not crash
+  // the whole reply.
+  let self: Record<string, unknown> | undefined
+  if (callerSession) {
+    const s = ctx.conversations.getConversation(callerSession)
+    if (s) {
+      try {
+        const projSettings = ctx.getProjectSettings(s.project)
+        const projectName = projSettings?.label || extractProjectLabel(s.project)
+        const projectSlug = callerProject
+          ? ctx.addressBook.getOrAssign(callerProject, s.project, projectName)
+          : slugify(projectName)
+        const allAtProject = all.filter(x => isSameProject(x.project, s.project))
+        const localId = computeLocalId(s, projectSlug, allAtProject)
+        self = {
+          id: localId,
+          project: projectSlug,
+          conversation_id: s.id,
+          name: s.title || projSettings?.label || extractProjectLabel(s.project),
+          projectUri: s.project,
+          cwd: parseProjectUri(s.project).path, // backward compat for MCP consumers
+          model: deriveModelName(s.model, s.configuredModel),
+          permissionMode: s.permissionMode,
+          effortLevel: s.effortLevel,
+          status: 'live' as const,
+        }
+      } catch (err) {
+        ctx.log.debug(
+          `[channel_list_conversations] self block failed for ${s.id.slice(0, 8)} (project=${s.project}): ${err instanceof Error ? err.message : String(err)}`,
+        )
       }
     }
   }

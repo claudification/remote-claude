@@ -51,11 +51,30 @@ export function parseProjectUri(uri: string): ProjectUri {
     return parseSchemeWildcard(uri)
   }
 
-  let url: URL
+  let url: URL | null = null
   try {
     url = new URL(uri)
   } catch {
-    throw new Error(`Invalid project URI: ${uri}`)
+    // WHATWG URL rejects authority components with spaces/illegal chars
+    // (e.g. backends that allocate URIs from human-readable model labels like
+    // `chat://Mistral Dophin`). A single such row in the conversation store
+    // used to throw from anywhere that iterated all conversations -- most
+    // visibly `channel_list_conversations`, where the handler-wide throw was
+    // caught by the router as `channel_list_conversations_result` (a type the
+    // agent host doesn't listen for), and every caller's promise timed out
+    // after 5s with an empty `[]`. Fall back to a tolerant manual split for
+    // any `scheme://...` shape so the bad URI degrades gracefully instead.
+    const schemeMatch = uri.match(/^([a-z][a-z0-9+.-]*):\/\/(.*)$/i)
+    if (!schemeMatch) throw new Error(`Invalid project URI: ${uri}`)
+    const scheme = schemeMatch[1].toLowerCase()
+    const rest = schemeMatch[2]
+    const fragmentIdx = rest.indexOf('#')
+    const before = fragmentIdx >= 0 ? rest.slice(0, fragmentIdx) : rest
+    const fragment = fragmentIdx >= 0 ? rest.slice(fragmentIdx + 1) : undefined
+    const slashIdx = before.indexOf('/')
+    const authority = (slashIdx >= 0 ? before.slice(0, slashIdx) : before) || undefined
+    const path = slashIdx >= 0 ? before.slice(slashIdx) || '/' : '/'
+    return { scheme, authority, path, fragment, raw: uri }
   }
 
   const scheme = url.protocol.slice(0, -1).toLowerCase()

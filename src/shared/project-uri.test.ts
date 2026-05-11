@@ -104,6 +104,32 @@ describe('parseProjectUri', () => {
     const result = parseProjectUri(raw)
     expect(result.raw).toBe(raw)
   })
+
+  // Regression: bug-spawn-session-not-discoverable. A chat-backend conversation
+  // was registered with `project: "chat://Mistral Dophin"` (space in the
+  // authority). WHATWG URL rejected it, parseProjectUri threw, and every
+  // caller iterating all conversations (most visibly the broker's
+  // channel_list_conversations handler) crashed -- causing list_conversations
+  // to return `[]` even when ~20 conversations existed in the store.
+  test('tolerates malformed authority (spaces) instead of throwing', () => {
+    const result = parseProjectUri('chat://Mistral Dophin')
+    expect(result.scheme).toBe('chat')
+    expect(result.authority).toBe('Mistral Dophin')
+    expect(result.path).toBe('/')
+    expect(result.raw).toBe('chat://Mistral Dophin')
+  })
+
+  test('tolerates authority-only URI with no path', () => {
+    const result = parseProjectUri('opencode://default')
+    expect(result.scheme).toBe('opencode')
+    expect(result.authority).toBe('default')
+    expect(result.path).toBe('/')
+  })
+
+  test('still throws on genuinely garbage input (no scheme://)', () => {
+    expect(() => parseProjectUri('garbage')).toThrow()
+    expect(() => parseProjectUri('')).toThrow()
+  })
 })
 
 describe('buildProjectUri', () => {

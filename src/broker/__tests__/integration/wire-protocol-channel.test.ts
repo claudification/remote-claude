@@ -373,6 +373,51 @@ describe('inter-session messaging', () => {
       h.messageQueueEnqueue = origEnqueue
     })
 
+    // Regression: bug-spawn-session-not-discoverable (the deeper bug).
+    // A conversation registered with a malformed project URI used to throw
+    // from parseProjectUri inside the per-row map, the router replied with a
+    // type the agent host doesn't listen for, and every list_conversations
+    // call timed out at 5s returning empty `[]` -- even when ~20 healthy
+    // conversations existed in the store. The list must survive bad rows.
+    it('one malformed-URI conversation does not poison list_conversations', async () => {
+      const callerConv = testId('caller')
+      const healthyConv = testId('healthy')
+      const badConv = testId('bad')
+
+      const agent = bootAndPromote({
+        conversationId: callerConv,
+        sessionId: testId('sess'),
+        project: 'claude:///home/user/project-caller',
+      })
+
+      // Register a healthy peer
+      bootAndPromote({
+        conversationId: healthyConv,
+        sessionId: testId('sess'),
+        project: 'claude:///home/user/project-healthy',
+      })
+
+      // Manually create a conversation with a malformed project URI -- this
+      // simulates a backend that allocates URIs from human-readable labels
+      // (e.g. `chat://Mistral Dophin`). createConversation accepts whatever
+      // it's given; the store has no URI-shape check.
+      h.conversationStore.createConversation(badConv, 'chat://Mistral Dophin')
+
+      await h.flushUpdates()
+
+      h.agentSend(agent, { type: 'channel_list_conversations', status: 'all' })
+      const result = agent.messagesOfType('channel_conversations_list')
+      expect(result.length).toBe(1) // handler MUST reply, not timeout
+
+      type Row = { conversation_id: string; status: string }
+      const sessions = result[0].conversations as Row[]
+      const ids = sessions.map(s => s.conversation_id)
+      expect(ids).toContain(healthyConv) // healthy peer is visible
+      expect(ids).toContain(callerConv) // caller's row is visible
+      // The bad row may or may not appear (depends on whether the tolerant
+      // parse succeeds for it). What matters is the rest of the list survives.
+    })
+
     it('completed jobs are not surfaced as spawning rows', async () => {
       const callerConv = testId('caller')
       const pendingConv = testId('pending')
