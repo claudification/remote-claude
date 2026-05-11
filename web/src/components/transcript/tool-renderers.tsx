@@ -104,7 +104,9 @@ export const DiffView = memo(function DiffView({
             const tokens = highlighter.codeToTokens(lines.join('\n'), { lang, theme: 'tokyo-night' })
             for (let i = 0; i < tokens.tokens.length; i++) {
               const lineTokens = tokens.tokens[i] as Array<{ color?: string; content: string }>
-              const html = lineTokens.map(t => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`).join('')
+              const html = lineTokens
+                .map(t => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`)
+                .join('')
               lineMap.set(lines[i], html)
             }
           } catch {

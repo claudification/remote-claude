@@ -10,10 +10,18 @@
  * subscribed selector -- so handler reorganization has no React #310 risk.
  */
 
+import type { DialogLayout } from '@shared/dialog-schema'
 import type { LaunchProfile } from '@shared/launch-profile'
 import type { ConversationSummary } from '@shared/protocol'
 import { handleLaunchProfilesUpdatedMessage } from '@/components/launch-profiles/use-launch-profiles'
-import type { ProjectOrder, Session, TaskInfo, TranscriptEntry } from '@/lib/types'
+import type {
+  ClaudeEfficiencyUpdate,
+  ClaudeHealthUpdate,
+  ProjectOrder,
+  Session,
+  TaskInfo,
+  TranscriptEntry,
+} from '@/lib/types'
 import { haptic } from '@/lib/utils'
 import {
   applyHashRoute,
@@ -499,11 +507,11 @@ function handleUsageUpdate(msg: DashboardMessage) {
 }
 
 function handleClaudeHealthUpdate(msg: DashboardMessage) {
-  useConversationsStore.getState().setClaudeHealth(msg as unknown as import('@/lib/types').ClaudeHealthUpdate)
+  useConversationsStore.getState().setClaudeHealth(msg as unknown as ClaudeHealthUpdate)
 }
 
 function handleClaudeEfficiencyUpdate(msg: DashboardMessage) {
-  useConversationsStore.getState().setClaudeEfficiency(msg as unknown as import('@/lib/types').ClaudeEfficiencyUpdate)
+  useConversationsStore.getState().setClaudeEfficiency(msg as unknown as ClaudeEfficiencyUpdate)
 }
 
 function handleSettingsUpdated(msg: DashboardMessage) {
@@ -644,7 +652,7 @@ function handleAskQuestion(msg: DashboardMessage) {
 function handleDialogShow(msg: DashboardMessage) {
   const exSid = msg.conversationId as string
   const exId = msg.dialogId as string
-  const exLayout = msg.layout as import('@shared/dialog-schema').DialogLayout
+  const exLayout = msg.layout as DialogLayout
   if (!(exSid && exId && exLayout)) return
   // Dedup: the agent host replays dialog_show on reconnect. If we already
   // have this exact dialog open, preserve any in-progress user input.
@@ -685,7 +693,7 @@ function handlePlanApproval(msg: DashboardMessage) {
   const existing = useConversationsStore.getState().pendingDialogs[paSid]
   if (existing?.dialogId === dialogId && existing.source === 'plan_approval') return
   // Build a dialog layout from the plan content
-  const layout: import('@shared/dialog-schema').DialogLayout = {
+  const layout: DialogLayout = {
     title: 'Plan Approval',
     timeout: 600,
     submitLabel: 'Approve',

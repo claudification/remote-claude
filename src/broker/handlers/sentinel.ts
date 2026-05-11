@@ -3,6 +3,7 @@
  * directory listing results, diagnostic entries.
  */
 
+import type { UsageUpdate } from '../../shared/protocol'
 import type { MessageHandler } from '../handler-context'
 import { ANY_ROLE, registerHandlers, SENTINEL_ONLY } from '../message-router'
 
@@ -179,7 +180,7 @@ const sentinelDiag: MessageHandler = (ctx, data) => {
 }
 
 const usageUpdate: MessageHandler = (ctx, data) => {
-  const usage = data as unknown as import('../../shared/protocol').UsageUpdate
+  const usage = data as unknown as UsageUpdate
   if (usage.fiveHour && usage.sevenDay) {
     ctx.conversations.setUsage(usage)
     ctx.log.debug(

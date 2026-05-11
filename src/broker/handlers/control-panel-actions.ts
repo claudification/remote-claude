@@ -6,6 +6,7 @@
  * Handler replies { type: 'action_name_result', ok: true/false, ... }
  */
 
+import type { ServerWebSocket } from 'bun'
 import { generateConversationName } from '../../shared/conversation-names'
 import { extractProjectLabel } from '../../shared/project-uri'
 import type { SendInput, SubscriptionChannel } from '../../shared/protocol'
@@ -82,7 +83,7 @@ const sendInput: MessageHandler = (ctx, data) => {
 
 /** Broadcast project settings filtered per subscriber's grants */
 function broadcastFilteredProjectSettings(
-  ctx: { conversations: { getSubscribers(): Set<import('bun').ServerWebSocket<unknown>> } },
+  ctx: { conversations: { getSubscribers(): Set<ServerWebSocket<unknown>> } },
   all: Record<string, unknown>,
 ): void {
   for (const ws of ctx.conversations.getSubscribers()) {

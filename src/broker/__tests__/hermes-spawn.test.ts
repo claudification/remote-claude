@@ -3,6 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import type { ServerWebSocket } from 'bun'
 import type { SpawnRequest } from '../../shared/spawn-schema'
 import { hermesBackend } from '../backends/hermes'
 import { type ConversationStore, createConversationStore } from '../conversation-store'
@@ -33,7 +34,7 @@ function makeGatewaySocket(gatewayId = 'gw-1') {
     send: mock(),
     readyState: WebSocket.OPEN,
     data: { isGateway: true, gatewayType: 'hermes', gatewayId },
-  } as unknown as import('bun').ServerWebSocket<unknown>
+  } as unknown as ServerWebSocket<unknown>
 }
 
 beforeEach(() => {
@@ -224,7 +225,7 @@ describe('Gateway socket management', () => {
       send: mock(),
       readyState: WebSocket.CLOSED,
       data: { gatewayId: 'gw-dead' },
-    } as unknown as import('bun').ServerWebSocket<unknown>
+    } as unknown as ServerWebSocket<unknown>
 
     conversationStore.setGatewaySocket('gw-dead', 'hermes', 'prod', ws)
     expect(conversationStore.getGatewaySocketById('gw-dead')).toBeUndefined()

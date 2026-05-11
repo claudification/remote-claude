@@ -1,7 +1,14 @@
 import type { LaunchProfile } from '@shared/launch-profile'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { blankProfile, findDuplicateChord, findDuplicateName, findProfile, removeProfile, replaceProfile } from './draft'
+import {
+  blankProfile,
+  findDuplicateChord,
+  findDuplicateName,
+  findProfile,
+  removeProfile,
+  replaceProfile,
+} from './draft'
 import { ManagerEditor } from './manager-editor'
 import { ManagerList } from './manager-list'
 import { closeLaunchProfileManager, useLaunchProfileManagerState } from './manager-state'

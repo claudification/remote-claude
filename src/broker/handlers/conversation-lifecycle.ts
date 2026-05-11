@@ -4,7 +4,7 @@
  */
 
 import { cwdToProjectUri, extractProjectLabel } from '../../shared/project-uri'
-import type { TerminationDetail, TerminationSource } from '../../shared/protocol'
+import type { Conversation, HookEvent, TerminationDetail, TerminationSource } from '../../shared/protocol'
 import { slugify } from '../address-book'
 import type { MessageHandler } from '../handler-context'
 import { AGENT_HOST_ONLY, ANY_ROLE, registerHandlers } from '../message-router'
@@ -41,7 +41,7 @@ const meta: MessageHandler = (ctx, data) => {
 
   const existing = ctx.conversations.getConversation(conversationId)
 
-  function applyMetadata(conv: import('../../shared/protocol').Conversation) {
+  function applyMetadata(conv: Conversation) {
     if (!conv.agentHostMeta) conv.agentHostMeta = {}
     conv.agentHostMeta.ccSessionId = ccSessionId
     conv.project = project
@@ -149,7 +149,7 @@ const meta: MessageHandler = (ctx, data) => {
 const hook: MessageHandler = (ctx, data) => {
   const conversationId = (data.conversationId || data.conversationId || ctx.ws.data.conversationId) as string
   if (!conversationId) return
-  ctx.conversations.addEvent(conversationId, data as import('../../shared/protocol').HookEvent)
+  ctx.conversations.addEvent(conversationId, data as HookEvent)
   const toolName = (data.data as Record<string, unknown>)?.tool_name
   ctx.log.debug(`${(data.hookEvent as string) || 'hook'}${toolName ? ` (${toolName})` : ''}`)
 }

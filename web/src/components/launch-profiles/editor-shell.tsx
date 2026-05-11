@@ -1,14 +1,6 @@
 import type { ReactNode } from 'react'
 
-export function Section({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string
-  subtitle?: string
-  children: ReactNode
-}) {
+export function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
     <section className="space-y-2">
       <div>
@@ -20,15 +12,7 @@ export function Section({
   )
 }
 
-export function LabeledRow({
-  label,
-  subtitle,
-  children,
-}: {
-  label: string
-  subtitle?: string
-  children: ReactNode
-}) {
+export function LabeledRow({ label, subtitle, children }: { label: string; subtitle?: string; children: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3 py-0.5">
       <div className="min-w-0">

@@ -1,3 +1,4 @@
+import type { ServerWebSocket } from 'bun'
 import { cwdToProjectUri, extractProjectLabel, normalizeProjectUri } from '../../shared/project-uri'
 import type { Conversation } from '../../shared/protocol'
 import { getProjectSettings } from '../project-settings'
@@ -25,7 +26,7 @@ export interface ProjectLinkRegistry {
 
 export function createProjectLinkRegistry(
   conversations: Map<string, Conversation>,
-  conversationSockets: Map<string, Map<string, import('bun').ServerWebSocket<unknown>>>,
+  conversationSockets: Map<string, Map<string, ServerWebSocket<unknown>>>,
 ): ProjectLinkRegistry {
   const projectLinks = new Set<string>()
   const projectBlocks = new Map<string, number>()
