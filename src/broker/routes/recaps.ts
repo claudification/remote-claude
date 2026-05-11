@@ -212,7 +212,7 @@ export function createRecapsRouter(_conversationStore: ConversationStore, helper
   // capability. Validates targetKind === 'recap' and returns only the
   // recap's safe public surface (markdown + presentation metadata, never
   // the createdBy / project URI / underlying conversation ids).
-  app.get('/api/share/recap/:token', c => {
+  app.get('/shared/public/recap/:token', c => {
     const orch = getRecapOrchestrator()
     if (!orch) return c.json({ error: 'recap orchestrator not initialised' }, 503)
     const token = c.req.param('token')
@@ -242,10 +242,7 @@ export function createRecapsRouter(_conversationStore: ConversationStore, helper
     })
   })
 
-  // Pretty share viewer URL. Phase 11 will make this serve a dedicated
-  // recap-viewer HTML shell. For Phase 7 we redirect to the SPA which
-  // Phase 10 teaches to recognise the recap-share token via
-  // /api/share/recap/:token.
+  // Pretty shorthand redirect: /r/:token -> /?share=:token&kind=recap
   app.get('/r/:token', c => {
     const token = c.req.param('token')
     return c.redirect(`/?share=${encodeURIComponent(token)}&kind=recap`)

@@ -124,6 +124,8 @@ export function createRouter(options: RouteOptions): Hono {
   app.use('*', async (c, next) => {
     // Auth routes handled by dedicated route group below
     if (c.req.path.startsWith('/auth/')) return next()
+    // Public shared content (token-based guest access, no auth needed)
+    if (c.req.path.startsWith('/shared/public/')) return next()
 
     // requireAuth returns a Response if blocked, null if allowed
     const block = requireAuth(c.req.raw)
@@ -278,6 +280,7 @@ export function createRouter(options: RouteOptions): Hono {
         !path.startsWith('/health') &&
         !path.startsWith('/api') &&
         !path.startsWith('/file') &&
+        !path.startsWith('/shared') &&
         !path.startsWith('/mcp')
       ) {
         const indexHtml = embeddedFiles.get('index.html')
@@ -321,6 +324,7 @@ export function createRouter(options: RouteOptions): Hono {
         !path.startsWith('/health') &&
         !path.startsWith('/api') &&
         !path.startsWith('/file') &&
+        !path.startsWith('/shared') &&
         !path.startsWith('/mcp')
       ) {
         try {

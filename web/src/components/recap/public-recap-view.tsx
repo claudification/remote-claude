@@ -1,6 +1,6 @@
 /**
  * Public recap viewer mounted when the SPA enters share mode with
- * kind='recap'. Reads /api/share/recap/:token (no auth, token is the
+ * kind='recap'. Reads /shared/public/recap/:token (no auth, token is the
  * capability) and renders the markdown standalone -- no project chrome,
  * no sidebar, no header.
  */
@@ -39,7 +39,7 @@ export function PublicRecapView({ token }: { token: string }) {
 
   useEffect(() => {
     let cancelled = false
-    fetch(`/api/share/recap/${encodeURIComponent(token)}`)
+    fetch(`/shared/public/recap/${encodeURIComponent(token)}`)
       .then(async res => {
         if (cancelled) return
         if (!res.ok) {
