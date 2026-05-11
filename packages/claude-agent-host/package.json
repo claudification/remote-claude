@@ -1,6 +1,6 @@
 {
   "name": "@claudewerk/claude-agent-host",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Claude Code agent host (rclaude) with hooks, MCP channel, and broker connectivity",
   "bin": {
     "rclaude": "bin/rclaude"
