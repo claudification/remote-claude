@@ -3,6 +3,7 @@
  * Defines the message format between agent host and broker
  */
 
+import type { DialogLayout, DialogResult } from './dialog-schema'
 import type { SpawnRequest } from './spawn-schema'
 
 export type { LaunchProfile } from './launch-profile'
@@ -113,7 +114,11 @@ export interface ConversationEnd {
   type: 'end'
   conversationId: string
   ccSessionId?: string
+  /** Free-form reason from agent host. Kept for compat. Prefer `source`. */
   reason: string
+  /** Typed termination source (defined later in this file). */
+  source?: TerminationSource
+  detail?: TerminationDetail
   endedAt: number
 }
 
@@ -776,11 +781,38 @@ export type InterConversationIntent = 'request' | 'response' | 'notify' | 'progr
 export interface InterConversationMessage {
   type: 'channel_send'
   fromConversation: string
-  toConversation: string
+  // Single target (back-compat) OR multicast to many. When an array is passed,
+  // the broker fans out and produces ONE `channel_send_result` carrying a
+  // per-target `results[]` breakdown. The same `conversationId` (thread id)
+  // is reused for every recipient so replies land in one logical thread.
+  toConversation: string | string[]
   intent: InterConversationIntent
   message: string
   context?: string
   conversationId?: string
+}
+
+export interface ChannelSendResultEntry {
+  // The raw target the caller passed (compound id, project slug, or conversation id).
+  to: string
+  ok: boolean
+  status?: 'delivered' | 'queued'
+  targetConversationId?: string
+  error?: string
+}
+
+export interface ChannelSendResult {
+  type: 'channel_send_result'
+  // Aggregate success: true iff every target succeeded.
+  ok: boolean
+  // Thread id shared by all fan-out targets.
+  conversationId?: string
+  // Single-target back-compat fields (populated when caller passed a string).
+  status?: 'delivered' | 'queued'
+  targetConversationId?: string
+  error?: string
+  // Multicast breakdown (populated when caller passed an array).
+  results?: ChannelSendResultEntry[]
 }
 
 export interface InterConversationDelivery {
@@ -879,14 +911,14 @@ export interface DialogShowMessage {
   type: 'dialog_show'
   conversationId: string
   dialogId: string
-  layout: import('./dialog-schema').DialogLayout
+  layout: DialogLayout
 }
 
 export interface DialogResultMessage {
   type: 'dialog_result'
   conversationId: string
   dialogId: string
-  result: import('./dialog-schema').DialogResult
+  result: DialogResult
   [key: string]: unknown
 }
 
@@ -962,6 +994,7 @@ export type BrokerMessage =
   | PermissionResponse
   | AskQuestionResponse
   | QuitConversation
+  | ConversationTerminated
   | ConversationControl
   | ControlDeliver
   | DialogResultMessage
@@ -982,9 +1015,72 @@ export interface SendInterrupt {
   conversationId: string
 }
 
+/**
+ * Termination source taxonomy.
+ *
+ * Every call that flips a conversation to `status: 'ended'` MUST tag itself
+ * with one of these values. The broker writes a row to the daily-rotated
+ * NDJSON termination log keyed by source + initiator. Use the broker-cli
+ * `termination` subcommand to grep history.
+ *
+ * Adding a new source? Update:
+ *   1. This enum
+ *   2. broker-cli help in `cli/shared.ts`
+ *   3. README termination section
+ */
+export type TerminationSource =
+  // Dashboard-initiated kills (web client)
+  | 'dashboard-context-menu' // sidebar right-click -> Terminate
+  | 'dashboard-terminate-dialog' // explicit confirm dialog
+  | 'dashboard-launch-toast' // launch-profile toast "Cancel launch" button
+  | 'dashboard-other' // fallback for legacy/unknown dashboard callers
+  // Inter-conversation
+  | 'inter-conversation-restart' // another conversation issued channel_restart
+  // Agent host -- intentional shutdown
+  | 'mcp-exit-session' // agent self-terminated via mcp__rclaude__exit_session
+  | 'headless-input' // user typed /exit /quit :q :q! into headless stdin
+  // Agent host -- CC process events
+  | 'cc-exit-normal' // CC exited code 0
+  | 'cc-exit-crash' // CC exited non-zero or by signal
+  // Broker-driven cleanup
+  | 'ws-close' // last live agent host socket closed without explicit `end`
+  | 'reaper-phantom' // 30s reaper: no live sockets remaining
+  // Future-facing
+  | 'sentinel-kill' // explicit sentinel kill (not yet wired)
+  | 'unknown' // legacy paths until tagged
+
+export interface TerminationDetail {
+  ccExitCode?: number
+  ccSessionId?: string
+  agentHostPid?: number
+  /** Last hook timestamp seen before termination. */
+  lastActivityAt?: number
+  /** Free-form message (e.g. "stdin EOF after CC exited"). */
+  note?: string
+}
+
 export interface QuitConversation {
   type: 'terminate_conversation'
   conversationId: string
+  /** Where the kill came from. Web clients must populate this. */
+  source?: TerminationSource
+  /** Optional override of initiator (defaults to ctx.ws.data principal). */
+  initiator?: string
+}
+
+/**
+ * Broadcast to dashboard when a conversation terminates. Carries
+ * source/initiator/detail so the UI can render a badge and an inline
+ * transcript timeline entry. The legacy `conversation_ended` event still
+ * fires for backwards-compat status updates.
+ */
+export interface ConversationTerminated {
+  type: 'conversation_terminated'
+  conversationId: string
+  source: TerminationSource
+  initiator?: string
+  detail?: TerminationDetail
+  endedAt: number
 }
 
 export interface RecapRequest {
@@ -1521,9 +1617,19 @@ export interface Conversation {
     question?: string
     timestamp: number
   }
+  /**
+   * Set when status transitions to 'ended'. Surfaces to the UI as a badge.
+   * Same data is written to the daily-rotated NDJSON termination log.
+   */
+  endedBy?: {
+    source: TerminationSource
+    initiator?: string
+    at: number
+    detail?: TerminationDetail
+  }
   planMode?: boolean // true when session is in plan mode (EnterPlanMode approved, not yet exited)
   hasNotification?: boolean // unread notification (cleared when session is viewed)
-  pendingDialog?: { dialogId: string; layout: import('./dialog-schema').DialogLayout; timestamp: number }
+  pendingDialog?: { dialogId: string; layout: DialogLayout; timestamp: number }
   pendingPlanApproval?: {
     requestId: string
     toolUseId?: string
@@ -2123,6 +2229,33 @@ export interface SubscriptionsDiag {
     totalBytesSent: number
     totalMessagesSent: number
   }
+}
+
+// Live connection diagnostics (Nerd "Conns" tab + /api/connections)
+export type ConnectionRole = 'web' | 'agent-host' | 'sentinel' | 'gateway' | 'share' | 'unknown'
+
+export interface ConnectionInfo {
+  connectionId: string
+  role: ConnectionRole
+  identity: string
+  userName?: string
+  conversationId?: string
+  project?: string
+  sentinelId?: string
+  sentinelAlias?: string
+  gatewayType?: string
+  gatewayId?: string
+  hostname?: string
+  remoteAddr?: string
+  userAgent?: string
+  connectedAt: number
+  channelCount: number
+  channels?: Array<{ channel: string; conversationId: string }>
+  bytesIn: number
+  bytesOut: number
+  msgsIn: number
+  msgsOut: number
+  protocolVersion?: number
 }
 
 // Configuration

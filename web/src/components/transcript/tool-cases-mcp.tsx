@@ -10,8 +10,8 @@ export function renderMcpSendMessage({ input, result }: ToolCaseInput): ToolCase
   const to = (input.to as string) || ''
   const intent = (input.intent as string) || ''
   const msg = (input.message as string) || ''
-  const targetIdMatch = result?.match(/target_session_id:\s*([0-9a-f-]{36})/)
-  const targetSessionId = targetIdMatch?.[1]
+  const targetIdMatch = result?.match(/target_conversation_id:\s*([0-9a-f-]{36})/)
+  const targetConversationId = targetIdMatch?.[1]
   const intentStyles: Record<string, string> = {
     request: 'bg-yellow-400/15 text-yellow-400 border-yellow-400/30',
     response: 'bg-green-400/15 text-green-400 border-green-400/30',
@@ -21,7 +21,7 @@ export function renderMcpSendMessage({ input, result }: ToolCaseInput): ToolCase
   const summary = (
     <span className="flex items-center gap-1.5">
       <span className="text-teal-400/60">to</span>
-      <ConversationTag idOrSlug={to} resolvedId={targetSessionId} />
+      <ConversationTag idOrSlug={to} resolvedId={targetConversationId} />
       {intent && (
         <span
           className={cn(

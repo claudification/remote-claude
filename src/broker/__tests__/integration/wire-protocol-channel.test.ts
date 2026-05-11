@@ -248,6 +248,179 @@ describe('inter-conversation messaging', () => {
       expect(delivered[0].message).toBe('Via compound ID')
     })
 
+    it('multicast: delivers to an array of live targets in one envelope', async () => {
+      const convA = testId('conv-a')
+      const convB = testId('conv-b')
+      const convC = testId('conv-c')
+      const agentA = bootAndPromote({
+        conversationId: convA,
+        sessionId: testId('sess-a'),
+        project: 'claude:///home/user/project-alpha',
+      })
+      const agentB = bootAndPromote({
+        conversationId: convB,
+        sessionId: testId('sess-b'),
+        project: 'claude:///home/user/project-beta',
+      })
+      const agentC = bootAndPromote({
+        conversationId: convC,
+        sessionId: testId('sess-c'),
+        project: 'claude:///home/user/project-gamma',
+      })
+
+      await h.flushUpdates()
+
+      h.agentSend(agentA, {
+        type: 'channel_send',
+        toConversation: ['project-beta', 'project-gamma'],
+        intent: 'notify',
+        message: 'Hello everyone',
+      })
+
+      const sendResult = agentA.messagesOfType('channel_send_result')
+      expect(sendResult.length).toBe(1)
+      const env = sendResult[0]
+      expect(env.ok).toBe(true)
+      expect(env.results).toBeDefined()
+      const results = env.results as Array<{ to: string; ok: boolean; status?: string }>
+      expect(results.length).toBe(2)
+      expect(results.every(r => r.ok && r.status === 'delivered')).toBe(true)
+      expect(env.conversationId).toBeTruthy()
+
+      // Both recipients received the same message under the same thread id
+      const deliveredToB = agentB.messagesOfType('channel_deliver')
+      const deliveredToC = agentC.messagesOfType('channel_deliver')
+      expect(deliveredToB.length).toBe(1)
+      expect(deliveredToC.length).toBe(1)
+      expect(deliveredToB[0].message).toBe('Hello everyone')
+      expect(deliveredToC[0].message).toBe('Hello everyone')
+      expect(deliveredToB[0].conversationId).toBe(env.conversationId)
+      expect(deliveredToC[0].conversationId).toBe(env.conversationId)
+    })
+
+    it('multicast: mixed success and failure produces per-target results, aggregate ok=false', async () => {
+      const convA = testId('conv-a')
+      const convB = testId('conv-b')
+      const agentA = bootAndPromote({
+        conversationId: convA,
+        sessionId: testId('sess-a'),
+        project: 'claude:///home/user/project-alpha',
+      })
+      bootAndPromote({
+        conversationId: convB,
+        sessionId: testId('sess-b'),
+        project: 'claude:///home/user/project-beta',
+      })
+
+      await h.flushUpdates()
+
+      h.agentSend(agentA, {
+        type: 'channel_send',
+        toConversation: ['project-beta', 'nonexistent-project'],
+        intent: 'request',
+        message: 'Mixed batch',
+      })
+
+      const sendResult = agentA.messagesOfType('channel_send_result')
+      expect(sendResult.length).toBe(1)
+      const env = sendResult[0]
+      expect(env.ok).toBe(false)
+      const results = env.results as Array<{ to: string; ok: boolean; status?: string; error?: string }>
+      expect(results.length).toBe(2)
+      const beta = results.find(r => r.to === 'project-beta')
+      const missing = results.find(r => r.to === 'nonexistent-project')
+      expect(beta?.ok).toBe(true)
+      expect(beta?.status).toBe('delivered')
+      expect(missing?.ok).toBe(false)
+      expect(missing?.error).toBeTruthy()
+    })
+
+    it('multicast: single-element array still returns array envelope', async () => {
+      const convA = testId('conv-a')
+      const convB = testId('conv-b')
+      const agentA = bootAndPromote({
+        conversationId: convA,
+        sessionId: testId('sess-a'),
+        project: 'claude:///home/user/project-alpha',
+      })
+      bootAndPromote({
+        conversationId: convB,
+        sessionId: testId('sess-b'),
+        project: 'claude:///home/user/project-beta',
+      })
+
+      await h.flushUpdates()
+
+      h.agentSend(agentA, {
+        type: 'channel_send',
+        toConversation: ['project-beta'],
+        intent: 'notify',
+        message: 'array of one',
+      })
+
+      const env = agentA.messagesOfType('channel_send_result')[0]
+      expect(env.ok).toBe(true)
+      expect(env.results).toBeDefined()
+      const results = env.results as Array<{ ok: boolean; status?: string }>
+      expect(results.length).toBe(1)
+      expect(results[0].status).toBe('delivered')
+    })
+
+    it('multicast: cap rejects oversize fan-out', async () => {
+      const convA = testId('conv-a')
+      const agentA = bootAndPromote({
+        conversationId: convA,
+        sessionId: testId('sess-a'),
+        project: 'claude:///home/user/project-alpha',
+      })
+
+      await h.flushUpdates()
+
+      // 26 distinct targets -- 1 over the cap of 25.
+      const oversize = Array.from({ length: 26 }, (_, i) => `target-${i}`)
+      h.agentSend(agentA, {
+        type: 'channel_send',
+        toConversation: oversize,
+        intent: 'notify',
+        message: 'too many',
+      })
+
+      const env = agentA.messagesOfType('channel_send_result')[0]
+      expect(env.ok).toBe(false)
+      expect(env.error).toBeTruthy()
+      expect((env.error as string).toLowerCase()).toContain('too many')
+    })
+
+    it('single-target string still returns flat shape (back-compat)', async () => {
+      const convA = testId('conv-a')
+      const convB = testId('conv-b')
+      const agentA = bootAndPromote({
+        conversationId: convA,
+        sessionId: testId('sess-a'),
+        project: 'claude:///home/user/project-alpha',
+      })
+      bootAndPromote({
+        conversationId: convB,
+        sessionId: testId('sess-b'),
+        project: 'claude:///home/user/project-beta',
+      })
+
+      await h.flushUpdates()
+
+      h.agentSend(agentA, {
+        type: 'channel_send',
+        toConversation: 'project-beta',
+        intent: 'notify',
+        message: 'flat',
+      })
+
+      const env = agentA.messagesOfType('channel_send_result')[0]
+      expect(env.ok).toBe(true)
+      // No `results` array on single-target replies -- flat shape only.
+      expect(env.results).toBeUndefined()
+      expect(env.status).toBe('delivered')
+    })
+
     it('works bidirectionally', async () => {
       const ccSessionA = testId('sess-a')
       const ccSessionB = testId('sess-b')

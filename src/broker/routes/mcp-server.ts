@@ -137,12 +137,12 @@ function createMcpServer(conversationStore: ConversationStore, store: StoreDrive
   // ─── send_message ───────────────────────────────────────────────────
   mcp.tool(
     'send_message',
-    'Send a message to another conversation (CC, Hermes, chat-api, etc.). The recipient sees the message wrapped in a <channel> tag with the from/intent/conversation_id attributes preserved -- they reply by calling this tool back with the same conversation_id. Use for delegating subtasks, asking sibling agents for help, or relaying findings.',
+    'Send a message to one or more other conversations (CC, Hermes, chat-api, etc.). The recipient sees the message wrapped in a <channel> tag with the from/intent/conversation_id attributes preserved -- they reply by calling this tool back with the same conversation_id. Pass `to` as a string for one recipient or an array for multicast (max 25). Multicast returns a per-target breakdown.',
     {
       to: z
-        .string()
+        .union([z.string(), z.array(z.string()).min(1).max(25)])
         .describe(
-          'Target conversation ID, title, or agent name. For replies, use the from_session value from the incoming <channel> wrapper.',
+          'Single target conversation ID/title/agent name, or an array of IDs for multicast (up to 25). For replies, use the from_session value from the incoming <channel> wrapper.',
         ),
       message: z
         .string()
@@ -153,24 +153,42 @@ function createMcpServer(conversationStore: ConversationStore, store: StoreDrive
         .describe('request=needs answer, response=replying to them, notification=FYI no answer expected'),
     },
     async ({ to, message, intent }) => {
-      // Resolve target -- could be a conversation ID or a scope slug
+      const isArrayTarget = Array.isArray(to)
+      const targets = (isArrayTarget ? to : [to]).filter(t => typeof t === 'string' && t.length > 0)
       const conversations = conversationStore.getAllConversations()
-      const target = conversations.find(c => c.id === to || c.title === to || c.agentName === to)
-      if (target) {
-        const ws = conversationStore.getConversationSocket(target.id)
-        if (ws) {
-          ws.send(
-            JSON.stringify({
-              type: 'inter_session_message',
-              from: 'mcp-client',
-              message,
-              intent: intent || 'notification',
-            }),
-          )
-          return { content: [{ type: 'text', text: `Message sent to ${target.title || target.id}` }] }
+      const results = targets.map(t => {
+        const target = conversations.find(c => c.id === t || c.title === t || c.agentName === t)
+        if (!target) {
+          return { to: t, ok: false, error: 'Target not found' }
         }
+        const ws = conversationStore.getConversationSocket(target.id)
+        if (!ws) {
+          return { to: t, ok: false, error: 'Target not connected' }
+        }
+        ws.send(
+          JSON.stringify({
+            type: 'inter_session_message',
+            from: 'mcp-client',
+            message,
+            intent: intent || 'notification',
+          }),
+        )
+        return { to: t, ok: true, status: 'delivered' as const, targetConversationId: target.id }
+      })
+
+      if (!isArrayTarget) {
+        const r = results[0]
+        if (!r.ok) return { content: [{ type: 'text', text: `Target "${r.to}" not found or not connected` }] }
+        return { content: [{ type: 'text', text: `Message sent to ${r.targetConversationId}` }] }
       }
-      return { content: [{ type: 'text', text: `Target "${to}" not found or not connected` }] }
+      const delivered = results.filter(r => r.ok).length
+      const failed = results.length - delivered
+      const lines = [`Multicast to ${results.length} target(s): ${delivered} delivered, ${failed} failed.`]
+      for (const r of results) {
+        const detail = r.ok ? `(target_conversation_id: ${r.targetConversationId})` : `-- ${r.error}`
+        lines.push(`  - ${r.to}: ${r.ok ? 'delivered' : 'failed'} ${detail}`)
+      }
+      return { content: [{ type: 'text', text: lines.join('\n') }] }
     },
   )
 

@@ -61,14 +61,28 @@ export function registerConversationTools(ctx: McpToolContext): Record<string, T
 
     send_message: {
       description:
-        'Send a message to another Claude Code session. The `to` parameter MUST be the exact `id` field returned by `list_conversations` -- do not invent, abbreviate, or guess. The canonical form is compound "project:session-name" (e.g. "arr:blazing-igloo") and is ALWAYS accepted. A bare project slug (e.g. "arr") is also accepted ONLY when exactly one session lives at that cwd; if two or more sessions share the project, the bare form is rejected as ambiguous and the error lists the compound IDs to retry with. Always call `list_conversations` first if you are not certain. Messages to offline sessions are queued and delivered on reconnect. Returns status: "delivered" or "queued". First contact triggers an approval prompt. Include conversation_id in replies to maintain thread context.',
+        'Send a message to one or more other Claude Code sessions. `to` accepts a single target ID (string) OR an array of IDs for multicast -- the same message is fanned out to every recipient and you get back one response with a per-target breakdown (delivered / queued / error). The single `conversation_id` is shared by every recipient so any reply lands in the same thread; use the `from_session` field on the incoming reply to disambiguate who answered. Each target MUST be the exact `id` field returned by `list_conversations` -- do not invent, abbreviate, or guess. The canonical form is compound "project:session-name" (e.g. "arr:blazing-igloo"). A bare project slug ("arr") works only when exactly one session lives at that cwd; otherwise the resolver returns "ambiguous" with the compound IDs to retry. Messages to offline sessions are queued and delivered on reconnect. First contact triggers an approval prompt. Multicast cap: 25 targets per call -- split larger fan-outs into batches.',
       inputSchema: {
         type: 'object' as const,
         properties: {
           to: {
-            type: 'string',
+            oneOf: [
+              {
+                type: 'string',
+                description:
+                  'Single target session ID. Exact `id` from `list_conversations` (compound "project:session-name", or bare project slug when unambiguous).',
+              },
+              {
+                type: 'array',
+                items: { type: 'string' },
+                minItems: 1,
+                maxItems: 25,
+                description:
+                  'Array of target session IDs for multicast. Each is the exact `id` from `list_conversations`. Returns a per-target results breakdown so you can see which sessions got the message and which were queued/errored.',
+              },
+            ],
             description:
-              'Target session ID. MUST be the exact `id` field from `list_conversations` output (always compound "project:session-name", e.g. "arr:blazing-igloo"). A bare project slug ("arr") is also accepted but only when one session lives at that cwd -- otherwise the resolver returns an "ambiguous" error listing the compound IDs to retry with. Do not pass the `name`, `title`, `label`, or any other field -- only `id`. When in doubt, call list_conversations first.',
+              'Target session ID or array of IDs. Use a string for one recipient, an array for multicast (max 25). Each ID MUST be the exact `id` field from `list_conversations` output. Do not pass `name`, `title`, `label`, or any other field. When in doubt, call list_conversations first.',
           },
           intent: {
             type: 'string',
@@ -78,27 +92,75 @@ export function registerConversationTools(ctx: McpToolContext): Record<string, T
           },
           message: { type: 'string', description: 'Message content' },
           context: { type: 'string', description: 'Brief context about what this relates to' },
-          conversation_id: { type: 'string', description: 'Thread ID for multi-turn exchanges' },
+          conversation_id: {
+            type: 'string',
+            description:
+              'Thread ID for multi-turn exchanges. In multicast, the SAME thread id is used for every recipient -- replies from different recipients will share this id; read the `from_session` field on each delivery to tell them apart.',
+          },
         },
         required: ['to', 'message'],
       },
       async handle(params) {
         const { to, message, context, conversation_id } = params
         let { intent } = params
-        if (!to || !message) {
+        if (to === undefined || to === null || !message) {
           return { content: [{ type: 'text', text: 'Error: to and message are required' }], isError: true }
+        }
+        const isArrayTarget = Array.isArray(to)
+        const targets = (isArrayTarget ? (to as unknown[]) : [to]).filter(
+          (t): t is string => typeof t === 'string' && t.length > 0,
+        )
+        if (targets.length === 0) {
+          return {
+            content: [{ type: 'text', text: 'Error: to must be a non-empty string or non-empty array of strings' }],
+            isError: true,
+          }
         }
         if (!intent) {
           intent = conversation_id ? 'response' : 'request'
           debug(`[channel] send_message: intent omitted, defaulted to "${intent}"`)
         }
-        const result = await ctx.callbacks.onSendMessage?.(to, intent, message, context, conversation_id)
-        if (!result?.ok) {
-          debug(`[channel] send_message failed: ${result?.error}`)
-          return { content: [{ type: 'text', text: result?.error || 'Failed to send message' }], isError: true }
+        const sendTarget = isArrayTarget ? targets : targets[0]
+        const result = await ctx.callbacks.onSendMessage?.(sendTarget, intent, message, context, conversation_id)
+        if (!result) {
+          return { content: [{ type: 'text', text: 'Failed to send message' }], isError: true }
         }
-        debug(`[channel] send_message to ${to}: ${message.slice(0, 60)}`)
-        const status = (result as Record<string, unknown>).status || 'delivered'
+
+        // Multicast: render per-target breakdown.
+        if (isArrayTarget && result.results) {
+          const lines: string[] = []
+          const delivered = result.results.filter(r => r.ok && r.status === 'delivered')
+          const queued = result.results.filter(r => r.ok && r.status === 'queued')
+          const failed = result.results.filter(r => !r.ok)
+          lines.push(
+            `Multicast to ${result.results.length} target(s): ${delivered.length} delivered, ${queued.length} queued, ${failed.length} failed.`,
+          )
+          if (result.conversationId) lines.push(`conversation_id: ${result.conversationId}`)
+          for (const r of result.results) {
+            const label = r.ok ? (r.status === 'queued' ? 'queued' : 'delivered') : 'failed'
+            const detail = r.error
+              ? ` -- ${r.error}`
+              : r.targetConversationId
+                ? ` (target_conversation_id: ${r.targetConversationId})`
+                : ''
+            lines.push(`  - ${r.to}: ${label}${detail}`)
+          }
+          debug(
+            `[channel] send_message multicast to ${result.results.length}: ${delivered.length}/${queued.length}/${failed.length} (delivered/queued/failed)`,
+          )
+          return {
+            content: [{ type: 'text', text: lines.join('\n') }],
+            isError: !result.ok,
+          }
+        }
+
+        // Single target: flat shape (back-compat).
+        if (!result.ok) {
+          debug(`[channel] send_message failed: ${result.error}`)
+          return { content: [{ type: 'text', text: result.error || 'Failed to send message' }], isError: true }
+        }
+        debug(`[channel] send_message to ${targets[0]}: ${message.slice(0, 60)}`)
+        const status = result.status || 'delivered'
         const statusLabel = status === 'queued' ? 'Queued (target offline, will deliver on reconnect)' : 'Delivered'
         const parts = [statusLabel]
         if (result.conversationId) parts.push(`conversation_id: ${result.conversationId}`)
