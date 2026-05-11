@@ -121,6 +121,15 @@ const channelSubscribe: MessageHandler = (ctx, data) => {
   if (conversation) ctx.requirePermission('chat:read', conversation.project)
   ctx.conversations.subscribeChannel(ctx.ws, channel, conversationId, agentId)
   ctx.reply({ type: 'channel_ack', channel, conversationId, agentId, status: 'subscribed' })
+
+  // Push current tasks snapshot. Without this, the dashboard's task panel stays
+  // empty after broker restart -- conv.tasks is hydrated from SQLite into memory,
+  // but the UI only fills state.tasks[sid] from tasks_update messages, and the
+  // agent host only emits those when CC re-runs TodoWrite.
+  if (channel === 'conversation:tasks' && conversation) {
+    ctx.reply({ type: 'tasks_update', conversationId, tasks: conversation.tasks })
+  }
+
   ctx.log.debug(`[channel] ${channel}:${conversationId.slice(0, 8)}${agentId ? `:${agentId.slice(0, 8)}` : ''} +sub`)
 }
 

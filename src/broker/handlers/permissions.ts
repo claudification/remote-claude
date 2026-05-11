@@ -31,6 +31,7 @@ const permissionRequest: MessageHandler = (ctx, data) => {
       toolName: data.toolName as string,
       timestamp: Date.now(),
     }
+    ctx.conversations.persistConversationById(conversationId)
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
@@ -73,6 +74,7 @@ const permissionResponse: MessageHandler = (ctx, data) => {
       if (conversation.pendingAttention?.type === 'permission') {
         delete conversation.pendingAttention
       }
+      ctx.conversations.persistConversationById(conversationId)
       ctx.conversations.broadcastConversationUpdate(conversationId)
     }
     ctx.log.debug(`[permission] Response: ${data.requestId} -> ${data.behavior}`)
@@ -156,6 +158,7 @@ const askQuestion: MessageHandler = (ctx, data) => {
       toolName: 'AskUserQuestion',
       timestamp: Date.now(),
     }
+    ctx.conversations.persistConversationById(conversationId)
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
@@ -198,6 +201,7 @@ const askAnswer: MessageHandler = (ctx, data) => {
       if (conversation.pendingAttention?.type === 'ask') {
         delete conversation.pendingAttention
       }
+      ctx.conversations.persistConversationById(conversationId)
       ctx.conversations.broadcastConversationUpdate(conversationId)
     }
     ctx.log.debug(`[ask] Answer: ${(data.toolUseId as string)?.slice(0, 12)} ${data.skip ? 'SKIP' : 'answered'}`)

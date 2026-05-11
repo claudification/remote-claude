@@ -154,6 +154,57 @@ describe('conversation lifecycle', () => {
     expect(conv?.project).toBe('claude:///home/user/project')
     expect(conv?.events).toEqual([])
   })
+
+  it('conversation_reset clears pending-attention state (dialog/permission/plan/ask/notification)', async () => {
+    const convId = testId('conv')
+
+    const agent = h.bootAgentHost({ conversationId: convId, project: 'claude:///home/user/project' })
+    h.agentSend(agent, {
+      type: 'meta',
+      conversationId: convId,
+      ccSessionId: testId('cc'),
+      project: 'claude:///home/user/project',
+      cwd: '/home/user/project',
+      startedAt: Date.now(),
+    })
+
+    // Pre-populate pending state directly (the producers are exercised in dedicated tests)
+    const conv = h.conversationStore.getConversation(convId)!
+    conv.pendingDialog = {
+      dialogId: 'd',
+      layout: { title: 't', elements: [] } as unknown as NonNullable<typeof conv.pendingDialog>['layout'],
+      timestamp: Date.now(),
+    }
+    conv.pendingPermission = {
+      requestId: 'p',
+      toolName: 'Bash',
+      description: '',
+      inputPreview: '',
+      timestamp: Date.now(),
+    }
+    conv.pendingAskQuestion = { toolUseId: 'a', questions: [], timestamp: Date.now() }
+    conv.pendingPlanApproval = { requestId: 'pa', plan: '', timestamp: Date.now() }
+    conv.pendingAttention = { type: 'permission', toolName: 'Bash', timestamp: Date.now() }
+    conv.planMode = true
+    conv.hasNotification = true
+
+    h.agentSend(agent, {
+      type: 'conversation_reset',
+      conversationId: convId,
+      project: 'claude:///home/user/project',
+    })
+
+    await h.flushUpdates()
+
+    const cleared = h.conversationStore.getConversation(convId)!
+    expect(cleared.pendingDialog).toBeUndefined()
+    expect(cleared.pendingPermission).toBeUndefined()
+    expect(cleared.pendingAskQuestion).toBeUndefined()
+    expect(cleared.pendingPlanApproval).toBeUndefined()
+    expect(cleared.pendingAttention).toBeUndefined()
+    expect(cleared.planMode).toBeUndefined()
+    expect(cleared.hasNotification).toBeUndefined()
+  })
 })
 
 // ---------------------------------------------------------------------------

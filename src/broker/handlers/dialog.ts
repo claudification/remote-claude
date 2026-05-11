@@ -32,6 +32,7 @@ const dialogShow: MessageHandler = (ctx, data) => {
       question: (layout.title as string) || 'Dialog',
       timestamp: Date.now(),
     }
+    ctx.conversations.persistConversationById(conversationId)
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
@@ -73,6 +74,7 @@ const dialogResult: MessageHandler = (ctx, data) => {
     if (conversation.pendingAttention?.type === 'dialog') {
       delete conversation.pendingAttention
     }
+    ctx.conversations.persistConversationById(conversationId)
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
@@ -115,6 +117,7 @@ const dialogDismiss: MessageHandler = (ctx, data) => {
     if (conversation.pendingAttention?.type === 'dialog') {
       delete conversation.pendingAttention
     }
+    ctx.conversations.persistConversationById(conversationId)
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 

@@ -28,6 +28,7 @@ const planApproval: MessageHandler = (ctx, data) => {
       question: 'Plan approval required',
       timestamp: Date.now(),
     }
+    ctx.conversations.persistConversationById(conversationId)
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 
@@ -65,6 +66,7 @@ const planApprovalResponse: MessageHandler = (ctx, data) => {
     if (conversation.pendingAttention?.type === 'plan_approval') {
       delete conversation.pendingAttention
     }
+    ctx.conversations.persistConversationById(conversationId)
     ctx.conversations.broadcastConversationUpdate(conversationId)
     // Dismiss the dialog on all dashboard clients (not just the one that responded)
     if (conversation.project) {
@@ -108,6 +110,7 @@ const planModeChanged: MessageHandler = (ctx, data) => {
         ctx.broadcastScoped(dismissMsg, conversation.project)
       }
     }
+    ctx.conversations.persistConversationById(conversationId)
     ctx.conversations.broadcastConversationUpdate(conversationId)
   }
 

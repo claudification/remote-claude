@@ -451,4 +451,62 @@ describe('inter-session messaging', () => {
       expect(stillSpawning).toBeUndefined()
     })
   })
+
+  describe('channel_subscribe snapshots', () => {
+    it('conversation:tasks subscribe immediately replies with the current tasks list', async () => {
+      const convId = testId('conv')
+      const sessionId = testId('cc')
+      bootAndPromote({ conversationId: convId, sessionId, project: 'claude:///home/user/proj-tasks' })
+      await h.flushUpdates()
+
+      const now = Date.now()
+      h.conversationStore.updateTasks(convId, [
+        { id: 't1', subject: 'First task', status: 'in_progress', kind: 'todo', updatedAt: now },
+        { id: 't2', subject: 'Second task', status: 'pending', kind: 'todo', updatedAt: now },
+      ])
+
+      const dashboard = h.connectDashboard()
+      dashboard.clearMessages()
+
+      h.dashboardSend(dashboard, {
+        type: 'channel_subscribe',
+        channel: 'conversation:tasks',
+        conversationId: convId,
+      })
+
+      const acks = dashboard.messagesOfType('channel_ack')
+      expect(acks.length).toBe(1)
+      expect(acks[0].channel).toBe('conversation:tasks')
+      expect(acks[0].status).toBe('subscribed')
+
+      // The fix: immediately after ack, the broker pushes the current snapshot.
+      const snapshots = dashboard.messagesOfType('tasks_update')
+      expect(snapshots.length).toBe(1)
+      expect(snapshots[0].conversationId).toBe(convId)
+      const tasks = snapshots[0].tasks as Array<{ id: string; subject: string; status: string }>
+      expect(tasks.length).toBe(2)
+      expect(tasks[0].id).toBe('t1')
+      expect(tasks[0].status).toBe('in_progress')
+      expect(tasks[1].id).toBe('t2')
+    })
+
+    it('non-tasks channels do not get a spurious tasks_update push', async () => {
+      const convId = testId('conv')
+      const sessionId = testId('cc')
+      bootAndPromote({ conversationId: convId, sessionId, project: 'claude:///home/user/proj-other' })
+      await h.flushUpdates()
+
+      const dashboard = h.connectDashboard()
+      dashboard.clearMessages()
+
+      h.dashboardSend(dashboard, {
+        type: 'channel_subscribe',
+        channel: 'conversation:transcript',
+        conversationId: convId,
+      })
+
+      expect(dashboard.messagesOfType('channel_ack').length).toBe(1)
+      expect(dashboard.messagesOfType('tasks_update').length).toBe(0)
+    })
+  })
 })

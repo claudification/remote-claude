@@ -811,6 +811,13 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           tokenUsage: fullMeta.tokenUsage as Conversation['tokenUsage'],
           cacheTtl: fullMeta.cacheTtl as Conversation['cacheTtl'],
           lastTurnEndedAt: fullMeta.lastTurnEndedAt as number | undefined,
+          pendingDialog: fullMeta.pendingDialog as Conversation['pendingDialog'],
+          pendingPlanApproval: fullMeta.pendingPlanApproval as Conversation['pendingPlanApproval'],
+          pendingPermission: fullMeta.pendingPermission as Conversation['pendingPermission'],
+          pendingAskQuestion: fullMeta.pendingAskQuestion as Conversation['pendingAskQuestion'],
+          pendingAttention: fullMeta.pendingAttention as Conversation['pendingAttention'],
+          planMode: fullMeta.planMode as boolean | undefined,
+          hasNotification: fullMeta.hasNotification as boolean | undefined,
         }
         if (!resolveBackend(conv).requiresAgentSocket) {
           // Respect deliberate termination: if the conversation was ended with
@@ -886,6 +893,16 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
         summary: conv.summary,
         cacheTtl: conv.cacheTtl,
         lastTurnEndedAt: conv.lastTurnEndedAt,
+        // Pending-attention state -- agent host's MCP call stays blocked across
+        // broker restart, so the dashboard must rehydrate these and surface them
+        // again. Memory-only would silently lose the dialog/permission/etc.
+        pendingDialog: conv.pendingDialog,
+        pendingPlanApproval: conv.pendingPlanApproval,
+        pendingPermission: conv.pendingPermission,
+        pendingAskQuestion: conv.pendingAskQuestion,
+        pendingAttention: conv.pendingAttention,
+        planMode: conv.planMode,
+        hasNotification: conv.hasNotification,
       }
       if (!existing) {
         store.conversations.create({
@@ -1103,7 +1120,6 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     if (newModel) conv.model = newModel
     conv.status = 'idle'
     conv.lastActivity = Date.now()
-    persistConversation(conv)
 
     // Reset ephemeral state (preserve compacting flag - processEvent handles the transition)
     const wasCompacting = conv.compacting
@@ -1118,12 +1134,31 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     conv.summary = undefined
     conv.recap = undefined
     conv.recapFresh = undefined
+    // Pending-attention state is tied to the CC session that /clear just killed --
+    // wipe it so a stale dialog/permission/plan-approval doesn't survive into the
+    // new session (or rehydrate on next broker restart).
+    conv.pendingDialog = undefined
+    conv.pendingPlanApproval = undefined
+    conv.pendingPermission = undefined
+    conv.pendingAskQuestion = undefined
+    conv.pendingAttention = undefined
+    conv.planMode = undefined
+    conv.hasNotification = undefined
     for (const bgTask of conv.bgTasks) {
       if (bgTask.status === 'running') {
         bgTask.status = 'killed'
         bgTask.completedAt = Date.now()
       }
     }
+
+    // Wipe the SQLite tasks rows -- otherwise the next broker restart will
+    // hydrate the pre-/clear tasks back into conv.tasks.
+    if (store) {
+      store.tasks.deleteForConversation(conversationId)
+    }
+
+    // Persist AFTER the wipe so SQLite reflects the post-/clear state.
+    persistConversation(conv)
 
     // Clear transcript caches + seq counters. Key is stable (conversationId), but
     // the transcript content is stale after /clear -- wipe it so the fresh conversation
