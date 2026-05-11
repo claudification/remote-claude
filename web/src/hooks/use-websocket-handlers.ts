@@ -10,7 +10,9 @@
  * subscribed selector -- so handler reorganization has no React #310 risk.
  */
 
+import type { LaunchProfile } from '@shared/launch-profile'
 import type { ConversationSummary } from '@shared/protocol'
+import { handleLaunchProfilesUpdatedMessage } from '@/components/launch-profiles/use-launch-profiles'
 import type { ProjectOrder, Session, TaskInfo, TranscriptEntry } from '@/lib/types'
 import { haptic } from '@/lib/utils'
 import {
@@ -510,6 +512,12 @@ function handleSettingsUpdated(msg: DashboardMessage) {
   }
 }
 
+function handleLaunchProfilesUpdated(msg: DashboardMessage) {
+  if (Array.isArray(msg.launchProfiles)) {
+    handleLaunchProfilesUpdatedMessage(msg.launchProfiles as LaunchProfile[])
+  }
+}
+
 function handleProjectSettingsUpdated(msg: DashboardMessage) {
   if (msg.settings) {
     useConversationsStore.getState().setProjectSettings(msg.settings as ProjectSettingsMap)
@@ -855,6 +863,7 @@ export const handlers: Record<string, MessageHandler> = {
   claude_health_update: handleClaudeHealthUpdate,
   claude_efficiency_update: handleClaudeEfficiencyUpdate,
   settings_updated: handleSettingsUpdated,
+  launch_profiles_updated: handleLaunchProfilesUpdated,
   project_settings_updated: handleProjectSettingsUpdated,
   project_order_updated: handleProjectOrderUpdated,
   shares_updated: handleSharesUpdated,
