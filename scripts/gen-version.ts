@@ -21,16 +21,23 @@ try {
     .trim()
   dirty = porcelain.split('\n').some(line => line.trim() && !line.includes('src/shared/version.ts'))
 } catch {
-  // No git available (Docker build, CI, etc.)
-  // If version.ts already has a real hash (pre-generated on host), keep it
-  try {
-    const existing = await Bun.file(OUT).text()
-    if (existing.includes("gitHash: '") && !existing.includes("gitHash: 'unknown'")) {
-      console.log('[version] No git, keeping pre-generated version.ts')
-      process.exit(0)
+  // No git available (Docker build, CI, etc.).
+  // Prefer env vars supplied by the Docker build wrapper -- this is what
+  // scripts/docker-build-broker.sh passes through as --build-arg.
+  if (process.env.GIT_COMMIT && process.env.GIT_COMMIT !== 'unknown') {
+    gitHash = process.env.GIT_COMMIT
+    dirty = (process.env.GIT_COMMIT_SHORT ?? '').endsWith('-dirty')
+  } else {
+    // If version.ts already has a real hash (pre-generated on host), keep it
+    try {
+      const existing = await Bun.file(OUT).text()
+      if (existing.includes("gitHash: '") && !existing.includes("gitHash: 'unknown'")) {
+        console.log('[version] No git, keeping pre-generated version.ts')
+        process.exit(0)
+      }
+    } catch {
+      // File doesn't exist yet, continue with 'unknown'
     }
-  } catch {
-    // File doesn't exist yet, continue with 'unknown'
   }
 }
 

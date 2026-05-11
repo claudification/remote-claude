@@ -2,6 +2,15 @@
 FROM oven/bun:1 AS builder
 WORKDIR /build
 
+# Build args used by gen-version.ts (which has no git inside the container).
+# These flow in from scripts/docker-build-broker.sh via --build-arg.
+ARG GIT_COMMIT=unknown
+ARG GIT_COMMIT_SHORT=unknown
+ARG BUILD_TIME=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+ENV GIT_COMMIT_SHORT=${GIT_COMMIT_SHORT}
+ENV BUILD_TIME=${BUILD_TIME}
+
 # Install deps first (cache layer)
 COPY package.json bun.lock ./
 COPY web/package.json web/bun.lock ./web/
