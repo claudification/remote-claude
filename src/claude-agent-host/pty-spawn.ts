@@ -54,7 +54,7 @@ export function spawnClaude(options: PtyOptions): PtyProcess {
     env: {
       ...process.env,
       ...env,
-      RCLAUDE_SESSION_ID: conversationId,
+      RCLAUDE_CONVERSATION_ID: conversationId,
       RCLAUDE_PORT: String(localServerPort),
       ...(brokerUrl ? { RCLAUDE_BROKER: brokerUrl } : {}),
       ...(brokerSecret ? { RCLAUDE_SECRET: brokerSecret } : {}),

@@ -156,7 +156,7 @@ function createHookMatcher(hookEvent: string, port: number, conversationId: stri
     hooks: [
       {
         type: 'command',
-        command: `curl -sf --max-time 3 -X POST "http://127.0.0.1:${port}/hook/${hookEvent}" -H "Content-Type: application/json" -H "X-Session-Id: ${conversationId}" -d @- 2>/dev/null || true`,
+        command: `curl -sf --max-time 3 -X POST "http://127.0.0.1:${port}/hook/${hookEvent}" -H "Content-Type: application/json" -H "X-Conversation-Id: ${conversationId}" -d @- 2>/dev/null || true`,
       },
     ],
   }
@@ -249,7 +249,7 @@ async function generateMergedSettings(
       hooks: [
         {
           type: 'command',
-          command: `curl -sf --max-time 120 -X POST "http://127.0.0.1:${port}/hook/AskUserQuestion" -H "Content-Type: application/json" -H "X-Session-Id: ${conversationId}" -d @- 2>/dev/null || true`,
+          command: `curl -sf --max-time 120 -X POST "http://127.0.0.1:${port}/hook/AskUserQuestion" -H "Content-Type: application/json" -H "X-Conversation-Id: ${conversationId}" -d @- 2>/dev/null || true`,
         },
       ],
     }

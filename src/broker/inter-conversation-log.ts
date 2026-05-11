@@ -6,7 +6,7 @@
 
 import type { MessageStore } from './store/types'
 
-export interface InterSessionLogEntry {
+export interface InterConversationLogEntry {
   ts: number
   from: { conversationId: string; project: string; name: string }
   to: { conversationId: string; project: string; name: string }
@@ -21,12 +21,12 @@ const RETENTION_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 let store: MessageStore | null = null
 
-export function initInterSessionLog(messageStore: MessageStore): void {
+export function initInterConversationLog(messageStore: MessageStore): void {
   store = messageStore
   store.compactLog(RETENTION_MS, MAX_ENTRIES)
 }
 
-export function appendMessage(entry: InterSessionLogEntry): void {
+export function appendMessage(entry: InterConversationLogEntry): void {
   if (!store) return
   store.log({
     fromScope: entry.from.project,
@@ -50,7 +50,7 @@ export function queryMessages(opts: {
   limit?: number
   before?: number
 }): {
-  messages: InterSessionLogEntry[]
+  messages: InterConversationLogEntry[]
   hasMore: boolean
 } {
   if (!store) return { messages: [], hasMore: false }
@@ -77,7 +77,7 @@ export function queryMessages(opts: {
 
   const hasMore = filtered.length > limit
   const messages = filtered.slice(0, limit).map(
-    (e): InterSessionLogEntry => ({
+    (e): InterConversationLogEntry => ({
       ts: e.createdAt,
       from: {
         conversationId: e.fromConversationId || '',

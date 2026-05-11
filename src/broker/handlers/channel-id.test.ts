@@ -202,7 +202,7 @@ describe('formatAmbiguityError', () => {
     const a = s('aaaaaa1111', 'viral-zebra')
     const b = s('bbbbbb2222', 'punk-jackal')
     const msg = formatAmbiguityError('arr', [a, b])
-    expect(msg).toContain('Ambiguous target: 2 sessions at "arr"')
+    expect(msg).toContain('Ambiguous target: 2 conversations at "arr"')
     expect(msg).toContain('arr:viral-zebra')
     expect(msg).toContain('arr:punk-jackal')
   })

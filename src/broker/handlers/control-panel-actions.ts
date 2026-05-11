@@ -368,15 +368,12 @@ export function registerDashboardActionHandlers(): void {
       send_input: sendInput,
       send_interrupt: sendInterrupt,
       dismiss_conversation: dismissConversation,
-      dismiss_session: dismissConversation, // backward compat
       update_settings: updateSettings,
       update_project_settings: updateProjectSettings,
       delete_project_settings: deleteProjectSettingsHandler,
       update_project_order: updateProjectOrder,
       revive_conversation: reviveConversation,
-      revive_session: reviveConversation, // backward compat
       rename_conversation: renameConversation,
-      rename_session: renameConversation, // backward compat
       subscribe_job: subscribeJob,
       unsubscribe_job: unsubscribeJob,
     },

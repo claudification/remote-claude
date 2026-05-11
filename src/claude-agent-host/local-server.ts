@@ -232,11 +232,11 @@ export async function startLocalServer(options: LocalServerOptions): Promise<{ s
         // Hook event endpoint: POST /hook/:eventType
         if (req.method === 'POST' && url.pathname.startsWith('/hook/')) {
           const eventType = url.pathname.slice(6) as HookEventType // Remove "/hook/"
-          const reqSessionId = req.headers.get('X-Session-Id')
+          const reqConversationId = req.headers.get('X-Conversation-Id')
 
-          // Validate conversation ID (X-Session-Id header carries the conversation ID)
-          if (reqSessionId && reqSessionId !== conversationId) {
-            return new Response('Session ID mismatch', { status: 403 })
+          // Validate conversation ID
+          if (reqConversationId && reqConversationId !== conversationId) {
+            return new Response('Conversation ID mismatch', { status: 403 })
           }
 
           try {

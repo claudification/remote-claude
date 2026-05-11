@@ -29,10 +29,10 @@ export function createSpawnRouter(conversationStore: ConversationStore, helpers:
     const body = parsed.data
 
     // Build caller context for the unified permission gate. MCP callers
-    // identify themselves via X-Caller-Session; everything else is dashboard HTTP.
-    const callerConversationId = c.req.header('X-Caller-Session')
-    const callerSess = callerConversationId ? conversationStore.getConversation(callerConversationId) : null
-    const callerProject = callerSess?.project ?? null
+    // identify themselves via X-Caller-Conversation; everything else is dashboard HTTP.
+    const callerConversationId = c.req.header('X-Caller-Conversation')
+    const callerConv = callerConversationId ? conversationStore.getConversation(callerConversationId) : null
+    const callerProject = callerConv?.project ?? null
     const callerTrust = callerProject ? mapProjectTrust(getProjectSettings(callerProject)?.trustLevel) : 'trusted'
     const callerContext: SpawnCallerContext = {
       kind: callerConversationId ? 'mcp' : 'http',

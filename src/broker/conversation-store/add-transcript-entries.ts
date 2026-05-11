@@ -56,26 +56,26 @@ export function addTranscriptEntries(
   const conv = ctx.conversations.get(conversationId)
   if (!conv) return
 
-  if (!conv.stats || isInitial) resetSessionMetadataAndStats(conv, isInitial)
+  if (!conv.stats || isInitial) resetConversationMetadataAndStats(conv, isInitial)
 
-  let sessionChanged = false
+  let conversationChanged = false
   for (const entry of entries) {
     // gitBranch lives on the base type and applies to any entry
     if (!conv.gitBranch && entry.gitBranch) {
       conv.gitBranch = entry.gitBranch
-      sessionChanged = true
+      conversationChanged = true
     }
 
     if (entryHandlers[entry.type]?.(ctx, conversationId, conv, entry, isInitial)) {
-      sessionChanged = true
+      conversationChanged = true
     }
   }
 
   // Post-loop scans: bg task completion + live subagent extraction
-  if (detectBgTaskNotifications(conv, entries)) sessionChanged = true
+  if (detectBgTaskNotifications(conv, entries)) conversationChanged = true
   extractLiveSubagentEntries(ctx, conversationId, entries)
 
-  if (sessionChanged) ctx.scheduleConversationUpdate(conversationId)
+  if (conversationChanged) ctx.scheduleConversationUpdate(conversationId)
 }
 
 // ─── per-entry-type dispatch table ─────────────────────────────────────────
@@ -246,7 +246,7 @@ function appendToCache(
   }
 }
 
-function resetSessionMetadataAndStats(
+function resetConversationMetadataAndStats(
   conv: NonNullable<ReturnType<ConversationStoreContext['conversations']['get']>>,
   isInitial: boolean,
 ): void {

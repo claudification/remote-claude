@@ -5,16 +5,17 @@
  * context (sessions store, address book, sockets, etc).
  *
  * Stable-ID rule (the whole point of this file):
- *   - `list_conversations` ALWAYS returns compound `project:session-slug` ids.
+ *   - `list_conversations` ALWAYS returns compound `project:conversation-slug` ids.
  *   - The bare `project` form is NEVER produced. This guarantees the id a
  *     caller sees today does not silently change shape tomorrow when a
- *     second session spawns at the same project.
+ *     second conversation spawns at the same project.
  *
  * Resolver rule (what `send_message` accepts as `to`):
- *   - Compound `project:session-slug` -> resolves directly inside the project
- *   - Bare `project`                  -> accepted ONLY when exactly one
- *                                        candidate session exists in the project;
- *                                        rejected as ambiguous when 2+.
+ *   - Compound `project:conversation-slug` -> resolves directly inside the project
+ *   - Bare `project`                        -> accepted ONLY when exactly one
+ *                                              candidate conversation exists at
+ *                                              the project; rejected as ambiguous
+ *                                              when 2+.
  */
 
 import { extractProjectLabel, isSameProject } from '../../shared/project-uri'
@@ -40,7 +41,7 @@ export function computeConversationSlug(target: ConversationLike, siblingConvers
 }
 
 /**
- * Always-compound local id: `project:session-slug`.
+ * Always-compound local id: `project:conversation-slug`.
  *
  * Use for both `list_conversations` output and the from-id stamped on outgoing
  * messages so a recipient can replay it verbatim as `to`.
@@ -74,13 +75,13 @@ export interface ResolveSendInput {
 }
 
 /**
- * Resolve a parsed `(projectSlug, conversationSlug?)` target against the conversation
- * registered at a given project. Returns the chosen session, a not-found marker,
+ * Resolve a parsed `(projectSlug, conversationSlug?)` target against the conversations
+ * registered at a given project. Returns the chosen conversation, a not-found marker,
  * or an ambiguous-bare error with the candidate compound ids the caller
  * should use instead.
  *
  * Bare-acceptance rule: a bare project address is allowed ONLY when there is
- * a unique candidate (preferring live over inactive). Multiple live sessions
+ * a unique candidate (preferring live over inactive). Multiple live conversations
  * = ambiguous. No live + multiple inactive = also ambiguous (caller must
  * pick one explicitly with the compound form).
  */
@@ -121,7 +122,7 @@ export function resolveSendTarget(input: ResolveSendInput): ResolveSendTarget {
 export function formatAmbiguityError(canonicalProject: string, candidates: ConversationLike[]): string {
   const siblingConversations = candidates
   const ids = candidates.map(s => `${canonicalProject}:${computeConversationSlug(s, siblingConversations)}`).join(', ')
-  return `Ambiguous target: ${candidates.length} sessions at "${canonicalProject}". Use compound address: ${ids}`
+  return `Ambiguous target: ${candidates.length} conversations at "${canonicalProject}". Use compound address: ${ids}`
 }
 
 // ─── Shared target resolution ──────────────────────────────────────
@@ -146,8 +147,8 @@ export interface ResolveConversationDeps {
 }
 
 /**
- * Resolve a target ID (compound "project:session-slug", bare project slug,
- * or raw internal session/conversation ID) to a conversation.
+ * Resolve a target ID (compound "project:conversation-slug", bare project slug,
+ * or raw internal conversation ID) to a conversation.
  *
  * Used by conversation_control, channel_restart, channel_configure, and
  * channel_send to consistently handle the compound ID format returned

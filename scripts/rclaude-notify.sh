@@ -2,9 +2,9 @@
 # rclaude-notify - Send push notifications from Claude Code sessions
 #
 # Uses env vars set by rclaude:
-#   RCLAUDE_BROKER      - URL of broker
-#   RCLAUDE_SECRET            - Auth secret
-#   RCLAUDE_SESSION_ID        - Current session ID
+#   RCLAUDE_BROKER          - URL of broker
+#   RCLAUDE_SECRET          - Auth secret
+#   RCLAUDE_CONVERSATION_ID - Current conversation ID
 #
 # Usage:
 #   rclaude-notify "title" "message body"
@@ -15,7 +15,7 @@ set -euo pipefail
 
 URL="${RCLAUDE_BROKER:-}"
 SECRET="${RCLAUDE_SECRET:-}"
-SESSION="${RCLAUDE_SESSION_ID:-}"
+CONVERSATION="${RCLAUDE_CONVERSATION_ID:-}"
 
 if [ -z "$URL" ] || [ -z "$SECRET" ]; then
   echo "ERROR: RCLAUDE_BROKER and RCLAUDE_SECRET must be set" >&2
@@ -32,7 +32,7 @@ if [ -z "$BODY" ] && [ ! -t 0 ]; then
 fi
 
 # Use printf + escaping to build valid JSON (handles newlines, quotes)
-PAYLOAD=$(printf '%s' "{\"title\":$(printf '%s' "$TITLE" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'),\"body\":$(printf '%s' "$BODY" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'),\"sessionId\":$(printf '%s' "$SESSION" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}")
+PAYLOAD=$(printf '%s' "{\"title\":$(printf '%s' "$TITLE" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'),\"body\":$(printf '%s' "$BODY" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'),\"conversationId\":$(printf '%s' "$CONVERSATION" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}")
 
 RESPONSE=$(curl -s -w "\n%{http_code}" \
   -X POST "${URL}/api/push/send" \

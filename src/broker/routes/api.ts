@@ -375,11 +375,11 @@ export function createApiRouter(
     if (!projectPath) return c.json({ error: 'Missing project' }, 400)
 
     const allConversations = conversationStore.getAllConversations()
-    const sessionForCwd = allConversations.find(s => {
+    const conversationForCwd = allConversations.find(s => {
       const parsed = tryParseProjectUri(s.project)
       return parsed?.path === projectPath && s.status === 'active'
     })
-    const wrapperSocket = sessionForCwd ? conversationStore.getConversationSocket(sessionForCwd.id) : null
+    const wrapperSocket = conversationForCwd ? conversationStore.getConversationSocket(conversationForCwd.id) : null
     if (!wrapperSocket) {
       return c.json({ error: 'No active conversation connected for this project' }, 503)
     }

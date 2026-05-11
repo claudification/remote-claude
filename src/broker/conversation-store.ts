@@ -26,7 +26,7 @@ import type {
   TranscriptEntry,
 } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
-import { clearSession as clearAnalyticsSession } from './analytics-store'
+import { clearConversation as clearAnalyticsConversation } from './analytics-store'
 import { resolveBackend } from './backends'
 import { addEvent as addEventImpl } from './conversation-store/add-event'
 import { addTranscriptEntries as addTranscriptEntriesImpl } from './conversation-store/add-transcript-entries'
@@ -570,20 +570,20 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
   }
 
-  // Coalesced session_update broadcasts: only the last update per conversation per tick is sent
+  // Coalesced conversation_update broadcasts: only the last update per conversation per tick is sent
   const pendingConversationUpdates = new Set<string>()
-  let sessionUpdateScheduled = false
+  let conversationUpdateScheduled = false
 
   function scheduleConversationUpdate(conversationId: string): void {
     pendingConversationUpdates.add(conversationId)
-    if (!sessionUpdateScheduled) {
-      sessionUpdateScheduled = true
+    if (!conversationUpdateScheduled) {
+      conversationUpdateScheduled = true
       queueMicrotask(flushConversationUpdates)
     }
   }
 
   function flushConversationUpdates(): void {
-    sessionUpdateScheduled = false
+    conversationUpdateScheduled = false
     for (const id of pendingConversationUpdates) {
       const conv = conversations.get(id)
       if (conv) {
@@ -608,7 +608,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   // Periodically mark idle conversations, clean stale agents, evict old conversations, and save state
   const ENDED_EVICTION_TTL_MS = 28 * 24 * 60 * 60 * 1000 // 28 days after ending (user can manually dismiss)
   const ZOMBIE_EVICTION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days for stale STARTING conversations
-  const MAX_ENDED_SESSIONS = 200 // hard cap on ended conversations in memory
+  const MAX_ENDED_CONVERSATIONS = 200 // hard cap on ended conversations in memory
 
   setInterval(() => {
     const now = Date.now()
@@ -676,15 +676,15 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     const ended = Array.from(conversations.values())
       .filter(s => s.status === 'ended')
       .sort((a, b) => a.lastActivity - b.lastActivity)
-    if (ended.length > MAX_ENDED_SESSIONS) {
-      for (let i = 0; i < ended.length - MAX_ENDED_SESSIONS; i++) {
+    if (ended.length > MAX_ENDED_CONVERSATIONS) {
+      for (let i = 0; i < ended.length - MAX_ENDED_CONVERSATIONS; i++) {
         removeConversation(ended[i].id)
       }
     }
 
-    if (toEvict.length > 0 || ended.length > MAX_ENDED_SESSIONS) {
-      const evictedCount = toEvict.length + Math.max(0, ended.length - MAX_ENDED_SESSIONS)
-      console.log(`[eviction] Removed ${evictedCount} ended sessions (${conversations.size} remaining)`)
+    if (toEvict.length > 0 || ended.length > MAX_ENDED_CONVERSATIONS) {
+      const evictedCount = toEvict.length + Math.max(0, ended.length - MAX_ENDED_CONVERSATIONS)
+      console.log(`[eviction] Removed ${evictedCount} ended conversations (${conversations.size} remaining)`)
     }
   }, 10000)
 
@@ -831,7 +831,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       }
       if (records.length > 0) {
         const loaded = records.length - droppedBadIds
-        console.log(`[store] Loaded ${loaded} sessions from SQLite`)
+        console.log(`[store] Loaded ${loaded} conversations from SQLite`)
         if (droppedBadIds > 0) {
           console.warn(
             `[store] BAD DATA: dropped ${droppedBadIds} conversation record(s) with null/empty id from SQLite. These are leftover from a pre-validation broker that accepted malformed meta. The broker self-cleans these on next persistConversation cycle.`,
@@ -1253,7 +1253,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     if (conv) {
       conv.status = 'ended'
       conv.planMode = false
-      clearAnalyticsSession(conversationId)
+      clearAnalyticsConversation(conversationId)
 
       // Mark all running subagents as stopped (SubagentStop hook may not fire)
       for (const agent of conv.subagents) {

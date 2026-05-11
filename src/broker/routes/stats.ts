@@ -40,7 +40,7 @@ export function createStatsRouter(
 
     return c.json({
       uptime: Math.round((Date.now() - serverStartTime) / 1000),
-      sessions: { total: allConversations.length, active, idle, ended },
+      conversations: { total: allConversations.length, active, idle, ended },
       connections: {
         total: diag.summary.totalSubscribers,
         legacy: diag.summary.legacySubscribers,

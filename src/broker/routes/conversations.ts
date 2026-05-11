@@ -200,7 +200,7 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
     if (conv.status === 'ended') return c.json({ error: 'Conversation has ended' }, 400)
 
     const ws = conversationStore.getConversationSocket(conversationId)
-    if (!ws) return c.json({ error: 'Session not connected' }, 400)
+    if (!ws) return c.json({ error: 'Conversation not connected' }, 400)
 
     const body = await c.req.json<{ input: string; crDelay?: number }>()
     if (!body.input || typeof body.input !== 'string') return c.json({ error: 'Missing input field' }, 400)
@@ -223,11 +223,11 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
     if (!conv) return c.json({ error: 'Conversation not found' }, 404)
     if (conv.status === 'active') return c.json({ error: 'Conversation is already active' }, 400)
 
-    // If called with X-Caller-Session header, check benevolent trust
-    const callerConversationId = c.req.header('X-Caller-Session')
+    // If called with X-Caller-Conversation header, check benevolent trust
+    const callerConversationId = c.req.header('X-Caller-Conversation')
     if (callerConversationId) {
-      const callerSess = conversationStore.getConversation(callerConversationId)
-      const callerTrust = callerSess?.project ? getProjectSettings(callerSess.project)?.trustLevel : undefined
+      const callerConv = conversationStore.getConversation(callerConversationId)
+      const callerTrust = callerConv?.project ? getProjectSettings(callerConv.project)?.trustLevel : undefined
       if (callerTrust !== 'benevolent') {
         return c.json({ error: 'Requires benevolent trust level' }, 403)
       }
@@ -245,10 +245,10 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
     // Resolve defaults: launch config > project > global > undefined
     const projSettings = getProjectSettings(conv.project)
     const globalSettings = getGlobalSettings()
-    const sessionPath = parseProjectUri(conv.project).path
+    const conversationPath = parseProjectUri(conv.project).path
     const resolved = resolveSpawnConfig(
       {
-        cwd: sessionPath,
+        cwd: conversationPath,
         headless: lc?.headless,
         model: lc?.model as SpawnRequest['model'] | undefined,
         effort: lc?.effort as SpawnRequest['effort'] | undefined,

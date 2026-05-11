@@ -99,7 +99,9 @@ export interface McpChannelCallbacks {
       onProgress?: (event: Record<string, unknown>) => void
     },
   ) => Promise<{ ok: boolean; error?: string; conversationId?: string; jobId?: string }>
-  onListHosts?: () => Promise<Array<{ alias: string; hostname?: string; connected: boolean; sessionCount: number }>>
+  onListHosts?: () => Promise<
+    Array<{ alias: string; hostname?: string; connected: boolean; conversationCount: number }>
+  >
   onGetSpawnDiagnostics?: (
     jobId: string,
   ) => Promise<{ ok: boolean; error?: string; diagnostics?: Record<string, unknown> }>

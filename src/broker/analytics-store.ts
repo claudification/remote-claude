@@ -430,7 +430,7 @@ export function recordHookEvent(
   conversationId: string,
   hookEvent: string,
   data: Record<string, unknown>,
-  sessionMeta: { projectUri: string; model: string; account: string; projectLabel?: string },
+  conversationMeta: { projectUri: string; model: string; account: string; projectLabel?: string },
 ): void {
   if (!db) return
 
@@ -487,10 +487,10 @@ export function recordHookEvent(
       const turn: TurnAnalytics = {
         conversationId,
         timestamp: Date.now(),
-        projectUri: sessionMeta.projectUri,
-        projectId: getOrCreateProject(sessionMeta.projectUri, sessionMeta.projectLabel).id,
-        model: sessionMeta.model,
-        account: sessionMeta.account,
+        projectUri: conversationMeta.projectUri,
+        projectId: getOrCreateProject(conversationMeta.projectUri, conversationMeta.projectLabel).id,
+        model: conversationMeta.model,
+        account: conversationMeta.account,
         toolSequence: acc.tools.map(t => t.toolName).join(','),
         toolCallCount: acc.tools.length,
         taskCategory,
@@ -508,7 +508,7 @@ export function recordHookEvent(
   }
 }
 
-export function clearSession(conversationId: string): void {
+export function clearConversation(conversationId: string): void {
   turnAccumulators.delete(conversationId)
 }
 

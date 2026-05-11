@@ -66,7 +66,7 @@ export function buildMcpCallbacksWithRules(
           method: 'POST',
           headers: {
             'Content-Type': contentType,
-            'X-Session-Id': ctx.claudeSessionId || deps.conversationId,
+            'X-Conversation-Id': ctx.claudeSessionId || deps.conversationId,
             ...(deps.brokerSecret ? { Authorization: `Bearer ${deps.brokerSecret}` } : {}),
           },
           body: file,
@@ -242,7 +242,7 @@ export function buildMcpCallbacksWithRules(
           alias: s.alias,
           hostname: s.hostname,
           connected: s.connected,
-          sessionCount: 0,
+          conversationCount: 0,
         }))
       } catch {
         return []
@@ -444,12 +444,15 @@ async function handleSpawnConversation(
           },
         })
       })
-      const session = result.session as Record<string, unknown> | undefined
-      ctx.diag('channel', `spawn_session: rendezvous resolved session=${(result.ccSessionId as string)?.slice(0, 8)}`)
+      const conversation = result.conversation as Record<string, unknown> | undefined
+      ctx.diag(
+        'channel',
+        `spawn_conversation: rendezvous resolved cc-session=${(result.ccSessionId as string)?.slice(0, 8)}`,
+      )
       cleanupJob()
-      return { ok: true, conversationId: spawnResult.conversationId, jobId, session }
+      return { ok: true, conversationId: spawnResult.conversationId, jobId, conversation }
     } catch (err) {
-      ctx.diag('channel', `spawn_session: rendezvous failed: ${err instanceof Error ? err.message : err}`)
+      ctx.diag('channel', `spawn_conversation: rendezvous failed: ${err instanceof Error ? err.message : err}`)
       cleanupJob()
       return { ok: true, conversationId: spawnResult.conversationId, jobId, timedOut: true }
     }

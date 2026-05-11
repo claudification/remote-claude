@@ -32,7 +32,7 @@ import { createGatewayRegistry } from './gateway-registry'
 import { initGlobalSettings } from './global-settings'
 import type { WsData } from './handler-context'
 import { registerAllHandlers } from './handlers'
-import { appendMessage, initInterSessionLog } from './inter-conversation-log'
+import { appendMessage, initInterConversationLog } from './inter-conversation-log'
 import { drain, enqueue, getQueueSize, initMessageQueue } from './message-queue'
 import { routeMessage } from './message-router'
 import { initModelPricing } from './model-pricing'
@@ -162,7 +162,7 @@ OPTIONS:
   -p, --port <port>      WebSocket port (default: ${DEFAULT_BROKER_PORT})
   -v, --verbose          Enable verbose logging
   -w, --web-dir <dir>    Serve web dashboard from directory
-  --cache-dir <dir>      Session cache directory (default: ~/.cache/broker)
+  --cache-dir <dir>      Conversation cache directory (default: ~/.cache/broker)
   --clear-cache          Clear conversation cache and exit
   --no-persistence       Disable conversation persistence
   --allow-root <dir>     Add allowed filesystem root (repeatable)
@@ -345,7 +345,7 @@ async function main() {
   initGlobalSettings(store.kv)
   initProjectOrder(store.kv)
   initProjectLinks(store.kv)
-  initInterSessionLog(store.messages)
+  initInterConversationLog(store.messages)
   initAddressBook(store.kv)
   initMessageQueue(store.messages)
   initShares({ kv: store.kv })
@@ -483,7 +483,7 @@ async function main() {
         if (data.shareToken && expired.includes(data.shareToken)) {
           console.log(`[shares] Closing expired share viewer (token: ${data.shareToken.slice(0, 8)}...)`)
           try {
-            ws.send(JSON.stringify({ type: 'share_expired', reason: 'Share session has expired' }))
+            ws.send(JSON.stringify({ type: 'share_expired', reason: 'Share has expired' }))
             ws.close(4403, 'Share expired')
           } catch {}
         }
@@ -737,7 +737,7 @@ async function main() {
               conversationStore.endConversation(cid, 'connection_closed')
               conversationStore.broadcastConversationUpdate(cid)
               if (verbose) {
-                console.log(`[-] Session ended: ${cid.slice(0, 8)}... (connection_closed, last wrapper)`)
+                console.log(`[-] Conversation ended: ${cid.slice(0, 8)}... (connection_closed, last agent host)`)
               }
               if (cid !== primaryConversationId) continue
 

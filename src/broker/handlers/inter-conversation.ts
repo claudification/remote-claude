@@ -1,6 +1,6 @@
 /**
- * Inter-session handlers: benevolent session operations on other sessions.
- * quit, revive, spawn, configure -- all require benevolent trust.
+ * Inter-conversation handlers: benevolent conversation operations on other
+ * conversations. quit, revive, spawn, configure -- all require benevolent trust.
  */
 
 import { randomUUID } from 'node:crypto'
@@ -27,8 +27,8 @@ function resolveEffort(
 
 const handleChannelRevive: MessageHandler = (ctx, data) => {
   const targetConversationId = data.conversationId as string
-  const callerSession = ctx.ws.data.conversationId
-  if (!targetConversationId || !callerSession) return
+  const callerConversationId = ctx.ws.data.conversationId
+  if (!targetConversationId || !callerConversationId) return
 
   ctx.requireBenevolent()
   const sentinel = ctx.requireSentinel()
@@ -61,22 +61,22 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
 
   // Register rendezvous
   ctx.conversations
-    .addRendezvous(conversationId, callerSession, target.project, 'revive')
+    .addRendezvous(conversationId, callerConversationId, target.project, 'revive')
     .then(revived => {
-      const callerWs = ctx.conversations.getConversationSocket(callerSession)
+      const callerWs = ctx.conversations.getConversationSocket(callerConversationId)
       if (callerWs) {
         callerWs.send(
           JSON.stringify({
             type: 'revive_ready',
             conversationId: revived.id,
             project: revived.project,
-            session: revived,
+            conversation: revived,
           }),
         )
       }
     })
     .catch(err => {
-      const callerWs = ctx.conversations.getConversationSocket(callerSession)
+      const callerWs = ctx.conversations.getConversationSocket(callerConversationId)
       if (callerWs) {
         callerWs.send(
           JSON.stringify({
@@ -95,8 +95,8 @@ const handleChannelRevive: MessageHandler = (ctx, data) => {
 }
 
 const handleChannelSpawn: MessageHandler = (ctx, data) => {
-  const callerSession = ctx.ws.data.conversationId
-  if (!callerSession) return
+  const callerConversationId = ctx.ws.data.conversationId
+  if (!callerConversationId) return
 
   ctx.requireBenevolent()
   ctx.requireSentinel()
@@ -136,7 +136,7 @@ const handleChannelSpawn: MessageHandler = (ctx, data) => {
     getProjectSettings,
     getGlobalSettings,
     callerContext,
-    rendezvousCallerConversationId: callerSession,
+    rendezvousCallerConversationId: callerConversationId,
   })
     .then(result => {
       if (result.ok) {
@@ -164,21 +164,21 @@ const handleChannelSpawn: MessageHandler = (ctx, data) => {
 
 const handleChannelRestart: MessageHandler = (ctx, data) => {
   const targetId = data.conversationId as string
-  const callerSession = ctx.ws.data.conversationId
-  if (!targetId || !callerSession) return
+  const callerConversationId = ctx.ws.data.conversationId
+  if (!targetId || !callerConversationId) return
 
   ctx.requireBenevolent()
 
-  const callerSess = ctx.conversations.getConversation(callerSession)
+  const callerConv = ctx.conversations.getConversation(callerConversationId)
   const resolved = resolveConversationTarget(targetId, {
-    callerConversationId: callerSession,
+    callerConversationId: callerConversationId,
     getAllConversations: () => Array.from(ctx.conversations.getAllConversations()),
     getConversation: id => ctx.conversations.getConversation(id),
     findConversationByConversationId: id => ctx.conversations.findConversationByConversationId(id),
     getActiveConversationCount: id => ctx.conversations.getActiveConversationCount(id),
     getProjectSettings: p => ctx.getProjectSettings(p),
     addressBook: ctx.addressBook,
-    callerProject: callerSess?.project,
+    callerProject: callerConv?.project,
   })
   const target = resolved.kind === 'resolved' ? ctx.conversations.getConversation(resolved.conversation.id) : undefined
   const targetWs =
@@ -212,20 +212,20 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
     )
 
     ctx.conversations
-      .addRendezvous(conversationId, callerSession, target.project, 'restart')
+      .addRendezvous(conversationId, callerConversationId, target.project, 'restart')
       .then(revived => {
-        const callerWs = ctx.conversations.getConversationSocket(callerSession)
+        const callerWs = ctx.conversations.getConversationSocket(callerConversationId)
         callerWs?.send(
           JSON.stringify({
             type: 'restart_ready',
             conversationId: revived.id,
             project: revived.project,
-            session: revived,
+            conversation: revived,
           }),
         )
       })
       .catch(err => {
-        const callerWs = ctx.conversations.getConversationSocket(callerSession)
+        const callerWs = ctx.conversations.getConversationSocket(callerConversationId)
         callerWs?.send(
           JSON.stringify({
             type: 'restart_timeout',
@@ -245,11 +245,11 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
   const callerConnectionId = ctx.ws.data.conversationId as string
   const targetConnectionIds = ctx.conversations.getConnectionIds(target.id)
   const targetConnectionId = targetConnectionIds[0] || ''
-  const isSelfRestart = targetConnectionIds.includes(callerConnectionId) || target.id === callerSession
+  const isSelfRestart = targetConnectionIds.includes(callerConnectionId) || target.id === callerConversationId
 
   // Store pending restart for the close handler to pick up
   ctx.conversations.addPendingRestart(targetConnectionId, {
-    callerConversationId: callerSession,
+    callerConversationId: callerConversationId,
     targetConversationId: target.id,
     project: target.project,
     isSelfRestart,
@@ -273,17 +273,17 @@ const handleChannelConfigure: MessageHandler = (ctx, data) => {
 
   ctx.requireBenevolent()
 
-  const callerSession = ctx.ws.data.conversationId
-  const callerSess = callerSession ? ctx.conversations.getConversation(callerSession) : undefined
+  const callerConversationId = ctx.ws.data.conversationId
+  const callerConv = callerConversationId ? ctx.conversations.getConversation(callerConversationId) : undefined
   const resolved = resolveConversationTarget(targetId, {
-    callerConversationId: callerSession,
+    callerConversationId: callerConversationId,
     getAllConversations: () => Array.from(ctx.conversations.getAllConversations()),
     getConversation: id => ctx.conversations.getConversation(id),
     findConversationByConversationId: id => ctx.conversations.findConversationByConversationId(id),
     getActiveConversationCount: id => ctx.conversations.getActiveConversationCount(id),
     getProjectSettings: p => ctx.getProjectSettings(p),
     addressBook: ctx.addressBook,
-    callerProject: callerSess?.project,
+    callerProject: callerConv?.project,
   })
   const target = resolved.kind === 'resolved' ? ctx.conversations.getConversation(resolved.conversation.id) : undefined
   if (!target) {
@@ -317,16 +317,16 @@ const handleChannelConfigure: MessageHandler = (ctx, data) => {
 
 const VALID_CONTROL_ACTIONS = new Set(['clear', 'quit', 'interrupt', 'set_model', 'set_effort', 'set_permission_mode'])
 
-const handleSessionControl: MessageHandler = (ctx, data) => {
-  const targetId = data.targetSession as string
+const handleConversationControl: MessageHandler = (ctx, data) => {
+  const targetId = data.targetConversation as string
   const action = data.action as string
   const model = typeof data.model === 'string' ? data.model : undefined
   const effort = typeof data.effort === 'string' ? data.effort : undefined
   const permissionMode = typeof data.permissionMode === 'string' ? data.permissionMode : undefined
-  const fromSession = (data.fromSession as string) || ctx.ws.data.conversationId
+  const fromConversation = (data.fromConversation as string) || ctx.ws.data.conversationId
 
   if (!targetId) {
-    ctx.reply({ type: 'conversation_control_result', ok: false, error: 'Missing targetSession' })
+    ctx.reply({ type: 'conversation_control_result', ok: false, error: 'Missing targetConversation' })
     return
   }
   if (!VALID_CONTROL_ACTIONS.has(action)) {
@@ -352,17 +352,17 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
   }
 
   // Resolve target: compound ID (project:conversation-slug), bare slug, or raw internal ID
-  const callerSession = ctx.ws.data.conversationId
-  const callerSess = callerSession ? ctx.conversations.getConversation(callerSession) : undefined
+  const callerConversationId = ctx.ws.data.conversationId
+  const callerConv = callerConversationId ? ctx.conversations.getConversation(callerConversationId) : undefined
   const resolved = resolveConversationTarget(targetId, {
-    callerConversationId: callerSession,
+    callerConversationId: callerConversationId,
     getAllConversations: () => Array.from(ctx.conversations.getAllConversations()),
     getConversation: id => ctx.conversations.getConversation(id),
     findConversationByConversationId: id => ctx.conversations.findConversationByConversationId(id),
     getActiveConversationCount: id => ctx.conversations.getActiveConversationCount(id),
     getProjectSettings: p => ctx.getProjectSettings(p),
     addressBook: ctx.addressBook,
-    callerProject: callerSess?.project,
+    callerProject: callerConv?.project,
   })
   if (resolved.kind !== 'resolved') {
     ctx.reply({ type: 'conversation_control_result', ok: false, action, error: resolved.error })
@@ -403,7 +403,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
       ...(model && { model }),
       ...(effort && { effort }),
       ...(permissionMode && { permissionMode }),
-      ...(fromSession && { fromSession }),
+      ...(fromConversation && { fromConversation }),
     }),
   )
 
@@ -427,7 +427,7 @@ const handleSessionControl: MessageHandler = (ctx, data) => {
     name: targetSess.title || extractProjectLabel(targetSess.project),
   })
   ctx.log.debug(
-    `session_control: ${fromSession?.slice(0, 8) ?? 'dashboard'} -> ${targetSess.id.slice(0, 8)} action=${action}${model ? ` model=${model}` : ''}${effort ? ` effort=${effort}` : ''}${permissionMode ? ` mode=${permissionMode}` : ''}`,
+    `conversation_control: ${fromConversation?.slice(0, 8) ?? 'dashboard'} -> ${targetSess.id.slice(0, 8)} action=${action}${model ? ` model=${model}` : ''}${effort ? ` effort=${effort}` : ''}${permissionMode ? ` mode=${permissionMode}` : ''}`,
   )
 }
 
@@ -437,6 +437,6 @@ export function registerInterConversationHandlers(): void {
     channel_spawn: handleChannelSpawn,
     channel_restart: handleChannelRestart,
     channel_configure: handleChannelConfigure,
-    conversation_control: handleSessionControl,
+    conversation_control: handleConversationControl,
   })
 }

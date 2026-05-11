@@ -78,11 +78,7 @@ async function main() {
   }
   debug(`Broker: ${cli.noBroker ? 'DISABLED' : 'ENABLED'} (url: ${cli.brokerUrl})`)
 
-  const conversationId =
-    process.env.RCLAUDE_CONVERSATION_ID ||
-    process.env.RCLAUDE_SESSION_ID ||
-    process.env.RCLAUDE_WRAPPER_ID ||
-    randomUUID()
+  const conversationId = process.env.RCLAUDE_CONVERSATION_ID || randomUUID()
   const cwd = process.cwd()
   const rclaudeDir = ensureRclaudeDir(cwd)
   const permissionRules = createRulesEngine(cwd)

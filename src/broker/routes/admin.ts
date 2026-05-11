@@ -23,12 +23,7 @@ import { purgeMessages, queryMessages } from '../inter-conversation-log'
 import { resolvePermissionFlags } from '../permissions'
 import { addPersistedLink, getPersistedLinks, removePersistedLink } from '../project-links'
 import { getProjectSettings } from '../project-settings'
-import {
-  createShare as createSessionShare,
-  getShare as getShareByToken,
-  listShares as listAllShares,
-  revokeShare as revokeSessionShare,
-} from '../shares'
+import { createShare, getShare as getShareByToken, listShares as listAllShares, revokeShare } from '../shares'
 import type { RouteHelpers } from './shared'
 
 export function createAdminRouter(
@@ -239,7 +234,7 @@ export function createAdminRouter(
     if (!body.project) return c.json({ error: 'project is required' }, 400)
     const expiresAt = body.expiresAt || (body.expiresIn ? Date.now() + body.expiresIn : Date.now() + 4 * 60 * 60 * 1000) // default 4h
     try {
-      const share = createSessionShare({
+      const share = createShare({
         project: body.project,
         expiresAt,
         createdBy: getAuthenticatedUser(c.req.raw) || 'admin',
@@ -283,7 +278,7 @@ export function createAdminRouter(
   app.delete('/api/shares/:token', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const token = c.req.param('token')
-    if (revokeSessionShare(token)) {
+    if (revokeShare(token)) {
       // Kill all WS connections authenticated with this share token
       for (const ws of conversationStore.getSubscribers()) {
         if ((ws.data as { shareToken?: string }).shareToken === token) {
@@ -318,8 +313,8 @@ export function createAdminRouter(
         createdAt: pl.createdAt,
         lastUsed: pl.lastUsed,
         online: !!(sessA && sessB),
-        sessionIdA: sessA?.id,
-        sessionIdB: sessB?.id,
+        conversationIdA: sessA?.id,
+        conversationIdB: sessB?.id,
       }
     })
     return c.json({ links })

@@ -287,7 +287,6 @@ function findAcpHostBinary(): string | null {
 const RCLAUDE_CONVERSATION_VARS = new Set([
   'RCLAUDE_HEADLESS',
   'RCLAUDE_CONVERSATION_ID',
-  'RCLAUDE_SESSION_ID',
   'CLAUDWERK_CONVERSATION_NAME',
   'CLAUDWERK_CONVERSATION_DESCRIPTION',
   'RCLAUDE_SECRET',
@@ -360,7 +359,7 @@ function buildHeadlessEnv(opts: {
   env.RCLAUDE_HEADLESS = '1'
 
   // Optional
-  if (opts.ccSessionId) env.RCLAUDE_SESSION_ID = opts.ccSessionId
+  if (opts.ccSessionId) env.RCLAUDE_CC_SESSION_ID = opts.ccSessionId
   if (opts.conversationName) env.CLAUDWERK_CONVERSATION_NAME = opts.conversationName
   if (opts.conversationDescription) env.CLAUDWERK_CONVERSATION_DESCRIPTION = opts.conversationDescription
   if (opts.permissionMode) env.RCLAUDE_PERMISSION_MODE = opts.permissionMode
@@ -1016,7 +1015,7 @@ async function reviveConversation(
       ...cleanSentinelEnv(),
       RCLAUDE_SECRET: secret,
       RCLAUDE_CONVERSATION_ID: conversationId,
-      RCLAUDE_SESSION_ID: ccSessionId,
+      RCLAUDE_CC_SESSION_ID: ccSessionId,
       ...(effort ? { RCLAUDE_EFFORT: effort } : {}),
       ...(model ? { RCLAUDE_MODEL: model } : {}),
       ...(conversationName ? { CLAUDWERK_CONVERSATION_NAME: conversationName } : {}),

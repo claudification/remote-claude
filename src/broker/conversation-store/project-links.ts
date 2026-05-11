@@ -31,14 +31,14 @@ export function createProjectLinkRegistry(
   const projectBlocks = new Map<string, number>()
   const messageQueue = new Map<string, Array<Record<string, unknown>>>()
 
-  function sessionToProject(conversationId: string): string | undefined {
+  function conversationToProject(conversationId: string): string | undefined {
     return conversations.get(conversationId)?.project
   }
 
   return {
     checkProjectLink(from, to) {
-      const projFrom = sessionToProject(from)
-      const projTo = sessionToProject(to)
+      const projFrom = conversationToProject(from)
+      const projTo = conversationToProject(to)
       if (!projFrom || !projTo) return 'unknown'
       const key = projectLinkKey(projFrom, projTo)
       if (projectLinks.has(key)) return 'linked'
@@ -49,7 +49,7 @@ export function createProjectLinkRegistry(
     },
 
     getLinkedProjects(conversationId) {
-      const thisProject = sessionToProject(conversationId)
+      const thisProject = conversationToProject(conversationId)
       if (!thisProject) return []
       const result: Array<{ project: string; name: string }> = []
       for (const key of projectLinks) {
@@ -65,8 +65,8 @@ export function createProjectLinkRegistry(
     },
 
     linkProjects(a, b) {
-      const projA = sessionToProject(a) || toProjectUri(a)
-      const projB = sessionToProject(b) || toProjectUri(b)
+      const projA = conversationToProject(a) || toProjectUri(a)
+      const projB = conversationToProject(b) || toProjectUri(b)
       if (!projA || !projB) return
       const key = projectLinkKey(projA, projB)
       projectLinks.add(key)
@@ -74,14 +74,14 @@ export function createProjectLinkRegistry(
     },
 
     unlinkProjects(a, b) {
-      const projA = sessionToProject(a) || toProjectUri(a)
-      const projB = sessionToProject(b) || toProjectUri(b)
+      const projA = conversationToProject(a) || toProjectUri(a)
+      const projB = conversationToProject(b) || toProjectUri(b)
       if (projA && projB) projectLinks.delete(projectLinkKey(projA, projB))
     },
 
     blockProject(blocker, blocked) {
-      const projA = sessionToProject(blocker)
-      const projB = sessionToProject(blocked)
+      const projA = conversationToProject(blocker)
+      const projB = conversationToProject(blocked)
       if (!projA || !projB) return
       const key = projectLinkKey(projA, projB)
       projectLinks.delete(key)
@@ -89,8 +89,8 @@ export function createProjectLinkRegistry(
     },
 
     queueProjectMessage(from, to, message) {
-      const projFrom = sessionToProject(from)
-      const projTo = sessionToProject(to)
+      const projFrom = conversationToProject(from)
+      const projTo = conversationToProject(to)
       if (!projFrom || !projTo) return
       const key = projectLinkKey(projFrom, projTo)
       const queue = messageQueue.get(key) || []
@@ -99,8 +99,8 @@ export function createProjectLinkRegistry(
     },
 
     drainProjectMessages(from, to) {
-      const projFrom = sessionToProject(from)
-      const projTo = sessionToProject(to)
+      const projFrom = conversationToProject(from)
+      const projTo = conversationToProject(to)
       if (!projFrom || !projTo) return []
       const key = projectLinkKey(projFrom, projTo)
       const msgs = messageQueue.get(key) || []
