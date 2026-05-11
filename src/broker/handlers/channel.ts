@@ -5,7 +5,7 @@
 
 import { deriveModelName } from '../../shared/models'
 import { cwdToProjectUri, extractProjectLabel, isSameProject, parseProjectUri } from '../../shared/project-uri'
-import type { ChannelSendResultEntry, SubscriptionChannel } from '../../shared/protocol'
+import type { ChannelSendResultEntry, SubscriptionChannel, TerminationSource } from '../../shared/protocol'
 import { slugify } from '../address-book'
 import { getUser } from '../auth'
 import type { MessageHandler } from '../handler-context'
@@ -719,10 +719,16 @@ const quitConversation: MessageHandler = (ctx, data) => {
   if (!conversation) return
   ctx.requirePermission('chat', conversation.project)
 
+  // Source tag travels from the web client; fall back to dashboard-other
+  // for legacy callers that haven't been updated yet.
+  const source: TerminationSource = (data.source as TerminationSource) || 'dashboard-other'
+  const initiator =
+    (data.initiator as string | undefined) || (ctx.ws.data.userName ? `user:${ctx.ws.data.userName}` : undefined)
+
   const targetWs = ctx.conversations.getConversationSocket(conversationId)
   if (targetWs) {
-    targetWs.send(JSON.stringify({ type: 'terminate_conversation', conversationId }))
-    ctx.log.debug(`Conversation ${conversationId.slice(0, 8)} - SIGTERM sent to wrapper`)
+    targetWs.send(JSON.stringify({ type: 'terminate_conversation', conversationId, source, initiator }))
+    ctx.log.debug(`Conversation ${conversationId.slice(0, 8)} - terminate forwarded (source=${source})`)
     return
   }
 
@@ -732,11 +738,15 @@ const quitConversation: MessageHandler = (ctx, data) => {
   if (hostType && hostType !== 'claude') {
     const gatewayWs = ctx.conversations.getGatewaySocket(hostType)
     if (gatewayWs) {
-      gatewayWs.send(JSON.stringify({ type: 'terminate_conversation', conversationId }))
+      gatewayWs.send(JSON.stringify({ type: 'terminate_conversation', conversationId, source, initiator }))
     }
-    ctx.conversations.endConversation(conversationId, 'user_terminate')
+    ctx.conversations.endConversation(conversationId, {
+      source,
+      initiator,
+      detail: { note: `Gateway-backed (${hostType}) -- ended directly` },
+    })
     ctx.conversations.broadcastConversationUpdate(conversationId)
-    ctx.log.debug(`Conversation ${conversationId.slice(0, 8)} - ended (${hostType} backend)`)
+    ctx.log.debug(`Conversation ${conversationId.slice(0, 8)} - ended (${hostType} backend, source=${source})`)
   }
 }
 

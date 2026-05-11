@@ -3,6 +3,8 @@ import type {
   ClaudeHealthUpdate,
   ConversationSummary,
   LaunchProfile,
+  TerminationDetail,
+  TerminationSource,
 } from '../../shared/protocol'
 
 export type { ConversationSummary }
@@ -21,6 +23,7 @@ export interface ControlPanelMessage {
     | 'conversation_update'
     | 'conversation_created'
     | 'conversation_ended'
+    | 'conversation_terminated'
     | 'event'
     | 'conversations_list'
     | 'sentinel_status'
@@ -48,4 +51,9 @@ export interface ControlPanelMessage {
   claudeEfficiency?: ClaudeEfficiencyUpdate
   userName?: string
   launchProfiles?: LaunchProfile[]
+  // Termination metadata (only on conversation_terminated)
+  source?: TerminationSource
+  initiator?: string
+  detail?: TerminationDetail
+  endedAt?: number
 }

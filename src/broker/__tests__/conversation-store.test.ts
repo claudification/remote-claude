@@ -110,7 +110,7 @@ describe('conversation lifecycle', () => {
 
   it('endConversation moves conversation out of getActiveConversations but keeps it in getAllConversations', () => {
     store.createConversation('end-me', '/cwd')
-    store.endConversation('end-me', 'completed')
+    store.endConversation('end-me', { source: 'cc-exit-normal' })
 
     const active = store.getActiveConversations()
     expect(active.map(s => s.id)).not.toContain('end-me')
@@ -131,7 +131,7 @@ describe('conversation lifecycle', () => {
 
   it('resumeConversation on an ended conversations restores it to active conversations', () => {
     store.createConversation('resume-me', '/cwd')
-    store.endConversation('resume-me', 'done')
+    store.endConversation('resume-me', { source: 'cc-exit-normal' })
     expect(store.getActiveConversations().map(s => s.id)).not.toContain('resume-me')
 
     store.resumeConversation('resume-me')

@@ -22,6 +22,8 @@ import type {
   SubscriptionChannel,
   SubscriptionsDiag,
   TaskInfo,
+  TerminationDetail,
+  TerminationSource,
   TranscriptAssistantEntry,
   TranscriptEntry,
 } from '../shared/protocol'
@@ -70,6 +72,7 @@ import { cancelRecap, generateRecapOnEnd, scheduleRecap } from './recap-generato
 import type { SentinelRegistry } from './sentinel-registry'
 import { listShares } from './shares'
 import type { StoreDriver, TaskRecord } from './store/types'
+import type { TerminationLog } from './termination-log'
 
 export type { ControlPanelMessage, ConversationSummary }
 
@@ -77,7 +80,23 @@ export interface ConversationStoreOptions {
   cacheDir?: string
   enablePersistence?: boolean
   store?: StoreDriver
+  /**
+   * Optional termination log. When provided, every endConversation() call
+   * appends a structured NDJSON record. Caller owns the log lifecycle.
+   */
+  terminationLog?: TerminationLog
   sentinelRegistry?: SentinelRegistry
+}
+
+/**
+ * Caller of `endConversation` must always tag the source. Reaper/system
+ * callers may omit initiator; user-driven callers should populate it from
+ * `ctx.ws.data` so the termination log can answer "who killed it".
+ */
+export interface EndConversationOpts {
+  source: TerminationSource
+  initiator?: string
+  detail?: TerminationDetail
 }
 
 export interface ConversationStore {
@@ -95,7 +114,7 @@ export interface ConversationStore {
   getActiveConversations: () => Conversation[]
   addEvent: (conversationId: string, event: HookEvent) => void
   updateActivity: (conversationId: string) => void
-  endConversation: (conversationId: string, reason: string) => void
+  endConversation: (conversationId: string, opts: EndConversationOpts) => void
   removeConversation: (conversationId: string) => void
   getConversationEvents: (conversationId: string, limit?: number, since?: number) => HookEvent[]
   updateTasks: (conversationId: string, tasks: TaskInfo[]) => void
@@ -1248,12 +1267,44 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
   }
 
-  function endConversation(conversationId: string, _reason: string): void {
+  function endConversation(conversationId: string, opts: EndConversationOpts): void {
     const conv = conversations.get(conversationId)
     if (conv) {
+      const endedAt = Date.now()
       conv.status = 'ended'
       conv.planMode = false
+      conv.endedBy = { source: opts.source, initiator: opts.initiator, at: endedAt, detail: opts.detail }
       clearAnalyticsSession(conversationId)
+
+      // Append to NDJSON termination log (best-effort, never throws). The
+      // single chokepoint: every status->ended transition goes through
+      // here, so the log is exhaustive by construction.
+      if (options.terminationLog) {
+        options.terminationLog.append({
+          ts: new Date(endedAt).toISOString(),
+          conversationId,
+          source: opts.source,
+          initiator: opts.initiator,
+          project: conv.project,
+          title: conv.title,
+          detail: opts.detail,
+        })
+      }
+
+      // Broadcast structured termination event. Carries source/initiator
+      // so the dashboard can render a badge and a transcript timeline
+      // entry. Legacy `conversation_ended` still fires below for compat.
+      broadcastConversationScoped(
+        {
+          type: 'conversation_terminated',
+          conversationId,
+          source: opts.source,
+          initiator: opts.initiator,
+          detail: opts.detail,
+          endedAt,
+        },
+        conv.project,
+      )
 
       // Mark all running subagents as stopped (SubagentStop hook may not fire)
       for (const agent of conv.subagents) {
@@ -1506,7 +1557,11 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       if (!resolveBackend(conversation).requiresAgentSocket) continue
       const live = pruneDeadSockets(convId)
       if (live === 0) {
-        endConversation(convId, 'connection_closed')
+        endConversation(convId, {
+          source: 'reaper-phantom',
+          initiator: 'system:reaper',
+          detail: { note: 'No live agent host sockets remaining' },
+        })
         ended.push(convId)
       }
     }
