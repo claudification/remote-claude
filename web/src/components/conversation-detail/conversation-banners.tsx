@@ -14,7 +14,9 @@ export function LinkRequestBanners() {
   const selectedConversation = useConversationsStore(s => s.selectedConversationId)
 
   const inbound = requests.filter(r => r.toConversation === selectedConversation)
-  const outbound = requests.filter(r => r.fromConversation === selectedConversation && r.toConversation !== selectedConversation)
+  const outbound = requests.filter(
+    r => r.fromConversation === selectedConversation && r.toConversation !== selectedConversation,
+  )
 
   return (
     <>

@@ -559,7 +559,11 @@ function handleChannelLinkRequest(msg: DashboardMessage) {
   if (!(fromConversation && toConversation)) return
   useConversationsStore.setState(state => {
     // Deduplicate
-    if (state.pendingProjectLinks.some(r => r.fromConversation === fromConversation && r.toConversation === toConversation)) {
+    if (
+      state.pendingProjectLinks.some(
+        r => r.fromConversation === fromConversation && r.toConversation === toConversation,
+      )
+    ) {
       return state
     }
     return {

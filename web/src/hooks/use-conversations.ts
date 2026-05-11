@@ -155,7 +155,12 @@ interface ConversationsState {
   showSwitcher: boolean
   switcherInitialFilter: string
   showDebugConsole: boolean
-  pendingProjectLinks: Array<{ fromConversation: string; fromProject: string; toConversation: string; toProject: string }>
+  pendingProjectLinks: Array<{
+    fromConversation: string
+    fromProject: string
+    toConversation: string
+    toProject: string
+  }>
   respondToProjectLink: (fromConversation: string, toConversation: string, action: 'approve' | 'block') => void
   pendingPermissions: Array<{
     conversationId: string
