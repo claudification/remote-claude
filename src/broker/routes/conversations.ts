@@ -16,8 +16,13 @@ import { validateShare } from '../shares'
 import { processImagesInEntry } from './blob-store'
 import type { RouteHelpers } from './shared'
 import { broadcastToSubscribers, conversationToOverview } from './shared'
+import type { TerminationLog } from '../termination-log'
 
-export function createConversationsRouter(conversationStore: ConversationStore, helpers: RouteHelpers): Hono {
+export function createConversationsRouter(
+  conversationStore: ConversationStore,
+  helpers: RouteHelpers,
+  terminationLog?: TerminationLog,
+): Hono {
   const { httpHasPermission, httpIsAdmin, filterConversationsByHttpGrants } = helpers
   const app = new Hono()
 
@@ -190,6 +195,41 @@ export function createConversationsRouter(conversationStore: ConversationStore, 
     if (!conv) return c.json({ error: 'Conversation not found' }, 404)
     if (!httpHasPermission(c.req.raw, 'chat:read', conv.project)) return c.json({ error: 'Forbidden' }, 403)
     return c.json({ tasks: conv.tasks, archivedTasks: conv.archivedTasks })
+  })
+
+  // Termination history for one conversation. Returns the in-memory
+  // `endedBy` field (latest) plus any NDJSON log rows so the UI can show
+  // both the current badge and the historical record (revives -> ends ->
+  // revives produce multiple rows over the conversation's lifetime).
+  app.get('/conversations/:id/termination', c => {
+    const conv = conversationStore.getConversation(c.req.param('id'))
+    if (!conv) return c.json({ error: 'Conversation not found' }, 404)
+    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project)) return c.json({ error: 'Forbidden' }, 403)
+    const history = terminationLog
+      ? terminationLog.query({ conversationId: conv.id, days: 30, limit: 50 })
+      : []
+    return c.json({
+      current: conv.endedBy ?? null,
+      history,
+    })
+  })
+
+  // Admin-only NDJSON termination log query. Supports filtering by source,
+  // initiator, day window, and free-text grep. Returns newest-first up to
+  // `limit` (default 1000). Use broker-cli for shell-friendly access.
+  app.get('/api/terminations', c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden' }, 403)
+    if (!terminationLog) return c.json({ error: 'Termination log not configured' }, 503)
+    const days = Number.parseInt(c.req.query('days') ?? '7', 10) || 7
+    const limit = Number.parseInt(c.req.query('limit') ?? '1000', 10) || 1000
+    const sourceParam = c.req.query('source')
+    const source = sourceParam
+      ? (sourceParam.split(',') as import('../../shared/protocol').TerminationSource[])
+      : undefined
+    const initiator = c.req.query('initiator') || undefined
+    const grep = c.req.query('grep') || undefined
+    const results = terminationLog.query({ days, limit, source, initiator, grep })
+    return c.json({ count: results.length, records: results })
   })
 
   app.post('/conversations/:id/input', async c => {

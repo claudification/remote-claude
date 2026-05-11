@@ -12,6 +12,7 @@ import { type ParsedArgs, parseArgs } from './cli/parse-args'
 import { handleDeletePasskey, handleListPasskeys } from './cli/passkey-commands'
 import { handleRemoveRole, handleSetRole } from './cli/role-commands'
 import { handleSentinel } from './cli/sentinel-commands'
+import { handleTermination } from './cli/termination-commands'
 import { DEFAULT_CACHE_DIR, printUsage } from './cli/shared'
 import {
   handleCreateInvite,
@@ -88,6 +89,11 @@ async function main(): Promise<void> {
 
   if (args.command === 'backup') {
     await handleBackup(args)
+    process.exit(0)
+  }
+
+  if (args.command === 'termination') {
+    handleTermination(args)
     process.exit(0)
   }
 

@@ -27,6 +27,13 @@ export interface ParsedArgs {
   retainHoursArg: string
   retainDaysArg: string
   typeArg: string
+  // termination subcommand
+  sourceArg: string
+  initiatorArg: string
+  conversationIdArg: string
+  daysArg: string
+  limitArg: string
+  grepArg: string
 }
 
 export function parseArgs(argv: string[], defaultCacheDir: string): ParsedArgs {
@@ -59,6 +66,12 @@ export function parseArgs(argv: string[], defaultCacheDir: string): ParsedArgs {
     retainHoursArg: '',
     retainDaysArg: '',
     typeArg: '',
+    sourceArg: '',
+    initiatorArg: '',
+    conversationIdArg: '',
+    daysArg: '',
+    limitArg: '',
+    grepArg: '',
   }
 
   for (let i = 0; i < argv.length; i++) {
@@ -113,6 +126,18 @@ export function parseArgs(argv: string[], defaultCacheDir: string): ParsedArgs {
       result.retainDaysArg = argv[++i]
     } else if (arg === '--type') {
       result.typeArg = argv[++i]
+    } else if (arg === '--source') {
+      result.sourceArg = argv[++i]
+    } else if (arg === '--initiator') {
+      result.initiatorArg = argv[++i]
+    } else if (arg === '--conversation' || arg === '--conv') {
+      result.conversationIdArg = argv[++i]
+    } else if (arg === '--days') {
+      result.daysArg = argv[++i]
+    } else if (arg === '--limit') {
+      result.limitArg = argv[++i]
+    } else if (arg === '--grep') {
+      result.grepArg = argv[++i]
     } else if (!arg.startsWith('-')) {
       if (result.command === 'resolve-path' && !result.testPath) {
         result.testPath = arg
@@ -126,6 +151,8 @@ export function parseArgs(argv: string[], defaultCacheDir: string): ParsedArgs {
         result.subCommand = arg
       } else if (result.command === 'backup' && result.subCommand === 'restore' && !result.backupArchive) {
         result.backupArchive = arg
+      } else if (result.command === 'termination' && !result.subCommand) {
+        result.subCommand = arg
       } else {
         result.command = arg
       }

@@ -703,6 +703,7 @@ COMMANDS:
   delete-passkey --name <name> --credential-id <id>     Delete a passkey
   migrate [--dry-run]                                   Absorb legacy JSON/JSONL into store.db
   query [--db <name>] [--json] "SQL"                    Read-only SQL inspection
+  termination list|show|grep [filters]                  Query the conversation termination NDJSON log
 
 OPTIONS:
   --cache-dir <dir>    Storage directory (default: ~/.cache/broker)
@@ -739,6 +740,52 @@ broker-cli query --db analytics "SELECT model, COUNT(*) FROM turns GROUP BY 1"
 # Project registry
 broker-cli query --db projects "SELECT id, scope, label FROM projects"
 ```
+
+#### Termination history (`broker-cli termination`)
+
+Every conversation that flips to `status: ended` writes one NDJSON record to
+`{cacheDir}/terminations/YYYY-MM-DD.ndjson` with the typed `TerminationSource`
+(dashboard-launch-toast, reaper-phantom, cc-exit-crash, ...), the initiator
+(`user:lisa`, `agent:conv_abc`, `system:reaper`), the project URI, the
+conversation title, and structured detail. Daily-rotated, 30-day retention,
+sweep runs once a day. This is the single source of truth for "who killed
+conversation X" investigations -- the in-memory diagLog is incomplete and
+lost on broker restart, the NDJSON log isn't.
+
+```bash
+# Recent terminations (last 7 days, 50 newest)
+broker-cli termination list
+
+# Filter by source enum (single value or comma-separated)
+broker-cli termination list --source dashboard-launch-toast
+broker-cli termination list --source 'cc-exit-crash,reaper-phantom' --days 30
+
+# Who killed which conversations today
+broker-cli termination list --initiator 'user:lisa' --days 1
+
+# All terminations (revives -> ends -> revives) for one conversation
+broker-cli termination show --conv 556bd4ed-d247-4f26-8549-b41ad413cb56
+
+# Substring search across NDJSON (case-sensitive)
+broker-cli termination grep 'connection_closed' --days 14
+
+# Raw JSON output for scripts
+broker-cli termination list --json | jq 'select(.source == "reaper-phantom")'
+
+# Inside the Docker container (the cacheDir is the concentrator-data volume)
+docker exec broker broker-cli termination list --cache-dir /data/cache --limit 100
+docker exec broker broker-cli termination show --conv <conversationId> --cache-dir /data/cache
+```
+
+`TerminationSource` enum values (defined in `src/shared/protocol.ts`):
+`dashboard-context-menu`, `dashboard-terminate-dialog`,
+`dashboard-launch-toast`, `dashboard-other`, `inter-conversation-restart`,
+`mcp-exit-session`, `headless-input`, `cc-exit-normal`, `cc-exit-crash`,
+`ws-close`, `reaper-phantom`, `sentinel-kill`, `unknown`.
+
+The same data is also reachable via HTTP:
+- `GET /conversations/:id/termination` -- current `endedBy` + history (any auth)
+- `GET /api/terminations?source=X&initiator=Y&days=N&grep=TEXT` -- admin only
 
 ### Auto-migration on startup
 

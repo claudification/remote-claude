@@ -519,6 +519,7 @@ async function main() {
     publicOrigin: origins[0],
     sentinelRegistry,
     gatewayRegistry,
+    terminationLog,
   })
 
   // Combined HTTP + WebSocket server. (The legacy unauthenticated

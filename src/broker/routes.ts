@@ -9,6 +9,7 @@ import { Hono } from 'hono'
 import { handleAuthRoute, requireAuth } from './auth-routes'
 import type { ConversationStore } from './conversation-store'
 import { startFileReaper } from './file-reaper'
+import type { GatewayRegistry } from './gateway-registry'
 import { createLaunchProfilesRouter } from './launch-profiles/routes'
 import { resolveInJail } from './path-jail'
 import { createAdminRouter } from './routes/admin'
@@ -22,6 +23,7 @@ import { createSentinelRouter } from './routes/sentinels'
 import { createRouteHelpers } from './routes/shared'
 import { createSpawnRouter } from './routes/spawn'
 import { createStatsRouter } from './routes/stats'
+import type { SentinelRegistry } from './sentinel-registry'
 import type { StoreDriver } from './store/types'
 
 // Re-export blob/file helpers for external consumers (conversation-store, handlers, etc.)
@@ -80,8 +82,14 @@ export interface RouteOptions {
   cacheDir?: string
   serverStartTime?: number
   publicOrigin?: string // public base URL from --origin (e.g. "https://your-host.example.com")
-  sentinelRegistry?: import('./sentinel-registry').SentinelRegistry
-  gatewayRegistry?: import('./gateway-registry').GatewayRegistry
+  sentinelRegistry?: SentinelRegistry
+  gatewayRegistry?: GatewayRegistry
+  /**
+   * Termination NDJSON log. When provided, exposes:
+   *   GET /conversations/:id/termination -- last termination for one conversation
+   *   GET /api/terminations              -- query the log (admin only)
+   */
+  terminationLog?: import('./termination-log').TerminationLog
 }
 
 export function createRouter(options: RouteOptions): Hono {
@@ -96,6 +104,7 @@ export function createRouter(options: RouteOptions): Hono {
     publicOrigin,
     sentinelRegistry,
     gatewayRegistry,
+    terminationLog,
   } = options
 
   // Initialize disk-backed blob store + shared files log
@@ -214,7 +223,7 @@ export function createRouter(options: RouteOptions): Hono {
   })
 
   // ─── Sub-routers ────────────────────────────────────────────────────
-  app.route('/', createConversationsRouter(conversationStore, helpers))
+  app.route('/', createConversationsRouter(conversationStore, helpers, terminationLog))
   app.route('/', createSpawnRouter(conversationStore, helpers))
   app.route('/', createChatApiRouter(conversationStore, store.kv, helpers))
   app.route('/', createMcpRouter(conversationStore, store, rclaudeSecret))
