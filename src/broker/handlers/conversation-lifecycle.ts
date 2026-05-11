@@ -4,6 +4,7 @@
  */
 
 import { cwdToProjectUri, extractProjectLabel } from '../../shared/project-uri'
+import type { TerminationDetail, TerminationSource } from '../../shared/protocol'
 import { slugify } from '../address-book'
 import type { MessageHandler } from '../handler-context'
 import { AGENT_HOST_ONLY, ANY_ROLE, registerHandlers } from '../message-router'
@@ -234,8 +235,27 @@ const end: MessageHandler = (ctx, data) => {
   ctx.conversations.removeConversationSocket(conversationId, connectionId)
   const remaining = ctx.conversations.getActiveConversationCount(conversationId)
   if (remaining === 0) {
-    ctx.conversations.endConversation(conversationId, (data.reason as string) || '')
-    ctx.log.debug(`Conversation ended: ${conversationId.slice(0, 8)}... (${data.reason})`)
+    // The agent host's `end` message carries either a typed source (new
+    // wire) OR a free-form reason string (cc-exit-N, legacy). Map legacy
+    // reason -> typed source so the NDJSON log is uniform.
+    const wireSource = data.source as TerminationSource | undefined
+    const reason = ((data.reason as string) || '').toLowerCase()
+    let source: TerminationSource
+    if (wireSource) source = wireSource
+    else if (reason === 'normal') source = 'cc-exit-normal'
+    else if (reason.startsWith('exit_code_')) source = 'cc-exit-crash'
+    else if (reason.startsWith('dashboard-')) source = 'dashboard-other'
+    else if (reason === 'mcp-exit-session') source = 'mcp-exit-session'
+    else source = 'unknown'
+    const detail = (data.detail as TerminationDetail | undefined) || {
+      note: data.reason ? `legacy reason=${data.reason}` : undefined,
+    }
+    ctx.conversations.endConversation(conversationId, {
+      source,
+      initiator: data.initiator as string | undefined,
+      detail,
+    })
+    ctx.log.debug(`Conversation ended: ${conversationId.slice(0, 8)}... (source=${source}, reason=${data.reason})`)
 
     // Ad-hoc conversation completion notification
     if (conversation?.capabilities?.includes('ad-hoc') && conversation.adHocTaskId) {

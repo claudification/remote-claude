@@ -59,6 +59,7 @@ import {
   validateShare as validateShareToken,
 } from './shares'
 import { createStore } from './store'
+import { createTerminationLog, startTerminationLogSweep } from './termination-log'
 import { cleanupVoiceForWs } from './voice-stream'
 
 interface Args {
@@ -371,10 +372,17 @@ async function main() {
   const gatewayRegistry = authCacheDir ? createGatewayRegistry(authCacheDir) : undefined
   if (gatewayRegistry) setGatewayRegistry(gatewayRegistry)
 
+  // Termination log: append-only NDJSON, daily-rotated, 30-day retention.
+  // Every endConversation() call writes one row -- the single source of
+  // truth for "who killed conversation X" investigations.
+  const terminationLog = createTerminationLog(authCacheDir)
+  startTerminationLogSweep(terminationLog)
+
   const conversationStore = createConversationStore({
     cacheDir,
     enablePersistence: !noPersistence,
     store,
+    terminationLog,
     sentinelRegistry,
   })
 
@@ -734,7 +742,11 @@ async function main() {
                 }
                 continue
               }
-              conversationStore.endConversation(cid, 'connection_closed')
+              conversationStore.endConversation(cid, {
+                source: 'ws-close',
+                initiator: 'system:broker',
+                detail: { note: 'Last agent host socket closed without explicit end message' },
+              })
               conversationStore.broadcastConversationUpdate(cid)
               if (verbose) {
                 console.log(`[-] Conversation ended: ${cid.slice(0, 8)}... (connection_closed, last agent host)`)
