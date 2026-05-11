@@ -15,6 +15,7 @@ import { registerJsonStreamHandlers } from './json-stream'
 import { registerPermissionHandlers } from './permissions'
 import { registerPlanApprovalHandlers } from './plan-approval'
 import { registerRclaudeConfigHandlers } from './rclaude-config'
+import { registerRecapHandlers } from './recap'
 import { registerSentinelHandlers } from './sentinel'
 import { registerSpawnHandlers } from './spawn'
 import { registerTerminalHandlers } from './terminal'
@@ -34,6 +35,7 @@ export function registerAllHandlers(): void {
   registerPermissionHandlers()
   registerPlanApprovalHandlers()
   registerRclaudeConfigHandlers()
+  registerRecapHandlers()
   registerConversationLifecycleHandlers()
   registerSpawnHandlers()
   registerTerminalHandlers()
