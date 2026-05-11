@@ -1,10 +1,22 @@
 import type { LaunchProfile } from '@shared/launch-profile'
 import { LAUNCH_PROFILE_MAX_APPEND_SP } from '@shared/launch-profile'
+import type { ComponentProps } from 'react'
 import { LaunchConfigFields, type LaunchFieldsValue } from '@/components/launch-config-fields'
 import { type BackendKind, BackendSelect } from '@/components/spawn-dialog/backend-select'
 import { TogglePill } from '@/components/ui/toggle-pill'
 import { formatShortcut } from '@/lib/commands'
 import { LabeledRow, Section } from './editor-shell'
+
+type LaunchFieldsShow = ComponentProps<typeof LaunchConfigFields>['show']
+
+const DEFAULT_FIELDS_SHOW: LaunchFieldsShow = {
+  model: true,
+  effort: true,
+  permissionMode: true,
+  agent: true,
+  autocompactPct: true,
+  maxBudgetUsd: true,
+}
 
 type PatchProfile = (next: Partial<LaunchProfile>) => void
 
@@ -85,24 +97,15 @@ export function BackendSection({
 export function LaunchFieldsSection({
   value,
   onPatch,
+  show = DEFAULT_FIELDS_SHOW,
 }: {
   value: LaunchFieldsValue
   onPatch: (p: Partial<LaunchFieldsValue>) => void
+  show?: LaunchFieldsShow
 }) {
   return (
     <Section title="Launch fields">
-      <LaunchConfigFields
-        value={value}
-        onChange={onPatch}
-        show={{
-          model: true,
-          effort: true,
-          permissionMode: true,
-          agent: true,
-          autocompactPct: true,
-          maxBudgetUsd: true,
-        }}
-      />
+      <LaunchConfigFields value={value} onChange={onPatch} show={show} />
     </Section>
   )
 }

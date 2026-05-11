@@ -20,8 +20,6 @@ import {
 } from '@/components/spawn-dialog/opencode-models'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
-import { TileToggleRow } from '@/components/ui/tile-toggle-row'
-import { TogglePill } from '@/components/ui/toggle-pill'
 import {
   type ProjectSettingsMap,
   updateProjectSettings,
@@ -565,6 +563,12 @@ export function SpawnDialog() {
     if ('name' in patch) setName(patch.name ?? '')
     if ('description' in patch) setDescription(patch.description ?? '')
     if ('includePartialMessages' in patch) setIncludePartialMessages(patch.includePartialMessages ?? true)
+    if ('headless' in patch) {
+      setHeadless(!!patch.headless)
+      haptic('tap')
+    }
+    if ('bare' in patch) setBare(!!patch.bare)
+    if ('repl' in patch) setRepl(!!patch.repl)
   }
 
   const fieldsValue: LaunchFieldsValue = {
@@ -580,6 +584,9 @@ export function SpawnDialog() {
     envText,
     name,
     description,
+    headless,
+    bare,
+    repl,
   }
 
   return (
@@ -857,37 +864,11 @@ export function SpawnDialog() {
                   <div className="overflow-y-auto flex-1 min-h-0 space-y-4 px-1.5 py-1">
                     {configTab === 'basic' && (
                       <div className="space-y-3">
-                        {/* Mode toggle (dialog-specific: drives headless + keyboard shortcut) */}
-                        <div className="space-y-2">
-                          <div className="text-[11px] font-mono text-muted-foreground uppercase tracking-wide pl-0.5">
-                            Mode
-                          </div>
-                          <div className="flex gap-2">
-                            <TogglePill
-                              active={headless}
-                              onClick={() => {
-                                setHeadless(true)
-                                haptic('tap')
-                              }}
-                              label="Headless"
-                              shortcut="H"
-                            />
-                            <TogglePill
-                              active={!headless}
-                              onClick={() => {
-                                setHeadless(false)
-                                haptic('tap')
-                              }}
-                              label="PTY"
-                              shortcut="P"
-                            />
-                          </div>
-                        </div>
-
                         <LaunchConfigFields
                           value={fieldsValue}
                           onChange={applyFieldsPatch}
-                          show={{ name: true, description: true, model: true, effort: true }}
+                          show={{ headless: true, name: true, description: true, model: true, effort: true }}
+                          headlessShortcutHints
                         />
                       </div>
                     )}
@@ -904,30 +885,10 @@ export function SpawnDialog() {
                             maxBudgetUsd: headless,
                             includePartialMessages: headless,
                             worktree: true,
+                            repl: true,
+                            bare: true,
                           }}
                         />
-
-                        {/* REPL tool toggle (dialog-specific) */}
-                        <TileToggleRow
-                          title="REPL tool"
-                          subtitle="JS sandbox for batched tool calls (CLAUDE_CODE_REPL)"
-                          checked={repl}
-                          onToggle={() => setRepl(!repl)}
-                        />
-
-                        {/* Bare toggle (dialog-specific) */}
-                        <TileToggleRow
-                          title="Bare conversation"
-                          subtitle="Skip hooks, plugins, CLAUDE.md, auto-memory"
-                          checked={bare}
-                          onToggle={() => setBare(!bare)}
-                        />
-                        {bare && (
-                          <div className="text-[10px] font-mono text-amber-400/80 bg-amber-950/20 border border-amber-400/30 rounded px-2 py-1.5 leading-snug">
-                            <span className="font-bold">warning:</span> --bare uses a separate Claude auth cache and may
-                            force a fresh login the first time. Plugins, CLAUDE.md and auto-memory are also disabled.
-                          </div>
-                        )}
 
                         {/* Resume existing CC session */}
                         <ResumeSessionField

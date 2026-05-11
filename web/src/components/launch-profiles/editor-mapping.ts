@@ -9,6 +9,10 @@ export function launchFieldsFromProfile(p: LaunchProfile): LaunchFieldsValue {
     agent: p.spawn.agent ?? '',
     autocompactPct: p.spawn.autocompactPct ?? '',
     maxBudgetUsd: p.spawn.maxBudgetUsd != null ? String(p.spawn.maxBudgetUsd) : '',
+    headless: p.spawn.headless ?? true,
+    bare: p.spawn.bare ?? false,
+    repl: p.spawn.repl ?? false,
+    includePartialMessages: p.spawn.includePartialMessages ?? true,
   }
 }
 
@@ -27,5 +31,9 @@ export function spawnPatchFromLaunchFields(patch: Partial<LaunchFieldsValue>): P
     const n = Number(patch.maxBudgetUsd)
     out.maxBudgetUsd = Number.isFinite(n) && n > 0 ? n : undefined
   }
+  if (patch.headless !== undefined) out.headless = patch.headless
+  if (patch.bare !== undefined) out.bare = patch.bare || undefined
+  if (patch.repl !== undefined) out.repl = patch.repl || undefined
+  if (patch.includePartialMessages !== undefined) out.includePartialMessages = patch.includePartialMessages
   return out
 }

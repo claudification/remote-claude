@@ -38,6 +38,9 @@ type LaunchFieldKey =
   | 'name'
   | 'description'
   | 'env'
+  | 'headless'
+  | 'bare'
+  | 'repl'
 
 export type LaunchFieldsValue = {
   // Subset of SpawnRequest -- parent owns canonical state
@@ -58,6 +61,11 @@ export type LaunchFieldsValue = {
   // Streaming
   includePartialMessages?: boolean
 
+  // Claude runtime (CC-only)
+  headless?: boolean
+  bare?: boolean
+  repl?: boolean
+
   // Prompt-suffix flags (not part of SpawnRequest)
   autoCommit?: boolean
   leaveRunning?: boolean
@@ -71,6 +79,9 @@ type LaunchFieldsProps = {
   onChange: (patch: Partial<LaunchFieldsValue>) => void
   show?: Partial<Record<LaunchFieldKey, boolean>>
   disabled?: Partial<Record<LaunchFieldKey, boolean>>
+  /** Render H/P hints on the headless/PTY pills. Only set when the parent
+   *  actually binds those keys (e.g. spawn-dialog). */
+  headlessShortcutHints?: boolean
 }
 
 /** Tiny row component for label + right-aligned control. Optional subtitle. */
@@ -98,7 +109,13 @@ function Row({
   )
 }
 
-export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }: LaunchFieldsProps) {
+export function LaunchConfigFields({
+  value,
+  onChange,
+  show = {},
+  disabled = {},
+  headlessShortcutHints = false,
+}: LaunchFieldsProps) {
   // Live env validation: recompute errors whenever envText changes so the user
   // sees feedback as they type, rather than only on spawn/run submit.
   const envErrors = useMemo(() => {
@@ -109,6 +126,25 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
 
   return (
     <div className="space-y-3">
+      {show.headless && (
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-mono text-muted-foreground">Mode</div>
+          <div className="flex gap-2">
+            <TogglePill
+              active={value.headless ?? true}
+              onClick={() => onChange({ headless: true })}
+              label="Headless"
+              shortcut={headlessShortcutHints ? 'H' : undefined}
+            />
+            <TogglePill
+              active={!(value.headless ?? true)}
+              onClick={() => onChange({ headless: false })}
+              label="PTY"
+              shortcut={headlessShortcutHints ? 'P' : undefined}
+            />
+          </div>
+        </div>
+      )}
       {show.model && (
         <Row label="Model" subtitle="Claude model version" htmlFor="lcf-model">
           <div className="flex-1 max-w-[220px]">
@@ -327,6 +363,32 @@ export function LaunchConfigFields({ value, onChange, show = {}, disabled = {} }
               placeholder="Branch name..."
               className="w-full text-[10px] font-mono bg-surface-inset border border-primary/20 text-foreground px-2 py-1 outline-none"
             />
+          )}
+        </div>
+      )}
+      {show.repl && (
+        <TileToggleRow
+          title="REPL tool"
+          subtitle="JS sandbox for batched tool calls (CLAUDE_CODE_REPL)"
+          checked={value.repl ?? false}
+          onToggle={() => onChange({ repl: !(value.repl ?? false) })}
+          disabled={disabled.repl}
+        />
+      )}
+      {show.bare && (
+        <div className="space-y-1.5">
+          <TileToggleRow
+            title="Bare conversation"
+            subtitle="Skip hooks, plugins, CLAUDE.md, auto-memory"
+            checked={value.bare ?? false}
+            onToggle={() => onChange({ bare: !(value.bare ?? false) })}
+            disabled={disabled.bare}
+          />
+          {value.bare && (
+            <div className="text-[10px] font-mono text-amber-400/80 bg-amber-950/20 border border-amber-400/30 rounded px-2 py-1.5 leading-snug">
+              <span className="font-bold">warning:</span> --bare uses a separate Claude auth cache and may force a fresh
+              login the first time. Plugins, CLAUDE.md and auto-memory are also disabled.
+            </div>
           )}
         </div>
       )}

@@ -4,9 +4,12 @@
  * Decision tree:
  *   1. Pin check (sentinel reachable, project URI parseable)
  *      -> on failure: emit a "launch blocked" toast and STOP (D3)
- *   2. Resolve cwd: override > profile.project -> path
- *      -> on missing cwd: open the spawn dialog pre-filled so the user
- *         picks a path
+ *   2. Resolve cwd: override.cwd > profile.project -> path
+ *      -> on empty cwd: emit a "launch blocked" toast and STOP.
+ *         A chord/palette launch is supposed to inherit cwd from the
+ *         currently-selected conversation when no pin is set -- if we
+ *         got here with an empty cwd, the caller failed to provide one
+ *         and the user should report it.
  *   3. Immediate (default true, D2):
  *      -> sendSpawnRequest with the profile's spawn fields
  *      -> on success: showLaunchToast(conversationId)
@@ -60,7 +63,12 @@ export async function runProfile(
 
   const cwd = override.cwd ?? pin.cwd
   if (!cwd) {
-    openSpawnDialog({ path: '', sentinel: pin.sentinel, projectUri: profile.project })
+    emit(deps, {
+      variant: 'blocked',
+      title: `Launch blocked: ${profile.name}`,
+      body: 'No working directory resolved. Pin a project on the profile, or open a conversation first so the launcher can inherit its cwd. (If you triggered this from a chord with a conversation selected, please report a bug.)',
+      profileId: profile.id,
+    })
     return
   }
 
