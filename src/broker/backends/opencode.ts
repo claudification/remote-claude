@@ -150,7 +150,7 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
   const projSettings = deps.getProjectSettings(project)
   const toolPermission = normalizeTier(req.toolPermission ?? projSettings?.defaultOpenCodeToolPermission)
 
-  const sessionName =
+  const conversationName =
     deriveConversationName(req) ??
     generateConversationName(
       new Set(
@@ -220,8 +220,8 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
           mkdir: req.mkdir || false,
           mode: req.mode || 'fresh',
           model: resolvedModel,
-          sessionName,
-          sessionDescription: req.description || undefined,
+          conversationName,
+          conversationDescription: req.description || undefined,
           prompt: req.prompt || undefined,
           worktree: req.worktree || undefined,
           env: req.env || undefined,
@@ -274,7 +274,7 @@ async function spawnOpenCode(req: SpawnRequest, deps: SpawnDeps): Promise<SpawnR
     [META_TOOL_PERMISSION]: toolPermission,
   }
   conv.project = project
-  conv.title = req.name || sessionName
+  conv.title = req.name || conversationName
   if (req.description) conv.description = req.description
   deps.conversationStore.persistConversationById(conversationId)
 

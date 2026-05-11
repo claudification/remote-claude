@@ -335,12 +335,12 @@ async function main() {
   const resolvedConversationName = process.env.CLAUDWERK_CONVERSATION_NAME || extractClaudeArgsName(cli.claudeArgs)
   debug(`Session name: ${resolvedConversationName || '(none)'} (user=${!!process.env.CLAUDWERK_CONVERSATION_NAME})`)
 
-  const sessionDescription = process.env.CLAUDWERK_CONVERSATION_DESCRIPTION || undefined
+  const conversationDescription = process.env.CLAUDWERK_CONVERSATION_DESCRIPTION || undefined
   ctx.pendingConversationName = resolvedConversationName
     ? {
         name: resolvedConversationName,
         userSet: !!process.env.CLAUDWERK_CONVERSATION_NAME,
-        description: sessionDescription,
+        description: conversationDescription,
       }
     : undefined
   if (resolvedConversationName && ctx.wsClient?.isConnected()) {
@@ -349,7 +349,7 @@ async function main() {
       conversationId: ctx.claudeSessionId || conversationId,
       name: resolvedConversationName,
       userSet: !!process.env.CLAUDWERK_CONVERSATION_NAME,
-      description: sessionDescription,
+      description: conversationDescription,
     } as AgentHostMessage)
     ctx.pendingConversationName = undefined
   }

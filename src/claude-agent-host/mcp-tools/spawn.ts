@@ -15,12 +15,12 @@ function buildSpawnToolInputSchema(): {
         .enum(['spawn', 'revive', 'restart'])
         .optional()
         .describe(
-          'Action to perform. "spawn" = new session at cwd, "revive" = bring back an ended session, "restart" = terminate + auto-revive. Default: spawn.',
+          'Action to perform. "spawn" = new conversation at cwd, "revive" = bring back an ended conversation, "restart" = terminate + auto-revive. Default: spawn.',
         ),
-      session_id: z
+      conversation_id: z
         .string()
         .optional()
-        .describe('Target session ID from list_conversations. Required for revive and restart actions.'),
+        .describe('Target conversation ID from list_conversations. Required for revive and restart actions.'),
       resume_id: z.string().optional().describe('Claude Code session ID to resume (alias for resumeId).'),
       host: z.string().optional().describe('Target sentinel alias (from list_hosts). Maps to sentinel field.'),
     })
@@ -36,9 +36,9 @@ export function registerSpawnTools(ctx: McpToolContext): Record<string, ToolDef>
   const spawnToolInputSchema = buildSpawnToolInputSchema()
 
   return {
-    spawn_session: {
+    spawn_conversation: {
       description:
-        'Unified session lifecycle tool. Spawn new sessions, revive ended ones, or restart active sessions (terminate + auto-revive). Requires benevolent trust level. Sessions boot in tmux on the host - takes 10-30 seconds. Use list_conversations to poll for status.\n\nWhen spawning: ALWAYS provide a short `description` (1-2 sentences) explaining what the session will do. This is shown in the dashboard and helps the user understand each session at a glance. Also provide a `name` when you have a meaningful label.\n\nActions:\n- spawn (default): Start a new session at a directory\n- revive: Bring back an ended/inactive session\n- restart: Terminate an active session and automatically revive it. For self-restart, the MCP response may not arrive (your process dies and reboots).',
+        'Unified conversation lifecycle tool. Spawn new conversations, revive ended ones, or restart active ones (terminate + auto-revive). Requires benevolent trust level. Conversations boot in tmux on the host - takes 10-30 seconds. Use list_conversations to poll for status.\n\nWhen spawning: ALWAYS provide a short `description` (1-2 sentences) explaining what the conversation will do. This is shown in the control panel and helps the user understand each conversation at a glance. Also provide a `name` when you have a meaningful label.\n\nActions:\n- spawn (default): Start a new conversation at a directory\n- revive: Bring back an ended/inactive conversation\n- restart: Terminate an active conversation and automatically revive it. For self-restart, the MCP response may not arrive (your process dies and reboots).',
       inputSchema: spawnToolInputSchema,
       async handle(params, toolCtx) {
         const action = (params.action as 'spawn' | 'revive' | 'restart') || 'spawn'
@@ -48,76 +48,47 @@ export function registerSpawnTools(ctx: McpToolContext): Record<string, ToolDef>
         return handleSpawn(ctx, params, toolCtx)
       },
     },
-
-    revive_session: {
-      description: 'Legacy alias for spawn_session with action=revive. Prefer spawn_session.',
-      hidden: true,
-      inputSchema: {
-        type: 'object' as const,
-        properties: {
-          session_id: { type: 'string', description: 'Target session ID from list_conversations' },
-        },
-        required: ['session_id'],
-      },
-      async handle(params) {
-        const targetConversationId = params.session_id
-        if (!targetConversationId)
-          return { content: [{ type: 'text', text: 'Error: session_id is required' }], isError: true }
-        const result = await ctx.callbacks.onReviveConversation?.(targetConversationId)
-        if (!result?.ok) {
-          return { content: [{ type: 'text', text: result?.error || 'Failed to revive session' }], isError: true }
-        }
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Reviving session ${result.name || targetConversationId.slice(0, 8)}. Use list_conversations to check when ready.`,
-            },
-          ],
-        }
-      },
-    },
   }
 }
 
 async function handleRevive(ctx: McpToolContext, params: Record<string, string>) {
-  const targetConversationId = params.session_id
+  const targetConversationId = params.conversation_id
   if (!targetConversationId)
-    return { content: [{ type: 'text', text: 'Error: session_id is required for revive' }], isError: true }
+    return { content: [{ type: 'text', text: 'Error: conversation_id is required for revive' }], isError: true }
   const result = await ctx.callbacks.onReviveConversation?.(targetConversationId)
   if (!result?.ok) {
-    debug(`[channel] spawn_session(revive) failed: ${result?.error}`)
-    return { content: [{ type: 'text', text: result?.error || 'Failed to revive session' }], isError: true }
+    debug(`[channel] spawn_conversation(revive) failed: ${result?.error}`)
+    return { content: [{ type: 'text', text: result?.error || 'Failed to revive conversation' }], isError: true }
   }
-  debug(`[channel] spawn_session(revive): ${targetConversationId.slice(0, 8)} (${result.name})`)
+  debug(`[channel] spawn_conversation(revive): ${targetConversationId.slice(0, 8)} (${result.name})`)
   return {
     content: [
       {
         type: 'text',
-        text: `Reviving session ${result.name || targetConversationId.slice(0, 8)}. This is async - the session takes 10-30 seconds to start. Use list_conversations to check when status changes to "live".`,
+        text: `Reviving conversation ${result.name || targetConversationId.slice(0, 8)}. This is async - the conversation takes 10-30 seconds to start. Use list_conversations to check when status changes to "live".`,
       },
     ],
   }
 }
 
 async function handleRestart(ctx: McpToolContext, params: Record<string, string>) {
-  const targetConversationId = params.session_id
+  const targetConversationId = params.conversation_id
   if (!targetConversationId)
-    return { content: [{ type: 'text', text: 'Error: session_id is required for restart' }], isError: true }
+    return { content: [{ type: 'text', text: 'Error: conversation_id is required for restart' }], isError: true }
   const result = await ctx.callbacks.onRestartConversation?.(targetConversationId)
   if (!result?.ok) {
-    debug(`[channel] spawn_session(restart) failed: ${result?.error}`)
-    return { content: [{ type: 'text', text: result?.error || 'Failed to restart session' }], isError: true }
+    debug(`[channel] spawn_conversation(restart) failed: ${result?.error}`)
+    return { content: [{ type: 'text', text: result?.error || 'Failed to restart conversation' }], isError: true }
   }
   debug(
-    `[channel] spawn_session(restart): ${targetConversationId.slice(0, 8)} (${result.name}) self=${result.selfRestart}`,
+    `[channel] spawn_conversation(restart): ${targetConversationId.slice(0, 8)} (${result.name}) self=${result.selfRestart}`,
   )
   if (result.selfRestart) {
     return {
       content: [
         {
           type: 'text',
-          text: `Self-restart initiated for ${result.name || targetConversationId.slice(0, 8)}. This session will terminate and automatically revive. You may not receive this response.`,
+          text: `Self-restart initiated for ${result.name || targetConversationId.slice(0, 8)}. This conversation will terminate and automatically revive. You may not receive this response.`,
         },
       ],
     }
@@ -127,7 +98,7 @@ async function handleRestart(ctx: McpToolContext, params: Record<string, string>
       content: [
         {
           type: 'text',
-          text: `Session ${result.name || targetConversationId.slice(0, 8)} was already ended - reviving instead. Use list_conversations to check when ready.`,
+          text: `Conversation ${result.name || targetConversationId.slice(0, 8)} was already ended - reviving instead. Use list_conversations to check when ready.`,
         },
       ],
     }
@@ -136,7 +107,7 @@ async function handleRestart(ctx: McpToolContext, params: Record<string, string>
     content: [
       {
         type: 'text',
-        text: `Restarting session ${result.name || targetConversationId.slice(0, 8)}. The session will terminate and automatically revive. Use list_conversations to check when ready (10-30 seconds).`,
+        text: `Restarting conversation ${result.name || targetConversationId.slice(0, 8)}. The conversation will terminate and automatically revive. Use list_conversations to check when ready (10-30 seconds).`,
       },
     ],
   }
@@ -179,30 +150,32 @@ async function handleSpawn(
         error?: string
         conversationId?: string
         jobId?: string
-        session?: Record<string, unknown>
+        conversation?: Record<string, unknown>
         timedOut?: boolean
       }
     | undefined
   if (!result?.ok) {
-    debug(`[channel] spawn_session failed: ${result?.error}`)
-    return { content: [{ type: 'text', text: result?.error || 'Failed to spawn session' }], isError: true }
+    debug(`[channel] spawn_conversation failed: ${result?.error}`)
+    return { content: [{ type: 'text', text: result?.error || 'Failed to spawn conversation' }], isError: true }
   }
   const modeDesc = mode === 'resume' ? `resuming ${resumeId}` : 'fresh start'
-  debug(`[channel] spawn_session: ${cwd} (${modeDesc}) session=${result.session ? 'ready' : 'pending'}`)
+  debug(
+    `[channel] spawn_conversation: ${cwd} (${modeDesc}) conversation=${result.conversation ? 'ready' : 'pending'}`,
+  )
 
-  if (result.session) {
-    const sessionObj = result.session as Record<string, unknown>
-    const mismatch = sessionObj.modelMismatch as { requested: string; actual: string; detectedAt: number } | undefined
+  if (result.conversation) {
+    const convObj = result.conversation as Record<string, unknown>
+    const mismatch = convObj.modelMismatch as { requested: string; actual: string; detectedAt: number } | undefined
     const responsePayload: Record<string, unknown> = {
       status: 'ready',
-      message: `Session spawned and connected at ${cwd} (${modeDesc})`,
-      session_id: sessionObj.id,
-      session: result.session,
+      message: `Conversation spawned and connected at ${cwd} (${modeDesc})`,
+      conversation_id: convObj.id,
+      conversation: result.conversation,
       jobId: result.jobId,
       conversationId: result.conversationId,
     }
     if (mismatch) {
-      responsePayload.modelWarning = `Requested model ${mismatch.requested} but session is running ${mismatch.actual}`
+      responsePayload.modelWarning = `Requested model ${mismatch.requested} but conversation is running ${mismatch.actual}`
       responsePayload.modelMismatch = mismatch
     }
     return {
@@ -222,8 +195,8 @@ async function handleSpawn(
       {
         type: 'text',
         text: result.timedOut
-          ? `Session spawn sent to ${cwd} (${modeDesc}) but session did not connect within the rendezvous timeout. It may still be booting - use list_conversations (it will show status="spawning" until the agent host connects) or get_spawn_diagnostics to check.${trailer}`
-          : `Session spawning at ${cwd} (${modeDesc}). It appears in list_conversations with status="spawning" until the agent host connects. Use get_spawn_diagnostics to debug if it never becomes live.${trailer}`,
+          ? `Conversation spawn sent to ${cwd} (${modeDesc}) but conversation did not connect within the rendezvous timeout. It may still be booting - use list_conversations (it will show status="spawning" until the agent host connects) or get_spawn_diagnostics to check.${trailer}`
+          : `Conversation spawning at ${cwd} (${modeDesc}). It appears in list_conversations with status="spawning" until the agent host connects. Use get_spawn_diagnostics to debug if it never becomes live.${trailer}`,
       },
     ],
   }
@@ -244,7 +217,7 @@ function buildProgressHandler(toolCtx: {
     spawn_sent: 15,
     agent_acked: 30,
     agent_host_booted: 60,
-    session_connected: 95,
+    conversation_connected: 95,
     completed: 100,
   }
 
@@ -257,7 +230,7 @@ function buildProgressHandler(toolCtx: {
     let message = step || type
     if (type === 'job_complete') {
       progress = 100
-      message = 'Session connected'
+      message = 'Conversation connected'
     } else if (type === 'job_failed') {
       progress = 100
       message = `Failed: ${typeof event.error === 'string' ? event.error : 'unknown'}`

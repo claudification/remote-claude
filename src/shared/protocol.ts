@@ -11,17 +11,26 @@ export type { LaunchProfile } from './launch-profile'
  * Wire protocol version.
  *
  * Bumped to 2 on 2026-05-04 with the session->conversation rename. Old
- * agent hosts (v1) sent `sessionId` where v2 expects `ccSessionId`. The
- * broker rejects any meta/wrapper_boot with a missing or older version
- * field, replies with a `protocol_upgrade_required` message naming the
- * current version + a copy-pastable upgrade command, and broadcasts an
+ * agent hosts (v1) sent `sessionId` where v2 expects `ccSessionId`.
+ *
+ * Bumped to 3 on 2026-05-11 with the second-wave session->conversation
+ * purge: InterSession* -> InterConversation*, targetSession/fromSession ->
+ * targetConversation/fromConversation, session_connected launch step ->
+ * conversation_connected, sessionName/sessionDescription ->
+ * conversationName/conversationDescription, channel XML wire
+ * `from_session` -> `from_conversation`, MCP tool catalog rename
+ * (spawn_session etc), and HTTP header X-Session-Id -> X-Conversation-Id.
+ *
+ * The broker rejects any meta/agent_host_boot with a missing or older
+ * version field, replies with a `protocol_upgrade_required` message naming
+ * the current version + a copy-pastable upgrade command, and broadcasts an
  * `agent_host_outdated` toast so dashboards can surface the issue.
  *
  * Bump this any time a wire-level breaking change ships -- field renames,
  * removals, or incompatible value changes. The broker assumes the latest
  * version it knows about; any client below it gets rejected.
  */
-export const AGENT_HOST_PROTOCOL_VERSION = 2
+export const AGENT_HOST_PROTOCOL_VERSION = 3
 
 // Control Panel -> Broker: spawn request (WS equivalent of POST /api/spawn)
 export type SpawnRequestMessage = { type: 'spawn_request' } & SpawnRequest
@@ -558,9 +567,9 @@ export type AgentHostMessage =
   | FileResponse
   | BgTaskOutput
   | AgentHostNotify
-  | InterSessionMessage
+  | InterConversationMessage
   | ProjectLinkResponse
-  | InterSessionListRequest
+  | InterConversationListRequest
   | PermissionRequest
   | AskQuestionRequest
   | ClipboardCapture
@@ -750,7 +759,7 @@ export interface TranscriptKick {
   conversationId: string
 }
 
-// Persistent inter-session link (project-pair based, survives restarts)
+// Persistent inter-conversation link (project-pair based, survives restarts)
 export interface LinkSummary {
   projectA: string
   projectB: string
@@ -758,29 +767,27 @@ export interface LinkSummary {
   nameB: string
   createdAt: number
   lastUsed: number
-  online: boolean // true if both CWDs have active sessions
-  ccSessionIdA?: string
-  ccSessionIdB?: string
+  online: boolean // true if both CWDs have active conversations
 }
 
-// Inter-session messaging (channel-enabled sessions only)
-export type InterSessionIntent = 'request' | 'response' | 'notify' | 'progress'
+// Inter-conversation messaging (channel-enabled conversations only)
+export type InterConversationIntent = 'request' | 'response' | 'notify' | 'progress'
 
-export interface InterSessionMessage {
+export interface InterConversationMessage {
   type: 'channel_send'
-  fromSession: string
-  toSession: string
-  intent: InterSessionIntent
+  fromConversation: string
+  toConversation: string
+  intent: InterConversationIntent
   message: string
   context?: string
   conversationId?: string
 }
 
-export interface InterSessionDelivery {
+export interface InterConversationDelivery {
   type: 'channel_deliver'
-  fromSession: string
+  fromConversation: string
   fromProject: string
-  intent: InterSessionIntent
+  intent: InterConversationIntent
   message: string
   context?: string
   conversationId?: string
@@ -788,7 +795,7 @@ export interface InterSessionDelivery {
 
 export interface ProjectLinkRequest {
   type: 'channel_link_request'
-  fromSession: string
+  fromConversation: string
   fromProject: string
 }
 
@@ -798,7 +805,7 @@ export interface ProjectLinkResponse {
   action: 'approve' | 'block'
 }
 
-export interface InterSessionListRequest {
+export interface InterConversationListRequest {
   type: 'channel_list_conversations'
   status?: 'live' | 'inactive' | 'all'
 }
@@ -948,7 +955,7 @@ export type BrokerMessage =
   | SubagentTranscriptRequest
   | FileRequest
   | TranscriptKick
-  | InterSessionDelivery
+  | InterConversationDelivery
   | ProjectLinkRequest
   | InterConversationListResponse
   | SendInterrupt
@@ -1002,9 +1009,9 @@ export type ConversationControlAction =
 
 export interface ConversationControl {
   type: 'conversation_control'
-  targetSession: string
+  targetConversation: string
   action: ConversationControlAction
-  fromSession?: string
+  fromConversation?: string
   model?: string // required when action === 'set_model'
   effort?: string // required when action === 'set_effort' (low|medium|high|xhigh|max|auto)
   permissionMode?: string // required when action === 'set_permission_mode'
@@ -1025,7 +1032,7 @@ export interface ControlDeliver {
   model?: string
   effort?: string
   permissionMode?: string
-  fromSession?: string
+  fromConversation?: string
 }
 
 // Hook event types from Claude Code
@@ -1618,7 +1625,7 @@ export type LaunchStep =
   | 'spawn_sent'
   | 'agent_acked'
   | 'agent_host_booted'
-  | 'session_connected'
+  | 'conversation_connected'
   | 'prompt_submitted'
   | 'running'
   | 'completed'
@@ -1706,7 +1713,7 @@ export interface CcSessionEntry {
 export interface ListCcSessionsResult {
   type: 'list_cc_sessions_result'
   requestId: string
-  sessions: CcSessionEntry[]
+  ccSessions: CcSessionEntry[]
   error?: string
 }
 
@@ -1790,7 +1797,7 @@ export interface ReviveConversation {
   ccSessionId: string // CC session ID to resume (--resume)
   jobId?: string
   // Conversation metadata
-  sessionName?: string
+  conversationName?: string
   // Launch config
   mode?: 'fresh' | 'resume'
   headless?: boolean
@@ -1826,8 +1833,8 @@ export interface SpawnConversation {
   project?: string
   jobId?: string
   // Conversation metadata
-  sessionName?: string
-  sessionDescription?: string
+  conversationName?: string
+  conversationDescription?: string
   // Launch config
   mkdir?: boolean
   mode?: 'fresh' | 'resume'

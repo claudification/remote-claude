@@ -68,19 +68,19 @@ export interface McpChannelCallbacks {
   onListConversations?: (
     status?: string,
     showMetadata?: boolean,
-  ) => Promise<{ sessions: ConversationInfo[]; self?: Record<string, unknown> }>
+  ) => Promise<{ conversations: ConversationInfo[]; self?: Record<string, unknown> }>
   onSendMessage?: (
     to: string,
     intent: string,
     message: string,
     context?: string,
     conversationId?: string,
-  ) => Promise<{ ok: boolean; error?: string; conversationId?: string; targetSessionId?: string }>
+  ) => Promise<{ ok: boolean; error?: string; conversationId?: string; targetConversationId?: string }>
   onPermissionRequest?: (data: PermissionRequestData) => void
   onDisconnect?: () => void
   onTogglePlanMode?: () => void
   onReviveConversation?: (conversationId: string) => Promise<{ ok: boolean; error?: string; name?: string }>
-  onControlSession?: (params: {
+  onControlConversation?: (params: {
     conversationId: string
     action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode'
     model?: string

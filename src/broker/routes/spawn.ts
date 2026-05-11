@@ -131,7 +131,7 @@ export function createSpawnRouter(conversationStore: ConversationStore, helpers:
     })
 
     if (result.error) return c.json({ error: result.error }, 400)
-    return c.json({ cwd, sessions: result.sessions })
+    return c.json({ cwd, ccSessions: result.ccSessions })
   })
 
   return app

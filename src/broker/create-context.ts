@@ -41,7 +41,7 @@ export interface ContextDeps {
     ): void
     drain(
       targetProject: string,
-      sessionName?: string,
+      conversationName?: string,
     ): Array<{
       ts: number
       senderProject: string

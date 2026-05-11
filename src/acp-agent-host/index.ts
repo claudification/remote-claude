@@ -369,7 +369,9 @@ async function main() {
 
   function handleControl(msg: ControlDeliver) {
     const { action, model, effort, permissionMode } = msg
-    const source = msg.fromSession ? `inter-session:${msg.fromSession.slice(0, 8)}` : 'control-channel'
+    const source = msg.fromConversation
+      ? `inter-conversation:${msg.fromConversation.slice(0, 8)}`
+      : 'control-channel'
     switch (action) {
       case 'clear': {
         log(`clear requested (${source}) -- creating new session`)

@@ -371,7 +371,9 @@ export function connectToBroker(ctx: AgentHostContext, deps: BrokerConnectionDep
       executeControl(ctx, 'interrupt', { source: 'dashboard-interrupt' })
     },
     onControl(action, args) {
-      const source = args.fromSession ? `inter-session:${args.fromSession.slice(0, 8)}` : 'control-channel'
+      const source = args.fromConversation
+        ? `inter-conversation:${args.fromConversation.slice(0, 8)}`
+        : 'control-channel'
       const ok = executeControl(ctx, action, {
         model: args.model,
         effort: args.effort,
@@ -605,12 +607,12 @@ async function retryTranscriptWatcher(ctx: AgentHostContext, path: string) {
 function handleChannelDeliver(
   ctx: AgentHostContext,
   deps: BrokerConnectionDeps,
-  delivery: import('../shared/protocol').InterSessionDelivery,
+  delivery: import('../shared/protocol').InterConversationDelivery,
 ) {
   if (deps.headless && ctx.streamProc) {
     const attrs = [
-      `sender="session"`,
-      `from_session="${delivery.fromSession}"`,
+      `sender="conversation"`,
+      `from_conversation="${delivery.fromConversation}"`,
       `from_project="${delivery.fromProject}"`,
       `intent="${delivery.intent}"`,
       ...(delivery.conversationId ? [`conversation_id="${delivery.conversationId}"`] : []),
@@ -620,8 +622,8 @@ function handleChannelDeliver(
     ctx.diag('headless', `Channel from ${delivery.fromProject}: ${delivery.message.slice(0, 60)}`)
   } else if (deps.channelEnabled && isMcpChannelReady()) {
     const meta: Record<string, string> = {
-      sender: 'session',
-      from_session: delivery.fromSession,
+      sender: 'conversation',
+      from_conversation: delivery.fromConversation,
       from_project: delivery.fromProject,
       intent: delivery.intent,
     }

@@ -18,8 +18,8 @@ import type {
   ConversationReset,
   FileResponse,
   HookEvent,
+  InterConversationDelivery,
   InterConversationListResponse,
-  InterSessionDelivery,
   LaunchConfig,
   ProjectLinkRequest,
   SubagentTranscript,
@@ -80,7 +80,7 @@ export interface WsClientOptions {
     self?: InterConversationListResponse['self'],
   ) => void
   onChannelSendResult?: (result: unknown) => void
-  onChannelDeliver?: (delivery: InterSessionDelivery) => void
+  onChannelDeliver?: (delivery: InterConversationDelivery) => void
   onChannelLinkRequest?: (request: ProjectLinkRequest) => void
   onPermissionResponse?: (requestId: string, behavior: 'allow' | 'deny', toolUseId?: string) => void
   onPermissionRule?: (toolName: string, behavior: 'allow' | 'deny') => void
@@ -134,7 +134,7 @@ export interface WsClientOptions {
    */
   onControl?: (
     action: 'clear' | 'quit' | 'interrupt' | 'set_model' | 'set_effort' | 'set_permission_mode',
-    args: { model?: string; effort?: string; permissionMode?: string; fromSession?: string },
+    args: { model?: string; effort?: string; permissionMode?: string; fromConversation?: string },
   ) => void
   /** Optional sink for structured diagnostics from inside the ws client.
    *  Wired to ctx.diag by index.ts so the dashboard's diag endpoint can
@@ -408,7 +408,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
             model: typeof message.model === 'string' ? message.model : undefined,
             effort: typeof message.effort === 'string' ? message.effort : undefined,
             permissionMode: typeof message.permissionMode === 'string' ? message.permissionMode : undefined,
-            fromSession: typeof message.fromSession === 'string' ? message.fromSession : undefined,
+            fromConversation:
+              typeof message.fromConversation === 'string' ? message.fromConversation : undefined,
           })
         } else {
           debug(`control: unknown action "${String(action)}"`)
@@ -478,7 +479,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
           onChannelConfigureResult?.(message as unknown as { ok: boolean; error?: string })
           break
         }
-        if (msgType === 'rename_session_result') {
+        if (msgType === 'rename_conversation_result') {
           onChannelRenameResult?.(message as unknown as { ok: boolean; error?: string })
           break
         }

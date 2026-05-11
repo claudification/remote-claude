@@ -5,7 +5,7 @@ export function registerHostTools(ctx: McpToolContext): Record<string, ToolDef> 
   return {
     list_hosts: {
       description:
-        'List connected sentinel hosts. Each sentinel is a machine that can spawn sessions. Use the alias as the `host` parameter in spawn_session to target a specific machine.',
+        'List connected sentinel hosts. Each sentinel is a machine that can spawn conversations. Use the alias as the `host` parameter in spawn_conversation to target a specific machine.',
       inputSchema: { type: 'object' as const, properties: {} },
       async handle() {
         const result = (await ctx.callbacks.onListHosts?.()) || []
@@ -16,13 +16,13 @@ export function registerHostTools(ctx: McpToolContext): Record<string, ToolDef> 
 
     get_spawn_diagnostics: {
       description:
-        'Fetch a diagnostic snapshot for a spawn job by jobId. Returns the resolved config, the full event timeline (job_created, spawn_sent, agent_acked, wrapper_booted, session_connected, job_complete/job_failed), and any error. Use this to debug spawn failures after spawn_session returned a conversationId but the session never connected. Jobs expire ~5 minutes after creation. The jobId is returned in every spawn_session response.',
+        'Fetch a diagnostic snapshot for a spawn job by jobId. Returns the resolved config, the full event timeline (job_created, spawn_sent, agent_acked, agent_host_booted, conversation_connected, job_complete/job_failed), and any error. Use this to debug spawn failures after spawn_conversation returned a conversationId but the conversation never connected. Jobs expire ~5 minutes after creation. The jobId is returned in every spawn_conversation response.',
       inputSchema: {
         type: 'object' as const,
         properties: {
           jobId: {
             type: 'string',
-            description: 'The jobId returned by a prior spawn_session call (or any spawn dispatch).',
+            description: 'The jobId returned by a prior spawn_conversation call (or any spawn dispatch).',
           },
           job_id: {
             type: 'string',

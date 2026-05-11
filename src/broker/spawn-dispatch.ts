@@ -288,7 +288,7 @@ async function dispatchClaudeSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): 
           model,
           bare: bare || false,
           repl: repl || false,
-          sessionName:
+          conversationName:
             deriveConversationName(req) ??
             generateConversationName(
               new Set(
@@ -298,7 +298,7 @@ async function dispatchClaudeSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): 
                   .filter(Boolean) as string[],
               ),
             ),
-          sessionDescription: req.description || undefined,
+          conversationDescription: req.description || undefined,
           agent,
           permissionMode,
           autocompactPct,
@@ -346,7 +346,7 @@ async function dispatchClaudeSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): 
     deps.conversationStore
       .addRendezvous(conversationId, callerConversationId, project, 'spawn')
       .then(conv => {
-        emitProgress(deps.conversationStore, jobId, 'session_connected', 'done', {
+        emitProgress(deps.conversationStore, jobId, 'conversation_connected', 'done', {
           ccSessionId: (conv.agentHostMeta?.ccSessionId as string) || conv.id,
           conversationId,
         })

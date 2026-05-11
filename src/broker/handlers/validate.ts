@@ -158,8 +158,10 @@ export function requireProtocolVersion(ctx: HandlerContext, data: MessageData, t
     reason,
     upgradeCommand: UPGRADE_COMMAND,
     details:
-      'The session->conversation rename (2026-05-04) renamed every wire field carrying a session id. ' +
-      'Old field names like "sessionId" are no longer accepted. Upgrade to pick up the new protocol.',
+      'The session->conversation purge (2026-05-11, v3) renamed InterSession* types, ' +
+      'targetSession/fromSession fields, the session_connected launch step, ' +
+      'sessionName/sessionDescription, channel from_session XML, MCP tool catalog ' +
+      '(spawn_session etc.), and the X-Session-Id HTTP header. Old binaries cannot speak v3.',
   })
 
   // Broadcast to all dashboard subscribers so users see the issue even when

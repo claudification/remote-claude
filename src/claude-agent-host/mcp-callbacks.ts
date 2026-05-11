@@ -85,13 +85,13 @@ export function buildMcpCallbacksWithRules(
     },
 
     async onListConversations(status, showMetadata) {
-      if (!ctx.wsClient?.isConnected()) return { sessions: [] }
+      if (!ctx.wsClient?.isConnected()) return { conversations: [] }
       return new Promise(resolve => {
-        const timeout = setTimeout(() => resolve({ sessions: [] }), 5000)
-        pending.pendingListConversations = (sessions, self) => {
+        const timeout = setTimeout(() => resolve({ conversations: [] }), 5000)
+        pending.pendingListConversations = (conversations, self) => {
           clearTimeout(timeout)
           pending.pendingListConversations = null
-          resolve({ sessions, self })
+          resolve({ conversations, self })
         }
         ctx.wsClient?.send({
           type: 'channel_list_conversations',
@@ -112,8 +112,8 @@ export function buildMcpCallbacksWithRules(
         }
         ctx.wsClient?.send({
           type: 'channel_send',
-          fromSession: ctx.claudeSessionId || deps.conversationId,
-          toSession: to,
+          fromConversation: ctx.claudeSessionId || deps.conversationId,
+          toConversation: to,
           intent,
           message,
           context,
@@ -286,7 +286,7 @@ export function buildMcpCallbacksWithRules(
       })
     },
 
-    async onControlSession({ conversationId: targetConversationId, action, model, effort }) {
+    async onControlConversation({ conversationId: targetConversationId, action, model, effort }) {
       if (!ctx.wsClient?.isConnected()) return { ok: false, error: 'Not connected to broker' }
       return new Promise(resolve => {
         const timeout = setTimeout(
@@ -300,11 +300,11 @@ export function buildMcpCallbacksWithRules(
         }
         ctx.wsClient?.send({
           type: 'conversation_control',
-          targetSession: targetConversationId,
+          targetConversation: targetConversationId,
           action,
           ...(model && { model }),
           ...(effort && { effort }),
-          fromSession: ctx.claudeSessionId || deps.conversationId,
+          fromConversation: ctx.claudeSessionId || deps.conversationId,
         } as unknown as AgentHostMessage)
       })
     },

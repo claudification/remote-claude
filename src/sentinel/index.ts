@@ -198,13 +198,13 @@ function ccTranscriptExists(ccSessionId: string, cwd: string): boolean {
   return existsSync(transcriptPath)
 }
 
-function listCcSessions(cwd: string): ListCcSessionsResult['sessions'] {
+function listCcSessions(cwd: string): ListCcSessionsResult['ccSessions'] {
   const home = process.env.HOME || '/root'
   const mangledCwd = cwd.replace(/\//g, '-')
   const projectDir = join(home, '.claude', 'projects', mangledCwd)
   if (!existsSync(projectDir)) return []
 
-  const entries: ListCcSessionsResult['sessions'] = []
+  const entries: ListCcSessionsResult['ccSessions'] = []
   for (const file of readdirSync(projectDir)) {
     if (!file.endsWith('.jsonl')) continue
     const ccSessionId = file.slice(0, -6)
@@ -332,8 +332,8 @@ function buildHeadlessEnv(opts: {
   secret: string
   conversationId: string
   ccSessionId?: string
-  sessionName?: string
-  sessionDescription?: string
+  conversationName?: string
+  conversationDescription?: string
   permissionMode?: string
   autocompactPct?: number
   maxBudgetUsd?: number
@@ -361,8 +361,8 @@ function buildHeadlessEnv(opts: {
 
   // Optional
   if (opts.ccSessionId) env.RCLAUDE_SESSION_ID = opts.ccSessionId
-  if (opts.sessionName) env.CLAUDWERK_CONVERSATION_NAME = opts.sessionName
-  if (opts.sessionDescription) env.CLAUDWERK_CONVERSATION_DESCRIPTION = opts.sessionDescription
+  if (opts.conversationName) env.CLAUDWERK_CONVERSATION_NAME = opts.conversationName
+  if (opts.conversationDescription) env.CLAUDWERK_CONVERSATION_DESCRIPTION = opts.conversationDescription
   if (opts.permissionMode) env.RCLAUDE_PERMISSION_MODE = opts.permissionMode
   if (opts.autocompactPct) env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(opts.autocompactPct)
   if (opts.bare) env.RCLAUDE_BARE = '1'
@@ -516,8 +516,8 @@ function spawnOpenCodeHostDirect(opts: {
   secret: string
   jobId?: string
   model?: string
-  sessionName?: string
-  sessionDescription?: string
+  conversationName?: string
+  conversationDescription?: string
   promptFile?: string
   env?: Record<string, string>
   toolPermission?: string
@@ -531,8 +531,8 @@ function spawnOpenCodeHostDirect(opts: {
   env.RCLAUDE_CONVERSATION_ID = opts.conversationId
   env.RCLAUDE_HEADLESS = '1'
   if (opts.model) env.OPENCODE_MODEL = opts.model
-  if (opts.sessionName) env.CLAUDWERK_CONVERSATION_NAME = opts.sessionName
-  if (opts.sessionDescription) env.CLAUDWERK_CONVERSATION_DESCRIPTION = opts.sessionDescription
+  if (opts.conversationName) env.CLAUDWERK_CONVERSATION_NAME = opts.conversationName
+  if (opts.conversationDescription) env.CLAUDWERK_CONVERSATION_DESCRIPTION = opts.conversationDescription
   if (opts.promptFile) env.RCLAUDE_INITIAL_PROMPT_FILE = opts.promptFile
   if (opts.toolPermission) env.OPENCODE_TOOL_PERMISSION = opts.toolPermission
   // Provider credentials forwarded transparently from the sentinel's env
@@ -616,8 +616,8 @@ function spawnAcpHostDirect(opts: {
   jobId?: string
   acpAgent: string
   model?: string
-  sessionName?: string
-  sessionDescription?: string
+  conversationName?: string
+  conversationDescription?: string
   promptFile?: string
   env?: Record<string, string>
   toolPermission?: string
@@ -662,8 +662,8 @@ function spawnAcpHostDirect(opts: {
   env.RCLAUDE_CONVERSATION_ID = opts.conversationId
   env.RCLAUDE_HEADLESS = '1'
   env.RCLAUDE_CWD = opts.cwd
-  if (opts.sessionName) env.CLAUDWERK_CONVERSATION_NAME = opts.sessionName
-  if (opts.sessionDescription) env.CLAUDWERK_CONVERSATION_DESCRIPTION = opts.sessionDescription
+  if (opts.conversationName) env.CLAUDWERK_CONVERSATION_NAME = opts.conversationName
+  if (opts.conversationDescription) env.CLAUDWERK_CONVERSATION_DESCRIPTION = opts.conversationDescription
   if (opts.promptFile) env.RCLAUDE_INITIAL_PROMPT_FILE = opts.promptFile
   // ACP recipe envelope -- the host reads these to build the recipe object.
   env.ACP_AGENT_NAME = recipe.name
@@ -931,7 +931,7 @@ async function reviveConversation(
   headless = true,
   effort?: string,
   model?: string,
-  sessionName?: string,
+  conversationName?: string,
   autocompactPct?: number,
   maxBudgetUsd?: number,
   jobId?: string,
@@ -967,7 +967,7 @@ async function reviveConversation(
     const args = buildHeadlessArgs({
       mode,
       resumeId: ccSessionId,
-      resumeName: sessionName,
+      resumeName: conversationName,
       effort,
       model,
       agent,
@@ -977,7 +977,7 @@ async function reviveConversation(
       secret,
       conversationId,
       ccSessionId,
-      sessionName,
+      conversationName,
       autocompactPct,
       maxBudgetUsd,
       agent,
@@ -1019,7 +1019,7 @@ async function reviveConversation(
       RCLAUDE_SESSION_ID: ccSessionId,
       ...(effort ? { RCLAUDE_EFFORT: effort } : {}),
       ...(model ? { RCLAUDE_MODEL: model } : {}),
-      ...(sessionName ? { CLAUDWERK_CONVERSATION_NAME: sessionName } : {}),
+      ...(conversationName ? { CLAUDWERK_CONVERSATION_NAME: conversationName } : {}),
       ...(autocompactPct ? { RCLAUDE_AUTOCOMPACT_PCT: String(autocompactPct) } : {}),
       ...(maxBudgetUsd ? { RCLAUDE_MAX_BUDGET_USD: String(maxBudgetUsd) } : {}),
       ...(adHocWorktree ? { RCLAUDE_WORKTREE: adHocWorktree } : {}),
@@ -1116,8 +1116,8 @@ async function spawnConversation(
   model?: string,
   bare = false,
   repl = false,
-  sessionName?: string,
-  sessionDescription?: string,
+  conversationName?: string,
+  conversationDescription?: string,
   permissionMode?: string,
   autocompactPct?: number,
   maxBudgetUsd?: number,
@@ -1181,7 +1181,7 @@ async function spawnConversation(
       taskId: adHocTaskId,
       worktree,
       promptLength: prompt?.length || 0,
-      sessionName,
+      conversationName,
     })
   }
   let promptFile: string | undefined
@@ -1209,7 +1209,7 @@ async function spawnConversation(
     const args = buildHeadlessArgs({
       mode,
       resumeId,
-      resumeName: sessionName,
+      resumeName: conversationName,
       effort,
       model,
       agent,
@@ -1219,8 +1219,8 @@ async function spawnConversation(
     const spawnEnv = buildHeadlessEnv({
       secret,
       conversationId,
-      sessionName,
-      sessionDescription,
+      conversationName,
+      conversationDescription,
       permissionMode,
       autocompactPct,
       maxBudgetUsd,
@@ -1259,7 +1259,7 @@ async function spawnConversation(
   const scriptArgs = [reviveScript, syntheticId, cwd]
   if (mode) scriptArgs.push('--mode', mode)
   if (mode === 'resume' && resumeId) scriptArgs.push('--resume-id', resumeId)
-  if (mode === 'resume' && sessionName) scriptArgs.push('--resume-name', sessionName)
+  if (mode === 'resume' && conversationName) scriptArgs.push('--resume-name', conversationName)
   const scriptEnv = {
     ...cleanSentinelEnv(),
     RCLAUDE_SECRET: secret,
@@ -1268,8 +1268,8 @@ async function spawnConversation(
     ...(model ? { RCLAUDE_MODEL: model } : {}),
     ...(bare ? { RCLAUDE_BARE: '1' } : {}),
     ...(repl ? { CLAUDE_CODE_REPL: 'true' } : {}),
-    ...(sessionName ? { CLAUDWERK_CONVERSATION_NAME: shellSafe(sessionName) } : {}),
-    ...(sessionDescription ? { CLAUDWERK_CONVERSATION_DESCRIPTION: shellSafe(sessionDescription) } : {}),
+    ...(conversationName ? { CLAUDWERK_CONVERSATION_NAME: shellSafe(conversationName) } : {}),
+    ...(conversationDescription ? { CLAUDWERK_CONVERSATION_DESCRIPTION: shellSafe(conversationDescription) } : {}),
     ...(permissionMode ? { RCLAUDE_PERMISSION_MODE: permissionMode } : {}),
     ...(autocompactPct ? { RCLAUDE_AUTOCOMPACT_PCT: String(autocompactPct) } : {}),
     ...(maxBudgetUsd ? { RCLAUDE_MAX_BUDGET_USD: String(maxBudgetUsd) } : {}),
@@ -1656,7 +1656,7 @@ function connect(
               jobId: reviveMsg.jobId,
               acpAgent,
               model: reviveMsg.openCodeModel || reviveMsg.model,
-              sessionName: reviveMsg.sessionName,
+              conversationName: reviveMsg.conversationName,
               env: reviveMsg.env,
               toolPermission: reviveMsg.toolPermission,
               resumeSessionId: reviveMsg.ccSessionId,
@@ -1726,7 +1726,7 @@ function connect(
               secret,
               jobId: reviveMsg.jobId,
               model: reviveMsg.openCodeModel || reviveMsg.model,
-              sessionName: reviveMsg.sessionName,
+              conversationName: reviveMsg.conversationName,
               env: reviveMsg.env,
               toolPermission: reviveMsg.toolPermission,
             })
@@ -1762,7 +1762,7 @@ function connect(
             reviveMsg.headless !== false,
             reviveMsg.effort,
             reviveMsg.model,
-            reviveMsg.sessionName,
+            reviveMsg.conversationName,
             reviveMsg.autocompactPct,
             reviveMsg.maxBudgetUsd,
             reviveMsg.jobId,
@@ -1956,8 +1956,8 @@ function connect(
               jobId: spawnMsg.jobId,
               acpAgent,
               model: spawnMsg.openCodeModel || spawnMsg.model,
-              sessionName: spawnMsg.sessionName,
-              sessionDescription: spawnMsg.sessionDescription,
+              conversationName: spawnMsg.conversationName,
+              conversationDescription: spawnMsg.conversationDescription,
               promptFile,
               env: spawnMsg.env,
               toolPermission: spawnMsg.toolPermission,
@@ -2066,8 +2066,8 @@ function connect(
               secret,
               jobId: spawnMsg.jobId,
               model: spawnMsg.openCodeModel || spawnMsg.model,
-              sessionName: spawnMsg.sessionName,
-              sessionDescription: spawnMsg.sessionDescription,
+              conversationName: spawnMsg.conversationName,
+              conversationDescription: spawnMsg.conversationDescription,
               promptFile,
               env: spawnMsg.env,
               toolPermission: spawnMsg.toolPermission,
@@ -2100,8 +2100,8 @@ function connect(
             spawnMsg.model,
             spawnMsg.bare || false,
             spawnMsg.repl || false,
-            spawnMsg.sessionName,
-            spawnMsg.sessionDescription,
+            spawnMsg.conversationName,
+            spawnMsg.conversationDescription,
             spawnMsg.permissionMode,
             spawnMsg.autocompactPct,
             spawnMsg.maxBudgetUsd,
@@ -2186,11 +2186,11 @@ function connect(
           const sessMsg = msg as { requestId: string; cwd: string }
           const expandedCwd = expandPath(sessMsg.cwd, spawnRoot)
           debug(`Listing CC sessions for: ${expandedCwd}`, verbose)
-          const sessions = listCcSessions(expandedCwd)
+          const ccSessions = listCcSessions(expandedCwd)
           const sessResponse: ListCcSessionsResult = {
             type: 'list_cc_sessions_result',
             requestId: sessMsg.requestId,
-            sessions,
+            ccSessions,
           }
           ws.send(JSON.stringify(sessResponse))
           break

@@ -35,7 +35,7 @@ export function buildReviveMessage(
     project: conversation.project,
     ccSessionId: (meta.ccSessionId as string) || conversation.id,
     jobId: overrides?.jobId,
-    sessionName: conversation.title || undefined,
+    conversationName: conversation.title || undefined,
     mode: 'resume',
     headless: overrides?.headless ?? lc?.headless,
     effort: overrides?.effort ?? lc?.effort ?? undefined,
