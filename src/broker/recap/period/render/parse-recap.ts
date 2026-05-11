@@ -54,7 +54,15 @@ export function parseRecapOutput(raw: string): ParsedRecap {
   return { metadata, body }
 }
 
-const SIMPLE_LIST_FIELDS = ['keywords', 'hashtags', 'goals', 'discoveries', 'side_effects', 'open_questions', 'stakeholders'] as const
+const SIMPLE_LIST_FIELDS = [
+  'keywords',
+  'hashtags',
+  'goals',
+  'discoveries',
+  'side_effects',
+  'open_questions',
+  'stakeholders',
+] as const
 const ITEM_LIST_FIELDS = ['features', 'bugs', 'fixes', 'incidents'] as const
 
 // fallow-ignore-next-line complexity
@@ -66,12 +74,12 @@ function parseMetadata(yaml: string): RecapMetadata {
       result.subtitle = stripQuotes(value.trim())
       continue
     }
-    if (SIMPLE_LIST_FIELDS.includes(key as typeof SIMPLE_LIST_FIELDS[number])) {
+    if (SIMPLE_LIST_FIELDS.includes(key as (typeof SIMPLE_LIST_FIELDS)[number])) {
       const list = parseStringList(value)
       ;(result as unknown as Record<string, unknown>)[key] = list
       continue
     }
-    if (ITEM_LIST_FIELDS.includes(key as typeof ITEM_LIST_FIELDS[number])) {
+    if (ITEM_LIST_FIELDS.includes(key as (typeof ITEM_LIST_FIELDS)[number])) {
       ;(result as unknown as Record<string, unknown>)[key] = parseItemList(value)
     }
   }

@@ -36,7 +36,6 @@ import { appendMessage, initInterSessionLog } from './inter-conversation-log'
 import { drain, enqueue, getQueueSize, initMessageQueue } from './message-queue'
 import { routeMessage } from './message-router'
 import { initModelPricing } from './model-pricing'
-import { initRecapOrchestrator } from './recap-orchestrator'
 import { addAllowedRoot, addPathMapping, getAllowedRoots } from './path-jail'
 import { allGrantsExpired } from './permissions'
 import {
@@ -51,6 +50,7 @@ import { initProjectOrder } from './project-order'
 import { getAllProjectSettings, getProjectSettings, initProjectSettings, setProjectSettings } from './project-settings'
 import { closeProjectStore, initProjectStore } from './project-store'
 import { initPush, isPushConfigured, sendPushToAll } from './push'
+import { initRecapOrchestrator } from './recap-orchestrator'
 import { createRouter } from './routes'
 import { createSentinelRegistry } from './sentinel-registry'
 import {
@@ -398,8 +398,7 @@ async function main() {
     cacheDir: cacheDir ?? '.',
     brokerStore: store,
     broadcaster: {
-      broadcast: msg =>
-        conversationStore.broadcastConversationScoped(msg as Record<string, unknown>, '*'),
+      broadcast: msg => conversationStore.broadcastConversationScoped(msg as Record<string, unknown>, '*'),
     },
   })
 

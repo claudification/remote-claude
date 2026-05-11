@@ -2256,14 +2256,7 @@ export interface ConnectionInfo {
 // Period Recap (long-form markdown digest of a project over a period)
 // ----------------------------------------------------------------------------
 
-export type RecapPeriodLabel =
-  | 'today'
-  | 'yesterday'
-  | 'last_7'
-  | 'last_30'
-  | 'this_week'
-  | 'this_month'
-  | 'custom'
+export type RecapPeriodLabel = 'today' | 'yesterday' | 'last_7' | 'last_30' | 'this_week' | 'this_month' | 'custom'
 
 export type RecapStatus = 'queued' | 'gathering' | 'rendering' | 'done' | 'failed' | 'cancelled'
 export type RecapLogLevel = 'info' | 'warn' | 'error' | 'debug'
@@ -2339,6 +2332,9 @@ export interface RecapCreateMessage {
   timeZone: string
   signals?: RecapSignal[]
   force?: boolean
+  /** Optional. When set, the broker echoes it on recap_created/recap_error so
+   *  MCP-side broker-rpc can correlate the response. Dashboard callers omit it. */
+  requestId?: string
 }
 export interface RecapCancelMessage {
   type: 'recap_cancel'
@@ -2371,6 +2367,12 @@ export interface RecapCreatedMessage {
   type: 'recap_created'
   recapId: string
   cached: boolean
+  requestId?: string
+}
+export interface RecapErrorMessage {
+  type: 'recap_error'
+  error: string
+  requestId?: string
 }
 export interface RecapCompleteMessage {
   type: 'recap_complete'

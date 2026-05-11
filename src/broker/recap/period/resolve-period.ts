@@ -124,8 +124,9 @@ function startOfWeek(dayMs: number, _timeZone: string): number {
 }
 
 function startOfMonth(now: number, timeZone: string): number {
-  const iso = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
-    .format(new Date(now))
+  const iso = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(
+    new Date(now),
+  )
   const [year, month] = iso.split('-')
   return parseTzMidnight(`${year}-${month}-01`, timeZone)
 }

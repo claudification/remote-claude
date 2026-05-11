@@ -15,10 +15,10 @@ import {
 import { pickModel } from './llm/escalate'
 import { buildPrompt, type PromptInputs } from './llm/prompt-builder'
 import { createProgressEmitter, type ProgressBroadcaster } from './progress'
-import { parseRecapOutput, RecapParseError } from './render/parse-recap'
 import { renderFinalMarkdown } from './render/markdown'
 import { buildFtsFields, denormalizeTags } from './render/metadata'
-import { resolvePeriod, type ResolvedPeriod } from './resolve-period'
+import { parseRecapOutput, RecapParseError } from './render/parse-recap'
+import { type ResolvedPeriod, resolvePeriod } from './resolve-period'
 import type { PeriodRecapStore } from './store'
 
 const DEFAULT_SIGNALS: RecapSignal[] = [
@@ -131,7 +131,11 @@ async function runRecap(
   const scope: PeriodScope = { projectUris, periodStart: period.start, periodEnd: period.end, timeZone }
 
   const { promptInputs, inputChars } = collectSignals(deps, scope, period, args.projectUri, deps.projectLabel)
-  emit.emit('info', 'gather/done', `gathered ${promptInputs.conversations.length} conversations, ${inputChars} chars input`)
+  emit.emit(
+    'info',
+    'gather/done',
+    `gathered ${promptInputs.conversations.length} conversations, ${inputChars} chars input`,
+  )
   emit.setProgress(35, 'gather/done')
 
   const built = buildPrompt(promptInputs)
@@ -243,12 +247,7 @@ async function callLlm(prompt: { system: string; user: string }, model: string, 
   }
 }
 
-async function parseOrRetry(
-  content: string,
-  built: { system: string; user: string },
-  model: string,
-  apiKey?: string,
-) {
+async function parseOrRetry(content: string, built: { system: string; user: string }, model: string, apiKey?: string) {
   try {
     return parseRecapOutput(content)
   } catch (err) {

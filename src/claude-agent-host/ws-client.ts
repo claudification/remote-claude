@@ -130,6 +130,11 @@ export interface WsClientOptions {
   onConfigUpdated?: () => void
   onConfigGet?: (requestId: string) => void
   onConfigSet?: (requestId: string, config: RclaudePermissionConfig) => void
+  /** Catch-all for broker -> agent-host RPC responses keyed by requestId.
+   *  Fires for recap_search_result, recap_mcp_get_result, recap_mcp_list_result,
+   *  and any future *_result message that carries a requestId we registered via
+   *  the broker-rpc helper (src/claude-agent-host/mcp-tools/lib/broker-rpc.ts). */
+  onBrokerRpcResponse?: (msg: Record<string, unknown>) => void
   /**
    * Control verb delivered by broker (dashboard self-control or inter-session MCP).
    * Backend-specific dispatch lives in the agent host -- this callback is just the entry point.
@@ -244,6 +249,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onConfigSet,
     onControl,
     onDiag,
+    onBrokerRpcResponse,
   } = options
 
   const project = cwdToProjectUri(cwd)
@@ -508,6 +514,25 @@ export function createWsClient(options: WsClientOptions): WsClient {
           msgType === 'restart_timeout'
         ) {
           onRendezvousResult?.(message as unknown as Record<string, unknown>)
+          break
+        }
+        if (
+          msgType === 'recap_search_result' ||
+          msgType === 'recap_mcp_get_result' ||
+          msgType === 'recap_mcp_list_result'
+        ) {
+          onBrokerRpcResponse?.(message as unknown as Record<string, unknown>)
+          break
+        }
+        if (msgType === 'recap_created' || msgType === 'recap_error') {
+          // Only forward recap_created/error to broker-rpc when it carries a
+          // requestId we minted. Plain recap_create from the dashboard does
+          // not carry one and the response goes only to that single client
+          // via ctx.reply(), so this branch is harmless for non-MCP callers.
+          const m = message as unknown as Record<string, unknown>
+          if (typeof m.requestId === 'string') {
+            onBrokerRpcResponse?.(m)
+          }
           break
         }
         if (msgType?.startsWith('file_') || msgType?.startsWith('project_') || msgType === 'project_quick_add') {
