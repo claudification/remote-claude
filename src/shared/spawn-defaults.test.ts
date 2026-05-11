@@ -155,9 +155,7 @@ describe('resolveSpawnConfig', () => {
     })
 
     it('profile beats global when project is empty', () => {
-      expect(
-        resolveSpawnConfig({}, {}, { defaultModel: 'claude-haiku-4-5' }, profile).model,
-      ).toBe('claude-opus-4-7')
+      expect(resolveSpawnConfig({}, {}, { defaultModel: 'claude-haiku-4-5' }, profile).model).toBe('claude-opus-4-7')
     })
 
     it('profile.effort tier slots between explicit and project', () => {
