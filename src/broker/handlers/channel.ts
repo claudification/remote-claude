@@ -594,7 +594,8 @@ const channelSend: MessageHandler = (ctx, data) => {
   // Sister conversations = same project, different conversation IDs (worktrees, parallel headless runs, a PTY
   // and its spawned helper). Cross-project stays on the link-approval path so unexpected A<->B
   // chatter is surfaced to the user instead of being silently auto-linked.
-  const isSisterConversation = !!fromConv?.project && !!toConv.project && isSameProject(fromConv.project, toConv.project)
+  const isSisterConversation =
+    !!fromConv?.project && !!toConv.project && isSameProject(fromConv.project, toConv.project)
   const isTrusted = isSisterConversation || targetTrust === 'open' || fromTrust === 'benevolent'
 
   const effectiveLinkStatus =
@@ -661,7 +662,13 @@ const channelSend: MessageHandler = (ctx, data) => {
       toConversation,
       toProject: toProjectName,
     })
-    ctx.reply({ type: 'channel_send_result', ok: true, conversationId, status: 'queued', targetConversationId: toConversation })
+    ctx.reply({
+      type: 'channel_send_result',
+      ok: true,
+      conversationId,
+      status: 'queued',
+      targetConversationId: toConversation,
+    })
   }
   ctx.log.debug(
     `[inter-conversation] ${fromConversation.slice(0, 8)} -> ${toConversation.slice(0, 8)}: ${data.intent} (${linkStatus})`,

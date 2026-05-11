@@ -159,9 +159,7 @@ async function handleSpawn(
     return { content: [{ type: 'text', text: result?.error || 'Failed to spawn conversation' }], isError: true }
   }
   const modeDesc = mode === 'resume' ? `resuming ${resumeId}` : 'fresh start'
-  debug(
-    `[channel] spawn_conversation: ${cwd} (${modeDesc}) conversation=${result.conversation ? 'ready' : 'pending'}`,
-  )
+  debug(`[channel] spawn_conversation: ${cwd} (${modeDesc}) conversation=${result.conversation ? 'ready' : 'pending'}`)
 
   if (result.conversation) {
     const convObj = result.conversation as Record<string, unknown>

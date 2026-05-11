@@ -113,11 +113,7 @@ async function recordProfileUse(profileId: string): Promise<void> {
   })
 }
 
-export function buildSpawnRequest(
-  profile: LaunchProfile,
-  cwd: string,
-  sentinel: string | undefined,
-): SpawnRequest {
+export function buildSpawnRequest(profile: LaunchProfile, cwd: string, sentinel: string | undefined): SpawnRequest {
   return {
     ...profile.spawn,
     cwd,

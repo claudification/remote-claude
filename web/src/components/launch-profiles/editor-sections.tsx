@@ -94,21 +94,25 @@ export function LaunchFieldsSection({
       <LaunchConfigFields
         value={value}
         onChange={onPatch}
-        show={{ model: true, effort: true, permissionMode: true, agent: true, autocompactPct: true, maxBudgetUsd: true }}
+        show={{
+          model: true,
+          effort: true,
+          permissionMode: true,
+          agent: true,
+          autocompactPct: true,
+          maxBudgetUsd: true,
+        }}
       />
     </Section>
   )
 }
 
-export function AppendSystemPromptSection({
-  value,
-  onChange,
-}: {
-  value: string
-  onChange: (text: string) => void
-}) {
+export function AppendSystemPromptSection({ value, onChange }: { value: string; onChange: (text: string) => void }) {
   return (
-    <Section title="System prompt suffix" subtitle="Appended to CC's generated system prompt. CC: --append-system-prompt">
+    <Section
+      title="System prompt suffix"
+      subtitle="Appended to CC's generated system prompt. CC: --append-system-prompt"
+    >
       <textarea
         value={value}
         onChange={e => onChange(e.target.value)}

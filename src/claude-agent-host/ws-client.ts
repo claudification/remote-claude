@@ -408,8 +408,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
             model: typeof message.model === 'string' ? message.model : undefined,
             effort: typeof message.effort === 'string' ? message.effort : undefined,
             permissionMode: typeof message.permissionMode === 'string' ? message.permissionMode : undefined,
-            fromConversation:
-              typeof message.fromConversation === 'string' ? message.fromConversation : undefined,
+            fromConversation: typeof message.fromConversation === 'string' ? message.fromConversation : undefined,
           })
         } else {
           debug(`control: unknown action "${String(action)}"`)

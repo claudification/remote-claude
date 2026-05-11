@@ -131,8 +131,7 @@ export function registerConversationTools(ctx: McpToolContext): Record<string, T
           permissionMode: {
             type: 'string',
             enum: ['default', 'plan', 'acceptEdits', 'auto', 'bypassPermissions'],
-            description:
-              'Permission mode. Required when action is "set_permission_mode". Headless conversations only.',
+            description: 'Permission mode. Required when action is "set_permission_mode". Headless conversations only.',
           },
         },
         required: ['conversation_id', 'action'],
@@ -260,9 +259,7 @@ export function registerConversationTools(ctx: McpToolContext): Record<string, T
             isError: true,
           }
         }
-        debug(
-          `[channel] configure_conversation: ${targetConversationId.slice(0, 8)} ${Object.keys(update).join(',')}`,
-        )
+        debug(`[channel] configure_conversation: ${targetConversationId.slice(0, 8)} ${Object.keys(update).join(',')}`)
         return {
           content: [{ type: 'text', text: `Conversation configured: ${Object.keys(update).join(', ')} updated` }],
         }
