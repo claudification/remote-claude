@@ -241,6 +241,10 @@ export function createAdminRouter(
         label: body.label,
         permissions: body.permissions,
         hideUserInput: body.hideUserInput,
+        // Phase 11 polymorphic shares: every conversation share is now
+        // tagged so the public viewer can dispatch by kind.
+        targetKind: 'conversation',
+        targetId: body.project,
       })
       const origin = c.req.header('origin') || ''
       conversationStore.broadcastSharesUpdate()

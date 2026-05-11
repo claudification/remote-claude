@@ -43,7 +43,8 @@ import { useSyncEffects } from '@/hooks/use-sync-effects'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { executeCommand } from '@/lib/commands'
 import { focusInputEditor } from '@/lib/focus-input'
-import { clearShareMode, detectShareMode } from '@/lib/share-mode'
+import { PublicRecapView } from '@/components/recap/public-recap-view'
+import { clearShareMode, detectShareKind, detectShareMode } from '@/lib/share-mode'
 import { isMobileViewport, isTouchDevice } from '@/lib/utils'
 
 const WebTerminal = lazy(() => import('@/components/web-terminal').then(m => ({ default: m.WebTerminal })))
@@ -365,6 +366,13 @@ function ShareGate({ token }: { token: string }) {
 
 export function App() {
   const hash = window.location.hash.slice(1)
+
+  // Phase 11: /r/:token redirected here as ?share=TOKEN&kind=recap. The SPA
+  // serves a standalone public recap viewer (no project chrome, no auth gate).
+  const shareToken = detectShareMode()
+  if (shareToken && detectShareKind() === 'recap') {
+    return <PublicRecapView token={shareToken} />
+  }
 
   const shareMatch = hash.match(/^\/?share\/(.+)$/)
   if (shareMatch) {
