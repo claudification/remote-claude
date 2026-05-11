@@ -121,8 +121,9 @@ export class JsonRpcClient {
    *  until a full `\n`-terminated line arrives. */
   feed(chunk: string): void {
     this.buffer += chunk
-    let idx: number
-    while ((idx = this.buffer.indexOf('\n')) !== -1) {
+    while (true) {
+      const idx = this.buffer.indexOf('\n')
+      if (idx === -1) break
       const line = this.buffer.slice(0, idx)
       this.buffer = this.buffer.slice(idx + 1)
       this.consumeLine(line)

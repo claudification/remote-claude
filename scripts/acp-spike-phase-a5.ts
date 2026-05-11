@@ -62,8 +62,9 @@ class AcpClient {
 
   private onData(d: Buffer) {
     this.buf += d.toString()
-    let idx: number
-    while ((idx = this.buf.indexOf('\n')) !== -1) {
+    while (true) {
+      const idx = this.buf.indexOf('\n')
+      if (idx === -1) break
       const line = this.buf.slice(0, idx)
       this.buf = this.buf.slice(idx + 1)
       if (!line.trim()) continue
