@@ -330,7 +330,7 @@ function spawnChatApi(req: SpawnRequest, deps: SpawnDeps): SpawnResult {
   deps.conversationStore.forwardJobEvent(jobId, {
     type: 'launch_progress',
     jobId,
-    step: 'session_connected',
+    step: 'conversation_connected',
     status: 'done',
     t: Date.now(),
     conversationId,
