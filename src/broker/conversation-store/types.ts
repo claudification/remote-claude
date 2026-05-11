@@ -1,4 +1,9 @@
-import type { ClaudeEfficiencyUpdate, ClaudeHealthUpdate, ConversationSummary } from '../../shared/protocol'
+import type {
+  ClaudeEfficiencyUpdate,
+  ClaudeHealthUpdate,
+  ConversationSummary,
+  LaunchProfile,
+} from '../../shared/protocol'
 
 export type { ConversationSummary }
 
@@ -26,6 +31,7 @@ export interface ControlPanelMessage {
     | 'usage_update'
     | 'claude_health_update'
     | 'claude_efficiency_update'
+    | 'launch_profiles_updated'
   conversationId?: string
   previousConversationId?: string
   conversation?: ConversationSummary
@@ -40,4 +46,6 @@ export interface ControlPanelMessage {
   settings?: unknown
   claudeHealth?: ClaudeHealthUpdate
   claudeEfficiency?: ClaudeEfficiencyUpdate
+  userName?: string
+  launchProfiles?: LaunchProfile[]
 }

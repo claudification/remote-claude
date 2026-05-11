@@ -5,6 +5,8 @@
 
 import type { SpawnRequest } from './spawn-schema'
 
+export type { LaunchProfile } from './launch-profile'
+
 /**
  * Wire protocol version.
  *
