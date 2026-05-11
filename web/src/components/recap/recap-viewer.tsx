@@ -115,7 +115,16 @@ function RecapHeader({ recap, mode, setMode }: { recap: PeriodRecapDoc; mode: Mo
         <ActionButton
           onClick={async () => {
             const url = await shareRecap(recap.recapId)
-            if (url) navigator.clipboard.writeText(url).catch(() => {})
+            if (url) {
+              navigator.clipboard.writeText(url).catch(() => {})
+              window.dispatchEvent(new CustomEvent('rclaude-toast', {
+                detail: {
+                  title: 'Copied',
+                  body: 'Share link copied to clipboard',
+                  variant: 'success'
+                }
+              }))
+            }
           }}
           title="Create a public share link and copy to clipboard"
         >

@@ -180,7 +180,7 @@ export function createRecapsRouter(_conversationStore: ConversationStore, helper
       body = {}
     }
     const expiresAt =
-      body.expiresAt || (body.expiresIn ? Date.now() + body.expiresIn : Date.now() + 7 * 24 * 60 * 60 * 1000)
+      body.expiresAt || (body.expiresIn ? Date.now() + body.expiresIn : Date.now() + 24 * 60 * 60 * 1000)
     try {
       // Recap shares grant ZERO project permissions -- the share viewer
       // route reads the recap directly via /api/share/recap/:token. The
