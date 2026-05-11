@@ -359,8 +359,8 @@ export const TranscriptView = memo(function TranscriptView({
     state.selectedConversationId
       ? state.pendingProjectLinks.filter(
           r =>
-            r.toSession === state.selectedConversationId ||
-            (r.fromSession === state.selectedConversationId && r.toSession !== state.selectedConversationId),
+            r.toConversation === state.selectedConversationId ||
+            (r.fromConversation === state.selectedConversationId && r.toConversation !== state.selectedConversationId),
         ).length
       : 0,
   )

@@ -155,8 +155,8 @@ interface ConversationsState {
   showSwitcher: boolean
   switcherInitialFilter: string
   showDebugConsole: boolean
-  pendingProjectLinks: Array<{ fromSession: string; fromProject: string; toSession: string; toProject: string }>
-  respondToProjectLink: (fromSession: string, toSession: string, action: 'approve' | 'block') => void
+  pendingProjectLinks: Array<{ fromConversation: string; fromProject: string; toConversation: string; toProject: string }>
+  respondToProjectLink: (fromConversation: string, toConversation: string, action: 'approve' | 'block') => void
   pendingPermissions: Array<{
     conversationId: string
     requestId: string
@@ -483,11 +483,11 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   switcherInitialFilter: '',
   showDebugConsole: false,
   pendingProjectLinks: [],
-  respondToProjectLink: (fromSession, toSession, action) => {
-    wsSend('channel_link_response', { fromSession, toSession, action })
+  respondToProjectLink: (fromConversation, toConversation, action) => {
+    wsSend('channel_link_response', { fromConversation, toConversation, action })
     useConversationsStore.setState(state => ({
       pendingProjectLinks: state.pendingProjectLinks.filter(
-        r => !(r.fromSession === fromSession && r.toSession === toSession),
+        r => !(r.fromConversation === fromConversation && r.toConversation === toConversation),
       ),
     }))
   },

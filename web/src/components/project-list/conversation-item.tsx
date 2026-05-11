@@ -756,7 +756,7 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
     s.pendingPermissions.some(p => p.conversationId === session.id),
   )
   const hasPendingLink = useConversationsStore(s =>
-    s.pendingProjectLinks.some(r => r.fromSession === session.id || r.toSession === session.id),
+    s.pendingProjectLinks.some(r => r.fromConversation === session.id || r.toConversation === session.id),
   )
 
   const projectName = projectDisplayName(projectPath(session.project), ps?.label)
@@ -1017,7 +1017,7 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
     s.pendingPermissions.some(p => p.conversationId === session.id),
   )
   const hasPendingLink = useConversationsStore(s =>
-    s.pendingProjectLinks.some(r => r.fromSession === session.id || r.toSession === session.id),
+    s.pendingProjectLinks.some(r => r.fromConversation === session.id || r.toConversation === session.id),
   )
 
   const displayColor = ps?.color

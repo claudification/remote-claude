@@ -65,7 +65,7 @@ const ProjectSessionGroup = memo(
     })
     const hasPendingLink = useConversationsStore(s => {
       const ids = new Set(sessions.map(x => x.id))
-      return s.pendingProjectLinks.some(r => ids.has(r.fromSession) || ids.has(r.toSession))
+      return s.pendingProjectLinks.some(r => ids.has(r.fromConversation) || ids.has(r.toConversation))
     })
     const hasPendingAttention = sessions.some(s => s.pendingAttention)
     const hasNotification = sessions.some(s => s.hasNotification)

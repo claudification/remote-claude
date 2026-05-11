@@ -13,8 +13,8 @@ export function LinkRequestBanners() {
   const respond = useConversationsStore(s => s.respondToProjectLink)
   const selectedConversation = useConversationsStore(s => s.selectedConversationId)
 
-  const inbound = requests.filter(r => r.toSession === selectedConversation)
-  const outbound = requests.filter(r => r.fromSession === selectedConversation && r.toSession !== selectedConversation)
+  const inbound = requests.filter(r => r.toConversation === selectedConversation)
+  const outbound = requests.filter(r => r.fromConversation === selectedConversation && r.toConversation !== selectedConversation)
 
   return (
     <>
@@ -22,7 +22,7 @@ export function LinkRequestBanners() {
         items={inbound}
         render={req => (
           <ConversationBanner
-            key={`${req.fromSession}:${req.toSession}`}
+            key={`${req.fromConversation}:${req.toConversation}`}
             accent="teal"
             label="LINK"
             layout="row"
@@ -41,7 +41,7 @@ export function LinkRequestBanners() {
                   size="sm"
                   onClick={() => {
                     haptic('success')
-                    respond(req.fromSession, req.toSession, 'approve')
+                    respond(req.fromConversation, req.toConversation, 'approve')
                   }}
                 />
                 <BannerButton
@@ -50,7 +50,7 @@ export function LinkRequestBanners() {
                   size="sm"
                   onClick={() => {
                     haptic('error')
-                    respond(req.fromSession, req.toSession, 'block')
+                    respond(req.fromConversation, req.toConversation, 'block')
                   }}
                 />
               </>
@@ -62,7 +62,7 @@ export function LinkRequestBanners() {
         items={outbound}
         render={req => (
           <ConversationBanner
-            key={`out-${req.fromSession}:${req.toSession}`}
+            key={`out-${req.fromConversation}:${req.toConversation}`}
             accent="teal"
             label="LINK PENDING"
             layout="row"
@@ -80,7 +80,7 @@ export function LinkRequestBanners() {
                 size="sm"
                 onClick={() => {
                   haptic('error')
-                  respond(req.fromSession, req.toSession, 'block')
+                  respond(req.fromConversation, req.toConversation, 'block')
                 }}
               />
             }

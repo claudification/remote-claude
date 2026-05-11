@@ -141,8 +141,8 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
   for (const link of links) {
     items.push({
       type: 'link',
-      key: `link-in-${link.fromSession}-${link.toSession}`,
-      conversationId: link.toSession,
+      key: `link-in-${link.fromConversation}-${link.toConversation}`,
+      conversationId: link.toConversation,
       timestamp: Date.now(),
       render: () => (
         <ConversationBanner
@@ -164,7 +164,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                 size="sm"
                 onClick={() => {
                   haptic('success')
-                  respondLink(link.fromSession, link.toSession, 'approve')
+                  respondLink(link.fromConversation, link.toConversation, 'approve')
                 }}
               />
               <BannerButton
@@ -173,7 +173,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                 size="sm"
                 onClick={() => {
                   haptic('error')
-                  respondLink(link.fromSession, link.toSession, 'block')
+                  respondLink(link.fromConversation, link.toConversation, 'block')
                 }}
               />
             </>
@@ -183,8 +183,8 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     })
     items.push({
       type: 'link',
-      key: `link-out-${link.fromSession}-${link.toSession}`,
-      conversationId: link.fromSession,
+      key: `link-out-${link.fromConversation}-${link.toConversation}`,
+      conversationId: link.fromConversation,
       timestamp: Date.now(),
       render: () => (
         <ConversationBanner
@@ -205,7 +205,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
               size="sm"
               onClick={() => {
                 haptic('error')
-                respondLink(link.fromSession, link.toSession, 'block')
+                respondLink(link.fromConversation, link.toConversation, 'block')
               }}
             />
           }

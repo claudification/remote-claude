@@ -549,27 +549,27 @@ function handleSharesUpdated(msg: DashboardMessage) {
 
 function handleChannelLinkRequest(msg: DashboardMessage) {
   const req = msg as DashboardMessage & {
-    fromSession?: string
+    fromConversation?: string
     fromProject?: string
-    toSession?: string
+    toConversation?: string
     toProject?: string
   }
-  const fromSession = req.fromSession
-  const toSession = req.toSession
-  if (!(fromSession && toSession)) return
+  const fromConversation = req.fromConversation
+  const toConversation = req.toConversation
+  if (!(fromConversation && toConversation)) return
   useConversationsStore.setState(state => {
     // Deduplicate
-    if (state.pendingProjectLinks.some(r => r.fromSession === fromSession && r.toSession === toSession)) {
+    if (state.pendingProjectLinks.some(r => r.fromConversation === fromConversation && r.toConversation === toConversation)) {
       return state
     }
     return {
       pendingProjectLinks: [
         ...state.pendingProjectLinks,
         {
-          fromSession,
-          fromProject: req.fromProject || fromSession.slice(0, 8),
-          toSession,
-          toProject: req.toProject || toSession.slice(0, 8),
+          fromConversation,
+          fromProject: req.fromProject || fromConversation.slice(0, 8),
+          toConversation,
+          toProject: req.toProject || toConversation.slice(0, 8),
         },
       ],
     }
