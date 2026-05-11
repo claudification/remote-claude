@@ -35,6 +35,12 @@ import { useKeyLayer } from '@/lib/key-layers'
 import { cwdToProjectUri } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { LaunchConfigFields, type LaunchFieldsValue } from './launch-config-fields'
+import { ProfileDropdown } from './launch-profiles/profile-dropdown'
+import { applyProfileToForm, formSnapshotToProfileSpawn } from './launch-profiles/spawn-dialog-apply'
+import { blankProfile } from './launch-profiles/draft'
+import { openLaunchProfileManager } from './launch-profiles/manager-state'
+import { useLaunchProfiles } from './launch-profiles/use-launch-profiles'
+import { putLaunchProfiles } from './launch-profiles/api'
 import { LaunchDialogBottom } from './launch-monitor'
 import { BackendSelect } from './spawn-dialog/backend-select'
 
@@ -61,6 +67,8 @@ interface SpawnDialogOptions {
   /** Source project URI -- when scheme is `opencode://`, the dialog defaults
    *  the backend selector to OpenCode instead of Claude. */
   projectUri?: string
+  /** Launch profile to pre-apply on open. The dropdown reflects this selection. */
+  profileId?: string
 }
 
 interface HermesGateway {
@@ -121,6 +129,7 @@ export function SpawnDialog() {
   // settings can override this default per-project. The dropdown lives in the
   // OpenCode tab next to the model field.
   const [openCodeToolPermission, setOpenCodeToolPermission] = useState<OpenCodeToolPermission>('safe')
+  const [profileId, setProfileId] = useState<string | undefined>()
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [savedFeedback, setSavedFeedback] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -131,6 +140,9 @@ export function SpawnDialog() {
 
   const projectSettings = useConversationsStore((s: { projectSettings: ProjectSettingsMap }) => s.projectSettings)
   const globalSettings = useConversationsStore((s: { globalSettings: Record<string, unknown> }) => s.globalSettings)
+  const { profiles: launchProfiles } = useLaunchProfiles()
+  const launchProfilesRef = useRef(launchProfiles)
+  launchProfilesRef.current = launchProfiles
 
   // Shared launch progress hook
   const progress = useLaunchProgress({
@@ -198,6 +210,28 @@ export function SpawnDialog() {
       setPhase('config')
       setJobId(null)
       setWrapperId(null)
+      const initialProfile = options.profileId
+        ? launchProfilesRef.current.find(p => p.id === options.profileId)
+        : undefined
+      setProfileId(initialProfile?.id)
+      if (initialProfile) {
+        applyProfileToForm(initialProfile, {
+          setHeadless,
+          setModel,
+          setEffort,
+          setAgent,
+          setBare,
+          setRepl,
+          setPermissionMode,
+          setAutocompactPct,
+          setMaxBudgetUsd,
+          setIncludePartialMessages,
+          setBackend,
+          setEnvText,
+          setOpenCodeModel,
+          setOpenCodeToolPermission,
+        })
+      }
       // Fetch chat connections + gateway availability
       fetch(`${window.location.protocol}//${window.location.host}/api/chat/connections`)
         .then(r => (r.ok ? r.json() : { connections: [] }))
@@ -574,11 +608,65 @@ export function SpawnDialog() {
           {/* ── Config Phase ── */}
           {phase === 'config' && (
             <>
+              <div className="flex items-center justify-between shrink-0 gap-2">
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Profile</span>
+                <ProfileDropdown
+                  selectedId={profileId}
+                  profiles={launchProfiles}
+                  onSelectProfile={id => {
+                    const profile = launchProfiles.find(p => p.id === id)
+                    if (!profile) return
+                    setProfileId(id)
+                    applyProfileToForm(profile, {
+                      setHeadless,
+                      setModel,
+                      setEffort,
+                      setAgent,
+                      setBare,
+                      setRepl,
+                      setPermissionMode,
+                      setAutocompactPct,
+                      setMaxBudgetUsd,
+                      setIncludePartialMessages,
+                      setBackend,
+                      setEnvText,
+                      setOpenCodeModel,
+                      setOpenCodeToolPermission,
+                    })
+                  }}
+                  onPickCustom={() => setProfileId(undefined)}
+                  onManage={() => openLaunchProfileManager()}
+                  onCreate={async () => {
+                    const draft = blankProfile()
+                    draft.spawn = formSnapshotToProfileSpawn({
+                      model,
+                      effort,
+                      agent,
+                      permissionMode,
+                      autocompactPct,
+                      maxBudgetUsd,
+                      headless,
+                      bare,
+                      repl,
+                      includePartialMessages,
+                      backend,
+                      envText,
+                      openCodeModel: openCodeModel || undefined,
+                      toolPermission: openCodeToolPermission,
+                    })
+                    await putLaunchProfiles([...launchProfilesRef.current, draft])
+                    openLaunchProfileManager(draft.id)
+                  }}
+                />
+              </div>
               {/* Backend selector (Claude / Chat / Hermes / OpenCode) */}
               <div className="shrink-0">
                 <BackendSelect
                   value={backend}
-                  onChange={setBackend}
+                  onChange={v => {
+                    if (profileId && v !== backend) setProfileId(undefined)
+                    setBackend(v)
+                  }}
                   chatAvailable={chatConnections.some(c => c.enabled)}
                   hermesAvailable={hermesGateways.some(g => g.connected)}
                 />
