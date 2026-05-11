@@ -6,7 +6,7 @@ import type {
   TranscriptUserEntry,
 } from '../../../shared/protocol'
 import type { ConversationStore } from '../../conversation-store'
-import { cancelRecap, generateRecapManual, generateRecapOnEnd, scheduleRecap } from '../../recap-generator'
+import { cancelRecap, generateRecapManual, generateRecapOnEnd, scheduleRecap } from '../away-summary'
 
 // These tests freeze the public surface of recap-generator before the
 // Phase 1c refactor moves the implementation into recap/away-summary/ on
