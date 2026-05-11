@@ -15,6 +15,7 @@
  *     reads the recap's stored markdown directly.
  */
 
+import { marked } from 'marked'
 import { Hono } from 'hono'
 import { getAuthenticatedUser } from '../auth-routes'
 import type { ConversationStore } from '../conversation-store'
@@ -23,6 +24,17 @@ import { createShare, validateShare } from '../shares'
 import type { RouteHelpers } from './shared'
 
 const CROSS_PROJECT = '*'
+
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }
+  return text.replace(/[&<>"']/g, (m) => map[m])
+}
 
 interface ShareCreateBody {
   expiresIn?: number
@@ -141,13 +153,76 @@ export function createRecapsRouter(_conversationStore: ConversationStore, helper
       createdAt: row.createdAt,
     })
     const accept = c.req.header('accept') || ''
-    const headers: Record<string, string> = {
-      'Content-Type': 'text/markdown; charset=utf-8',
+
+    // If client explicitly wants raw markdown (text/markdown or text/plain)
+    if (accept.includes('text/markdown') || accept.includes('text/plain')) {
+      return new Response(markdown, {
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+        },
+      })
     }
-    if (!accept.includes('text/markdown')) {
-      headers['Content-Disposition'] = `attachment; filename="${filename}"`
+
+    // If client wants HTML or wildcard, render markdown to HTML
+    if (accept.includes('text/html') || accept.includes('*/*') || !accept) {
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <meta name=viewport content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(row.title || `Recap ${id.slice(0, 12)}`)}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; color: #333; background: #f9f9f9; }
+    .container { max-width: 48rem; margin: 0 auto; padding: 2.5rem 1.5rem; background: white; }
+    h1, h2, h3, h4, h5, h6 { margin: 1.5rem 0 0.5rem; font-weight: 600; }
+    h1 { font-size: 2rem; }
+    h2 { font-size: 1.5rem; }
+    h3 { font-size: 1.25rem; }
+    p { margin: 1rem 0; }
+    ul, ol { margin: 1rem 0; padding-left: 2rem; }
+    li { margin: 0.5rem 0; }
+    code { background: #f4f4f4; padding: 0.2rem 0.4rem; border-radius: 3px; font-family: monospace; }
+    pre { background: #f4f4f4; padding: 1rem; border-radius: 5px; overflow-x: auto; margin: 1rem 0; }
+    pre code { background: none; padding: 0; }
+    blockquote { border-left: 4px solid #ddd; padding-left: 1rem; margin: 1rem 0; color: #666; }
+    a { color: #0066cc; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { border: 1px solid #ddd; padding: 0.75rem; text-align: left; }
+    th { background: #f4f4f4; font-weight: 600; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #1a1a1a; color: #e0e0e0; }
+      .container { background: #2a2a2a; }
+      code { background: #333; }
+      pre { background: #333; }
+      table { border-color: #444; }
+      th { background: #333; }
+      blockquote { color: #999; }
+      a { color: #66b3ff; }
     }
-    return new Response(markdown, { headers })
+  </style>
+</head>
+<body>
+  <div class=container>
+    <main>${marked(markdown)}</main>
+  </div>
+</body>
+</html>`
+      return new Response(html, {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+        },
+      })
+    }
+
+    // Default: download as attachment
+    return new Response(markdown, {
+      headers: {
+        'Content-Type': 'text/markdown; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    })
   })
 
   app.get('/api/recaps/:id/logs', c => {
