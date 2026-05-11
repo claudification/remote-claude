@@ -89,6 +89,14 @@ function handleSystem(hctx: HandlerContext, msg: Record<string, unknown>) {
   if (subtype === 'init') {
     debug(`init: session=${(msg.session_id as string)?.slice(0, 8)} model=${msg.model}`)
     callbacks.onInit?.(msg as unknown as StreamInitMessage)
+    // CC reports permissionMode in init too, not just in the 'status' subtype.
+    // Without this, sessions that boot directly into plan (--permission-mode plan,
+    // revived plan-mode session) get the permission_mode_changed launch event but
+    // never flip conversation.planMode, so the UI's PLAN state stays off.
+    const initPermMode = msg.permissionMode as string | undefined
+    if (initPermMode && callbacks.onPlanModeChanged) {
+      callbacks.onPlanModeChanged(initPermMode === 'plan')
+    }
     return
   }
 
