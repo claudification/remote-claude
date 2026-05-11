@@ -67,7 +67,7 @@ const meta: MessageHandler = (ctx, data) => {
       if (pendingLaunchConfig.agent) existing.agentName = pendingLaunchConfig.agent
     }
     ctx.log.debug(
-      `Conversation resumed: ${conversationId.slice(0, 8)} cc=${ccSessionId.slice(0, 8)} (${data.cwd}) [${ctx.conversations.getActiveConversationCount(conversationId) + 1} connection(s)]${data.version ? ` [${data.version}]` : ''}`,
+      `Conversation resumed: ${conversationId.slice(0, 8)} cc=${ccSessionId.slice(0, 8)} (${project}) [${ctx.conversations.getActiveConversationCount(conversationId) + 1} connection(s)]${data.version ? ` [${data.version}]` : ''}`,
     )
   } else {
     const newConversation = ctx.conversations.createConversation(
@@ -85,7 +85,7 @@ const meta: MessageHandler = (ctx, data) => {
     }
     const isAdHoc = (data.capabilities as string[] | undefined)?.includes('ad-hoc')
     ctx.log.debug(
-      `Conversation started: ${conversationId.slice(0, 8)} cc=${ccSessionId.slice(0, 8)} (${data.cwd})${data.version ? ` [${data.version}]` : ''}`,
+      `Conversation started: ${conversationId.slice(0, 8)} cc=${ccSessionId.slice(0, 8)} (${project})${data.version ? ` [${data.version}]` : ''}`,
     )
     if (isAdHoc) {
       ctx.log.info(
