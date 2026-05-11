@@ -116,13 +116,21 @@ const spawnFailed: MessageHandler = (ctx, data) => {
   const elapsedMs = data.elapsedMs as number | undefined
   const projectPath = (data.project as string | undefined) ?? (data.cwd as string | undefined)
   const earlyFailure = typeof elapsedMs === 'number' && elapsedMs < 5000
-  const errorMsg =
+  // Pre-flight warnings stashed by the sentinel before the spawn. Once CC has
+  // actually failed they become likely-cause hints, appended to the user-visible
+  // error so the dashboard shows "exit 1 in 3s -- pre-flight had flagged X" in
+  // one line instead of forcing the user to dig through launch_log.
+  const rawHints = Array.isArray(data.preflightHints) ? (data.preflightHints as unknown[]) : []
+  const preflightHints = rawHints.filter((h): h is string => typeof h === 'string')
+  const baseError =
     (data.error as string) ||
     (earlyFailure
       ? `Process exited in ${elapsedMs}ms (exit ${exitCode}) - likely hook or config failure`
       : `Spawn failed (exit ${exitCode})`)
+  const errorMsg =
+    preflightHints.length > 0 ? `${baseError}\nPre-flight had flagged: ${preflightHints.join(' | ')}` : baseError
   ctx.log.info(
-    `Spawn FAILED: conv=${conversationId?.slice(0, 8)} exit=${exitCode} elapsed=${elapsedMs}ms${earlyFailure ? ' (early failure - likely hook/config issue)' : ''}`,
+    `Spawn FAILED: conv=${conversationId?.slice(0, 8)} exit=${exitCode} elapsed=${elapsedMs}ms${earlyFailure ? ' (early failure - likely hook/config issue)' : ''}${preflightHints.length > 0 ? ` preflight=${preflightHints.length}` : ''}`,
   )
 
   // Route through the job system so the launch monitor gets an immediate job_failed
@@ -145,14 +153,20 @@ const spawnFailed: MessageHandler = (ctx, data) => {
     }
   }
 
+  const broadcastPayload = {
+    type: 'spawn_failed' as const,
+    conversationId,
+    exitCode,
+    elapsedMs,
+    error: errorMsg,
+    pid: data.pid,
+    ...(preflightHints.length > 0 ? { preflightHints } : {}),
+  }
   // Also broadcast for any non-job listeners (conversation detail, diag, etc.)
   if (projectPath) {
-    ctx.broadcastScoped(
-      { type: 'spawn_failed', conversationId, exitCode, elapsedMs, error: errorMsg, pid: data.pid },
-      projectPath,
-    )
+    ctx.broadcastScoped(broadcastPayload, projectPath)
   } else {
-    ctx.broadcast({ type: 'spawn_failed', conversationId, exitCode, elapsedMs, error: errorMsg, pid: data.pid })
+    ctx.broadcast(broadcastPayload)
   }
 }
 

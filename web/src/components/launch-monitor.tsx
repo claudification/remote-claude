@@ -34,6 +34,7 @@ export function LaunchStepList({ steps }: { steps: LaunchStep[] }) {
             )}
             {step.status === 'done' && <span className="text-[10px] text-emerald-400">&#x2713;</span>}
             {step.status === 'error' && <span className="text-[10px] text-red-400">&#x2717;</span>}
+            {step.status === 'warn' && <span className="text-[10px] text-amber-400">&#x26A0;</span>}
           </span>
           <div className="min-w-0">
             <span
@@ -41,14 +42,25 @@ export function LaunchStepList({ steps }: { steps: LaunchStep[] }) {
                 'text-[11px]',
                 step.status === 'error'
                   ? 'text-red-400'
-                  : step.status === 'done'
-                    ? 'text-muted-foreground'
-                    : 'text-foreground',
+                  : step.status === 'warn'
+                    ? 'text-amber-400'
+                    : step.status === 'done'
+                      ? 'text-muted-foreground'
+                      : 'text-foreground',
               )}
             >
               {step.label}
             </span>
-            {step.detail && <span className="text-[10px] text-muted-foreground/60 ml-2">{step.detail}</span>}
+            {step.detail && (
+              <span
+                className={cn(
+                  'text-[10px] ml-2',
+                  step.status === 'warn' ? 'text-amber-300/80' : 'text-muted-foreground/60',
+                )}
+              >
+                {step.detail}
+              </span>
+            )}
           </div>
         </div>
       ))}

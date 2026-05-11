@@ -1607,7 +1607,10 @@ export interface LaunchLog {
   type: 'launch_log'
   jobId: string
   step: string
-  status: 'info' | 'ok' | 'error'
+  /** `warn` is used for soft pre-flight findings -- non-fatal hints that may
+   *  become a likely cause if the spawn then fails. UIs SHOULD render it
+   *  distinctly from `error` (yellow vs red) but may fall back to `info`. */
+  status: 'info' | 'ok' | 'error' | 'warn'
   detail?: string
   t: number
 }
@@ -1719,6 +1722,10 @@ export interface SpawnFailed {
   exitCode?: number | null
   error?: string
   elapsedMs?: number // time from spawn to exit (< 5000 = likely hook/config failure)
+  /** Pre-flight warnings recorded before the spawn. When CC dies early, these
+   *  are surfaced as likely-cause hints (e.g. "transcript file missing at the
+   *  expected slug -- cwd may have changed since the original spawn"). */
+  preflightHints?: string[]
 }
 
 // Usage API data (agent polls api.anthropic.com/api/oauth/usage)

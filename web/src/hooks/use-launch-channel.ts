@@ -13,7 +13,7 @@ import { wsSend } from './use-conversations'
 
 interface LaunchEvent {
   step: string
-  status: 'info' | 'ok' | 'error'
+  status: 'info' | 'ok' | 'error' | 'warn'
   detail?: string
   t: number
 }

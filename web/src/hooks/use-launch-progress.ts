@@ -14,7 +14,8 @@ import { useLaunchChannel } from './use-launch-channel'
 
 export type LaunchStep = {
   label: string
-  status: 'pending' | 'active' | 'done' | 'error'
+  /** `warn` = soft pre-flight finding. Non-fatal but worth surfacing distinctly. */
+  status: 'pending' | 'active' | 'done' | 'error' | 'warn'
   detail?: string
   ts?: number
 }
@@ -125,10 +126,19 @@ export function useLaunchProgress({
       const newSteps: LaunchStep[] = []
       for (const evt of launch.events) {
         if (existingLabels.has(evt.step)) continue
+        const status: LaunchStep['status'] =
+          evt.status === 'ok'
+            ? 'done'
+            : evt.status === 'error'
+              ? 'error'
+              : evt.status === 'warn'
+                ? 'warn'
+                : connectedRef.current
+                  ? 'done'
+                  : 'active'
         newSteps.push({
           label: evt.step,
-          status:
-            evt.status === 'ok' ? 'done' : evt.status === 'error' ? 'error' : connectedRef.current ? 'done' : 'active',
+          status,
           detail: evt.detail,
           ts: evt.t,
         })

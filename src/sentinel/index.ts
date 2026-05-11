@@ -44,6 +44,56 @@ import type {
 } from '../shared/protocol'
 import { DEFAULT_BROKER_URL, HEARTBEAT_INTERVAL_MS } from '../shared/protocol'
 import { getAcpRecipe, listAcpRecipes } from './acp-recipes'
+import { type PreflightIssue, preflightSpawn } from './preflight'
+
+/** Pre-flight warnings stashed per-conversation. Surfaced when CC dies early
+ *  after spawn so the user sees a likely cause instead of a bare exit code. */
+const preflightWarnings = new Map<string, string[]>()
+
+/**
+ * Run pre-flight + emit launch_log entries + stash warnings. Returns whether
+ * the spawn should proceed. Hard failures emit `error` and return false; soft
+ * warnings emit `warn`, stash, and return true.
+ */
+function runPreflight(opts: {
+  cwd: string
+  worktree?: string
+  resumeCcSessionId?: string
+  conversationId: string
+  jobId?: string
+}): boolean {
+  const { issues, ok } = preflightSpawn({
+    cwd: opts.cwd,
+    worktree: opts.worktree,
+    resumeCcSessionId: opts.resumeCcSessionId,
+  })
+  const warnings: string[] = []
+  for (const issue of issues) {
+    if (issue.severity === 'fail') {
+      launchLog(opts.jobId, `Pre-flight: ${issue.check}`, 'error', issue.message)
+      diag('preflight', `FAIL ${issue.check}`, { ...issue.detail, conversationId: opts.conversationId })
+    } else {
+      launchLog(opts.jobId, `Pre-flight: ${issue.check}`, 'warn', issue.message)
+      diag('preflight', `WARN ${issue.check}`, { ...issue.detail, conversationId: opts.conversationId })
+      warnings.push(issue.message)
+    }
+  }
+  if (warnings.length > 0) {
+    preflightWarnings.set(opts.conversationId, warnings)
+  }
+  return ok
+}
+
+/** Look up + clear stashed pre-flight warnings for a conversation. */
+function consumePreflightWarnings(conversationId: string): string[] | undefined {
+  const w = preflightWarnings.get(conversationId)
+  if (!w) return undefined
+  preflightWarnings.delete(conversationId)
+  return w
+}
+
+// Re-export for type-checking on the issue shape.
+export type { PreflightIssue }
 
 function getRawMachineId(): string {
   const platform = process.platform
@@ -187,16 +237,6 @@ function reportDeadPids(ws: WebSocket) {
 }
 
 // ─── CC Transcript Discovery ─────────────────────────────────────────
-
-/** Check if a CC transcript file exists for the given CC session ID and CWD.
- *  CC stores transcripts at ~/.claude/projects/{mangled-cwd}/{ccSessionId}.jsonl
- *  where mangled-cwd replaces all / with - in the absolute path. */
-function ccTranscriptExists(ccSessionId: string, cwd: string): boolean {
-  const home = process.env.HOME || '/root'
-  const mangledCwd = cwd.replace(/\//g, '-')
-  const transcriptPath = join(home, '.claude', 'projects', mangledCwd, `${ccSessionId}.jsonl`)
-  return existsSync(transcriptPath)
-}
 
 function listCcSessions(cwd: string): ListCcSessionsResult['sessions'] {
   const home = process.env.HOME || '/root'
@@ -460,6 +500,8 @@ function spawnHeadlessDirect(
     if (exitCode === 0) {
       log(`Headless child exited normally: PID ${pid} conv=${conversationId.slice(0, 8)} (${elapsedMs}ms)`)
       diag('spawn', `Child exited OK (${elapsedMs}ms)`, { conversationId: conversationId.slice(0, 8), pid })
+      // Clean exit -- pre-flight warnings were false alarms; drop them.
+      consumePreflightWarnings(conversationId)
     } else {
       const earlyFailure = elapsedMs < 5000
       log(
@@ -470,6 +512,11 @@ function spawnHeadlessDirect(
         pid,
         earlyFailure,
       })
+
+      // Pre-flight warnings stashed before the spawn become likely-cause
+      // hints once CC actually fails. Consume (clear) them here regardless
+      // of whether we can reach the broker, so a later retry starts fresh.
+      const preflightHints = consumePreflightWarnings(conversationId)
 
       // Report to broker
       if (activeWs?.readyState === WebSocket.OPEN) {
@@ -489,6 +536,7 @@ function spawnHeadlessDirect(
           exitCode,
           elapsedMs,
           error: errorDetail,
+          ...(preflightHints ? { preflightHints } : {}),
         }
         try {
           activeWs.send(JSON.stringify(msg))
@@ -903,7 +951,7 @@ function diag(type: string, msg: string, args?: unknown) {
 }
 
 /** Send a launch_log event tagged with jobId for request-scoped progress tracking */
-function launchLog(jobId: string | undefined, step: string, status: 'info' | 'ok' | 'error', detail?: string) {
+function launchLog(jobId: string | undefined, step: string, status: 'info' | 'ok' | 'error' | 'warn', detail?: string) {
   if (!jobId) return
   log(`[job:${jobId.slice(0, 8)}] ${status}: ${step}${detail ? ` -- ${detail}` : ''}`)
   if (activeWs?.readyState === WebSocket.OPEN) {
@@ -958,9 +1006,17 @@ async function reviveConversation(
       return result
     }
 
-    if (mode === 'resume' && !ccTranscriptExists(ccSessionId, cwd)) {
-      result.error = `Cannot resume: CC transcript file missing for session ${ccSessionId.slice(0, 8)}`
-      launchLog(jobId, 'Resume failed', 'error', result.error)
+    // Pre-flight: hard fails abort here; soft warnings are stashed and surfaced
+    // by spawnHeadlessDirect's early-exit handler if CC dies during boot.
+    const preflightOk = runPreflight({
+      cwd,
+      worktree: adHocWorktree,
+      resumeCcSessionId: mode === 'resume' ? ccSessionId : undefined,
+      conversationId,
+      jobId,
+    })
+    if (!preflightOk) {
+      result.error = 'Pre-flight check failed (see launch log)'
       return result
     }
 
@@ -996,9 +1052,18 @@ async function reviveConversation(
   }
 
   // ─── tmux path for PTY sessions ────────────────────────────
-  if (mode === 'resume' && !ccTranscriptExists(ccSessionId, cwd)) {
-    result.error = `Cannot resume: CC transcript file missing for session ${ccSessionId.slice(0, 8)}`
-    launchLog(jobId, 'Resume failed', 'error', result.error)
+  // Pre-flight for the tmux revive path. Hard fails abort; soft warnings are
+  // stashed but PTY mode has no early-exit detection plumbing -- they will
+  // remain in the warning store unless explicitly drained.
+  const ptyPreflightOk = runPreflight({
+    cwd,
+    worktree: adHocWorktree,
+    resumeCcSessionId: mode === 'resume' ? ccSessionId : undefined,
+    conversationId,
+    jobId,
+  })
+  if (!ptyPreflightOk) {
+    result.error = 'Pre-flight check failed (see launch log)'
     return result
   }
 
@@ -1206,6 +1271,20 @@ async function spawnConversation(
       return { success: false, error: err }
     }
 
+    // Pre-flight: validate the spawn target before paying for a process boot.
+    // Hard fails return immediately; soft warnings are stashed and surface
+    // via spawnHeadlessDirect's early-exit handler if CC then dies during boot.
+    const preflightOk = runPreflight({
+      cwd,
+      worktree,
+      resumeCcSessionId: mode === 'resume' ? resumeId : undefined,
+      conversationId,
+      jobId,
+    })
+    if (!preflightOk) {
+      return { success: false, error: 'Pre-flight check failed (see launch log)' }
+    }
+
     const args = buildHeadlessArgs({
       mode,
       resumeId,
@@ -1247,6 +1326,19 @@ async function spawnConversation(
   }
 
   // ─── tmux path for PTY sessions ────────────────────────────
+
+  // Pre-flight before tmux spawn. Same logic as headless, but the warning
+  // surface for early-exit doesn't apply here (tmux owns the lifecycle).
+  const ptyPreflightOk = runPreflight({
+    cwd,
+    worktree,
+    resumeCcSessionId: mode === 'resume' ? resumeId : undefined,
+    conversationId,
+    jobId,
+  })
+  if (!ptyPreflightOk) {
+    return { success: false, error: 'Pre-flight check failed (see launch log)' }
+  }
 
   // Sanitize strings that will be embedded in shell commands by revive-session.sh.
   // The env vars are safe in Bun.spawnSync, but the shell script injects them into
