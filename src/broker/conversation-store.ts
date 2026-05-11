@@ -32,7 +32,7 @@ import { clearSession as clearAnalyticsSession } from './analytics-store'
 import { resolveBackend } from './backends'
 import { addEvent as addEventImpl } from './conversation-store/add-event'
 import { addTranscriptEntries as addTranscriptEntriesImpl } from './conversation-store/add-transcript-entries'
-import { createChannelRegistry } from './conversation-store/channel-registry'
+import { createChannelRegistry, type SubscriberEntry } from './conversation-store/channel-registry'
 import { MAX_TRANSCRIPT_ENTRIES } from './conversation-store/constants'
 import { assignTranscriptSeqs, type ConversationStoreContext } from './conversation-store/event-context'
 import { createListenerRegistry } from './conversation-store/listeners'
@@ -196,6 +196,7 @@ export interface ConversationStore {
   broadcastToChannel: (channel: SubscriptionChannel, conversationId: string, message: unknown, agentId?: string) => void
   isV2Subscriber: (ws: ServerWebSocket<unknown>) => boolean
   getSubscriptionsDiag: () => SubscriptionsDiag
+  getSubscriberEntryForWs: (ws: ServerWebSocket<unknown>) => SubscriberEntry | undefined
   // Sentinel methods (sentinels Map internally)
   setSentinel: (ws: ServerWebSocket<unknown>, info?: SentinelIdentifyInfo) => boolean
   getSentinel: () => ServerWebSocket<unknown> | undefined
@@ -2219,6 +2220,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     broadcastToChannel,
     isV2Subscriber,
     getSubscriptionsDiag,
+    getSubscriberEntryForWs: channelRegistry.getSubscriberEntry,
     setSentinel,
     getSentinel,
     getSentinelByAlias,
