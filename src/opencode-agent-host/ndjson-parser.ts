@@ -191,7 +191,7 @@ export function translateEvent(event: OpenCodeEvent, state: ParserState): Transl
 
     case 'tool_use': {
       const part = (event as OpenCodeToolUse).part
-      if (!part || !part.tool || !part.callID) return { entries: [], turnComplete: false }
+      if (!part?.tool || !part?.callID) return { entries: [], turnComplete: false }
 
       // tool_use part: id, name, input
       const toolUseBlock: TranscriptContentBlock = {

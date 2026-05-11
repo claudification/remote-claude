@@ -132,7 +132,7 @@ function recapSearchTool(ctx: McpToolContext): ToolDef {
           {
             query,
             ...(projectFilter ? { projectFilter } : {}),
-            ...(tags && tags.length ? { tags } : {}),
+            ...(tags?.length ? { tags } : {}),
             ...(limit && limit > 0 ? { limit } : {}),
           },
         )

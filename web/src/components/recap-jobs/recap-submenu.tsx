@@ -62,7 +62,7 @@ export function createRecap(opts: CreateRecapOptions): boolean {
     projectUri: opts.projectUri,
     period,
     timeZone: browserTimeZone(),
-    ...(opts.signals && opts.signals.length ? { signals: opts.signals } : {}),
+    ...(opts.signals?.length ? { signals: opts.signals } : {}),
     ...(opts.force ? { force: true } : {}),
   })
 }
