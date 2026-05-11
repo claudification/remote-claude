@@ -203,7 +203,11 @@ describe('selectVisibleJobs', () => {
   test('shows active jobs always', () => {
     useRecapJobsStore.getState().applyProgress(progress({ recapId: 'r_a', status: 'gathering', progress: 10 }))
     useRecapJobsStore.getState().applyProgress(progress({ recapId: 'r_b', status: 'rendering', progress: 70 }))
-    expect(selectVisibleJobs(useRecapJobsStore.getState()).map(j => j.recapId).sort()).toEqual(['r_a', 'r_b'])
+    expect(
+      selectVisibleJobs(useRecapJobsStore.getState())
+        .map(j => j.recapId)
+        .sort(),
+    ).toEqual(['r_a', 'r_b'])
   })
 
   test('hides done jobs after the flash window', () => {

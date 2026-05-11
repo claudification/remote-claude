@@ -13,10 +13,10 @@ import type { ConversationStore } from '../conversation-store'
 import { getGlobalSettings } from '../global-settings'
 import { getProjectSettings } from '../project-settings'
 import { validateShare } from '../shares'
+import type { TerminationLog } from '../termination-log'
 import { processImagesInEntry } from './blob-store'
 import type { RouteHelpers } from './shared'
 import { broadcastToSubscribers, conversationToOverview } from './shared'
-import type { TerminationLog } from '../termination-log'
 
 export function createConversationsRouter(
   conversationStore: ConversationStore,
@@ -205,9 +205,7 @@ export function createConversationsRouter(
     const conv = conversationStore.getConversation(c.req.param('id'))
     if (!conv) return c.json({ error: 'Conversation not found' }, 404)
     if (!httpHasPermission(c.req.raw, 'chat:read', conv.project)) return c.json({ error: 'Forbidden' }, 403)
-    const history = terminationLog
-      ? terminationLog.query({ conversationId: conv.id, days: 30, limit: 50 })
-      : []
+    const history = terminationLog ? terminationLog.query({ conversationId: conv.id, days: 30, limit: 50 }) : []
     return c.json({
       current: conv.endedBy ?? null,
       history,

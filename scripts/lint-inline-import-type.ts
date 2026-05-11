@@ -78,8 +78,7 @@ for (const scanDir of SCAN_DIRS) {
         const singleQuotesBefore = (before.match(/'/g) || []).length
         const doubleQuotesBefore = (before.match(/"/g) || []).length
         const backticksBefore = (before.match(/`/g) || []).length
-        const insideString =
-          singleQuotesBefore % 2 === 1 || doubleQuotesBefore % 2 === 1 || backticksBefore % 2 === 1
+        const insideString = singleQuotesBefore % 2 === 1 || doubleQuotesBefore % 2 === 1 || backticksBefore % 2 === 1
         if (insideString) continue
 
         violations.push({

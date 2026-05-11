@@ -23,8 +23,8 @@
  *   --json                 Emit raw JSON records, one per line
  */
 
-import { createTerminationLog, type TerminationRecord } from '../termination-log'
 import type { TerminationSource } from '../../shared/protocol'
+import { createTerminationLog, type TerminationRecord } from '../termination-log'
 import type { ParsedArgs } from './parse-args'
 
 function parseSources(arg: string): TerminationSource[] | undefined {
@@ -44,8 +44,7 @@ function formatRow(rec: TerminationRecord): string {
 
 function tableHeader(): string {
   return (
-    'TIMESTAMP                 CONV      SOURCE                        INITIATOR             NOTE\n' +
-    '-'.repeat(120)
+    'TIMESTAMP                 CONV      SOURCE                        INITIATOR             NOTE\n' + '-'.repeat(120)
   )
 }
 

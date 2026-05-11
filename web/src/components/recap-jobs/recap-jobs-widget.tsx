@@ -10,18 +10,17 @@
 
 import { useEffect, useState } from 'react'
 import { wsSend } from '@/hooks/use-conversations'
-import {
-  type RecapJob,
-  selectVisibleJobs,
-  useRecapJobsStore,
-} from '@/hooks/use-recap-jobs'
+import { type RecapJob, selectVisibleJobs, useRecapJobsStore } from '@/hooks/use-recap-jobs'
 import { cn, haptic } from '@/lib/utils'
 
 const TICK_MS = 1000
 
 function formatPhase(phase: string | undefined): string {
   if (!phase) return ''
-  return phase.replace(/^gather\//, 'Gather: ').replace(/^render\//, 'Render: ').replace('persist', 'Persist')
+  return phase
+    .replace(/^gather\//, 'Gather: ')
+    .replace(/^render\//, 'Render: ')
+    .replace('persist', 'Persist')
 }
 
 function jobLabel(job: RecapJob): string {
@@ -134,9 +133,7 @@ export function RecapJobsWidget() {
 
   return (
     <div className="border-t border-border px-2 py-2 space-y-1.5 shrink-0">
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">
-        Recap jobs ({jobs.length})
-      </div>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-1">Recap jobs ({jobs.length})</div>
       {/* Newest first -- the column reads naturally bottom-up because the
           sidebar is height-limited and the widget anchors to the bottom. */}
       {jobs.map(job => (

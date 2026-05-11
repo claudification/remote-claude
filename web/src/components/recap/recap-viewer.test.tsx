@@ -7,8 +7,8 @@
  *   - View-raw toggle
  */
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PeriodRecapDoc } from '@shared/protocol'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { RecapViewer } from './recap-viewer'
 
@@ -41,10 +41,11 @@ function dispatchOpen(recapId: string) {
 }
 
 function mockFetchOnce(recap: PeriodRecapDoc | null): void {
-  vi.spyOn(window, 'fetch').mockImplementation(async () =>
-    new Response(JSON.stringify(recap ? { recap } : { error: 'not found' }), {
-      status: recap ? 200 : 404,
-    }),
+  vi.spyOn(window, 'fetch').mockImplementation(
+    async () =>
+      new Response(JSON.stringify(recap ? { recap } : { error: 'not found' }), {
+        status: recap ? 200 : 404,
+      }),
   )
 }
 
