@@ -1,5 +1,5 @@
 /**
- * Integration tests for inter-session messaging (channel_list_conversations + channel_send).
+ * Integration tests for inter-conversation messaging (channel_list_conversations + channel_send).
  *
  * These tests verify that:
  * 1. Sessions can discover each other via list_conversations
@@ -12,7 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { createTestHarness, type TestHarness, testId } from './test-harness'
 
-describe('inter-session messaging', () => {
+describe('inter-conversation messaging', () => {
   let h: TestHarness
 
   beforeEach(() => {
@@ -21,7 +21,7 @@ describe('inter-session messaging', () => {
   afterEach(() => h.cleanup())
 
   /** Boot + promote a fully registered session, with open trust for messaging */
-  function bootAndPromote(opts: { conversationId: string; sessionId: string; project: string }) {
+  function bootAndPromote(opts: { conversationId: string; ccSessionId: string; project: string }) {
     h.setProjectSettings(opts.project, { trustLevel: 'open' })
     const agent = h.bootAgentHost({
       conversationId: opts.conversationId,
@@ -30,7 +30,7 @@ describe('inter-session messaging', () => {
     h.agentSend(agent, {
       type: 'meta',
       conversationId: opts.conversationId,
-      ccSessionId: opts.sessionId,
+      ccSessionId: opts.ccSessionId,
       project: opts.project,
       cwd: opts.project.replace('claude://', ''),
       startedAt: Date.now(),
@@ -41,19 +41,19 @@ describe('inter-session messaging', () => {
 
   describe('channel_list_conversations', () => {
     it('returns other conversations', async () => {
-      const sessionA = testId('sess-a')
-      const sessionB = testId('sess-b')
+      const ccSessionA = testId('sess-a')
+      const ccSessionB = testId('sess-b')
       const convA = testId('conv-a')
       const convB = testId('conv-b')
 
       const agentA = bootAndPromote({
         conversationId: convA,
-        sessionId: sessionA,
+        ccSessionId: ccSessionA,
         project: 'claude:///home/user/project-alpha',
       })
       bootAndPromote({
         conversationId: convB,
-        sessionId: sessionB,
+        ccSessionId: ccSessionB,
         project: 'claude:///home/user/project-beta',
       })
 
@@ -72,12 +72,12 @@ describe('inter-session messaging', () => {
     })
 
     it('includes self with self: true annotation', async () => {
-      const sessionA = testId('sess-a')
+      const ccSessionA = testId('sess-a')
       const convA = testId('conv-a')
 
       const agentA = bootAndPromote({
         conversationId: convA,
-        sessionId: sessionA,
+        ccSessionId: ccSessionA,
         project: 'claude:///home/user/project-alpha',
       })
 
@@ -96,19 +96,19 @@ describe('inter-session messaging', () => {
 
   describe('channel_send', () => {
     it('delivers message without prior list_conversations', async () => {
-      const sessionA = testId('sess-a')
-      const sessionB = testId('sess-b')
+      const ccSessionA = testId('sess-a')
+      const ccSessionB = testId('sess-b')
       const convA = testId('conv-a')
       const convB = testId('conv-b')
 
       const agentA = bootAndPromote({
         conversationId: convA,
-        sessionId: sessionA,
+        ccSessionId: ccSessionA,
         project: 'claude:///home/user/project-alpha',
       })
       const agentB = bootAndPromote({
         conversationId: convB,
-        sessionId: sessionB,
+        ccSessionId: ccSessionB,
         project: 'claude:///home/user/project-beta',
       })
 
@@ -117,7 +117,7 @@ describe('inter-session messaging', () => {
       // A sends to B using the project slug -- NO list_conversations first
       h.agentSend(agentA, {
         type: 'channel_send',
-        toSession: 'project-beta',
+        toConversation: 'project-beta',
         intent: 'request',
         message: 'Hello from A',
       })
@@ -135,19 +135,19 @@ describe('inter-session messaging', () => {
     })
 
     it('works after conversation_reset -- the regression', async () => {
-      const sessionA = testId('sess-a')
-      const sessionB = testId('sess-b')
+      const ccSessionA = testId('sess-a')
+      const ccSessionB = testId('sess-b')
       const convA = testId('conv-a')
       const convB = testId('conv-b')
 
       const agentA = bootAndPromote({
         conversationId: convA,
-        sessionId: sessionA,
+        ccSessionId: ccSessionA,
         project: 'claude:///home/user/project-alpha',
       })
       const agentB = bootAndPromote({
         conversationId: convB,
-        sessionId: sessionB,
+        ccSessionId: ccSessionB,
         project: 'claude:///home/user/project-beta',
       })
 
@@ -165,7 +165,7 @@ describe('inter-session messaging', () => {
       // A sends to B AFTER the rekey
       h.agentSend(agentA, {
         type: 'channel_send',
-        toSession: 'project-beta',
+        toConversation: 'project-beta',
         intent: 'notify',
         message: 'Still alive after clear',
       })
@@ -181,12 +181,12 @@ describe('inter-session messaging', () => {
     })
 
     it('returns error for unknown target', async () => {
-      const sessionA = testId('sess-a')
+      const ccSessionA = testId('sess-a')
       const convA = testId('conv-a')
 
       const agentA = bootAndPromote({
         conversationId: convA,
-        sessionId: sessionA,
+        ccSessionId: ccSessionA,
         project: 'claude:///home/user/project-alpha',
       })
 
@@ -194,7 +194,7 @@ describe('inter-session messaging', () => {
 
       h.agentSend(agentA, {
         type: 'channel_send',
-        toSession: 'nonexistent-project',
+        toConversation: 'nonexistent-project',
         intent: 'request',
         message: 'Hello?',
       })
@@ -206,19 +206,19 @@ describe('inter-session messaging', () => {
     })
 
     it('delivers to compound project:session-slug target', async () => {
-      const sessionA = testId('sess-a')
-      const sessionB = testId('sess-b')
+      const ccSessionA = testId('sess-a')
+      const ccSessionB = testId('sess-b')
       const convA = testId('conv-a')
       const convB = testId('conv-b')
 
       const agentA = bootAndPromote({
         conversationId: convA,
-        sessionId: sessionA,
+        ccSessionId: ccSessionA,
         project: 'claude:///home/user/project-alpha',
       })
       const agentB = bootAndPromote({
         conversationId: convB,
-        sessionId: sessionB,
+        ccSessionId: ccSessionB,
         project: 'claude:///home/user/project-beta',
       })
 
@@ -234,7 +234,7 @@ describe('inter-session messaging', () => {
       // Send using the compound ID from list_conversations
       h.agentSend(agentA, {
         type: 'channel_send',
-        toSession: betaSession?.id,
+        toConversation: betaSession?.id,
         intent: 'request',
         message: 'Via compound ID',
       })
@@ -249,19 +249,19 @@ describe('inter-session messaging', () => {
     })
 
     it('works bidirectionally', async () => {
-      const sessionA = testId('sess-a')
-      const sessionB = testId('sess-b')
+      const ccSessionA = testId('sess-a')
+      const ccSessionB = testId('sess-b')
       const convA = testId('conv-a')
       const convB = testId('conv-b')
 
       const agentA = bootAndPromote({
         conversationId: convA,
-        sessionId: sessionA,
+        ccSessionId: ccSessionA,
         project: 'claude:///home/user/project-alpha',
       })
       const agentB = bootAndPromote({
         conversationId: convB,
-        sessionId: sessionB,
+        ccSessionId: ccSessionB,
         project: 'claude:///home/user/project-beta',
       })
 
@@ -270,7 +270,7 @@ describe('inter-session messaging', () => {
       // A -> B
       h.agentSend(agentA, {
         type: 'channel_send',
-        toSession: 'project-beta',
+        toConversation: 'project-beta',
         intent: 'request',
         message: 'A to B',
       })
@@ -278,7 +278,7 @@ describe('inter-session messaging', () => {
       // B -> A
       h.agentSend(agentB, {
         type: 'channel_send',
-        toSession: 'project-alpha',
+        toConversation: 'project-alpha',
         intent: 'response',
         message: 'B to A',
       })
@@ -306,7 +306,7 @@ describe('inter-session messaging', () => {
       // Caller is a normal booted agent host
       const agent = bootAndPromote({
         conversationId: callerConv,
-        sessionId: testId('sess'),
+        ccSessionId: testId('sess'),
         project: 'claude:///home/user/project-caller',
       })
 
@@ -341,7 +341,7 @@ describe('inter-session messaging', () => {
 
       const agent = bootAndPromote({
         conversationId: callerConv,
-        sessionId: testId('sess'),
+        ccSessionId: testId('sess'),
         project: 'claude:///home/user/project-caller',
       })
 
@@ -359,7 +359,7 @@ describe('inter-session messaging', () => {
 
       h.agentSend(agent, {
         type: 'channel_send',
-        toSession: pendingConv,
+        toConversation: pendingConv,
         intent: 'request',
         message: 'queued for boot',
       })
@@ -386,14 +386,14 @@ describe('inter-session messaging', () => {
 
       const agent = bootAndPromote({
         conversationId: callerConv,
-        sessionId: testId('sess'),
+        ccSessionId: testId('sess'),
         project: 'claude:///home/user/project-caller',
       })
 
       // Register a healthy peer
       bootAndPromote({
         conversationId: healthyConv,
-        sessionId: testId('sess'),
+        ccSessionId: testId('sess'),
         project: 'claude:///home/user/project-healthy',
       })
 
@@ -429,7 +429,7 @@ describe('inter-session messaging', () => {
 
       const agent = bootAndPromote({
         conversationId: callerConv,
-        sessionId: testId('sess'),
+        ccSessionId: testId('sess'),
         project: 'claude:///home/user/project-caller',
       })
 
@@ -455,8 +455,8 @@ describe('inter-session messaging', () => {
   describe('channel_subscribe snapshots', () => {
     it('conversation:tasks subscribe immediately replies with the current tasks list', async () => {
       const convId = testId('conv')
-      const sessionId = testId('cc')
-      bootAndPromote({ conversationId: convId, sessionId, project: 'claude:///home/user/proj-tasks' })
+      const ccSessionId = testId('cc')
+      bootAndPromote({ conversationId: convId, ccSessionId, project: 'claude:///home/user/proj-tasks' })
       await h.flushUpdates()
 
       const now = Date.now()
@@ -492,8 +492,8 @@ describe('inter-session messaging', () => {
 
     it('non-tasks channels do not get a spurious tasks_update push', async () => {
       const convId = testId('conv')
-      const sessionId = testId('cc')
-      bootAndPromote({ conversationId: convId, sessionId, project: 'claude:///home/user/proj-other' })
+      const ccSessionId = testId('cc')
+      bootAndPromote({ conversationId: convId, ccSessionId, project: 'claude:///home/user/proj-other' })
       await h.flushUpdates()
 
       const dashboard = h.connectDashboard()
