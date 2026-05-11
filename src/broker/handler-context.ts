@@ -30,6 +30,11 @@ export interface WsData {
   gatewayType?: string
   gatewayId?: string
   gatewayAlias?: string
+  // Live connection registry metadata (set at upgrade, not per-conversation)
+  wsConnId?: string
+  connectedAt?: number
+  remoteAddr?: string
+  userAgent?: string
 }
 
 /** Thrown by guard methods (requireBenevolent, requireAgent, etc.) */

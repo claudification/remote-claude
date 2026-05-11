@@ -41,7 +41,7 @@ export function buildMcpCallbacksWithRules(
       if (ctx.wsClient?.isConnected()) {
         ctx.wsClient.send({
           type: 'notify',
-          conversationId: ctx.claudeSessionId || deps.conversationId,
+          conversationId: deps.conversationId,
           message,
           title,
         })

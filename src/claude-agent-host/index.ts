@@ -259,10 +259,9 @@ async function main() {
       processHookEvent(ctx, event)
     },
     onNotify(message: string, title?: string) {
-      const sid = ctx.claudeSessionId || conversationId
       debug(`Notify: ${title ? `[${title}] ` : ''}${message}`)
       if (ctx.wsClient?.isConnected()) {
-        ctx.wsClient.send({ type: 'notify', conversationId: sid, message, title })
+        ctx.wsClient.send({ type: 'notify', conversationId, message, title })
       }
     },
     onAskQuestion(request) {

@@ -8,6 +8,7 @@ import {
   querySummary as queryAnalyticsSummary,
   queryTimeSeries as queryAnalyticsTimeSeries,
 } from '../analytics-store'
+import { buildConnectionInfoList, closeConnection } from '../connection-registry'
 import type { ConversationStore } from '../conversation-store'
 import { listProjects } from '../project-store'
 import type { StoreDriver } from '../store/types'
@@ -54,6 +55,20 @@ export function createStatsRouter(
   app.get('/api/subscriptions', c => {
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     return c.json(conversationStore.getSubscriptionsDiag())
+  })
+
+  // ─── Live connections (Nerd "Conns" tab) ──────────────────────────
+  app.get('/api/connections', c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
+    return c.json({ connections: buildConnectionInfoList(conversationStore) })
+  })
+
+  app.post('/api/connections/:id/close', c => {
+    if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
+    const id = c.req.param('id')
+    const ok = closeConnection(id)
+    if (!ok) return c.json({ error: 'Connection not found' }, 404)
+    return c.json({ ok: true })
   })
 
   // ─── Cost reporting ─────────────────────────────────────────────────
