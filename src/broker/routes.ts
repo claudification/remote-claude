@@ -9,6 +9,7 @@ import { Hono } from 'hono'
 import { handleAuthRoute, requireAuth } from './auth-routes'
 import type { ConversationStore } from './conversation-store'
 import { startFileReaper } from './file-reaper'
+import { createLaunchProfilesRouter } from './launch-profiles/routes'
 import { resolveInJail } from './path-jail'
 import { createAdminRouter } from './routes/admin'
 import { createApiRouter } from './routes/api'
@@ -223,6 +224,7 @@ export function createRouter(options: RouteOptions): Hono {
   )
   app.route('/', createStatsRouter(conversationStore, store, helpers, serverStartTime))
   app.route('/', createAdminRouter(conversationStore, helpers, rclaudeSecret))
+  app.route('/', createLaunchProfilesRouter(store, conversationStore))
   if (sentinelRegistry) {
     app.route('/', createSentinelRouter(sentinelRegistry, conversationStore, helpers))
   }

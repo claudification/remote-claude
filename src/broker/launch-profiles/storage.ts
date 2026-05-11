@@ -8,12 +8,8 @@
  *   []    -> user emptied the list; preserve verbatim, do NOT re-seed
  */
 
+import { LAUNCH_PROFILE_MAX_COUNT, type LaunchProfile, launchProfileListSchema } from '../../shared/launch-profile'
 import { buildSeedProfiles } from '../../shared/launch-profile-seeds'
-import {
-  LAUNCH_PROFILE_MAX_COUNT,
-  type LaunchProfile,
-  launchProfileListSchema,
-} from '../../shared/launch-profile'
 import type { KVStore } from '../store/types'
 
 const KEY_PREFIX = 'launch-profiles:'
@@ -43,6 +39,13 @@ export interface SaveLaunchProfilesResult {
 }
 
 export function saveLaunchProfiles(kv: KVStore, userName: string, profiles: unknown): SaveLaunchProfilesResult {
+  const validated = validateProfileList(profiles)
+  if (!validated.ok) return validated
+  kv.set(launchProfilesKey(userName), validated.profiles)
+  return validated
+}
+
+function validateProfileList(profiles: unknown): SaveLaunchProfilesResult {
   const parsed = launchProfileListSchema.safeParse(profiles)
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid launch profile list' }
@@ -50,9 +53,8 @@ export function saveLaunchProfiles(kv: KVStore, userName: string, profiles: unkn
   if (parsed.data.length > LAUNCH_PROFILE_MAX_COUNT) {
     return { ok: false, error: `at most ${LAUNCH_PROFILE_MAX_COUNT} profiles allowed` }
   }
-  const dupCheck = findDuplicateName(parsed.data)
-  if (dupCheck) return { ok: false, error: `duplicate profile name: ${dupCheck}` }
-  kv.set(launchProfilesKey(userName), parsed.data)
+  const dup = findDuplicateName(parsed.data)
+  if (dup) return { ok: false, error: `duplicate profile name: ${dup}` }
   return { ok: true, profiles: parsed.data }
 }
 
