@@ -8,9 +8,9 @@
  * presentational; all state lives in useRecapJobsStore.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { wsSend } from '@/hooks/use-conversations'
-import { type RecapJob, selectVisibleJobs, useRecapJobsStore } from '@/hooks/use-recap-jobs'
+import { type RecapJob, type RecapJobsState, selectVisibleJobs, useRecapJobsStore } from '@/hooks/use-recap-jobs'
 import { cn, haptic } from '@/lib/utils'
 
 const TICK_MS = 1000
@@ -115,15 +115,23 @@ function JobCard({ job, onOpen }: { job: RecapJob; onOpen: (id: string) => void 
 }
 
 export function RecapJobsWidget() {
-  const jobs = useRecapJobsStore(selectVisibleJobs)
-  // Force re-render on a tick so failed-job auto-hide and done-flash windows
-  // close on time even without new WS events.
-  const [, setTick] = useState(0)
+  // Subscribe to the stable jobs map; derive the visible array via useMemo.
+  // Calling selectVisibleJobs as a Zustand selector returns a fresh array on
+  // every render (filter+sort), which trips useSyncExternalStore's snapshot
+  // check and triggers React error #185 (infinite re-render).
+  const jobsMap = useRecapJobsStore(state => state.jobs)
+  const [tick, setTick] = useState(0)
+  const jobs = useMemo(() => selectVisibleJobs({ jobs: jobsMap } as RecapJobsState), [jobsMap, tick])
+
+  // Tick once a second so done-flash and failed-visible windows close on time
+  // even without new WS events. Gate on the raw map so we don't re-arm on
+  // every visibility recomputation.
+  const hasAny = Object.keys(jobsMap).length > 0
   useEffect(() => {
-    if (jobs.length === 0) return
+    if (!hasAny) return
     const t = setInterval(() => setTick(n => n + 1), TICK_MS)
     return () => clearInterval(t)
-  }, [jobs.length])
+  }, [hasAny])
 
   if (jobs.length === 0) return null
 

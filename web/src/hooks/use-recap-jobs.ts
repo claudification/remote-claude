@@ -45,7 +45,7 @@ export interface RecapJob {
   dismissedAtLocal?: number
 }
 
-interface RecapJobsState {
+export interface RecapJobsState {
   jobs: Record<string, RecapJob>
   applyProgress(msg: RecapProgressMessage): void
   applyComplete(msg: RecapCompleteMessage): void
