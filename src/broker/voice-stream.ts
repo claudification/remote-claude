@@ -9,6 +9,9 @@ import type { ServerWebSocket } from 'bun'
 import type { ConversationStore } from './conversation-store'
 import { getGlobalSettings } from './global-settings'
 import { getProjectSettings } from './project-settings'
+import { chat } from './recap/shared/openrouter-client'
+
+const VOICE_REFINER_MODEL = 'anthropic/claude-haiku-4.5'
 
 const DEEPGRAM_LIVE_URL = 'wss://api.deepgram.com/v1/listen'
 const VOICE_TIMEOUT_MS = 120_000 // Max 120s recording conversation
@@ -355,22 +358,14 @@ async function refineAndSend(ws: ServerWebSocket<unknown>, rawText: string, keyt
     // ── Step 1: Context Extraction ──────────────────────────────────
     const keytermHint = keyterms.length > 0 ? `\nKnown project terms: ${keyterms.join(', ')}` : ''
 
-    const contextRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${openrouterKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-haiku-4.5',
-        messages: [
-          {
-            role: 'system' as const,
-            content: `You analyze voice transcripts to extract context that helps correct ASR errors.${keytermHint}`,
-          },
-          {
-            role: 'user' as const,
-            content: `Analyze this voice transcript and output a brief JSON object with these fields:
+    let contextBlock = ''
+    let contextJson = ''
+    try {
+      const contextRes = await chat({
+        model: VOICE_REFINER_MODEL,
+        apiKey: openrouterKey,
+        system: `You analyze voice transcripts to extract context that helps correct ASR errors.${keytermHint}`,
+        user: `Analyze this voice transcript and output a brief JSON object with these fields:
 - "proper_nouns": names, brands, places, tools mentioned or likely intended (array of strings)
 - "domain": the topic/domain (e.g. "software development", "Thai culture", "DevOps") (string)
 - "corrections": any words that are likely ASR misrecognitions, with what they probably should be (array of {"heard": "x", "meant": "y"})
@@ -379,21 +374,17 @@ async function refineAndSend(ws: ServerWebSocket<unknown>, rawText: string, keyt
 Output ONLY valid JSON, nothing else.
 
 ${rawText}`,
-          },
-        ],
-        max_tokens: 512,
+        maxTokens: 512,
         temperature: 0.1,
-      }),
-    })
-
-    let contextBlock = ''
-    if (contextRes.ok) {
-      const contextData = (await contextRes.json()) as { choices?: Array<{ message?: { content?: string } }> }
-      const contextJson = contextData.choices?.[0]?.message?.content?.trim() || ''
+        retries: 0,
+      })
+      contextJson = contextRes.content
       console.log(`[voice-stream] Step 1 context: ${contextJson.slice(0, 300)}`)
-
+    } catch (err) {
+      console.error('[voice-stream] Step 1 context failed:', err)
+    }
+    if (contextJson) {
       try {
-        // Strip markdown code fences if Haiku wraps the JSON (common LLM behavior)
         const cleanJson = contextJson.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '')
         const ctx = JSON.parse(cleanJson)
         const parts: string[] = []
@@ -412,9 +403,6 @@ ${rawText}`,
       } catch {
         console.warn('[voice-stream] Step 1 returned non-JSON, proceeding with step 2 anyway')
       }
-    } else {
-      const errBody = await contextRes.text().catch(() => '')
-      console.warn(`[voice-stream] Step 1 context extraction failed: ${contextRes.status} ${errBody.slice(0, 200)}`)
     }
 
     // ── Step 2: Refinement with enriched context ────────────────────
@@ -462,29 +450,20 @@ ${rawText}`,
       },
     ]
 
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${openrouterKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-haiku-4.5',
+    try {
+      const res = await chat({
+        model: VOICE_REFINER_MODEL,
+        apiKey: openrouterKey,
         messages,
-        max_tokens: 2048,
+        maxTokens: 2048,
         temperature: 0.3,
-      }),
-    })
-
-    if (res.ok) {
-      const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> }
-      let refined = data.choices?.[0]?.message?.content?.trim() || rawText
-      refined = stripPreamble(refined)
+        retries: 0,
+      })
+      const refined = stripPreamble(res.content || rawText)
       console.log(`[voice-stream] Refined:\n  OUT: "${refined}"`)
       ws.send(JSON.stringify({ type: 'voice_done', raw: rawText, refined }))
-    } else {
-      const errBody = await res.text().catch(() => '')
-      console.error(`[voice-stream] Step 2 refinement failed: ${res.status} ${errBody.slice(0, 500)}`)
+    } catch (err) {
+      console.error('[voice-stream] Step 2 refinement failed:', err)
       ws.send(JSON.stringify({ type: 'voice_done', raw: rawText, refined: rawText }))
     }
   } catch (err) {

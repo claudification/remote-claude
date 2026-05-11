@@ -19,17 +19,17 @@
  * can be unit-tested with synthetic streams.
  */
 
-export interface JsonRpcResult {
+interface JsonRpcResult {
   jsonrpc: '2.0'
   id: number | string
   result: unknown
 }
-export interface JsonRpcErrorResponse {
+interface JsonRpcErrorResponse {
   jsonrpc: '2.0'
   id: number | string
   error: { code: number; message: string; data?: unknown }
 }
-export type JsonRpcResponse = JsonRpcResult | JsonRpcErrorResponse
+type JsonRpcResponse = JsonRpcResult | JsonRpcErrorResponse
 
 export interface JsonRpcRequest {
   jsonrpc: '2.0'
@@ -42,8 +42,6 @@ export interface JsonRpcNotification {
   method: string
   params?: unknown
 }
-
-export type JsonRpcInbound = JsonRpcResponse | JsonRpcRequest | JsonRpcNotification
 
 /** What an inbound line is, after parsing. The discriminant is structural --
  *  ACP doesn't put a `type` field on the wire. */
@@ -90,7 +88,7 @@ export interface JsonRpcClientOptions {
   onTrace?: (dir: 'send' | 'recv', msg: object) => void
 }
 
-export interface PendingCall {
+interface PendingCall {
   id: number
   method: string
   resolve: (result: unknown) => void
