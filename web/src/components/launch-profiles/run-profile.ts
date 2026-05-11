@@ -20,8 +20,10 @@ import type { SpawnRequest } from '@shared/spawn-schema'
 import { openSpawnDialog } from '@/components/spawn-dialog'
 import type { SentinelStatusInfo } from '@/hooks/use-conversations'
 import { sendSpawnRequest } from '@/hooks/use-spawn'
+import { putLaunchProfiles } from './api'
 import { openLaunchProfileManager } from './manager-state'
 import { checkProfilePins } from './pin-reachability'
+import { getLaunchProfilesSnapshot, setLaunchProfiles } from './store'
 
 export interface RunProfileOverride {
   cwd?: string
@@ -94,6 +96,20 @@ async function spawnImmediate(
     body: cwd,
     conversationId: result.conversationId,
     profileId: profile.id,
+  })
+  void recordProfileUse(profile.id)
+}
+
+async function recordProfileUse(profileId: string): Promise<void> {
+  const current = getLaunchProfilesSnapshot()
+  if (!current) return
+  const now = Date.now()
+  const next = current.map(p =>
+    p.id === profileId ? { ...p, lastUsedAt: now, useCount: (p.useCount ?? 0) + 1, updatedAt: now } : p,
+  )
+  setLaunchProfiles(next)
+  await putLaunchProfiles(next).catch(() => {
+    /* silent -- non-critical telemetry */
   })
 }
 
