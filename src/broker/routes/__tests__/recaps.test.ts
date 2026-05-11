@@ -321,7 +321,10 @@ describe('GET /shared/public/recap/:token', () => {
     const { token } = (await created.json()) as { token: string }
 
     // Fetch with NO auth -- the token IS the auth.
-    const res = await app.request(`/shared/public/recap/${token}`)
+    // Explicit JSON accept: route defaults to HTML for browsers; tests use the API shape.
+    const res = await app.request(`/shared/public/recap/${token}`, {
+      headers: { accept: 'application/json' },
+    })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.recapId).toBe('recap_a')
