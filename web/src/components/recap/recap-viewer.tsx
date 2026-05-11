@@ -50,22 +50,39 @@ function ActionButton({
   children,
   onClick,
   title,
+  disabled = false,
+  isLoading = false,
 }: {
   children: React.ReactNode
-  onClick: () => void
+  onClick: () => void | Promise<void>
   title?: string
+  disabled?: boolean
+  isLoading?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={() => {
+        if (disabled || isLoading) return
         haptic('tap')
         onClick()
       }}
       title={title}
-      className="px-2 py-1 text-xs rounded border border-border hover:bg-muted/60"
+      disabled={disabled || isLoading}
+      className={`px-2 py-1 text-xs rounded border border-border transition-all ${
+        disabled || isLoading
+          ? 'opacity-50 cursor-not-allowed'
+          : 'hover:bg-muted/60 cursor-pointer'
+      }`}
     >
-      {children}
+      {isLoading ? (
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          {children}
+        </span>
+      ) : (
+        children
+      )}
     </button>
   )
 }
@@ -91,6 +108,48 @@ async function shareRecap(recapId: string): Promise<string | null> {
 }
 
 function RecapHeader({ recap, mode, setMode }: { recap: PeriodRecapDoc; mode: Mode; setMode: (m: Mode) => void }) {
+  const [isShareLoading, setIsShareLoading] = useState(false)
+
+  const handleShare = async () => {
+    setIsShareLoading(true)
+    try {
+      const url = await shareRecap(recap.recapId)
+      if (url) {
+        try {
+          await navigator.clipboard.writeText(url)
+          haptic('success')
+          window.dispatchEvent(new CustomEvent('rclaude-toast', {
+            detail: {
+              title: 'Copied',
+              body: 'Share link copied to clipboard',
+              variant: 'success'
+            }
+          }))
+        } catch {
+          haptic('error')
+          window.dispatchEvent(new CustomEvent('rclaude-toast', {
+            detail: {
+              title: 'Copy failed',
+              body: 'Could not copy to clipboard',
+              variant: 'error'
+            }
+          }))
+        }
+      } else {
+        haptic('error')
+        window.dispatchEvent(new CustomEvent('rclaude-toast', {
+          detail: {
+            title: 'Share failed',
+            body: 'Could not create share link',
+            variant: 'error'
+          }
+        }))
+      }
+    } finally {
+      setIsShareLoading(false)
+    }
+  }
+
   return (
     <div className="px-4 pt-4 pb-2 border-b border-border shrink-0">
       <div className="flex items-start gap-2">
@@ -113,40 +172,8 @@ function RecapHeader({ recap, mode, setMode }: { recap: PeriodRecapDoc; mode: Mo
           Download .md
         </ActionButton>
         <ActionButton
-          onClick={async () => {
-            const url = await shareRecap(recap.recapId)
-            if (url) {
-              try {
-                await navigator.clipboard.writeText(url)
-                haptic('success')
-                window.dispatchEvent(new CustomEvent('rclaude-toast', {
-                  detail: {
-                    title: 'Copied',
-                    body: 'Share link copied to clipboard',
-                    variant: 'success'
-                  }
-                }))
-              } catch {
-                haptic('error')
-                window.dispatchEvent(new CustomEvent('rclaude-toast', {
-                  detail: {
-                    title: 'Copy failed',
-                    body: 'Could not copy to clipboard',
-                    variant: 'error'
-                  }
-                }))
-              }
-            } else {
-              haptic('error')
-              window.dispatchEvent(new CustomEvent('rclaude-toast', {
-                detail: {
-                  title: 'Share failed',
-                  body: 'Could not create share link',
-                  variant: 'error'
-                }
-              }))
-            }
-          }}
+          onClick={handleShare}
+          isLoading={isShareLoading}
           title="Create a public share link and copy to clipboard"
         >
           Share link
