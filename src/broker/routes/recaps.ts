@@ -15,8 +15,8 @@
  *     reads the recap's stored markdown directly.
  */
 
-import { marked } from 'marked'
 import { Hono } from 'hono'
+import { marked } from 'marked'
 import { getAuthenticatedUser } from '../auth-routes'
 import type { ConversationStore } from '../conversation-store'
 import { getRecapOrchestrator } from '../recap-orchestrator'
@@ -33,7 +33,7 @@ function escapeHtml(text: string): string {
     '"': '&quot;',
     "'": '&#39;',
   }
-  return text.replace(/[&<>"']/g, (m) => map[m])
+  return text.replace(/[&<>"']/g, m => map[m])
 }
 
 interface ShareCreateBody {

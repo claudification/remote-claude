@@ -70,9 +70,7 @@ function ActionButton({
       title={title}
       disabled={disabled || isLoading}
       className={`px-2 py-1 text-xs rounded border border-border transition-all ${
-        disabled || isLoading
-          ? 'opacity-50 cursor-not-allowed'
-          : 'hover:bg-muted/60 cursor-pointer'
+        disabled || isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-muted/60 cursor-pointer'
       }`}
     >
       {isLoading ? (
@@ -118,32 +116,38 @@ function RecapHeader({ recap, mode, setMode }: { recap: PeriodRecapDoc; mode: Mo
         try {
           await navigator.clipboard.writeText(url)
           haptic('success')
-          window.dispatchEvent(new CustomEvent('rclaude-toast', {
-            detail: {
-              title: 'Copied',
-              body: 'Share link copied to clipboard',
-              variant: 'success'
-            }
-          }))
+          window.dispatchEvent(
+            new CustomEvent('rclaude-toast', {
+              detail: {
+                title: 'Copied',
+                body: 'Share link copied to clipboard',
+                variant: 'success',
+              },
+            }),
+          )
         } catch {
           haptic('error')
-          window.dispatchEvent(new CustomEvent('rclaude-toast', {
-            detail: {
-              title: 'Copy failed',
-              body: 'Could not copy to clipboard',
-              variant: 'error'
-            }
-          }))
+          window.dispatchEvent(
+            new CustomEvent('rclaude-toast', {
+              detail: {
+                title: 'Copy failed',
+                body: 'Could not copy to clipboard',
+                variant: 'error',
+              },
+            }),
+          )
         }
       } else {
         haptic('error')
-        window.dispatchEvent(new CustomEvent('rclaude-toast', {
-          detail: {
-            title: 'Share failed',
-            body: 'Could not create share link',
-            variant: 'error'
-          }
-        }))
+        window.dispatchEvent(
+          new CustomEvent('rclaude-toast', {
+            detail: {
+              title: 'Share failed',
+              body: 'Could not create share link',
+              variant: 'error',
+            },
+          }),
+        )
       }
     } finally {
       setIsShareLoading(false)

@@ -625,11 +625,7 @@ async function retryTranscriptWatcher(ctx: AgentHostContext, path: string) {
   ctx.diag('error', 'Transcript file still not found after kick', { path })
 }
 
-function handleChannelDeliver(
-  ctx: AgentHostContext,
-  deps: BrokerConnectionDeps,
-  delivery: InterConversationDelivery,
-) {
+function handleChannelDeliver(ctx: AgentHostContext, deps: BrokerConnectionDeps, delivery: InterConversationDelivery) {
   if (deps.headless && ctx.streamProc) {
     const attrs = [
       `sender="conversation"`,

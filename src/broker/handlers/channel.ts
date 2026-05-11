@@ -570,7 +570,10 @@ function deliverToOne(
   const effectiveLinkStatus =
     linkStatus === 'unknown' && isTrusted
       ? 'trusted'
-      : linkStatus === 'unknown' && fromConv?.project && toConv.project && ctx.links.find(fromConv.project, toConv.project)
+      : linkStatus === 'unknown' &&
+          fromConv?.project &&
+          toConv.project &&
+          ctx.links.find(fromConv.project, toConv.project)
         ? 'persisted'
         : linkStatus
 
