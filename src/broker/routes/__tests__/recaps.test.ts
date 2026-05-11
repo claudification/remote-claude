@@ -1,5 +1,5 @@
 /**
- * Tests for /api/recaps/* + /r/:token + /api/share/recap/:token routes.
+ * Tests for /api/recaps/* + /r/:token + /shared/public/recap/:token routes.
  *
  * Spins up a real SQLite store in a temp dir (FTS5 + recap tables need
  * the file-based driver, not memory). Initialises the recap orchestrator
@@ -255,7 +255,7 @@ describe('POST /api/recaps/:id/share', () => {
   })
 })
 
-describe('GET /api/share/recap/:token', () => {
+describe('GET /shared/public/recap/:token', () => {
   test('public token returns recap markdown + safe metadata', async () => {
     seedRecap({ id: 'recap_a', projectUri: 'claude://default/p', title: 'My Recap', subtitle: 'Phase 4' })
     const created = await app.request('/api/recaps/recap_a/share', {
@@ -266,7 +266,7 @@ describe('GET /api/share/recap/:token', () => {
     const { token } = (await created.json()) as { token: string }
 
     // Fetch with NO auth -- the token IS the auth.
-    const res = await app.request(`/api/share/recap/${token}`)
+    const res = await app.request(`/shared/public/recap/${token}`)
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.recapId).toBe('recap_a')
@@ -293,7 +293,7 @@ describe('GET /api/share/recap/:token', () => {
       targetKind: 'conversation',
       targetId: 'conv_x',
     })
-    const res = await app.request(`/api/share/recap/${share.token}`)
+    const res = await app.request(`/shared/public/recap/${share.token}`)
     expect(res.status).toBe(400)
   })
 })
