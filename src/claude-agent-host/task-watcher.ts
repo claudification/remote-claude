@@ -24,13 +24,29 @@ export function readAndSendTasks(ctx: AgentHostContext) {
   }
   try {
     let tasksDir: string | null = null
+    let anyDirExists = false
     for (const dir of ctx.taskCandidateDirs) {
       if (!existsSync(dir)) continue
+      anyDirExists = true
       const jsonFiles = readdirSync(dir).filter(f => f.endsWith('.json'))
       if (jsonFiles.length > 0) {
         tasksDir = dir
         break
       }
+    }
+
+    // No candidate task dir exists at all -- the agent host has no information
+    // about CC's tasks (path heuristic miss, headless mode that doesn't write
+    // to ~/.claude/tasks, or a conversation where TodoWrite hasn't fired yet).
+    // Emitting `tasks_update { tasks: [] }` here would cause the broker to
+    // archive any rehydrated-from-SQLite tasks (the broker treats absence as
+    // deletion). Stay silent until we either find a dir or see real content.
+    // The same guard intentionally does NOT block the legitimate empty case
+    // where a candidate dir exists but is empty -- that's a real "no tasks"
+    // signal from CC (Claude cleared them all).
+    if (!anyDirExists) {
+      debug('readAndSendTasks: no candidate task dir exists, suppressing empty broadcast')
+      return
     }
 
     const files = tasksDir
