@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { RecapCreateMessage, RecapPeriodLabel, RecapSignal } from '../../../shared/protocol'
+import type { StoreDriver } from '../../store/types'
 import { chat } from '../shared/openrouter-client'
 import {
   gatherCommitsStub,
@@ -17,7 +18,7 @@ import { buildPrompt, type PromptInputs } from './llm/prompt-builder'
 import { createProgressEmitter, type ProgressBroadcaster } from './progress'
 import { renderFinalMarkdown } from './render/markdown'
 import { buildFtsFields, denormalizeTags } from './render/metadata'
-import { parseRecapOutput, RecapParseError } from './render/parse-recap'
+import { parseRecapOutput, type RecapMetadata, RecapParseError } from './render/parse-recap'
 import { type ResolvedPeriod, resolvePeriod } from './resolve-period'
 import type { PeriodRecapStore } from './store'
 
@@ -35,7 +36,7 @@ const CACHE_WINDOW_MS = 5 * 60 * 1000
 
 export interface OrchestratorDeps {
   store: PeriodRecapStore
-  brokerStore: import('../../store/types').StoreDriver
+  brokerStore: StoreDriver
   broadcaster: ProgressBroadcaster
   /** Resolves the project URI -> rolled-up child URIs (worktrees etc). */
   expandProjectScope?: (projectUri: string) => string[]
@@ -280,7 +281,7 @@ interface FinalizeArgs {
   title: string
   subtitle?: string
   markdown: string
-  metadata: import('./render/parse-recap').RecapMetadata
+  metadata: RecapMetadata
   body: string
   projectUri: string
   inputTokens: number

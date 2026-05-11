@@ -15,6 +15,8 @@ import {
 } from '../shared/project-uri'
 import type {
   AgentHostCapability,
+  ClaudeEfficiencyUpdate,
+  ClaudeHealthUpdate,
   Conversation,
   ConversationSummary,
   HookEvent,
@@ -26,6 +28,7 @@ import type {
   TerminationSource,
   TranscriptAssistantEntry,
   TranscriptEntry,
+  UsageUpdate,
 } from '../shared/protocol'
 import { BUILD_VERSION } from '../shared/version'
 import { clearConversation as clearAnalyticsConversation } from './analytics-store'
@@ -43,6 +46,7 @@ import {
   pushSentinelDiag as pushSentinelDiagImpl,
   recordSentinelHeartbeat as recordSentinelHeartbeatImpl,
   removeSentinel as removeSentinelImpl,
+  type SentinelConnection,
   type SentinelIdentifyInfo,
   setClaudeEfficiency as setClaudeEfficiencyImpl,
   setClaudeHealth as setClaudeHealthImpl,
@@ -71,7 +75,7 @@ import { resolvePermissionFlags, resolvePermissions } from './permissions'
 import { cancelRecap, generateRecapOnEnd, scheduleRecap } from './recap/away-summary'
 import type { SentinelRegistry } from './sentinel-registry'
 import { listShares } from './shares'
-import type { StoreDriver, TaskRecord } from './store/types'
+import type { ConversationStats, StoreDriver, TaskRecord } from './store/types'
 import type { TerminationLog } from './termination-log'
 
 export type { ControlPanelMessage, ConversationSummary }
@@ -206,7 +210,7 @@ export interface ConversationStore {
   setSentinel: (ws: ServerWebSocket<unknown>, info?: SentinelIdentifyInfo) => boolean
   getSentinel: () => ServerWebSocket<unknown> | undefined
   getSentinelByAlias: (alias: string) => ServerWebSocket<unknown> | undefined
-  getSentinelConnection: (sentinelId: string) => import('./conversation-store/sentinel').SentinelConnection | undefined
+  getSentinelConnection: (sentinelId: string) => SentinelConnection | undefined
   getSentinelInfo: () => { machineId?: string; hostname?: string } | undefined
   getDefaultSentinelId: () => string | undefined
   getDefaultSentinelAlias: () => string | undefined
@@ -219,13 +223,13 @@ export interface ConversationStore {
   pushSentinelDiag: (entry: { t: number; type: string; msg: string; args?: unknown }) => void
   getSentinelDiag: () => Array<{ t: number; type: string; msg: string; args?: unknown }>
   // Plan usage data (from sentinel OAuth usage API polling)
-  setUsage: (usage: import('../shared/protocol').UsageUpdate) => void
-  getUsage: () => import('../shared/protocol').UsageUpdate | undefined
+  setUsage: (usage: UsageUpdate) => void
+  getUsage: () => UsageUpdate | undefined
   // External status data (broker polls clanker.watch + usage.report)
-  setClaudeHealth: (health: import('../shared/protocol').ClaudeHealthUpdate) => void
-  getClaudeHealth: () => import('../shared/protocol').ClaudeHealthUpdate | undefined
-  setClaudeEfficiency: (efficiency: import('../shared/protocol').ClaudeEfficiencyUpdate) => void
-  getClaudeEfficiency: () => import('../shared/protocol').ClaudeEfficiencyUpdate | undefined
+  setClaudeHealth: (health: ClaudeHealthUpdate) => void
+  getClaudeHealth: () => ClaudeHealthUpdate | undefined
+  setClaudeEfficiency: (efficiency: ClaudeEfficiencyUpdate) => void
+  getClaudeEfficiency: () => ClaudeEfficiencyUpdate | undefined
   // Request-response listeners for sentinel relay (spawn, dir listing)
   addSpawnListener: (requestId: string, cb: (result: unknown) => void) => void
   removeSpawnListener: (requestId: string) => void
@@ -949,7 +953,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
           lastActivity: conv.lastActivity,
           endedAt: conv.status === 'ended' ? conv.lastActivity : undefined,
           meta,
-          stats: conv.stats as unknown as import('./store/types').ConversationStats,
+          stats: conv.stats as unknown as ConversationStats,
         })
       }
     } catch (err) {
@@ -2112,22 +2116,22 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   function getSentinelDiag(): Array<{ t: number; type: string; msg: string; args?: unknown }> {
     return [...sentinelState.diagLog]
   }
-  function setUsage(usage: import('../shared/protocol').UsageUpdate): void {
+  function setUsage(usage: UsageUpdate): void {
     setUsageImpl(sentinelState, usage, broadcast)
   }
-  function getUsage(): import('../shared/protocol').UsageUpdate | undefined {
+  function getUsage(): UsageUpdate | undefined {
     return sentinelState.usage
   }
-  function setClaudeHealth(health: import('../shared/protocol').ClaudeHealthUpdate): void {
+  function setClaudeHealth(health: ClaudeHealthUpdate): void {
     setClaudeHealthImpl(sentinelState, health, broadcast)
   }
-  function getClaudeHealth(): import('../shared/protocol').ClaudeHealthUpdate | undefined {
+  function getClaudeHealth(): ClaudeHealthUpdate | undefined {
     return sentinelState.claudeHealth
   }
-  function setClaudeEfficiency(efficiency: import('../shared/protocol').ClaudeEfficiencyUpdate): void {
+  function setClaudeEfficiency(efficiency: ClaudeEfficiencyUpdate): void {
     setClaudeEfficiencyImpl(sentinelState, efficiency, broadcast)
   }
-  function getClaudeEfficiency(): import('../shared/protocol').ClaudeEfficiencyUpdate | undefined {
+  function getClaudeEfficiency(): ClaudeEfficiencyUpdate | undefined {
     return sentinelState.claudeEfficiency
   }
 

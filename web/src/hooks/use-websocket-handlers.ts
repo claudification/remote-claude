@@ -12,7 +12,15 @@
 
 import type { DialogLayout } from '@shared/dialog-schema'
 import type { LaunchProfile } from '@shared/launch-profile'
-import type { ConversationSummary } from '@shared/protocol'
+import type {
+  ConversationSummary,
+  RecapCompleteMessage,
+  RecapCreatedMessage,
+  RecapErrorMessage,
+  RecapPeriodLabel,
+  RecapProgressMessage,
+  RecapSummary,
+} from '@shared/protocol'
 import { handleLaunchProfilesUpdatedMessage } from '@/components/launch-profiles/use-launch-profiles'
 import type {
   ClaudeEfficiencyUpdate,
@@ -838,18 +846,18 @@ function handleLaunchJobEvent(msg: DashboardMessage) {
 // ─── recap job widget ──────────────────────────────────────────────────────
 
 function handleRecapProgress(msg: DashboardMessage) {
-  useRecapJobsStore.getState().applyProgress(msg as unknown as import('@shared/protocol').RecapProgressMessage)
+  useRecapJobsStore.getState().applyProgress(msg as unknown as RecapProgressMessage)
 }
 
 function handleRecapComplete(msg: DashboardMessage) {
-  useRecapJobsStore.getState().applyComplete(msg as unknown as import('@shared/protocol').RecapCompleteMessage)
+  useRecapJobsStore.getState().applyComplete(msg as unknown as RecapCompleteMessage)
 }
 
 function handleRecapCreated(msg: DashboardMessage) {
   useRecapJobsStore.getState().applyCreated(
-    msg as unknown as import('@shared/protocol').RecapCreatedMessage & {
+    msg as unknown as RecapCreatedMessage & {
       projectUri?: string
-      periodLabel?: import('@shared/protocol').RecapPeriodLabel
+      periodLabel?: RecapPeriodLabel
     },
   )
 }
@@ -859,7 +867,7 @@ function handleRecapError(msg: DashboardMessage) {
   // create flow stamps a recapId on its outbound recap_create when it knows
   // it. For broker-side errors that don't carry a recapId we still surface
   // a toast so the user sees what failed.
-  useRecapJobsStore.getState().applyError(msg as unknown as import('@shared/protocol').RecapErrorMessage)
+  useRecapJobsStore.getState().applyError(msg as unknown as RecapErrorMessage)
   if (typeof msg.error === 'string') {
     window.dispatchEvent(
       new CustomEvent('rclaude-toast', {
@@ -870,7 +878,7 @@ function handleRecapError(msg: DashboardMessage) {
 }
 
 function handleRecapListResult(msg: DashboardMessage) {
-  const recaps = msg.recaps as import('@shared/protocol').RecapSummary[] | undefined
+  const recaps = msg.recaps as RecapSummary[] | undefined
   if (Array.isArray(recaps)) useRecapJobsStore.getState().syncFromList(recaps)
 }
 

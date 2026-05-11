@@ -26,6 +26,8 @@ import type {
   RclaudePermissionConfig,
   SubagentTranscript,
   TerminalData,
+  TerminationDetail,
+  TerminationSource,
   TranscriptEntry,
 } from '../shared/protocol'
 import { AGENT_HOST_PROTOCOL_VERSION, DEFAULT_BROKER_URL } from '../shared/protocol'
@@ -155,8 +157,8 @@ export interface WsClient {
   sendConversationEnd: (
     reason: string,
     extras?: {
-      source?: import('../shared/protocol').TerminationSource
-      detail?: import('../shared/protocol').TerminationDetail
+      source?: TerminationSource
+      detail?: TerminationDetail
     },
   ) => void
   sendConversationReset: (project: string, model?: string) => void
@@ -588,8 +590,8 @@ export function createWsClient(options: WsClientOptions): WsClient {
   function sendConversationEnd(
     reason: string,
     extras?: {
-      source?: import('../shared/protocol').TerminationSource
-      detail?: import('../shared/protocol').TerminationDetail
+      source?: TerminationSource
+      detail?: TerminationDetail
     },
   ) {
     const endMsg: ConversationEnd = {

@@ -1,5 +1,5 @@
 import type { DialogLayout, DialogResult } from '@shared/dialog-schema'
-import type { RclaudePermissionConfig } from '@shared/protocol'
+import type { RclaudePermissionConfig, TerminationSource } from '@shared/protocol'
 import { create } from 'zustand'
 import {
   type ControlPanelPrefs,
@@ -270,7 +270,7 @@ interface ConversationsState {
   projectHandler: ((msg: Record<string, unknown>) => void) | null
   sendWsMessage: (msg: Record<string, unknown>) => void
   dismissConversation: (conversationId: string) => void
-  terminateConversation: (conversationId: string, source: import('@shared/protocol').TerminationSource) => void
+  terminateConversation: (conversationId: string, source: TerminationSource) => void
   renamingConversationId: string | null
   setRenamingConversationId: (conversationId: string | null) => void
   renameConversation: (conversationId: string, name: string, description?: string) => void

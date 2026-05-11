@@ -26,6 +26,7 @@ import { createSpawnRouter } from './routes/spawn'
 import { createStatsRouter } from './routes/stats'
 import type { SentinelRegistry } from './sentinel-registry'
 import type { StoreDriver } from './store/types'
+import type { TerminationLog } from './termination-log'
 
 // Re-export blob/file helpers for external consumers (conversation-store, handlers, etc.)
 export { appendSharedFile, type SharedFileEntry } from './routes/blob-store'
@@ -90,7 +91,7 @@ export interface RouteOptions {
    *   GET /conversations/:id/termination -- last termination for one conversation
    *   GET /api/terminations              -- query the log (admin only)
    */
-  terminationLog?: import('./termination-log').TerminationLog
+  terminationLog?: TerminationLog
 }
 
 export function createRouter(options: RouteOptions): Hono {

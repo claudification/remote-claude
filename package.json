@@ -38,7 +38,7 @@
     "restart:docker": "docker compose restart",
     "typecheck": "tsc --noEmit && cd web && bun run typecheck",
     "format": "bunx biome format --write .",
-    "lint": "fallow audit && bunx biome check --fix . && bun run lint:boundary",
+    "lint": "fallow audit && bunx biome check --fix . && bun run lint:boundary && bun run lint:inline-import-type",
     "lint:biome": "bunx biome check --fix .",
     "lint:boundary": "bun run scripts/lint-boundary.ts",
     "lint:inline-import-type": "bun run scripts/lint-inline-import-type.ts",

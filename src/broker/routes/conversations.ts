@@ -4,7 +4,7 @@
 
 import { Hono } from 'hono'
 import { extractProjectLabel, parseProjectUri } from '../../shared/project-uri'
-import type { SendInput } from '../../shared/protocol'
+import type { SendInput, TerminationSource } from '../../shared/protocol'
 import { resolveSpawnConfig } from '../../shared/spawn-defaults'
 import type { SpawnRequest } from '../../shared/spawn-schema'
 import { filterDisplayEntries } from '../../shared/transcript-filter'
@@ -221,9 +221,7 @@ export function createConversationsRouter(
     const days = Number.parseInt(c.req.query('days') ?? '7', 10) || 7
     const limit = Number.parseInt(c.req.query('limit') ?? '1000', 10) || 1000
     const sourceParam = c.req.query('source')
-    const source = sourceParam
-      ? (sourceParam.split(',') as import('../../shared/protocol').TerminationSource[])
-      : undefined
+    const source = sourceParam ? (sourceParam.split(',') as TerminationSource[]) : undefined
     const initiator = c.req.query('initiator') || undefined
     const grep = c.req.query('grep') || undefined
     const results = terminationLog.query({ days, limit, source, initiator, grep })
