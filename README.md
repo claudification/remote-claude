@@ -345,13 +345,13 @@ docker run -it \
   -e CLAUDWERK_SENTINEL_SECRET=your-secret \
   -e CLAUDWERK_BROKER=wss://your-broker.example.com \
   -v $(pwd):/workspace/project \
-  ghcr.io/claudewerk/claude-runner:latest
+  ghcr.io/claudewerk/claudewerk-runner:latest
 ```
 
-The image includes: CC, rclaude, sentinel, bun, python3, gh, ripgrep, fd, neovim,
+The image includes: CC, rclaude, sentinel, opencode-host, bun, python3, gh, ripgrep, fd, neovim,
 build-essential, sqlite3, tmux. Default CMD is `sentinel`.
 
-See [claude-runner](https://github.com/claudewerk/claude-runner) for full docs.
+See [claudewerk-runner](https://github.com/claudewerk/claudewerk) for full docs.
 
 ### Install from source
 
@@ -1196,19 +1196,19 @@ Both are single-file JS bundles with a `#!/usr/bin/env bun` shebang. Requires Bu
 
 ### Docker image
 
-[`ghcr.io/claudewerk/claude-runner`](https://github.com/claudewerk/claude-runner/pkgs/container/claude-runner)
+[`ghcr.io/claudewerk/claudewerk-runner`](https://github.com/claudewerk/claudewerk/pkgs/container/claudewerk-runner)
 
-Pre-built image with CC, rclaude, sentinel, and a full dev toolkit.
+Pre-built image with CC, rclaude, sentinel, opencode-host, and a full dev toolkit.
 
 ```bash
-docker pull ghcr.io/claudewerk/claude-runner:latest
+docker pull ghcr.io/claudewerk/claudewerk-runner:latest
 
 docker run -it \
   -e ANTHROPIC_API_KEY \
   -e CLAUDWERK_SENTINEL_SECRET=your-secret \
   -e CLAUDWERK_BROKER=wss://your-broker.example.com \
   -v $(pwd):/workspace/project \
-  ghcr.io/claudewerk/claude-runner:latest
+  ghcr.io/claudewerk/claudewerk-runner:latest
 ```
 
 **Included tools:** Claude Code, bun, python3, gh, ripgrep, fd, neovim,

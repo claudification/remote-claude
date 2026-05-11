@@ -1,11 +1,11 @@
-# claudewerk/claude-runner
+# claudewerk/claudewerk-runner
 #
 # Sandboxed Docker image for running Claude Code with the claudewerk agent host.
-# Includes: CC, rclaude, sentinel, bun, python3, gh, ripgrep, build-essential, neovim.
+# Includes: CC, rclaude, sentinel, opencode-host, bun, python3, gh, ripgrep, build-essential, neovim.
 #
 # Build:
 #   bun run build:linux
-#   docker build -f Dockerfile.runner -t claudewerk/claude-runner .
+#   docker build -f Dockerfile.runner -t claudewerk/claudewerk-runner .
 #
 # Run:
 #   docker run --rm -it \
@@ -13,11 +13,11 @@
 #     -e CLAUDWERK_BROKER=ws://host.docker.internal:9999 \
 #     -e CLAUDWERK_SENTINEL_SECRET=your-secret \
 #     -v $(pwd):/workspace/project \
-#     claudewerk/claude-runner
+#     claudewerk/claudewerk-runner
 
 FROM debian:bookworm-slim
 
-LABEL org.opencontainers.image.source="https://github.com/claudewerk/claude-runner"
+LABEL org.opencontainers.image.source="https://github.com/claudewerk/claudewerk-runner"
 LABEL org.opencontainers.image.description="Docker image for running Claude Code with the claudewerk agent host"
 LABEL org.opencontainers.image.licenses="MIT"
 
@@ -72,9 +72,9 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 USER root
 ENV PATH="/home/claude/.local/bin:${PATH}"
 
-# claudewerk agent-host + sentinel (from npm, runs under bun)
+# claudewerk agent hosts + satellite tools (from npm, runs under bun)
 USER claude
-RUN bun add -g @claudewerk/claude-agent-host @claudewerk/sentinel
+RUN bun add -g @claudewerk/claude-agent-host @claudewerk/sentinel @claudewerk/opencode-agent-host opencode-ai
 USER root
 
 # Entrypoint

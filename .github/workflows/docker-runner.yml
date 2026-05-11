@@ -1,4 +1,4 @@
-name: Build & Push claude-runner
+name: Build & Push claudewerk-runner
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
       - name: Resolve image tags
         id: meta
         run: |
-          REPO="ghcr.io/claudewerk/claude-runner"
+          REPO="ghcr.io/claudewerk/claudewerk-runner"
 
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
             VERSION="${{ github.ref_name }}"
