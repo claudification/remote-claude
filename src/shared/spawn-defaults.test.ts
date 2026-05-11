@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'bun:test'
-import { type DefaultsSource, resolveSpawnConfig } from './spawn-defaults'
+import type { LaunchProfile } from './launch-profile'
+import {
+  type DefaultsSource,
+  profileToDefaultsSource,
+  profileToSpawnPartial,
+  resolveSpawnConfig,
+} from './spawn-defaults'
 import type { SpawnRequest } from './spawn-schema'
+
+function makeProfile(spawn: LaunchProfile['spawn'] = {}): LaunchProfile {
+  return {
+    id: 'lp_test',
+    name: 'Test',
+    spawn,
+    createdAt: 0,
+    updatedAt: 0,
+  }
+}
 
 const emptyProj: DefaultsSource = {}
 const emptyGlobal: DefaultsSource = {}
@@ -122,6 +138,66 @@ describe('resolveSpawnConfig', () => {
 
     it('falls back to global when project is undefined', () => {
       expect(resolveSpawnConfig({}, null, { defaultRepl: true }).repl).toBe(true)
+    })
+  })
+
+  describe('profile tier', () => {
+    const profile = profileToDefaultsSource(makeProfile({ model: 'claude-opus-4-7', effort: 'high' }))
+
+    it('profile wins over project', () => {
+      expect(resolveSpawnConfig({}, { defaultModel: 'claude-haiku-4-5' }, null, profile).model).toBe('claude-opus-4-7')
+    })
+
+    it('explicit still wins over profile', () => {
+      expect(
+        resolveSpawnConfig({ model: 'claude-haiku-4-5' as SpawnRequest['model'] }, null, null, profile).model,
+      ).toBe('claude-haiku-4-5')
+    })
+
+    it('profile beats global when project is empty', () => {
+      expect(
+        resolveSpawnConfig({}, {}, { defaultModel: 'claude-haiku-4-5' }, profile).model,
+      ).toBe('claude-opus-4-7')
+    })
+
+    it('profile.effort tier slots between explicit and project', () => {
+      expect(resolveSpawnConfig({}, { defaultEffort: 'low' }, null, profile).effort).toBe('high')
+    })
+
+    it('null profile leaves the resolver unchanged', () => {
+      const out = resolveSpawnConfig({}, { defaultModel: 'claude-haiku-4-5' }, null, null)
+      expect(out.model).toBe('claude-haiku-4-5')
+    })
+
+    it('headless field on profile maps to defaultLaunchMode', () => {
+      const ptyProfile = profileToDefaultsSource(makeProfile({ headless: false }))
+      expect(resolveSpawnConfig({}, null, null, ptyProfile).headless).toBe(false)
+    })
+
+    it('explicit headless wins over profile launch mode', () => {
+      const ptyProfile = profileToDefaultsSource(makeProfile({ headless: false }))
+      expect(resolveSpawnConfig({ headless: true }, null, null, ptyProfile).headless).toBe(true)
+    })
+  })
+
+  describe('profileToSpawnPartial', () => {
+    it('returns the empty object for null profiles', () => {
+      expect(profileToSpawnPartial(null)).toEqual({})
+    })
+
+    it('copies non-default fields', () => {
+      const p = makeProfile({ backend: 'claude', appendSystemPrompt: 'be terse', env: { FOO: '1' } })
+      const partial = profileToSpawnPartial(p)
+      expect(partial.backend).toBe('claude')
+      expect(partial.appendSystemPrompt).toBe('be terse')
+      expect(partial.env).toEqual({ FOO: '1' })
+    })
+
+    it('does not copy resolver-managed fields like model', () => {
+      const p = makeProfile({ model: 'claude-opus-4-7', backend: 'claude' })
+      const partial = profileToSpawnPartial(p)
+      expect(partial.model).toBeUndefined()
+      expect(partial.backend).toBe('claude')
     })
   })
 

@@ -11,6 +11,7 @@
  * mean "unset" -- callers downstream treat `undefined` as "use CC default".
  */
 
+import type { LaunchProfile } from './launch-profile'
 import type { SpawnRequest } from './spawn-schema'
 
 export type DefaultsSource = {
@@ -29,44 +30,51 @@ export type DefaultsSource = {
 export type ResolvedSpawnConfig = Partial<SpawnRequest> & { headless: boolean }
 
 /**
- * Merge spawn request defaults: explicit > project > global > undefined.
+ * Merge spawn request defaults: explicit > profile > project > global > undefined.
  * Empty strings, 'default' sentinel, and 0 numerics in defaults are treated as unset.
  */
 export function resolveSpawnConfig(
   partial: Partial<SpawnRequest>,
   project?: DefaultsSource | null,
   global?: DefaultsSource | null,
+  profile?: DefaultsSource | null,
 ): ResolvedSpawnConfig {
-  const model = pickString(partial.model, project?.defaultModel, global?.defaultModel) as
+  const model = pickString(partial.model, profile?.defaultModel, project?.defaultModel, global?.defaultModel) as
     | SpawnRequest['model']
     | undefined
-  const effort = pickString(partial.effort, project?.defaultEffort, global?.defaultEffort) as
+  const effort = pickString(partial.effort, profile?.defaultEffort, project?.defaultEffort, global?.defaultEffort) as
     | SpawnRequest['effort']
     | undefined
   const permissionModeResolved = pickString(
     partial.permissionMode,
+    profile?.defaultPermissionMode,
     project?.defaultPermissionMode,
     global?.defaultPermissionMode,
   ) as SpawnRequest['permissionMode'] | undefined
 
-  // headless: adHoc always true; otherwise explicit > project > global launch mode
-  const launchMode = project?.defaultLaunchMode || global?.defaultLaunchMode
+  const launchMode = profile?.defaultLaunchMode || project?.defaultLaunchMode || global?.defaultLaunchMode
   const headless = partial.adHoc ? true : partial.headless !== undefined ? partial.headless : launchMode !== 'pty'
 
   const autocompactPct = pickNumber(
     partial.autocompactPct,
+    profile?.defaultAutocompactPct,
     project?.defaultAutocompactPct,
     global?.defaultAutocompactPct,
   )
-  const maxBudgetUsd = pickNumber(partial.maxBudgetUsd, project?.defaultMaxBudgetUsd, global?.defaultMaxBudgetUsd)
+  const maxBudgetUsd = pickNumber(
+    partial.maxBudgetUsd,
+    profile?.defaultMaxBudgetUsd,
+    project?.defaultMaxBudgetUsd,
+    global?.defaultMaxBudgetUsd,
+  )
 
-  const bare = partial.bare ?? project?.defaultBare ?? global?.defaultBare ?? undefined
-  const repl = partial.repl ?? project?.defaultRepl ?? global?.defaultRepl ?? undefined
+  const bare = partial.bare ?? profile?.defaultBare ?? project?.defaultBare ?? global?.defaultBare ?? undefined
+  const repl = partial.repl ?? profile?.defaultRepl ?? project?.defaultRepl ?? global?.defaultRepl ?? undefined
 
-  // includePartialMessages: ad-hoc defaults to false, otherwise explicit > project > global > true
   const includePartialMessages = partial.adHoc
     ? (partial.includePartialMessages ?? false)
     : (partial.includePartialMessages ??
+      profile?.defaultIncludePartialMessages ??
       project?.defaultIncludePartialMessages ??
       global?.defaultIncludePartialMessages ??
       true)
@@ -85,22 +93,53 @@ export function resolveSpawnConfig(
   }
 }
 
-function pickString(
-  explicit: string | undefined,
-  proj: string | undefined,
-  glob: string | undefined,
-): string | undefined {
-  const out = explicit || proj || glob
-  return out && out !== 'default' ? out : undefined
+export function profileToDefaultsSource(profile: LaunchProfile | null | undefined): DefaultsSource | null {
+  if (!profile) return null
+  const spawn = profile.spawn
+  return {
+    defaultModel: spawn.model,
+    defaultEffort: spawn.effort,
+    defaultPermissionMode: spawn.permissionMode,
+    defaultMaxBudgetUsd: spawn.maxBudgetUsd,
+    defaultAutocompactPct: spawn.autocompactPct,
+    defaultLaunchMode: spawn.headless === undefined ? undefined : spawn.headless ? 'headless' : 'pty',
+    defaultBare: spawn.bare,
+    defaultRepl: spawn.repl,
+    defaultIncludePartialMessages: spawn.includePartialMessages,
+  }
 }
 
-function pickNumber(
-  explicit: number | undefined,
-  proj: number | undefined,
-  glob: number | undefined,
-): number | undefined {
-  if (explicit !== undefined && explicit > 0) return explicit
-  if (proj !== undefined && proj > 0) return proj
-  if (glob !== undefined && glob > 0) return glob
+/**
+ * Apply non-defaults profile fields (backend, env, prompt, appendSystemPrompt, ...)
+ * that are not covered by DefaultsSource. Returns a partial that explicit form
+ * values can be merged over.
+ */
+export function profileToSpawnPartial(profile: LaunchProfile | null | undefined): Partial<SpawnRequest> {
+  if (!profile) return {}
+  const spawn = profile.spawn
+  const partial: Partial<SpawnRequest> = {}
+  if (spawn.backend !== undefined) partial.backend = spawn.backend
+  if (spawn.agent !== undefined) partial.agent = spawn.agent
+  if (spawn.env !== undefined) partial.env = spawn.env
+  if (spawn.appendSystemPrompt !== undefined) partial.appendSystemPrompt = spawn.appendSystemPrompt
+  if (spawn.openCodeModel !== undefined) partial.openCodeModel = spawn.openCodeModel
+  if (spawn.toolPermission !== undefined) partial.toolPermission = spawn.toolPermission
+  if (spawn.chatConnectionId !== undefined) partial.chatConnectionId = spawn.chatConnectionId
+  if (spawn.chatConnectionName !== undefined) partial.chatConnectionName = spawn.chatConnectionName
+  if (spawn.gatewayId !== undefined) partial.gatewayId = spawn.gatewayId
+  return partial
+}
+
+function pickString(...values: Array<string | undefined>): string | undefined {
+  for (const v of values) {
+    if (v && v !== 'default') return v
+  }
+  return undefined
+}
+
+function pickNumber(...values: Array<number | undefined>): number | undefined {
+  for (const v of values) {
+    if (v !== undefined && v > 0) return v
+  }
   return undefined
 }
