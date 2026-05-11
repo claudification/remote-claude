@@ -263,7 +263,7 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
       type: 'terminate_conversation',
       conversationId: target.id,
       source: 'inter-conversation-restart',
-      initiator: callerSession ? `agent:${callerSession}` : undefined,
+      initiator: callerConversationId ? `agent:${callerConversationId}` : undefined,
     }),
   )
 

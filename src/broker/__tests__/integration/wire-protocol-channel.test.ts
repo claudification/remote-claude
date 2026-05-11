@@ -254,17 +254,17 @@ describe('inter-conversation messaging', () => {
       const convC = testId('conv-c')
       const agentA = bootAndPromote({
         conversationId: convA,
-        sessionId: testId('sess-a'),
+        ccSessionId: testId('sess-a'),
         project: 'claude:///home/user/project-alpha',
       })
       const agentB = bootAndPromote({
         conversationId: convB,
-        sessionId: testId('sess-b'),
+        ccSessionId: testId('sess-b'),
         project: 'claude:///home/user/project-beta',
       })
       const agentC = bootAndPromote({
         conversationId: convC,
-        sessionId: testId('sess-c'),
+        ccSessionId: testId('sess-c'),
         project: 'claude:///home/user/project-gamma',
       })
 
@@ -303,12 +303,12 @@ describe('inter-conversation messaging', () => {
       const convB = testId('conv-b')
       const agentA = bootAndPromote({
         conversationId: convA,
-        sessionId: testId('sess-a'),
+        ccSessionId: testId('sess-a'),
         project: 'claude:///home/user/project-alpha',
       })
       bootAndPromote({
         conversationId: convB,
-        sessionId: testId('sess-b'),
+        ccSessionId: testId('sess-b'),
         project: 'claude:///home/user/project-beta',
       })
 
@@ -340,12 +340,12 @@ describe('inter-conversation messaging', () => {
       const convB = testId('conv-b')
       const agentA = bootAndPromote({
         conversationId: convA,
-        sessionId: testId('sess-a'),
+        ccSessionId: testId('sess-a'),
         project: 'claude:///home/user/project-alpha',
       })
       bootAndPromote({
         conversationId: convB,
-        sessionId: testId('sess-b'),
+        ccSessionId: testId('sess-b'),
         project: 'claude:///home/user/project-beta',
       })
 
@@ -370,7 +370,7 @@ describe('inter-conversation messaging', () => {
       const convA = testId('conv-a')
       const agentA = bootAndPromote({
         conversationId: convA,
-        sessionId: testId('sess-a'),
+        ccSessionId: testId('sess-a'),
         project: 'claude:///home/user/project-alpha',
       })
 
@@ -396,12 +396,12 @@ describe('inter-conversation messaging', () => {
       const convB = testId('conv-b')
       const agentA = bootAndPromote({
         conversationId: convA,
-        sessionId: testId('sess-a'),
+        ccSessionId: testId('sess-a'),
         project: 'claude:///home/user/project-alpha',
       })
       bootAndPromote({
         conversationId: convB,
-        sessionId: testId('sess-b'),
+        ccSessionId: testId('sess-b'),
         project: 'claude:///home/user/project-beta',
       })
 
