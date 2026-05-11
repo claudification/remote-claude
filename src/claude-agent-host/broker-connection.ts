@@ -378,8 +378,13 @@ export function connectToBroker(ctx: AgentHostContext, deps: BrokerConnectionDep
         ctx.diag('channel', `Auto-approve rule removed: ${toolName}`)
       }
     },
-    onQuitConversation() {
-      executeControl(ctx, 'quit', { source: 'dashboard-quit' })
+    onQuitConversation(source, initiator) {
+      // `source` is the typed TerminationSource forwarded by the broker
+      // (set by the web client at the originating callsite). `initiator`
+      // is the auth principal that issued the kill, when available.
+      const tag = source || 'dashboard-other'
+      const detail = initiator ? `${tag} (initiator=${initiator})` : tag
+      executeControl(ctx, 'quit', { source: detail })
     },
     onInterrupt() {
       executeControl(ctx, 'interrupt', { source: 'dashboard-interrupt' })
@@ -555,12 +560,7 @@ function handleConfigGet(ctx: AgentHostContext, requestId: string, cwd: string) 
   }
 }
 
-function handleConfigSet(
-  ctx: AgentHostContext,
-  requestId: string,
-  config: RclaudePermissionConfig,
-  cwd: string,
-) {
+function handleConfigSet(ctx: AgentHostContext, requestId: string, config: RclaudePermissionConfig, cwd: string) {
   const cfgPath = join(cwd, '.rclaude', 'rclaude.json')
   try {
     const dir = join(cwd, '.rclaude')
@@ -702,11 +702,7 @@ function handleAskAnswer(
   )
 }
 
-function handleDialogResult(
-  ctx: AgentHostContext,
-  dialogId: string,
-  result: DialogResult,
-) {
+function handleDialogResult(ctx: AgentHostContext, dialogId: string, result: DialogResult) {
   clearInteraction(ctx, dialogId)
   const resolved = resolveDialog(dialogId, result)
   ctx.diag(

@@ -461,7 +461,16 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
         return
       }
       if (ctx.claudeSessionId) {
-        ctx.wsClient?.sendConversationEnd(code === 0 ? 'normal' : `exit_code_${code}`)
+        const isCrash = code !== 0
+        ctx.wsClient?.sendConversationEnd(isCrash ? `exit_code_${code}` : 'normal', {
+          source: isCrash ? 'cc-exit-crash' : 'cc-exit-normal',
+          detail: {
+            ccExitCode: code ?? undefined,
+            ccSessionId: ctx.claudeSessionId,
+            agentHostPid: process.pid,
+            note: isCrash ? `Headless CC exited with code ${code}` : 'Headless CC exited cleanly',
+          },
+        })
       }
       cleanup()
       process.exit(code ?? 0)

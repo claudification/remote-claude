@@ -3,6 +3,7 @@
  * Connects to broker with automatic reconnection and offline queuing
  */
 
+import type { DialogResult } from '../shared/dialog-schema'
 import { createHostTransport, type HostTransport } from '../shared/host-transport'
 import { cwdToProjectUri } from '../shared/project-uri'
 import type {
@@ -22,6 +23,7 @@ import type {
   InterConversationListResponse,
   LaunchConfig,
   ProjectLinkRequest,
+  RclaudePermissionConfig,
   SubagentTranscript,
   TerminalData,
   TranscriptEntry,
@@ -115,7 +117,7 @@ export interface WsClientOptions {
     annotations?: Record<string, { preview?: string; notes?: string }>,
     skip?: boolean,
   ) => void
-  onDialogResult?: (dialogId: string, result: import('../shared/dialog-schema').DialogResult) => void
+  onDialogResult?: (dialogId: string, result: DialogResult) => void
   onDialogKeepalive?: (dialogId: string) => void
   onPlanApprovalResponse?: (
     requestId: string,
@@ -123,11 +125,11 @@ export interface WsClientOptions {
     feedback?: string,
     toolUseId?: string,
   ) => void
-  onQuitConversation?: () => void
+  onQuitConversation?: (source: string, initiator?: string) => void
   onInterrupt?: () => void
   onConfigUpdated?: () => void
   onConfigGet?: (requestId: string) => void
-  onConfigSet?: (requestId: string, config: import('../shared/protocol').RclaudePermissionConfig) => void
+  onConfigSet?: (requestId: string, config: RclaudePermissionConfig) => void
   /**
    * Control verb delivered by broker (dashboard self-control or inter-session MCP).
    * Backend-specific dispatch lives in the agent host -- this callback is just the entry point.
@@ -145,7 +147,13 @@ export interface WsClientOptions {
 export interface WsClient {
   send: (message: AgentHostMessage) => void
   sendHookEvent: (event: HookEvent) => void
-  sendConversationEnd: (reason: string) => void
+  sendConversationEnd: (
+    reason: string,
+    extras?: {
+      source?: import('../shared/protocol').TerminationSource
+      detail?: import('../shared/protocol').TerminationDetail
+    },
+  ) => void
   sendConversationReset: (project: string, model?: string) => void
   sendMetadataUpdate: (metadata: Record<string, unknown>) => void
   sendTerminalData: (data: string) => void
@@ -391,9 +399,12 @@ export function createWsClient(options: WsClientOptions): WsClient {
       case 'interrupt':
         onInterrupt?.()
         break
-      case 'terminate_conversation':
-        onQuitConversation?.()
+      case 'terminate_conversation': {
+        const source = typeof message.source === 'string' ? message.source : 'dashboard-other'
+        const initiator = typeof message.initiator === 'string' ? message.initiator : undefined
+        onQuitConversation?.(source, initiator)
         break
+      }
       case 'control': {
         const action = message.action
         if (
@@ -548,12 +559,20 @@ export function createWsClient(options: WsClientOptions): WsClient {
     send(event)
   }
 
-  function sendConversationEnd(reason: string) {
+  function sendConversationEnd(
+    reason: string,
+    extras?: {
+      source?: import('../shared/protocol').TerminationSource
+      detail?: import('../shared/protocol').TerminationDetail
+    },
+  ) {
     const endMsg: ConversationEnd = {
       type: 'end',
       conversationId,
       ccSessionId: ccSessionId || undefined,
       reason,
+      source: extras?.source,
+      detail: extras?.detail,
       endedAt: Date.now(),
     }
     send(endMsg)

@@ -255,8 +255,17 @@ const handleChannelRestart: MessageHandler = (ctx, data) => {
     isSelfRestart,
   })
 
-  // Terminate the target
-  targetWs.send(JSON.stringify({ type: 'terminate_conversation', conversationId: target.id }))
+  // Terminate the target. Tag with inter-conversation-restart + the calling
+  // conversation as initiator so the termination log answers "which agent
+  // killed this".
+  targetWs.send(
+    JSON.stringify({
+      type: 'terminate_conversation',
+      conversationId: target.id,
+      source: 'inter-conversation-restart',
+      initiator: callerSession ? `agent:${callerSession}` : undefined,
+    }),
+  )
 
   const projSettings = ctx.getProjectSettings(target.project)
   const name = target.title || projSettings?.label || extractProjectLabel(target.project)

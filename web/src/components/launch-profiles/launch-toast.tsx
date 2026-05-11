@@ -128,7 +128,7 @@ function Actions({ toast }: { toast: LaunchToastItem }) {
         <button
           type="button"
           onClick={() => {
-            useConversationsStore.getState().terminateConversation(toast.conversationId!)
+            useConversationsStore.getState().terminateConversation(toast.conversationId!, 'dashboard-launch-toast')
             dismissLaunchToast(toast.id)
           }}
           className="text-[11px] text-destructive hover:underline"

@@ -39,7 +39,7 @@ export function TerminateConfirmDialog() {
   }, [])
 
   function confirm() {
-    if (state.conversationId) terminateConversation(state.conversationId)
+    if (state.conversationId) terminateConversation(state.conversationId, 'dashboard-terminate-dialog')
     haptic('error')
     setState({ open: false, conversationId: null, sessionName: null })
   }

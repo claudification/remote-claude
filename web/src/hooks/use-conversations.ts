@@ -1,3 +1,4 @@
+import type { DialogLayout, DialogResult } from '@shared/dialog-schema'
 import type { RclaudePermissionConfig } from '@shared/protocol'
 import { create } from 'zustand'
 import {
@@ -12,6 +13,8 @@ import { setPerfEnabled } from '@/lib/perf-metrics'
 import { DEFAULT_PERMISSIONS, type ResolvedPermissions } from '@/lib/permissions'
 import { appendShareParam } from '@/lib/share-mode'
 import {
+  type ClaudeEfficiencyUpdate,
+  type ClaudeHealthUpdate,
   flattenProjectOrderTree,
   type HookEvent,
   type ProjectOrder,
@@ -140,8 +143,8 @@ interface ConversationsState {
   sentinelConnected: boolean
   sentinels: SentinelStatusInfo[]
   planUsage: UsageUpdate | null
-  claudeHealth: import('@/lib/types').ClaudeHealthUpdate | null
-  claudeEfficiency: import('@/lib/types').ClaudeEfficiencyUpdate | null
+  claudeHealth: ClaudeHealthUpdate | null
+  claudeEfficiency: ClaudeEfficiencyUpdate | null
   error: string | null
   authExpired: boolean
   ws: WebSocket | null
@@ -187,13 +190,13 @@ interface ConversationsState {
     string,
     {
       dialogId: string
-      layout: import('@shared/dialog-schema').DialogLayout
+      layout: DialogLayout
       timestamp: number
       source?: 'mcp' | 'plan_approval'
       meta?: Record<string, unknown> // requestId, toolUseId, etc.
     }
   >
-  submitDialog: (conversationId: string, dialogId: string, result: import('@shared/dialog-schema').DialogResult) => void
+  submitDialog: (conversationId: string, dialogId: string, result: DialogResult) => void
   dismissDialog: (conversationId: string, dialogId: string) => void
   keepaliveDialog: (conversationId: string, dialogId: string) => void
 
@@ -250,8 +253,8 @@ interface ConversationsState {
   setConnected: (connected: boolean) => void
   setSentinelConnected: (connected: boolean, sentinels?: SentinelStatusInfo[]) => void
   setPlanUsage: (usage: UsageUpdate) => void
-  setClaudeHealth: (health: import('@/lib/types').ClaudeHealthUpdate) => void
-  setClaudeEfficiency: (efficiency: import('@/lib/types').ClaudeEfficiencyUpdate) => void
+  setClaudeHealth: (health: ClaudeHealthUpdate) => void
+  setClaudeEfficiency: (efficiency: ClaudeEfficiencyUpdate) => void
   setError: (error: string | null) => void
   setAuthExpired: (expired: boolean) => void
   setWs: (ws: WebSocket | null) => void
@@ -262,7 +265,7 @@ interface ConversationsState {
   projectHandler: ((msg: Record<string, unknown>) => void) | null
   sendWsMessage: (msg: Record<string, unknown>) => void
   dismissConversation: (conversationId: string) => void
-  terminateConversation: (conversationId: string) => void
+  terminateConversation: (conversationId: string, source: import('@shared/protocol').TerminationSource) => void
   renamingConversationId: string | null
   setRenamingConversationId: (conversationId: string | null) => void
   renameConversation: (conversationId: string, name: string, description?: string) => void
@@ -896,8 +899,11 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       }
     })
   },
-  terminateConversation: conversationId => {
-    wsSend('terminate_conversation', { conversationId })
+  terminateConversation: (conversationId, source) => {
+    // Source MUST be tagged at each call site -- the broker uses it for
+    // the NDJSON termination log + dashboard badge. Distinct values let
+    // us tell "right-click Terminate" from "Cancel launch toast" etc.
+    wsSend('terminate_conversation', { conversationId, source })
   },
 
   getSelectedSession: () => {

@@ -361,7 +361,14 @@ export function buildMcpCallbacksWithRules(
       })
       const endReason = status === 'error' ? `self_exit_error: ${message || 'unknown'}` : 'self_exit'
       if (ctx.claudeSessionId) {
-        ctx.wsClient?.sendConversationEnd(endReason)
+        ctx.wsClient?.sendConversationEnd(endReason, {
+          source: 'mcp-exit-session',
+          detail: {
+            ccSessionId: ctx.claudeSessionId,
+            agentHostPid: process.pid,
+            note: `Agent self-terminated via mcp__rclaude__exit_session (status=${status})${message ? `: ${message}` : ''}`,
+          },
+        })
       }
       setTimeout(() => {
         deps.cleanup()
