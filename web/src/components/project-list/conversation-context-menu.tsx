@@ -225,7 +225,7 @@ export function ConversationContextMenu({
               className={cn(menuItemClass, 'text-destructive')}
               onSelect={() => {
                 haptic('error')
-                useConversationsStore.getState().terminateConversation(session.id)
+                useConversationsStore.getState().terminateConversation(session.id, 'dashboard-context-menu')
               }}
             >
               Terminate conversation

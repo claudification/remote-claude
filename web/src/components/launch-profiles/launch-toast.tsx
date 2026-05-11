@@ -59,11 +59,14 @@ export function LaunchToastContainer() {
   useEffect(() => {
     if (items.length === 0) return
     const next = Math.min(...items.map(t => t.expiresAt))
-    const handle = window.setTimeout(() => {
-      const now = Date.now()
-      toasts = toasts.filter(t => t.expiresAt > now)
-      publish()
-    }, Math.max(0, next - Date.now()))
+    const handle = window.setTimeout(
+      () => {
+        const now = Date.now()
+        toasts = toasts.filter(t => t.expiresAt > now)
+        publish()
+      },
+      Math.max(0, next - Date.now()),
+    )
     return () => window.clearTimeout(handle)
   }, [items])
 
@@ -100,7 +103,11 @@ function LaunchToastRow({ toast }: { toast: LaunchToastItem }) {
           </div>
           <div className="text-foreground mt-1 whitespace-pre-line">{toast.body}</div>
         </div>
-        <button type="button" onClick={() => dismissLaunchToast(toast.id)} className="text-muted-foreground hover:text-foreground">
+        <button
+          type="button"
+          onClick={() => dismissLaunchToast(toast.id)}
+          className="text-muted-foreground hover:text-foreground"
+        >
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -121,7 +128,7 @@ function Actions({ toast }: { toast: LaunchToastItem }) {
         <button
           type="button"
           onClick={() => {
-            useConversationsStore.getState().terminateConversation(toast.conversationId!)
+            useConversationsStore.getState().terminateConversation(toast.conversationId!, 'dashboard-launch-toast')
             dismissLaunchToast(toast.id)
           }}
           className="text-[11px] text-destructive hover:underline"
