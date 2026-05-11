@@ -86,30 +86,42 @@ export const DiffView = memo(function DiffView({
   useEffect(() => {
     const lang = filePath ? langFromPath(filePath) : undefined
     if (!lang) return
-
-    const codeLines: string[] = []
-    for (const patch of patches) {
-      for (const line of patch.lines) {
-        codeLines.push(line.slice(1))
-      }
-    }
-    if (codeLines.length === 0) return
+    if (patches.length === 0) return
 
     ensureLang(lang)
       .then(async ok => {
         if (!ok) return
         const highlighter = await getHighlighter()
         const lineMap = new Map<string, string>()
-        try {
-          const code = codeLines.join('\n')
-          const tokens = highlighter.codeToTokens(code, { lang, theme: 'tokyo-night' })
-          for (let idx = 0; idx < tokens.tokens.length; idx++) {
-            const lineTokens = tokens.tokens[idx] as Array<{ color?: string; content: string }>
-            const html = lineTokens.map(t => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`).join('')
-            lineMap.set(codeLines[idx], html)
+        // Highlight each patch separately, and within a patch run TWO passes:
+        // one over (context + removed) lines and one over (context + added) lines.
+        // Mixing +/- lines or concatenating across hunks creates syntactically
+        // broken code that shiki's tokenizer can't recover from (e.g. a stray
+        // unterminated string makes it emit the rest as one plain token).
+        const runPass = (lines: string[]) => {
+          if (lines.length === 0) return
+          try {
+            const tokens = highlighter.codeToTokens(lines.join('\n'), { lang, theme: 'tokyo-night' })
+            for (let i = 0; i < tokens.tokens.length; i++) {
+              const lineTokens = tokens.tokens[i] as Array<{ color?: string; content: string }>
+              const html = lineTokens.map(t => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`).join('')
+              lineMap.set(lines[i], html)
+            }
+          } catch {
+            // skip -- line stays plain
           }
-        } catch {
-          // Highlighting failed - fall back to plain
+        }
+        for (const patch of patches) {
+          const beforeLines: string[] = []
+          const afterLines: string[] = []
+          for (const line of patch.lines) {
+            const prefix = line[0]
+            const content = line.slice(1)
+            if (prefix === ' ' || prefix === '-') beforeLines.push(content)
+            if (prefix === ' ' || prefix === '+') afterLines.push(content)
+          }
+          runPass(beforeLines)
+          runPass(afterLines)
         }
         setHighlighted(lineMap)
       })
