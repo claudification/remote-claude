@@ -671,18 +671,18 @@ describe('dispatchToolCase - MCP rclaude tools', () => {
     expect(r.details).not.toBeNull()
   })
 
-  it('mcp__rclaude__revive_session shows revive action', () => {
-    const r = dispatchToolCase('mcp__rclaude__revive_session', makeCtx({ input: { session_id: 'sess-abc' } }))
+  it('mcp__rclaude__revive_conversation shows revive action', () => {
+    const r = dispatchToolCase('mcp__rclaude__revive_conversation', makeCtx({ input: { session_id: 'sess-abc' } }))
     expect(hasSummary(r)).toBe(true)
   })
 
-  it('mcp__rclaude__terminate_session shows terminate action', () => {
-    const r = dispatchToolCase('mcp__rclaude__terminate_session', makeCtx({ input: { session_id: 'sess-xyz' } }))
+  it('mcp__rclaude__terminate_conversation shows terminate action', () => {
+    const r = dispatchToolCase('mcp__rclaude__terminate_conversation', makeCtx({ input: { session_id: 'sess-xyz' } }))
     expect(hasSummary(r)).toBe(true)
   })
 
-  it('mcp__rclaude__quit_session routes to lifecycle handler', () => {
-    const r = dispatchToolCase('mcp__rclaude__quit_session', makeCtx({ input: { session_id: 'sess-q' } }))
+  it('mcp__rclaude__exit_conversation routes to lifecycle handler', () => {
+    const r = dispatchToolCase('mcp__rclaude__exit_conversation', makeCtx({ input: { session_id: 'sess-q' } }))
     expect(hasSummary(r)).toBe(true)
   })
 
@@ -705,25 +705,25 @@ describe('dispatchToolCase - MCP rclaude tools', () => {
     expect(r.summary).toBe('n'.repeat(80))
   })
 
-  it('mcp__rclaude__spawn_session shows project info', () => {
+  it('mcp__rclaude__spawn_conversation shows project info', () => {
     const r = dispatchToolCase(
-      'mcp__rclaude__spawn_session',
+      'mcp__rclaude__spawn_conversation',
       makeCtx({ input: { project: '/home/user/myproject', prompt: 'refactor the auth module' } }),
     )
     expect(hasSummary(r)).toBe(true)
   })
 
-  it('mcp__rclaude__control_session shows action and target', () => {
+  it('mcp__rclaude__control_conversation shows action and target', () => {
     const r = dispatchToolCase(
-      'mcp__rclaude__control_session',
+      'mcp__rclaude__control_conversation',
       makeCtx({ input: { session_id: 'sess-1', action: 'set_model', model: 'opus' } }),
     )
     expect(hasSummary(r)).toBe(true)
   })
 
-  it('mcp__rclaude__configure_session shows fields', () => {
+  it('mcp__rclaude__configure_conversation shows fields', () => {
     const r = dispatchToolCase(
-      'mcp__rclaude__configure_session',
+      'mcp__rclaude__configure_conversation',
       makeCtx({ input: { session_id: 'sess-1', label: 'My Session', color: 'blue' } }),
     )
     expect(hasSummary(r)).toBe(true)
