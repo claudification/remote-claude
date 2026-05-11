@@ -61,7 +61,7 @@ export function registerConversationTools(ctx: McpToolContext): Record<string, T
 
     send_message: {
       description:
-        'Send a message to one or more other Claude Code sessions. `to` accepts a single target ID (string) OR an array of IDs for multicast -- the same message is fanned out to every recipient and you get back one response with a per-target breakdown (delivered / queued / error). The single `conversation_id` is shared by every recipient so any reply lands in the same thread; use the `from_session` field on the incoming reply to disambiguate who answered. Each target MUST be the exact `id` field returned by `list_conversations` -- do not invent, abbreviate, or guess. The canonical form is compound "project:session-name" (e.g. "arr:blazing-igloo"). A bare project slug ("arr") works only when exactly one session lives at that cwd; otherwise the resolver returns "ambiguous" with the compound IDs to retry. Messages to offline sessions are queued and delivered on reconnect. First contact triggers an approval prompt. Multicast cap: 25 targets per call -- split larger fan-outs into batches.',
+        'Send a message to one or more other Claude Code sessions. `to` accepts a single target ID (string) OR an array of IDs for multicast -- the same message is fanned out to every recipient and you get back one response with a per-target breakdown (delivered / queued / error). The single `conversation_id` is shared by every recipient so any reply lands in the same thread; use the `from_conversation` field on the incoming reply to disambiguate who answered. Each target MUST be the exact `id` field returned by `list_conversations` -- do not invent, abbreviate, or guess. The canonical form is compound "project:session-name" (e.g. "arr:blazing-igloo"). A bare project slug ("arr") works only when exactly one session lives at that cwd; otherwise the resolver returns "ambiguous" with the compound IDs to retry. Messages to offline sessions are queued and delivered on reconnect. First contact triggers an approval prompt. Multicast cap: 25 targets per call -- split larger fan-outs into batches.',
       inputSchema: {
         type: 'object' as const,
         properties: {
@@ -95,7 +95,7 @@ export function registerConversationTools(ctx: McpToolContext): Record<string, T
           conversation_id: {
             type: 'string',
             description:
-              'Thread ID for multi-turn exchanges. In multicast, the SAME thread id is used for every recipient -- replies from different recipients will share this id; read the `from_session` field on each delivery to tell them apart.',
+              'Thread ID for multi-turn exchanges. In multicast, the SAME thread id is used for every recipient -- replies from different recipients will share this id; read the `from_conversation` field on each delivery to tell them apart.',
           },
         },
         required: ['to', 'message'],

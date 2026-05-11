@@ -142,7 +142,7 @@ function createMcpServer(conversationStore: ConversationStore, store: StoreDrive
       to: z
         .union([z.string(), z.array(z.string()).min(1).max(25)])
         .describe(
-          'Single target conversation ID/title/agent name, or an array of IDs for multicast (up to 25). For replies, use the from_session value from the incoming <channel> wrapper.',
+          'Single target conversation ID/title/agent name, or an array of IDs for multicast (up to 25). For replies, use the from_conversation value from the incoming <channel> wrapper.',
         ),
       message: z
         .string()
@@ -192,7 +192,7 @@ function createMcpServer(conversationStore: ConversationStore, store: StoreDrive
     },
   )
 
-  // ─── spawn_session ──────────────────────────────────────────────────
+  // ─── spawn_conversation ──────────────────────────────────────────────────
   mcp.tool(
     'spawn_conversation',
     'Spawn a new conversation (a fresh Claude Code session or chat-api worker). Use when the user asks to "delegate this", "start a new session", or when a task needs an isolated context. Returns the conversationId so you can send_message to coordinate with it.',
