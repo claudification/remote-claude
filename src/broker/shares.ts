@@ -11,6 +11,8 @@ import { cwdToProjectUri } from '../shared/project-uri'
 import type { UserGrant } from './permissions'
 import type { KVStore } from './store/types'
 
+export type ShareTargetKind = 'conversation' | 'recap'
+
 export interface ConversationShare {
   token: string
   project: string
@@ -22,6 +24,13 @@ export interface ConversationShare {
   permissions: string[]
   /** Hide user input messages from shared transcript */
   hideUserInput?: boolean
+  /** Polymorphic target kind. Default 'conversation' for backward compat.
+   *  'recap' shares grant read on a single stored recap document, not on the
+   *  underlying project's conversations. */
+  targetKind?: ShareTargetKind
+  /** Polymorphic target id. For 'conversation' shares this is implicitly the
+   *  project (legacy). For 'recap' shares this is the recap_xxx... id. */
+  targetId?: string
 }
 
 // Default permissions for shared conversations
@@ -66,6 +75,8 @@ export function createShare(opts: {
   label?: string
   permissions?: string[]
   hideUserInput?: boolean
+  targetKind?: ShareTargetKind
+  targetId?: string
 }): ConversationShare {
   // Validate expiry is in the future
   if (opts.expiresAt <= Date.now()) {
@@ -88,6 +99,8 @@ export function createShare(opts: {
     revoked: false,
     permissions: opts.permissions || DEFAULT_SHARE_PERMISSIONS,
     hideUserInput: opts.hideUserInput || false,
+    targetKind: opts.targetKind,
+    targetId: opts.targetId,
   }
 
   shares.push(share)
