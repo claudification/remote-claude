@@ -23,10 +23,12 @@ if (localStorage.getItem('sw-crash-detected')) {
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './app'
+import { installChunkLoadLog } from './lib/chunk-load-log'
 import { installLogCapture } from './lib/debug-log'
 
 // Capture console output into ring buffer before anything else runs
 installLogCapture()
+installChunkLoadLog()
 
 import { ErrorBoundary } from './components/error-boundary'
 import '@fontsource/geist/400.css'
