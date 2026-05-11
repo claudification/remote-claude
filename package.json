@@ -34,7 +34,6 @@
     "build:broker:docker": "scripts/docker-build-broker.sh",
     "codesign": "bun run scripts/codesign.ts",
     "deploy": "bun run build:web && bun run build:broker:docker && docker compose up -d",
-    "deploy:docker": "bun run build:web && bun run build:broker:docker && docker compose up -d",
     "restart:docker": "docker compose restart",
     "typecheck": "tsc --noEmit && cd web && bun run typecheck",
     "format": "bunx biome format --write .",
