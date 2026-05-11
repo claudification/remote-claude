@@ -441,6 +441,7 @@ CADDY_HOST=broker.example.com
 EOF
 
 bun run build:web
+scripts/docker-build-broker.sh
 docker compose up -d
 ```
 

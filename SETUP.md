@@ -491,7 +491,7 @@ VAPID_PUBLIC_KEY=BPxxx...
 VAPID_PRIVATE_KEY=xxx...
 ```
 
-Rebuild container: `docker compose up -d --build`
+Rebuild container: `scripts/docker-build-broker.sh && docker compose up -d`
 
 Users subscribe via the control panel settings page. Notifications fire on
 permission requests, task completions, and explicit `notify` tool calls.
@@ -681,7 +681,8 @@ bun install
 bun run build:web
 
 # Server changes:
-docker compose up -d --build
+# Build image from git archive HEAD (refuses on dirty tree), then deploy.
+scripts/docker-build-broker.sh && docker compose up -d
 ```
 
 ### Viewing logs

@@ -5,10 +5,23 @@
 Behind Caddy reverse proxy on Synology NAS.
 
 ```bash
-docker compose build && docker compose up -d        # Build + deploy
-docker compose build --no-cache && docker compose up -d  # Force rebuild
-docker compose logs -f broker                        # Logs
+scripts/docker-build-broker.sh && docker compose up -d   # Build + deploy
+scripts/docker-build-broker.sh --force-dirty             # Emergency override
+docker compose logs -f broker                            # Logs
 ```
+
+The broker image is built from `git archive HEAD`, NOT the host working tree.
+`docker-build-broker.sh` refuses to run on a dirty tree (overridable with
+`--force-dirty`). The compose file references the pre-built image (no implicit
+`build:` directive) so a stale or dirty rebuild can't happen by accident.
+
+Commit SHA is baked into the image (Docker LABEL + env var):
+```bash
+docker inspect broker --format '{{.Config.Labels.commit}}'   # full SHA
+docker exec broker printenv GIT_COMMIT_SHORT                 # short SHA
+```
+
+Rollback is just `docker tag remote-claude-broker:<oldshort> remote-claude-broker:latest && docker compose up -d`.
 
 **Env vars** (`.env` or shell):
 - `RCLAUDE_SECRET` - shared secret for WS auth (required)
