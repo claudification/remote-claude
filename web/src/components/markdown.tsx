@@ -1,49 +1,14 @@
-import hljs from 'highlight.js/lib/core'
-import bash from 'highlight.js/lib/languages/bash'
-import csharp from 'highlight.js/lib/languages/csharp'
-import css from 'highlight.js/lib/languages/css'
-import go from 'highlight.js/lib/languages/go'
-// Import only languages we need
-import javascript from 'highlight.js/lib/languages/javascript'
-import json from 'highlight.js/lib/languages/json'
-import markdown from 'highlight.js/lib/languages/markdown'
-import python from 'highlight.js/lib/languages/python'
-import rust from 'highlight.js/lib/languages/rust'
-import sql from 'highlight.js/lib/languages/sql'
-import typescript from 'highlight.js/lib/languages/typescript'
-import xml from 'highlight.js/lib/languages/xml'
-import yaml from 'highlight.js/lib/languages/yaml'
 import { Marked } from 'marked'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef } from 'react'
 import { CopyMenu } from './copy-menu'
 import { filenameFromUrl, type MediaKind, openMediaLightbox } from './media-lightbox'
-
-// Register languages
-hljs.registerLanguage('javascript', javascript)
-hljs.registerLanguage('js', javascript)
-hljs.registerLanguage('typescript', typescript)
-hljs.registerLanguage('ts', typescript)
-hljs.registerLanguage('python', python)
-hljs.registerLanguage('py', python)
-hljs.registerLanguage('bash', bash)
-hljs.registerLanguage('sh', bash)
-hljs.registerLanguage('shell', bash)
-hljs.registerLanguage('json', json)
-hljs.registerLanguage('css', css)
-hljs.registerLanguage('html', xml)
-hljs.registerLanguage('xml', xml)
-hljs.registerLanguage('markdown', markdown)
-hljs.registerLanguage('md', markdown)
-hljs.registerLanguage('rust', rust)
-hljs.registerLanguage('go', go)
-hljs.registerLanguage('csharp', csharp)
-hljs.registerLanguage('cs', csharp)
-hljs.registerLanguage('c#', csharp)
-hljs.registerLanguage('sql', sql)
-hljs.registerLanguage('yaml', yaml)
-hljs.registerLanguage('yml', yaml)
+import { ensureLang, getHighlighter, normalizeLang } from './transcript/syntax'
 
 const marked = new Marked()
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
 
 // Extension-based media detection for `![x](url.png)` (images) and
 // `[clip](url.mp4)` style links. Matches against the URL's path only so
@@ -171,24 +136,20 @@ renderer.code = ({ text, lang }) => {
     const escaped = text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
     return `<pre class="mermaid" data-mermaid-source="${encodeURIComponent(text)}">${escaped}</pre>`
   }
-  const langClass = lang ? ` class="hljs language-${lang}"` : ' class="hljs"'
-  let content: string
-  if (lang && hljs.getLanguage(lang)) {
-    const key = `${lang}\n${text}`
-    let cached = hlCacheGet(key)
-    if (cached === undefined) {
-      try {
-        cached = hljs.highlight(text, { language: lang }).value
-      } catch {
-        cached = ''
-      }
-      if (cached) hlCacheSet(key, cached)
+  const canonical = normalizeLang(lang)
+  const escaped = escapeHtml(text)
+  // Cache hit -> emit highlighted HTML synchronously, no flash on re-renders.
+  if (canonical) {
+    const cached = hlCacheGet(`${canonical}\n${text}`)
+    if (cached !== undefined) {
+      return `<div class="code-block-wrap"><pre><code class="shiki language-${canonical}">${cached}</code></pre><button class="code-copy-btn" title="Copy">⧉</button></div>`
     }
-    content = cached || text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  } else {
-    content = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   }
-  return `<div class="code-block-wrap"><pre><code${langClass}>${content}</code></pre><button class="code-copy-btn" title="Copy">⧉</button></div>`
+  // No cache: emit placeholder with raw source in a data attr, useEffect highlights post-mount.
+  // Unknown langs: just emit escaped text with no highlight attempt.
+  const dataAttr = canonical ? ` data-shiki-source="${encodeURIComponent(text)}" data-shiki-lang="${canonical}"` : ''
+  const cls = canonical ? `shiki language-${canonical}` : 'shiki'
+  return `<div class="code-block-wrap"><pre><code class="${cls}"${dataAttr}>${escaped}</code></pre><button class="code-copy-btn" title="Copy">⧉</button></div>`
 }
 
 // Configure marked options
@@ -307,6 +268,64 @@ function processMermaidQueue() {
   }
 }
 
+// Post-mount shiki highlight pass. Finds `<code data-shiki-source>` placeholders,
+// loads the language if needed, runs `codeToTokens`, swaps innerHTML with colored spans,
+// caches the result so a re-render of identical (lang, text) is synchronous.
+function renderShikiBlocks(container: HTMLElement) {
+  const blocks = container.querySelectorAll<HTMLElement>('code[data-shiki-source]')
+  if (blocks.length === 0) return
+  // Group by language so we only ensureLang() once per lang per render pass.
+  const byLang = new Map<string, HTMLElement[]>()
+  for (const el of blocks) {
+    const lang = el.getAttribute('data-shiki-lang') || ''
+    if (!lang) continue
+    const arr = byLang.get(lang) || []
+    arr.push(el)
+    byLang.set(lang, arr)
+  }
+  for (const [lang, elements] of byLang) {
+    ensureLang(lang).then(ok => {
+      if (!ok) {
+        // Lang unknown after lookup -- clear the placeholder attrs so we don't retry.
+        for (const el of elements) {
+          el.removeAttribute('data-shiki-source')
+          el.removeAttribute('data-shiki-lang')
+        }
+        return
+      }
+      return getHighlighter().then(hl => {
+        for (const el of elements) {
+          // Element may have been detached or replaced since the request started.
+          if (!el.isConnected) continue
+          const encoded = el.getAttribute('data-shiki-source')
+          if (!encoded) continue
+          const text = decodeURIComponent(encoded)
+          const cacheKey = `${lang}\n${text}`
+          let html = hlCacheGet(cacheKey)
+          if (html === undefined) {
+            try {
+              const tokens = hl.codeToTokens(text, { lang, theme: 'tokyo-night' })
+              html = tokens.tokens
+                .map((line: Array<{ color?: string; content: string }>) =>
+                  line.map(t => `<span style="color:${t.color}">${escapeHtml(t.content)}</span>`).join(''),
+                )
+                .join('\n')
+              hlCacheSet(cacheKey, html)
+            } catch {
+              html = undefined
+            }
+          }
+          if (html !== undefined) {
+            el.innerHTML = html
+          }
+          el.removeAttribute('data-shiki-source')
+          el.removeAttribute('data-shiki-lang')
+        }
+      })
+    })
+  }
+}
+
 function renderMermaidBlocks(container: HTMLElement) {
   const blocks = container.querySelectorAll('pre.mermaid')
   if (blocks.length === 0) return
@@ -368,11 +387,12 @@ export const Markdown = memo(function Markdown({ children, inline, copyable }: M
 
   const ref = useRef<HTMLDivElement>(null)
 
-  // Post-mount: kick off mermaid rendering for any mermaid blocks.
+  // Post-mount: kick off shiki highlighting + mermaid rendering. Both walk the just-rendered DOM.
   // biome-ignore lint/correctness/useExhaustiveDependencies: html is the dep key; ref is stable
   useEffect(() => {
     const el = ref.current
     if (!el) return
+    renderShikiBlocks(el)
     renderMermaidBlocks(el)
   }, [html])
 

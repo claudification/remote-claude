@@ -1,30 +1,18 @@
-import hljs from 'highlight.js/lib/core'
-import javascript from 'highlight.js/lib/languages/javascript'
-import typescript from 'highlight.js/lib/languages/typescript'
 import { Marked } from 'marked'
 import { describe, expect, test } from 'vitest'
 
-hljs.registerLanguage('javascript', javascript)
-hljs.registerLanguage('js', javascript)
-hljs.registerLanguage('typescript', typescript)
-hljs.registerLanguage('ts', typescript)
-
-// Replicate the exact markdown setup from markdown.tsx
+// Replicate the marked setup from markdown.tsx. Highlighting happens post-mount
+// in production via shiki -- we don't exercise that here. This test focuses on
+// marked's preprocess hooks (angle bracket escaping, strikethrough, etc.) and
+// the placeholder shape emitted by renderer.code.
 const marked = new Marked()
 const renderer = new marked.Renderer()
 
 renderer.link = ({ href, text }) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`
 renderer.code = ({ text, lang }) => {
-  const langClass = lang ? ` class="hljs language-${lang}"` : ' class="hljs"'
-  // Replicate the fix: escape angle brackets in fallback path (no hljs match)
-  let highlighted: string | undefined
-  if (lang && hljs.getLanguage(lang)) {
-    try {
-      highlighted = hljs.highlight(text, { language: lang }).value
-    } catch {}
-  }
-  const safe = highlighted ?? text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  return `<div class="code-block-wrap"><pre><code${langClass}>${safe}</code></pre></div>`
+  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const cls = lang ? `shiki language-${lang}` : 'shiki'
+  return `<div class="code-block-wrap"><pre><code class="${cls}">${escaped}</code></pre></div>`
 }
 
 marked.setOptions({ gfm: true, breaks: true, renderer, async: false })
@@ -49,7 +37,7 @@ marked.use({
 marked.use({
   tokenizer: {
     del() {
-      return undefined as ReturnType<typeof this.del>
+      return undefined
     },
   },
   extensions: [
@@ -324,11 +312,12 @@ describe('THE BUG: raw angle brackets in code blocks', () => {
     expect(html).toContain('&lt;/div&gt;')
   })
 
-  test('code block with known language still works (hljs escapes internally)', () => {
+  test('code block with known language emits shiki placeholder + escapes content', () => {
     const html = render('```js\nconst x = a < b ? 1 : 2\n```')
-    expect(html).toContain('<code class="hljs language-js">')
-    // hljs handles escaping internally
-    expect(html).not.toContain('< b')
+    expect(html).toContain('<code class="shiki language-js">')
+    // Our renderer escapes the source synchronously; shiki swaps in highlighted spans post-mount.
+    expect(html).toContain('a &lt; b')
+    expect(html).not.toContain('a < b')
   })
 })
 

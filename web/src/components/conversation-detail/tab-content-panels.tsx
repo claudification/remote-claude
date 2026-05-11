@@ -1,4 +1,5 @@
 import type { HookEvent } from '@shared/protocol'
+import { lazy, Suspense } from 'react'
 import { projectPath, type Session, type TranscriptEntry } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { BgTasksView } from '../bg-tasks-view'
@@ -6,7 +7,6 @@ import { ConversationView } from '../conversation-view'
 import { DiagView } from '../diag-view'
 import { EventsView } from '../events-view'
 import { FileEditor } from '../file-editor'
-import { InlineTerminal } from '../inline-terminal'
 import { JsonStreamPanel } from '../json-stream-panel'
 import { ProjectBoard } from '../project-board'
 import { SharedView } from '../shared-view'
@@ -15,6 +15,8 @@ import { TasksView } from '../tasks-view'
 import { TranscriptDropZone, TranscriptView } from '../transcript'
 import { ScrollToBottomButton } from './conversation-input'
 import type { Tab } from './conversation-tabs'
+
+const InlineTerminal = lazy(() => import('../inline-terminal').then(m => ({ default: m.InlineTerminal })))
 
 interface ConversationTarget {
   projectA: string
@@ -102,7 +104,9 @@ export function TabContentPanels({
       )}
       {activeTab === 'tty' && hasTerminal && !showTerminal && session.connectionIds?.[0] && (
         <div className="flex-1 min-h-0 overflow-hidden">
-          <InlineTerminal conversationId={session.connectionIds[0]} />
+          <Suspense fallback={null}>
+            <InlineTerminal conversationId={session.connectionIds[0]} />
+          </Suspense>
         </div>
       )}
       {activeTab === 'json_stream' && hasJsonStream && session.connectionIds?.[0] && (

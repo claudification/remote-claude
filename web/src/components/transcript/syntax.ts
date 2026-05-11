@@ -5,38 +5,26 @@
 
 import { createHighlighterCore, type HighlighterCore } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
-import langAstro from 'shiki/langs/astro'
-import langCss from 'shiki/langs/css'
-import langHtml from 'shiki/langs/html'
 import langJavascript from 'shiki/langs/javascript'
-import langJson from 'shiki/langs/json'
 import langJsx from 'shiki/langs/jsx'
-import langMarkdown from 'shiki/langs/markdown'
 import langShellscript from 'shiki/langs/shellscript'
 import langTsx from 'shiki/langs/tsx'
 import langTypescript from 'shiki/langs/typescript'
-import langYaml from 'shiki/langs/yaml'
 import tokyoNight from 'shiki/themes/tokyo-night'
 
-const EAGER_LANGS = [
-  langJavascript,
-  langTypescript,
-  langTsx,
-  langJsx,
-  langShellscript,
-  langHtml,
-  langAstro,
-  langCss,
-  langJson,
-  langYaml,
-  langMarkdown,
-].flat()
+const EAGER_LANGS = [langJavascript, langTypescript, langTsx, langJsx, langShellscript].flat()
 
 // Lazy singleton highlighter
 let highlighterPromise: Promise<HighlighterCore> | null = null
 
 // Languages available for lazy loading (less common)
 const LAZY_LANG_LOADERS: Record<string, () => Promise<unknown>> = {
+  html: () => import('shiki/langs/html'),
+  astro: () => import('shiki/langs/astro'),
+  css: () => import('shiki/langs/css'),
+  json: () => import('shiki/langs/json'),
+  yaml: () => import('shiki/langs/yaml'),
+  markdown: () => import('shiki/langs/markdown'),
   python: () => import('shiki/langs/python'),
   ruby: () => import('shiki/langs/ruby'),
   rust: () => import('shiki/langs/rust'),
@@ -69,20 +57,41 @@ const LAZY_LANG_LOADERS: Record<string, () => Promise<unknown>> = {
 }
 
 // All known language IDs (eager + lazy)
-const ALL_LANGS = new Set([
-  'javascript',
-  'typescript',
-  'tsx',
-  'jsx',
-  'shellscript',
-  'html',
-  'astro',
-  'css',
-  'json',
-  'yaml',
-  'markdown',
-  ...Object.keys(LAZY_LANG_LOADERS),
-])
+const ALL_LANGS = new Set(['javascript', 'typescript', 'tsx', 'jsx', 'shellscript', ...Object.keys(LAZY_LANG_LOADERS)])
+
+// Common aliases users / markdown fences use, mapped to canonical shiki IDs.
+// Returns the canonical id, or `undefined` if we don't support it (caller falls back to plain text).
+const LANG_ALIASES: Record<string, string> = {
+  js: 'javascript',
+  mjs: 'javascript',
+  cjs: 'javascript',
+  ts: 'typescript',
+  py: 'python',
+  rb: 'ruby',
+  rs: 'rust',
+  sh: 'shellscript',
+  bash: 'shellscript',
+  zsh: 'shellscript',
+  shell: 'shellscript',
+  cs: 'csharp',
+  'c#': 'csharp',
+  md: 'markdown',
+  yml: 'yaml',
+  hpp: 'cpp',
+  h: 'cpp',
+  htm: 'html',
+  svg: 'xml',
+  kt: 'kotlin',
+  hbs: 'handlebars',
+  gql: 'graphql',
+}
+
+export function normalizeLang(lang: string | undefined | null): string | undefined {
+  if (!lang) return undefined
+  const lower = lang.toLowerCase()
+  const canonical = LANG_ALIASES[lower] || lower
+  return ALL_LANGS.has(canonical) ? canonical : undefined
+}
 
 export function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {

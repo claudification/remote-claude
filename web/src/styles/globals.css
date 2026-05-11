@@ -225,60 +225,10 @@ body {
 	}
 }
 
-/* Highlight.js - Tokyo Night style */
-.hljs {
+/* Shiki code blocks: foreground/background from prose-hacker `pre` rule, token colors via inline styles. */
+.shiki {
 	color: var(--foreground);
-	background: var(--background);
-}
-.hljs-keyword,
-.hljs-selector-tag,
-.hljs-built_in,
-.hljs-name,
-.hljs-tag {
-	color: var(--event-prompt);
-}
-.hljs-string,
-.hljs-title,
-.hljs-section,
-.hljs-attribute,
-.hljs-literal,
-.hljs-template-tag,
-.hljs-template-variable,
-.hljs-type {
-	color: var(--event-conversation);
-}
-.hljs-comment,
-.hljs-quote {
-	color: var(--muted-foreground);
-	font-style: italic;
-}
-.hljs-number,
-.hljs-regexp,
-.hljs-symbol,
-.hljs-bullet,
-.hljs-link {
-	color: var(--accent);
-}
-.hljs-meta,
-.hljs-selector-id,
-.hljs-selector-class {
-	color: var(--primary);
-}
-.hljs-function,
-.hljs-title.function_ {
-	color: var(--primary);
-}
-.hljs-variable,
-.hljs-params {
-	color: var(--foreground);
-}
-.hljs-addition {
-	color: var(--event-conversation);
-	background: color-mix(in oklch, var(--event-conversation) 10%, transparent);
-}
-.hljs-deletion {
-	color: var(--destructive);
-	background: color-mix(in oklch, var(--destructive) 10%, transparent);
+	background: transparent;
 }
 
 /* Hide native iOS caret on xterm.js hidden textarea */
