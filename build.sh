@@ -25,7 +25,9 @@ ls -lh bin/
 if [ "${1:-}" = "--deploy" ]; then
   echo ""
   echo "[*] Deploying broker..."
-  docker compose build --no-cache
+  # Build image from git archive HEAD (refuses on dirty tree), then bring it up.
+  # docker-compose.yml deliberately does not auto-build -- see comment there.
+  scripts/docker-build-broker.sh
   docker compose up -d
   echo "[+] Deployed"
 fi

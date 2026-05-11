@@ -1,6 +1,11 @@
 services:
   broker:
-    build: .
+    # Image is built by scripts/docker-build-broker.sh from `git archive HEAD`,
+    # NOT from the host working tree. `docker compose up -d` deliberately does
+    # NOT --build here -- a dirty working tree would otherwise silently ship
+    # uncommitted WIP into the broker binary. To rebuild:
+    #   scripts/docker-build-broker.sh && docker compose up -d
+    image: remote-claude-broker:latest
     container_name: broker
     restart: unless-stopped
     environment:
