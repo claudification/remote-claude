@@ -292,4 +292,114 @@ describe('inter-session messaging', () => {
       expect(deliveredToA[0].message).toBe('B to A')
     })
   })
+
+  describe('pre-boot spawn discoverability', () => {
+    // Regression: spawn_session returns a jobId but the spawned conversation
+    // was invisible to list_conversations and unreachable via send_message
+    // until the agent host finished booting (10-30s gap). Bug filed
+    // 2026-05-11. Fix: surface active spawn jobs as `status: "spawning"`.
+    it('list_conversations surfaces in-flight spawn jobs as status="spawning"', async () => {
+      const callerConv = testId('caller')
+      const pendingConv = testId('pending')
+      const pendingJob = testId('job')
+
+      // Caller is a normal booted agent host
+      const agent = bootAndPromote({
+        conversationId: callerConv,
+        sessionId: testId('sess'),
+        project: 'claude:///home/user/project-caller',
+      })
+
+      // Simulate spawn-dispatch: a job is created with a reserved conversationId,
+      // and the resolved config is recorded -- but no agent host has connected yet.
+      h.conversationStore.createJob(pendingJob, pendingConv)
+      h.conversationStore.recordJobConfig(pendingJob, {
+        cwd: '/home/user/project-target',
+        name: 'launch-profiles',
+      })
+
+      await h.flushUpdates()
+
+      h.agentSend(agent, { type: 'channel_list_conversations', status: 'all' })
+      const result = agent.messagesOfType('channel_conversations_list')
+      expect(result.length).toBeGreaterThanOrEqual(1)
+
+      type Row = { conversation_id: string; status: string; name: string; spawnJobId?: string }
+      const sessions = result[result.length - 1].conversations as Row[]
+      const spawning = sessions.find(s => s.conversation_id === pendingConv)
+      expect(spawning).toBeDefined()
+      expect(spawning?.status).toBe('spawning')
+      expect(spawning?.spawnJobId).toBe(pendingJob)
+      expect(spawning?.name).toBe('launch-profiles')
+    })
+
+    it('send_message to a pending spawn conversationId queues instead of erroring', async () => {
+      const callerConv = testId('caller')
+      const pendingConv = testId('pending')
+      const pendingJob = testId('job')
+      let queued = false
+
+      const agent = bootAndPromote({
+        conversationId: callerConv,
+        sessionId: testId('sess'),
+        project: 'claude:///home/user/project-caller',
+      })
+
+      // Spy on the message queue
+      const origEnqueue = h.messageQueueEnqueue
+      h.messageQueueEnqueue = () => {
+        queued = true
+      }
+
+      h.conversationStore.createJob(pendingJob, pendingConv)
+      h.conversationStore.recordJobConfig(pendingJob, {
+        cwd: '/home/user/project-target',
+        name: 'launch-profiles',
+      })
+
+      h.agentSend(agent, {
+        type: 'channel_send',
+        toSession: pendingConv,
+        intent: 'request',
+        message: 'queued for boot',
+      })
+
+      const sendResult = agent.messagesOfType('channel_send_result')
+      const last = sendResult[sendResult.length - 1]
+      expect(last?.ok).toBe(true)
+      expect(last?.status).toBe('queued')
+      expect(queued).toBe(true)
+
+      h.messageQueueEnqueue = origEnqueue
+    })
+
+    it('completed jobs are not surfaced as spawning rows', async () => {
+      const callerConv = testId('caller')
+      const pendingConv = testId('pending')
+      const pendingJob = testId('job')
+
+      const agent = bootAndPromote({
+        conversationId: callerConv,
+        sessionId: testId('sess'),
+        project: 'claude:///home/user/project-caller',
+      })
+
+      h.conversationStore.createJob(pendingJob, pendingConv)
+      h.conversationStore.recordJobConfig(pendingJob, {
+        cwd: '/home/user/project-target',
+        name: 'finished-worker',
+      })
+      // Mark the job complete (agent host booted)
+      h.conversationStore.completeJob(pendingConv, pendingConv)
+
+      await h.flushUpdates()
+
+      h.agentSend(agent, { type: 'channel_list_conversations', status: 'all' })
+      const result = agent.messagesOfType('channel_conversations_list')
+      type Row = { conversation_id: string; status: string }
+      const sessions = result[result.length - 1].conversations as Row[]
+      const stillSpawning = sessions.find(s => s.conversation_id === pendingConv && s.status === 'spawning')
+      expect(stillSpawning).toBeUndefined()
+    })
+  })
 })

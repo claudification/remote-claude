@@ -39,6 +39,23 @@ export interface SpawnJobDiagnostics {
   events: LaunchJobEvent[]
 }
 
+/**
+ * Pre-boot snapshot of a still-spawning job, used to surface in-flight spawns
+ * via list_conversations so callers don't see an empty result during the gap
+ * between spawn dispatch and agent host boot.
+ */
+export interface ActiveSpawnJob {
+  jobId: JobId
+  conversationId: ConversationId
+  createdAt: number
+  completed: boolean
+  failed: boolean
+  error: string | null
+  config: Record<string, unknown> | null
+  lastStep: string | null
+  lastStatus: string | null
+}
+
 const JOB_EXPIRY_MS = 5 * 60 * 1000
 
 export interface SpawnJobRegistry {
@@ -51,6 +68,13 @@ export interface SpawnJobRegistry {
   failJob: (jobId: JobId, error: string) => void
   getJobByConversation: (connectionId: ConnectionId) => JobId | undefined
   getJobDiagnostics: (jobId: JobId) => SpawnJobDiagnostics | null
+  /**
+   * List active (created via createJob, not yet completed or failed) spawn jobs.
+   * Used by list_conversations to surface pre-boot conversations. Excludes jobs
+   * that were created subscribe-first (no connectionId) -- those don't yet have
+   * a conversationId reserved.
+   */
+  listActiveJobs: () => ActiveSpawnJob[]
   cleanupJobSubscriber: (ws: ServerWebSocket<unknown>) => void
 }
 
@@ -226,6 +250,27 @@ export function createSpawnJobRegistry(): SpawnJobRegistry {
         config: job.config,
         events: job.events,
       }
+    },
+
+    listActiveJobs() {
+      const out: ActiveSpawnJob[] = []
+      for (const job of launchJobs.values()) {
+        if (!job.connectionId) continue // subscribe-first stub, no reserved conversationId yet
+        if (job.completed || job.failed) continue
+        const lastEvent = job.events.length > 0 ? job.events[job.events.length - 1] : null
+        out.push({
+          jobId: job.jobId,
+          conversationId: job.connectionId as unknown as ConversationId,
+          createdAt: job.createdAt,
+          completed: job.completed,
+          failed: job.failed,
+          error: job.error,
+          config: job.config,
+          lastStep: lastEvent?.step ?? null,
+          lastStatus: lastEvent?.status ?? null,
+        })
+      }
+      return out
     },
 
     cleanupJobSubscriber(ws) {

@@ -289,6 +289,19 @@ export interface TestHarness {
 
   /** Cleanup all state */
   cleanup(): void
+
+  /**
+   * Test-only hook to observe (or replace) message-queue enqueues. Tests
+   * verifying queue-on-pre-boot delivery set this to a spy and assert it was
+   * invoked. The harness's contextDeps invokes whatever function this points to.
+   */
+  messageQueueEnqueue: (
+    target: string,
+    fromProject: string,
+    fromName: string,
+    delivery: Record<string, unknown>,
+    targetName?: string,
+  ) => void
 }
 
 export function createTestHarness(): TestHarness {
@@ -324,7 +337,9 @@ export function createTestHarness(): TestHarness {
     logMessage: () => {},
     addressBook: createMockAddressBook(),
     messageQueue: {
-      enqueue: () => {},
+      enqueue: (target, fromProject, fromName, delivery, targetName) => {
+        harness.messageQueueEnqueue(target, fromProject, fromName, delivery, targetName)
+      },
       drain: () => [],
       getQueueSize: () => 0,
     },
@@ -398,7 +413,7 @@ export function createTestHarness(): TestHarness {
     store.close()
   }
 
-  return {
+  const harness: TestHarness = {
     conversationStore,
     store,
     agentSend,
@@ -412,7 +427,9 @@ export function createTestHarness(): TestHarness {
     },
     flushUpdates,
     cleanup,
+    messageQueueEnqueue: () => {},
   }
+  return harness
 }
 
 // ---------------------------------------------------------------------------

@@ -210,13 +210,20 @@ async function handleSpawn(
     }
   }
 
+  const idTrailer = [
+    result.conversationId ? `conversationId=${result.conversationId}` : '',
+    result.jobId ? `jobId=${result.jobId}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const trailer = idTrailer ? ` ${idTrailer}` : ''
   return {
     content: [
       {
         type: 'text',
         text: result.timedOut
-          ? `Session spawn sent to ${cwd} (${modeDesc}) but session did not connect within the rendezvous timeout. It may still be booting - use list_conversations to check.${result.jobId ? ` jobId=${result.jobId}` : ''}`
-          : `Session spawning at ${cwd} (${modeDesc}). Use list_conversations to check when ready.${result.jobId ? ` jobId=${result.jobId}` : ''}`,
+          ? `Session spawn sent to ${cwd} (${modeDesc}) but session did not connect within the rendezvous timeout. It may still be booting - use list_conversations (it will show status="spawning" until the agent host connects) or get_spawn_diagnostics to check.${trailer}`
+          : `Session spawning at ${cwd} (${modeDesc}). It appears in list_conversations with status="spawning" until the agent host connects. Use get_spawn_diagnostics to debug if it never becomes live.${trailer}`,
       },
     ],
   }

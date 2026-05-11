@@ -807,10 +807,19 @@ export interface InterConversationListResponse {
     id: string
     name: string
     project: string
-    status: 'live' | 'inactive'
+    /**
+     * `spawning` entries are pre-boot synthetic rows surfaced from active spawn
+     * jobs. They have no `cc_session_id` and may still fail. Discoverable so
+     * callers can address a freshly-spawned worker without polling.
+     */
+    status: 'live' | 'inactive' | 'spawning'
     title?: string
     description?: string
     summary?: string
+    /** Only present on `status: "spawning"` rows. The job behind this entry. */
+    spawnJobId?: string
+    /** Only present on `status: "spawning"` rows. Last lifecycle step observed. */
+    spawnStep?: string
   }>
   self?: {
     id: string

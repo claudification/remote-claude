@@ -20,18 +20,22 @@ export function registerHostTools(ctx: McpToolContext): Record<string, ToolDef> 
       inputSchema: {
         type: 'object' as const,
         properties: {
-          job_id: {
+          jobId: {
             type: 'string',
             description: 'The jobId returned by a prior spawn_session call (or any spawn dispatch).',
           },
+          job_id: {
+            type: 'string',
+            description: 'Snake-case alias for jobId. Either form is accepted.',
+          },
         },
-        required: ['job_id'],
       },
       async handle(params) {
-        const jobId = typeof params.job_id === 'string' ? params.job_id.trim() : ''
+        const raw = typeof params.jobId === 'string' ? params.jobId : params.job_id
+        const jobId = typeof raw === 'string' ? raw.trim() : ''
         if (!jobId) {
           return {
-            content: [{ type: 'text', text: 'Error: job_id is required' }],
+            content: [{ type: 'text', text: 'Error: jobId is required' }],
             isError: true,
           }
         }

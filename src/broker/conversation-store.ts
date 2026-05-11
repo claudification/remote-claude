@@ -238,6 +238,17 @@ export interface ConversationStore {
       t: number
     }[]
   } | null
+  listActiveSpawnJobs: () => Array<{
+    jobId: string
+    conversationId: string
+    createdAt: number
+    completed: boolean
+    failed: boolean
+    error: string | null
+    config: Record<string, unknown> | null
+    lastStep: string | null
+    lastStatus: string | null
+  }>
   cleanupJobSubscriber: (ws: ServerWebSocket<unknown>) => void
   // Session rendezvous (spawn/revive callback)
   addRendezvous: (
@@ -1982,6 +1993,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     failJob,
     getJobByConversation,
     getJobDiagnostics,
+    listActiveJobs,
     cleanupJobSubscriber,
   } = spawnJobs
 
@@ -2138,6 +2150,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     failJob,
     getJobByConversation,
     getJobDiagnostics,
+    listActiveSpawnJobs: listActiveJobs,
     cleanupJobSubscriber,
     addSpawnListener,
     removeSpawnListener,

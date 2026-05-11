@@ -28,12 +28,21 @@ export interface ConversationInfo {
   project: string
   session_id?: string
   name: string
-  status: 'live' | 'inactive'
+  /**
+   * `spawning` rows are pre-boot synthetic entries surfaced from active spawn
+   * jobs. The agent host hasn't connected yet; the row exists so callers can
+   * see and address it (send_message will queue) without polling.
+   */
+  status: 'live' | 'inactive' | 'spawning'
   ccSessionIds?: string[]
   label?: string
   description?: string
   title?: string
   summary?: string
+  /** Only set on `status: "spawning"` rows. The job that's bringing this up. */
+  spawnJobId?: string
+  /** Only set on `status: "spawning"` rows. Last lifecycle step observed. */
+  spawnStep?: string
 }
 
 export interface AgentHostIdentity {

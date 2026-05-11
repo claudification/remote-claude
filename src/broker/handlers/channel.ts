@@ -4,7 +4,7 @@
  */
 
 import { deriveModelName } from '../../shared/models'
-import { extractProjectLabel, isSameProject, parseProjectUri } from '../../shared/project-uri'
+import { cwdToProjectUri, extractProjectLabel, isSameProject, parseProjectUri } from '../../shared/project-uri'
 import type { SubscriptionChannel } from '../../shared/protocol'
 import { slugify } from '../address-book'
 import { getUser } from '../auth'
@@ -261,6 +261,45 @@ const channelListSessions: MessageHandler = (ctx, data) => {
     }
   }
 
+  // Surface in-flight spawn jobs as `status: "spawning"` rows so callers don't
+  // hit a discovery gap between spawn dispatch and agent host boot. The full
+  // Conversation row only exists once `agent_host_boot` lands; this synthetic
+  // entry fills the window. Spawning entries appear under `live` and `all`
+  // status filters; the `inactive` filter excludes them.
+  const activeJobs = status === 'inactive' ? [] : ctx.conversations.listActiveSpawnJobs()
+  const knownIds = new Set(all.map(s => s.id))
+  for (const job of activeJobs) {
+    if (knownIds.has(job.conversationId)) continue // already a real row
+    const cfg = (job.config ?? {}) as { cwd?: string; name?: string }
+    const rawCwd = typeof cfg.cwd === 'string' ? cfg.cwd : ''
+    const project = rawCwd.includes('://') ? rawCwd : rawCwd.startsWith('/') ? cwdToProjectUri(rawCwd) : ''
+    const sessionName = typeof cfg.name === 'string' && cfg.name ? cfg.name : `spawning-${job.jobId.slice(0, 6)}`
+    const projSettings = project ? ctx.getProjectSettings(project) : null
+    const projectName = projSettings?.label || (project ? extractProjectLabel(project) : 'unknown')
+    const projectSlug =
+      callerProject && project ? ctx.addressBook.getOrAssign(callerProject, project, projectName) : slugify(projectName)
+    // Compute compound id against the live conversations at the same project
+    // plus this synthetic entry, so collisions disambiguate against siblings.
+    const projGroup = filtered.filter(s => isSameProject(s.project, project))
+    const target = { id: job.conversationId, project, title: sessionName }
+    const localId = computeLocalId(target, projectSlug, [...projGroup, target])
+    result.push({
+      id: localId,
+      project: projectSlug,
+      conversation_id: job.conversationId,
+      name: sessionName,
+      projectUri: project || 'pending',
+      cwd: project ? parseProjectUri(project).path : '(pending)',
+      status: 'spawning',
+      capabilities: undefined,
+      title: sessionName,
+      summary: undefined,
+      link: undefined,
+      spawnJobId: job.jobId,
+      spawnStep: job.lastStep ?? undefined,
+    } as unknown as (typeof result)[number])
+  }
+
   ctx.reply({ type: 'channel_conversations_list', conversations: result, self })
 }
 
@@ -292,6 +331,50 @@ function computeSenderRoutableId(
   // Always compound -- list_conversations must be able to round-trip the from-id.
   const projGroup = conversationsAtProject.length > 0 ? conversationsAtProject : [fromSess]
   return { routable: computeLocalId(fromSess, projectSlug, projGroup), project: projectSlug }
+}
+
+/**
+ * Match a `to` target (raw conversationId, compound `project:name`, or bare
+ * `project`) against any in-flight spawn job. Used by send_message to QUEUE
+ * messages for not-yet-booted workers instead of hard-erroring with
+ * "Target not found". The matched job's `cwd` becomes the queue key.
+ */
+function findPendingSpawnTarget(
+  ctx: Parameters<MessageHandler>[0],
+  toTarget: string,
+): { jobId: string; project: string; name: string } | null {
+  const colonIdx = toTarget.indexOf(':')
+  const projSlug = colonIdx >= 0 ? toTarget.slice(0, colonIdx) : toTarget
+  const nameSlug = colonIdx >= 0 ? toTarget.slice(colonIdx + 1) : undefined
+
+  const jobs = ctx.conversations.listActiveSpawnJobs()
+  for (const job of jobs) {
+    if (job.conversationId === toTarget) {
+      const cfg = (job.config ?? {}) as { cwd?: string; name?: string }
+      const cwd = typeof cfg.cwd === 'string' ? cfg.cwd : ''
+      const project = cwd.includes('://') ? cwd : cwd.startsWith('/') ? cwdToProjectUri(cwd) : ''
+      if (!project) continue
+      return { jobId: job.jobId, project, name: cfg.name || `spawning-${job.jobId.slice(0, 6)}` }
+    }
+  }
+  // Compound-id matching: project slug + name slug must both resolve to the job.
+  for (const job of jobs) {
+    const cfg = (job.config ?? {}) as { cwd?: string; name?: string }
+    const cwd = typeof cfg.cwd === 'string' ? cfg.cwd : ''
+    const project = cwd.includes('://') ? cwd : cwd.startsWith('/') ? cwdToProjectUri(cwd) : ''
+    if (!project) continue
+    const projSettings = ctx.getProjectSettings(project)
+    const projectName = projSettings?.label || extractProjectLabel(project)
+    const canonicalProject = slugify(projectName)
+    const matchesProject = canonicalProject === projSlug
+    if (!matchesProject) continue
+    if (nameSlug) {
+      const jobName = cfg.name || `spawning-${job.jobId.slice(0, 6)}`
+      if (slugify(jobName) !== nameSlug && !slugify(jobName).startsWith(nameSlug)) continue
+    }
+    return { jobId: job.jobId, project, name: cfg.name || `spawning-${job.jobId.slice(0, 6)}` }
+  }
+  return null
 }
 
 const channelSend: MessageHandler = (ctx, data) => {
@@ -401,6 +484,39 @@ const channelSend: MessageHandler = (ctx, data) => {
   }
 
   if (!toSess || !toSession) {
+    // Pre-boot fallback: if the target ID (raw or compound) matches an active
+    // spawn job, queue the message against the future conversation's project.
+    // The agent host will drain the queue on first connect via the normal
+    // offline-delivery path.
+    const pendingMatch = findPendingSpawnTarget(ctx, toTarget)
+    if (pendingMatch) {
+      const fromProjectName =
+        ctx.getProjectSettings(callerProject || '')?.label ||
+        (callerProject ? extractProjectLabel(callerProject) : fromSession.slice(0, 8))
+      const { routable: fromSlug, project: fromProjectSlug } = computeSenderRoutableId(
+        ctx,
+        fromSess && { id: fromSess.id, project: fromSess.project, title: fromSess.title },
+        pendingMatch.project,
+        fromProjectName,
+      )
+      const conversationId = (data.conversationId as string) || `conv_${Date.now().toString(36)}`
+      const delivery = {
+        type: 'channel_deliver',
+        fromSession: fromSlug,
+        fromProject: fromProjectSlug,
+        intent: data.intent,
+        message: data.message,
+        context: data.context,
+        conversationId,
+      }
+      ctx.messageQueue.enqueue(pendingMatch.project, callerProject || '', fromProjectName, delivery, pendingMatch.name)
+      ctx.reply({ type: 'channel_send_result', ok: true, conversationId, status: 'queued' })
+      ctx.log.debug(
+        `[inter-conversation] ${fromSession.slice(0, 8)} -> ${toTarget} (queued for spawning job ${pendingMatch.jobId.slice(0, 8)})`,
+      )
+      return
+    }
+
     ctx.reply({
       type: 'channel_send_result',
       ok: false,
