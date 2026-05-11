@@ -10,7 +10,7 @@ import type { AgentHostLaunchStep, TranscriptLaunchEntry, TranscriptSystemEntry 
 import { filterDisplayEntries } from '../../shared/transcript-filter'
 import type { MessageHandler } from '../handler-context'
 import { AGENT_HOST_ONLY, DASHBOARD_ROLES, registerHandlers } from '../message-router'
-import { generateRecapManual } from '../recap-generator'
+import { generateRecapManual } from '../recap/away-summary'
 import { requireStrings } from './validate'
 
 /** Stored conversation_info snapshot shape used for cross-turn diffing. */

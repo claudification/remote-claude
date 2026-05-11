@@ -154,6 +154,39 @@ to one broker. The control panel shows them all, grouped by project, with custom
 labels, icons, and colors. Switch between sessions instantly with Cmd+P
 (QuickSilver-style fuzzy finder). Never lose track of what's running where.
 
+### Period Recap
+
+Generate long-form markdown digests of what happened in a project (or across
+all projects) over any window: today, yesterday, last 7/30 days, this week/
+month, or a custom range. Recaps gather conversation transcripts, git
+commits, project-board task changes, cost and token usage, tool-use
+statistics, errors, and unanswered open questions, then call OpenRouter
+(Haiku 4.5 by default, escalating to Sonnet 4 for large inputs) to produce
+a YAML-frontmatter-headed markdown document with TL;DR, features shipped,
+bug fixes, refactors, incidents, tasks completed, open questions, and
+notable conversations. The cost/token table is rendered deterministically
+from SQL -- the LLM never regenerates numbers.
+
+Trigger from the command palette (`Cmd+P > Recap...`), the right-click
+context menu on any project or conversation (Recap > Today / Yesterday /
+Last 7 days / Custom range...), or via the four MCP tools (`recap_search`,
+`recap_get`, `recap_list`, `recap_create`) so agents can read prior recaps
+or kick off new ones from inside a conversation. Active jobs surface in a
+floating widget at the bottom of the sidebar with live progress; failed
+jobs stay visible for an hour with the error message; completed jobs flash
+green for 3 seconds. The viewer modal renders the markdown via the same
+renderer used in transcripts and provides Copy / Download / Share / View
+raw actions. Share links produce a public, no-auth viewer URL at `/r/TOKEN`
+with an isolated permission scope -- the share grants nothing beyond the
+one stored markdown document.
+
+Recaps are persisted forever (per decision 7 in the plan), indexed via FTS5
+(`recaps_fts`) and a denormalized `recap_tags` table for hashtags / keywords
+/ goals / stakeholders, and 5-min input-hash deduped so retriggering the
+same period within the window returns the existing recap instead of
+regenerating. Agents searching prior recaps via `recap_search` get
+permission-filtered results (cross-project recaps are creator-only).
+
 ### Sub-Agent & Team Tracking
 
 Claude spawns background agents? You see them. Live status badges show
