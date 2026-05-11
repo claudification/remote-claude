@@ -10,6 +10,7 @@ import type { LaunchProfile } from '@shared/launch-profile'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { useCommand } from '@/lib/commands'
 import { pushLaunchToast } from './launch-toast'
+import { resolveProjectCwd } from './pin-reachability'
 import { runProfile } from './run-profile'
 import { useLaunchProfiles } from './use-launch-profiles'
 
@@ -28,12 +29,14 @@ function ProfileCommand({ profile }: { profile: LaunchProfile }) {
   useCommand(
     `launch-profile:${profile.id}`,
     () => {
-      const sentinels = useConversationsStore.getState().sentinels
+      const store = useConversationsStore.getState()
+      const current = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
+      const currentCwd = current?.project ? resolveProjectCwd(current.project) : null
       void runProfile(
         profile,
-        {},
+        { cwd: currentCwd ?? undefined },
         {
-          sentinels,
+          sentinels: store.sentinels,
           onToast: t => pushLaunchToast(t),
         },
       )

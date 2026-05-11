@@ -48,6 +48,18 @@ export function ManagerEditor({ profile, onChange }: Props) {
       <LaunchFieldsSection
         value={launchFieldsFromProfile(profile)}
         onPatch={p => patchSpawn(spawnPatchFromLaunchFields(p))}
+        show={{
+          model: true,
+          effort: true,
+          permissionMode: true,
+          agent: true,
+          autocompactPct: true,
+          maxBudgetUsd: true,
+          headless: backend === 'claude',
+          repl: backend === 'claude',
+          bare: backend === 'claude',
+          includePartialMessages: backend === 'claude',
+        }}
       />
       {showAppendSp ? (
         <AppendSystemPromptSection
