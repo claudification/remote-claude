@@ -114,7 +114,13 @@ export const spawnRequestSchema = z.object({
   effort: effortEnum.optional().describe('Thinking effort budget'),
   permissionMode: permissionModeEnum.optional().describe('CC permission prompting mode'),
   autocompactPct: z.number().min(0).max(100).optional().describe('Auto-compact threshold (%)'),
-  maxBudgetUsd: z.number().positive().optional().describe('Max spend in USD before auto-stop'),
+  maxBudgetUsd: z
+    .number()
+    .positive()
+    .optional()
+    .describe(
+      'Max spend in USD before auto-stop. NEVER set this unless the user explicitly asks to cap or set a budget. Omit by default - the project/global default applies.',
+    ),
   includePartialMessages: z
     .boolean()
     .optional()
