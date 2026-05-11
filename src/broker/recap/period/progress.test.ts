@@ -41,7 +41,7 @@ describe('ProgressEmitter', () => {
     return createProgressEmitter({
       recapId: 'recap_p1',
       store,
-      broadcaster: { broadcast: msg => messages.push(msg) },
+      broadcaster: { broadcast: msg => messages.push(msg as ProgressMessage) },
     })
   }
 

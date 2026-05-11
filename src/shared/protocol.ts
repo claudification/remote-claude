@@ -2258,6 +2258,198 @@ export interface ConnectionInfo {
   protocolVersion?: number
 }
 
+
+// ----------------------------------------------------------------------------
+// Period Recap (long-form markdown digest of a project over a period)
+// ----------------------------------------------------------------------------
+
+export type RecapPeriodLabel =
+  | 'today'
+  | 'yesterday'
+  | 'last_7'
+  | 'last_30'
+  | 'this_week'
+  | 'this_month'
+  | 'custom'
+
+export type RecapStatus = 'queued' | 'gathering' | 'rendering' | 'done' | 'failed' | 'cancelled'
+export type RecapLogLevel = 'info' | 'warn' | 'error' | 'debug'
+export type RecapSignal =
+  | 'user_prompts'
+  | 'assistant_final_turn'
+  | 'commits'
+  | 'task_results'
+  | 'tool_summaries'
+  | 'errors_hooks'
+  | 'cost'
+  | 'open_questions'
+
+export interface RecapMeta {
+  recapId: string
+  projectUri: string
+  periodLabel: RecapPeriodLabel
+  periodStart: number
+  periodEnd: number
+  timeZone: string
+  status: RecapStatus
+  progress: number
+  phase?: string
+  model?: string
+  inputChars: number
+  inputTokens: number
+  outputTokens: number
+  llmCostUsd: number
+  title?: string
+  subtitle?: string
+  error?: string
+  createdAt: number
+  startedAt?: number
+  completedAt?: number
+}
+
+export interface RecapSummary {
+  id: string
+  projectUri: string
+  periodLabel: RecapPeriodLabel
+  periodStart: number
+  periodEnd: number
+  status: RecapStatus
+  title?: string
+  subtitle?: string
+  createdAt: number
+  completedAt?: number
+  llmCostUsd: number
+  model?: string
+  progress: number
+  phase?: string
+  error?: string
+}
+
+export interface PeriodRecapDoc extends RecapMeta {
+  markdown?: string
+}
+
+export interface RecapLogEntry {
+  id: number
+  recapId: string
+  timestamp: number
+  level: RecapLogLevel
+  phase: string
+  message: string
+  data?: unknown
+}
+
+export interface RecapCreateMessage {
+  type: 'recap_create'
+  projectUri: string
+  period: { label: RecapPeriodLabel; start?: number; end?: number }
+  timeZone: string
+  signals?: RecapSignal[]
+  force?: boolean
+}
+export interface RecapCancelMessage {
+  type: 'recap_cancel'
+  recapId: string
+}
+export interface RecapDismissFailedMessage {
+  type: 'recap_dismiss_failed'
+  recapId: string
+}
+export interface RecapListMessage {
+  type: 'recap_list'
+  projectUri?: string
+  status?: RecapStatus[]
+  limit?: number
+}
+export interface RecapGetMessage {
+  type: 'recap_get'
+  recapId: string
+  includeLogs?: boolean
+}
+export interface RecapProgressMessage {
+  type: 'recap_progress'
+  recapId: string
+  status: RecapStatus
+  progress: number
+  phase: string
+  log?: { level: RecapLogLevel; message: string; ts: number; data?: unknown }
+}
+export interface RecapCreatedMessage {
+  type: 'recap_created'
+  recapId: string
+  cached: boolean
+}
+export interface RecapCompleteMessage {
+  type: 'recap_complete'
+  recapId: string
+  title: string
+  markdown: string
+  meta: RecapMeta
+}
+export interface RecapListResultMessage {
+  type: 'recap_list_result'
+  recaps: RecapSummary[]
+}
+export interface RecapGetResultMessage {
+  type: 'recap_get_result'
+  recap: PeriodRecapDoc
+  logs?: RecapLogEntry[]
+}
+
+// MCP RPC pass-through: agent host -> broker -> agent host
+export interface RecapSearchRequest {
+  type: 'recap_search_request'
+  requestId: string
+  query: string
+  projectFilter?: string
+  tags?: string[]
+  limit?: number
+}
+export interface RecapSearchHit {
+  id: string
+  projectUri: string
+  periodLabel: RecapPeriodLabel
+  periodStart: number
+  periodEnd: number
+  title: string
+  subtitle: string
+  snippet: string
+  score: number
+  createdAt: number
+}
+export interface RecapSearchResult {
+  type: 'recap_search_result'
+  requestId: string
+  ok: boolean
+  results?: RecapSearchHit[]
+  error?: string
+}
+export interface RecapMcpGetRequest {
+  type: 'recap_mcp_get_request'
+  requestId: string
+  recapId: string
+}
+export interface RecapMcpGetResult {
+  type: 'recap_mcp_get_result'
+  requestId: string
+  ok: boolean
+  recap?: PeriodRecapDoc
+  error?: string
+}
+export interface RecapMcpListRequest {
+  type: 'recap_mcp_list_request'
+  requestId: string
+  projectFilter?: string
+  limit?: number
+}
+export interface RecapMcpListResult {
+  type: 'recap_mcp_list_result'
+  requestId: string
+  ok: boolean
+  recaps?: RecapSummary[]
+  error?: string
+}
+
 // Configuration
 export const DEFAULT_BROKER_URL = 'ws://localhost:9999'
 export const DEFAULT_BROKER_PORT = 9999

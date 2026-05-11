@@ -1,7 +1,7 @@
 import type { PeriodRecapStore, RecapLogLevel, RecapStatus } from './store'
 
 export interface ProgressBroadcaster {
-  broadcast(msg: ProgressMessage): void
+  broadcast(msg: ProgressMessage | RecapBroadcastMessage): void
 }
 
 export interface ProgressMessage {
@@ -11,6 +11,14 @@ export interface ProgressMessage {
   progress: number
   phase: string
   log?: { level: RecapLogLevel; message: string; ts: number; data?: unknown }
+}
+
+export type RecapBroadcastMessage = {
+  type: 'recap_complete'
+  recapId: string
+  title: string
+  markdown: string
+  meta: unknown
 }
 
 export interface ProgressEmitter {

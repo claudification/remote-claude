@@ -36,6 +36,7 @@ import { appendMessage, initInterConversationLog } from './inter-conversation-lo
 import { drain, enqueue, getQueueSize, initMessageQueue } from './message-queue'
 import { routeMessage } from './message-router'
 import { initModelPricing } from './model-pricing'
+import { initRecapOrchestrator } from './recap-orchestrator'
 import { addAllowedRoot, addPathMapping, getAllowedRoots } from './path-jail'
 import { allGrantsExpired } from './permissions'
 import {
@@ -392,6 +393,15 @@ async function main() {
     console.log('Cache cleared.')
     process.exit(0)
   }
+
+  initRecapOrchestrator({
+    cacheDir: cacheDir ?? '.',
+    brokerStore: store,
+    broadcaster: {
+      broadcast: msg =>
+        conversationStore.broadcastConversationScoped(msg as Record<string, unknown>, '*'),
+    },
+  })
 
   // External status polling (clanker.watch health + usage.report efficiency)
   startExternalStatusPolling({
