@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getHighlighter } from './transcript/syntax'
+import { ensureLang, getHighlighter } from './transcript/syntax'
 
 interface DiagViewProps {
   conversationId: string
@@ -97,7 +97,8 @@ export function DiagView({ conversationId }: DiagViewProps) {
 
   useEffect(() => {
     if (!yaml) return
-    getDiagHighlighter()
+    ensureLang('yaml')
+      .then(() => getDiagHighlighter())
       .then(hl => {
         const html = hl.codeToHtml(yaml, { lang: 'yaml', theme: 'tokyo-night' })
         setHighlighted(html)
