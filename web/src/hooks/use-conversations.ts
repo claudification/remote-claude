@@ -1035,7 +1035,7 @@ function sendConversationControl(
   opts: { model?: string; effort?: string; permissionMode?: string } = {},
 ): boolean {
   return wsSend('conversation_control', {
-    targetSession: conversationId,
+    targetConversation: conversationId,
     action,
     ...(opts.model && { model: opts.model }),
     ...(opts.effort && { effort: opts.effort }),
