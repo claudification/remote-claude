@@ -157,7 +157,7 @@ describe('GET /api/recaps/:id', () => {
 })
 
 describe('GET /api/recaps/:id/markdown', () => {
-  test('streams text/markdown with attachment filename', async () => {
+  test('with no Accept header: returns attachment with filename', async () => {
     seedRecap({ id: 'recap_a', projectUri: 'claude://default/projects/foo', markdown: '# Hi\n' })
     const res = await app.request('/api/recaps/recap_a/markdown', { headers: adminHeaders() })
     expect(res.status).toBe(200)
@@ -165,6 +165,17 @@ describe('GET /api/recaps/:id/markdown', () => {
     const disp = res.headers.get('content-disposition') || ''
     expect(disp).toContain('attachment')
     expect(disp).toMatch(/recap-foo-last_7-\d{4}-\d{2}-\d{2}\.md/)
+    expect(await res.text()).toBe('# Hi\n')
+  })
+
+  test('with Accept: text/markdown: returns raw markdown without attachment', async () => {
+    seedRecap({ id: 'recap_b', projectUri: 'claude://default/projects/foo', markdown: '# Hi\n' })
+    const res = await app.request('/api/recaps/recap_b/markdown', {
+      headers: { ...adminHeaders(), accept: 'text/markdown' },
+    })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('text/markdown')
+    expect(res.headers.get('content-disposition')).toBeNull()
     expect(await res.text()).toBe('# Hi\n')
   })
 
@@ -299,11 +310,10 @@ describe('GET /shared/public/recap/:token', () => {
 })
 
 describe('GET /r/:token', () => {
-  test('redirects to SPA with share + kind hint', async () => {
+  test('redirects to canonical /shared/public/recap/:token endpoint', async () => {
     const res = await app.request('/r/abc123')
     expect(res.status).toBe(302)
     const loc = res.headers.get('location') || ''
-    expect(loc).toContain('share=abc123')
-    expect(loc).toContain('kind=recap')
+    expect(loc).toBe('/shared/public/recap/abc123')
   })
 })
