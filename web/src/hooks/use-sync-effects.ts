@@ -128,6 +128,11 @@ function useConnectSeqSync(
       `[sync] connectSeq=${connectSeq} - refresh sessions + sidebar metadata, re-fetch ${sid?.slice(0, 8) || 'none'}`,
     )
     wsSend('refresh_sessions')
+    // Hydrate the recap-jobs widget on every connect so the bottom-of-sidebar
+    // widget reflects active + recent jobs the broker is tracking. Limit to
+    // the most recent slice -- the widget filters down to active/recent on the
+    // client; the rest live in the history modal (Phase 10).
+    wsSend('recap_list', { limit: 50, status: ['queued', 'gathering', 'rendering', 'failed', 'done'] })
     fetchSidebarMetadata()
     resetFetchedAt()
     if (sid) fetchConversationData(sid, 'reconnect')

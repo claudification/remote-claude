@@ -23,6 +23,7 @@ import type {
   TranscriptEntry,
 } from '@/lib/types'
 import { haptic } from '@/lib/utils'
+import { useRecapJobsStore } from './use-recap-jobs'
 import {
   applyHashRoute,
   buildConversationsById,
@@ -830,6 +831,45 @@ function handleLaunchJobEvent(msg: DashboardMessage) {
   window.dispatchEvent(new CustomEvent('launch-job-event', { detail: msg }))
 }
 
+// ─── recap job widget ──────────────────────────────────────────────────────
+
+function handleRecapProgress(msg: DashboardMessage) {
+  useRecapJobsStore.getState().applyProgress(msg as unknown as import('@shared/protocol').RecapProgressMessage)
+}
+
+function handleRecapComplete(msg: DashboardMessage) {
+  useRecapJobsStore.getState().applyComplete(msg as unknown as import('@shared/protocol').RecapCompleteMessage)
+}
+
+function handleRecapCreated(msg: DashboardMessage) {
+  useRecapJobsStore.getState().applyCreated(
+    msg as unknown as import('@shared/protocol').RecapCreatedMessage & {
+      projectUri?: string
+      periodLabel?: import('@shared/protocol').RecapPeriodLabel
+    },
+  )
+}
+
+function handleRecapError(msg: DashboardMessage) {
+  // The broker echoes recap_error with optional requestId; the dashboard's
+  // create flow stamps a recapId on its outbound recap_create when it knows
+  // it. For broker-side errors that don't carry a recapId we still surface
+  // a toast so the user sees what failed.
+  useRecapJobsStore.getState().applyError(msg as unknown as import('@shared/protocol').RecapErrorMessage)
+  if (typeof msg.error === 'string') {
+    window.dispatchEvent(
+      new CustomEvent('rclaude-toast', {
+        detail: { title: 'Recap error', body: msg.error, variant: 'warning' },
+      }),
+    )
+  }
+}
+
+function handleRecapListResult(msg: DashboardMessage) {
+  const recaps = msg.recaps as import('@shared/protocol').RecapSummary[] | undefined
+  if (Array.isArray(recaps)) useRecapJobsStore.getState().syncFromList(recaps)
+}
+
 function handleSpawnRequestAckMsg(msg: DashboardMessage) {
   handleSpawnRequestAck(
     msg as unknown as {
@@ -904,4 +944,10 @@ export const handlers: Record<string, MessageHandler> = {
   job_complete: handleLaunchJobEvent,
   job_failed: handleLaunchJobEvent,
   spawn_request_ack: handleSpawnRequestAckMsg,
+  // recap jobs widget
+  recap_progress: handleRecapProgress,
+  recap_complete: handleRecapComplete,
+  recap_created: handleRecapCreated,
+  recap_error: handleRecapError,
+  recap_list_result: handleRecapListResult,
 }
