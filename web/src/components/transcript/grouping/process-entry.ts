@@ -107,6 +107,14 @@ function handleSystem(entry: TranscriptEntry, state: GroupingState): boolean {
   if (sub === 'file_snapshot' || sub === 'post_turn_summary') return true
   // Skip subagent task progress/notification -- belong in agent transcript, not parent
   if (sub === 'task_progress' || sub === 'task_notification') return true
+  // CC emits system/status as a per-API-request activity heartbeat (apiStatus
+  // + permissionMode). Already converted to dedicated wire signals
+  // (sendConversationStatus('active'), plan_mode_changed) at the agent host.
+  // The raw entry still flows to the broker and is persisted -- visible in
+  // events log + JsonInspector -- but rendering it shatters assistant runs
+  // (handleSystem nulls state.current per system entry, splitting every
+  // tool call into its own avatar+timestamp banner). Skip in transcript view.
+  if (sub === 'status') return true
   state.current = null
   const content = (entry as Record<string, unknown>).content as string | undefined
   // Skip raw slash command input entries (the output entry has the useful info)
