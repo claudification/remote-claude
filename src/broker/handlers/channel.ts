@@ -5,7 +5,7 @@
 
 import { deriveModelName } from '../../shared/models'
 import { cwdToProjectUri, extractProjectLabel, isSameProject, parseProjectUri } from '../../shared/project-uri'
-import type { SubscriptionChannel } from '../../shared/protocol'
+import type { ChannelSendResultEntry, SubscriptionChannel } from '../../shared/protocol'
 import { slugify } from '../address-book'
 import { getUser } from '../auth'
 import type { MessageHandler } from '../handler-context'
@@ -409,14 +409,28 @@ function findPendingSpawnTarget(
   return null
 }
 
-const channelSend: MessageHandler = (ctx, data) => {
-  const fromSession = ctx.ws.data.conversationId || (data.fromSession as string)
-  const toTarget = data.toSession as string
-  if (!fromSession || !toTarget) return
+// Max recipients in a single multicast call. Hard cap to prevent accidental
+// fan-blast (e.g. an agent loops list_conversations into send_message).
+const MAX_MULTICAST_TARGETS = 25
 
-  const fromSess = ctx.conversations.getConversation(fromSession)
-  const callerProject = fromSess?.project || ctx.caller?.project
+type HandlerCtx = Parameters<MessageHandler>[0]
+type Conversation = ReturnType<HandlerCtx['conversations']['getConversation']>
 
+/**
+ * Resolve and deliver to ONE target. Returns a per-target result entry instead
+ * of replying directly -- the multicast orchestrator aggregates entries and
+ * sends a single `channel_send_result` envelope at the end. Synchronous so
+ * single-target sends still reply within the same tick as before.
+ */
+function deliverToOne(
+  ctx: HandlerCtx,
+  data: Record<string, unknown>,
+  fromSession: string,
+  fromSess: Conversation | undefined,
+  callerProject: string | undefined,
+  toTarget: string,
+  conversationId: string,
+): ChannelSendResultEntry {
   // Parse compound target: "project:conversation-name" or bare "project"
   const colonIdx = toTarget.indexOf(':')
   const projectSlug = colonIdx >= 0 ? toTarget.slice(0, colonIdx) : toTarget
@@ -452,12 +466,11 @@ const channelSend: MessageHandler = (ctx, data) => {
       isLive: s => ctx.conversations.getActiveConversationCount(s.id) > 0,
     })
     if (resolved.kind === 'ambiguous') {
-      ctx.reply({
-        type: 'channel_send_result',
+      return {
+        to: toTarget,
         ok: false,
         error: formatAmbiguityError(resolved.canonicalProject, resolved.candidates),
-      })
-      return
+      }
     }
     if (resolved.kind === 'resolved') {
       toSess = ctx.conversations.getConversation(resolved.conversation.id)
@@ -473,16 +486,12 @@ const channelSend: MessageHandler = (ctx, data) => {
     const fromProjectName =
       ctx.getProjectSettings(callerProject || '')?.label ||
       (callerProject ? extractProjectLabel(callerProject) : fromSession.slice(0, 8))
-    // Resolve sender ID from receiver's address book perspective (works even when target is offline).
-    // `routable` is a list_conversations-compatible ID the recipient can pass straight back as `to`;
-    // `project` is the bare project slug for grouping/context.
     const { routable: fromSlug, project: fromProjectSlug } = computeSenderRoutableId(
       ctx,
       fromSess && { id: fromSess.id, project: fromSess.project, title: fromSess.title },
       targetProject,
       fromProjectName,
     )
-    const conversationId = (data.conversationId as string) || `conv_${Date.now().toString(36)}`
     const delivery = {
       type: 'channel_deliver',
       fromSession: fromSlug,
@@ -493,33 +502,13 @@ const channelSend: MessageHandler = (ctx, data) => {
       conversationId,
     }
     ctx.messageQueue.enqueue(targetProject, callerProject || '', fromProjectName, delivery, conversationSlug)
-
-    // Brief wait: if target reconnects within 1s, the queue drains automatically
-    // and we can report 'delivered' instead of 'queued'
-    async function checkDelivered() {
-      for (let i = 0; i < 4; i++) {
-        await new Promise(r => setTimeout(r, 250))
-        // biome-ignore lint/style/noNonNullAssertion: guaranteed non-null by enclosing if (targetProject) block
-        if (ctx.messageQueue.getQueueSize(targetProject!) === 0) {
-          ctx.reply({ type: 'channel_send_result', ok: true, conversationId, status: 'delivered' })
-          ctx.log.debug(`[inter-conversation] ${fromSession.slice(0, 8)} -> ${toTarget} (queued then delivered)`)
-          return
-        }
-      }
-      ctx.reply({ type: 'channel_send_result', ok: true, conversationId, status: 'queued' })
-      ctx.log.debug(`[inter-conversation] ${fromSession.slice(0, 8)} -> ${toTarget} (queued, target offline)`)
-    }
-    checkDelivered().catch(() => {
-      ctx.reply({ type: 'channel_send_result', ok: true, conversationId, status: 'queued' })
-    })
-    return
+    ctx.log.debug(`[inter-conversation] ${fromSession.slice(0, 8)} -> ${toTarget} (queued, target offline)`)
+    return { to: toTarget, ok: true, status: 'queued' }
   }
 
   if (!toSess || !toSession) {
     // Pre-boot fallback: if the target ID (raw or compound) matches an active
     // spawn job, queue the message against the future conversation's project.
-    // The agent host will drain the queue on first connect via the normal
-    // offline-delivery path.
     const pendingMatch = findPendingSpawnTarget(ctx, toTarget)
     if (pendingMatch) {
       const fromProjectName =
@@ -531,7 +520,6 @@ const channelSend: MessageHandler = (ctx, data) => {
         pendingMatch.project,
         fromProjectName,
       )
-      const conversationId = (data.conversationId as string) || `conv_${Date.now().toString(36)}`
       const delivery = {
         type: 'channel_deliver',
         fromSession: fromSlug,
@@ -542,19 +530,17 @@ const channelSend: MessageHandler = (ctx, data) => {
         conversationId,
       }
       ctx.messageQueue.enqueue(pendingMatch.project, callerProject || '', fromProjectName, delivery, pendingMatch.name)
-      ctx.reply({ type: 'channel_send_result', ok: true, conversationId, status: 'queued' })
       ctx.log.debug(
         `[inter-conversation] ${fromSession.slice(0, 8)} -> ${toTarget} (queued for spawning job ${pendingMatch.jobId.slice(0, 8)})`,
       )
-      return
+      return { to: toTarget, ok: true, status: 'queued' }
     }
 
-    ctx.reply({
-      type: 'channel_send_result',
+    return {
+      to: toTarget,
       ok: false,
       error: 'Target not found. Use list_conversations to discover current sessions.',
-    })
-    return
+    }
   }
 
   const fromProjectName =
@@ -563,15 +549,10 @@ const channelSend: MessageHandler = (ctx, data) => {
 
   const linkStatus = ctx.conversations.checkProjectLink(fromSession, toSession)
   if (linkStatus === 'blocked') {
-    ctx.reply({ type: 'channel_send_result', ok: false, error: 'Session has blocked your messages' })
-    return
+    return { to: toTarget, ok: false, error: 'Session has blocked your messages' }
   }
 
-  const conversationId = (data.conversationId as string) || `conv_${Date.now().toString(36)}`
-
   // Resolve sender ID from the RECEIVER's address book perspective.
-  // `routable` matches what list_conversations would return for this sender,
-  // so the recipient can pass `from_session` straight back as `to`.
   const { routable: fromSlug, project: fromProjectSlug } = computeSenderRoutableId(
     ctx,
     fromSess && { id: fromSess.id, project: fromSess.project, title: fromSess.title },
@@ -591,9 +572,6 @@ const channelSend: MessageHandler = (ctx, data) => {
 
   const targetTrust = toSess.project ? ctx.getProjectSettings(toSess.project)?.trustLevel : undefined
   const fromTrust = fromSess?.project ? ctx.getProjectSettings(fromSess.project)?.trustLevel : undefined
-  // Sister conversations = same project, different conversation IDs (worktrees, parallel headless runs, a PTY
-  // and its spawned helper). Cross-project stays on the link-approval path so unexpected A<->B
-  // chatter is surfaced to the user instead of being silently auto-linked.
   const isSisterSession = !!fromSess?.project && !!toSess.project && isSameProject(fromSess.project, toSess.project)
   const isTrusted = isSisterSession || targetTrust === 'open' || fromTrust === 'benevolent'
 
@@ -618,24 +596,12 @@ const channelSend: MessageHandler = (ctx, data) => {
     const targetWs = ctx.conversations.getConversationSocket(toSession)
     if (targetWs) {
       targetWs.send(JSON.stringify(delivery))
-      ctx.reply({
-        type: 'channel_send_result',
-        ok: true,
-        conversationId,
-        status: 'delivered',
-        targetSessionId: toSession,
-      })
-
       const toProjectName = ctx.getProjectSettings(toSess.project)?.label || extractProjectLabel(toSess.project)
       if (fromSess?.project && toSess.project) {
         ctx.links.touch(fromSess.project, toSess.project)
         ctx.logMessage({
           ts: Date.now(),
-          from: {
-            conversationId: fromSession,
-            project: fromSess.project,
-            name: fromProjectName,
-          },
+          from: { conversationId: fromSession, project: fromSess.project, name: fromProjectName },
           to: { conversationId: toSession, project: toSess.project, name: toProjectName },
           intent: (data.intent as string) || 'notify',
           conversationId,
@@ -643,29 +609,106 @@ const channelSend: MessageHandler = (ctx, data) => {
           fullLength: ((data.message as string) || '').length,
         })
       }
-    } else {
-      ctx.reply({
-        type: 'channel_send_result',
-        ok: false,
-        error:
-          'Target conversation not connected. It may have restarted. Use list_conversations to resolve current IDs.',
-      })
+      ctx.log.debug(
+        `[inter-conversation] ${fromSession.slice(0, 8)} -> ${toSession.slice(0, 8)}: ${data.intent} (${linkStatus})`,
+      )
+      return { to: toTarget, ok: true, status: 'delivered', targetSessionId: toSession }
     }
-  } else {
-    ctx.conversations.queueProjectMessage(fromSession, toSession, delivery)
-    const toProjectName = ctx.getProjectSettings(toSess.project)?.label || extractProjectLabel(toSess.project)
-    ctx.broadcast({
-      type: 'channel_link_request',
-      fromSession,
-      fromProject: fromProjectName,
-      toSession,
-      toProject: toProjectName,
-    })
-    ctx.reply({ type: 'channel_send_result', ok: true, conversationId, status: 'queued', targetSessionId: toSession })
+    return {
+      to: toTarget,
+      ok: false,
+      error: 'Target conversation not connected. It may have restarted. Use list_conversations to resolve current IDs.',
+    }
   }
+
+  // Unknown link, untrusted -- queue + broadcast link-approval request
+  ctx.conversations.queueProjectMessage(fromSession, toSession, delivery)
+  const toProjectName = ctx.getProjectSettings(toSess.project)?.label || extractProjectLabel(toSess.project)
+  ctx.broadcast({
+    type: 'channel_link_request',
+    fromSession,
+    fromProject: fromProjectName,
+    toSession,
+    toProject: toProjectName,
+  })
   ctx.log.debug(
     `[inter-conversation] ${fromSession.slice(0, 8)} -> ${toSession.slice(0, 8)}: ${data.intent} (${linkStatus})`,
   )
+  return { to: toTarget, ok: true, status: 'queued', targetSessionId: toSession }
+}
+
+const channelSend: MessageHandler = (ctx, data) => {
+  const fromSession = ctx.ws.data.conversationId || (data.fromSession as string)
+  const rawTo = data.toSession
+  if (!fromSession || rawTo === undefined || rawTo === null) return
+
+  // Normalize toSession to array, remember whether the caller passed an array.
+  // Empty strings/dupes are filtered; we keep the user's ordering for the result.
+  const wasArray = Array.isArray(rawTo)
+  const targets = (wasArray ? (rawTo as unknown[]) : [rawTo]).filter(
+    (t): t is string => typeof t === 'string' && t.length > 0,
+  )
+  const dedupedTargets = Array.from(new Set(targets))
+
+  if (dedupedTargets.length === 0) {
+    ctx.reply({
+      type: 'channel_send_result',
+      ok: false,
+      error: 'toSession must be a non-empty string or non-empty array of strings.',
+    })
+    return
+  }
+
+  if (dedupedTargets.length > MAX_MULTICAST_TARGETS) {
+    ctx.reply({
+      type: 'channel_send_result',
+      ok: false,
+      error: `Too many recipients: ${dedupedTargets.length} > ${MAX_MULTICAST_TARGETS}. Split the send into smaller batches.`,
+    })
+    return
+  }
+
+  const fromSess = ctx.conversations.getConversation(fromSession)
+  const callerProject = fromSess?.project || ctx.caller?.project
+
+  // ONE thread id shared by all fan-out targets, so replies land in the same thread.
+  const conversationId = (data.conversationId as string) || `conv_${Date.now().toString(36)}`
+
+  // Run all deliveries sequentially (each is synchronous). Each entry is
+  // independent and self-contained (its own resolution + queue/deliver
+  // decision). The orchestrator collects results and emits one envelope.
+  const results: ChannelSendResultEntry[] = dedupedTargets.map(toTarget => {
+    try {
+      return deliverToOne(
+        ctx,
+        data as Record<string, unknown>,
+        fromSession,
+        fromSess,
+        callerProject,
+        toTarget,
+        conversationId,
+      )
+    } catch (err) {
+      return { to: toTarget, ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  const allOk = results.every(r => r.ok)
+  if (wasArray) {
+    // Multicast envelope: aggregate ok + thread id, with per-target breakdown.
+    ctx.reply({ type: 'channel_send_result', ok: allOk, conversationId, results })
+    return
+  }
+  // Single-target back-compat: flat shape only.
+  const r = results[0]
+  ctx.reply({
+    type: 'channel_send_result',
+    ok: r.ok,
+    conversationId,
+    ...(r.status ? { status: r.status } : {}),
+    ...(r.targetSessionId ? { targetSessionId: r.targetSessionId } : {}),
+    ...(r.error ? { error: r.error } : {}),
+  })
 }
 
 // ─── Quit conversation relay (dashboard -> agent host) ─────────────────────

@@ -70,12 +70,25 @@ export interface McpChannelCallbacks {
     showMetadata?: boolean,
   ) => Promise<{ sessions: ConversationInfo[]; self?: Record<string, unknown> }>
   onSendMessage?: (
-    to: string,
+    to: string | string[],
     intent: string,
     message: string,
     context?: string,
     conversationId?: string,
-  ) => Promise<{ ok: boolean; error?: string; conversationId?: string; targetSessionId?: string }>
+  ) => Promise<{
+    ok: boolean
+    error?: string
+    conversationId?: string
+    targetSessionId?: string
+    status?: 'delivered' | 'queued'
+    results?: Array<{
+      to: string
+      ok: boolean
+      status?: 'delivered' | 'queued'
+      targetSessionId?: string
+      error?: string
+    }>
+  }>
   onPermissionRequest?: (data: PermissionRequestData) => void
   onDisconnect?: () => void
   onTogglePlanMode?: () => void

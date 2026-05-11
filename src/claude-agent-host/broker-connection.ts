@@ -7,7 +7,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { AgentHostMessage } from '../shared/protocol'
+import type { DialogResult } from '../shared/dialog-schema'
+import type { AgentHostMessage, InterSessionDelivery, RclaudePermissionConfig } from '../shared/protocol'
 import type { AgentHostContext } from './agent-host-context'
 import { extToMediaType } from './cli-args'
 import { debug } from './debug'
@@ -52,7 +53,20 @@ export interface BrokerConnectionDeps {
 // Pending inter-session request/response callbacks -- module-level state
 let pendingListConversations: ((sessions: ConversationInfo[], self?: Record<string, unknown>) => void) | null = null
 let pendingSendResult:
-  | ((result: { ok: boolean; error?: string; conversationId?: string; targetSessionId?: string }) => void)
+  | ((result: {
+      ok: boolean
+      error?: string
+      conversationId?: string
+      targetSessionId?: string
+      status?: 'delivered' | 'queued'
+      results?: Array<{
+        to: string
+        ok: boolean
+        status?: 'delivered' | 'queued'
+        targetSessionId?: string
+        error?: string
+      }>
+    }) => void)
   | null = null
 let pendingReviveResult: ((result: { ok: boolean; error?: string; name?: string }) => void) | null = null
 let pendingRestartResult:
@@ -279,7 +293,7 @@ export function connectToBroker(ctx: AgentHostContext, deps: BrokerConnectionDep
     onConfigGet(requestId: string) {
       handleConfigGet(ctx, requestId, cwd)
     },
-    onConfigSet(requestId: string, config: import('../shared/protocol').RclaudePermissionConfig) {
+    onConfigSet(requestId: string, config: RclaudePermissionConfig) {
       handleConfigSet(ctx, requestId, config, cwd)
     },
     onTranscriptRequest() {
@@ -292,7 +306,7 @@ export function connectToBroker(ctx: AgentHostContext, deps: BrokerConnectionDep
       pendingListConversations?.(conversations, self)
     },
     onChannelSendResult(result) {
-      pendingSendResult?.(result as { ok: boolean; error?: string; conversationId?: string; targetSessionId?: string })
+      if (pendingSendResult) pendingSendResult(result as Parameters<typeof pendingSendResult>[0])
     },
     onChannelReviveResult(result) {
       pendingReviveResult?.(result)
@@ -542,7 +556,7 @@ function handleConfigGet(ctx: AgentHostContext, requestId: string, cwd: string) 
 function handleConfigSet(
   ctx: AgentHostContext,
   requestId: string,
-  config: import('../shared/protocol').RclaudePermissionConfig,
+  config: RclaudePermissionConfig,
   cwd: string,
 ) {
   const cfgPath = join(cwd, '.rclaude', 'rclaude.json')
@@ -605,7 +619,7 @@ async function retryTranscriptWatcher(ctx: AgentHostContext, path: string) {
 function handleChannelDeliver(
   ctx: AgentHostContext,
   deps: BrokerConnectionDeps,
-  delivery: import('../shared/protocol').InterSessionDelivery,
+  delivery: InterSessionDelivery,
 ) {
   if (deps.headless && ctx.streamProc) {
     const attrs = [
@@ -689,7 +703,7 @@ function handleAskAnswer(
 function handleDialogResult(
   ctx: AgentHostContext,
   dialogId: string,
-  result: import('../shared/dialog-schema').DialogResult,
+  result: DialogResult,
 ) {
   clearInteraction(ctx, dialogId)
   const resolved = resolveDialog(dialogId, result)
