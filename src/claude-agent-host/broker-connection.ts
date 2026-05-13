@@ -727,6 +727,7 @@ function handlePlanApproval(
   if (!deps.headless || !ctx.streamProc) return
   clearInteraction(ctx, requestId)
 
+  const exitedPlanMode = action === 'approve' || action === 'feedback'
   if (action === 'approve') {
     ctx.streamProc.sendPermissionResponse(requestId, true, undefined, toolUseId)
     ctx.diag('plan', `Plan approved: ${requestId.slice(0, 8)}`)
@@ -737,12 +738,21 @@ function handlePlanApproval(
     ctx.streamProc.sendPermissionResponse(requestId, false, undefined, toolUseId)
     ctx.diag('plan', `Plan rejected: ${requestId.slice(0, 8)}`)
   }
-  if (ctx.wsClient?.isConnected()) {
-    ctx.wsClient.send({
-      type: 'plan_mode_changed',
-      conversationId: ctx.conversationId,
-      planMode: false,
-    } as unknown as AgentHostMessage)
+  // Only emit plan_mode_changed:false on approve/feedback. On reject, CC stays
+  // in plan mode -- emitting false would lie to the broker.
+  if (exitedPlanMode) {
+    // Arm the stale-status suppressor. CC may still emit `system/status`
+    // messages carrying `permissionMode: 'plan'` for a brief window after the
+    // approval (queued in CC's stdout before its internal mode flipped).
+    // onPlanModeChanged consults this to drop those false-positives.
+    ctx.planExitApprovedAt = Date.now()
+    if (ctx.wsClient?.isConnected()) {
+      ctx.wsClient.send({
+        type: 'plan_mode_changed',
+        conversationId: ctx.conversationId,
+        planMode: false,
+      } as unknown as AgentHostMessage)
+    }
   }
 }
 

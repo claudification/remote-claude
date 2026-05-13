@@ -919,14 +919,14 @@ function handleRateLimitStatus(msg: DashboardMessage) {
     return
   }
 
-  const retrySeconds = msg.retryAfterMs ? Math.ceil(msg.retryAfterMs / 1000) : 5
   const limitLabel = rateLimitType || 'API'
   const utilizationPct = utilization ? Math.round(utilization * 100) : '?'
   const toastId = `${conversationId}:${rateLimitType}`
 
+  const retryText = msg.retryAfterMs ? ` Retry in ${Math.ceil(msg.retryAfterMs / 1000)}s.` : ''
   const originalDetail = {
     title: isCritical ? '🔔 Rate Limited' : 'Rate Limited',
-    body: `${limitLabel} limit at ${utilizationPct}%. Retry in ${retrySeconds}s.`,
+    body: `${limitLabel} limit at ${utilizationPct}%.${retryText}`,
     variant: 'warning',
     persistent: isCritical, // Persist only if utilization >= 75%
     conversationId,

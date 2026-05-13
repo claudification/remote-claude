@@ -65,6 +65,13 @@ export interface AgentHostContext {
   syntheticUserUuids: Map<string, string>
   lastTasksJson: string
 
+  /** Timestamp (ms) of the most recent dashboard-approved ExitPlanMode. Used
+   *  to suppress stale `system/status` messages that still carry
+   *  `permissionMode: 'plan'` after the user has approved the exit but before
+   *  CC's internal mode transitions. Cleared once we observe a status with
+   *  `permissionMode !== 'plan'` (or after a short window). 0 = inactive. */
+  planExitApprovedAt: number
+
   // Process references
   wsClient: WsClient | null
   ptyProcess: PtyProcess | null

@@ -1758,7 +1758,7 @@ export interface Conversation {
   }
   permissionMode?: string // current CC permission mode (default/plan/acceptEdits/auto/bypassPermissions)
   lastError?: { stopReason?: string; errorType?: string; errorMessage?: string; timestamp: number }
-  rateLimit?: { retryAfterMs: number; message: string; timestamp: number }
+  rateLimit?: { retryAfterMs?: number; message: string; timestamp: number }
   pendingAttention?: {
     type: 'permission' | 'elicitation' | 'ask' | 'dialog' | 'plan_approval' | 'spawn_approval'
     toolName?: string

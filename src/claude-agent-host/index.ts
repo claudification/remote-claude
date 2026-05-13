@@ -109,6 +109,7 @@ async function main() {
     syntheticUserUuids: new Map(),
     parentTranscriptPath: null,
     lastTasksJson: '',
+    planExitApprovedAt: 0,
 
     wsClient: null,
     ptyProcess: null,

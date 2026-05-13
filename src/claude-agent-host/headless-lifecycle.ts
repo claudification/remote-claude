@@ -20,6 +20,32 @@ import { sendTranscriptEntriesChunked, startBgTaskOutputWatcher, startSubagentWa
 
 const debug = (msg: string) => _debug(msg)
 
+/**
+ * Stale-status suppression for plan mode. After a dashboard-approved
+ * ExitPlanMode, `handlePlanApproval` already announced `plan_mode_changed:false`.
+ * CC may still emit `system/status` frames with `permissionMode:'plan'` for a
+ * brief window before its internal mode transitions -- those would race the
+ * explicit signal and stick the PLAN badge on indefinitely. Drop them.
+ *
+ * Returns true if the caller should suppress this update. The first non-plan
+ * status (or the 5s safety window expiring) disarms the suppressor.
+ */
+const PLAN_EXIT_SUPPRESS_WINDOW_MS = 5000
+function shouldSuppressStaleStatusPlanMode(ctx: AgentHostContext, planMode: boolean): boolean {
+  if (ctx.planExitApprovedAt <= 0) return false
+  const ageMs = Date.now() - ctx.planExitApprovedAt
+  if (ageMs > PLAN_EXIT_SUPPRESS_WINDOW_MS) {
+    ctx.planExitApprovedAt = 0
+    return false
+  }
+  if (!planMode) {
+    ctx.planExitApprovedAt = 0
+    return false
+  }
+  ctx.diag('headless', `Plan mode: ON suppressed (stale status ${ageMs}ms after ExitPlanMode approval)`)
+  return true
+}
+
 export interface HeadlessCallbackDeps {
   ctx: AgentHostContext
   permissionRules: {
@@ -307,6 +333,7 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
     },
 
     onPlanModeChanged(planMode) {
+      if (shouldSuppressStaleStatusPlanMode(ctx, planMode)) return
       ctx.diag('headless', `Plan mode: ${planMode ? 'ON' : 'OFF'} (from status message)`)
       if (ctx.wsClient?.isConnected()) {
         ctx.wsClient.send({
