@@ -2,7 +2,7 @@ import type { HookEvent } from '@shared/protocol'
 import { memo, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useConversationsStore } from '@/hooks/use-conversations'
-import { canJsonStream, canTerminal, projectPath, type TranscriptEntry } from '@/lib/types'
+import { canJsonStream, canTerminal, type TranscriptEntry } from '@/lib/types'
 import { ClipboardBanners } from './conversation-detail/conversation-banners'
 import { ConversationHeader } from './conversation-detail/conversation-header'
 import { DialogOverlay, InputBar } from './conversation-detail/conversation-input'
@@ -102,7 +102,7 @@ export const ConversationDetail = memo(function SessionDetail() {
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
       <ClipboardBanners />
-      {canAdmin && session && <ShareBanner conversationProject={projectPath(session.project)} conversationId={session.id} />}
+      {canAdmin && session && <ShareBanner conversationProject={session.project} conversationId={session.id} />}
       {selectedConversationId && <DialogOverlay conversationId={selectedConversationId} />}
 
       {selectedConversationId && (
