@@ -92,12 +92,19 @@ export interface Session {
   rateLimit?: { retryAfterMs: number; message: string; timestamp: number }
   planMode?: boolean
   pendingAttention?: {
-    type: 'permission' | 'elicitation' | 'ask' | 'dialog' | 'plan_approval'
+    type: 'permission' | 'elicitation' | 'ask' | 'dialog' | 'plan_approval' | 'spawn_approval'
     toolName?: string
     filePath?: string
     question?: string
     timestamp: number
   }
+  pendingSpawnApproval?: {
+    requestId: string
+    requestedAt: number
+    request: Record<string, unknown>
+    reason: string
+  }
+  spawnAutoApproved?: boolean
   hasNotification?: boolean
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
   contextWindow?: number

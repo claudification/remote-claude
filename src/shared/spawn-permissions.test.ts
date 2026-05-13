@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import {
   assertSpawnAllowed,
+  evaluateSpawnPermission,
   mapProjectTrust,
   type SpawnCallerContext,
   SpawnPermissionError,
@@ -105,6 +106,57 @@ describe('assertSpawnAllowed', () => {
     for (const lvl of levels) {
       expect(() => assertSpawnAllowed(makeCtx({ trustLevel: lvl }), req)).toThrow(SpawnPermissionError)
     }
+  })
+})
+
+describe('evaluateSpawnPermission', () => {
+  // fallow-ignore-next-line complexity
+  function expectReject(
+    ctx: SpawnCallerContext,
+    req: SpawnRequest,
+    extra?: { field?: string; required?: TrustLevel | 'spawn_permission' },
+  ): void {
+    const result = evaluateSpawnPermission(ctx, req)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.kind).toBe('reject')
+    if (result.kind !== 'reject') return
+    if (extra?.field !== undefined) expect(result.field).toBe(extra.field)
+    if (extra?.required !== undefined) expect(result.required).toBe(extra.required)
+  }
+
+  function expectNeedsApproval(ctx: SpawnCallerContext, req: SpawnRequest): void {
+    const result = evaluateSpawnPermission(ctx, req)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.kind).toBe('needs_approval')
+  }
+
+  it('returns ok=true for trusted HTTP caller with base request', () => {
+    expect(evaluateSpawnPermission(makeCtx(), baseReq)).toEqual({ ok: true })
+  })
+
+  it('returns reject for missing spawn permission', () => {
+    expectReject(makeCtx({ hasSpawnPermission: false }), baseReq, { required: 'spawn_permission' })
+  })
+
+  it('returns needs_approval for non-benevolent MCP caller (waivable by user)', () => {
+    expectNeedsApproval(makeCtx({ kind: 'mcp', trustLevel: 'trusted', callerProject: '/mcp/app' }), baseReq)
+  })
+
+  it('returns ok=true for benevolent MCP caller (no prompt needed)', () => {
+    const ctx = makeCtx({ kind: 'mcp', trustLevel: 'benevolent', callerProject: '/mcp/app' })
+    expect(evaluateSpawnPermission(ctx, baseReq)).toEqual({ ok: true })
+  })
+
+  it('returns reject (not needs_approval) for bypassPermissions on non-benevolent', () => {
+    const req: SpawnRequest = { ...baseReq, permissionMode: 'bypassPermissions' }
+    expectReject(makeCtx({ kind: 'mcp', trustLevel: 'trusted' }), req, { field: 'permissionMode' })
+  })
+
+  it('returns reject (not needs_approval) for sensitive env on non-benevolent', () => {
+    const req: SpawnRequest = { ...baseReq, env: { PATH: '/evil/bin' } }
+    expectReject(makeCtx({ kind: 'mcp', trustLevel: 'trusted' }), req)
   })
 })
 

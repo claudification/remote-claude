@@ -172,6 +172,19 @@ interface ConversationsState {
   }>
   respondToPermission: (conversationId: string, requestId: string, behavior: 'allow' | 'deny') => void
   sendPermissionRule: (conversationId: string, toolName: string, behavior: 'allow' | 'deny') => void
+  /**
+   * Pending spawn approvals derived from sessions[].pendingSpawnApproval. The
+   * broker stores the prompt on the caller conversation and broadcasts it via
+   * conversation_update; this slice is a flat materialized view for the UI.
+   * Per the LOG-EVERYTHING covenant, the broker logs every transition; the
+   * client is just the renderer.
+   */
+  respondToSpawnApproval: (
+    conversationId: string,
+    requestId: string,
+    decision: 'allow' | 'deny',
+    persist: boolean,
+  ) => void
   pendingAskQuestions: Array<{
     conversationId: string
     toolUseId: string
@@ -505,6 +518,20 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   },
   sendPermissionRule: (conversationId, toolName, behavior) => {
     wsSend('permission_rule', { conversationId, toolName, behavior })
+  },
+  respondToSpawnApproval: (conversationId, requestId, decision, persist) => {
+    wsSend('spawn_approval_decision', { conversationId, requestId, decision, persist })
+    // Optimistic clear -- the broker also clears + broadcasts conversation_update,
+    // but doing it here avoids a one-frame flicker on the banner.
+    useConversationsStore.setState(state => {
+      const sess = state.sessionsById[conversationId]
+      if (!sess?.pendingSpawnApproval) return state
+      const next: Session = { ...sess, pendingSpawnApproval: undefined }
+      return {
+        sessions: state.sessions.map(s => (s.id === conversationId ? next : s)),
+        sessionsById: { ...state.sessionsById, [conversationId]: next },
+      }
+    })
   },
   pendingAskQuestions: [],
   respondToAskQuestion: (conversationId, toolUseId, answers, annotations, skip) => {

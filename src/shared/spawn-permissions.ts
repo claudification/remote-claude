@@ -49,29 +49,97 @@ const SENSITIVE_ENV_KEYS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Unified spawn gate. Throws SpawnPermissionError on deny.
+ * Typed result for {@link evaluateSpawnPermission}. Three outcomes:
+ *
+ * - `{ ok: true }` -- proceed with dispatch.
+ * - `{ kind: 'reject', ... }` -- HARD deny. The caller must surface an error.
+ *   Reserved for failures the human cannot waive: missing spawn permission,
+ *   bypassPermissions without benevolent trust, sensitive env overrides.
+ * - `{ kind: 'needs_approval', ... }` -- the trust gate would have blocked,
+ *   but the human can override via the in-panel approval prompt. The dispatch
+ *   layer writes `pendingSpawnApproval` onto the caller conversation and
+ *   returns to the wire with `pending: true`.
  */
-export function assertSpawnAllowed(ctx: SpawnCallerContext, req: SpawnRequest): void {
+export type SpawnEvalResult =
+  | { ok: true }
+  | { ok: false; kind: 'reject'; reason: string; field?: string; required: TrustLevel | 'spawn_permission' }
+  | { ok: false; kind: 'needs_approval'; reason: string }
+
+/**
+ * Pure permission evaluation. No side effects, no throws -- callers branch on
+ * the discriminated result. Use this in dispatch paths that need to distinguish
+ * "block forever" from "ask the human".
+ *
+ * Cyclomatic load is the four orthogonal trust gates (spawn permission,
+ * bypassPermissions, sensitive env, MCP-from-non-benevolent). Splitting them
+ * into separate helpers buys nothing -- each gate is a single comparison and
+ * the order matters for the returned reason. Keep the linear shape.
+ */
+// fallow-ignore-next-line complexity
+export function evaluateSpawnPermission(ctx: SpawnCallerContext, req: SpawnRequest): SpawnEvalResult {
   if (!ctx.hasSpawnPermission) {
-    throw new SpawnPermissionError('Spawn permission required', undefined, 'spawn_permission')
+    return {
+      ok: false,
+      kind: 'reject',
+      reason: 'Spawn permission required',
+      required: 'spawn_permission',
+    }
   }
-  if (ctx.kind === 'mcp' && ctx.trustLevel !== 'benevolent') {
-    throw new SpawnPermissionError('Spawn via MCP requires benevolent trust on caller project', undefined, 'benevolent')
-  }
+  // bypassPermissions and sensitive env are HARD rejects -- the human cannot
+  // waive these via the approval dialog. They imply the caller wants to do
+  // something the trust system explicitly says only benevolent callers may do.
   if (req.permissionMode === 'bypassPermissions' && ctx.trustLevel !== 'benevolent') {
-    throw new SpawnPermissionError('bypassPermissions mode requires benevolent trust', 'permissionMode', 'benevolent')
+    return {
+      ok: false,
+      kind: 'reject',
+      reason: 'bypassPermissions mode requires benevolent trust',
+      field: 'permissionMode',
+      required: 'benevolent',
+    }
   }
   if (req.env) {
     for (const key of Object.keys(req.env)) {
       if (SENSITIVE_ENV_KEYS.has(key) && ctx.trustLevel !== 'benevolent') {
-        throw new SpawnPermissionError(
-          `Override of sensitive env "${key}" requires benevolent trust`,
-          'env',
-          'benevolent',
-        )
+        return {
+          ok: false,
+          kind: 'reject',
+          reason: `Override of sensitive env "${key}" requires benevolent trust`,
+          field: 'env',
+          required: 'benevolent',
+        }
       }
     }
   }
+  // The MCP-from-non-benevolent gate is the ONLY one a human can waive.
+  // Returning needs_approval lets the dispatcher write a pendingSpawnApproval
+  // record and surface the in-panel prompt instead of failing outright.
+  if (ctx.kind === 'mcp' && ctx.trustLevel !== 'benevolent') {
+    return {
+      ok: false,
+      kind: 'needs_approval',
+      reason: 'Spawn via MCP from a non-benevolent caller requires user approval',
+    }
+  }
+  return { ok: true }
+}
+
+/**
+ * Unified spawn gate. Throws SpawnPermissionError on deny.
+ *
+ * Treats both `reject` and `needs_approval` as throws -- this is the legacy
+ * surface used by tests and any caller that still wants the throw-on-deny
+ * shape. New code should call {@link evaluateSpawnPermission} directly so it
+ * can branch on `needs_approval` and surface the human-in-the-loop prompt.
+ */
+export function assertSpawnAllowed(ctx: SpawnCallerContext, req: SpawnRequest): void {
+  const result = evaluateSpawnPermission(ctx, req)
+  if (result.ok) return
+  if (result.kind === 'needs_approval') {
+    // Legacy callers see the same "MCP requires benevolent" message they used
+    // to see, so existing error rendering keeps working.
+    throw new SpawnPermissionError('Spawn via MCP requires benevolent trust on caller project', undefined, 'benevolent')
+  }
+  throw new SpawnPermissionError(result.reason, result.field, result.required)
 }
 
 /**

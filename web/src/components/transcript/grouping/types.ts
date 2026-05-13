@@ -11,7 +11,16 @@ export interface TaskNotification {
 }
 
 export interface DisplayGroup {
-  type: 'user' | 'assistant' | 'system' | 'compacting' | 'compacted' | 'skill' | 'boot' | 'launch'
+  type:
+    | 'user'
+    | 'assistant'
+    | 'system'
+    | 'compacting'
+    | 'compacted'
+    | 'skill'
+    | 'boot'
+    | 'launch'
+    | 'spawn_notification'
   timestamp: string
   entries: TranscriptEntry[]
   notifications?: TaskNotification[]

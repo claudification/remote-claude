@@ -19,7 +19,12 @@ import {
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { record } from '@/lib/perf-metrics'
 import type { TranscriptAssistantEntry, TranscriptEntry } from '@/lib/types'
-import { AskQuestionBanners, LinkRequestBanners, PermissionBanners } from '../conversation-detail/conversation-banners'
+import {
+  AskQuestionBanners,
+  LinkRequestBanners,
+  PermissionBanners,
+  SpawnApprovalBanners,
+} from '../conversation-detail/conversation-banners'
 import { Markdown } from '../markdown'
 import { CompactedDivider, CompactingBanner, MemoizedGroupView, SkillDivider } from './group-view'
 import { type DisplayGroup, useIncrementalGroups } from './grouping'
@@ -621,6 +626,7 @@ export const TranscriptView = memo(function TranscriptView({
         <div className="mt-2">
           <LinkRequestBanners />
           <PermissionBanners />
+          <SpawnApprovalBanners />
           <AskQuestionBanners />
         </div>
         {/* Queued messages: rendered inline at the bottom of the transcript */}

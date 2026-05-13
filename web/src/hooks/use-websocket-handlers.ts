@@ -87,6 +87,8 @@ function toSession(summary: ConversationSummary): Session {
     rateLimit: summary.rateLimit,
     planMode: summary.planMode,
     pendingAttention: summary.pendingAttention,
+    pendingSpawnApproval: summary.pendingSpawnApproval,
+    spawnAutoApproved: summary.spawnAutoApproved,
     hasNotification: summary.hasNotification,
     summary: summary.summary,
     title: summary.title,

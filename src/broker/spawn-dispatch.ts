@@ -23,11 +23,48 @@ import { cwdToProjectUri, validateProjectUri } from '../shared/project-uri'
 import type { Conversation, LaunchProgressEvent, LaunchStep, ProjectSettings, SpawnResult } from '../shared/protocol'
 import { resolveSpawnConfig } from '../shared/spawn-defaults'
 import { deriveConversationName, validateConversationName } from '../shared/spawn-naming'
-import { assertSpawnAllowed, type SpawnCallerContext, SpawnPermissionError } from '../shared/spawn-permissions'
+import { evaluateSpawnPermission, type SpawnCallerContext } from '../shared/spawn-permissions'
 import type { SpawnRequest } from '../shared/spawn-schema'
 import { resolveBackendByName, type SpawnDeps } from './backends'
 import type { ConversationStore } from './conversation-store'
 import type { GlobalSettings } from './global-settings'
+
+/**
+ * Stash the spawn request as `pendingSpawnApproval` on the caller conversation
+ * so the panel can render the in-banner approval prompt. Returns the pending
+ * dispatch result, or null when no caller is available (handler will fall back
+ * to a hard reject) or the caller has the sticky `spawnAutoApproved` bit set
+ * (handler should bypass the gate and proceed with dispatch).
+ */
+// fallow-ignore-next-line complexity
+function maybeQueueApproval(req: SpawnRequest, deps: SpawnDispatchDeps, reason: string): SpawnDispatchResult | null {
+  const callerConversationId = deps.rendezvousCallerConversationId
+  if (!callerConversationId) return null
+  const caller = deps.conversationStore.getConversation(callerConversationId)
+  if (!caller) return null
+  // Sticky auto-approve: caller has previously been granted standing approval.
+  if (caller.spawnAutoApproved) return null
+
+  const requestId = randomUUID()
+  const requestedAt = Date.now()
+  caller.pendingSpawnApproval = {
+    requestId,
+    requestedAt,
+    request: req as unknown as Record<string, unknown>,
+    reason,
+  }
+  caller.pendingAttention = { type: 'spawn_approval', timestamp: requestedAt }
+  deps.conversationStore.persistConversationById(callerConversationId)
+  deps.conversationStore.broadcastConversationUpdate(callerConversationId)
+  console.log(
+    `[spawn-approval] pending caller=${callerConversationId.slice(0, 8)} req=${requestId.slice(0, 8)} cwd=${req.cwd ?? '?'} mode=${req.permissionMode ?? 'default'} reason="${reason}"`,
+  )
+  return {
+    ok: false,
+    error: "Waiting for user's approval",
+    pendingApproval: { requestId, message: "Waiting for user's approval" },
+  }
+}
 
 /**
  * Emit a first-class launch_progress event to all subscribers of the job.
@@ -59,11 +96,33 @@ export type SpawnDispatchDeps = {
   callerContext: SpawnCallerContext
   /** If set, register a rendezvous so the caller conversation is notified when the spawned agent host connects. */
   rendezvousCallerConversationId?: string | null
+  /**
+   * When true, skip the trust-gate prompt path even if `evaluateSpawnPermission`
+   * returns `needs_approval`. Used by the second dispatch that follows a human
+   * ALLOW click -- the caller has already been vetted, replaying through the
+   * gate would just re-prompt forever.
+   *
+   * Hard rejects (bypassPermissions, sensitive env) are NOT bypassable. Those
+   * fail through this flag too.
+   */
+  bypassApprovalGate?: boolean
 }
 
 export type SpawnDispatchResult =
   | { ok: true; conversationId: string; jobId: string; tmuxSession?: string }
-  | { ok: false; error: string; statusCode?: number }
+  | {
+      ok: false
+      error: string
+      statusCode?: number
+      /**
+       * Set when the dispatch did not run because the trust gate fired and
+       * the broker has stashed the request for human approval. Callers that
+       * understand this surface a "Waiting for user's approval" payload to
+       * the originating MCP/WS caller; callers that don't simply see
+       * `error` like any other deny and surface that.
+       */
+      pendingApproval?: { requestId: string; message: string }
+    }
 
 /**
  * Send a spawn request to the right backend. Resolves via the registry; falls
@@ -75,13 +134,18 @@ export type SpawnDispatchResult =
  * already.
  */
 export async function dispatchSpawn(req: SpawnRequest, deps: SpawnDispatchDeps): Promise<SpawnDispatchResult> {
-  try {
-    assertSpawnAllowed(deps.callerContext, req)
-  } catch (err) {
-    if (err instanceof SpawnPermissionError) {
-      return { ok: false, error: err.message, statusCode: 403 }
+  const evalResult = evaluateSpawnPermission(deps.callerContext, req)
+  if (!evalResult.ok) {
+    if (evalResult.kind === 'reject') {
+      // Hard reject -- not waivable by user approval.
+      return { ok: false, error: evalResult.reason, statusCode: 403 }
     }
-    throw err
+    // needs_approval: human-in-the-loop dialog path.
+    if (!deps.bypassApprovalGate) {
+      const pending = maybeQueueApproval(req, deps, evalResult.reason)
+      if (pending) return pending
+      // Caller conversation missing or already auto-approved -- fall through.
+    }
   }
 
   // FULL DENY for invalid project URIs. We never want a row in the

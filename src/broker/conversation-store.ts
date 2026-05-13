@@ -534,6 +534,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       rateLimit: conv.rateLimit,
       planMode: conv.planMode || undefined,
       pendingAttention: conv.pendingAttention,
+      pendingSpawnApproval: conv.pendingSpawnApproval,
+      spawnAutoApproved: conv.spawnAutoApproved,
       hasNotification: conv.hasNotification,
       summary: conv.summary,
       title: conv.title,

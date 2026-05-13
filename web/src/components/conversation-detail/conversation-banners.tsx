@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { BannerButton, BannerStack, ConversationBanner } from '@/components/ui/conversation-banner'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { canTerminal, projectPath } from '@/lib/types'
@@ -245,6 +245,126 @@ export function PermissionBanners() {
           {perm.inputPreview && formatPermissionInput(perm.toolName, perm.inputPreview, sessionPath)}
         </ConversationBanner>
       )}
+    />
+  )
+}
+
+// ---------------------------------------------------------------------------
+// SpawnApprovalBanners -- in-panel prompt for spawn requests from non-benevolent
+// callers. Mirrors the Permission/AskQuestion family: same ConversationBanner
+// primitive, same haptic vocabulary. Pending state lives on the broker
+// (caller.pendingSpawnApproval, persisted) and is mirrored into each Session's
+// pendingSpawnApproval field via conversation_update broadcasts -- reload and
+// broker restart both rehydrate the prompt for free.
+// ---------------------------------------------------------------------------
+
+function relativizeCwd(cwd: unknown, root?: string): string {
+  if (typeof cwd !== 'string') return ''
+  if (root && cwd.startsWith(`${root}/`)) return cwd.slice(root.length + 1)
+  return cwd
+}
+
+export function SpawnApprovalBanners() {
+  const selectedConversation = useConversationsStore(s => s.selectedConversationId)
+  const session = useConversationsStore(s =>
+    s.selectedConversationId ? s.sessionsById[s.selectedConversationId] : undefined,
+  )
+  const respond = useConversationsStore(s => s.respondToSpawnApproval)
+  const sessionPath = useConversationsStore(s =>
+    s.selectedConversationId ? projectPath(s.sessionsById[s.selectedConversationId]?.project ?? '') : undefined,
+  )
+  const [persistChecked, setPersistChecked] = useState(false)
+
+  const pending = session?.pendingSpawnApproval
+  const items = useMemo(() => (pending && selectedConversation ? [pending] : []), [pending, selectedConversation])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only react to id swap
+  useEffect(() => {
+    setPersistChecked(false)
+  }, [pending?.requestId])
+
+  if (!selectedConversation) return null
+
+  return (
+    <BannerStack
+      items={items}
+      // fallow-ignore-next-line complexity
+      render={req => {
+        const cwd = relativizeCwd(req.request.cwd, sessionPath)
+        const prompt = typeof req.request.prompt === 'string' ? req.request.prompt : ''
+        const host = typeof req.request.sentinel === 'string' ? req.request.sentinel : undefined
+        const model = typeof req.request.model === 'string' ? req.request.model : undefined
+        const permissionMode = typeof req.request.permissionMode === 'string' ? req.request.permissionMode : undefined
+        return (
+          <ConversationBanner
+            key={req.requestId}
+            accent="violet"
+            label="SPAWN"
+            title={
+              <>
+                <span className="font-bold text-amber-300">{cwd || '(no cwd)'}</span>
+                {host && <span className="text-muted-foreground"> @ {host}</span>}
+              </>
+            }
+            meta={req.requestId.slice(0, 8)}
+            actions={
+              <>
+                <BannerButton
+                  accent="emerald"
+                  label="ALLOW"
+                  onClick={() => {
+                    haptic('success')
+                    respond(selectedConversation, req.requestId, 'allow', persistChecked)
+                  }}
+                />
+                <BannerButton
+                  accent="red"
+                  label="DENY"
+                  onClick={() => {
+                    haptic('error')
+                    respond(selectedConversation, req.requestId, 'deny', false)
+                  }}
+                />
+              </>
+            }
+          >
+            <div className="space-y-2">
+              <div className="text-foreground/70 text-[11px]">{req.reason}</div>
+              {prompt && (
+                <pre className="text-muted-foreground text-[10px] bg-background/50 px-2 py-1 rounded max-h-20 overflow-hidden whitespace-pre-wrap">
+                  {prompt.length > 400 ? `${prompt.slice(0, 400)}...` : prompt}
+                </pre>
+              )}
+              {(model || permissionMode) && (
+                <div className="text-[10px] text-muted-foreground flex gap-3">
+                  {model && (
+                    <span>
+                      <span className="text-foreground/60">model:</span> {model}
+                    </span>
+                  )}
+                  {permissionMode && (
+                    <span>
+                      <span className="text-foreground/60">permission:</span> {permissionMode}
+                    </span>
+                  )}
+                </div>
+              )}
+              <label className="flex items-center gap-2 text-[11px] text-foreground/80 cursor-pointer pt-1 select-none">
+                <input
+                  type="checkbox"
+                  checked={persistChecked}
+                  onChange={e => setPersistChecked(e.target.checked)}
+                  className="accent-emerald-400 w-3.5 h-3.5"
+                />
+                <span>
+                  Allow future spawn calls from <span className="text-amber-300">this conversation</span> (not the whole
+                  project)
+                </span>
+              </label>
+            </div>
+          </ConversationBanner>
+        )
+      }}
     />
   )
 }

@@ -98,7 +98,10 @@ const handleChannelSpawn: MessageHandler = (ctx, data) => {
   const callerConversationId = ctx.ws.data.conversationId
   if (!callerConversationId) return
 
-  ctx.requireBenevolent()
+  // Trust gating happens inside dispatchSpawn -- non-benevolent callers don't
+  // hard-fail here, they get the in-panel approval prompt via
+  // pendingSpawnApproval. Sentinel must still exist so the eventual dispatch
+  // (immediate or post-approval) can land.
   ctx.requireSentinel()
 
   const reqId = typeof data.requestId === 'string' ? data.requestId : undefined
@@ -147,10 +150,25 @@ const handleChannelSpawn: MessageHandler = (ctx, data) => {
           jobId: result.jobId,
           requestId: reqId,
         })
-        ctx.log.debug(`Benevolent spawn: -> ${spawnPath}`)
-      } else {
-        ctx.reply({ type: 'channel_spawn_result', ok: false, error: result.error, requestId: reqId })
+        ctx.log.debug(`Spawn dispatched: -> ${spawnPath}`)
+        return
       }
+      // Pending approval -- the caller's MCP tool sees a structured pending
+      // response. The spawn outcome arrives later as a
+      // TranscriptSpawnNotificationEntry in the caller's transcript.
+      if (result.pendingApproval) {
+        ctx.reply({
+          type: 'channel_spawn_result',
+          ok: false,
+          pending: true,
+          requestId: reqId,
+          approvalRequestId: result.pendingApproval.requestId,
+          message: result.pendingApproval.message,
+        })
+        ctx.log.debug(`Spawn pending approval: req=${result.pendingApproval.requestId.slice(0, 8)} -> ${spawnPath}`)
+        return
+      }
+      ctx.reply({ type: 'channel_spawn_result', ok: false, error: result.error, requestId: reqId })
     })
     .catch((err: unknown) => {
       ctx.reply({

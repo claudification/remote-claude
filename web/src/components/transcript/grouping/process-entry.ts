@@ -285,6 +285,11 @@ export function processEntry(entry: TranscriptEntry, state: GroupingState): void
     handleLaunch(entry, state)
     return
   }
+  if (entry.type === 'spawn_notification') {
+    state.current = null
+    state.groups.push({ type: 'spawn_notification', timestamp: entry.timestamp || '', entries: [entry] })
+    return
+  }
   if (entry.type === 'compacting' || entry.type === 'compacted') {
     handleCompact(entry, state)
     return

@@ -32,6 +32,7 @@ import { createGatewayRegistry } from './gateway-registry'
 import { initGlobalSettings } from './global-settings'
 import type { WsData } from './handler-context'
 import { registerAllHandlers } from './handlers'
+import { startSpawnApprovalSweep } from './handlers/spawn-approval'
 import { appendMessage, initInterConversationLog } from './inter-conversation-log'
 import { drain, enqueue, getQueueSize, initMessageQueue } from './message-queue'
 import { routeMessage } from './message-router'
@@ -536,6 +537,11 @@ async function main() {
   {
     // Register message handlers
     registerAllHandlers()
+
+    // Spawn approval sweep: reap pending prompts older than the TTL on
+    // startup (clears anything stuck across a restart) and on a periodic
+    // cadence after that.
+    startSpawnApprovalSweep(conversationStore)
 
     // Context deps shared by all handler contexts
     const contextDeps: ContextDeps = {

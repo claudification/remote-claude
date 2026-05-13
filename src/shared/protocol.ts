@@ -419,6 +419,27 @@ export interface TranscriptAgentNameEntry extends TranscriptEntryBase {
   agentName?: string
 }
 
+/**
+ * Inline receipt for a spawn approval that has been resolved (allowed,
+ * denied, failed, or timed out). Lives in the CALLER's transcript so the
+ * conversation that invoked spawn sees the outcome where it asked.
+ */
+export interface TranscriptSpawnNotificationEntry extends TranscriptEntryBase {
+  type: 'spawn_notification'
+  requestId: string
+  outcome: 'spawned' | 'denied' | 'failed' | 'timed_out'
+  decidedAt: number
+  /** Set when outcome=spawned -- the new conversation's id. */
+  spawnedConversationId?: string
+  jobId?: string
+  /** Set when outcome=failed -- spawn dispatch error after approval. */
+  error?: string
+  /** Original SpawnRequest, for inline rendering + JsonInspector. */
+  request: Record<string, unknown>
+  /** True iff the user ticked "allow future spawn calls from this conversation". */
+  persistChosen: boolean
+}
+
 export type TranscriptEntry =
   | TranscriptUserEntry
   | TranscriptAssistantEntry
@@ -433,6 +454,7 @@ export type TranscriptEntry =
   | TranscriptAgentNameEntry
   | TranscriptBootEntry
   | TranscriptLaunchEntry
+  | TranscriptSpawnNotificationEntry
   | (TranscriptEntryBase & Record<string, unknown>) // fallback for unknown types
 
 // Streaming output from background bash tasks (.output file watching)
@@ -1738,7 +1760,7 @@ export interface Conversation {
   lastError?: { stopReason?: string; errorType?: string; errorMessage?: string; timestamp: number }
   rateLimit?: { retryAfterMs: number; message: string; timestamp: number }
   pendingAttention?: {
-    type: 'permission' | 'elicitation' | 'ask' | 'dialog' | 'plan_approval'
+    type: 'permission' | 'elicitation' | 'ask' | 'dialog' | 'plan_approval' | 'spawn_approval'
     toolName?: string
     filePath?: string
     question?: string
@@ -1778,6 +1800,26 @@ export interface Conversation {
     questions: unknown[]
     timestamp: number
   }
+  /**
+   * Pending spawn approval awaiting human decision in the panel. Set when a
+   * non-benevolent caller invokes spawn -- the gate blocks dispatch and stores
+   * the original request here. Cleared on allow/deny/expiry. Persisted as part
+   * of the conversation row so it rehydrates after broker restart.
+   */
+  pendingSpawnApproval?: {
+    requestId: string
+    requestedAt: number
+    /** Full original SpawnRequest payload, replayed verbatim on approval. */
+    request: Record<string, unknown>
+    /** Human-readable reason the gate fired. */
+    reason: string
+  }
+  /**
+   * Sticky bit set when the user ticks "allow future spawn calls from this
+   * conversation". Per-CALLER, NOT per-project. Survives broker restart.
+   * Future spawn requests from this conversation skip the approval prompt.
+   */
+  spawnAutoApproved?: boolean
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number; output: number }
   contextMode?: '1m' | 'standard' // detected from /model or /context stdout; overrides model-name heuristic
   cacheTtl?: '5m' | '1h' // dominant cache TTL tier from last turn
@@ -2254,6 +2296,10 @@ export interface ConversationSummary {
   rateLimit?: Conversation['rateLimit']
   planMode?: boolean
   pendingAttention?: Conversation['pendingAttention']
+  /** Mirror of caller.pendingSpawnApproval -- drives the in-panel approval banner. */
+  pendingSpawnApproval?: Conversation['pendingSpawnApproval']
+  /** Sticky bit: caller has been granted standing spawn approval. */
+  spawnAutoApproved?: boolean
   hasNotification?: boolean
   summary?: string
   title?: string

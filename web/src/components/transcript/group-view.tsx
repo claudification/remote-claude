@@ -7,6 +7,7 @@ import type { DisplayGroup } from './grouping'
 import { BashItem, ChannelItem, ImagesItem, ProjectTaskItem, TextItem, ThinkingItem, ToolItem } from './item-renderers'
 import { LaunchTimeline } from './launch-timeline'
 import { parseGroupEntries } from './parse-entries'
+import { SpawnNotification } from './spawn-notification'
 import { SystemLine, SystemLineInline } from './system-line'
 import { TaskNotificationLine } from './task-notification-line'
 
@@ -38,6 +39,10 @@ function GroupView({
 
   if (group.type === 'launch') {
     return <LaunchTimeline group={group} />
+  }
+
+  if (group.type === 'spawn_notification') {
+    return <SpawnNotification group={group} />
   }
 
   if (group.type === 'system' && group.notifications?.length) {
