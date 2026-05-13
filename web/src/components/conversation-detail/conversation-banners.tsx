@@ -13,83 +13,51 @@ export function LinkRequestBanners() {
   const respond = useConversationsStore(s => s.respondToProjectLink)
   const selectedConversation = useConversationsStore(s => s.selectedConversationId)
 
-  const inbound = requests.filter(r => r.toConversation === selectedConversation)
-  const outbound = requests.filter(
-    r => r.fromConversation === selectedConversation && r.toConversation !== selectedConversation,
+  const relevant = requests.filter(
+    r => r.toConversation === selectedConversation || r.fromConversation === selectedConversation,
   )
 
   return (
-    <>
-      <BannerStack
-        items={inbound}
-        render={req => (
-          <ConversationBanner
-            key={`${req.fromConversation}:${req.toConversation}`}
-            accent="teal"
-            label="LINK"
-            layout="row"
-            title={
-              <>
-                <span className="text-teal-300">{req.fromProject}</span>
-                {' -> '}
-                <span className="text-teal-300">{req.toProject}</span>
-              </>
-            }
-            actions={
-              <>
-                <BannerButton
-                  accent="emerald"
-                  label="ALLOW"
-                  size="sm"
-                  onClick={() => {
-                    haptic('success')
-                    respond(req.fromConversation, req.toConversation, 'approve')
-                  }}
-                />
-                <BannerButton
-                  accent="red"
-                  label="BLOCK"
-                  size="sm"
-                  onClick={() => {
-                    haptic('error')
-                    respond(req.fromConversation, req.toConversation, 'block')
-                  }}
-                />
-              </>
-            }
-          />
-        )}
-      />
-      <BannerStack
-        items={outbound}
-        render={req => (
-          <ConversationBanner
-            key={`out-${req.fromConversation}:${req.toConversation}`}
-            accent="teal"
-            label="LINK PENDING"
-            layout="row"
-            title={
-              <>
-                {'Waiting for '}
-                <span className="text-teal-300">{req.toProject}</span>
-                {' to approve link'}
-              </>
-            }
-            actions={
+    <BannerStack
+      items={relevant}
+      render={req => (
+        <ConversationBanner
+          key={`${req.fromConversation}:${req.toConversation}`}
+          accent="teal"
+          label="LINK"
+          layout="row"
+          title={
+            <>
+              <span className="text-teal-300">{req.fromProject}</span>
+              {' -> '}
+              <span className="text-teal-300">{req.toProject}</span>
+            </>
+          }
+          actions={
+            <>
+              <BannerButton
+                accent="emerald"
+                label="ALLOW"
+                size="sm"
+                onClick={() => {
+                  haptic('success')
+                  respond(req.fromConversation, req.toConversation, 'approve')
+                }}
+              />
               <BannerButton
                 accent="red"
-                label="CANCEL"
+                label="BLOCK"
                 size="sm"
                 onClick={() => {
                   haptic('error')
                   respond(req.fromConversation, req.toConversation, 'block')
                 }}
               />
-            }
-          />
-        )}
-      />
-    </>
+            </>
+          }
+        />
+      )}
+    />
   )
 }
 
