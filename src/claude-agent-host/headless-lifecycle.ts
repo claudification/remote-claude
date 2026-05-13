@@ -357,8 +357,17 @@ export function buildHeadlessSpawnOptions(deps: HeadlessCallbackDeps): StreamBac
             ctx.diag('headless', `ExitPlanMode: failed to read ${planFilePath}`)
           }
         }
+
+        // VALIDATE: Plan file must exist and contain content.
+        // If not, deny ExitPlanMode. Agent receives denial from CC's control_response.
         if (!plan) {
-          plan = '(Plan content not available -- file missing or empty)'
+          ctx.streamProc?.sendPermissionResponse(request.requestId, false, undefined, toolUseId)
+          const detail = planFilePath ? `Plan file not found or empty: ${planFilePath}` : 'Plan content not available'
+          ctx.diag(
+            'headless',
+            `ExitPlanMode denied: ${detail}. Agent must write plan to .claude/plans/plan-{name}.md and retry.`,
+          )
+          return
         }
 
         // Register in the outstandingInteractions registry. wsClient.send()
