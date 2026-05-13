@@ -662,6 +662,7 @@ export function SpawnDialog() {
                       toolPermission: openCodeToolPermission,
                     })
                     await putLaunchProfiles([...launchProfilesRef.current, draft])
+                    handleClose()
                     openLaunchProfileManager(draft.id)
                   }}
                 />
