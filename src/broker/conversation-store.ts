@@ -1375,6 +1375,20 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       conv.status = 'ended'
       conv.planMode = false
       conv.endedBy = { source: opts.source, initiator: opts.initiator, at: endedAt, detail: opts.detail }
+      // Spawn approval state must NOT survive a TERMINATE/REVIVE cycle.
+      // Termination is the explicit "this conversation is done" signal -- a
+      // pending prompt has nobody to satisfy any more, and the sticky
+      // auto-approve bit shouldn't carry into a brand-new run on the same
+      // conversationId. Disconnect-without-terminate keeps both fields (the
+      // agent host may reconnect and the prompt should still resolve).
+      if (conv.pendingSpawnApproval || conv.spawnAutoApproved) {
+        console.log(
+          `[end] ${conversationId.slice(0, 8)} wiping spawn approval state pending=${conv.pendingSpawnApproval ? conv.pendingSpawnApproval.requestId.slice(0, 8) : 'none'} autoApproved=${conv.spawnAutoApproved === true}`,
+        )
+        delete conv.pendingSpawnApproval
+        delete conv.spawnAutoApproved
+        if (conv.pendingAttention?.type === 'spawn_approval') delete conv.pendingAttention
+      }
       clearAnalyticsConversation(conversationId)
 
       // Per the LOG EVERYTHING covenant: enrich every termination record
