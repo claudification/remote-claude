@@ -17,8 +17,9 @@ function formatDuration(startMs: number, endMs?: number): string {
   return `${hours}h ${minutes % 60}m`
 }
 
-function agentTypeIcon(agentType: string): string {
-  switch (agentType.toLowerCase()) {
+function agentTypeIcon(agentType: unknown): string {
+  const type = typeof agentType === 'string' ? agentType.toLowerCase() : 'unknown'
+  switch (type) {
     case 'bash':
       return '$'
     case 'explore':
