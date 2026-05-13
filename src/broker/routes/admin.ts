@@ -225,7 +225,7 @@ export function createAdminRouter(
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const body = await c.req.json<{
       project: string
-      conversationId?: string
+      conversationId: string
       expiresIn?: number // ms from now
       expiresAt?: number // absolute timestamp
       label?: string
@@ -233,6 +233,13 @@ export function createAdminRouter(
       hideUserInput?: boolean
     }>()
     if (!body.project) return c.json({ error: 'project is required' }, 400)
+    if (!body.conversationId) return c.json({ error: 'conversationId is required' }, 400)
+
+    // VALIDATE: conversation must exist and belong to the specified project
+    const conv = conversationStore.getConversation(body.conversationId)
+    if (!conv) return c.json({ error: 'Conversation not found' }, 404)
+    if (conv.project !== body.project) return c.json({ error: 'Conversation does not belong to this project' }, 400)
+
     const expiresAt = body.expiresAt || (body.expiresIn ? Date.now() + body.expiresIn : Date.now() + 4 * 60 * 60 * 1000) // default 4h
     try {
       const share = createShare({
@@ -246,7 +253,7 @@ export function createAdminRouter(
         // Phase 11 polymorphic shares: every conversation share is now
         // tagged so the public viewer can dispatch by kind.
         targetKind: 'conversation',
-        targetId: body.conversationId || body.project,
+        targetId: body.conversationId,
       })
       const origin = c.req.header('origin') || ''
       conversationStore.broadcastSharesUpdate()
