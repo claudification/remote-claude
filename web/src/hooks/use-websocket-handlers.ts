@@ -902,7 +902,8 @@ function handleSpawnRequestAckMsg(msg: DashboardMessage) {
 function handleRateLimitStatus(msg: DashboardMessage) {
   const status = msg.status as string | undefined
   const rateLimitType = msg.rateLimitType as string | undefined
-  const utilization = ((msg.raw as Record<string, unknown>)?.rate_limit_info as Record<string, unknown> | undefined)?.utilization as number | undefined
+  const utilization = ((msg.raw as Record<string, unknown>)?.rate_limit_info as Record<string, unknown> | undefined)
+    ?.utilization as number | undefined
   const conversationId = msg.conversationId as string | undefined
 
   if (status === 'allowed') return // No toast when cleared
@@ -932,9 +933,7 @@ function handleRateLimitStatus(msg: DashboardMessage) {
     toastId,
   }
 
-  window.dispatchEvent(
-    new CustomEvent('rclaude-toast', { detail: originalDetail }),
-  )
+  window.dispatchEvent(new CustomEvent('rclaude-toast', { detail: originalDetail }))
 
   // Set up listener to mark dismissed when user closes the toast (if persistent)
   if (isCritical) {
