@@ -28,7 +28,7 @@ const EMPTY_SHARES: ReturnType<typeof useConversationsStore.getState>['shares'] 
 
 export function ShareBanner({ sessionProject }: SharePanelProps) {
   const allShares = useConversationsStore(s => s.shares) || EMPTY_SHARES
-  const shares = allShares.filter(s => s.sessionCwd === sessionProject && s.expiresAt > Date.now())
+  const shares = allShares.filter(s => s.project === sessionProject && s.expiresAt > Date.now())
 
   const [expanded, setExpanded] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -49,7 +49,7 @@ export function ShareBanner({ sessionProject }: SharePanelProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionCwd: sessionProject,
+          project: sessionProject,
           expiresIn: newDuration,
           label: newLabel || undefined,
           permissions: [
@@ -279,7 +279,7 @@ export function ShareBanner({ sessionProject }: SharePanelProps) {
 /** Small share indicator for the conversation list sidebar */
 export function ShareIndicator({ sessionProject }: { sessionProject: string }) {
   const count = useConversationsStore(
-    s => s.shares.filter(sh => sh.sessionCwd === sessionProject && sh.expiresAt > Date.now()).length,
+    s => s.shares.filter(sh => sh.project === sessionProject && sh.expiresAt > Date.now()).length,
   )
 
   if (count === 0) return null

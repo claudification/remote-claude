@@ -301,7 +301,7 @@ interface ConversationsState {
 
   shares: Array<{
     token: string
-    sessionCwd: string
+    project: string
     createdAt: number
     expiresAt: number
     createdBy: string
@@ -313,7 +313,7 @@ interface ConversationsState {
   setShares: (
     shares: Array<{
       token: string
-      sessionCwd: string
+      project: string
       createdAt: number
       expiresAt: number
       createdBy: string
