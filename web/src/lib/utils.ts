@@ -188,6 +188,15 @@ export function formatPermissionMode(
   }
 }
 
+export function formatRateBucketName(type: string | undefined): string {
+  if (!type) return 'API'
+  const map: Record<string, string> = {
+    seven_day: '7-day',
+    five_hour: '5-hour',
+  }
+  return map[type] || type
+}
+
 /**
  * Haptic feedback via web-haptics (works on iOS + Android).
  * Uses hidden <input type="checkbox" switch> trick for iOS Safari Taptic Engine.

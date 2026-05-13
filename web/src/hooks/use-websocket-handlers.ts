@@ -30,7 +30,7 @@ import type {
   TaskInfo,
   TranscriptEntry,
 } from '@/lib/types'
-import { haptic } from '@/lib/utils'
+import { formatRateBucketName, haptic } from '@/lib/utils'
 import {
   applyHashRoute,
   buildConversationsById,
@@ -919,7 +919,7 @@ function handleRateLimitStatus(msg: DashboardMessage) {
     return
   }
 
-  const limitLabel = rateLimitType || 'API'
+  const limitLabel = formatRateBucketName(rateLimitType)
   const utilizationPct = utilization ? Math.round(utilization * 100) : '?'
   const toastId = `${conversationId}:${rateLimitType}`
 

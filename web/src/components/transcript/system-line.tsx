@@ -1,4 +1,5 @@
 import { parseRecapContent } from '@shared/recap'
+import { formatRateBucketName } from '@/lib/utils'
 import { JsonInspector } from '../json-inspector'
 import { formatDuration } from './group-view-types'
 import type { DisplayGroup } from './grouping'
@@ -45,12 +46,13 @@ function describeSystemEntry(sub: string, entry: Record<string, unknown>, time: 
         color: 'text-amber-400',
       }
     case 'rate_limit': {
-      const retryMs = entry.retryAfterMs as number
+      const retryMs = entry.retryAfterMs as number | undefined
       const info = (entry.raw as Record<string, unknown>)?.rate_limit_info as Record<string, unknown> | undefined
       const limitType = info?.rateLimitType as string | undefined
+      const formattedType = formatRateBucketName(limitType)
       return {
         kind: 'text',
-        text: `Rate limited${limitType ? ` (${limitType})` : ''}${retryMs ? ` - retry in ${Math.ceil(retryMs / 1000)}s` : ''}`,
+        text: `Rate limited (${formattedType})${retryMs ? ` - retry in ${Math.ceil(retryMs / 1000)}s` : ''}`,
         color: 'text-amber-400/70',
       }
     }

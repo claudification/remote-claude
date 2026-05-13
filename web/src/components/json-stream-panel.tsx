@@ -1,7 +1,7 @@
 import { Check, ChevronRight, Copy, EyeOff, Filter, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { type JsonStreamMessage, useConversationsStore } from '@/hooks/use-conversations'
-import { cn } from '@/lib/utils'
+import { cn, formatRateBucketName } from '@/lib/utils'
 
 interface JsonStreamPanelProps {
   conversationId: string
@@ -195,7 +195,9 @@ function summarizeLine(obj: Record<string, unknown>): string {
   }
   if (obj.type === 'rate_limit_event') {
     const info = obj.rate_limit_info as Record<string, unknown> | undefined
-    return info ? `${info.status} (${info.rateLimitType})` : ''
+    const status = info?.status as string | undefined
+    const limitType = info?.rateLimitType as string | undefined
+    return info ? `${status} (${formatRateBucketName(limitType)})` : ''
   }
   const keys = Object.keys(obj).filter(k => k !== 'type')
   return keys.slice(0, 4).join(', ')
