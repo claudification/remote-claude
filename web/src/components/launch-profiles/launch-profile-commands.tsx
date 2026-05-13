@@ -31,7 +31,8 @@ function ProfileCommand({ profile }: { profile: LaunchProfile }) {
     () => {
       const store = useConversationsStore.getState()
       const current = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
-      const currentCwd = current?.project ? resolveProjectCwd(current.project) : null
+      const contextProjectUri = current?.project ?? store.selectedProjectUri ?? undefined
+      const currentCwd = contextProjectUri ? resolveProjectCwd(contextProjectUri) : null
       void runProfile(
         profile,
         { cwd: currentCwd ?? undefined },
