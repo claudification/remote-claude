@@ -336,6 +336,17 @@ const rateLimitStatusHandler: MessageHandler = (ctx, data) => {
     conversation.rateLimit = { retryAfterMs: retryAfterMs || 5000, message, timestamp: Date.now() }
     ctx.conversations.broadcastConversationUpdate(conversationId)
 
+    // Broadcast rate_limit_status to control panels for toast notification
+    ctx.broadcast({
+      type: 'rate_limit_status',
+      conversationId,
+      status: data.status,
+      rateLimitType,
+      retryAfterMs,
+      resetsAt: data.resetsAt,
+      raw: data.raw,
+    })
+
     const entry = {
       type: 'system' as const,
       subtype: 'rate_limit',
@@ -356,6 +367,12 @@ const rateLimitStatusHandler: MessageHandler = (ctx, data) => {
     if (conversation.rateLimit) {
       conversation.rateLimit = undefined
       ctx.conversations.broadcastConversationUpdate(conversationId)
+      // Broadcast rate_limit_status cleared
+      ctx.broadcast({
+        type: 'rate_limit_status',
+        conversationId,
+        status: 'allowed',
+      })
     }
   }
 }
