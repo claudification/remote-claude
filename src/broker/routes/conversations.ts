@@ -38,7 +38,7 @@ export function createConversationsRouter(
   app.get('/conversations/:id', c => {
     const conv = conversationStore.getConversation(c.req.param('id'))
     if (!conv) return c.json({ error: 'Conversation not found' }, 404)
-    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project)) return c.json({ error: 'Forbidden' }, 403)
+    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project, conv.id)) return c.json({ error: 'Forbidden' }, 403)
     return c.json(conversationToOverview(conv, conversationStore))
   })
 
@@ -46,7 +46,7 @@ export function createConversationsRouter(
     const conversationId = c.req.param('id')
     const conv = conversationStore.getConversation(conversationId)
     if (!conv) return c.json({ error: 'Conversation not found' }, 404)
-    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project)) return c.json({ error: 'Forbidden' }, 403)
+    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project, conv.id)) return c.json({ error: 'Forbidden' }, 403)
     const limit = parseInt(c.req.query('limit') || '0', 10)
     const since = parseInt(c.req.query('since') || '0', 10)
     const events = conversationStore.getConversationEvents(conversationId, limit || undefined, since || undefined)
@@ -56,7 +56,7 @@ export function createConversationsRouter(
   app.get('/conversations/:id/subagents', c => {
     const conv = conversationStore.getConversation(c.req.param('id'))
     if (!conv) return c.json({ error: 'Conversation not found' }, 404)
-    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project)) return c.json({ error: 'Forbidden' }, 403)
+    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project, conv.id)) return c.json({ error: 'Forbidden' }, 403)
     return c.json(conv.subagents)
   })
 
@@ -80,7 +80,7 @@ export function createConversationsRouter(
     const conversationId = c.req.param('id')
     const conv = conversationStore.getConversation(conversationId)
     if (!conv) return c.json({ error: 'Conversation not found' }, 404)
-    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project)) return c.json({ error: 'Forbidden' }, 403)
+    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project, conv.id)) return c.json({ error: 'Forbidden' }, 403)
     const limit = parseInt(c.req.query('limit') || '20', 10)
     const filter = c.req.query('filter')
     const sinceSeqRaw = c.req.query('sinceSeq')
@@ -148,7 +148,7 @@ export function createConversationsRouter(
     const agentId = c.req.param('agentId')
     const conv = conversationStore.getConversation(conversationId)
     if (!conv) return c.json({ error: 'Conversation not found' }, 404)
-    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project)) return c.json({ error: 'Forbidden' }, 403)
+    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project, conv.id)) return c.json({ error: 'Forbidden' }, 403)
     const limit = parseInt(c.req.query('limit') || '100', 10)
     if (!conversationStore.hasSubagentTranscriptCache(conversationId, agentId)) {
       return c.json({ error: 'No subagent transcript in cache' }, 404)
@@ -193,7 +193,7 @@ export function createConversationsRouter(
   app.get('/conversations/:id/tasks', c => {
     const conv = conversationStore.getConversation(c.req.param('id'))
     if (!conv) return c.json({ error: 'Conversation not found' }, 404)
-    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project)) return c.json({ error: 'Forbidden' }, 403)
+    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project, conv.id)) return c.json({ error: 'Forbidden' }, 403)
     return c.json({ tasks: conv.tasks, archivedTasks: conv.archivedTasks })
   })
 
@@ -204,7 +204,7 @@ export function createConversationsRouter(
   app.get('/conversations/:id/termination', c => {
     const conv = conversationStore.getConversation(c.req.param('id'))
     if (!conv) return c.json({ error: 'Conversation not found' }, 404)
-    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project)) return c.json({ error: 'Forbidden' }, 403)
+    if (!httpHasPermission(c.req.raw, 'chat:read', conv.project, conv.id)) return c.json({ error: 'Forbidden' }, 403)
     const history = terminationLog ? terminationLog.query({ conversationId: conv.id, days: 30, limit: 50 }) : []
     return c.json({
       current: conv.endedBy ?? null,

@@ -29,7 +29,18 @@ const EMPTY_SHARES: ReturnType<typeof useConversationsStore.getState>['shares'] 
 
 export function ShareBanner({ conversationProject, conversationId }: SharePanelProps) {
   const allShares = useConversationsStore(s => s.shares) || EMPTY_SHARES
-  const shares = allShares.filter(s => s.project === conversationProject && s.expiresAt > Date.now())
+  // A share belongs to ONE conversation. The legacy project-only filter
+  // showed every share for the project on every conversation in it, which
+  // (a) looked like every conversation was shared, and (b) let users revoke
+  // a sibling conversation's share by mistake. Only show shares whose
+  // conversationId matches this conversation. Legacy shares without a
+  // conversationId are treated as project-wide and still surface.
+  const shares = allShares.filter(
+    s =>
+      s.project === conversationProject &&
+      s.expiresAt > Date.now() &&
+      (!s.conversationId || s.conversationId === conversationId),
+  )
 
   const [expanded, setExpanded] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -291,9 +302,21 @@ export function ShareBanner({ conversationProject, conversationId }: SharePanelP
 }
 
 /** Small share indicator for the conversation list sidebar */
-export function ShareIndicator({ conversationProject }: { conversationProject: string }) {
+export function ShareIndicator({
+  conversationProject,
+  conversationId,
+}: {
+  conversationProject: string
+  conversationId: string
+}) {
   const count = useConversationsStore(
-    s => s.shares.filter(sh => sh.project === conversationProject && sh.expiresAt > Date.now()).length,
+    s =>
+      s.shares.filter(
+        sh =>
+          sh.project === conversationProject &&
+          sh.expiresAt > Date.now() &&
+          (!sh.conversationId || sh.conversationId === conversationId),
+      ).length,
   )
 
   if (count === 0) return null

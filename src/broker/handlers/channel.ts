@@ -119,6 +119,14 @@ const channelSubscribe: MessageHandler = (ctx, data) => {
   if (!channel || !conversationId) return
   const conversation = ctx.conversations.getConversation(conversationId)
   if (conversation) ctx.requirePermission('chat:read', conversation.project)
+  // Per-conversation share scope: a guest with a share link bound to
+  // conversation A must not be able to subscribe to conversation B's
+  // transcript/term/diag channels even though they share a project URI.
+  const shareConvId = ctx.ws.data.shareConversationId
+  if (shareConvId && conversationId !== shareConvId) {
+    ctx.reply({ type: 'channel_ack', channel, conversationId, agentId, status: 'denied' })
+    return
+  }
   ctx.conversations.subscribeChannel(ctx.ws, channel, conversationId, agentId)
   ctx.reply({ type: 'channel_ack', channel, conversationId, agentId, status: 'subscribed' })
 

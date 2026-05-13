@@ -14,9 +14,12 @@ import { shareToGrants, validateShare } from '../shares'
 
 export interface RouteHelpers {
   resolveHttpGrants(req: Request): UserGrant[] | null
-  httpHasPermission(req: Request, permission: Permission, project: string): boolean
+  httpHasPermission(req: Request, permission: Permission, project: string, conversationId?: string): boolean
   httpIsAdmin(req: Request, project?: string): boolean
-  filterConversationsByHttpGrants<T extends { project: string }>(req: Request, conversations: T[]): T[]
+  filterConversationsByHttpGrants<T extends { project: string; id: string }>(req: Request, conversations: T[]): T[]
+  /** Returns the conversationId a share token is scoped to (if any). When set,
+   *  the caller MUST only be allowed to touch that one conversation. */
+  shareScopedConversationId(req: Request): string | null
 }
 
 export function createRouteHelpers(_rclaudeSecret?: string): RouteHelpers {
@@ -47,11 +50,35 @@ export function createRouteHelpers(_rclaudeSecret?: string): RouteHelpers {
     return [] // no auth = no access
   }
 
-  function httpHasPermission(req: Request, permission: Permission, project: string): boolean {
+  function shareScopedConversationId(req: Request): string | null {
+    const authHeader = req.headers.get('authorization')
+    const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+    if (bearer) {
+      const auth = resolveAuth(bearer)
+      // Admin bearer auth bypasses share scoping.
+      if (auth.role !== 'none') return null
+    }
+    // Cookie-authenticated users are not share viewers.
+    if (getAuthenticatedUser(req)) return null
+    const url = new URL(req.url)
+    const shareToken = url.searchParams.get('share')
+    if (!shareToken) return null
+    const share = validateShare(shareToken)
+    if (!share) return null
+    return share.conversationId ?? null
+  }
+
+  function httpHasPermission(req: Request, permission: Permission, project: string, conversationId?: string): boolean {
     const grants = resolveHttpGrants(req)
     if (grants === null) return true // admin
     const { permissions } = resolvePermissions(grants, project)
-    return permissions.has(permission)
+    if (!permissions.has(permission)) return false
+    // Per-conversation share scope: a share bound to conversation A must
+    // never grant access to conversation B even though both live in the
+    // same project URI.
+    const restrictTo = shareScopedConversationId(req)
+    if (restrictTo && conversationId && conversationId !== restrictTo) return false
+    return true
   }
 
   function httpIsAdmin(req: Request, project = '*'): boolean {
@@ -61,16 +88,32 @@ export function createRouteHelpers(_rclaudeSecret?: string): RouteHelpers {
     return isAdmin
   }
 
-  function filterConversationsByHttpGrants<T extends { project: string }>(req: Request, conversations: T[]): T[] {
+  function filterConversationsByHttpGrants<T extends { project: string; id: string }>(
+    req: Request,
+    conversations: T[],
+  ): T[] {
     const grants = resolveHttpGrants(req)
-    if (grants === null) return conversations // admin sees all
-    return conversations.filter(s => {
-      const { permissions } = resolvePermissions(grants, s.project)
-      return permissions.has('chat:read')
-    })
+    const restrictTo = shareScopedConversationId(req)
+    let result = conversations
+    if (grants !== null) {
+      result = result.filter(s => {
+        const { permissions } = resolvePermissions(grants, s.project)
+        return permissions.has('chat:read')
+      })
+    }
+    if (restrictTo) {
+      result = result.filter(s => s.id === restrictTo)
+    }
+    return result
   }
 
-  return { resolveHttpGrants, httpHasPermission, httpIsAdmin, filterConversationsByHttpGrants }
+  return {
+    resolveHttpGrants,
+    httpHasPermission,
+    httpIsAdmin,
+    filterConversationsByHttpGrants,
+    shareScopedConversationId,
+  }
 }
 
 // ─── Conversation overview helper ──────────────────────────────────────

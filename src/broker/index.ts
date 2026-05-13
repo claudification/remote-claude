@@ -584,6 +584,7 @@ async function main() {
               data: {
                 isShare: true,
                 shareToken,
+                shareConversationId: share.conversationId,
                 hideUserInput: share.hideUserInput || false,
                 grants: shareToGrantList(share),
               } as WsData,

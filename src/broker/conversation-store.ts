@@ -582,12 +582,24 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   /** Broadcast a conversation message only to subscribers who have chat:read for that project */
   function broadcastConversationScoped(message: ControlPanelMessage, project: string): void {
     const json = stampAndBuffer(message)
+    // Share-scoped messages carry a conversationId we can match against the
+    // viewer's bound share. Use it to keep per-conversation shares from
+    // receiving sibling conversations' updates. Some message types are
+    // intentionally project-scoped only (e.g. project link toggles); for
+    // those we fall back to project-level gating.
+    const msgAny = message as unknown as Record<string, unknown>
+    const msgConversationId = typeof msgAny.conversationId === 'string' ? (msgAny.conversationId as string) : undefined
     for (const ws of controlPanelSubscribers) {
       try {
-        const grants = (ws.data as { grants?: UserGrant[] }).grants
+        const wsData = ws.data as { grants?: UserGrant[]; shareConversationId?: string }
+        const grants = wsData.grants
         if (grants) {
           const { permissions } = resolvePermissions(grants, project)
           if (!permissions.has('chat:read')) continue
+        }
+        // Per-conversation share scope: never leak sibling conversations.
+        if (wsData.shareConversationId && msgConversationId && msgConversationId !== wsData.shareConversationId) {
+          continue
         }
         ws.send(json)
         recordTraffic('out', json.length)
@@ -1822,23 +1834,33 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     }
   }
 
-  /** Filter sessions by user's grants - only show sessions they have chat:read for */
+  /** Filter sessions by user's grants - only show sessions they have chat:read for.
+   *  When `restrictToConversationId` is set (share-link scoping), the result is
+   *  further narrowed to exactly that one conversation. This is how we keep
+   *  per-conversation share links from leaking the rest of the project. */
   function filterConversationsByGrants(
     allConversations: ConversationSummary[],
     grants?: UserGrant[],
+    restrictToConversationId?: string,
   ): ConversationSummary[] {
-    if (!grants) return allConversations // no grants = admin/secret auth = see everything
-    return allConversations.filter(s => {
-      const { permissions } = resolvePermissions(grants, s.project)
-      return permissions.has('chat:read')
-    })
+    let result = allConversations
+    if (grants) {
+      result = result.filter(s => {
+        const { permissions } = resolvePermissions(grants, s.project)
+        return permissions.has('chat:read')
+      })
+    }
+    if (restrictToConversationId) {
+      result = result.filter(s => s.id === restrictToConversationId)
+    }
+    return result
   }
 
-  function buildConversationsListMessage(grants?: UserGrant[]): string {
+  function buildConversationsListMessage(grants?: UserGrant[], restrictToConversationId?: string): string {
     const allSummaries = Array.from(conversations.values()).map(toConversationSummary)
     return JSON.stringify({
       type: 'conversations_list',
-      conversations: filterConversationsByGrants(allSummaries, grants),
+      conversations: filterConversationsByGrants(allSummaries, grants, restrictToConversationId),
       serverVersion: BUILD_VERSION.gitHashShort,
       _epoch: sync.epoch,
       _seq: sync.seq,
@@ -1847,8 +1869,8 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
 
   function sendConversationsList(ws: ServerWebSocket<unknown>): void {
     try {
-      const grants = (ws.data as { grants?: UserGrant[] }).grants
-      ws.send(buildConversationsListMessage(grants))
+      const data = ws.data as { grants?: UserGrant[]; shareConversationId?: string }
+      ws.send(buildConversationsListMessage(data.grants, data.shareConversationId))
     } catch {}
   }
 
@@ -2012,6 +2034,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     const shares = active.map(s => ({
       token: s.token,
       project: s.project,
+      conversationId: s.conversationId,
       createdAt: s.createdAt,
       expiresAt: s.expiresAt,
       createdBy: s.createdBy,

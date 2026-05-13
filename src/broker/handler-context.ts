@@ -24,6 +24,9 @@ export interface WsData {
   // Share (guest) access
   isShare?: boolean
   shareToken?: string
+  /** When set, the share is scoped to a single conversation. The guest may
+   *  only see/access this conversation, never the rest of the project. */
+  shareConversationId?: string
   hideUserInput?: boolean
   // Gateway adapter (e.g. Hermes)
   isGateway?: boolean
