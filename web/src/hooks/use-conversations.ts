@@ -302,6 +302,7 @@ interface ConversationsState {
   shares: Array<{
     token: string
     project: string
+    conversationId?: string
     createdAt: number
     expiresAt: number
     createdBy: string
@@ -314,6 +315,7 @@ interface ConversationsState {
     shares: Array<{
       token: string
       project: string
+      conversationId?: string
       createdAt: number
       expiresAt: number
       createdBy: string

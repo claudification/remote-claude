@@ -14,7 +14,8 @@ import { useConversationsStore } from '@/hooks/use-conversations'
 import { haptic } from '@/lib/utils'
 
 interface SharePanelProps {
-  sessionProject: string
+  conversationProject: string
+  conversationId: string
 }
 
 const DURATION_OPTIONS = [
@@ -26,9 +27,9 @@ const DURATION_OPTIONS = [
 
 const EMPTY_SHARES: ReturnType<typeof useConversationsStore.getState>['shares'] = []
 
-export function ShareBanner({ sessionProject }: SharePanelProps) {
+export function ShareBanner({ conversationProject, conversationId }: SharePanelProps) {
   const allShares = useConversationsStore(s => s.shares) || EMPTY_SHARES
-  const shares = allShares.filter(s => s.project === sessionProject && s.expiresAt > Date.now())
+  const shares = allShares.filter(s => s.project === conversationProject && s.expiresAt > Date.now())
 
   const [expanded, setExpanded] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -49,7 +50,8 @@ export function ShareBanner({ sessionProject }: SharePanelProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project: sessionProject,
+          project: conversationProject,
+          conversationId,
           expiresIn: newDuration,
           label: newLabel || undefined,
           permissions: [
@@ -277,9 +279,9 @@ export function ShareBanner({ sessionProject }: SharePanelProps) {
 }
 
 /** Small share indicator for the conversation list sidebar */
-export function ShareIndicator({ sessionProject }: { sessionProject: string }) {
+export function ShareIndicator({ conversationProject }: { conversationProject: string }) {
   const count = useConversationsStore(
-    s => s.shares.filter(sh => sh.project === sessionProject && sh.expiresAt > Date.now()).length,
+    s => s.shares.filter(sh => sh.project === conversationProject && sh.expiresAt > Date.now()).length,
   )
 
   if (count === 0) return null

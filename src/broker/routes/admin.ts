@@ -225,6 +225,7 @@ export function createAdminRouter(
     if (!httpIsAdmin(c.req.raw)) return c.json({ error: 'Forbidden: admin only' }, 403)
     const body = await c.req.json<{
       project: string
+      conversationId?: string
       expiresIn?: number // ms from now
       expiresAt?: number // absolute timestamp
       label?: string
@@ -236,6 +237,7 @@ export function createAdminRouter(
     try {
       const share = createShare({
         project: body.project,
+        conversationId: body.conversationId,
         expiresAt,
         createdBy: getAuthenticatedUser(c.req.raw) || 'admin',
         label: body.label,
@@ -244,7 +246,7 @@ export function createAdminRouter(
         // Phase 11 polymorphic shares: every conversation share is now
         // tagged so the public viewer can dispatch by kind.
         targetKind: 'conversation',
-        targetId: body.project,
+        targetId: body.conversationId || body.project,
       })
       const origin = c.req.header('origin') || ''
       conversationStore.broadcastSharesUpdate()

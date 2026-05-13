@@ -826,7 +826,7 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
           </span>
         )}
         <ConversationInfoButton session={session} visible={isSelected} />
-        <ShareIndicator sessionProject={projectPath(session.project)} />
+        <ShareIndicator conversationProject={projectPath(session.project)} />
         {session.resultText && session.capabilities?.includes('ad-hoc') && <ResultTextModal session={session} />}
         {session.status === 'ended' && <DismissButton conversationId={session.id} />}
         {showCost &&

@@ -16,6 +16,7 @@ export type ShareTargetKind = 'conversation' | 'recap'
 export interface ConversationShare {
   token: string
   project: string
+  conversationId?: string // specific conversation within the project
   createdAt: number
   expiresAt: number
   createdBy: string
@@ -70,6 +71,7 @@ export function initShares(opts: { kv: KVStore; skipTimers?: boolean }) {
 /** Create a new share token. Returns the share object. */
 export function createShare(opts: {
   project: string
+  conversationId?: string
   expiresAt: number
   createdBy: string
   label?: string
@@ -92,6 +94,7 @@ export function createShare(opts: {
   const share: ConversationShare = {
     token,
     project: opts.project,
+    conversationId: opts.conversationId,
     createdAt: Date.now(),
     expiresAt: opts.expiresAt,
     createdBy: opts.createdBy,

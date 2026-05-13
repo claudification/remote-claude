@@ -102,7 +102,7 @@ export const ConversationDetail = memo(function SessionDetail() {
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
       <ClipboardBanners />
-      {canAdmin && <ShareBanner sessionProject={projectPath(session.project)} />}
+      {canAdmin && session && <ShareBanner conversationProject={projectPath(session.project)} conversationId={session.id} />}
       {selectedConversationId && <DialogOverlay conversationId={selectedConversationId} />}
 
       {selectedConversationId && (
