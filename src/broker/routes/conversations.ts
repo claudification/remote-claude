@@ -367,17 +367,10 @@ export function createConversationsRouter(
   app.get('/api/share-resolve/:token', c => {
     const share = validateShare(c.req.param('token'))
     if (!share) return c.json({ error: 'Invalid or expired share' }, 404)
-    // Use the conversationId from the share if it exists (new behavior)
-    // Otherwise fall back to most recent conversation in the project (backward compat)
-    let conversationId = share.conversationId
-    if (!conversationId) {
-      const conversations = conversationStore.getAllConversations().filter(s => s.project === share.project)
-      conversations.sort((a, b) => b.lastActivity - a.lastActivity)
-      conversationId = conversations[0]?.id || null
-    }
+    if (!share.conversationId) return c.json({ error: 'Share missing conversation ID' }, 400)
     return c.json({
       project: share.project,
-      conversationId,
+      conversationId: share.conversationId,
     })
   })
 
