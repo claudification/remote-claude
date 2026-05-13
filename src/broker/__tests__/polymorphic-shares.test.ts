@@ -27,6 +27,7 @@ describe('polymorphic shares', () => {
   test('conversation share is created with targetKind=conversation', () => {
     const share = createShare({
       project: 'claude://default/p/foo',
+      conversationId: 'conv_abcdef123456',
       expiresAt: Date.now() + 3600_000,
       createdBy: 'tester',
       targetKind: 'conversation',
@@ -66,15 +67,26 @@ describe('polymorphic shares', () => {
     expect(validated?.targetId).toBe('recap_aa')
   })
 
-  test('legacy shares (no targetKind) still validate cleanly', () => {
-    const share = createShare({
+  test('legacy-shape conversation share (no targetKind) requires conversationId', () => {
+    // No targetKind defaults to 'conversation'. Without conversationId the
+    // share would grant project-wide access, which is now refused at
+    // creation time.
+    expect(() =>
+      createShare({
+        project: 'claude://default/p',
+        expiresAt: Date.now() + 60_000,
+        createdBy: 'tester',
+      }),
+    ).toThrow(/conversationId is required/)
+
+    const valid = createShare({
       project: 'claude://default/p',
+      conversationId: 'conv_legacyshape',
       expiresAt: Date.now() + 60_000,
       createdBy: 'tester',
     })
-    expect(share.targetKind).toBeUndefined()
-    const validated = validateShare(share.token)
-    expect(validated?.targetKind).toBeUndefined()
+    expect(valid.targetKind).toBeUndefined()
+    expect(validateShare(valid.token)?.conversationId).toBe('conv_legacyshape')
   })
 
   test('different recap shares get distinct tokens', () => {

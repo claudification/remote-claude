@@ -39,6 +39,14 @@ const DEFAULT_SHARE_PERMISSIONS = ['chat', 'chat:read', 'files:read', 'terminal:
 
 const KV_KEY = 'shares'
 
+/** A conversation-kind share without a bound conversationId is structurally
+ *  invalid -- it would grant project-wide access. Recap-kind shares are
+ *  exempt because they target a recap document, not a conversation. */
+function isInvalidConversationShare(s: ConversationShare): boolean {
+  const kind = s.targetKind ?? 'conversation'
+  return kind === 'conversation' && !s.conversationId
+}
+
 let shares: ConversationShare[] = []
 let kv: KVStore | null = null
 let expiryTimer: ReturnType<typeof setInterval> | null = null
@@ -54,8 +62,24 @@ export function initShares(opts: { kv: KVStore; skipTimers?: boolean }) {
   // Load existing shares
   const raw = kv.get<ConversationShare[]>(KV_KEY)
   if (raw && Array.isArray(raw)) {
-    // Clean up expired + revoked on load
-    shares = raw.filter(s => !s.revoked && s.expiresAt > Date.now())
+    // Clean up expired + revoked + legacy project-wide conversation shares
+    // (pre-conversationId era -- those would let a guest see every
+    // conversation in the project, so drop them on load).
+    const dropped: ConversationShare[] = []
+    shares = raw.filter(s => {
+      if (s.revoked) return false
+      if (s.expiresAt <= Date.now()) return false
+      if (isInvalidConversationShare(s)) {
+        dropped.push(s)
+        return false
+      }
+      return true
+    })
+    if (dropped.length > 0) {
+      console.log(
+        `[shares] Dropped ${dropped.length} legacy project-wide conversation share(s) on load: ${dropped.map(s => `${s.token.slice(0, 8)}@${s.project}`).join(', ')}`,
+      )
+    }
     if (shares.length !== raw.length) save()
   } else {
     shares = []
@@ -89,6 +113,12 @@ export function createShare(opts: {
   if (opts.expiresAt > maxExpiry) {
     throw new Error('Maximum share duration is 30 days')
   }
+  // Conversation-kind shares MUST be bound to a specific conversation.
+  // A project-wide share would leak every sibling conversation.
+  const kind = opts.targetKind ?? 'conversation'
+  if (kind === 'conversation' && !opts.conversationId) {
+    throw new Error('conversationId is required for conversation shares')
+  }
 
   const token = randomBytes(32).toString('base64url')
   const share: ConversationShare = {
@@ -120,6 +150,9 @@ export function validateShare(token: string): ConversationShare | null {
   if (!share) return null
   if (share.revoked) return null
   if (share.expiresAt <= Date.now()) return null
+  // Defense in depth: refuse to authenticate a structurally invalid share
+  // even if one slipped past the load-time filter.
+  if (isInvalidConversationShare(share)) return null
   return share
 }
 
