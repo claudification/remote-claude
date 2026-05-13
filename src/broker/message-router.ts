@@ -77,6 +77,28 @@ export function routeMessage(ctx: HandlerContext, type: string, data: MessageDat
     }
   }
 
+  // Per-conversation share scope (defense in depth). A share viewer bound to
+  // conversation A must never act on conversation B even when the per-handler
+  // permission check passes (e.g. default share grants chat:read on the whole
+  // project URI). Reject any message whose `conversationId` field disagrees
+  // with the share's bound conversation. Handler-level project gating still
+  // applies on top of this.
+  const shareConvId = ctx.ws.data.shareConversationId
+  if (shareConvId) {
+    const target = (data as Record<string, unknown>).conversationId
+    if (typeof target === 'string' && target !== shareConvId) {
+      ctx.reply({
+        type: `${type}_result`,
+        ok: false,
+        error: 'Forbidden: share is scoped to a different conversation',
+      })
+      ctx.log.debug(
+        `[router] share-scope reject ${type}: target=${target.slice(0, 8)} bound=${shareConvId.slice(0, 8)}`,
+      )
+      return true
+    }
+  }
+
   try {
     const result = entry.handler(ctx, data)
     if (result instanceof Promise) {

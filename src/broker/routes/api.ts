@@ -147,7 +147,7 @@ export function createApiRouter(
 
     const conv = conversationStore.getConversation(conversationId)
     if (!conv) return c.json({ error: 'Conversation not found' }, 404)
-    if (!helpers.httpHasPermission(c.req.raw, 'chat:read', conv.project)) {
+    if (!helpers.httpHasPermission(c.req.raw, 'chat:read', conv.project, conv.id)) {
       return c.json({ error: 'Forbidden' }, 403)
     }
 

@@ -232,7 +232,7 @@ export function createConversationsRouter(
     const conversationId = c.req.param('id')
     const conv = conversationStore.getConversation(conversationId)
     if (!conv) return c.json({ error: 'Conversation not found' }, 404)
-    if (!httpHasPermission(c.req.raw, 'chat', conv.project)) return c.json({ error: 'Forbidden' }, 403)
+    if (!httpHasPermission(c.req.raw, 'chat', conv.project, conv.id)) return c.json({ error: 'Forbidden' }, 403)
     if (conv.status === 'ended') return c.json({ error: 'Conversation has ended' }, 400)
 
     const ws = conversationStore.getConversationSocket(conversationId)
