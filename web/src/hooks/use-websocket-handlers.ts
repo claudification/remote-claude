@@ -897,6 +897,55 @@ function handleSpawnRequestAckMsg(msg: DashboardMessage) {
   )
 }
 
+// ─── rate limit status ──────────────────────────────────────────────────────
+
+function handleRateLimitStatus(msg: DashboardMessage) {
+  const status = msg.status as string | undefined
+  const rateLimitType = msg.rateLimitType as string | undefined
+  const utilization = ((msg.raw as Record<string, unknown>)?.rate_limit_info as Record<string, unknown> | undefined)?.utilization as number | undefined
+  const conversationId = msg.conversationId as string | undefined
+
+  if (status === 'allowed') return // No toast when cleared
+
+  const isCritical = (utilization ?? 0) >= 0.75
+  const dismissalKey = `rate-limit-dismissed:${conversationId}:${rateLimitType}`
+  const dismissedAt = localStorage.getItem(dismissalKey)
+  const now = Date.now()
+  const oneHourAgo = now - 60 * 60 * 1000
+
+  // Skip if dismissed within the last hour
+  if (dismissedAt && parseInt(dismissedAt, 10) > oneHourAgo) {
+    return
+  }
+
+  const retrySeconds = msg.retryAfterMs ? Math.ceil(msg.retryAfterMs / 1000) : 5
+  const limitLabel = rateLimitType || 'API'
+  const utilizationPct = utilization ? Math.round(utilization * 100) : '?'
+  const toastId = `${conversationId}:${rateLimitType}`
+
+  const originalDetail = {
+    title: isCritical ? '🔔 Rate Limited' : 'Rate Limited',
+    body: `${limitLabel} limit at ${utilizationPct}%. Retry in ${retrySeconds}s.`,
+    variant: 'warning',
+    persistent: isCritical, // Persist only if utilization >= 75%
+    conversationId,
+    toastId,
+  }
+
+  window.dispatchEvent(
+    new CustomEvent('rclaude-toast', { detail: originalDetail }),
+  )
+
+  // Set up listener to mark dismissed when user closes the toast (if persistent)
+  if (isCritical) {
+    const handleDismiss = () => {
+      localStorage.setItem(dismissalKey, now.toString())
+      window.removeEventListener(`toast-dismissed:${toastId}`, handleDismiss)
+    }
+    window.addEventListener(`toast-dismissed:${toastId}`, handleDismiss)
+  }
+}
+
 // ─── dispatch table ────────────────────────────────────────────────────────
 
 export type MessageHandler = (msg: DashboardMessage) => void
@@ -924,6 +973,7 @@ export const handlers: Record<string, MessageHandler> = {
   usage_update: handleUsageUpdate,
   claude_health_update: handleClaudeHealthUpdate,
   claude_efficiency_update: handleClaudeEfficiencyUpdate,
+  rate_limit_status: handleRateLimitStatus,
   settings_updated: handleSettingsUpdated,
   launch_profiles_updated: handleLaunchProfilesUpdated,
   project_settings_updated: handleProjectSettingsUpdated,

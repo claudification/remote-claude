@@ -9,6 +9,7 @@ interface Toast {
   body: string
   conversationId?: string
   taskId?: string
+  toastId?: string
   variant?: string
   /** When true, the toast does not auto-dismiss -- the user must close it. */
   persistent?: boolean
@@ -23,10 +24,10 @@ export function ToastContainer() {
 
   useEffect(() => {
     function handleToast(e: Event) {
-      const { title, body, conversationId, taskId, variant, persistent, copyText } = (e as CustomEvent).detail
+      const { title, body, conversationId, taskId, toastId, variant, persistent, copyText } = (e as CustomEvent).detail
       const id = nextId++
       haptic('double')
-      setToasts(prev => [...prev, { id, title, body, conversationId, taskId, variant, persistent, copyText }])
+      setToasts(prev => [...prev, { id, title, body, conversationId, taskId, toastId, variant, persistent, copyText }])
       if (!persistent) {
         setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 8000)
       }
@@ -35,7 +36,10 @@ export function ToastContainer() {
     return () => window.removeEventListener('rclaude-toast', handleToast)
   }, [])
 
-  function dismiss(id: number) {
+  function dismiss(id: number, toastId?: string) {
+    if (toastId) {
+      window.dispatchEvent(new CustomEvent(`toast-dismissed:${toastId}`))
+    }
     setToasts(prev => prev.filter(x => x.id !== id))
   }
 
@@ -45,7 +49,7 @@ export function ToastContainer() {
     } else if (toast.conversationId) {
       useConversationsStore.getState().selectConversation(toast.conversationId)
     }
-    dismiss(toast.id)
+    dismiss(toast.id, toast.toastId)
   }
 
   if (toasts.length === 0) return null
@@ -90,7 +94,7 @@ export function ToastContainer() {
               type="button"
               onClick={e => {
                 e.stopPropagation()
-                dismiss(t.id)
+                dismiss(t.id, t.toastId)
               }}
               className="shrink-0 text-muted-foreground hover:text-foreground"
             >
