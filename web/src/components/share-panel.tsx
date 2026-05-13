@@ -42,8 +42,10 @@ export function ShareBanner({ conversationProject, conversationId }: SharePanelP
   })
   const [hideUserInput, setHideUserInput] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   async function handleCreate() {
+    setCreateError(null)
     setCreating(true)
     try {
       const res = await fetch('/api/shares', {
@@ -72,11 +74,16 @@ export function ShareBanner({ conversationProject, conversationId }: SharePanelP
         haptic('success')
         setNewLabel('')
       } else {
-        console.error('Share create failed:', res.status, await res.text().catch(() => ''))
+        const errorData = await res.json().catch(() => ({}))
+        const msg = (errorData as { error?: string }).error || `Failed: ${res.status}`
+        setCreateError(msg)
+        setTimeout(() => setCreateError(null), 4000)
         haptic('error')
       }
     } catch (err) {
-      console.error('Share create error:', err)
+      const msg = err instanceof Error ? err.message : 'Network error'
+      setCreateError(msg)
+      setTimeout(() => setCreateError(null), 4000)
       haptic('error')
     }
     setCreating(false)
@@ -259,6 +266,11 @@ export function ShareBanner({ conversationProject, conversationId }: SharePanelP
                 Hide user input
               </button>
             </div>
+            {createError && (
+              <div className="text-[9px] text-destructive bg-destructive/10 border border-destructive/30 rounded px-2 py-1">
+                {createError}
+              </div>
+            )}
             <div className="flex justify-end">
               <Button
                 size="sm"
