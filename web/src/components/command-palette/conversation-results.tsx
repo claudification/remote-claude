@@ -86,6 +86,11 @@ export function ConversationRow({
           <span>{formatAge(session.lastActivity)}</span>
           {session.model && <span>{formatModel(session.model)}</span>}
         </div>
+        {session.recap?.title && (
+          <div className="mt-0.5 text-[10px] text-zinc-400/80 truncate" title={session.recap.title}>
+            {session.recap.title}
+          </div>
+        )}
       </div>
       {actionLabel(session, selectedConversationId) && (
         <span className={cn('text-[10px]', canTerminal(session) ? 'text-active' : 'text-comment')}>

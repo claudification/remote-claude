@@ -40,7 +40,7 @@ export function useSessionMode(
       new Fzf(allConversations, {
         selector: (s: Session) => {
           const ps = projectSettings[s.project]
-          return `${projectPath(s.project)} ${ps?.label || ''} ${s.title || ''} ${s.agentName || ''} ${s.id} ${s.model || ''} ${s.status}`
+          return `${projectPath(s.project)} ${ps?.label || ''} ${s.title || ''} ${s.agentName || ''} ${s.recap?.title || ''} ${s.id} ${s.model || ''} ${s.status}`
         },
         casing: 'case-insensitive',
       }),
