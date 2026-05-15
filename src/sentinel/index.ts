@@ -1485,7 +1485,7 @@ function getOAuthToken(): string | null {
 
 // ─── Usage API Polling ────────────────────────────────────────────
 
-const USAGE_POLL_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
+const USAGE_POLL_INTERVAL_MS = 3 * 60 * 1000 // 3 minutes
 const USAGE_API_URL = 'https://api.anthropic.com/api/oauth/usage'
 
 interface RawUsageWindow {
@@ -1543,7 +1543,9 @@ function parseUsageResponse(raw: RawUsageResponse): UsageUpdate | null {
   return update
 }
 
-async function pollUsage(token: string): Promise<UsageUpdate | null> {
+async function fetchUsage(
+  token: string,
+): Promise<{ ok: true; data: RawUsageResponse } | { ok: false; status: number; body: string } | null> {
   try {
     const res = await fetch(USAGE_API_URL, {
       headers: {
@@ -1554,19 +1556,47 @@ async function pollUsage(token: string): Promise<UsageUpdate | null> {
     })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
-      diag('usage', `API error: ${res.status} ${res.statusText}`, { body: body.slice(0, 200) })
-      return null
+      return { ok: false, status: res.status, body: body.slice(0, 200) }
     }
-    const data = (await res.json()) as RawUsageResponse
-    const usage = parseUsageResponse(data)
-    if (!usage) {
-      diag('usage', 'Failed to parse usage response', { data })
-    }
-    return usage
+    return { ok: true, data: (await res.json()) as RawUsageResponse }
   } catch (err) {
     diag('usage', `Poll failed: ${err instanceof Error ? err.message : String(err)}`)
     return null
   }
+}
+
+async function pollUsage(): Promise<UsageUpdate | null> {
+  // Re-read token every poll. The OAuth bearer rotates; capturing it once
+  // in a closure (the old behavior) silently 401'd until the next WS
+  // reconnect, which is the long lag the user was seeing.
+  let token = getOAuthToken()
+  if (!token) {
+    diag('usage', 'No OAuth token available at poll time')
+    return null
+  }
+
+  let res = await fetchUsage(token)
+  if (!res) return null
+
+  // On 401 (token rotated mid-session), re-read once and retry.
+  if (!res.ok && res.status === 401) {
+    diag('usage', '401 - re-reading token and retrying once')
+    const fresh = getOAuthToken()
+    if (fresh && fresh !== token) {
+      token = fresh
+      res = await fetchUsage(token)
+      if (!res) return null
+    }
+  }
+
+  if (!res.ok) {
+    diag('usage', `API error: ${res.status}`, { body: res.body })
+    return null
+  }
+
+  const usage = parseUsageResponse(res.data)
+  if (!usage) diag('usage', 'Failed to parse usage response', { data: res.data })
+  return usage
 }
 
 let usagePollTimer: ReturnType<typeof setInterval> | null = null
@@ -1580,13 +1610,13 @@ function startUsagePolling(ws: WebSocket, verbose: boolean) {
     diag('usage', 'No OAuth token discovered (checked keychain + credential files)')
     return
   }
-  log('OAuth token found - starting usage polling (10min interval)')
+  const intervalMin = USAGE_POLL_INTERVAL_MS / 60_000
+  log(`OAuth token found - starting usage polling (${intervalMin}min interval)`)
   diag('usage', 'Token discovered, polling started')
-  const oauthToken = token // narrow for closure
 
   async function doPoll() {
     try {
-      const usage = await pollUsage(oauthToken)
+      const usage = await pollUsage()
       if (usage && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(usage))
         debug(`Usage sent: 5h=${usage.fiveHour.usedPercent}% 7d=${usage.sevenDay.usedPercent}%`, verbose)
@@ -1597,7 +1627,7 @@ function startUsagePolling(ws: WebSocket, verbose: boolean) {
     }
   }
 
-  // Poll immediately on connect, then every 10 minutes
+  // Poll immediately on connect, then on interval
   doPoll()
   usagePollTimer = setInterval(doPoll, USAGE_POLL_INTERVAL_MS)
 }
