@@ -26,9 +26,12 @@ import { PinnedProjectNode, ProjectNode } from './project-list/project-node'
 
 export function ProjectList() {
   // Subscribes only to the structural shape (id+project+status+capabilities+
-  // startedAt+lastActivity). Per-session field churn (tokenUsage, recap,
-  // stats, gitBranch, streaming text) does NOT re-render ProjectList --
-  // leaf items subscribe to their own session by id and render in isolation.
+  // startedAt). Per-session field churn (tokenUsage, recap, stats, gitBranch,
+  // streaming text, lastActivity) does NOT re-render ProjectList -- leaf
+  // items subscribe to their own session by id and render in isolation.
+  // lastActivity is intentionally excluded: it changes on every WS message
+  // and is only used here for sorting ended sessions, where the value is
+  // snapshotted lazily at sort time (see `inactive` memo below).
   const structure = useConversationStructure()
   const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
   const rawProjectOrder = useConversationsStore(s => s.projectOrder)
@@ -132,7 +135,10 @@ export function ProjectList() {
     return result
   }, [structure, treeProjects, visibleIdsByProject, structureById])
 
-  // Inactive sessions (ended, not in tree, not in unorganized)
+  // Inactive sessions (ended, not in tree, not in unorganized).
+  // lastActivity is read lazily from the live store at sort time -- ended
+  // sessions rarely tick, and excluding it from the structural selector
+  // saves a ProjectList re-render on every WS message.
   const inactive = useMemo(() => {
     const activeProjects = new Set(structure.filter(s => s.status !== 'ended').map(s => s.project))
     const byProject = new Map<string, ConversationStructure[]>()
@@ -143,9 +149,11 @@ export function ProjectList() {
         byProject.set(s.project, group)
       }
     }
+    const sessionsById = useConversationsStore.getState().sessionsById
+    const lastActivityOf = (id: string) => sessionsById[id]?.lastActivity ?? 0
     return Array.from(byProject.values()).sort((a, b) => {
-      const aMax = Math.max(...a.map(s => s.lastActivity))
-      const bMax = Math.max(...b.map(s => s.lastActivity))
+      const aMax = Math.max(...a.map(s => lastActivityOf(s.id)))
+      const bMax = Math.max(...b.map(s => lastActivityOf(s.id)))
       return bMax - aMax
     })
   }, [structure, treeProjects])

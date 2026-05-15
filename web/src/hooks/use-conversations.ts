@@ -446,7 +446,6 @@ export type ConversationStructure = {
   status: Session['status']
   capabilities?: string[]
   startedAt: number
-  lastActivity: number
 }
 
 function toStructure(s: Session): ConversationStructure {
@@ -456,7 +455,6 @@ function toStructure(s: Session): ConversationStructure {
     status: s.status,
     capabilities: s.capabilities,
     startedAt: s.startedAt,
-    lastActivity: s.lastActivity,
   }
 }
 
@@ -476,7 +474,6 @@ function structureItemEqual(x: ConversationStructure, y: ConversationStructure):
     x.project === y.project &&
     x.status === y.status &&
     x.startedAt === y.startedAt &&
-    x.lastActivity === y.lastActivity &&
     capabilitiesEqual(x.capabilities, y.capabilities)
   )
 }
