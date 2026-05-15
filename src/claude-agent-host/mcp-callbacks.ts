@@ -88,10 +88,10 @@ export function buildMcpCallbacksWithRules(
       if (!ctx.wsClient?.isConnected()) return { conversations: [] }
       return new Promise(resolve => {
         const timeout = setTimeout(() => resolve({ conversations: [] }), 5000)
-        pending.pendingListConversations = (conversations, self) => {
+        pending.pendingListConversations = (conversations, self, issues) => {
           clearTimeout(timeout)
           pending.pendingListConversations = null
-          resolve({ conversations, self })
+          resolve({ conversations, self, issues })
         }
         ctx.wsClient?.send({
           type: 'channel_list_conversations',

@@ -910,6 +910,14 @@ export interface InterConversationListResponse {
     id: string
     name: string
     project: string
+    /** Canonical project URI (`claude://<sentinel>/<path>`). */
+    projectUri: string
+    /**
+     * Permanent record handle: `{projectUri}#{conversation_id}`. Omitted on
+     * `status: "spawning"` rows because the conversation has not booted yet
+     * and the URI would lie about being a permanent record.
+     */
+    conversationUri?: string
     /**
      * `spawning` entries are pre-boot synthetic rows surfaced from active spawn
      * jobs. They have no `cc_session_id` and may still fail. Discoverable so
@@ -927,6 +935,8 @@ export interface InterConversationListResponse {
   self?: {
     id: string
     project: string
+    projectUri: string
+    conversationUri: string
     ccSessionId: string
     name: string
     model?: string
@@ -934,6 +944,19 @@ export interface InterConversationListResponse {
     effortLevel?: string
     status: 'live'
   }
+  /**
+   * Issues encountered while enumerating conversations (capped at 10).
+   * Only present for benevolent callers, and only when issues > 0. Surfaces
+   * row skips / self-block failures that would otherwise only land in
+   * `docker logs broker`. Non-benevolent callers never see this field.
+   */
+  issues?: Array<{
+    severity: 'error' | 'warning'
+    code: string
+    conversation_id?: string
+    project?: string
+    message: string
+  }>
 }
 
 // AskUserQuestion relay (CC 2.1.85+ PreToolUse hook -> dashboard -> hook response)

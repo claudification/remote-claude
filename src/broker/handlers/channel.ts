@@ -4,7 +4,7 @@
  */
 
 import { deriveModelName } from '../../shared/models'
-import { cwdToProjectUri, extractProjectLabel, isSameProject, parseProjectUri } from '../../shared/project-uri'
+import { cwdToProjectUri, extractProjectLabel, isSameProject } from '../../shared/project-uri'
 import type { ChannelSendResultEntry, SubscriptionChannel, TerminationSource } from '../../shared/protocol'
 import { slugify } from '../address-book'
 import { getUser } from '../auth'
@@ -190,6 +190,24 @@ const channelListConversations: MessageHandler = (ctx, data) => {
     projectGroups.set(s.project, group)
   }
 
+  // Issues collected while enumerating. Surfaced to benevolent callers ONLY
+  // (capped at MAX_ISSUES) so debug conversations can see broker-side row
+  // skips / self-block failures without having to grep `docker logs broker`.
+  // Non-benevolent callers get nothing -- prevents leaking internal state.
+  const MAX_ISSUES = 10
+  const issues: Array<{
+    severity: 'error' | 'warning'
+    code: string
+    conversation_id?: string
+    project?: string
+    message: string
+  }> = []
+  const pushIssue = (i: (typeof issues)[number]) => {
+    if (issues.length < MAX_ISSUES) issues.push(i)
+    else if (issues.length === MAX_ISSUES)
+      issues.push({ severity: 'warning', code: 'issues_truncated', message: 'further issues suppressed' })
+  }
+
   // Per-row try/catch: a single malformed conversation (bad project URI,
   // corrupt settings, address-book divergence) must NEVER sink the whole list.
   // Pre-2026-05-11 a throw here was swallowed by the router, replied as
@@ -200,8 +218,6 @@ const channelListConversations: MessageHandler = (ctx, data) => {
     try {
       const linkStatus = callerConversation ? ctx.conversations.checkProjectLink(callerConversation, s.id) : 'unknown'
       const isLinked = linkStatus === 'linked'
-      const showFull = isBenevolent || isLinked
-      const shortProject = extractProjectLabel(s.project)
       const projSettings = ctx.getProjectSettings(s.project)
       const conversationName = s.title || projSettings?.label || extractProjectLabel(s.project)
       const isLive = ctx.conversations.getActiveConversationCount(s.id) > 0
@@ -230,7 +246,7 @@ const channelListConversations: MessageHandler = (ctx, data) => {
           conversation_id: s.id,
           name: conversationName,
           projectUri: s.project,
-          cwd: showFull || isSelf ? parseProjectUri(s.project).path : shortProject, // backward compat for MCP consumers
+          conversationUri: `${s.project}#${s.id}`, // permanent record handle
           status: (isLive ? 'live' : 'inactive') as 'live' | 'inactive',
           capabilities: s.capabilities,
           ...(isSelf
@@ -260,9 +276,11 @@ const channelListConversations: MessageHandler = (ctx, data) => {
         },
       ]
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
       ctx.log.debug(
-        `[channel_list_conversations] skipped conversation ${s.id.slice(0, 8)} (project=${s.project}): ${err instanceof Error ? err.message : String(err)}`,
+        `[channel_list_conversations] skipped conversation ${s.id.slice(0, 8)} (project=${s.project}): ${message}`,
       )
+      pushIssue({ severity: 'error', code: 'row_skipped', conversation_id: s.id, project: s.project, message })
       return []
     }
   })
@@ -287,16 +305,18 @@ const channelListConversations: MessageHandler = (ctx, data) => {
           conversation_id: s.id,
           name: s.title || projSettings?.label || extractProjectLabel(s.project),
           projectUri: s.project,
-          cwd: parseProjectUri(s.project).path, // backward compat for MCP consumers
+          conversationUri: `${s.project}#${s.id}`,
           model: deriveModelName(s.model, s.configuredModel),
           permissionMode: s.permissionMode,
           effortLevel: s.effortLevel,
           status: 'live' as const,
         }
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
         ctx.log.debug(
-          `[channel_list_conversations] self block failed for ${s.id.slice(0, 8)} (project=${s.project}): ${err instanceof Error ? err.message : String(err)}`,
+          `[channel_list_conversations] self block failed for ${s.id.slice(0, 8)} (project=${s.project}): ${message}`,
         )
+        pushIssue({ severity: 'error', code: 'self_block_failed', conversation_id: s.id, project: s.project, message })
       }
     }
   }
@@ -329,7 +349,8 @@ const channelListConversations: MessageHandler = (ctx, data) => {
       conversation_id: job.conversationId,
       name: conversationName,
       projectUri: project || 'pending',
-      cwd: project ? parseProjectUri(project).path : '(pending)',
+      // No conversationUri on spawning rows: the conversation hasn't booted, and
+      // a synthetic `pending#<id>` URI would lie about being a permanent record.
       status: 'spawning',
       capabilities: undefined,
       title: conversationName,
@@ -340,7 +361,12 @@ const channelListConversations: MessageHandler = (ctx, data) => {
     } as unknown as (typeof result)[number])
   }
 
-  ctx.reply({ type: 'channel_conversations_list', conversations: result, self })
+  ctx.reply({
+    type: 'channel_conversations_list',
+    conversations: result,
+    self,
+    ...(isBenevolent && issues.length > 0 ? { issues } : {}),
+  })
 }
 
 // ─── Inter-conversation messaging (channel_send) ────────────────────────

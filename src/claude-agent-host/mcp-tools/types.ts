@@ -68,7 +68,17 @@ export interface McpChannelCallbacks {
   onListConversations?: (
     status?: string,
     showMetadata?: boolean,
-  ) => Promise<{ conversations: ConversationInfo[]; self?: Record<string, unknown> }>
+  ) => Promise<{
+    conversations: ConversationInfo[]
+    self?: Record<string, unknown>
+    issues?: Array<{
+      severity: 'error' | 'warning'
+      code: string
+      conversation_id?: string
+      project?: string
+      message: string
+    }>
+  }>
   onSendMessage?: (
     to: string | string[],
     intent: string,

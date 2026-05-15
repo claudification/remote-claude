@@ -32,7 +32,7 @@ export function registerConversationTools(ctx: McpToolContext): Record<string, T
           conversations: [],
         }
         let { conversations } = result
-        const { self } = result
+        const { self, issues } = result
         if (params.filter) {
           const pattern = String(params.filter)
           const regex = new RegExp(
@@ -52,9 +52,14 @@ export function registerConversationTools(ctx: McpToolContext): Record<string, T
           )
         }
         debug(
-          `[channel] list_conversations: ${conversations.length} results (metadata=${showMeta}, filter=${params.filter ?? 'none'})`,
+          `[channel] list_conversations: ${conversations.length} results (metadata=${showMeta}, filter=${params.filter ?? 'none'}, issues=${issues?.length ?? 0})`,
         )
-        const output = self ? { self, conversations } : conversations
+        const hasIssues = issues && issues.length > 0
+        const output: unknown = self
+          ? { self, conversations, ...(hasIssues ? { issues } : {}) }
+          : hasIssues
+            ? { conversations, issues }
+            : conversations
         return { content: [{ type: 'text', text: JSON.stringify(output, null, 2) }] }
       },
     },

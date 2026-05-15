@@ -52,7 +52,19 @@ export interface BrokerConnectionDeps {
 }
 
 // Pending inter-session request/response callbacks -- module-level state
-let pendingListConversations: ((sessions: ConversationInfo[], self?: Record<string, unknown>) => void) | null = null
+let pendingListConversations:
+  | ((
+      sessions: ConversationInfo[],
+      self?: Record<string, unknown>,
+      issues?: Array<{
+        severity: 'error' | 'warning'
+        code: string
+        conversation_id?: string
+        project?: string
+        message: string
+      }>,
+    ) => void)
+  | null = null
 let pendingSendResult:
   | ((result: {
       ok: boolean
@@ -309,8 +321,8 @@ export function connectToBroker(ctx: AgentHostContext, deps: BrokerConnectionDep
     onTranscriptKick() {
       handleTranscriptKick(ctx)
     },
-    onChannelConversationsList(conversations, self) {
-      pendingListConversations?.(conversations, self)
+    onChannelConversationsList(conversations, self, issues) {
+      pendingListConversations?.(conversations, self, issues)
     },
     onChannelSendResult(result) {
       if (pendingSendResult) pendingSendResult(result as Parameters<typeof pendingSendResult>[0])
