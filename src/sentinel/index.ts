@@ -1507,8 +1507,10 @@ interface RawUsageResponse {
 }
 
 function parseWindow(raw: RawUsageWindow | null): UsageWindow | undefined {
-  if (!raw || raw.utilization == null) return undefined
-  return { usedPercent: raw.utilization, resetAt: raw.resets_at }
+  if (!raw) return undefined
+  // After a reset the API returns utilization: null until usage accrues again.
+  // Treat that as 0% with the fresh resets_at, not "no data".
+  return { usedPercent: raw.utilization ?? 0, resetAt: raw.resets_at }
 }
 
 function parseUsageResponse(raw: RawUsageResponse): UsageUpdate | null {
