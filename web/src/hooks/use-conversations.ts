@@ -1,5 +1,6 @@
 import type { DialogLayout, DialogResult } from '@shared/dialog-schema'
 import type { RclaudePermissionConfig, TerminationSource } from '@shared/protocol'
+import { useRef } from 'react'
 import { create } from 'zustand'
 import {
   type ControlPanelPrefs,
@@ -432,6 +433,76 @@ export function buildConversationsById(sessions: Session[]): Record<string, Sess
   const map: Record<string, Session> = {}
   for (const s of sessions) map[s.id] = s
   return map
+}
+
+// Slim shape containing only the fields ProjectList uses to compute
+// groupings, sorting, filtering, and rollups. Anything outside this set
+// (token counts, recap, stats, gitBranch, etc.) is consumed by leaf
+// components subscribed by id -- ProjectList itself stays stable when
+// only those fields change.
+export type ConversationStructure = {
+  id: string
+  project: string
+  status: Session['status']
+  capabilities?: string[]
+  startedAt: number
+  lastActivity: number
+}
+
+function toStructure(s: Session): ConversationStructure {
+  return {
+    id: s.id,
+    project: s.project,
+    status: s.status,
+    capabilities: s.capabilities,
+    startedAt: s.startedAt,
+    lastActivity: s.lastActivity,
+  }
+}
+
+function capabilitiesEqual(a: string[] | undefined, b: string[] | undefined): boolean {
+  if (a === b) return true
+  if (!a || !b || a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+function structureItemEqual(x: ConversationStructure, y: ConversationStructure): boolean {
+  if (x === y) return true
+  return (
+    x.id === y.id &&
+    x.project === y.project &&
+    x.status === y.status &&
+    x.startedAt === y.startedAt &&
+    x.lastActivity === y.lastActivity &&
+    capabilitiesEqual(x.capabilities, y.capabilities)
+  )
+}
+
+function structureArrayEqual(a: ConversationStructure[], b: ConversationStructure[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (!structureItemEqual(a[i], b[i])) return false
+  }
+  return true
+}
+
+// Caller subscribes to the structural shape only -- skips re-renders when
+// session updates touch fields outside ConversationStructure. Mirrors
+// useShallow's pattern (component-scoped useRef cache, selector closes
+// over it) but with field-level equality instead of shallow.
+export function useConversationStructure(): ConversationStructure[] {
+  const prevRef = useRef<ConversationStructure[] | null>(null)
+  return useConversationsStore(s => {
+    const next = s.sessions.map(toStructure)
+    const prev = prevRef.current
+    if (prev && structureArrayEqual(prev, next)) return prev
+    prevRef.current = next
+    return next
+  })
 }
 
 /**

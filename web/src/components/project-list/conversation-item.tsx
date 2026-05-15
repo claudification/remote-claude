@@ -1,5 +1,6 @@
 import { Clock } from 'lucide-react'
 import { memo, type ReactNode, useEffect, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import {
   formatCost,
@@ -1209,14 +1210,32 @@ export const ConversationCard = memo(function SessionCard({ session }: { session
   )
 })
 
+// ─── Compact peek (used for the "selected session" preview inside a
+// collapsed group). Subscribes to a single session by id so the peek
+// re-renders independently of ProjectList. ──────────────────────────
+
+export const ConversationCompactPeek = memo(function ConversationCompactPeek({
+  conversationId,
+}: {
+  conversationId: string
+}) {
+  const session = useConversationsStore(s => s.sessionsById[conversationId])
+  if (!session) return null
+  return <ConversationItemCompact session={session} />
+})
+
 // ─── Inactive project item ────────────────────────────────────────
 
 export const InactiveProjectItem = memo(
-  function InactiveProjectItem({ sessions }: { sessions: Session[] }) {
+  function InactiveProjectItem({ conversationIds }: { conversationIds: string[] }) {
     const [showSettings, setShowSettings] = useState(false)
     const selectConversation = useConversationsStore(s => s.selectConversation)
-    const latest = sessions.reduce((a, b) => (a.lastActivity > b.lastActivity ? a : b))
-    const ps = useConversationsStore(s => s.projectSettings[latest.project])
+    const sessions = useConversationsStore(
+      useShallow(s => conversationIds.map(id => s.sessionsById[id]).filter(Boolean) as Session[]),
+    )
+    const latest = sessions.length > 0 ? sessions.reduce((a, b) => (a.lastActivity > b.lastActivity ? a : b)) : null
+    const ps = useConversationsStore(s => (latest ? s.projectSettings[latest.project] : undefined))
+    if (!latest) return null
     const displayName = projectDisplayName(projectPath(latest.project), ps?.label)
     const displayColor = ps?.color
 
@@ -1264,9 +1283,9 @@ export const InactiveProjectItem = memo(
     )
   },
   (prev, next) => {
-    if (prev.sessions.length !== next.sessions.length) return false
-    for (let i = 0; i < prev.sessions.length; i++) {
-      if (prev.sessions[i] !== next.sessions[i]) return false
+    if (prev.conversationIds.length !== next.conversationIds.length) return false
+    for (let i = 0; i < prev.conversationIds.length; i++) {
+      if (prev.conversationIds[i] !== next.conversationIds[i]) return false
     }
     return true
   },

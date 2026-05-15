@@ -2,7 +2,7 @@ import { useDroppable } from '@dnd-kit/core'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import type { ProjectOrderGroup, Session } from '@/lib/types'
+import type { ProjectOrderGroup } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 
 // ─── Sortable agent host ──────────────────────────────────────────────
@@ -41,13 +41,13 @@ export function NewGroupDropTarget() {
 
 export function GroupNode({
   group,
-  sessionsByCwd,
+  idsByProject,
   collapsed,
   onToggle,
   onRename,
 }: {
   group: ProjectOrderGroup
-  sessionsByCwd: Map<string, Session[]>
+  idsByProject: Map<string, string[]>
   collapsed: boolean
   onToggle: () => void
   onRename: (newName: string) => void
@@ -63,7 +63,7 @@ export function GroupNode({
   const childCount = collapsed
     ? group.children.filter(c => {
         if (c.type === 'project') {
-          return sessionsByCwd.has(c.id)
+          return idsByProject.has(c.id)
         }
         return true
       }).length

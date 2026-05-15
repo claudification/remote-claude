@@ -1,5 +1,6 @@
 import { Pin } from 'lucide-react'
 import { memo, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import type { Session } from '@/lib/types'
 import { extractProjectLabel, projectPath } from '@/lib/types'
@@ -10,7 +11,7 @@ import { ConversationCard, ConversationItemCompact } from './conversation-item'
 import { InlineConfirmButton } from './inline-confirm-button'
 import { partitionConversations } from './partition'
 
-function sessionsEqual(a: Session[], b: Session[]): boolean {
+function idsEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) {
     if (a[i] !== b[i]) return false
@@ -20,16 +21,16 @@ function sessionsEqual(a: Session[], b: Session[]): boolean {
 
 // ─── Dismiss all ended conversations button ────────────────────────────
 
-function DismissAllEndedButton({ ended }: { ended: Session[] }) {
+function DismissAllEndedButton({ endedIds }: { endedIds: string[] }) {
   const dismissConversation = useConversationsStore(s => s.dismissConversation)
-  if (ended.length === 0) return null
+  if (endedIds.length === 0) return null
 
   return (
     <InlineConfirmButton
       onConfirm={() => {
-        for (const s of ended) dismissConversation(s.id)
+        for (const id of endedIds) dismissConversation(id)
       }}
-      confirmLabel={<span className="text-muted-foreground">dismiss {ended.length}?</span>}
+      confirmLabel={<span className="text-muted-foreground">dismiss {endedIds.length}?</span>}
       trigger={requestConfirm => (
         <div
           role="button"
@@ -39,9 +40,9 @@ function DismissAllEndedButton({ ended }: { ended: Session[] }) {
             if (e.key === 'Enter' || e.key === ' ') requestConfirm(e)
           }}
           className="text-[9px] text-muted-foreground/40 hover:text-destructive cursor-pointer px-1 transition-colors"
-          title={`Dismiss ${ended.length} ended conversation${ended.length > 1 ? 's' : ''}`}
+          title={`Dismiss ${endedIds.length} ended conversation${endedIds.length > 1 ? 's' : ''}`}
         >
-          {'\u2715'} ended
+          {'✕'} ended
         </div>
       )}
     />
@@ -49,22 +50,32 @@ function DismissAllEndedButton({ ended }: { ended: Session[] }) {
 }
 
 // ─── Multi-session project card ────────────────────────────────────
-
+//
+// Resolves the full Session list from the store using the conversationIds
+// list (stable ref from the parent). Re-renders only when one of the
+// referenced sessions' identity changes (because zustand's selector
+// short-circuits when the resolved array is shallow-equal to the previous).
 const ProjectSessionGroup = memo(
-  function ProjectSessionGroup({ sessions, project }: { sessions: Session[]; project: string }) {
+  function ProjectSessionGroup({ conversationIds, project }: { conversationIds: string[]; project: string }) {
     const [showSettings, setShowSettings] = useState(false)
     const ps = useConversationsStore(s => s.projectSettings[project])
     const selectProject = useConversationsStore(s => s.selectProject)
     const displayName = ps?.label || extractProjectLabel(project)
     const displayColor = ps?.color
+    // Hydrate sessions from the per-id index. Sessions whose identity didn't
+    // change keep the same reference -- useShallow short-circuits when none
+    // of the elements changed.
+    const sessions = useConversationsStore(
+      useShallow(s => conversationIds.map(id => s.sessionsById[id]).filter(Boolean) as Session[]),
+    )
     const { adhoc, normal, ended } = partitionConversations(sessions)
     // Project-level rollups: any conversation in this project needing attention?
     const hasPendingPermission = useConversationsStore(s => {
-      const ids = new Set(sessions.map(x => x.id))
+      const ids = new Set(conversationIds)
       return s.pendingPermissions.some(p => ids.has(p.conversationId))
     })
     const hasPendingLink = useConversationsStore(s => {
-      const ids = new Set(sessions.map(x => x.id))
+      const ids = new Set(conversationIds)
       return s.pendingProjectLinks.some(r => ids.has(r.fromConversation) || ids.has(r.toConversation))
     })
     const hasPendingAttention = sessions.some(s => s.pendingAttention)
@@ -124,7 +135,7 @@ const ProjectSessionGroup = memo(
                 <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>
               )}
               {hasNotification && <span className="text-[9px] text-teal-400 font-bold">NOTIFY</span>}
-              {ended.length > 0 && <DismissAllEndedButton ended={ended} />}
+              {ended.length > 0 && <DismissAllEndedButton endedIds={ended.map(s => s.id)} />}
               <ProjectSettingsButton
                 onClick={e => {
                   e.stopPropagation()
@@ -161,7 +172,7 @@ const ProjectSessionGroup = memo(
       </div>
     )
   },
-  (prev, next) => prev.project === next.project && sessionsEqual(prev.sessions, next.sessions),
+  (prev, next) => prev.project === next.project && idsEqual(prev.conversationIds, next.conversationIds),
 )
 
 // ─── Pinned project node (no active conversations) ────────────────
@@ -218,20 +229,28 @@ export function PinnedProjectNode({ project }: { project: string }) {
   )
 }
 
+// ─── Single-session card subscribed by id ───────────────────────────
+
+const ConversationCardById = memo(function ConversationCardById({ conversationId }: { conversationId: string }) {
+  const session = useConversationsStore(s => s.sessionsById[conversationId])
+  if (!session) return null
+  return <ConversationCard session={session} />
+})
+
 // ─── Project node renderer (single or multi-session) ─────────────
 
 export const ProjectNode = memo(
-  function ProjectNode({ project, sessions }: { project: string; sessions: Session[] }) {
+  function ProjectNode({ project, conversationIds }: { project: string; conversationIds: string[] }) {
     const isPinned = useConversationsStore(s => s.projectSettings[project]?.pinned)
-    if (sessions.length === 1) {
+    if (conversationIds.length === 1) {
       return (
         <div className="relative">
-          <ConversationCard session={sessions[0]} />
+          <ConversationCardById conversationId={conversationIds[0]} />
           {isPinned && <Pin className="absolute top-2 right-8 h-2.5 w-2.5 text-muted-foreground/25" />}
         </div>
       )
     }
-    return <ProjectSessionGroup sessions={sessions} project={project} />
+    return <ProjectSessionGroup conversationIds={conversationIds} project={project} />
   },
-  (prev, next) => prev.project === next.project && sessionsEqual(prev.sessions, next.sessions),
+  (prev, next) => prev.project === next.project && idsEqual(prev.conversationIds, next.conversationIds),
 )

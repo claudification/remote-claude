@@ -9,21 +9,27 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { saveProjectOrder, useConversationsStore } from '@/hooks/use-conversations'
-import type { ProjectOrder, ProjectOrderGroup, ProjectOrderNode, Session } from '@/lib/types'
+import {
+  type ConversationStructure,
+  saveProjectOrder,
+  useConversationStructure,
+  useConversationsStore,
+} from '@/hooks/use-conversations'
+import type { ProjectOrder, ProjectOrderGroup, ProjectOrderNode } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { MaybeProfiler } from './perf-profiler'
-import { ConversationItemCompact, InactiveProjectItem } from './project-list/conversation-item'
+import { ConversationCompactPeek, InactiveProjectItem } from './project-list/conversation-item'
 import { GroupNode, NewGroupDropTarget, SortableNode } from './project-list/conversation-sorting'
 import { PinnedProjectNode, ProjectNode } from './project-list/project-node'
 
 // ─── Main ProjectList ──────────────────────────────────────────────
 
 export function ProjectList() {
-  // Server already filters sessions_list by grants (filterConversationsByGrants) --
-  // if a conversation made it here, the user has chat:read for its project.
-  const sessions = useConversationsStore(s => s.sessions)
-  const sessionsById = useConversationsStore(s => s.sessionsById)
+  // Subscribes only to the structural shape (id+project+status+capabilities+
+  // startedAt+lastActivity). Per-session field churn (tokenUsage, recap,
+  // stats, gitBranch, streaming text) does NOT re-render ProjectList --
+  // leaf items subscribe to their own session by id and render in isolation.
+  const structure = useConversationStructure()
   const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
   const rawProjectOrder = useConversationsStore(s => s.projectOrder)
   const projectOrder = rawProjectOrder?.tree ? rawProjectOrder : { tree: [] }
@@ -48,27 +54,34 @@ export function ProjectList() {
     return () => clearInterval(t)
   }, [])
 
-  // Group all conversations by project URI
-  const sessionsByCwd = useMemo(() => {
-    const map = new Map<string, Session[]>()
-    for (const s of sessions) {
+  // Single id -> structure index shared by the grouping memos below.
+  const structureById = useMemo(() => {
+    const map = new Map<string, ConversationStructure>()
+    for (const s of structure) map.set(s.id, s)
+    return map
+  }, [structure])
+
+  // Group conversation IDs by project URI.
+  const idsByProject = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const s of structure) {
       const group = map.get(s.project) || []
-      group.push(s)
+      group.push(s.id)
       map.set(s.project, group)
     }
     return map
-  }, [sessions])
+  }, [structure])
 
-  // Filtered view: hide ended conversations from project groups when toggle is off
-  const visibleConversationsByCwd = useMemo(() => {
-    if (showEnded) return sessionsByCwd
-    const map = new Map<string, Session[]>()
-    for (const [project, group] of sessionsByCwd) {
-      const filtered = group.filter(s => s.status !== 'ended')
+  // Filtered view: hide ended conversations from project groups when toggle is off.
+  const visibleIdsByProject = useMemo(() => {
+    if (showEnded) return idsByProject
+    const map = new Map<string, string[]>()
+    for (const [project, ids] of idsByProject) {
+      const filtered = ids.filter(id => structureById.get(id)?.status !== 'ended')
       if (filtered.length > 0) map.set(project, filtered)
     }
     return map
-  }, [sessionsByCwd, showEnded])
+  }, [idsByProject, showEnded, structureById])
 
   // Track which projects are in the organized tree (by project URI).
   const treeProjects = useMemo(() => {
@@ -90,42 +103,40 @@ export function ProjectList() {
   const pinnedNotInTree = useMemo(() => {
     const result: string[] = []
     for (const [uri, ps] of Object.entries(projectSettings)) {
-      if (ps.pinned && !treeProjects.has(uri) && !visibleConversationsByCwd.has(uri)) {
+      if (ps.pinned && !treeProjects.has(uri) && !visibleIdsByProject.has(uri)) {
         result.push(uri)
       }
     }
     return result
-  }, [projectSettings, treeProjects, visibleConversationsByCwd])
+  }, [projectSettings, treeProjects, visibleIdsByProject])
 
-  // Unorganized active conversations (uses visibleConversationsByCwd to respect showEnded filter)
+  // Unorganized active conversations (uses visibleIdsByProject to respect showEnded filter)
   const unorganized = useMemo(() => {
     const seen = new Set<string>()
-    const result: Array<{ project: string; sessions: Session[] }> = []
-    for (const s of sessions) {
+    const result: Array<{ project: string; conversationIds: string[] }> = []
+    for (const s of structure) {
       if (s.status !== 'ended' && !treeProjects.has(s.project) && !seen.has(s.project)) {
         seen.add(s.project)
-        const projectConversations = visibleConversationsByCwd.get(s.project) || []
-        if (projectConversations.length > 0) result.push({ project: s.project, sessions: projectConversations })
+        const ids = visibleIdsByProject.get(s.project) || []
+        if (ids.length > 0) result.push({ project: s.project, conversationIds: ids })
       }
     }
     result.sort((a, b) => {
-      // Ad-hoc-only groups sort below regular groups
-      const aAllAdHoc = a.sessions.every(s => s.capabilities?.includes('ad-hoc'))
-      const bAllAdHoc = b.sessions.every(s => s.capabilities?.includes('ad-hoc'))
+      const aAllAdHoc = a.conversationIds.every(id => structureById.get(id)?.capabilities?.includes('ad-hoc'))
+      const bAllAdHoc = b.conversationIds.every(id => structureById.get(id)?.capabilities?.includes('ad-hoc'))
       if (aAllAdHoc !== bAllAdHoc) return aAllAdHoc ? 1 : -1
-      // Within same tier, sort by most recent
-      const aMax = Math.max(...a.sessions.map(s => s.startedAt))
-      const bMax = Math.max(...b.sessions.map(s => s.startedAt))
+      const aMax = Math.max(...a.conversationIds.map(id => structureById.get(id)?.startedAt ?? 0))
+      const bMax = Math.max(...b.conversationIds.map(id => structureById.get(id)?.startedAt ?? 0))
       return bMax - aMax
     })
     return result
-  }, [sessions, treeProjects, visibleConversationsByCwd])
+  }, [structure, treeProjects, visibleIdsByProject, structureById])
 
   // Inactive sessions (ended, not in tree, not in unorganized)
   const inactive = useMemo(() => {
-    const activeProjects = new Set(sessions.filter(s => s.status !== 'ended').map(s => s.project))
-    const byProject = new Map<string, Session[]>()
-    for (const s of sessions) {
+    const activeProjects = new Set(structure.filter(s => s.status !== 'ended').map(s => s.project))
+    const byProject = new Map<string, ConversationStructure[]>()
+    for (const s of structure) {
       if (s.status === 'ended' && !treeProjects.has(s.project) && !activeProjects.has(s.project)) {
         const group = byProject.get(s.project) || []
         group.push(s)
@@ -137,7 +148,7 @@ export function ProjectList() {
       const bMax = Math.max(...b.map(s => s.lastActivity))
       return bMax - aMax
     })
-  }, [sessions, treeProjects])
+  }, [structure, treeProjects])
 
   // Toggle group collapse
   function toggleGroup(groupId: string) {
@@ -342,7 +353,7 @@ export function ProjectList() {
     saveProjectOrder(newOrder)
   }
 
-  if (sessions.length === 0) {
+  if (structure.length === 0) {
     return (
       <div className="text-muted-foreground text-center py-10">
         <pre className="text-xs mb-4">
@@ -358,6 +369,9 @@ export function ProjectList() {
   }
 
   const hasOrganized = projectOrder.tree.length > 0
+  // Project URI of the currently-selected conversation, looked up lazily
+  // from the structural shape so we don't have to subscribe to sessionsById.
+  const selectedProject = selectedConversationId ? structure.find(s => s.id === selectedConversationId)?.project : null
 
   return (
     <MaybeProfiler id="ProjectList">
@@ -378,7 +392,7 @@ export function ProjectList() {
                   <SortableNode key={node.id} id={node.id}>
                     <GroupNode
                       group={node}
-                      sessionsByCwd={visibleConversationsByCwd}
+                      idsByProject={visibleIdsByProject}
                       collapsed={isCollapsed}
                       onToggle={() => toggleGroup(node.id)}
                       onRename={name => handleRename(node.id, name)}
@@ -388,8 +402,8 @@ export function ProjectList() {
                         {node.children.map(child => {
                           if (child.type === 'group') return null
                           const childProject = child.id
-                          const childConversations = visibleConversationsByCwd.get(childProject)
-                          if (!childConversations || childConversations.length === 0) {
+                          const childIds = visibleIdsByProject.get(childProject)
+                          if (!childIds || childIds.length === 0) {
                             if (projectSettings[childProject]?.pinned) {
                               return (
                                 <SortableNode key={child.id} id={child.id}>
@@ -401,32 +415,26 @@ export function ProjectList() {
                           }
                           return (
                             <SortableNode key={child.id} id={child.id}>
-                              <ProjectNode project={childProject} sessions={childConversations} />
+                              <ProjectNode project={childProject} conversationIds={childIds} />
                             </SortableNode>
                           )
                         })}
                       </div>
-                    ) : (
-                      (() => {
-                        // Peek: show selected session even when group is collapsed
-                        if (!selectedConversationId) return null
-                        const selectedConversation = sessionsById[selectedConversationId]
-                        if (!selectedConversation) return null
-                        if (!node.children.some(c => c.id === selectedConversation.project)) return null
-                        return (
-                          <div className="opacity-80">
-                            <ConversationItemCompact session={selectedConversation} />
-                          </div>
-                        )
-                      })()
-                    )}
+                    ) : // Peek: show selected session even when group is collapsed.
+                    // Use a per-id subscribed wrapper so the peek re-renders
+                    // independently of ProjectList.
+                    selectedConversationId && selectedProject && node.children.some(c => c.id === selectedProject) ? (
+                      <div className="opacity-80">
+                        <ConversationCompactPeek conversationId={selectedConversationId} />
+                      </div>
+                    ) : null}
                   </SortableNode>
                 )
               }
               // Root-level session node
               const nodeProject = node.id
-              const nodeConversations = visibleConversationsByCwd.get(nodeProject)
-              if (!nodeConversations || nodeConversations.length === 0) {
+              const nodeIds = visibleIdsByProject.get(nodeProject)
+              if (!nodeIds || nodeIds.length === 0) {
                 if (projectSettings[nodeProject]?.pinned) {
                   return (
                     <SortableNode key={node.id} id={node.id}>
@@ -438,7 +446,7 @@ export function ProjectList() {
               }
               return (
                 <SortableNode key={node.id} id={node.id}>
-                  <ProjectNode project={nodeProject} sessions={nodeConversations} />
+                  <ProjectNode project={nodeProject} conversationIds={nodeIds} />
                 </SortableNode>
               )
             })}
@@ -468,11 +476,16 @@ export function ProjectList() {
                       <PinnedProjectNode project={uri} />
                     </SortableNode>
                   ))}
-                  {unorganized.map(({ project, sessions: projectConversations }, i) => {
+                  {unorganized.map(({ project, conversationIds }, i) => {
                     // Insert separator before first ad-hoc-only group
-                    const isAllAdHoc = projectConversations.every(s => s.capabilities?.includes('ad-hoc'))
+                    const isAllAdHoc = conversationIds.every(id =>
+                      structureById.get(id)?.capabilities?.includes('ad-hoc'),
+                    )
                     const prevIsRegular =
-                      i > 0 && !unorganized[i - 1].sessions.every(s => s.capabilities?.includes('ad-hoc'))
+                      i > 0 &&
+                      !unorganized[i - 1].conversationIds.every(id =>
+                        structureById.get(id)?.capabilities?.includes('ad-hoc'),
+                      )
                     const showAdHocSeparator = isAllAdHoc && (i === 0 || prevIsRegular)
                     return (
                       <div key={project}>
@@ -484,7 +497,7 @@ export function ProjectList() {
                           </div>
                         )}
                         <SortableNode id={project}>
-                          <ProjectNode project={project} sessions={projectConversations} />
+                          <ProjectNode project={project} conversationIds={conversationIds} />
                         </SortableNode>
                       </div>
                     )
@@ -507,7 +520,8 @@ export function ProjectList() {
             show inactive ({inactive.length})
           </label>
         )}
-        {showInactive && inactive.map(group => <InactiveProjectItem key={group[0].project} sessions={group} />)}
+        {showInactive &&
+          inactive.map(group => <InactiveProjectItem key={group[0].project} conversationIds={group.map(s => s.id)} />)}
       </div>
     </MaybeProfiler>
   )
