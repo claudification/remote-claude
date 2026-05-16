@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite'
 import { join } from 'node:path'
-import type { RecapAudience } from '../../../shared/protocol'
+import type { RecapAudience, RecapMeta } from '../../../shared/protocol'
 
 export type RecapStatus = 'queued' | 'gathering' | 'rendering' | 'done' | 'failed' | 'cancelled'
 export type RecapPeriodLabel = 'today' | 'yesterday' | 'last_7' | 'last_30' | 'this_week' | 'this_month' | 'custom'
@@ -476,5 +476,37 @@ function safeParseJson(value: string): unknown {
     return JSON.parse(value)
   } catch {
     return value
+  }
+}
+
+/**
+ * Map a stored row to the wire `RecapMeta` shape. Shared by the period
+ * orchestrator (recap_complete) and the orchestrator singleton (rowToDoc)
+ * so the field mapping lives in exactly one place.
+ */
+// fallow-ignore-next-line complexity
+export function rowToRecapMeta(row: RecapRow): RecapMeta {
+  return {
+    recapId: row.id,
+    projectUri: row.projectUri,
+    periodLabel: row.periodLabel,
+    periodStart: row.periodStart,
+    periodEnd: row.periodEnd,
+    timeZone: row.timeZone,
+    audience: row.audience,
+    status: row.status,
+    progress: row.progress,
+    phase: row.phase ?? undefined,
+    model: row.model ?? undefined,
+    inputChars: row.inputChars,
+    inputTokens: row.inputTokens,
+    outputTokens: row.outputTokens,
+    llmCostUsd: row.llmCostUsd,
+    title: row.title ?? undefined,
+    subtitle: row.subtitle ?? undefined,
+    error: row.error ?? undefined,
+    createdAt: row.createdAt,
+    startedAt: row.startedAt ?? undefined,
+    completedAt: row.completedAt ?? undefined,
   }
 }

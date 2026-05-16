@@ -95,12 +95,16 @@ export interface ExtractOptions {
  * and stops treating mid-turn tool-result entries as turn boundaries, so
  * the capture spans the whole turn rather than the first assistant block.
  */
-export function extractUserPromptsAndFinals(entries: TranscriptEntry[], opts: ExtractOptions = {}): PeriodTurn[] {
-  const limits: ExtractLimits = {
+function resolveLimits(opts: ExtractOptions): ExtractLimits {
+  return {
     prompt: opts.maxPromptChars ?? 2000,
     final: opts.maxFinalChars ?? 4000,
     internals: opts.maxInternalsChars ?? 3000,
   }
+}
+
+export function extractUserPromptsAndFinals(entries: TranscriptEntry[], opts: ExtractOptions = {}): PeriodTurn[] {
+  const limits = resolveLimits(opts)
   const includeInternals = opts.includeInternals === true
   const acc: { turns: PeriodTurn[]; pending: PendingTurn | null } = { turns: [], pending: null }
   for (const entry of entries) ingestEntry(entry, acc, limits, includeInternals)
@@ -143,20 +147,25 @@ function ingestEntry(
 
 function flushPending(acc: { turns: PeriodTurn[]; pending: PendingTurn | null }, limits: ExtractLimits): void {
   if (!acc.pending) return
-  const finalText = acc.pending.assistantTexts.join(' ').trim()
-  if (acc.pending.prompt.trim() || finalText) {
-    const turn: PeriodTurn = {
-      turnIndex: acc.turns.length,
-      timestamp: acc.pending.ts,
-      userPrompt: capWithMarker(acc.pending.prompt, limits.prompt),
-      assistantFinal: capWithMarker(finalText, limits.final),
-    }
-    if (acc.pending.internals.length > 0) {
-      turn.internals = capWithMarker(acc.pending.internals.join('\n'), limits.internals)
-    }
-    acc.turns.push(turn)
-  }
+  const turn = buildTurn(acc.pending, acc.turns.length, limits)
+  if (turn) acc.turns.push(turn)
   acc.pending = null
+}
+
+/** Materialise a pending turn, or null when it carries no prompt and no reply. */
+function buildTurn(pending: PendingTurn, turnIndex: number, limits: ExtractLimits): PeriodTurn | null {
+  const finalText = pending.assistantTexts.join(' ').trim()
+  if (!pending.prompt.trim() && !finalText) return null
+  const turn: PeriodTurn = {
+    turnIndex,
+    timestamp: pending.ts,
+    userPrompt: capWithMarker(pending.prompt, limits.prompt),
+    assistantFinal: capWithMarker(finalText, limits.final),
+  }
+  if (pending.internals.length > 0) {
+    turn.internals = capWithMarker(pending.internals.join('\n'), limits.internals)
+  }
+  return turn
 }
 
 function parseTimestamp(ts: string | number | undefined): number {
@@ -178,8 +187,7 @@ function capWithMarker(text: string, max: number): string {
 function blocksOfType(content: unknown, type: string): Array<Record<string, unknown>> {
   if (!Array.isArray(content)) return []
   return content.filter(
-    (b): b is Record<string, unknown> =>
-      typeof b === 'object' && b !== null && (b as { type?: string }).type === type,
+    (b): b is Record<string, unknown> => typeof b === 'object' && b !== null && (b as { type?: string }).type === type,
   )
 }
 
@@ -198,21 +206,20 @@ function extractToolErrors(entry: TranscriptUserEntry): string[] {
     .map(block => `[error] ${compactValue((block as { content?: unknown }).content, 160)}`)
 }
 
+/** Best-effort text out of one content-array item (a string or a {text} block). */
+function arrayItemText(item: unknown): string {
+  if (typeof item === 'string') return item
+  const text = (item as { text?: unknown } | null)?.text
+  return text == null ? '' : String(text)
+}
+
 // fallow-ignore-next-line complexity
 function compactValue(value: unknown, max: number): string {
   let text: string
   if (typeof value === 'string') {
     text = value
   } else if (Array.isArray(value)) {
-    text = value
-      .map(item =>
-        typeof item === 'string'
-          ? item
-          : typeof item === 'object' && item !== null && 'text' in item
-            ? String((item as { text: unknown }).text)
-            : '',
-      )
-      .join(' ')
+    text = value.map(arrayItemText).join(' ')
   } else if (value === null || value === undefined) {
     text = ''
   } else {

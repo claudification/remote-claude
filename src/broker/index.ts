@@ -413,7 +413,12 @@ async function main() {
         return
       }
       ws.send(
-        JSON.stringify({ type: 'system_channel_deliver', kind: 'recap-completed', recapId: msg.recapId, text: msg.text }),
+        JSON.stringify({
+          type: 'system_channel_deliver',
+          kind: 'recap-completed',
+          recapId: msg.recapId,
+          text: msg.text,
+        }),
       )
       console.log(`[recap] inform delivered -> conversation ${conversationId.slice(0, 8)} (recap=${msg.recapId})`)
     },

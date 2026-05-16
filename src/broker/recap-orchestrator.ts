@@ -8,7 +8,7 @@ import type {
 } from '../shared/protocol'
 import { type StartArgs, type StartResult, startRecap } from './recap/period/orchestrator'
 import type { ProgressBroadcaster } from './recap/period/progress'
-import { createPeriodRecapStore, type PeriodRecapStore, type RecapRow } from './recap/period/store'
+import { createPeriodRecapStore, type PeriodRecapStore, type RecapRow, rowToRecapMeta } from './recap/period/store'
 import type { StoreDriver } from './store/types'
 
 let singleton: RecapOrchestrator | null = null
@@ -119,28 +119,5 @@ function rowToSummary(row: RecapRow): RecapSummary {
 }
 
 function rowToDoc(row: RecapRow): PeriodRecapDoc {
-  return {
-    recapId: row.id,
-    projectUri: row.projectUri,
-    periodLabel: row.periodLabel as RecapPeriodLabel,
-    periodStart: row.periodStart,
-    periodEnd: row.periodEnd,
-    timeZone: row.timeZone,
-    audience: row.audience,
-    status: row.status,
-    progress: row.progress,
-    phase: row.phase ?? undefined,
-    model: row.model ?? undefined,
-    inputChars: row.inputChars,
-    inputTokens: row.inputTokens,
-    outputTokens: row.outputTokens,
-    llmCostUsd: row.llmCostUsd,
-    title: row.title ?? undefined,
-    subtitle: row.subtitle ?? undefined,
-    error: row.error ?? undefined,
-    createdAt: row.createdAt,
-    startedAt: row.startedAt ?? undefined,
-    completedAt: row.completedAt ?? undefined,
-    markdown: row.markdown ?? undefined,
-  }
+  return { ...rowToRecapMeta(row), markdown: row.markdown ?? undefined }
 }

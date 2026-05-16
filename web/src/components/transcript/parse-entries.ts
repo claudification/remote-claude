@@ -79,22 +79,27 @@ function parseChannelContent(channelMatch: RegExpMatchArray, items: RenderItem[]
       dialogAction: action || undefined,
     })
   } else if (source === 'rclaude' && sender === 'system') {
-    const systemKind = getAttr('spawn_result') || getAttr('event') || getAttr('kind') || undefined
-    const recapId = getAttr('recap_id')
-    items.push({
-      kind: 'channel',
-      text: msg,
-      source: 'system',
-      isSystem: true,
-      systemKind,
-      ...(recapId ? { recapId } : {}),
-    })
+    pushSystemChannelItem(getAttr, msg, items)
   } else if (source === 'rclaude') {
     const pt = parseProjectTask(msg)
     items.push(pt || { kind: 'text', text: msg })
   } else {
     items.push({ kind: 'channel', text: msg, source })
   }
+}
+
+/** A `<channel source="rclaude" sender="system">` notice (spawn result, recap-completed, ...). */
+function pushSystemChannelItem(getAttr: (name: string) => string | undefined, msg: string, items: RenderItem[]): void {
+  const systemKind = getAttr('spawn_result') || getAttr('event') || getAttr('kind') || undefined
+  const recapId = getAttr('recap_id')
+  items.push({
+    kind: 'channel',
+    text: msg,
+    source: 'system',
+    isSystem: true,
+    systemKind,
+    ...(recapId ? { recapId } : {}),
+  })
 }
 
 function parseArrayContent(content: TranscriptContentBlock[], items: RenderItem[], getResult: ResultLookup): void {

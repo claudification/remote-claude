@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { RecapAudience, RecapCreateMessage, RecapPeriodLabel, RecapSignal } from '../../../shared/protocol'
+import type { RecapAudience, RecapCreateMessage, RecapSignal } from '../../../shared/protocol'
 import type { StoreDriver } from '../../store/types'
 import { chat } from '../shared/openrouter-client'
 import {
@@ -20,7 +20,7 @@ import { renderFinalMarkdown } from './render/markdown'
 import { buildFtsFields, denormalizeTags } from './render/metadata'
 import { parseRecapOutput, type RecapMetadata, RecapParseError } from './render/parse-recap'
 import { type ResolvedPeriod, resolvePeriod } from './resolve-period'
-import type { PeriodRecapStore } from './store'
+import { type PeriodRecapStore, rowToRecapMeta } from './store'
 
 const DEFAULT_SIGNALS: RecapSignal[] = [
   'user_prompts',
@@ -356,29 +356,7 @@ function finalize(deps: OrchestratorDeps, recapId: string, args: FinalizeArgs): 
 function rowToMeta(deps: OrchestratorDeps, recapId: string) {
   const row = deps.store.get(recapId)
   if (!row) throw new Error(`recap ${recapId} missing after finalize`)
-  return {
-    recapId: row.id,
-    projectUri: row.projectUri,
-    periodLabel: row.periodLabel as RecapPeriodLabel,
-    periodStart: row.periodStart,
-    periodEnd: row.periodEnd,
-    timeZone: row.timeZone,
-    audience: row.audience,
-    status: row.status,
-    progress: row.progress,
-    phase: row.phase ?? undefined,
-    model: row.model ?? undefined,
-    inputChars: row.inputChars,
-    inputTokens: row.inputTokens,
-    outputTokens: row.outputTokens,
-    llmCostUsd: row.llmCostUsd,
-    title: row.title ?? undefined,
-    subtitle: row.subtitle ?? undefined,
-    error: row.error ?? undefined,
-    createdAt: row.createdAt,
-    startedAt: row.startedAt ?? undefined,
-    completedAt: row.completedAt ?? undefined,
-  }
+  return rowToRecapMeta(row)
 }
 
 function defaultExpand(projectUri: string): string[] {

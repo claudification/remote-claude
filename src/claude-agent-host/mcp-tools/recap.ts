@@ -285,6 +285,8 @@ function recapCreateTool(ctx: McpToolContext): ToolDef {
       },
       required: ['projectUri', 'period'],
     },
+    // recap_create input validation -- branchy by nature
+    // fallow-ignore-next-line complexity
     async handle(params) {
       if (!hasBrokerRpcSender()) return notConnected()
       const raw = params as Record<string, unknown>

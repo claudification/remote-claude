@@ -678,7 +678,13 @@ function handleChannelDeliver(ctx: AgentHostContext, deps: BrokerConnectionDeps,
  * it as `<channel source="rclaude" sender="system" kind="...">` -- the shape
  * the web transcript parser recognises as a system channel message.
  */
-function handleSystemChannelDeliver(ctx: AgentHostContext, deps: BrokerConnectionDeps, delivery: SystemChannelDelivery) {
+// mirrors handleChannelDeliver's two transport branches
+// fallow-ignore-next-line complexity
+function handleSystemChannelDeliver(
+  ctx: AgentHostContext,
+  deps: BrokerConnectionDeps,
+  delivery: SystemChannelDelivery,
+) {
   if (deps.headless && ctx.streamProc) {
     const attrs = [
       `source="rclaude"`,
