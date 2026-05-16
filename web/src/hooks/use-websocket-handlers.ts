@@ -635,6 +635,17 @@ function handlePermissionAutoApproved(msg: DashboardMessage) {
   )
 }
 
+// Broker tells us a permission request was resolved (by this or another
+// session). Drop it from the pending list so the prompt clears everywhere.
+function handlePermissionDismiss(msg: DashboardMessage) {
+  const permRid = msg.requestId as string | undefined
+  if (!(msg.conversationId && permRid)) return
+  useConversationsStore.setState(state => {
+    if (!state.pendingPermissions.some(p => p.requestId === permRid)) return state
+    return { pendingPermissions: state.pendingPermissions.filter(p => p.requestId !== permRid) }
+  })
+}
+
 function handleAskQuestion(msg: DashboardMessage) {
   const askMsg = msg as DashboardMessage & {
     toolUseId?: string
@@ -661,6 +672,18 @@ function handleAskQuestion(msg: DashboardMessage) {
         },
       ],
     }
+  })
+}
+
+// Broker tells us an AskUserQuestion was resolved (by this or another session,
+// or agent-host side). Drop it from the pending list so the card clears
+// everywhere -- not just on the session that answered.
+function handleAskDismiss(msg: DashboardMessage) {
+  const askTuid = msg.toolUseId as string | undefined
+  if (!(msg.conversationId && askTuid)) return
+  useConversationsStore.setState(state => {
+    if (!state.pendingAskQuestions.some(q => q.toolUseId === askTuid)) return state
+    return { pendingAskQuestions: state.pendingAskQuestions.filter(q => q.toolUseId !== askTuid) }
   })
 }
 
@@ -981,8 +1004,10 @@ export const handlers: Record<string, MessageHandler> = {
   // prompts + dialogs
   channel_link_request: handleChannelLinkRequest,
   permission_request: handlePermissionRequest,
+  permission_dismiss: handlePermissionDismiss,
   permission_auto_approved: handlePermissionAutoApproved,
   ask_question: handleAskQuestion,
+  ask_dismiss: handleAskDismiss,
   dialog_show: handleDialogShow,
   dialog_dismiss: handleDialogDismiss,
   plan_approval: handlePlanApproval,

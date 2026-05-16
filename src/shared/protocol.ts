@@ -989,6 +989,15 @@ export interface AskQuestionResponse {
   skip?: boolean // true = fall through to terminal UI
 }
 
+// Broker -> dashboard broadcast: a pending AskUserQuestion was resolved (by any
+// session, or on the agent-host side). Tells every other subscriber to drop the
+// question card. Mirror of dialog_dismiss for the AskUserQuestion flow.
+export interface AskQuestionDismiss {
+  type: 'ask_dismiss'
+  conversationId: string
+  toolUseId: string
+}
+
 // Dialog MCP tool (channel-based rich UI for user interaction)
 export type { DialogComponent, DialogLayout, DialogResult } from './dialog-schema'
 
@@ -1057,6 +1066,15 @@ export interface PermissionResponse {
   requestId: string
   behavior: 'allow' | 'deny'
   toolUseId?: string
+}
+
+// Broker -> dashboard broadcast: a pending permission request was resolved (by
+// any session). Tells every other subscriber to drop the permission prompt.
+// Mirror of ask_dismiss / dialog_dismiss for the permission flow.
+export interface PermissionDismiss {
+  type: 'permission_dismiss'
+  conversationId: string
+  requestId: string
 }
 
 export type BrokerMessage =

@@ -7,6 +7,7 @@
  * - Clipboard capture notifications
  */
 
+import type { AskQuestionDismiss, PermissionDismiss } from '../../shared/protocol'
 import type { MessageHandler } from '../handler-context'
 import { AGENT_HOST_ONLY, DASHBOARD_ROLES, registerHandlers } from '../message-router'
 
@@ -54,30 +55,46 @@ const permissionRequest: MessageHandler = (ctx, data) => {
 
 // Permission relay: dashboard -> agent host (forward + clear stored state)
 const permissionResponse: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.conversationId) as string
+  const conversationId = data.conversationId as string
+  const requestId = data.requestId as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   if (conversation) ctx.requirePermission('chat', conversation.project)
+
+  // Forward the response to the agent host that owns this conversation.
   const targetWs = conversationId ? ctx.conversations.getConversationSocket(conversationId) : null
   if (targetWs) {
     targetWs.send(
       JSON.stringify({
         type: 'permission_response',
         conversationId: conversationId,
-        requestId: data.requestId,
+        requestId,
         behavior: data.behavior,
         toolUseId: data.toolUseId,
       }),
     )
-    // Clear pending permission state (resolved by user)
-    if (conversation) {
-      delete conversation.pendingPermission
-      if (conversation.pendingAttention?.type === 'permission') {
-        delete conversation.pendingAttention
-      }
-      ctx.conversations.persistConversationById(conversationId)
-      ctx.conversations.broadcastConversationUpdate(conversationId)
+    ctx.log.debug(`[permission] Response: ${requestId} -> ${data.behavior}`)
+  } else {
+    ctx.log.error(`[permission] No socket for conversation ${conversationId?.slice(0, 8)} (request ${requestId})`)
+  }
+
+  // Clear pending permission state (resolved by user) -- regardless of socket
+  // presence, so a reconnecting dashboard does not rehydrate a stale prompt.
+  if (conversation) {
+    delete conversation.pendingPermission
+    if (conversation.pendingAttention?.type === 'permission') {
+      delete conversation.pendingAttention
     }
-    ctx.log.debug(`[permission] Response: ${data.requestId} -> ${data.behavior}`)
+    ctx.conversations.persistConversationById(conversationId)
+    ctx.conversations.broadcastConversationUpdate(conversationId)
+  }
+
+  // Broadcast dismiss to other dashboard subscribers so the permission prompt
+  // disappears on every session, not just the one that answered.
+  if (conversation?.project) {
+    ctx.broadcastScoped(
+      { type: 'permission_dismiss', conversationId, requestId } satisfies PermissionDismiss,
+      conversation.project,
+    )
   }
 }
 
@@ -180,31 +197,47 @@ const askQuestion: MessageHandler = (ctx, data) => {
 
 // AskUserQuestion relay: dashboard -> agent host (forward + clear stored state)
 const askAnswer: MessageHandler = (ctx, data) => {
-  const conversationId = (data.conversationId || data.conversationId) as string
+  const conversationId = data.conversationId as string
+  const toolUseId = data.toolUseId as string
   const conversation = conversationId ? ctx.conversations.getConversation(conversationId) : undefined
   if (conversation) ctx.requirePermission('chat', conversation.project)
+
+  // Forward the answer to the agent host that owns this conversation.
   const targetWs = conversationId ? ctx.conversations.getConversationSocket(conversationId) : null
   if (targetWs) {
     targetWs.send(
       JSON.stringify({
         type: 'ask_answer',
         conversationId: conversationId,
-        toolUseId: data.toolUseId,
+        toolUseId,
         answers: data.answers,
         annotations: data.annotations,
         skip: data.skip,
       }),
     )
-    // Clear pending ask state (resolved by user)
-    if (conversation) {
-      delete conversation.pendingAskQuestion
-      if (conversation.pendingAttention?.type === 'ask') {
-        delete conversation.pendingAttention
-      }
-      ctx.conversations.persistConversationById(conversationId)
-      ctx.conversations.broadcastConversationUpdate(conversationId)
+    ctx.log.debug(`[ask] Answer: ${toolUseId?.slice(0, 12)} ${data.skip ? 'SKIP' : 'answered'}`)
+  } else {
+    ctx.log.error(`[ask] No socket for conversation ${conversationId?.slice(0, 8)} (ask ${toolUseId?.slice(0, 12)})`)
+  }
+
+  // Clear pending ask state (resolved by user) -- regardless of socket presence,
+  // so a reconnecting dashboard does not rehydrate a stale question card.
+  if (conversation) {
+    delete conversation.pendingAskQuestion
+    if (conversation.pendingAttention?.type === 'ask') {
+      delete conversation.pendingAttention
     }
-    ctx.log.debug(`[ask] Answer: ${(data.toolUseId as string)?.slice(0, 12)} ${data.skip ? 'SKIP' : 'answered'}`)
+    ctx.conversations.persistConversationById(conversationId)
+    ctx.conversations.broadcastConversationUpdate(conversationId)
+  }
+
+  // Broadcast dismiss to other dashboard subscribers so the question card
+  // disappears on every session, not just the one that answered.
+  if (conversation?.project) {
+    ctx.broadcastScoped(
+      { type: 'ask_dismiss', conversationId, toolUseId } satisfies AskQuestionDismiss,
+      conversation.project,
+    )
   }
 }
 
