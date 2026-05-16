@@ -419,7 +419,10 @@ function processHash() {
   const store = useConversationsStore.getState()
   if (mode === 'terminal') {
     store.openTerminal(id)
-  } else if (mode === 'session') {
+  } else if (mode === 'session' || mode === 'conversation') {
+    // `conversation` is the canonical fragment (push notification deep links
+    // from sw.js use it); `session` is the legacy form still emitted by the
+    // app's own nav and present in old bookmarks. Accept both.
     store.selectConversation(id, 'hash-route')
   } else if (mode === 'project') {
     store.selectProject(decodeURIComponent(id))
