@@ -224,7 +224,16 @@ const notify: MessageHandler = (ctx, data) => {
   console.log(`[notify] ${title}: ${message}`)
 
   if (ctx.push.configured) {
-    ctx.push.sendToAll({ title, body: message, conversationId, tag: `notify-${conversationId}` })
+    // `project` is required so sendToAll can scope delivery to users with the
+    // `notifications` permission for this project -- omitting it pushes to
+    // every subscriber regardless of access.
+    ctx.push.sendToAll({
+      title,
+      body: message,
+      conversationId,
+      project: conversation.project,
+      tag: `notify-${conversationId}`,
+    })
   }
 
   const toastMsg = { type: 'toast', title, message, conversationId: conversationId }
@@ -286,6 +295,8 @@ const end: MessageHandler = (ctx, data) => {
         ctx.push.sendToAll({
           title: 'Task completed',
           body: `${title} - completed in ${elapsedStr}${costStr}`,
+          conversationId,
+          project: conversation.project,
           data: { taskId: conversation.adHocTaskId, url: `/#task/${conversation.adHocTaskId}` },
           tag: `adhoc-${conversationId}`,
         })
