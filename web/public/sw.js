@@ -182,7 +182,7 @@ self.addEventListener('notificationclick', event => {
           if (taskId) {
             client.postMessage({ type: 'navigate-task', taskId })
           } else if (conversationId) {
-            client.postMessage({ type: 'navigate-session', conversationId })
+            client.postMessage({ type: 'navigate-conversation', conversationId })
           }
           return
         }

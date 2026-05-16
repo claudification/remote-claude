@@ -356,10 +356,13 @@ export function applyHashRoute() {
 
   // Listen for postMessage from service worker (notification click deep links)
   navigator.serviceWorker?.addEventListener('message', event => {
-    if (event.data?.type === 'navigate-session' && event.data.conversationId) {
-      useConversationsStore.getState().selectConversation(event.data.conversationId, 'sw-navigate-session')
+    const msgType = event.data?.type
+    // `navigate-conversation` is canonical; `navigate-session` is accepted for
+    // older cached service workers that haven't picked up the new build yet.
+    if ((msgType === 'navigate-conversation' || msgType === 'navigate-session') && event.data.conversationId) {
+      useConversationsStore.getState().selectConversation(event.data.conversationId, 'sw-navigate-conversation')
     }
-    if (event.data?.type === 'navigate-task' && event.data.taskId) {
+    if (msgType === 'navigate-task' && event.data.taskId) {
       window.dispatchEvent(new CustomEvent('open-project-task', { detail: { taskId: event.data.taskId } }))
     }
   })
@@ -419,10 +422,9 @@ function processHash() {
   const store = useConversationsStore.getState()
   if (mode === 'terminal') {
     store.openTerminal(id)
-  } else if (mode === 'session' || mode === 'conversation') {
-    // `conversation` is the canonical fragment (push notification deep links
-    // from sw.js use it); `session` is the legacy form still emitted by the
-    // app's own nav and present in old bookmarks. Accept both.
+  } else if (mode === 'conversation' || mode === 'session') {
+    // `conversation` is the canonical fragment. `session` is the legacy form,
+    // kept only so old bookmarks / tabs opened before the rename still resolve.
     store.selectConversation(id, 'hash-route')
   } else if (mode === 'project') {
     store.selectProject(decodeURIComponent(id))
@@ -858,7 +860,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
         ...closeTerminal,
       }
     })
-    updateHash(id ? `session/${id}` : '')
+    updateHash(id ? `conversation/${id}` : '')
     setLastConversationId(id)
     // Clear notification badge + bell notifications when viewing a conversation
     if (id) {
@@ -890,13 +892,13 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       requestedTab: tab,
       requestedTabSeq: state.requestedTabSeq + 1,
     }))
-    updateHash(`session/${conversationId}`)
+    updateHash(`conversation/${conversationId}`)
   },
   setShowTerminal: show => {
     set({ showTerminal: show, ...(!show && { terminalWrapperId: null }) })
     if (!show) {
       const { selectedConversationId } = get()
-      updateHash(selectedConversationId ? `session/${selectedConversationId}` : '')
+      updateHash(selectedConversationId ? `conversation/${selectedConversationId}` : '')
     }
   },
   setShowSwitcher: show => set({ showSwitcher: show }),

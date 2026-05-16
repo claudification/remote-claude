@@ -342,7 +342,7 @@ function ShareGate({ token }: { token: string }) {
             .then(r => (r.ok ? r.json() : null))
             .then(resolved => {
               const convId = resolved?.conversationId
-              window.location.hash = convId ? `session/${convId}` : ''
+              window.location.hash = convId ? `conversation/${convId}` : ''
               setMode('redirect')
             })
         } else {
