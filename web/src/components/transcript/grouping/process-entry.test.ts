@@ -1,5 +1,5 @@
-import type { TranscriptEntry } from '@/lib/types'
 import { describe, expect, it } from 'vitest'
+import type { TranscriptEntry } from '@/lib/types'
 import { processEntry } from './process-entry'
 import type { GroupingState } from './types'
 
