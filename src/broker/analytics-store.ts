@@ -259,6 +259,28 @@ function migrate(d: Database): void {
   } catch (err) {
     console.error('[analytics] project_uri migration failed:', err)
   }
+
+  // v1.0.0 hard break: session_id -> conversation_id everywhere. The other
+  // stores get the rename via migrateSessionColumns(); analytics.db has no
+  // `sessions` table so it slips past that, and the CREATE INDEX call in
+  // initAnalyticsStore would then blow up on the missing column.
+  try {
+    const turnCols = d.query("PRAGMA table_info('turns')").all() as Array<{ name: string }>
+    const hasSession = turnCols.some(c => c.name === 'session_id')
+    const hasConv = turnCols.some(c => c.name === 'conversation_id')
+    if (hasSession && !hasConv) {
+      d.run('DROP INDEX IF EXISTS idx_analytics_session')
+      d.run('ALTER TABLE turns RENAME COLUMN session_id TO conversation_id')
+      console.log('[analytics] Migrated turns: renamed session_id -> conversation_id')
+    }
+    const toolCols = d.query("PRAGMA table_info('tool_uses')").all() as Array<{ name: string }>
+    if (toolCols.some(c => c.name === 'session_id') && !toolCols.some(c => c.name === 'conversation_id')) {
+      d.run('ALTER TABLE tool_uses RENAME COLUMN session_id TO conversation_id')
+      console.log('[analytics] Migrated tool_uses: renamed session_id -> conversation_id')
+    }
+  } catch (err) {
+    console.error('[analytics] session_id -> conversation_id rename failed:', err)
+  }
 }
 
 /** Backfill project_id from cwd via project-store */

@@ -515,6 +515,19 @@ function migrateCostData(store: StoreDriver, cacheDir: string, result: Migration
       return
     }
 
+    // v1.0.0 hard break renamed session_id -> conversation_id. Legacy
+    // cost-data.db files from older brokers still have session_id, so pick
+    // whichever column is actually present and alias it.
+    const idCol = cols.some(c => c.name === 'conversation_id')
+      ? 'conversation_id'
+      : cols.some(c => c.name === 'session_id')
+        ? 'session_id'
+        : null
+    if (!idCol) {
+      result.warnings.push('cost-data.db: no conversation_id/session_id column on turns')
+      return
+    }
+
     // Prefer project_uri (post-migration DBs have already dropped the cwd column);
     // fall back to synthesizing a canonical URI from cwd for pre-migration DBs.
     // Emits `claude://default/{abs}` directly -- canonicalizeUris() will upgrade
@@ -530,7 +543,7 @@ function migrateCostData(store: StoreDriver, cacheDir: string, result: Migration
 
     const rows = legacy
       .query(
-        `SELECT timestamp, conversation_id, ${selectExpr} as project_uri,
+        `SELECT timestamp, ${idCol} as conversation_id, ${selectExpr} as project_uri,
           account, org_id, model,
           input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
           cost_usd, exact_cost
