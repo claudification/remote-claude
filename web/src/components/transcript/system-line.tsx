@@ -119,6 +119,26 @@ function describeSystemEntry(sub: string, entry: Record<string, unknown>, time: 
           : 'Scheduled task fired',
         color: 'text-amber-400/70',
       }
+    case 'hook_feedback': {
+      // Entry is a CC isMeta user entry (text at message.content), not a
+      // real system entry -- content[] is empty for these. Summarize the
+      // "<Event> hook feedback:\n<reason>" payload onto one line; the (i)
+      // JsonInspector carries the full text.
+      const msg = (entry.message as { content?: unknown } | undefined)?.content
+      const raw = typeof msg === 'string' ? msg : content
+      const lines = raw
+        .split('\n')
+        .map(l => l.trim())
+        .filter(Boolean)
+      const header = lines[0]?.replace(/\s*feedback:?\s*$/i, '') || 'Hook'
+      const reason = lines.slice(1).join(' ')
+      const summary = reason ? `${header}: ${reason}` : header
+      return {
+        kind: 'text',
+        text: summary.length > 160 ? `${summary.slice(0, 160)}...` : summary,
+        color: 'text-amber-400/70',
+      }
+    }
     case 'away_summary': {
       const parsed = parseRecapContent(content)
       return {

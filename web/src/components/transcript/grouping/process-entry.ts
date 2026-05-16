@@ -172,6 +172,21 @@ function handleUser(entry: TranscriptEntry, state: GroupingState): boolean {
             .join('')
         : ''
 
+  // CC injects blocked-hook feedback (a Stop/SubagentStop hook's `reason`) as
+  // an isMeta user entry with string content "<Event> hook feedback:\n<reason>".
+  // It is hook machinery, not a user turn -- route it to a system line instead
+  // of letting it fall through and render as a user bubble.
+  if (userEntry.isMeta && typeof content === 'string' && /^[A-Za-z]+ hook feedback:/.test(content.trimStart())) {
+    state.current = null
+    state.groups.push({
+      type: 'system',
+      timestamp: entry.timestamp || '',
+      entries: [entry],
+      systemSubtype: 'hook_feedback',
+    })
+    return true
+  }
+
   // Deduplicate: queue-operation enqueue creates a synthetic user group,
   // then the real user entry arrives with the same text. The synthetic has
   // no uuid (created by us), while real entries have one. Replace synthetic
