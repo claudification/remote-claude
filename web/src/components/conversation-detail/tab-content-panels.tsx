@@ -93,6 +93,7 @@ export function TabContentPanels({
           )}
           <TranscriptView
             key={selectedConversationId}
+            cacheKey={selectedConversationId}
             entries={transcript}
             follow={follow}
             showThinking={showThinking}

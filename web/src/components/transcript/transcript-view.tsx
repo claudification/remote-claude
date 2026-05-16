@@ -289,6 +289,11 @@ interface TranscriptViewProps {
   showThinking?: boolean
   onUserScroll?: () => void
   onReachedBottom?: () => void
+  /** Stable key for the module-level grouping + measured-height caches that
+   *  survive the conversation-switch remount. Pass the conversationId for the
+   *  main transcript view. Omit it for the subagent transcript view so it gets
+   *  a per-instance cache instead of colliding with the parent conversation. */
+  cacheKey?: string
 }
 
 export const TranscriptView = memo(function TranscriptView({
@@ -297,11 +302,12 @@ export const TranscriptView = memo(function TranscriptView({
   showThinking = false,
   onUserScroll,
   onReachedBottom,
+  cacheKey,
 }: TranscriptViewProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   const followKilledRef = useRef(false)
 
-  const { getResult, groups } = useIncrementalGroups(entries)
+  const { getResult, groups } = useIncrementalGroups(entries, cacheKey)
 
   // Lift settings selectors here (once) instead of per-GroupView (N times)
   const expandAll = useConversationsStore(state => state.expandAll)
@@ -415,7 +421,7 @@ export const TranscriptView = memo(function TranscriptView({
   // switching into a large transcript fast (no cold measure cascade).
   const measuredSizesRef = useRef<Map<string, number> | null>(null)
   if (!measuredSizesRef.current) {
-    measuredSizesRef.current = getConvSizeCache(selectedConversationId)
+    measuredSizesRef.current = getConvSizeCache(cacheKey ?? null)
   }
   const measuredSizes = measuredSizesRef.current
 
