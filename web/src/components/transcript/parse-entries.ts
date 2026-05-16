@@ -80,7 +80,15 @@ function parseChannelContent(channelMatch: RegExpMatchArray, items: RenderItem[]
     })
   } else if (source === 'rclaude' && sender === 'system') {
     const systemKind = getAttr('spawn_result') || getAttr('event') || getAttr('kind') || undefined
-    items.push({ kind: 'channel', text: msg, source: 'system', isSystem: true, systemKind })
+    const recapId = getAttr('recap_id')
+    items.push({
+      kind: 'channel',
+      text: msg,
+      source: 'system',
+      isSystem: true,
+      systemKind,
+      ...(recapId ? { recapId } : {}),
+    })
   } else if (source === 'rclaude') {
     const pt = parseProjectTask(msg)
     items.push(pt || { kind: 'text', text: msg })

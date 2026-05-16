@@ -8,7 +8,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { DialogResult } from '../shared/dialog-schema'
-import type { AgentHostMessage, InterConversationDelivery, RclaudePermissionConfig } from '../shared/protocol'
+import type {
+  AgentHostMessage,
+  InterConversationDelivery,
+  RclaudePermissionConfig,
+  SystemChannelDelivery,
+} from '../shared/protocol'
 import type { AgentHostContext } from './agent-host-context'
 import { extToMediaType } from './cli-args'
 import { debug } from './debug'
@@ -367,6 +372,9 @@ export function connectToBroker(ctx: AgentHostContext, deps: BrokerConnectionDep
     onChannelDeliver(delivery) {
       handleChannelDeliver(ctx, deps, delivery)
     },
+    onSystemChannelDeliver(delivery) {
+      handleSystemChannelDeliver(ctx, deps, delivery)
+    },
     onChannelLinkRequest() {
       // Link requests are handled by the dashboard UI, not by Claude
     },
@@ -662,6 +670,32 @@ function handleChannelDeliver(ctx: AgentHostContext, deps: BrokerConnectionDeps,
       debug(`pushChannelMessage (deliver) error: ${err instanceof Error ? err.message : err}`)
     })
     ctx.diag('channel', `Received from ${delivery.fromProject}: ${delivery.message.slice(0, 60)}`)
+  }
+}
+
+/**
+ * Deliver a broker-originated system notice (e.g. recap-completed). Formats
+ * it as `<channel source="rclaude" sender="system" kind="...">` -- the shape
+ * the web transcript parser recognises as a system channel message.
+ */
+function handleSystemChannelDeliver(ctx: AgentHostContext, deps: BrokerConnectionDeps, delivery: SystemChannelDelivery) {
+  if (deps.headless && ctx.streamProc) {
+    const attrs = [
+      `source="rclaude"`,
+      `sender="system"`,
+      `kind="${delivery.kind}"`,
+      ...(delivery.recapId ? [`recap_id="${delivery.recapId}"`] : []),
+    ].join(' ')
+    const wrapped = `<channel ${attrs}>\n${delivery.text}\n</channel>`
+    ctx.streamProc.sendUserMessage(wrapped)
+    ctx.diag('headless', `System channel (${delivery.kind}): ${delivery.text.slice(0, 60)}`)
+  } else if (deps.channelEnabled && isMcpChannelReady()) {
+    const meta: Record<string, string> = { sender: 'system', kind: delivery.kind }
+    if (delivery.recapId) meta.recap_id = delivery.recapId
+    pushChannelMessage(delivery.text, meta).catch(err => {
+      debug(`pushChannelMessage (system) error: ${err instanceof Error ? err.message : err}`)
+    })
+    ctx.diag('channel', `System channel (${delivery.kind}): ${delivery.text.slice(0, 60)}`)
   }
 }
 

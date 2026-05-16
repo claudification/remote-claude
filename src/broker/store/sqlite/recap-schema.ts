@@ -37,9 +37,22 @@ function createRecapsTable(db: Database) {
       signals_json    TEXT NOT NULL,
       signals_hash    TEXT NOT NULL,
       input_hash      TEXT,
-      metadata_json   TEXT
+      metadata_json   TEXT,
+      audience        TEXT NOT NULL DEFAULT 'human',
+      inform_conversation_id TEXT
     )
   `)
+  // ALTER ADD COLUMN for upgrades from the pre-audience shape. SQLite ALTER
+  // ADD COLUMN is idempotent only if guarded -- check the column list first.
+  const recapCols = new Set(
+    (db.prepare("PRAGMA table_info('recaps')").all() as Array<{ name: string }>).map(r => r.name),
+  )
+  if (!recapCols.has('audience')) {
+    db.run("ALTER TABLE recaps ADD COLUMN audience TEXT NOT NULL DEFAULT 'human'")
+  }
+  if (!recapCols.has('inform_conversation_id')) {
+    db.run('ALTER TABLE recaps ADD COLUMN inform_conversation_id TEXT')
+  }
   db.run('CREATE INDEX IF NOT EXISTS idx_recaps_project ON recaps(project_uri, created_at DESC)')
   db.run('CREATE INDEX IF NOT EXISTS idx_recaps_status ON recaps(status)')
   db.run(

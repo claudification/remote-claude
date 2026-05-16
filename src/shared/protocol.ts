@@ -887,6 +887,23 @@ export interface InterConversationDelivery {
   conversationId?: string
 }
 
+/**
+ * A broker-originated system notice pushed into a conversation's input,
+ * rendered as `<channel source="rclaude" sender="system" kind="...">`.
+ * Distinct from InterConversationDelivery (untrusted peer messages) -- this
+ * is trusted broker infrastructure, e.g. the recap-completed push that
+ * backs inform_on_complete.
+ */
+export interface SystemChannelDelivery {
+  type: 'system_channel_deliver'
+  /** Channel `kind` attribute, e.g. 'recap-completed'. */
+  kind: string
+  /** Message body delivered to the agent. */
+  text: string
+  /** Optional recap id, surfaced as a `recap_id` attribute for the renderer. */
+  recapId?: string
+}
+
 export interface ProjectLinkRequest {
   type: 'channel_link_request'
   fromConversation: string
@@ -1091,6 +1108,7 @@ export type BrokerMessage =
   | FileRequest
   | TranscriptKick
   | InterConversationDelivery
+  | SystemChannelDelivery
   | ProjectLinkRequest
   | InterConversationListResponse
   | SendInterrupt
@@ -2489,6 +2507,14 @@ export type RecapSignal =
   | 'errors_hooks'
   | 'cost'
   | 'open_questions'
+  /** Deep turn content (intermediate assistant text + tool-call summaries),
+   *  not just the final message. Opt-in -- expensive, NOT in DEFAULT_SIGNALS.
+   *  Backs the agent recap's "Dead ends" section. */
+  | 'turn_internals'
+
+/** Who a recap is written for. 'human' = narrative report (default).
+ *  'agent' = terse orientation brief for a fresh Claude Code session. */
+export type RecapAudience = 'human' | 'agent'
 
 export interface RecapMeta {
   recapId: string
@@ -2497,6 +2523,7 @@ export interface RecapMeta {
   periodStart: number
   periodEnd: number
   timeZone: string
+  audience: RecapAudience
   status: RecapStatus
   progress: number
   phase?: string
@@ -2519,6 +2546,7 @@ export interface RecapSummary {
   periodLabel: RecapPeriodLabel
   periodStart: number
   periodEnd: number
+  audience: RecapAudience
   status: RecapStatus
   title?: string
   subtitle?: string
@@ -2552,6 +2580,14 @@ export interface RecapCreateMessage {
   timeZone: string
   signals?: RecapSignal[]
   force?: boolean
+  /** Audience the recap is written for. Defaults to 'human' (narrative report).
+   *  The MCP entry point defaults it to 'agent'. */
+  audience?: RecapAudience
+  /** When true, the broker records the calling conversation and pushes a
+   *  recap-completed channel message to it when the run finishes, instead of
+   *  the caller polling recap_get. The conversationId is derived broker-side
+   *  from the WS connection -- callers never pass their own id. */
+  inform_on_complete?: boolean
   /** Optional. When set, the broker echoes it on recap_created/recap_error so
    *  MCP-side broker-rpc can correlate the response. Dashboard callers omit it. */
   requestId?: string

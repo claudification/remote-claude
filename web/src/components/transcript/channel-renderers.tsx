@@ -135,6 +135,7 @@ function DialogValues({ values }: { values: Array<[string, unknown]> }) {
 }
 
 function SystemChannel({ item }: { item: ChannelRenderItem }) {
+  const isRecap = item.systemKind === 'recap-completed'
   const systemStyle =
     item.systemKind === 'timeout'
       ? 'border-amber-500/40 bg-amber-500/5 text-amber-300/90'
@@ -142,14 +143,27 @@ function SystemChannel({ item }: { item: ChannelRenderItem }) {
         ? 'border-red-500/40 bg-red-500/5 text-red-300/90'
         : item.systemKind === 'ok' || item.systemKind === 'success'
           ? 'border-green-500/40 bg-green-500/5 text-green-300/90'
-          : 'border-zinc-500/40 bg-zinc-500/5 text-zinc-300/90'
+          : isRecap
+            ? 'border-teal-500/40 bg-teal-500/5 text-teal-200/90'
+            : 'border-zinc-500/40 bg-zinc-500/5 text-zinc-300/90'
 
   return (
     <div className={cn('text-sm rounded-md border-l-2 px-3 py-2 my-1', systemStyle)}>
       <div className="text-[10px] uppercase font-bold tracking-wider mb-1 opacity-70">
-        system{item.systemKind ? ` · ${item.systemKind}` : ''}
+        {isRecap ? 'recap ready' : `system${item.systemKind ? ` · ${item.systemKind}` : ''}`}
       </div>
       <Markdown>{item.text}</Markdown>
+      {isRecap && item.recapId && (
+        <button
+          type="button"
+          onClick={() =>
+            window.dispatchEvent(new CustomEvent('rclaude-recap-open', { detail: { recapId: item.recapId } }))
+          }
+          className="mt-1.5 rounded border border-teal-500/40 bg-teal-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-teal-300 hover:bg-teal-500/25"
+        >
+          Open recap
+        </button>
+      )}
     </div>
   )
 }

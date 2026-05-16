@@ -25,6 +25,7 @@ describe('ProgressEmitter', () => {
       periodStart: 0,
       periodEnd: 1_000,
       timeZone: 'UTC',
+      audience: 'human',
       signalsJson: '[]',
       signalsHash: 'h',
       createdAt: Date.now(),

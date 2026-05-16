@@ -20,6 +20,7 @@ function doneRecap(overrides: Partial<PeriodRecapDoc> = {}): PeriodRecapDoc {
     periodStart: 1715000000000,
     periodEnd: 1715600000000,
     timeZone: 'UTC',
+    audience: 'human',
     status: 'done',
     progress: 100,
     inputChars: 1000,

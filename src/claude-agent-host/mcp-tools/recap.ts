@@ -236,9 +236,12 @@ function recapListTool(ctx: McpToolContext): ToolDef {
 function recapCreateTool(ctx: McpToolContext): ToolDef {
   return {
     description:
-      'Generate a new period recap. Returns the recap id immediately; progress streams ' +
-      'into the dashboard recap-jobs widget. Use when the user asks for a fresh summary ' +
-      'of what happened in a project over a period.',
+      'Generate an orientation brief for a fresh Claude Code session: current state, ' +
+      'decisions + rationale, dead ends, open questions, next actions. Call this when ' +
+      'starting cold in a project, or before spawning a worker. That is the default ' +
+      '(audience="agent"); audience="human" produces a narrative report instead. ' +
+      'Returns the recap id immediately -- set inform_on_complete to be pushed the ' +
+      'result when it finishes, instead of polling recap_get.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -256,11 +259,24 @@ function recapCreateTool(ctx: McpToolContext): ToolDef {
           },
           required: ['label'],
         },
+        audience: {
+          type: 'string',
+          enum: ['agent', 'human'],
+          description:
+            "'agent' (default) -- terse, high-signal orientation brief for a fresh Claude Code " +
+            "session. 'human' -- narrative development report.",
+        },
+        inform_on_complete: {
+          type: 'boolean',
+          description:
+            'When true, this conversation is pushed a recap-completed channel message when the ' +
+            'recap finishes, instead of having to poll recap_get.',
+        },
         signals: {
           type: 'array',
           items: { type: 'string' },
           description:
-            'Optional signal subset. Defaults to all. Values: user_prompts, assistant_final_turn, commits, task_results, tool_summaries, errors_hooks, cost, open_questions',
+            'Optional signal subset. Defaults per audience. Values: user_prompts, assistant_final_turn, commits, task_results, tool_summaries, errors_hooks, cost, open_questions, turn_internals',
         },
         force: {
           type: 'boolean',
@@ -295,6 +311,10 @@ function recapCreateTool(ctx: McpToolContext): ToolDef {
       const signals = Array.isArray(signalsRaw) ? (signalsRaw as RecapSignal[]) : undefined
       const force = Boolean(raw.force)
       const timeZone = resolveTimeZone()
+      // The caller of an MCP tool is, by definition, an agent -- default the
+      // audience to 'agent'. 'human' must be asked for explicitly.
+      const audience = raw.audience === 'human' ? 'human' : 'agent'
+      const informOnComplete = raw.inform_on_complete === true
 
       try {
         const response = await brokerRpc<{ recapId: string; cached: boolean; error?: string }>(
@@ -303,8 +323,10 @@ function recapCreateTool(ctx: McpToolContext): ToolDef {
             projectUri,
             period,
             timeZone,
+            audience,
             ...(signals ? { signals } : {}),
             ...(force ? { force: true } : {}),
+            ...(informOnComplete ? { inform_on_complete: true } : {}),
           },
           { timeoutMs: 30_000 },
         )
@@ -318,7 +340,9 @@ function recapCreateTool(ctx: McpToolContext): ToolDef {
                   cached: response.cached,
                   hint: response.cached
                     ? 'Cache hit (existing recap reused). Inspect with recap_get({ recapId }).'
-                    : 'Recap queued. Progress streams to the dashboard. Poll with recap_get({ recapId }) until status="done".',
+                    : informOnComplete
+                      ? 'Recap queued. A recap-completed channel message will be pushed to this conversation when it finishes.'
+                      : 'Recap queued. Progress streams to the dashboard. Poll with recap_get({ recapId }) until status="done".',
                 },
                 null,
                 2,

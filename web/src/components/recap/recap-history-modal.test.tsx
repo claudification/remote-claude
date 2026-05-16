@@ -10,6 +10,7 @@ function summary(overrides: Partial<RecapSummary> = {}): RecapSummary {
     periodLabel: 'last_7',
     periodStart: 1715000000000,
     periodEnd: 1715600000000,
+    audience: 'human',
     status: 'done',
     title: 'Foo recap',
     subtitle: 'something happened',

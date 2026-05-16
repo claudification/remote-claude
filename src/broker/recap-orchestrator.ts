@@ -28,12 +28,24 @@ export interface InitOptions {
   cacheDir: string
   brokerStore: StoreDriver
   broadcaster: ProgressBroadcaster
+  /** Deliver a recap-completed channel message into a conversation
+   *  (inform_on_complete). Wired by the broker; no-op if absent. */
+  informConversation?: (conversationId: string, msg: { recapId: string; text: string }) => void
 }
 
 export function initRecapOrchestrator(opts: InitOptions): RecapOrchestrator {
   const store = createPeriodRecapStore(opts.cacheDir)
   singleton = {
-    start: args => startRecap({ store, brokerStore: opts.brokerStore, broadcaster: opts.broadcaster }, args),
+    start: args =>
+      startRecap(
+        {
+          store,
+          brokerStore: opts.brokerStore,
+          broadcaster: opts.broadcaster,
+          informConversation: opts.informConversation,
+        },
+        args,
+      ),
     cancel(recapId: string) {
       const row = store.get(recapId)
       if (!row || row.status === 'done' || row.status === 'failed') return
@@ -92,6 +104,7 @@ function rowToSummary(row: RecapRow): RecapSummary {
     periodLabel: row.periodLabel as RecapPeriodLabel,
     periodStart: row.periodStart,
     periodEnd: row.periodEnd,
+    audience: row.audience,
     status: row.status,
     title: row.title ?? undefined,
     subtitle: row.subtitle ?? undefined,
@@ -113,6 +126,7 @@ function rowToDoc(row: RecapRow): PeriodRecapDoc {
     periodStart: row.periodStart,
     periodEnd: row.periodEnd,
     timeZone: row.timeZone,
+    audience: row.audience,
     status: row.status,
     progress: row.progress,
     phase: row.phase ?? undefined,

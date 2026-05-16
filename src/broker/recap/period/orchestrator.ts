@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { RecapCreateMessage, RecapPeriodLabel, RecapSignal } from '../../../shared/protocol'
+import type { RecapAudience, RecapCreateMessage, RecapPeriodLabel, RecapSignal } from '../../../shared/protocol'
 import type { StoreDriver } from '../../store/types'
 import { chat } from '../shared/openrouter-client'
 import {
@@ -46,10 +46,16 @@ export interface OrchestratorDeps {
   apiKey?: string
   /** Project label rendering (e.g. last path segment). */
   projectLabel?: (projectUri: string) => string
+  /** Deliver a recap-completed system channel message into a conversation.
+   *  Provided by the broker (inform_on_complete). No-op if absent. */
+  informConversation?: (conversationId: string, msg: { recapId: string; text: string }) => void
 }
 
 export interface StartArgs extends RecapCreateMessage {
   createdBy?: string
+  /** Conversation to notify on completion. Resolved broker-side from the
+   *  caller's WS connection when inform_on_complete is set. */
+  informConversationId?: string
 }
 
 export interface StartResult {
@@ -60,8 +66,11 @@ export interface StartResult {
 // fallow-ignore-next-line complexity
 export async function startRecap(deps: OrchestratorDeps, args: StartArgs): Promise<StartResult> {
   const period = resolvePeriod(args.period, args.timeZone, deps.now?.())
-  const signals = (args.signals ?? DEFAULT_SIGNALS).slice().sort()
-  const signalsHash = sha256([args.projectUri, period.start, period.end, signals.join(',')].join('|'))
+  const audience: RecapAudience = args.audience ?? 'human'
+  const signals = resolveSignals(args, audience)
+  // audience is folded into the cache key: a human and an agent recap for
+  // the same project+period+signals are different documents.
+  const signalsHash = sha256([args.projectUri, period.start, period.end, audience, signals.join(',')].join('|'))
 
   if (!args.force) {
     const hit = deps.store.findCacheHit({
@@ -82,6 +91,8 @@ export async function startRecap(deps: OrchestratorDeps, args: StartArgs): Promi
     periodStart: period.start,
     periodEnd: period.end,
     timeZone: args.timeZone,
+    audience,
+    informConversationId: args.informConversationId,
     signalsJson: JSON.stringify(signals),
     signalsHash,
     createdAt: Date.now(),
@@ -111,6 +122,14 @@ function scheduleRun(
         phase: 'failed',
         log: { level: 'error', message: describe(err), ts: Date.now() },
       })
+      // inform_on_complete: a caller waiting on a push must not be left
+      // hanging when the run fails -- tell it the outcome either way.
+      if (args.informConversationId && deps.informConversation) {
+        deps.informConversation(args.informConversationId, {
+          recapId,
+          text: `Recap ${recapId} failed: ${describe(err)}`,
+        })
+      }
     })
   })
 }
@@ -131,16 +150,25 @@ async function runRecap(
   const projectUris = (deps.expandProjectScope ?? defaultExpand)(args.projectUri)
   const scope: PeriodScope = { projectUris, periodStart: period.start, periodEnd: period.end, timeZone }
 
-  const { promptInputs, inputChars } = collectSignals(deps, scope, period, args.projectUri, deps.projectLabel)
+  const audience: RecapAudience = args.audience ?? 'human'
+  const includeInternals = resolveSignals(args, audience).includes('turn_internals')
+  const { promptInputs, inputChars } = collectSignals(
+    deps,
+    scope,
+    period,
+    args.projectUri,
+    deps.projectLabel,
+    includeInternals,
+  )
   emit.emit(
     'info',
     'gather/done',
-    `gathered ${promptInputs.conversations.length} conversations, ${inputChars} chars input`,
+    `gathered ${promptInputs.conversations.length} conversations, ${inputChars} chars input (audience=${audience})`,
   )
   emit.setProgress(35, 'gather/done')
 
-  const built = buildPrompt(promptInputs)
-  const choice = pickModel(built.inputChars)
+  const built = buildPrompt(promptInputs, audience)
+  const choice = pickModel(built.inputChars, audience)
   deps.store.update(recapId, { model: choice.model, inputChars: built.inputChars })
   emit.emit('info', 'render/prompt', `model=${choice.model} (${choice.reason}), prompt=${built.inputChars} chars`)
 
@@ -161,6 +189,7 @@ async function runRecap(
     generatedAt: Date.now(),
     model: choice.model,
     recapId,
+    audience,
     cost: promptInputs.cost,
     body: parsed.body,
   })
@@ -186,6 +215,22 @@ async function runRecap(
     markdown: finalMarkdown,
     meta: rowToMeta(deps, recapId),
   })
+
+  // inform_on_complete: push a recap-completed channel message into the
+  // requesting conversation instead of making it poll recap_get.
+  if (args.informConversationId && deps.informConversation) {
+    deps.informConversation(args.informConversationId, {
+      recapId,
+      text: buildInformText({
+        recapId,
+        audience,
+        projectLabel: promptInputs.projectLabel,
+        periodHuman: period.human,
+        conversationCount: promptInputs.conversations.length,
+        body: parsed.body,
+      }),
+    })
+  }
 }
 
 function collectSignals(
@@ -194,9 +239,10 @@ function collectSignals(
   period: ResolvedPeriod,
   projectUri: string,
   projectLabelFn: ((uri: string) => string) | undefined,
+  includeInternals: boolean,
 ): { promptInputs: PromptInputs; inputChars: number } {
   const conversations = gatherConversations(deps.brokerStore, scope)
-  const transcripts = gatherTranscripts(deps.brokerStore, conversations, scope)
+  const transcripts = gatherTranscripts(deps.brokerStore, conversations, scope, includeInternals)
   const cost = gatherCost(deps.brokerStore, scope)
   const tasks = gatherTasks(deps.brokerStore, conversations, scope)
   const tools = gatherToolUse(deps.brokerStore, conversations, scope)
@@ -317,6 +363,7 @@ function rowToMeta(deps: OrchestratorDeps, recapId: string) {
     periodStart: row.periodStart,
     periodEnd: row.periodEnd,
     timeZone: row.timeZone,
+    audience: row.audience,
     status: row.status,
     progress: row.progress,
     phase: row.phase ?? undefined,
@@ -358,4 +405,32 @@ function nanoid(len: number): string {
 function describe(err: unknown): string {
   if (err instanceof Error) return err.message
   return String(err)
+}
+
+/**
+ * Resolve the effective signal set. Explicit `args.signals` win verbatim.
+ * Otherwise default per audience: the agent brief opts `turn_internals` in
+ * (it backs the "Dead ends" section); the human recap does not.
+ */
+function resolveSignals(args: StartArgs, audience: RecapAudience): RecapSignal[] {
+  if (args.signals) return args.signals.slice().sort()
+  const base = DEFAULT_SIGNALS.slice()
+  if (audience === 'agent') base.push('turn_internals')
+  return base.sort()
+}
+
+/** Build the recap-completed channel message text pushed to the caller. */
+function buildInformText(args: {
+  recapId: string
+  audience: RecapAudience
+  projectLabel: string
+  periodHuman: string
+  conversationCount: number
+  body: string
+}): string {
+  const head = `Recap ${args.recapId} ready -- ${args.projectLabel}, ${args.periodHuman}, ${args.conversationCount} conversation(s).`
+  // The agent brief is short by design -- inline it, saving a recap_get
+  // round-trip. The human recap is long; send only the pointer.
+  if (args.audience === 'agent') return `${head}\n\n${args.body}`
+  return `${head} Read it with recap_get({ recapId: "${args.recapId}" }).`
 }

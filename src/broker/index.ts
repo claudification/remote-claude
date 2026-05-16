@@ -401,6 +401,22 @@ async function main() {
     broadcaster: {
       broadcast: msg => conversationStore.broadcastConversationScoped(msg as Record<string, unknown>, '*'),
     },
+    // inform_on_complete: push a recap-completed system channel message into
+    // the requesting conversation. Connected-only -- if the conversation is
+    // offline the push is skipped (the caller can still poll recap_get).
+    informConversation: (conversationId, msg) => {
+      const ws = conversationStore.getConversationSocket(conversationId)
+      if (!ws) {
+        console.log(
+          `[recap] inform skipped -- conversation ${conversationId.slice(0, 8)} not connected (recap=${msg.recapId})`,
+        )
+        return
+      }
+      ws.send(
+        JSON.stringify({ type: 'system_channel_deliver', kind: 'recap-completed', recapId: msg.recapId, text: msg.text }),
+      )
+      console.log(`[recap] inform delivered -> conversation ${conversationId.slice(0, 8)} (recap=${msg.recapId})`)
+    },
   })
 
   // External status polling (clanker.watch health + usage.report efficiency)

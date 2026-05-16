@@ -1,4 +1,4 @@
-import type { RecapCreateMessage, RecapStatus } from '../../shared/protocol'
+import type { RecapAudience, RecapCreateMessage, RecapStatus } from '../../shared/protocol'
 import type { HandlerContext, MessageData, MessageHandler } from '../handler-context'
 import { DASHBOARD_ROLES, registerHandlers } from '../message-router'
 import { getRecapOrchestrator } from '../recap-orchestrator'
@@ -20,6 +20,17 @@ function recapCreate(ctx: HandlerContext, data: MessageData): void {
     return
   }
   if (fields.projectUri !== '*') ctx.requirePermission('chat:read', fields.projectUri)
+  // audience: pass through whatever the caller set (the MCP tool defaults it
+  // to 'agent'); undefined -> orchestrator defaults to 'human'.
+  const audience: RecapAudience | undefined =
+    data.audience === 'agent' || data.audience === 'human' ? data.audience : undefined
+  // inform_on_complete: the target conversation is the CALLER's own
+  // conversation, derived from the WS connection -- never passed by the agent.
+  const informOnComplete = data.inform_on_complete === true
+  const informConversationId = informOnComplete ? ctx.ws.data.conversationId : undefined
+  if (informOnComplete && !informConversationId) {
+    ctx.log.debug('[recap_create] inform_on_complete set but caller has no conversationId -- push skipped')
+  }
   orchestrator
     .start({
       type: 'recap_create',
@@ -28,6 +39,8 @@ function recapCreate(ctx: HandlerContext, data: MessageData): void {
       timeZone: fields.timeZone,
       signals: data.signals as RecapCreateMessage['signals'],
       force: Boolean(data.force),
+      ...(audience ? { audience } : {}),
+      ...(informConversationId ? { informConversationId } : {}),
     })
     .then(result => ctx.reply({ type: 'recap_created', recapId: result.recapId, cached: result.cached, ...echo }))
     .catch((err: unknown) => ctx.reply({ type: 'recap_error', error: describe(err), ...echo }))

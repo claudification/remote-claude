@@ -85,6 +85,7 @@ function seedRecap(opts: {
     periodStart: 1715000000000,
     periodEnd: 1715600000000,
     timeZone: 'UTC',
+    audience: 'human',
     signalsJson: '[]',
     signalsHash: 'abc',
     createdAt: 1715600000000,

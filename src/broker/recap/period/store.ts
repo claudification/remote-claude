@@ -1,5 +1,6 @@
 import { Database } from 'bun:sqlite'
 import { join } from 'node:path'
+import type { RecapAudience } from '../../../shared/protocol'
 
 export type RecapStatus = 'queued' | 'gathering' | 'rendering' | 'done' | 'failed' | 'cancelled'
 export type RecapPeriodLabel = 'today' | 'yesterday' | 'last_7' | 'last_30' | 'this_week' | 'this_month' | 'custom'
@@ -12,6 +13,8 @@ export interface RecapRow {
   periodStart: number
   periodEnd: number
   timeZone: string
+  audience: RecapAudience
+  informConversationId: string | null
   status: RecapStatus
   progress: number
   phase: string | null
@@ -42,6 +45,9 @@ export interface RecapInsert {
   periodStart: number
   periodEnd: number
   timeZone: string
+  audience: RecapAudience
+  /** Conversation to notify on completion (inform_on_complete). */
+  informConversationId?: string
   signalsJson: string
   signalsHash: string
   createdAt: number
@@ -174,8 +180,10 @@ class SqlitePeriodRecapStore implements PeriodRecapStore {
     this.db
       .prepare(
         `INSERT INTO recaps (id, project_uri, period_label, period_start, period_end, time_zone,
+           audience, inform_conversation_id,
            status, progress, signals_json, signals_hash, created_at, created_by)
          VALUES ($id, $projectUri, $periodLabel, $periodStart, $periodEnd, $timeZone,
+           $audience, $informConversationId,
            'queued', 0, $signalsJson, $signalsHash, $createdAt, $createdBy)`,
       )
       .run({
@@ -185,6 +193,8 @@ class SqlitePeriodRecapStore implements PeriodRecapStore {
         periodStart: rec.periodStart,
         periodEnd: rec.periodEnd,
         timeZone: rec.timeZone,
+        audience: rec.audience,
+        informConversationId: rec.informConversationId ?? null,
         signalsJson: rec.signalsJson,
         signalsHash: rec.signalsHash,
         createdAt: rec.createdAt,
@@ -398,6 +408,8 @@ interface RawRecapRow {
   period_start: number
   period_end: number
   time_zone: string
+  audience: string
+  inform_conversation_id: string | null
   status: RecapStatus
   progress: number
   phase: string | null
@@ -429,6 +441,8 @@ function hydrate(row: RawRecapRow): RecapRow {
     periodStart: row.period_start,
     periodEnd: row.period_end,
     timeZone: row.time_zone,
+    audience: (row.audience as RecapAudience) ?? 'human',
+    informConversationId: row.inform_conversation_id,
     status: row.status,
     progress: row.progress,
     phase: row.phase,

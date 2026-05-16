@@ -31,6 +31,7 @@ describe('PeriodRecapStore', () => {
       periodStart: 1_700_000_000_000,
       periodEnd: 1_700_604_800_000,
       timeZone: 'Europe/Stockholm',
+      audience: 'human',
       signalsJson: JSON.stringify(['user_prompts', 'commits']),
       signalsHash: 'sha-test',
       createdAt: Date.now(),

@@ -1,3 +1,4 @@
+import type { RecapAudience } from '../../../../shared/protocol'
 import type { CostDigest } from '../gather/types'
 
 export interface FinalDocumentInputs {
@@ -10,14 +11,18 @@ export interface FinalDocumentInputs {
   generatedAt: number
   model: string
   recapId: string
+  audience: RecapAudience
   cost: CostDigest
   body: string
 }
 
 export function renderFinalMarkdown(inputs: FinalDocumentInputs): string {
   const header = renderHeader(inputs)
-  const subtitleLine = inputs.subtitle ? `_${inputs.subtitle}_\n\n` : ''
-  const costTable = renderCostTable(inputs.cost)
+  // The agent brief is for a machine reader -- the italic subtitle and the
+  // cost table are human-oriented noise. Drop both for agent audience.
+  const isAgent = inputs.audience === 'agent'
+  const subtitleLine = !isAgent && inputs.subtitle ? `_${inputs.subtitle}_\n\n` : ''
+  const costTable = isAgent ? '' : renderCostTable(inputs.cost)
   return `${[header, `# ${inputs.title}`, '', subtitleLine, costTable, '', inputs.body].join('\n').trimEnd()}\n`
 }
 
@@ -26,6 +31,7 @@ function renderHeader(inputs: FinalDocumentInputs): string {
     '---',
     `project: ${inputs.projectLabel} (${inputs.projectUri})`,
     `period: ${inputs.periodHuman} (${inputs.periodIsoRange})`,
+    `audience: ${inputs.audience}`,
     `generated: ${new Date(inputs.generatedAt).toISOString()}`,
     `model: ${inputs.model}`,
     `recap-id: ${inputs.recapId}`,

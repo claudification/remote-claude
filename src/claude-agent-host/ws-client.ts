@@ -25,6 +25,7 @@ import type {
   ProjectLinkRequest,
   RclaudePermissionConfig,
   SubagentTranscript,
+  SystemChannelDelivery,
   TerminalData,
   TerminationDetail,
   TerminationSource,
@@ -86,6 +87,7 @@ export interface WsClientOptions {
   ) => void
   onChannelSendResult?: (result: unknown) => void
   onChannelDeliver?: (delivery: InterConversationDelivery) => void
+  onSystemChannelDeliver?: (delivery: SystemChannelDelivery) => void
   onChannelLinkRequest?: (request: ProjectLinkRequest) => void
   onPermissionResponse?: (requestId: string, behavior: 'allow' | 'deny', toolUseId?: string) => void
   onPermissionRule?: (toolName: string, behavior: 'allow' | 'deny') => void
@@ -229,6 +231,7 @@ export function createWsClient(options: WsClientOptions): WsClient {
     onChannelConversationsList,
     onChannelSendResult,
     onChannelDeliver,
+    onSystemChannelDeliver,
     onChannelLinkRequest,
     onPermissionResponse,
     onPermissionRule,
@@ -389,6 +392,9 @@ export function createWsClient(options: WsClientOptions): WsClient {
         break
       case 'channel_deliver':
         onChannelDeliver?.(message)
+        break
+      case 'system_channel_deliver':
+        onSystemChannelDeliver?.(message)
         break
       case 'channel_link_request':
         onChannelLinkRequest?.(message)

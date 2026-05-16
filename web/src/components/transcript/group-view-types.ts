@@ -77,6 +77,7 @@ export type RenderItem =
       dialogAction?: string
       isSystem?: boolean
       systemKind?: string
+      recapId?: string
     }
   | { kind: 'images'; images: Array<{ hash: string; ext: string; url: string; originalPath: string }> }
   // Inline system entry rendered inside an assistant group (api_retry,

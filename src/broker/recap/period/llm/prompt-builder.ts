@@ -1,3 +1,4 @@
+import type { RecapAudience } from '../../../../shared/protocol'
 import type {
   CommitDigest,
   ConversationDigest,
@@ -29,20 +30,18 @@ export interface BuiltPrompt {
   inputChars: number
 }
 
-export function buildPrompt(inputs: PromptInputs): BuiltPrompt {
-  const system = systemPrompt(inputs)
+export function buildPrompt(inputs: PromptInputs, audience: RecapAudience = 'human'): BuiltPrompt {
+  const system = audience === 'agent' ? agentSystemPrompt(inputs) : humanSystemPrompt(inputs)
   const user = userPayload(inputs)
   return { system, user, inputChars: system.length + user.length }
 }
 
-function systemPrompt(inputs: PromptInputs): string {
-  return `You are writing a comprehensive development recap for project ${inputs.projectLabel}
-covering ${inputs.periodHuman} (${inputs.periodIsoRange}).
-
-Output format: a YAML frontmatter block (between --- lines) followed by markdown body.
-The frontmatter is parsed and indexed -- be specific so future searches find this recap.
-
-REQUIRED YAML FRONTMATTER (extract from the input, do not invent):
+/**
+ * YAML frontmatter contract -- IDENTICAL for both audiences. The frontmatter
+ * is the search index (parse-recap.ts, recaps_fts); audience swaps only the
+ * markdown body shape, never the frontmatter.
+ */
+const FRONTMATTER_SPEC = `REQUIRED YAML FRONTMATTER (extract from the input, do not invent):
 
   subtitle: <single-line theme, 4-12 words>
   keywords: [<5-12 technical terms: feature names, file names, components, libraries, model names, table names>]
@@ -59,7 +58,16 @@ REQUIRED YAML FRONTMATTER (extract from the input, do not invent):
 
 OMIT fields where there's nothing to put. NEVER invent items to fill quotas.
 For features/bugs/fixes/incidents: cite conversation ids (short form, 8 chars)
-and commit hashes (short form, 7 chars) where the input mentions them.
+and commit hashes (short form, 7 chars) where the input mentions them.`
+
+function humanSystemPrompt(inputs: PromptInputs): string {
+  return `You are writing a comprehensive development recap for project ${inputs.projectLabel}
+covering ${inputs.periodHuman} (${inputs.periodIsoRange}).
+
+Output format: a YAML frontmatter block (between --- lines) followed by markdown body.
+The frontmatter is parsed and indexed -- be specific so future searches find this recap.
+
+${FRONTMATTER_SPEC}
 
 MARKDOWN BODY (after the closing --- of frontmatter):
 
@@ -95,6 +103,88 @@ DO NOT include greetings, sign-offs, or the H1 title (templated).
 Be concrete. Use the project's actual terms verbatim.`
 }
 
+/**
+ * The agent recap: a terse orientation brief for a fresh Claude Code session
+ * with zero context. High signal, low noise -- every line must change what
+ * the reader does next. Carries what git cannot: dead ends, in-flight state,
+ * decisions + rationale. See .claude/docs/plan-recap-audience.md section 4.
+ */
+function agentSystemPrompt(inputs: PromptInputs): string {
+  return `You are writing an ORIENTATION BRIEF for project ${inputs.projectLabel},
+covering ${inputs.periodHuman} (${inputs.periodIsoRange}).
+
+THE READER IS NOT A HUMAN. It is a fresh Claude Code agent session with zero
+prior context, about to do real work in this project. It reads this brief
+once, then acts. Every line costs the reader context budget and may change
+what it does next. Write for that reader and no other.
+
+THE BAR -- apply to every single bullet:
+  "Would a fresh agent do something DIFFERENT because of this line?"
+  If no -- DELETE the line. A short brief that is all signal beats a
+  complete one padded with noise. Target: body under ~400 words.
+
+GROUND RULES:
+  - FACT vs INFERENCE. A claim backed by a commit hash or a closed task is
+    a FACT -- state it plainly. A claim concluded from transcript text is
+    an INFERENCE -- prefix it literally with "[inferred]". NEVER present
+    inference as fact. The reader will act on this; a confident wrong claim
+    is the worst output you can produce.
+  - CITE EVERYTHING. Every claim names its source: commit hash (7 char),
+    conversation id (8 char), or task name. A claim with no citation and no
+    [inferred] tag does not belong here -- drop it.
+  - NO NARRATIVE. Do not tell the story of the period. State what is TRUE
+    NOW and what to DO NEXT.
+  - The reader already has 'git log'. Do NOT reproduce a commit changelog.
+    Mention a commit ONLY when the WHY behind it is not visible in its diff.
+  - OMIT empty sections entirely. Never write a section just to say "none".
+
+Output format: a YAML frontmatter block (between --- lines) followed by the
+markdown body. The frontmatter is parsed and indexed for search.
+
+${FRONTMATTER_SPEC}
+
+MARKDOWN BODY (after the closing --- of frontmatter):
+
+  ## TL;DR
+  One or two lines. The single most important thing a fresh agent must know
+  before it touches this project.
+
+  ## State
+  What is TRUE RIGHT NOW. Prioritise: work in flight that is NOT yet
+  committed (a fresh agent may collide with another agent mid-edit),
+  half-finished refactors, which branch is hot, what just shipped that the
+  reader should build ON rather than redo. Facts from commits and closed
+  tasks stated plainly; transcript-derived state tagged [inferred].
+
+  ## Decisions
+  Non-obvious decisions made this period and WHY -- the reasoning a diff
+  cannot show. This is what stops the reader relitigating or contradicting
+  a settled choice. Cite the conversation where it was decided.
+
+  ## Dead ends -- do NOT retry
+  Approaches that were tried and ABANDONED, each with the reason it failed.
+  git keeps no record of abandoned work -- this section is the brief's
+  highest-value content and exists nowhere else. Omit the section only if
+  the input genuinely shows no abandoned approach.
+
+  ## Open questions
+  Unresolved questions the assistant left for the user that never got an
+  answer. Use the OPEN_QUESTIONS input block VERBATIM -- do not invent.
+  Group by conversation.
+
+  ## Gotchas
+  Constraints or landmines discovered this period: a tool that misbehaves,
+  an environment quirk, a non-obvious dependency, a surprising failure
+  mode. Only include something that would actually bite the reader.
+
+  ## Pick up here
+  The obvious next actions, most important first. If there is genuinely
+  nothing pending, say so in a single line.
+
+DO NOT include greetings, sign-offs, an H1 title, or a cost table.
+DO NOT pad. Use the project's actual terms verbatim.`
+}
+
 function userPayload(inputs: PromptInputs): string {
   const parts: string[] = []
   parts.push(renderConversationsSection(inputs.conversations))
@@ -118,12 +208,22 @@ function renderConversationsSection(convs: ConversationDigest[]): string {
 function renderTranscriptsSection(digests: TranscriptDigest[]): string {
   if (digests.length === 0) return 'TRANSCRIPTS: (none)'
   const blocks = digests.map(d => {
-    const turns = d.turns
-      .map((t, i) => `  T${i + 1} USER: ${t.userPrompt}\n  T${i + 1} ASSISTANT: ${t.assistantFinal}`)
-      .join('\n')
+    const turns = d.turns.map((t, i) => renderTurn(t, i)).join('\n')
     return `### ${shortId(d.conversationId)} "${d.conversationTitle}"\n${turns || '  (no turns)'}`
   })
   return `TRANSCRIPTS:\n\n${blocks.join('\n\n')}`
+}
+
+function renderTurn(t: TranscriptDigest['turns'][number], i: number): string {
+  const lines = [`  T${i + 1} USER: ${t.userPrompt}`, `  T${i + 1} ASSISTANT: ${t.assistantFinal}`]
+  if (t.internals) {
+    const indented = t.internals
+      .split('\n')
+      .map(l => `    ${l}`)
+      .join('\n')
+    lines.push(`  T${i + 1} INTERNALS (tool calls + errors):\n${indented}`)
+  }
+  return lines.join('\n')
 }
 
 function renderTasksSection(tasks: TaskDigest): string {
