@@ -369,6 +369,33 @@ function hlCacheSet(key: string, value: string) {
   hlCache.set(key, value)
 }
 
+// LRU cache for parsed markdown HTML, keyed by `${inline?'i':'b'}\n${source}`.
+// marked.parse runs synchronously during render/commit. On a conversation
+// switch the transcript view is remounted (key={conversationId}), so every
+// visible Markdown component would re-parse from scratch -- a measurable
+// chunk of the switch-lag beach ball. A module-level cache survives
+// mount/unmount, so re-visiting a conversation (or re-rendering an
+// already-seen block) skips the parse entirely.
+const PARSE_CACHE_MAX = 300
+const parseCache = new Map<string, string>()
+
+function parseCacheGet(key: string): string | undefined {
+  const v = parseCache.get(key)
+  if (v !== undefined) {
+    parseCache.delete(key)
+    parseCache.set(key, v)
+  }
+  return v
+}
+
+function parseCacheSet(key: string, value: string) {
+  if (parseCache.size >= PARSE_CACHE_MAX) {
+    const oldest = parseCache.keys().next().value
+    if (oldest !== undefined) parseCache.delete(oldest)
+  }
+  parseCache.set(key, value)
+}
+
 interface MarkdownProps {
   children: string
   inline?: boolean
@@ -382,7 +409,12 @@ export const Markdown = memo(function Markdown({ children, inline, copyable }: M
   // stall window the previous HTML stays mounted -- no main-thread parse work.
   const deferred = useDeferredValue(children)
   const html = useMemo(() => {
-    return inline ? (marked.parseInline(deferred) as string) : (marked.parse(deferred) as string)
+    const cacheKey = `${inline ? 'i' : 'b'}\n${deferred}`
+    const cached = parseCacheGet(cacheKey)
+    if (cached !== undefined) return cached
+    const out = inline ? (marked.parseInline(deferred) as string) : (marked.parse(deferred) as string)
+    parseCacheSet(cacheKey, out)
+    return out
   }, [deferred, inline])
 
   const ref = useRef<HTMLDivElement>(null)

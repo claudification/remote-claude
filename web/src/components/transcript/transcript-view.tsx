@@ -91,6 +91,36 @@ function estimateGroupSize(group: DisplayGroup, measuredSizes: Map<string, numbe
   }
 }
 
+// Per-conversation cache of measured group heights, keyed by conversationId at
+// module scope. The transcript view is remounted on every conversation switch
+// (key={conversationId}). A plain useRef map would therefore start cold each
+// time, forcing the virtualizer to estimate every row -- and on a large
+// transcript the estimate error compounds, so scroll-to-bottom overshoots and
+// the settle loop drags the viewport through dozens of groups, each one a
+// synchronous markdown parse + layout. That cascade is the switch-lag beach
+// ball. Keeping real heights warm across switches lets estimateSize return
+// accurate sizes immediately, so the scroll lands without thrashing.
+const CONV_SIZE_CACHE_MAX = 25
+const convSizeCaches = new Map<string, Map<string, number>>()
+
+function getConvSizeCache(conversationId: string | null): Map<string, number> {
+  if (!conversationId) return new Map()
+  const existing = convSizeCaches.get(conversationId)
+  if (existing) {
+    // LRU bump -- most-recently-used conversation stays warmest.
+    convSizeCaches.delete(conversationId)
+    convSizeCaches.set(conversationId, existing)
+    return existing
+  }
+  const fresh = new Map<string, number>()
+  convSizeCaches.set(conversationId, fresh)
+  if (convSizeCaches.size > CONV_SIZE_CACHE_MAX) {
+    const oldest = convSizeCaches.keys().next().value
+    if (oldest !== undefined) convSizeCaches.delete(oldest)
+  }
+  return fresh
+}
+
 const EMPTY_STREAMING = ''
 
 /** Isolated streaming text component - subscribes to its own store slice so token updates don't re-render the virtualizer */
@@ -379,9 +409,15 @@ export const TranscriptView = memo(function TranscriptView({
       : 0,
   )
 
-  // Cache measured sizes so estimateSize can use real heights for groups
-  // that have been rendered before (survives virtualizer cache invalidation)
-  const measuredSizesRef = useRef(new Map<string, number>())
+  // Cache measured sizes so estimateSize can use real heights for groups that
+  // have been rendered before. Backed by a module-level per-conversation cache
+  // so it survives the conversation-switch remount -- this is what keeps
+  // switching into a large transcript fast (no cold measure cascade).
+  const measuredSizesRef = useRef<Map<string, number> | null>(null)
+  if (!measuredSizesRef.current) {
+    measuredSizesRef.current = getConvSizeCache(selectedConversationId)
+  }
+  const measuredSizes = measuredSizesRef.current
 
   const getItemKey = useCallback(
     (index: number) => {
@@ -394,7 +430,7 @@ export const TranscriptView = memo(function TranscriptView({
   const virtualizer = useVirtualizer({
     count: mainGroups.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: index => estimateGroupSize(mainGroups[index], measuredSizesRef.current, getItemKey(index)),
+    estimateSize: index => estimateGroupSize(mainGroups[index], measuredSizes, getItemKey(index)),
     overscan: 5,
     getItemKey,
     // Safari fix: ResizeObserver can fire mid-layout before paint completes,
@@ -421,7 +457,7 @@ export const TranscriptView = memo(function TranscriptView({
   // Cache these so estimateSize returns accurate heights when items re-enter the viewport.
   const virtualItems = virtualizer.getVirtualItems()
   for (const item of virtualItems) {
-    measuredSizesRef.current.set(String(item.key), item.size)
+    measuredSizes.set(String(item.key), item.size)
   }
 
   useEffect(() => {
