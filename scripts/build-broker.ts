@@ -6,7 +6,6 @@
 // (scripts/docker-build-broker.sh) is responsible for enforcing the check
 // before populating the build context via `git archive HEAD`.
 
-import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { parseForceDirty, requireCleanTree } from './lib/require-clean-tree'
 
@@ -43,16 +42,6 @@ async function build() {
   const stat = await Bun.file(OUT_FILE).stat()
   const sizeMB = (stat?.size || 0) / 1024 / 1024
   console.log(`[build] Size: ${sizeMB.toFixed(2)} MB`)
-
-  if (process.platform === 'darwin') {
-    spawnSync('codesign', ['--remove-signature', OUT_FILE], { stdio: 'inherit' })
-    const sign = spawnSync('codesign', ['--force', '--sign', '-', OUT_FILE], {
-      stdio: 'inherit',
-    })
-    if (sign.status !== 0) {
-      console.error('[build] Warning: codesign failed')
-    }
-  }
 }
 
 build()
