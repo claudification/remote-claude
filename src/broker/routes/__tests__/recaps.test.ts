@@ -345,6 +345,7 @@ describe('GET /shared/public/recap/:token', () => {
     const { createShare } = await import('../../shares')
     const share = createShare({
       project: 'claude://default/p',
+      conversationId: 'conv_x',
       expiresAt: Date.now() + 3600_000,
       createdBy: 'tester',
       // explicit conversation kind
