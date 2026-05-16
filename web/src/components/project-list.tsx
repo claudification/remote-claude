@@ -40,7 +40,7 @@ export function ProjectList() {
   const showEnded = useConversationsStore(s => s.controlPanelPrefs.showEndedConversations)
   const showInactive = useConversationsStore(s => s.controlPanelPrefs.showInactiveByDefault)
   const updatePrefs = useConversationsStore(s => s.updateControlPanelPrefs)
-  const [_pulseSessionId, setPulseConversationId] = useState<string | null>(null)
+  const [_pulseConversationId, setPulseConversationId] = useState<string | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem('collapsed-groups')

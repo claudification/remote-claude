@@ -20,14 +20,14 @@ const STEP_LABEL: Record<BootStep, string> = {
   claude_started: 'claude started',
   awaiting_init: 'awaiting init',
   init_received: 'init received',
-  session_ready: 'conversation ready',
+  conversation_ready: 'conversation ready',
   claude_exited: 'claude exited',
   boot_error: 'boot error',
 }
 
 function stepColor(step: BootStep): string {
   if (step === 'boot_error' || step === 'claude_exited') return 'text-red-400'
-  if (step === 'session_ready' || step === 'init_received') return 'text-emerald-400'
+  if (step === 'conversation_ready' || step === 'init_received') return 'text-emerald-400'
   if (step === 'awaiting_init') return 'text-amber-400'
   return 'text-sky-400'
 }

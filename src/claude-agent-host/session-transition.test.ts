@@ -91,7 +91,7 @@ describe('observeClaudeSessionId', () => {
         detail: 'session=sess-abc (hook)',
         raw: { model: 'claude-opus-4-7' },
       },
-      { fn: 'sendBootEvent', step: 'session_ready', detail: undefined, raw: undefined },
+      { fn: 'sendBootEvent', step: 'conversation_ready', detail: undefined, raw: undefined },
     ])
     expect(diagCalls[0]).toMatchObject({ type: 'conversation', msg: 'transition: boot (first-init)' })
   })

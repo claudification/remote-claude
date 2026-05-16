@@ -56,7 +56,7 @@ export interface SessionTransition {
  * Broker messages sent:
  *   - boot + no wsClient     -> connectToBroker opens a fresh socket
  *   - boot + booting wsClient -> conversation_promote + meta (via setSessionId)
- *                                + session_ready boot_event
+ *                                + conversation_ready boot_event
  *   - rekey                  -> conversation_clear (oldId, newId) on same socket
  *   - confirm                -> nothing
  */
@@ -127,10 +127,10 @@ function handleBoot(ctx: AgentHostContext, newId: string, source: SessionTransit
     return
   }
 
-  // wsClient exists -- promote the booting session (no-op if already promoted).
+  // wsClient exists -- promote the booting conversation (no-op if already promoted).
   ctx.wsClient.setSessionId(newId, source)
   ctx.wsClient.sendBootEvent('init_received', `session=${newId.slice(0, 8)} (${source})`, model ? { model } : undefined)
-  ctx.wsClient.sendBootEvent('session_ready')
+  ctx.wsClient.sendBootEvent('conversation_ready')
 }
 
 function handleRekey(

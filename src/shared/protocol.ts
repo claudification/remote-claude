@@ -77,7 +77,7 @@ export type BootStep =
   | 'claude_started'
   | 'awaiting_init'
   | 'init_received'
-  | 'session_ready'
+  | 'conversation_ready'
   | 'claude_exited'
   | 'boot_error'
 
@@ -106,8 +106,8 @@ export interface ConversationMeta {
   spinnerVerbs?: string[]
   autocompactPct?: number // CLAUDE_AUTOCOMPACT_PCT_OVERRIDE value if set
   maxBudgetUsd?: number // --max-budget-usd value if set (headless only)
-  adHocTaskId?: string // project board task slug that spawned this ad-hoc session
-  adHocWorktree?: string // worktree branch name for ad-hoc sessions
+  adHocTaskId?: string // project board task slug that spawned this ad-hoc conversation
+  adHocWorktree?: string // worktree branch name for ad-hoc conversations
 }
 
 export interface ConversationEnd {
@@ -280,8 +280,8 @@ interface TranscriptEntryBase {
   gitBranch?: string
   slug?: string
   userType?: string
-  /** Per-session monotonic sequence number, stamped by the broker on cache
-   *  insert. Starts at 1, increments by 1 per entry within a session. Scoped to
+  /** Per-conversation monotonic sequence number, stamped by the broker on cache
+   *  insert. Starts at 1, increments by 1 per entry within a conversation. Scoped to
    *  the broker's in-memory counter -- NOT persisted to JSONL. On restart
    *  the counter rebuilds from hydration and SYNC_EPOCH bumps, forcing clients
    *  to full-resync. Clients compare `lastAppliedSeq[sid]` to server's seq for
@@ -475,7 +475,7 @@ export interface AgentHostNotify {
 
 /** First frame from the agent host after the WS handshake, sent BEFORE CC has
  *  produced a session id. Gives the broker enough to create a
- *  placeholder "booting" session so the dashboard shows progress from t=0. */
+ *  placeholder "booting" conversation so the dashboard shows progress from t=0. */
 export interface AgentHostBoot {
   type: 'agent_host_boot'
   /** Wire protocol version this client speaks. See AGENT_HOST_PROTOCOL_VERSION. */
@@ -515,7 +515,7 @@ export interface BootEvent {
  * gets a fresh `launchId` (uuid); every step in that launch carries the same
  * id so the dashboard can group them. These are distinct from boot events:
  *   - BootEvent fires only during the initial boot phase (wrapper_started
- *     through session_ready) and is keyed by conversationId.
+ *     through conversation_ready) and is keyed by conversationId.
  *   - LaunchEvent covers the whole launch lifecycle including /clear reboots,
  *     is keyed by both conversationId AND launchId, and is rendered inline in the
  *     transcript so the user always sees "which CC am I talking to and how
@@ -1751,7 +1751,7 @@ export type TaskStatus = TodoTaskStatus | ProjectTaskStatus
 /** Source/flavor of a task. Determines which status enum applies and which UI renders it. */
 export type TaskKind = 'todo' | 'project'
 
-// Session state in broker
+// Conversation state in broker
 export interface TaskInfo {
   id: string
   subject: string
@@ -1835,8 +1835,8 @@ export interface Conversation {
     at: number
     detail?: TerminationDetail
   }
-  planMode?: boolean // true when session is in plan mode (EnterPlanMode approved, not yet exited)
-  hasNotification?: boolean // unread notification (cleared when session is viewed)
+  planMode?: boolean // true when conversation is in plan mode (EnterPlanMode approved, not yet exited)
+  hasNotification?: boolean // unread notification (cleared when conversation is viewed)
   pendingDialog?: { dialogId: string; layout: DialogLayout; timestamp: number }
   pendingPlanApproval?: {
     requestId: string
@@ -1884,11 +1884,11 @@ export interface Conversation {
   cacheTtl?: '5m' | '1h' // dominant cache TTL tier from last turn
   lastTurnEndedAt?: number // timestamp when last turn completed (Stop hook)
   // Transcript-derived metadata (from special JSONL entry types)
-  summary?: string // AI-generated session summary
-  title?: string // custom session title (from /rename or auto-generated)
+  summary?: string // AI-generated conversation summary
+  title?: string // custom conversation title (from /rename or auto-generated)
   titleUserSet?: boolean // true if title was explicitly set by user (spawn dialog) -- prevents auto-name overwrite
-  description?: string // short user-provided line describing what this session is working on
-  agentName?: string // agent/skill name (for --agent sessions)
+  description?: string // short user-provided line describing what this conversation is working on
+  agentName?: string // agent/skill name (for --agent conversations)
   prLinks?: Array<{ prNumber: number; prUrl: string; prRepository: string; timestamp: string }>
   stats: {
     totalInputTokens: number
@@ -1910,18 +1910,18 @@ export interface Conversation {
   spinnerVerbs?: string[] // custom spinner verbs from ~/.claude/settings.json
   autocompactPct?: number // CLAUDE_AUTOCOMPACT_PCT_OVERRIDE value if set
   maxBudgetUsd?: number // --max-budget-usd value if set (headless only)
-  adHocTaskId?: string // project board task slug that spawned this ad-hoc session
-  adHocWorktree?: string // worktree branch name for ad-hoc sessions
+  adHocTaskId?: string // project board task slug that spawned this ad-hoc conversation
+  adHocWorktree?: string // worktree branch name for ad-hoc conversations
   launchConfig?: LaunchConfig // resolved launch configuration -- reused on revive
   modelMismatch?: { requested: string; actual: string; detectedAt: number }
-  resultText?: string // final result text from headless session (captured from stream-json result message)
+  resultText?: string // final result text from headless conversation (captured from stream-json result message)
   recap?: { content: string; title?: string; timestamp: number } // away_summary from CC recaps
   recapFresh?: boolean // true when no meaningful activity has occurred after the recap
-  hostSentinelId?: string // which sentinel owns this session (from sentinel registry)
+  hostSentinelId?: string // which sentinel owns this conversation (from sentinel registry)
   hostSentinelAlias?: string // denormalized display alias of the sentinel
 }
 
-/** Resolved launch configuration -- stored on session at spawn time, reused on revive */
+/** Resolved launch configuration -- stored on the conversation at spawn time, reused on revive */
 export interface LaunchConfig {
   headless: boolean
   model?: string
@@ -2014,7 +2014,7 @@ export interface ReviveResult {
   type: 'revive_result'
   ccSessionId: string // CC session ID used for --resume
   conversationId?: string // echoes the pre-assigned conversationId
-  project?: string // echoed back for scoped broadcast when session is evicted
+  project?: string // echoed back for scoped broadcast when conversation is evicted
   jobId?: string // launch job correlation ID
   success: boolean
   error?: string
@@ -2296,7 +2296,7 @@ export interface SentinelStatus {
   connected: boolean
 }
 
-// Session summary: broker -> dashboard wire format
+// Conversation summary: broker -> dashboard wire format
 export interface ConversationSummary {
   id: string
   project: string
@@ -2705,5 +2705,5 @@ export interface RecapMcpListResult {
 export const DEFAULT_BROKER_URL = 'ws://localhost:9999'
 export const DEFAULT_BROKER_PORT = 9999
 export const HEARTBEAT_INTERVAL_MS = 30000
-// Session status is driven by hooks (active/idle/ended), no configurable timeout
-// Server evaluates idle status - clients trust session.status
+// Conversation status is driven by hooks (active/idle/ended), no configurable timeout
+// Server evaluates idle status - clients trust conversation.status
