@@ -26,11 +26,11 @@ function useProjectRoots(): string[] {
   const key = useConversationsStore(s => {
     if (s.controlPanelPrefs.sanitizePaths === false) return ''
     const sid = s.selectedConversationId
-    const session = sid ? s.sessionsById[sid] : undefined
-    if (!session) return ''
-    let k = projectPath(session.project)
-    if (session.linkedProjects) {
-      for (const lp of session.linkedProjects) k += `\n${projectPath(lp.project)}`
+    const conversation = sid ? s.conversationsById[sid] : undefined
+    if (!conversation) return ''
+    let k = projectPath(conversation.project)
+    if (conversation.linkedProjects) {
+      for (const lp of conversation.linkedProjects) k += `\n${projectPath(lp.project)}`
     }
     return k
   })

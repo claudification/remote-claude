@@ -7,7 +7,7 @@ interface CacheTimerProps {
   tokenUsage?: { input: number; cacheCreation: number; cacheRead: number }
   model?: string
   cacheTtl?: '5m' | '1h'
-  /** Only show when session is idle */
+  /** Only show when conversation is idle */
   isIdle: boolean
 }
 

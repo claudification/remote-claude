@@ -47,7 +47,7 @@ export function renderMcpSendMessage({ input, result }: ToolCaseInput): ToolCase
   return { summary, details }
 }
 
-export function renderMcpSessionLifecycle(name: string, { input, result }: ToolCaseInput): ToolCaseResult {
+export function renderMcpConversationLifecycle(name: string, { input, result }: ToolCaseInput): ToolCaseResult {
   const conversationId = (input.session_id as string) || ''
   const action = name.includes('revive') ? 'revive' : 'terminate'
   const actionColor = action === 'revive' ? 'text-green-400' : 'text-red-400'
@@ -73,15 +73,15 @@ export function renderMcpListConversations({ input, result }: ToolCaseInput): To
       if (Array.isArray(parsed) && parsed[0]?.type === 'text' && typeof parsed[0].text === 'string') {
         parsed = JSON.parse(parsed[0].text)
       }
-      const sessions: Array<{ id: string; status: string }> = Array.isArray(parsed)
+      const conversations: Array<{ id: string; status: string }> = Array.isArray(parsed)
         ? parsed
-        : Array.isArray(parsed?.sessions)
-          ? parsed.sessions
+        : Array.isArray(parsed?.conversations)
+          ? parsed.conversations
           : []
-      summary = `${sessions.length} conversations${parts.length ? ` (${parts.join(', ')})` : ''}`
+      summary = `${conversations.length} conversations${parts.length ? ` (${parts.join(', ')})` : ''}`
       details = (
         <div className="text-[10px] font-mono space-y-0.5 mt-1">
-          {sessions.map(s => (
+          {conversations.map(s => (
             <div key={s.id} className="flex items-center gap-2">
               <span
                 className={cn(
@@ -101,7 +101,7 @@ export function renderMcpListConversations({ input, result }: ToolCaseInput): To
   return { summary, details }
 }
 
-export function renderMcpControlSession({ input, result, toolUseResult, isError }: ToolCaseInput): ToolCaseResult {
+export function renderMcpControlConversation({ input, result, toolUseResult, isError }: ToolCaseInput): ToolCaseResult {
   const ctrlAction = input.action as string
   const ctrlTarget = input.session_id as string
   const ctrlModel = input.model as string | undefined
@@ -142,7 +142,7 @@ export function renderMcpControlSession({ input, result, toolUseResult, isError 
   return { summary, details }
 }
 
-export function renderMcpConfigureSession({ input }: ToolCaseInput): ToolCaseResult {
+export function renderMcpConfigureConversation({ input }: ToolCaseInput): ToolCaseResult {
   const cfgTarget = input.session_id as string
   const cfgFields = ['label', 'icon', 'color', 'description', 'keyterms'].filter(k => input[k] !== undefined).join(', ')
   const summary = (

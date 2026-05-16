@@ -1,6 +1,6 @@
 import type { HookEvent } from '@shared/protocol'
 import { lazy, Suspense } from 'react'
-import { projectPath, type Session, type TranscriptEntry } from '@/lib/types'
+import { type Conversation, projectPath, type TranscriptEntry } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { BgTasksView } from '../bg-tasks-view'
 import { ConversationView } from '../conversation-view'
@@ -26,7 +26,7 @@ interface ConversationTarget {
 }
 
 interface TabContentPanelsProps {
-  session: Session
+  conversation: Conversation
   activeTab: Tab
   selectedConversationId: string
   transcript: TranscriptEntry[]
@@ -46,7 +46,7 @@ interface TabContentPanelsProps {
 }
 
 export function TabContentPanels({
-  session,
+  conversation,
   activeTab,
   selectedConversationId,
   transcript,
@@ -102,16 +102,16 @@ export function TabContentPanels({
           {!follow && transcript.length > 0 && <ScrollToBottomButton onClick={onEnableFollow} direction="down" />}
         </TranscriptDropZone>
       )}
-      {activeTab === 'tty' && hasTerminal && !showTerminal && session.connectionIds?.[0] && (
+      {activeTab === 'tty' && hasTerminal && !showTerminal && conversation.connectionIds?.[0] && (
         <div className="flex-1 min-h-0 overflow-hidden">
           <Suspense fallback={null}>
-            <InlineTerminal conversationId={session.connectionIds[0]} />
+            <InlineTerminal conversationId={conversation.connectionIds[0]} />
           </Suspense>
         </div>
       )}
-      {activeTab === 'json_stream' && hasJsonStream && session.connectionIds?.[0] && (
+      {activeTab === 'json_stream' && hasJsonStream && conversation.connectionIds?.[0] && (
         <div className="flex-1 min-h-0 overflow-hidden">
-          <JsonStreamPanel conversationId={session.connectionIds[0]} />
+          <JsonStreamPanel conversationId={conversation.connectionIds[0]} />
         </div>
       )}
       {!conversationTarget && activeTab === 'events' && (
@@ -129,7 +129,7 @@ export function TabContentPanels({
       {!conversationTarget && activeTab === 'agents' && selectedConversationId && (
         <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-4">
           <SubagentView conversationId={selectedConversationId} />
-          {session.bgTasks.length > 0 && (
+          {conversation.bgTasks.length > 0 && (
             <>
               <div className="border-t border-border pt-3">
                 <h3 className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-2">
@@ -143,7 +143,7 @@ export function TabContentPanels({
       )}
       {!conversationTarget && activeTab === 'tasks' && selectedConversationId && (
         <div className="flex-1 min-h-0 overflow-hidden">
-          <TasksView conversationId={selectedConversationId} pendingCount={session.pendingTaskCount} />
+          <TasksView conversationId={selectedConversationId} pendingCount={conversation.pendingTaskCount} />
         </div>
       )}
       {!conversationTarget && activeTab === 'files' && selectedConversationId && (
@@ -156,8 +156,8 @@ export function TabContentPanels({
           <ProjectBoard conversationId={selectedConversationId} />
         </div>
       )}
-      {!conversationTarget && activeTab === 'shared' && session && (
-        <SharedView projectPath={projectPath(session.project)} />
+      {!conversationTarget && activeTab === 'shared' && conversation && (
+        <SharedView projectPath={projectPath(conversation.project)} />
       )}
       {!conversationTarget && activeTab === 'diag' && selectedConversationId && (
         <DiagView conversationId={selectedConversationId} />

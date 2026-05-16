@@ -2,7 +2,7 @@ import { Pin } from 'lucide-react'
 import { memo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useConversationsStore } from '@/hooks/use-conversations'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import { extractProjectLabel, projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { ProjectSettingsButton, ProjectSettingsEditor, renderProjectIcon } from '../project-settings-editor'
@@ -49,26 +49,26 @@ function DismissAllEndedButton({ endedIds }: { endedIds: string[] }) {
   )
 }
 
-// ─── Multi-session project card ────────────────────────────────────
+// ─── Multi-conversation project card ────────────────────────────────────
 //
-// Resolves the full Session list from the store using the conversationIds
+// Resolves the full Conversation list from the store using the conversationIds
 // list (stable ref from the parent). Re-renders only when one of the
-// referenced sessions' identity changes (because zustand's selector
+// referenced conversations' identity changes (because zustand's selector
 // short-circuits when the resolved array is shallow-equal to the previous).
-const ProjectSessionGroup = memo(
-  function ProjectSessionGroup({ conversationIds, project }: { conversationIds: string[]; project: string }) {
+const ProjectConversationGroup = memo(
+  function ProjectConversationGroup({ conversationIds, project }: { conversationIds: string[]; project: string }) {
     const [showSettings, setShowSettings] = useState(false)
     const ps = useConversationsStore(s => s.projectSettings[project])
     const selectProject = useConversationsStore(s => s.selectProject)
     const displayName = ps?.label || extractProjectLabel(project)
     const displayColor = ps?.color
-    // Hydrate sessions from the per-id index. Sessions whose identity didn't
+    // Hydrate conversations from the per-id index. Conversations whose identity didn't
     // change keep the same reference -- useShallow short-circuits when none
     // of the elements changed.
-    const sessions = useConversationsStore(
-      useShallow(s => conversationIds.map(id => s.sessionsById[id]).filter(Boolean) as Session[]),
+    const conversations = useConversationsStore(
+      useShallow(s => conversationIds.map(id => s.conversationsById[id]).filter(Boolean) as Conversation[]),
     )
-    const { adhoc, normal, ended } = partitionConversations(sessions)
+    const { adhoc, normal, ended } = partitionConversations(conversations)
     // Project-level rollups: any conversation in this project needing attention?
     const hasPendingPermission = useConversationsStore(s => {
       const ids = new Set(conversationIds)
@@ -78,8 +78,8 @@ const ProjectSessionGroup = memo(
       const ids = new Set(conversationIds)
       return s.pendingProjectLinks.some(r => ids.has(r.fromConversation) || ids.has(r.toConversation))
     })
-    const hasPendingAttention = sessions.some(s => s.pendingAttention)
-    const hasNotification = sessions.some(s => s.hasNotification)
+    const hasPendingAttention = conversations.some(s => s.pendingAttention)
+    const hasNotification = conversations.some(s => s.hasNotification)
 
     return (
       <div>
@@ -87,7 +87,11 @@ const ProjectSessionGroup = memo(
           className="border border-border"
           style={displayColor ? { borderLeftColor: displayColor, borderLeftWidth: '3px' } : undefined}
         >
-          <ProjectContextMenu project={project} sessions={sessions} onOpenSettings={() => setShowSettings(true)}>
+          <ProjectContextMenu
+            project={project}
+            conversations={conversations}
+            onOpenSettings={() => setShowSettings(true)}
+          >
             <div
               role="button"
               tabIndex={0}
@@ -114,7 +118,7 @@ const ProjectSessionGroup = memo(
                 {displayName}
               </span>
               {ps?.pinned && <Pin className="h-2.5 w-2.5 text-muted-foreground/30 shrink-0" />}
-              <span className="text-[10px] text-muted-foreground font-mono">{sessions.length} conversations</span>
+              <span className="text-[10px] text-muted-foreground font-mono">{conversations.length} conversations</span>
               {hasPendingLink && (
                 <span
                   className="text-[9px] text-teal-400 font-bold animate-pulse"
@@ -145,10 +149,14 @@ const ProjectSessionGroup = memo(
             </div>
           </ProjectContextMenu>
           <div className="space-y-0.5 pb-1">
-            {normal.map(session => (
-              <ConversationContextMenu key={session.id} session={session} onOpenSettings={() => setShowSettings(true)}>
+            {normal.map(conversation => (
+              <ConversationContextMenu
+                key={conversation.id}
+                conversation={conversation}
+                onOpenSettings={() => setShowSettings(true)}
+              >
                 <div>
-                  <ConversationItemCompact session={session} />
+                  <ConversationItemCompact conversation={conversation} />
                 </div>
               </ConversationContextMenu>
             ))}
@@ -159,10 +167,14 @@ const ProjectSessionGroup = memo(
                 <span className="flex-1 h-px bg-border" />
               </div>
             )}
-            {adhoc.map(session => (
-              <ConversationContextMenu key={session.id} session={session} onOpenSettings={() => setShowSettings(true)}>
+            {adhoc.map(conversation => (
+              <ConversationContextMenu
+                key={conversation.id}
+                conversation={conversation}
+                onOpenSettings={() => setShowSettings(true)}
+              >
                 <div>
-                  <ConversationItemCompact session={session} />
+                  <ConversationItemCompact conversation={conversation} />
                 </div>
               </ConversationContextMenu>
             ))}
@@ -229,15 +241,15 @@ export function PinnedProjectNode({ project }: { project: string }) {
   )
 }
 
-// ─── Single-session card subscribed by id ───────────────────────────
+// ─── Single-conversation card subscribed by id ───────────────────────────
 
 const ConversationCardById = memo(function ConversationCardById({ conversationId }: { conversationId: string }) {
-  const session = useConversationsStore(s => s.sessionsById[conversationId])
-  if (!session) return null
-  return <ConversationCard session={session} />
+  const conversation = useConversationsStore(s => s.conversationsById[conversationId])
+  if (!conversation) return null
+  return <ConversationCard conversation={conversation} />
 })
 
-// ─── Project node renderer (single or multi-session) ─────────────
+// ─── Project node renderer (single or multi-conversation) ─────────────
 
 export const ProjectNode = memo(
   function ProjectNode({ project, conversationIds }: { project: string; conversationIds: string[] }) {
@@ -250,7 +262,7 @@ export const ProjectNode = memo(
         </div>
       )
     }
-    return <ProjectSessionGroup conversationIds={conversationIds} project={project} />
+    return <ProjectConversationGroup conversationIds={conversationIds} project={project} />
   },
   (prev, next) => prev.project === next.project && idsEqual(prev.conversationIds, next.conversationIds),
 )

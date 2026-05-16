@@ -1,6 +1,6 @@
 /**
  * Details for Nerds - tabbed diagnostic modal
- * Tabs: Traffic (WS stats), Cache (LIFO session cache), Subscriptions, Debug Log
+ * Tabs: Traffic (WS stats), Cache (LIFO conversation cache), Subscriptions, Debug Log
  */
 
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
@@ -26,7 +26,7 @@ import { clearCacheAndReload, cn } from '@/lib/utils'
 
 interface ServerStats {
   uptime: number
-  sessions: { total: number; active: number; idle: number; ended: number }
+  conversations: { total: number; active: number; idle: number; ended: number }
   connections: { total: number; legacy: number; v2: number }
   traffic: {
     in: { messagesPerSec: number; bytesPerSec: number }
@@ -95,8 +95,8 @@ function TrafficTab({ serverStats, fetchError }: { serverStats: ServerStats | nu
             <div className="text-[10px] uppercase tracking-wider text-comment mb-2">Server</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
               <StatRow label="uptime" value={formatUptime(serverStats.uptime)} />
-              <StatRow label="conversations" value={String(serverStats.sessions.total)} />
-              <StatRow label="active" value={String(serverStats.sessions.active)} accent />
+              <StatRow label="conversations" value={String(serverStats.conversations.total)} />
+              <StatRow label="active" value={String(serverStats.conversations.active)} accent />
               <StatRow label="connections" value={String(serverStats.connections.total)} />
             </div>
           </div>
@@ -130,8 +130,8 @@ function TrafficTab({ serverStats, fetchError }: { serverStats: ServerStats | nu
 }
 
 function CacheTab() {
-  const mru = useConversationsStore(s => s.sessionMru)
-  const sessionsById = useConversationsStore(s => s.sessionsById)
+  const mru = useConversationsStore(s => s.conversationMru)
+  const conversationsById = useConversationsStore(s => s.conversationsById)
   const transcripts = useConversationsStore(s => s.transcripts)
   const events = useConversationsStore(s => s.events)
   const selected = useConversationsStore(s => s.selectedConversationId)
@@ -154,7 +154,7 @@ function CacheTab() {
       <div>
         <div className="text-[10px] uppercase tracking-wider text-comment mb-2">Memory</div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-          <StatRow label="cached sessions" value={String(cachedIds.length)} accent />
+          <StatRow label="cached conversations" value={String(cachedIds.length)} accent />
           <StatRow label="transcript entries" value={String(totalEntries)} />
           <StatRow label="hook events" value={String(totalEvents)} />
           <StatRow label="est. memory" value={formatMemory(totalEntries + totalEvents)} />
@@ -167,8 +167,9 @@ function CacheTab() {
           {mru
             .filter(id => cachedIds.includes(id))
             .map(id => {
-              const session = sessionsById[id]
-              const name = session?.title || (session ? extractProjectLabel(session.project) : '') || id.slice(0, 8)
+              const conversation = conversationsById[id]
+              const name =
+                conversation?.title || (conversation ? extractProjectLabel(conversation.project) : '') || id.slice(0, 8)
               const entryCount = transcripts[id]?.length ?? 0
               const isSelected = id === selected
               return (
@@ -190,8 +191,9 @@ function CacheTab() {
         <div className="text-[10px] uppercase tracking-wider text-comment mb-2">WS Subscriptions</div>
         <div className="max-h-32 overflow-y-auto space-y-0.5">
           {cachedIds.map(id => {
-            const session = sessionsById[id]
-            const name = session?.title || (session ? extractProjectLabel(session.project) : '') || id.slice(0, 8)
+            const conversation = conversationsById[id]
+            const name =
+              conversation?.title || (conversation ? extractProjectLabel(conversation.project) : '') || id.slice(0, 8)
             return (
               <div key={id} className="text-[10px] text-foreground font-mono">
                 <span className="text-success">SUB</span> {name}

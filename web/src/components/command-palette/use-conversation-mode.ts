@@ -2,43 +2,43 @@ import { Fzf } from 'fzf'
 import { useMemo } from 'react'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { getFrequencyMap } from '@/lib/conversation-frequency'
-import { projectPath, type Session } from '@/lib/types'
+import { type Conversation, projectPath } from '@/lib/types'
 import type { MergedItem } from './types'
 import type { RegistryCommand } from './use-command-mode'
 
-export interface SessionModeState {
-  allConversations: Session[]
+export interface ConversationModeState {
+  allConversations: Conversation[]
   mergedItems: MergedItem[]
-  filteredSessions: Session[]
+  filteredConversations: Conversation[]
 }
 
 /**
- * Session-mode (no prefix) derivations. Sorts the session list (MRU top 2 +
- * frequency-weighted), runs Fzf over both sessions and the registry commands
+ * Conversation-mode (no prefix) derivations. Sorts the conversation list (MRU top 2 +
+ * frequency-weighted), runs Fzf over both conversations and the registry commands
  * with a small command-score penalty, and returns a merged list with live
- * sessions pinned above ended sessions and commands.
+ * conversations pinned above ended conversations and commands.
  */
-export function useSessionMode(
+export function useConversationMode(
   filter: string,
   isConversationMode: boolean,
   registryCommands: RegistryCommand[],
-): SessionModeState {
-  const sessions = useConversationsStore(state => state.sessions)
+): ConversationModeState {
+  const conversations = useConversationsStore(state => state.conversations)
   const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
-  const sessionMru = useConversationsStore(state => state.sessionMru)
+  const conversationMru = useConversationsStore(state => state.conversationMru)
   const projectSettings = useConversationsStore(state => state.projectSettings)
 
   const freqMap = useMemo(() => getFrequencyMap(), [])
 
   const allConversations = useMemo(
-    () => sortSessionsForPalette(sessions, sessionMru, freqMap),
-    [sessions, sessionMru, freqMap],
+    () => sortConversationsForPalette(conversations, conversationMru, freqMap),
+    [conversations, conversationMru, freqMap],
   )
 
-  const sessionFzf = useMemo(
+  const conversationFzf = useMemo(
     () =>
       new Fzf(allConversations, {
-        selector: (s: Session) => {
+        selector: (s: Conversation) => {
           const ps = projectSettings[s.project]
           return `${projectPath(s.project)} ${ps?.label || ''} ${s.title || ''} ${s.agentName || ''} ${s.recap?.title || ''} ${s.id} ${s.model || ''} ${s.status}`
         },
@@ -52,19 +52,19 @@ export function useSessionMode(
     [registryCommands],
   )
 
-  const sessionSearchResults = useMemo(() => {
+  const conversationSearchResults = useMemo(() => {
     if (!isConversationMode || !filter) return []
-    return sessionFzf.find(filter).map(r => ({
-      kind: 'session' as const,
-      session: r.item,
+    return conversationFzf.find(filter).map(r => ({
+      kind: 'conversation' as const,
+      conversation: r.item,
       score: r.score,
       live: r.item.status !== 'ended',
     }))
-  }, [isConversationMode, filter, sessionFzf])
+  }, [isConversationMode, filter, conversationFzf])
 
   const commandSearchResults = useMemo(() => {
     if (!isConversationMode || !filter) return []
-    // Penalty keeps commands below equally-scored sessions ("low score")
+    // Penalty keeps commands below equally-scored conversations ("low score")
     const COMMAND_SCORE_PENALTY = 0.5
     return paletteCommandFzf.find(filter).map(r => ({
       kind: 'command' as const,
@@ -79,36 +79,43 @@ export function useSessionMode(
     if (!filter) {
       return allConversations
         .filter(s => s.status !== 'ended' && s.id !== selectedConversationId)
-        .map(s => ({ kind: 'session' as const, session: s, score: 0, live: true }))
+        .map(s => ({ kind: 'conversation' as const, conversation: s, score: 0, live: true }))
     }
-    const merged: MergedItem[] = [...sessionSearchResults, ...commandSearchResults]
+    const merged: MergedItem[] = [...conversationSearchResults, ...commandSearchResults]
     merged.sort((a, b) => {
-      // Live sessions always above everything else (ended conversations + commands)
+      // Live conversations always above everything else (ended conversations + commands)
       if (a.live !== b.live) return a.live ? -1 : 1
       return b.score - a.score
     })
     return merged
-  }, [isConversationMode, filter, allConversations, selectedConversationId, sessionSearchResults, commandSearchResults])
+  }, [
+    isConversationMode,
+    filter,
+    allConversations,
+    selectedConversationId,
+    conversationSearchResults,
+    commandSearchResults,
+  ])
 
-  const filteredSessions = useMemo(
+  const filteredConversations = useMemo(
     () =>
       mergedItems
-        .filter((i): i is Extract<MergedItem, { kind: 'session' }> => i.kind === 'session')
-        .map(i => i.session),
+        .filter((i): i is Extract<MergedItem, { kind: 'conversation' }> => i.kind === 'conversation')
+        .map(i => i.conversation),
     [mergedItems],
   )
 
-  return { allConversations, mergedItems, filteredSessions }
+  return { allConversations, mergedItems, filteredConversations }
 }
 
-function sortSessionsForPalette(
-  sessions: Session[],
-  sessionMru: string[],
+function sortConversationsForPalette(
+  conversations: Conversation[],
+  conversationMru: string[],
   freqMap: Record<string, { count: number }>,
-): Session[] {
-  const activeProjects = new Set(sessions.filter(s => s.status !== 'ended').map(s => s.project))
-  const deduplicated = sessions.filter(s => s.status !== 'ended' || !activeProjects.has(s.project))
-  const mruIndex = new Map(sessionMru.map((id, i) => [id, i]))
+): Conversation[] {
+  const activeProjects = new Set(conversations.filter(s => s.status !== 'ended').map(s => s.project))
+  const deduplicated = conversations.filter(s => s.status !== 'ended' || !activeProjects.has(s.project))
+  const mruIndex = new Map(conversationMru.map((id, i) => [id, i]))
   return [...deduplicated].sort((a, b) => {
     const ai = mruIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER
     const bi = mruIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER

@@ -2,7 +2,7 @@
  * Model pricing database -- fetched from broker (LiteLLM data).
  * Used for cost estimation. Context window sizing is NOT from this DB:
  * LiteLLM's max_input_tokens reports the beta-opt-in maximum, not Claude
- * Code's actual default. For context window, use session.contextWindow
+ * Code's actual default. For context window, use conversation.contextWindow
  * (set by the broker based on transcript signals).
  */
 
@@ -60,7 +60,7 @@ export function getModelInfo(modelName: string | undefined): ModelInfo | undefin
 /** Context window for display. Claude Code defaults to 200K; 1M is opt-in
  * for Opus 4.5 / 4.6 (via /model menu or explicit `[1m]`/`-1m` model variant)
  * but the DEFAULT for Opus 4.7+. The authoritative value comes from the backend
- * as `session.contextWindow` -- this function is just a fallback when that
+ * as `conversation.contextWindow` -- this function is just a fallback when that
  * field is absent.
  */
 export function contextWindowFromDb(model: string | undefined): number {

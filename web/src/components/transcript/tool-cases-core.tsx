@@ -3,10 +3,16 @@ import { cleanCdPrefix, shortPath } from './shared'
 import type { ToolCaseInput, ToolCaseResult } from './tool-case-types'
 import { BashOutput, DiffView, ReplResult, ReplView, ShellCommand, WritePreview } from './tool-renderers'
 
-export function renderBash({ input, result, toolUseResult, sessionPath, expandAll }: ToolCaseInput): ToolCaseResult {
+export function renderBash({
+  input,
+  result,
+  toolUseResult,
+  conversationPath,
+  expandAll,
+}: ToolCaseInput): ToolCaseResult {
   const cmd = input.command as string
   const bashDesc = input.description as string | undefined
-  const displayCmd = sessionPath && cmd ? cleanCdPrefix(cmd, sessionPath) : cmd
+  const displayCmd = conversationPath && cmd ? cleanCdPrefix(cmd, conversationPath) : cmd
   const summary = bashDesc || (displayCmd?.length > 80 && !expandAll ? `${displayCmd.slice(0, 80)}...` : displayCmd)
   let details = null
   if (result || toolUseResult?.stdout) {

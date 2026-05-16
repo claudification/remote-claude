@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useConversationsStore } from '@/hooks/use-conversations'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 
 vi.mock('@/hooks/use-conversations', async importOriginal => {
   const actual = (await importOriginal()) as Record<string, unknown>
@@ -16,8 +16,8 @@ vi.mock('./conversation-detail/conversation-banners', () => ({
   ClipboardBanners: () => <div data-testid="clipboard-banners" />,
 }))
 vi.mock('./conversation-detail/conversation-header', () => ({
-  ConversationHeader: (props: { session: unknown }) => (
-    <div data-testid="conversation-header" data-session={!!props.session} />
+  ConversationHeader: (props: { conversation: unknown }) => (
+    <div data-testid="conversation-header" data-conversation={!!props.conversation} />
   ),
 }))
 vi.mock('./conversation-detail/conversation-input', () => ({
@@ -56,9 +56,9 @@ vi.mock('@/hooks/use-project', () => ({
 
 import { ConversationDetail } from './conversation-detail'
 
-function makeSession(overrides: Partial<Session> = {}): Session {
+function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
   return {
-    id: 'test-session-1',
+    id: 'test-conversation-1',
     cwd: '/home/user/project',
     status: 'idle',
     startedAt: Date.now() - 60000,
@@ -76,13 +76,13 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     teammates: [],
     project: '/home/user/project',
     ...overrides,
-  } as Session
+  } as Conversation
 }
 
 function setStoreState(state: Record<string, unknown>) {
   useConversationsStore.setState({
     selectedConversationId: null,
-    sessionsById: {},
+    conversationsById: {},
     events: {},
     transcripts: {},
     expandAll: false,
@@ -100,7 +100,7 @@ function setStoreState(state: Record<string, unknown>) {
       canFiles: true,
       canSpawn: true,
     },
-    sessionPermissions: {},
+    conversationPermissions: {},
     selectedSubagentId: null,
     selectSubagent: vi.fn(),
     subagentTranscripts: {},
@@ -120,30 +120,30 @@ describe('ConversationDetail - empty state', () => {
     setStoreState({ selectedConversationId: null })
   })
 
-  it('renders EmptyState when no session selected', () => {
+  it('renders EmptyState when no conversation selected', () => {
     render(<ConversationDetail />)
     expect(screen.getByTestId('empty-state')).toBeDefined()
   })
 
-  it('does not render header when no session', () => {
+  it('does not render header when no conversation', () => {
     render(<ConversationDetail />)
     expect(screen.queryByTestId('conversation-header')).toBeNull()
   })
 
-  it('does not render tabs when no session', () => {
+  it('does not render tabs when no conversation', () => {
     render(<ConversationDetail />)
     expect(screen.queryByTestId('conversation-tabs')).toBeNull()
   })
 })
 
-describe('ConversationDetail - active session', () => {
+describe('ConversationDetail - active conversation', () => {
   beforeEach(() => {
-    const session = makeSession({ status: 'idle' })
+    const conversation = makeConversation({ status: 'idle' })
     setStoreState({
-      selectedConversationId: 'test-session-1',
-      sessionsById: { 'test-session-1': session },
-      events: { 'test-session-1': [] },
-      transcripts: { 'test-session-1': [] },
+      selectedConversationId: 'test-conversation-1',
+      conversationsById: { 'test-conversation-1': conversation },
+      events: { 'test-conversation-1': [] },
+      transcripts: { 'test-conversation-1': [] },
     })
   })
 
@@ -162,7 +162,7 @@ describe('ConversationDetail - active session', () => {
     expect(screen.getByTestId('tab-content-panels')).toBeDefined()
   })
 
-  it('renders input bar for active session with chat permission', () => {
+  it('renders input bar for active conversation with chat permission', () => {
     render(<ConversationDetail />)
     expect(screen.getByTestId('input-bar')).toBeDefined()
   })
@@ -177,7 +177,7 @@ describe('ConversationDetail - active session', () => {
     expect(screen.queryByTestId('empty-state')).toBeNull()
   })
 
-  it('does not render revive footer for active session', () => {
+  it('does not render revive footer for active conversation', () => {
     render(<ConversationDetail />)
     expect(screen.queryByTestId('revive-footer')).toBeNull()
   })
@@ -188,14 +188,14 @@ describe('ConversationDetail - active session', () => {
   })
 })
 
-describe('ConversationDetail - ended session', () => {
+describe('ConversationDetail - ended conversation', () => {
   beforeEach(() => {
-    const session = makeSession({ status: 'ended' })
+    const conversation = makeConversation({ status: 'ended' })
     setStoreState({
-      selectedConversationId: 'test-session-1',
-      sessionsById: { 'test-session-1': session },
-      events: { 'test-session-1': [] },
-      transcripts: { 'test-session-1': [] },
+      selectedConversationId: 'test-conversation-1',
+      conversationsById: { 'test-conversation-1': conversation },
+      events: { 'test-conversation-1': [] },
+      transcripts: { 'test-conversation-1': [] },
       sentinelConnected: true,
     })
   })
@@ -205,7 +205,7 @@ describe('ConversationDetail - ended session', () => {
     expect(screen.getByTestId('revive-footer')).toBeDefined()
   })
 
-  it('does not render input bar for ended session', () => {
+  it('does not render input bar for ended conversation', () => {
     render(<ConversationDetail />)
     expect(screen.queryByTestId('input-bar')).toBeNull()
   })
@@ -213,12 +213,12 @@ describe('ConversationDetail - ended session', () => {
 
 describe('ConversationDetail - ended without spawn permission', () => {
   beforeEach(() => {
-    const session = makeSession({ status: 'ended' })
+    const conversation = makeConversation({ status: 'ended' })
     setStoreState({
-      selectedConversationId: 'test-session-1',
-      sessionsById: { 'test-session-1': session },
-      events: { 'test-session-1': [] },
-      transcripts: { 'test-session-1': [] },
+      selectedConversationId: 'test-conversation-1',
+      conversationsById: { 'test-conversation-1': conversation },
+      events: { 'test-conversation-1': [] },
+      transcripts: { 'test-conversation-1': [] },
       sentinelConnected: true,
       permissions: {
         canAdmin: false,
@@ -239,12 +239,12 @@ describe('ConversationDetail - ended without spawn permission', () => {
 
 describe('ConversationDetail - ended without sentinel', () => {
   beforeEach(() => {
-    const session = makeSession({ status: 'ended' })
+    const conversation = makeConversation({ status: 'ended' })
     setStoreState({
-      selectedConversationId: 'test-session-1',
-      sessionsById: { 'test-session-1': session },
-      events: { 'test-session-1': [] },
-      transcripts: { 'test-session-1': [] },
+      selectedConversationId: 'test-conversation-1',
+      conversationsById: { 'test-conversation-1': conversation },
+      events: { 'test-conversation-1': [] },
+      transcripts: { 'test-conversation-1': [] },
       sentinelConnected: false,
     })
   })
@@ -257,12 +257,12 @@ describe('ConversationDetail - ended without sentinel', () => {
 
 describe('ConversationDetail - admin permissions', () => {
   beforeEach(() => {
-    const session = makeSession({ status: 'idle' })
+    const conversation = makeConversation({ status: 'idle' })
     setStoreState({
-      selectedConversationId: 'test-session-1',
-      sessionsById: { 'test-session-1': session },
-      events: { 'test-session-1': [] },
-      transcripts: { 'test-session-1': [] },
+      selectedConversationId: 'test-conversation-1',
+      conversationsById: { 'test-conversation-1': conversation },
+      events: { 'test-conversation-1': [] },
+      transcripts: { 'test-conversation-1': [] },
       permissions: {
         canAdmin: true,
         canChat: true,
@@ -282,12 +282,12 @@ describe('ConversationDetail - admin permissions', () => {
 
 describe('ConversationDetail - non-admin permissions', () => {
   beforeEach(() => {
-    const session = makeSession({ status: 'idle' })
+    const conversation = makeConversation({ status: 'idle' })
     setStoreState({
-      selectedConversationId: 'test-session-1',
-      sessionsById: { 'test-session-1': session },
-      events: { 'test-session-1': [] },
-      transcripts: { 'test-session-1': [] },
+      selectedConversationId: 'test-conversation-1',
+      conversationsById: { 'test-conversation-1': conversation },
+      events: { 'test-conversation-1': [] },
+      transcripts: { 'test-conversation-1': [] },
       permissions: {
         canAdmin: false,
         canChat: true,
@@ -307,12 +307,12 @@ describe('ConversationDetail - non-admin permissions', () => {
 
 describe('ConversationDetail - no chat permission', () => {
   beforeEach(() => {
-    const session = makeSession({ status: 'idle' })
+    const conversation = makeConversation({ status: 'idle' })
     setStoreState({
-      selectedConversationId: 'test-session-1',
-      sessionsById: { 'test-session-1': session },
-      events: { 'test-session-1': [] },
-      transcripts: { 'test-session-1': [] },
+      selectedConversationId: 'test-conversation-1',
+      conversationsById: { 'test-conversation-1': conversation },
+      events: { 'test-conversation-1': [] },
+      transcripts: { 'test-conversation-1': [] },
       permissions: {
         canAdmin: false,
         canChat: false,
@@ -332,15 +332,15 @@ describe('ConversationDetail - no chat permission', () => {
 
 describe('ConversationDetail - subagent view', () => {
   beforeEach(() => {
-    const session = makeSession({
+    const conversation = makeConversation({
       status: 'idle',
       subagents: [{ agentId: 'sub-1', agentType: 'Explore', status: 'running', startedAt: 1000, eventCount: 3 }],
     })
     setStoreState({
-      selectedConversationId: 'test-session-1',
-      sessionsById: { 'test-session-1': session },
-      events: { 'test-session-1': [] },
-      transcripts: { 'test-session-1': [] },
+      selectedConversationId: 'test-conversation-1',
+      conversationsById: { 'test-conversation-1': conversation },
+      events: { 'test-conversation-1': [] },
+      transcripts: { 'test-conversation-1': [] },
       selectedSubagentId: 'sub-1',
       subagentTranscripts: {},
     })
@@ -369,14 +369,14 @@ describe('ConversationDetail - subagent view', () => {
 
 describe('ConversationDetail - terminal overlay', () => {
   beforeEach(() => {
-    const session = makeSession({ status: 'idle' })
+    const conversation = makeConversation({ status: 'idle' })
     setStoreState({
-      selectedConversationId: 'test-session-1',
-      sessionsById: { 'test-session-1': session },
-      events: { 'test-session-1': [] },
-      transcripts: { 'test-session-1': [] },
+      selectedConversationId: 'test-conversation-1',
+      conversationsById: { 'test-conversation-1': conversation },
+      events: { 'test-conversation-1': [] },
+      transcripts: { 'test-conversation-1': [] },
       showTerminal: true,
-      terminalWrapperId: 'test-session-1',
+      terminalWrapperId: 'test-conversation-1',
     })
   })
 
@@ -388,12 +388,12 @@ describe('ConversationDetail - terminal overlay', () => {
 
 describe('ConversationDetail - terminal overlay hidden', () => {
   beforeEach(() => {
-    const session = makeSession({ status: 'idle' })
+    const conversation = makeConversation({ status: 'idle' })
     setStoreState({
-      selectedConversationId: 'test-session-1',
-      sessionsById: { 'test-session-1': session },
-      events: { 'test-session-1': [] },
-      transcripts: { 'test-session-1': [] },
+      selectedConversationId: 'test-conversation-1',
+      conversationsById: { 'test-conversation-1': conversation },
+      events: { 'test-conversation-1': [] },
+      transcripts: { 'test-conversation-1': [] },
       showTerminal: false,
       terminalWrapperId: null,
     })

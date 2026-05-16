@@ -45,12 +45,12 @@ function lookupTaskSubject(taskId: string | undefined): string {
   const state = useConversationsStore.getState()
   const sid = state.selectedConversationId
   if (!sid) return ''
-  const session = sid ? state.sessionsById[sid] : undefined
-  if (!session) return ''
+  const conversation = sid ? state.conversationsById[sid] : undefined
+  if (!conversation) return ''
   return (
-    session.activeTasks?.find(t => t.id === taskId)?.subject ||
-    session.pendingTasks?.find(t => t.id === taskId)?.subject ||
-    session.archivedTasks?.find(t => t.id === taskId)?.subject ||
+    conversation.activeTasks?.find(t => t.id === taskId)?.subject ||
+    conversation.pendingTasks?.find(t => t.id === taskId)?.subject ||
+    conversation.archivedTasks?.find(t => t.id === taskId)?.subject ||
     ''
   )
 }

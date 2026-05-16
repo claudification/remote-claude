@@ -2,7 +2,7 @@ import { Braces, Terminal } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useConversationsStore } from '@/hooks/use-conversations'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 
 export type Tab =
@@ -18,7 +18,7 @@ export type Tab =
   | 'diag'
 
 interface ConversationTabsProps {
-  session: Session
+  conversation: Conversation
   activeTab: Tab
   onSetActiveTab: (tab: Tab) => void
   hasTerminal: boolean
@@ -65,7 +65,7 @@ function tabClickHandler(target: Tab, onSetActiveTab: (tab: Tab) => void) {
 }
 
 export function ConversationTabs({
-  session,
+  conversation,
   activeTab,
   onSetActiveTab,
   hasTerminal,
@@ -89,7 +89,7 @@ export function ConversationTabs({
           title="Terminal (Shift+click to pop out)"
           onClick={e => {
             if (e.shiftKey) {
-              const wid = session?.connectionIds?.[0]
+              const wid = conversation?.connectionIds?.[0]
               if (wid) window.open(`/#popout-terminal/${wid}`, '_blank', 'width=900,height=600,menubar=no,toolbar=no')
             } else {
               haptic('tick')
@@ -123,35 +123,37 @@ export function ConversationTabs({
       )}
 
       {canAdmin &&
-        (session.totalSubagentCount > 0 || session.activeSubagentCount > 0 || session.bgTasks.length > 0) && (
+        (conversation.totalSubagentCount > 0 ||
+          conversation.activeSubagentCount > 0 ||
+          conversation.bgTasks.length > 0) && (
           <TabButton active={activeTab === 'agents'} onClick={tabClickHandler('agents', onSetActiveTab)}>
             Agents
-            {(session.activeSubagentCount > 0 || session.runningBgTaskCount > 0) && (
+            {(conversation.activeSubagentCount > 0 || conversation.runningBgTaskCount > 0) && (
               <span className="ml-1.5 px-1.5 py-0.5 bg-active/20 text-active text-[10px] font-bold">
-                {session.activeSubagentCount + session.runningBgTaskCount}
+                {conversation.activeSubagentCount + conversation.runningBgTaskCount}
               </span>
             )}
           </TabButton>
         )}
 
-      {(session.taskCount > 0 || (session.archivedTaskCount ?? 0) > 0) && (
+      {(conversation.taskCount > 0 || (conversation.archivedTaskCount ?? 0) > 0) && (
         <TabButton active={activeTab === 'tasks'} onClick={tabClickHandler('tasks', onSetActiveTab)}>
           Tasks
-          {session.pendingTaskCount > 0 && (
+          {conversation.pendingTaskCount > 0 && (
             <span className="ml-1.5 px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] font-bold">
-              {session.pendingTaskCount}
+              {conversation.pendingTaskCount}
             </span>
           )}
         </TabButton>
       )}
 
-      {canReadFiles && session.status !== 'ended' && (
+      {canReadFiles && conversation.status !== 'ended' && (
         <TabButton active={activeTab === 'files'} onClick={tabClickHandler('files', onSetActiveTab)}>
           Files
         </TabButton>
       )}
 
-      {session.status !== 'ended' && (
+      {conversation.status !== 'ended' && (
         <TabButton active={activeTab === 'project'} onClick={tabClickHandler('project', onSetActiveTab)}>
           Project
         </TabButton>

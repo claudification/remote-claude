@@ -15,7 +15,7 @@ import { setChordTimeout } from '@/lib/key-layers'
 import { fetchModelDb } from '@/lib/model-db'
 import { flattenProjectOrderTree, projectOrderTreesEqual } from '@/lib/types'
 
-// Fetch sidebar metadata (project settings, capabilities, global settings, session order).
+// Fetch sidebar metadata (project settings, capabilities, global settings, conversation order).
 // Called on mount AND on reconnect/visibility-restore to catch renames, reorders, etc.
 function useSidebarMetadata() {
   const fetchSidebarMetadata = useCallback(async () => {
@@ -125,7 +125,7 @@ function useConnectSeqSync(
     if (!isConnected) return
     const sid = useConversationsStore.getState().selectedConversationId
     console.log(
-      `[sync] connectSeq=${connectSeq} - refresh sessions + sidebar metadata, re-fetch ${sid?.slice(0, 8) || 'none'}`,
+      `[sync] connectSeq=${connectSeq} - refresh conversations + sidebar metadata, re-fetch ${sid?.slice(0, 8) || 'none'}`,
     )
     wsSend('refresh_sessions')
     // Hydrate the recap-jobs widget on every connect so the bottom-of-sidebar
@@ -159,7 +159,7 @@ function useConversationSwitchFetch(
       )
     } else {
       console.log(`[sync] MISS ${selectedConversationId.slice(0, 8)}: no cached transcript, fetching full`)
-      fetchConversationData(selectedConversationId, 'session-switch-empty')
+      fetchConversationData(selectedConversationId, 'conversation-switch-empty')
     }
   }, [selectedConversationId]) // eslint-disable-line react-hooks/exhaustive-deps
 }
@@ -191,7 +191,7 @@ function useLifoCacheTimeout() {
       }
       if (evicted) {
         useConversationsStore.setState(state => {
-          const kept = new Set(state.sessionMru.slice(0, state.controlPanelPrefs.sessionCacheSize))
+          const kept = new Set(state.conversationMru.slice(0, state.controlPanelPrefs.sessionCacheSize))
           if (state.selectedConversationId) kept.add(state.selectedConversationId)
           const events = { ...state.events }
           const transcripts = { ...state.transcripts }

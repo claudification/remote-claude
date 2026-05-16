@@ -2,7 +2,7 @@
  * Action FAB - Mobile floating action button with vertical fan expansion
  *
  * Position: fixed bottom-right. Tap to expand fan of action buttons.
- * Double-tap the main button to alt-tab to previous session.
+ * Double-tap the main button to alt-tab to previous conversation.
  * Actions are context-aware: shows terminate for active conversations,
  * revive/dismiss for ended conversations.
  * Mobile only - hidden on desktop (hover-capable devices).
@@ -11,7 +11,7 @@
 import { Command, ListChecks, MessageSquarePlus, PenLine, Power, RefreshCw, Rocket, Share2, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConversationsStore } from '@/hooks/use-conversations'
-import { projectPath, type Session } from '@/lib/types'
+import { type Conversation, projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { openReviveDialog } from './revive-dialog'
 import { openSpawnDialog } from './spawn-dialog'
@@ -27,7 +27,7 @@ interface FanAction {
   dangerous?: boolean
 }
 
-function buildActions(session: Session | undefined, selectedConversationId: string | null): FanAction[] {
+function buildActions(conversation: Conversation | undefined, selectedConversationId: string | null): FanAction[] {
   const actions: FanAction[] = [
     {
       id: 'switcher',
@@ -56,8 +56,8 @@ function buildActions(session: Session | undefined, selectedConversationId: stri
       label: 'Launch',
       action: () =>
         openSpawnDialog({
-          path: session ? projectPath(session.project) : '.',
-          projectUri: session?.project,
+          path: conversation ? projectPath(conversation.project) : '.',
+          projectUri: conversation?.project,
         }),
       color: 'bg-warning',
     },
@@ -70,9 +70,9 @@ function buildActions(session: Session | undefined, selectedConversationId: stri
     },
   ]
 
-  if (session && selectedConversationId) {
-    if (session.status !== 'ended') {
-      // Active session actions
+  if (conversation && selectedConversationId) {
+    if (conversation.status !== 'ended') {
+      // Active conversation actions
       actions.push({
         id: 'share',
         icon: <Share2 className="w-4 h-4" />,
@@ -88,20 +88,20 @@ function buildActions(session: Session | undefined, selectedConversationId: stri
           // Open the proper modal -- inline two-tap confirm was easy to miss on
           // mobile and left the action looking unresponsive. This matches the
           // ⌘K X / ⌘G X command palette path.
-          const name = session.title || session.agentName || null
-          openTerminateConfirm(session.id, name)
+          const name = conversation.title || conversation.agentName || null
+          openTerminateConfirm(conversation.id, name)
         },
         color: 'bg-red-500',
       })
     } else {
-      // Ended session actions
+      // Ended conversation actions
       actions.push({
         id: 'revive',
         icon: <RefreshCw className="w-4 h-4" />,
         label: 'Revive...',
         action: () => {
-          useConversationsStore.getState().selectConversation(session.id)
-          openReviveDialog({ conversationId: session.id })
+          useConversationsStore.getState().selectConversation(conversation.id)
+          openReviveDialog({ conversationId: conversation.id })
         },
         color: 'bg-emerald-500',
       })
@@ -109,7 +109,7 @@ function buildActions(session: Session | undefined, selectedConversationId: stri
         id: 'dismiss',
         icon: <Trash2 className="w-4 h-4" />,
         label: 'Dismiss',
-        action: () => useConversationsStore.getState().dismissConversation(session.id),
+        action: () => useConversationsStore.getState().dismissConversation(conversation.id),
         color: 'bg-red-500/80',
         dangerous: true,
       })
@@ -124,11 +124,11 @@ export function ActionFab() {
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const lastTapRef = useRef(0)
   const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
-  const session = useConversationsStore(state =>
-    state.selectedConversationId ? state.sessionsById[state.selectedConversationId] : undefined,
+  const conversation = useConversationsStore(state =>
+    state.selectedConversationId ? state.conversationsById[state.selectedConversationId] : undefined,
   )
 
-  const actions = buildActions(session, selectedConversationId)
+  const actions = buildActions(conversation, selectedConversationId)
 
   // Compute cumulative Y offsets with extra gap before dangerous actions
   const offsets = actions.reduce<number[]>((acc, action, i) => {
@@ -143,15 +143,15 @@ export function ActionFab() {
   const handleMainTap = useCallback(() => {
     const now = Date.now()
     if (now - lastTapRef.current < 300) {
-      // Double-tap: cancel pending single-tap, alt-tab to previous session
+      // Double-tap: cancel pending single-tap, alt-tab to previous conversation
       if (singleTapTimer.current) {
         clearTimeout(singleTapTimer.current)
         singleTapTimer.current = null
       }
       haptic('double')
       setExpanded(false)
-      const { sessionMru, sessions, selectConversation } = useConversationsStore.getState()
-      const prev = sessionMru.slice(1).find(id => sessions.some(s => s.id === id))
+      const { conversationMru, conversations, selectConversation } = useConversationsStore.getState()
+      const prev = conversationMru.slice(1).find(id => conversations.some(s => s.id === id))
       if (prev) selectConversation(prev)
       lastTapRef.current = 0
       return

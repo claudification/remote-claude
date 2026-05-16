@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import { partitionConversations } from './partition'
 
-function makeConversation(overrides: Partial<Session>): Session {
+function makeConversation(overrides: Partial<Conversation>): Conversation {
   return {
     id: 'sess',
     cwd: '/cwd',
@@ -21,7 +21,7 @@ function makeConversation(overrides: Partial<Session>): Session {
     bgTasks: [],
     teammates: [],
     ...overrides,
-  } as Session
+  } as Conversation
 }
 
 describe('partitionConversations', () => {
@@ -30,12 +30,12 @@ describe('partitionConversations', () => {
     expect(result).toEqual({ adhoc: [], normal: [], ended: [] })
   })
 
-  it('routes sessions with ad-hoc capability into adhoc bucket', () => {
+  it('routes conversations with ad-hoc capability into adhoc bucket', () => {
     const s = makeConversation({ id: 'a', capabilities: ['ad-hoc'] })
     expect(partitionConversations([s])).toEqual({ adhoc: [s], normal: [], ended: [] })
   })
 
-  it('routes sessions without ad-hoc capability into normal bucket', () => {
+  it('routes conversations without ad-hoc capability into normal bucket', () => {
     const s = makeConversation({ id: 'n', capabilities: ['headless'] })
     expect(partitionConversations([s])).toEqual({ adhoc: [], normal: [s], ended: [] })
   })
@@ -68,13 +68,13 @@ describe('partitionConversations', () => {
   })
 
   it('preserves input order within each bucket', () => {
-    const sessions = [
+    const conversations = [
       makeConversation({ id: '1' }),
       makeConversation({ id: '2', capabilities: ['ad-hoc'] }),
       makeConversation({ id: '3' }),
       makeConversation({ id: '4', capabilities: ['ad-hoc'] }),
     ]
-    const { adhoc, normal } = partitionConversations(sessions)
+    const { adhoc, normal } = partitionConversations(conversations)
     expect(adhoc.map(s => s.id)).toEqual(['2', '4'])
     expect(normal.map(s => s.id)).toEqual(['1', '3'])
   })

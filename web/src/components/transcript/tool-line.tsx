@@ -60,11 +60,11 @@ export function ToolLine({
   const toolDefaultOpen = useConversationsStore(
     state => resolveToolDisplay(state.controlPanelPrefs, displayKey as ToolDisplayKey).defaultOpen,
   )
-  const sessionPath = useConversationsStore(s => {
+  const conversationPath = useConversationsStore(s => {
     if (s.controlPanelPrefs.sanitizePaths === false) return undefined
     const sid = s.selectedConversationId
-    const session = sid ? s.sessionsById[sid] : undefined
-    return session ? projectPath(session.project) : undefined
+    const conversation = sid ? s.conversationsById[sid] : undefined
+    return conversation ? projectPath(conversation.project) : undefined
   })
 
   const ctx: ToolCaseInput = {
@@ -72,7 +72,7 @@ export function ToolLine({
     result,
     toolUseResult,
     isError,
-    sessionPath,
+    conversationPath,
     expandAll,
     subagents,
     planContent,

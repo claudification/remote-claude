@@ -162,17 +162,17 @@ export function CommandPalette({ onSelect, onFileSelect, onClose }: CommandPalet
             <div className="px-3 py-4 text-center text-[10px] text-comment">No matches</div>
           ) : (
             palette.mergedItems.map((item, i) =>
-              item.kind === 'session' ? (
+              item.kind === 'conversation' ? (
                 <ConversationRow
-                  key={`s:${item.session.id}`}
-                  session={item.session}
+                  key={`s:${item.conversation.id}`}
+                  conversation={item.conversation}
                   selectedConversationId={palette.selectedConversationId}
                   projectSettings={palette.projectSettings}
                   active={i === palette.activeIndex}
                   onSelect={() => {
-                    const sess = useConversationsStore.getState().sessionsById[item.session.id]
+                    const sess = useConversationsStore.getState().conversationsById[item.conversation.id]
                     if (sess) palette.selectConversationWithTracking(sess, onSelect)
-                    else onSelect(item.session.id)
+                    else onSelect(item.conversation.id)
                   }}
                   onMouseEnter={() => palette.setActiveIndex(i)}
                 />

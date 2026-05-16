@@ -33,17 +33,17 @@ import type {
 export type { HookEvent } from '@shared/protocol'
 
 /** Check if a conversation can open a terminal. Requires explicit terminal capability. */
-export function canTerminal(s: Session): boolean {
+export function canTerminal(s: Conversation): boolean {
   return s.status !== 'ended' && !!s.capabilities?.includes('terminal')
 }
 
 /** Check if a conversation supports raw JSON stream viewing. */
-export function canJsonStream(s: Session): boolean {
+export function canJsonStream(s: Conversation): boolean {
   return s.status !== 'ended' && !!s.capabilities?.includes('json_stream')
 }
 
-// Client-side session model (derived from SessionSummary wire format with defaults applied)
-export interface Session {
+// Client-side conversation model (derived from SessionSummary wire format with defaults applied)
+export interface Conversation {
   id: string
   project: string
   model?: string

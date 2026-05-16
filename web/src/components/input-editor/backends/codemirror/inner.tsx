@@ -85,7 +85,7 @@ export default function CodeMirrorBackendInner(props: InputEditorProps) {
         enableAutocomplete: props.enableAutocomplete,
         shouldEnterSubmit: () => enterSubmitsRef.current,
         // Read sub-command context lazily so /workon picks up the latest
-        // project tasks + session id without rebuilding extensions.
+        // project tasks + conversation id without rebuilding extensions.
         getSubCommandContext: () => subCmdCtxRef.current,
       }),
     [],

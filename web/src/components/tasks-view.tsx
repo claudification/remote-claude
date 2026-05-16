@@ -70,7 +70,9 @@ function TaskRow({ task, onToggleDesc, expanded }: { task: TaskInfo; onToggleDes
 
 export function TasksView({ conversationId, pendingCount }: TasksViewProps) {
   const storeTasks = useConversationsStore(state => state.tasks[conversationId])
-  const archivedTaskCount = useConversationsStore(state => state.sessionsById[conversationId]?.archivedTaskCount ?? 0)
+  const archivedTaskCount = useConversationsStore(
+    state => state.conversationsById[conversationId]?.archivedTaskCount ?? 0,
+  )
   const [initialTasks, setInitialTasks] = useState<TaskInfo[] | null>(null)
   const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set())
   const [showArchived, setShowArchived] = useState(false)
@@ -120,7 +122,7 @@ export function TasksView({ conversationId, pendingCount }: TasksViewProps) {
 
   const tasks: TaskInfo[] = storeTasks || initialTasks || []
   const loading = !storeTasks && !initialTasks
-  // Archived count from session summary (lightweight, pushed via WS)
+  // Archived count from conversation summary (lightweight, pushed via WS)
   const totalArchived = archivedTaskCount
 
   if (loading) {

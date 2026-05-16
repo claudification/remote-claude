@@ -3,7 +3,7 @@ import { useConversationsStore } from '@/hooks/use-conversations'
 import { setConversationTab } from '@/lib/ui-state'
 import type { Tab } from './conversation-tabs'
 
-export function useConversationTab(selectedConversationId: string | null, sessionStatus: string | undefined) {
+export function useConversationTab(selectedConversationId: string | null, conversationStatus: string | undefined) {
   const [activeTab, setActiveTab] = useState<Tab>('transcript')
   const [follow, setFollow] = useState(true)
   const [infoExpanded, setInfoExpanded] = useState(false)
@@ -31,10 +31,10 @@ export function useConversationTab(selectedConversationId: string | null, sessio
   }, [requestedTab, requestedTabSeq])
 
   useEffect(() => {
-    if (sessionStatus === 'ended' && (activeTab === 'files' || activeTab === 'project')) {
+    if (conversationStatus === 'ended' && (activeTab === 'files' || activeTab === 'project')) {
       setActiveTab('transcript')
     }
-  }, [sessionStatus, activeTab])
+  }, [conversationStatus, activeTab])
 
   useEffect(() => {
     if (selectedConversationId) setConversationTab(selectedConversationId, activeTab)

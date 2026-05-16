@@ -1,21 +1,21 @@
 import { useState } from 'react'
 import { useConversationsStore, wsSend } from '@/hooks/use-conversations'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import { extractProjectLabel, projectPath } from '@/lib/types'
 import { cn, contextWindowSize, formatModel, haptic } from '@/lib/utils'
 import { renderProjectIcon } from '../project-settings-editor'
 import { openReviveDialog } from '../revive-dialog'
 import { openSpawnDialog } from '../spawn-dialog'
 
-function matchesFilter(session: Session, query: string): boolean {
+function matchesFilter(conversation: Conversation, query: string): boolean {
   const q = query.toLowerCase()
   const fields = [
-    session.title,
-    session.agentName,
-    session.recap?.title,
-    session.recap?.content,
-    session.summary,
-    session.id,
+    conversation.title,
+    conversation.agentName,
+    conversation.recap?.title,
+    conversation.recap?.content,
+    conversation.summary,
+    conversation.id,
   ]
   return fields.some(f => f?.toLowerCase().includes(q))
 }
@@ -26,17 +26,17 @@ function formatTokens(n: number): string {
   return `${(n / 1_000_000).toFixed(2)}M`
 }
 
-function ContextBar({ session }: { session: Session }) {
-  const usage = session.tokenUsage
+function ContextBar({ conversation }: { conversation: Conversation }) {
+  const usage = conversation.tokenUsage
   if (!usage) return null
   const total = usage.input + usage.cacheCreation + usage.cacheRead
   if (total === 0) return null
-  const maxTokens = session.contextWindow ?? contextWindowSize(session.model)
+  const maxTokens = conversation.contextWindow ?? contextWindowSize(conversation.model)
   const pct = Math.min(100, Math.round((total / maxTokens) * 100))
 
   return (
     <div className="flex items-center gap-1.5 mt-1">
-      <span className="text-[9px] font-mono text-muted-foreground/60 shrink-0">{formatModel(session.model)}</span>
+      <span className="text-[9px] font-mono text-muted-foreground/60 shrink-0">{formatModel(conversation.model)}</span>
       <div className="flex-1 h-1 bg-muted/30 rounded-full overflow-hidden">
         <div
           className={cn(
@@ -79,26 +79,26 @@ function RecapButton({ conversationId }: { conversationId: string }) {
   )
 }
 
-function RecentConversationItem({ session }: { session: Session }) {
+function RecentConversationItem({ conversation }: { conversation: Conversation }) {
   const selectConversation = useConversationsStore(s => s.selectConversation)
   const sentinelConnected = useConversationsStore(s => s.sentinelConnected)
-  const name = session.title || session.agentName || session.recap?.title || session.id.slice(0, 8)
-  const recap = session.recap?.content || session.summary
-  const ago = formatTimeAgo(session.lastActivity)
-  const hasRecap = !!session.recap
+  const name = conversation.title || conversation.agentName || conversation.recap?.title || conversation.id.slice(0, 8)
+  const recap = conversation.recap?.content || conversation.summary
+  const ago = formatTimeAgo(conversation.lastActivity)
+  const hasRecap = !!conversation.recap
 
   return (
     <div className="px-3 py-2 border border-border hover:border-primary transition-colors space-y-1">
       <div className="flex items-center gap-2">
         <span className="text-xs font-mono text-primary truncate flex-1">{name}</span>
         <span className="text-[10px] text-muted-foreground/70 shrink-0">{ago}</span>
-        {!hasRecap && <RecapButton conversationId={session.id} />}
+        {!hasRecap && <RecapButton conversationId={conversation.id} />}
         <button
           type="button"
           className="text-[10px] font-mono text-accent hover:text-accent/80 transition-colors"
           onClick={() => {
             haptic('tap')
-            selectConversation(session.id)
+            selectConversation(conversation.id)
           }}
         >
           VIEW
@@ -109,8 +109,8 @@ function RecentConversationItem({ session }: { session: Session }) {
             className="text-[10px] font-mono text-emerald-400 hover:text-emerald-300 transition-colors"
             onClick={() => {
               haptic('tap')
-              selectConversation(session.id)
-              openReviveDialog({ conversationId: session.id })
+              selectConversation(conversation.id)
+              openReviveDialog({ conversationId: conversation.id })
             }}
           >
             REVIVE
@@ -118,7 +118,7 @@ function RecentConversationItem({ session }: { session: Session }) {
         )}
       </div>
       {recap && <div className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-line">{recap}</div>}
-      <ContextBar session={session} />
+      <ContextBar conversation={conversation} />
     </div>
   )
 }
@@ -140,23 +140,23 @@ const STATUS_COLORS: Record<string, string> = {
   booting: 'text-cyan-400',
 }
 
-function ActiveConversationItem({ session }: { session: Session }) {
+function ActiveConversationItem({ conversation }: { conversation: Conversation }) {
   const selectConversation = useConversationsStore(s => s.selectConversation)
-  const name = session.title || session.agentName || session.id.slice(0, 8)
-  const statusColor = STATUS_COLORS[session.status] || 'text-muted-foreground'
-  const description = session.recap?.content || session.summary
+  const name = conversation.title || conversation.agentName || conversation.id.slice(0, 8)
+  const statusColor = STATUS_COLORS[conversation.status] || 'text-muted-foreground'
+  const description = conversation.recap?.content || conversation.summary
 
   return (
     <div className="px-3 py-2 border border-border hover:border-primary transition-colors space-y-1">
       <div className="flex items-center gap-2">
-        <span className={cn('text-[10px] font-mono uppercase shrink-0', statusColor)}>{session.status}</span>
+        <span className={cn('text-[10px] font-mono uppercase shrink-0', statusColor)}>{conversation.status}</span>
         <span className="text-xs font-mono text-primary truncate flex-1">{name}</span>
         <button
           type="button"
           className="text-[10px] font-mono text-accent hover:text-accent/80 transition-colors"
           onClick={() => {
             haptic('tap')
-            selectConversation(session.id)
+            selectConversation(conversation.id)
           }}
         >
           VIEW
@@ -165,12 +165,12 @@ function ActiveConversationItem({ session }: { session: Session }) {
       {description && (
         <div className="text-[11px] leading-relaxed text-muted-foreground truncate mt-0.5">{description}</div>
       )}
-      <ContextBar session={session} />
+      <ContextBar conversation={conversation} />
     </div>
   )
 }
 
-function RecapAllButton({ conversations }: { conversations: Session[] }) {
+function RecapAllButton({ conversations }: { conversations: Conversation[] }) {
   const withoutRecap = conversations.filter(s => !s.recap)
   const [pending, setPending] = useState(false)
   const [done, setDone] = useState(0)
@@ -206,7 +206,7 @@ function RecapAllButton({ conversations }: { conversations: Session[] }) {
 
 export function ProjectActionPanel({ projectUri }: { projectUri: string }) {
   const ps = useConversationsStore(s => s.projectSettings[projectUri])
-  const sessions = useConversationsStore(s => s.sessions)
+  const conversations = useConversationsStore(s => s.conversations)
   const sentinelConnected = useConversationsStore(s => s.sentinelConnected)
   const [showAllRecent, setShowAllRecent] = useState(false)
   const [filter, setFilter] = useState('')
@@ -215,12 +215,14 @@ export function ProjectActionPanel({ projectUri }: { projectUri: string }) {
   const displayColor = ps?.color
   const path = projectPath(projectUri)
 
-  const projectSessions = sessions.filter(s => s.project === projectUri)
-  const activeConversations = projectSessions
+  const projectConversations = conversations.filter(s => s.project === projectUri)
+  const activeConversations = projectConversations
     .filter(s => s.status !== 'ended')
     .sort((a, b) => b.lastActivity - a.lastActivity)
 
-  const recentEnded = projectSessions.filter(s => s.status === 'ended').sort((a, b) => b.lastActivity - a.lastActivity)
+  const recentEnded = projectConversations
+    .filter(s => s.status === 'ended')
+    .sort((a, b) => b.lastActivity - a.lastActivity)
 
   const filteredActive = filter ? activeConversations.filter(s => matchesFilter(s, filter)) : activeConversations
   const filteredRecent = filter ? recentEnded.filter(s => matchesFilter(s, filter)) : recentEnded
@@ -281,7 +283,7 @@ export function ProjectActionPanel({ projectUri }: { projectUri: string }) {
               <span className="flex-1 h-px bg-emerald-400/20" />
             </div>
             {filteredActive.map(s => (
-              <ActiveConversationItem key={s.id} session={s} />
+              <ActiveConversationItem key={s.id} conversation={s} />
             ))}
           </div>
         )}
@@ -295,7 +297,7 @@ export function ProjectActionPanel({ projectUri }: { projectUri: string }) {
               <RecapAllButton conversations={filteredRecent} />
             </div>
             {visibleRecent.map(s => (
-              <RecentConversationItem key={s.id} session={s} />
+              <RecentConversationItem key={s.id} conversation={s} />
             ))}
             {!filter && recentEnded.length > 5 && !showAllRecent && (
               <button

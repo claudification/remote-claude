@@ -2,7 +2,7 @@
  * Batched, resilient localStorage persistence for ephemeral UI state.
  *
  * Debounces writes to avoid hammering localStorage on every tab switch or
- * session select. Flushes on beforeunload so nothing is lost.
+ * conversation select. Flushes on beforeunload so nothing is lost.
  */
 
 const STORAGE_KEY = 'ui-state'
@@ -11,9 +11,9 @@ const MAX_TAB_ENTRIES = 100
 const PRUNE_TO = 50
 
 interface UIState {
-  /** Last selected session ID (supplements URL hash for reload resilience) */
+  /** Last selected conversation ID (supplements URL hash for reload resilience) */
   lastConversationId: string | null
-  /** Remembered tab per session */
+  /** Remembered tab per conversation */
   tabPerConversation: Record<string, string>
 }
 

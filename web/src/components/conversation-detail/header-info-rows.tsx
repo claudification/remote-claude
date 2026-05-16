@@ -1,12 +1,12 @@
 import type { ProjectSettings } from '@shared/protocol'
 import { Copy } from 'lucide-react'
 import { wsSend } from '@/hooks/use-conversations'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import { cn, formatTime, haptic } from '@/lib/utils'
 import type { ConversationTarget } from './conversation-header'
 
-export function ErrorBanner({ lastError }: { lastError: Session['lastError'] }) {
+export function ErrorBanner({ lastError }: { lastError: Conversation['lastError'] }) {
   if (!lastError) return null
   return (
     <div className="px-2 py-1.5 bg-destructive/15 border border-destructive/40 text-[10px] font-mono space-y-0.5">
@@ -21,7 +21,7 @@ export function ErrorBanner({ lastError }: { lastError: Session['lastError'] }) 
   )
 }
 
-export function RateLimitBanner({ rateLimit }: { rateLimit: Session['rateLimit'] }) {
+export function RateLimitBanner({ rateLimit }: { rateLimit: Conversation['rateLimit'] }) {
   if (!rateLimit) return null
   return (
     <div className="px-2 py-1 bg-amber-500/10 border border-amber-500/30 text-[10px] font-mono flex items-center gap-2">
@@ -60,7 +60,7 @@ export function SummaryRow({ summary }: { summary: string | undefined }) {
   )
 }
 
-export function RecapRow({ recap, recapFresh }: { recap: Session['recap']; recapFresh: boolean | undefined }) {
+export function RecapRow({ recap, recapFresh }: { recap: Conversation['recap']; recapFresh: boolean | undefined }) {
   if (!recap) return null
   return (
     <div
@@ -78,7 +78,7 @@ export function RecapRow({ recap, recapFresh }: { recap: Session['recap']; recap
   )
 }
 
-export function PrLinksRow({ prLinks }: { prLinks: Session['prLinks'] }) {
+export function PrLinksRow({ prLinks }: { prLinks: Conversation['prLinks'] }) {
   if (!prLinks || prLinks.length === 0) return null
   return (
     <div className="flex items-center gap-2 mt-0.5">
@@ -116,19 +116,19 @@ export function TrustLevelBadge({ projectSettings }: { projectSettings: ProjectS
 }
 
 export function LinkedProjects({
-  session,
+  conversation,
   projectSettings,
   onSetConversationTarget,
 }: {
-  session: Session
+  conversation: Conversation
   projectSettings: ProjectSettings | undefined
   onSetConversationTarget: (target: ConversationTarget | null) => void
 }) {
-  if (!session.linkedProjects || session.linkedProjects.length === 0) return null
+  if (!conversation.linkedProjects || conversation.linkedProjects.length === 0) return null
   return (
     <div className="flex items-center gap-2 mt-1 flex-wrap">
       <span className="text-[10px] text-teal-400/60">projects:</span>
-      {session.linkedProjects.map(lp => (
+      {conversation.linkedProjects.map(lp => (
         <span key={lp.project} className="inline-flex items-center gap-1 text-[10px] font-mono">
           <button
             type="button"
@@ -136,9 +136,11 @@ export function LinkedProjects({
             onClick={() => {
               haptic('tap')
               const myName =
-                projectSettings?.label || projectPath(session.project).split('/').pop() || session.id.slice(0, 8)
+                projectSettings?.label ||
+                projectPath(conversation.project).split('/').pop() ||
+                conversation.id.slice(0, 8)
               onSetConversationTarget({
-                projectA: session.project,
+                projectA: conversation.project,
                 projectB: lp.project,
                 nameA: myName,
                 nameB: lp.name,
@@ -152,7 +154,7 @@ export function LinkedProjects({
             type="button"
             onClick={() => {
               haptic('error')
-              wsSend('channel_unlink', { projectA: session.project, projectB: lp.project })
+              wsSend('channel_unlink', { projectA: conversation.project, projectB: lp.project })
             }}
             className="text-red-400/40 hover:text-red-400 transition-colors"
             title={`Sever link to ${lp.name}`}

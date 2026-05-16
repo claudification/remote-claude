@@ -562,7 +562,7 @@ export function RunTaskDialog({
   onClose: () => void
 }) {
   const spawnPath = useConversationsStore(state => {
-    const s = state.sessionsById[conversationId]
+    const s = state.conversationsById[conversationId]
     return s ? projectPath(s.project) : ''
   })
   const savedDefaults = useMemo(() => loadRunTaskDefaults(), [])
@@ -580,7 +580,7 @@ export function RunTaskDialog({
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [spawnedConversationId, setWrapperId] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
-  const sessionAtLaunchRef = useRef<string | null>(null)
+  const conversationAtLaunchRef = useRef<string | null>(null)
 
   // Shared launch progress hook
   const progress = useLaunchProgress({
@@ -597,7 +597,7 @@ export function RunTaskDialog({
     },
   })
 
-  // Task lifecycle tracking: add steps after session connects
+  // Task lifecycle tracking: add steps after conversation connects
   const connectedStepRef = useRef(false)
   useEffect(() => {
     if (!progress.isConnected || connectedStepRef.current || !progress.spawnedConversation) return
@@ -614,7 +614,7 @@ export function RunTaskDialog({
     ])
   }, [progress.isConnected, progress.spawnedConversation, progress.setSteps])
 
-  // Detect session becoming active (prompt submitted) -> add "Running..." step
+  // Detect conversation becoming active (prompt submitted) -> add "Running..." step
   const promptDoneRef = useRef(false)
   useEffect(() => {
     if (!progress.spawnedConversation || promptDoneRef.current) return
@@ -668,7 +668,7 @@ export function RunTaskDialog({
     const sid = progress.launch.conversationId || progress.spawnedConversation?.id
     if (!sid) return
     const currentId = useConversationsStore.getState().selectedConversationId
-    const userNavigatedAway = currentId !== sessionAtLaunchRef.current && currentId !== null
+    const userNavigatedAway = currentId !== conversationAtLaunchRef.current && currentId !== null
     if (!userNavigatedAway) {
       useConversationsStore.getState().selectConversation(sid, 'project-board-auto-redirect')
     } else {
@@ -692,7 +692,7 @@ export function RunTaskDialog({
       timeout,
     })
     setPhase('launching')
-    sessionAtLaunchRef.current = useConversationsStore.getState().selectedConversationId
+    conversationAtLaunchRef.current = useConversationsStore.getState().selectedConversationId
     haptic('tap')
 
     const newJobId = crypto.randomUUID()
@@ -743,7 +743,7 @@ export function RunTaskDialog({
   function handleViewConversation() {
     const sid = progress.launch.conversationId || progress.spawnedConversation?.id
     if (sid) {
-      useConversationsStore.getState().selectConversation(sid, 'project-board-view-session')
+      useConversationsStore.getState().selectConversation(sid, 'project-board-view-conversation')
       progress.setViewCountdown(null)
       onClose()
     }
@@ -1274,7 +1274,7 @@ export const ProjectBoard = memo(function ProjectBoard({ conversationId }: { con
   const [selectedPriority, setSelectedPriority] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  // Sync editingTask metadata when tasks list updates (e.g. project_changed from another session)
+  // Sync editingTask metadata when tasks list updates (e.g. project_changed from another conversation)
   // Preserves body text to avoid overwriting user edits
   useEffect(() => {
     if (!editingTask) return

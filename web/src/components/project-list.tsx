@@ -26,11 +26,11 @@ import { PinnedProjectNode, ProjectNode } from './project-list/project-node'
 
 export function ProjectList() {
   // Subscribes only to the structural shape (id+project+status+capabilities+
-  // startedAt). Per-session field churn (tokenUsage, recap, stats, gitBranch,
+  // startedAt). Per-conversation field churn (tokenUsage, recap, stats, gitBranch,
   // streaming text, lastActivity) does NOT re-render ProjectList -- leaf
-  // items subscribe to their own session by id and render in isolation.
+  // items subscribe to their own conversation by id and render in isolation.
   // lastActivity is intentionally excluded: it changes on every WS message
-  // and is only used here for sorting ended sessions, where the value is
+  // and is only used here for sorting ended conversations, where the value is
   // snapshotted lazily at sort time (see `inactive` memo below).
   const structure = useConversationStructure()
   const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
@@ -135,9 +135,9 @@ export function ProjectList() {
     return result
   }, [structure, treeProjects, visibleIdsByProject, structureById])
 
-  // Inactive sessions (ended, not in tree, not in unorganized).
+  // Inactive conversations (ended, not in tree, not in unorganized).
   // lastActivity is read lazily from the live store at sort time -- ended
-  // sessions rarely tick, and excluding it from the structural selector
+  // conversations rarely tick, and excluding it from the structural selector
   // saves a ProjectList re-render on every WS message.
   const inactive = useMemo(() => {
     const activeProjects = new Set(structure.filter(s => s.status !== 'ended').map(s => s.project))
@@ -149,8 +149,8 @@ export function ProjectList() {
         byProject.set(s.project, group)
       }
     }
-    const sessionsById = useConversationsStore.getState().sessionsById
-    const lastActivityOf = (id: string) => sessionsById[id]?.lastActivity ?? 0
+    const conversationsById = useConversationsStore.getState().conversationsById
+    const lastActivityOf = (id: string) => conversationsById[id]?.lastActivity ?? 0
     return Array.from(byProject.values()).sort((a, b) => {
       const aMax = Math.max(...a.map(s => lastActivityOf(s.id)))
       const bMax = Math.max(...b.map(s => lastActivityOf(s.id)))
@@ -169,13 +169,13 @@ export function ProjectList() {
     })
   }
 
-  // Scroll into view + pulse when session is selected (e.g. via Ctrl+K)
-  // Groups stay collapsed -- the selected session "peeks" below the group header
+  // Scroll into view + pulse when conversation is selected (e.g. via Ctrl+K)
+  // Groups stay collapsed -- the selected conversation "peeks" below the group header
   useEffect(() => {
     if (!selectedConversationId) return
     setPulseConversationId(selectedConversationId)
     requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-session-id="${selectedConversationId}"]`)
+      const el = document.querySelector(`[data-conversation-id="${selectedConversationId}"]`)
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         el.classList.add('conversation-pulse')
@@ -207,7 +207,7 @@ export function ProjectList() {
   const sortableIds = useMemo(() => {
     const ids: string[] = []
     for (const node of projectOrder.tree) {
-      ids.push(node.id) // group or root session
+      ids.push(node.id) // group or root conversation
       if (node.type === 'group' && !collapsedGroups.has(node.id)) {
         for (const child of node.children) ids.push(child.id)
       }
@@ -251,15 +251,15 @@ export function ProjectList() {
       // Remove from current position
       const newTree = removeFromTree(projectOrder.tree, draggedId)
       // Add new group with this item
-      const sessionNode = draggedId.startsWith('group-')
+      const conversationNode = draggedId.startsWith('group-')
         ? projectOrder.tree.find(n => n.id === draggedId) // dragging a group into a new group? just rename
         : { id: draggedId, type: 'project' as const }
-      if (sessionNode) {
+      if (conversationNode) {
         newTree.push({
           id: groupId,
           type: 'group',
           name: name.trim(),
-          children: [sessionNode.type === 'group' ? sessionNode : { id: draggedId, type: 'project' }],
+          children: [conversationNode.type === 'group' ? conversationNode : { id: draggedId, type: 'project' }],
         })
       }
       persistTree(newTree)
@@ -282,7 +282,7 @@ export function ProjectList() {
       newTree.splice(toIdx, 0, moved)
       persistTree(newTree)
     } else if (overIsGroup && !draggedIsGroup) {
-      // Drop session into a group
+      // Drop conversation into a group
       const newTree = removeFromTree(projectOrder.tree, draggedId)
       const targetGroup = newTree.find(n => n.id === overId && n.type === 'group') as ProjectOrderGroup | undefined
       if (targetGroup) {
@@ -378,7 +378,7 @@ export function ProjectList() {
 
   const hasOrganized = projectOrder.tree.length > 0
   // Project URI of the currently-selected conversation, looked up lazily
-  // from the structural shape so we don't have to subscribe to sessionsById.
+  // from the structural shape so we don't have to subscribe to conversationsById.
   const selectedProject = selectedConversationId ? structure.find(s => s.id === selectedConversationId)?.project : null
 
   return (
@@ -428,7 +428,7 @@ export function ProjectList() {
                           )
                         })}
                       </div>
-                    ) : // Peek: show selected session even when group is collapsed.
+                    ) : // Peek: show selected conversation even when group is collapsed.
                     // Use a per-id subscribed wrapper so the peek re-renders
                     // independently of ProjectList.
                     selectedConversationId && selectedProject && node.children.some(c => c.id === selectedProject) ? (
@@ -439,7 +439,7 @@ export function ProjectList() {
                   </SortableNode>
                 )
               }
-              // Root-level session node
+              // Root-level conversation node
               const nodeProject = node.id
               const nodeIds = visibleIdsByProject.get(nodeProject)
               if (!nodeIds || nodeIds.length === 0) {

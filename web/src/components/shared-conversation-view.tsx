@@ -1,5 +1,5 @@
 /**
- * SharedSessionView - Limited dashboard for share link viewers.
+ * SharedConversationView - Limited dashboard for share link viewers.
  *
  * No sidebar, no switcher, no settings. Just the conversation transcript,
  * input bar (if chat permission), and a countdown timer.
@@ -13,8 +13,8 @@ import { fetchConversationEvents, fetchTranscript, useConversationsStore } from 
 import { useWebSocket } from '@/hooks/use-websocket'
 import { extractProjectLabel } from '@/lib/types'
 
-export function SharedSessionView({ token: _token }: { token: string }) {
-  const sessions = useConversationsStore(s => s.sessions)
+export function SharedConversationView({ token: _token }: { token: string }) {
+  const conversations = useConversationsStore(s => s.conversations)
   const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
   const isConnected = useConversationsStore(s => s.isConnected)
   const [expired, setExpired] = useState(false)
@@ -23,14 +23,14 @@ export function SharedSessionView({ token: _token }: { token: string }) {
   // Connect WebSocket (share token is baked into the URL)
   useWebSocket()
 
-  // Auto-select the first (and only) session when it arrives
+  // Auto-select the first (and only) conversation when it arrives
   useEffect(() => {
-    if (sessions.length > 0 && !selectedConversationId) {
-      useConversationsStore.getState().selectConversation(sessions[0].id, 'shared-view-auto')
+    if (conversations.length > 0 && !selectedConversationId) {
+      useConversationsStore.getState().selectConversation(conversations[0].id, 'shared-view-auto')
     }
-  }, [sessions, selectedConversationId])
+  }, [conversations, selectedConversationId])
 
-  // Fetch transcript for selected session
+  // Fetch transcript for selected conversation
   const fetchedRef = useRef(false)
   useEffect(() => {
     if (!selectedConversationId || !isConnected || fetchedRef.current) return
@@ -68,9 +68,9 @@ export function SharedSessionView({ token: _token }: { token: string }) {
     }
   }, [isConnected])
 
-  // Countdown timer - estimate from session share expiry
+  // Countdown timer - estimate from conversation share expiry
   // We don't have the exact expiry on the client, so we'll get it from the server
-  // via a permissions message or just show "Shared session" without countdown
+  // via a permissions message or just show "Shared conversation" without countdown
   // TODO: Server could send share metadata on subscribe
 
   const expiredQuotes = [
@@ -122,7 +122,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
     )
   }
 
-  if (sessions.length === 0) {
+  if (conversations.length === 0) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-2">
@@ -140,7 +140,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
           Shared
         </span>
         <span className="text-sm text-foreground font-mono truncate flex-1">
-          {(sessions[0]?.project ? extractProjectLabel(sessions[0].project) : '') || 'Conversation'}
+          {(conversations[0]?.project ? extractProjectLabel(conversations[0].project) : '') || 'Conversation'}
         </span>
         {timeLeft && (
           <span className="flex items-center gap-1 text-[10px] text-muted-foreground font-mono">
@@ -150,7 +150,7 @@ export function SharedSessionView({ token: _token }: { token: string }) {
         )}
       </div>
 
-      {/* Session detail (transcript + input) */}
+      {/* Conversation detail (transcript + input) */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         {selectedConversationId && <ConversationDetail />}
       </div>

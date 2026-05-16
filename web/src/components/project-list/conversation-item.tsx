@@ -11,7 +11,7 @@ import {
   getCostLevel,
 } from '@/lib/cost-utils'
 import { useKeyLayer } from '@/lib/key-layers'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import {
   cn,
@@ -35,8 +35,8 @@ import { InlineConfirmButton } from './inline-confirm-button'
 
 // ─── Shared visual components ──────────────────────────────────────
 
-function StatusIndicator({ status, adHoc }: { status: Session['status']; adHoc?: boolean }) {
-  // Ad-hoc sessions get a lightning bolt instead of status dots
+function StatusIndicator({ status, adHoc }: { status: Conversation['status']; adHoc?: boolean }) {
+  // Ad-hoc conversations get a lightning bolt instead of status dots
   if (adHoc) {
     if (status === 'ended') {
       return (
@@ -115,21 +115,21 @@ function LaunchParamRow({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
-function LaunchParamsSection({ session }: { session: Session }) {
-  const lc = session.launchConfig
+function LaunchParamsSection({ conversation }: { conversation: Conversation }) {
+  const lc = conversation.launchConfig
   const [revealEnv, setRevealEnv] = useState(false)
   const envEntries = lc?.env ? Object.entries(lc.env) : []
 
-  // Fallbacks so legacy sessions (no launchConfig captured) still show something
-  const headless: boolean | undefined = lc?.headless ?? (session.capabilities?.includes('headless') || undefined)
-  const autocompactPct = lc?.autocompactPct ?? session.autocompactPct
+  // Fallbacks so legacy conversations (no launchConfig captured) still show something
+  const headless: boolean | undefined = lc?.headless ?? (conversation.capabilities?.includes('headless') || undefined)
+  const autocompactPct = lc?.autocompactPct ?? conversation.autocompactPct
   const permissionMode = lc?.permissionMode
   const bare = lc?.bare
   const repl = lc?.repl
   const maxBudgetUsd = lc?.maxBudgetUsd
 
   const hasAnyCore =
-    (session.backend && session.backend !== 'claude') ||
+    (conversation.backend && conversation.backend !== 'claude') ||
     headless !== undefined ||
     !!permissionMode ||
     bare ||
@@ -152,13 +152,13 @@ function LaunchParamsSection({ session }: { session: Session }) {
           )}
         </div>
         <div className="space-y-1 pl-1">
-          {session.backend && session.backend !== 'claude' && (
+          {conversation.backend && conversation.backend !== 'claude' && (
             <LaunchParamRow
               label="backend"
               value={
                 <span className="flex items-center gap-1">
-                  <BackendIcon backend={session.backend} size={10} />
-                  {session.backend}
+                  <BackendIcon backend={conversation.backend} size={10} />
+                  {conversation.backend}
                 </span>
               }
             />
@@ -225,24 +225,24 @@ function LaunchParamsSection({ session }: { session: Session }) {
   )
 }
 
-// ─── Session info dialog (replaces hover tooltip) ────────────────
+// ─── Conversation info dialog (replaces hover tooltip) ────────────────
 
 function ConversationInfoDialog({
-  session,
+  conversation,
   open,
   onOpenChange,
 }: {
-  session: Session
+  conversation: Conversation
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const resolvedModel = session.model
-  const effort = formatEffort(session.effortLevel)
-  const cost = session.stats ? getConversationCost(session.stats, resolvedModel) : null
-  const duration = session.lastActivity - session.startedAt
-  const isAdHoc = session.capabilities?.includes('ad-hoc')
+  const resolvedModel = conversation.model
+  const effort = formatEffort(conversation.effortLevel)
+  const cost = conversation.stats ? getConversationCost(conversation.stats, resolvedModel) : null
+  const duration = conversation.lastActivity - conversation.startedAt
+  const isAdHoc = conversation.capabilities?.includes('ad-hoc')
 
-  useKeyLayer({ Escape: () => onOpenChange(false) }, { id: 'session-info-dialog', enabled: open })
+  useKeyLayer({ Escape: () => onOpenChange(false) }, { id: 'conversation-info-dialog', enabled: open })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -251,7 +251,7 @@ function ConversationInfoDialog({
           <div className="flex items-center gap-2">
             <span className="text-accent">{'\u24D8'}</span>
             <span>Conversation Info</span>
-            <span className="text-[10px] text-muted-foreground/50 font-normal">{session.id.slice(0, 12)}</span>
+            <span className="text-[10px] text-muted-foreground/50 font-normal">{conversation.id.slice(0, 12)}</span>
           </div>
         </DialogTitle>
         <div className="space-y-2 text-[11px]">
@@ -287,113 +287,114 @@ function ConversationInfoDialog({
           )}
 
           {/* Turn count */}
-          {session.stats && session.stats.turnCount > 0 && (
+          {conversation.stats && conversation.stats.turnCount > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Turns</span>
-              <span className="ml-auto text-foreground/80">{session.stats.turnCount}</span>
+              <span className="ml-auto text-foreground/80">{conversation.stats.turnCount}</span>
             </div>
           )}
 
           {/* Token usage */}
-          {session.stats && (session.stats.totalInputTokens > 0 || session.stats.totalOutputTokens > 0) && (
-            <>
-              <div className="border-t border-border" />
-              <div className="space-y-1">
-                <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Tokens</span>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
-                  <span className="text-muted-foreground">input</span>
-                  <span className="text-right tabular-nums text-foreground/80">
-                    {formatTokenCount(session.stats.totalInputTokens)}
-                  </span>
-                  <span className="text-muted-foreground">output</span>
-                  <span className="text-right tabular-nums text-foreground/80">
-                    {formatTokenCount(session.stats.totalOutputTokens)}
-                  </span>
-                  {session.stats.totalCacheRead > 0 && (
-                    <>
-                      <span className="text-muted-foreground">cache read</span>
-                      <span className="text-right tabular-nums text-emerald-400">
-                        {formatTokenCount(session.stats.totalCacheRead)}
-                      </span>
-                    </>
-                  )}
-                  {session.stats.totalCacheCreation > 0 && (
-                    <>
-                      <span className="text-muted-foreground">cache write</span>
-                      <span className="text-right tabular-nums text-amber-400">
-                        {formatTokenCount(session.stats.totalCacheCreation)}
-                      </span>
-                    </>
-                  )}
+          {conversation.stats &&
+            (conversation.stats.totalInputTokens > 0 || conversation.stats.totalOutputTokens > 0) && (
+              <>
+                <div className="border-t border-border" />
+                <div className="space-y-1">
+                  <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Tokens</span>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                    <span className="text-muted-foreground">input</span>
+                    <span className="text-right tabular-nums text-foreground/80">
+                      {formatTokenCount(conversation.stats.totalInputTokens)}
+                    </span>
+                    <span className="text-muted-foreground">output</span>
+                    <span className="text-right tabular-nums text-foreground/80">
+                      {formatTokenCount(conversation.stats.totalOutputTokens)}
+                    </span>
+                    {conversation.stats.totalCacheRead > 0 && (
+                      <>
+                        <span className="text-muted-foreground">cache read</span>
+                        <span className="text-right tabular-nums text-emerald-400">
+                          {formatTokenCount(conversation.stats.totalCacheRead)}
+                        </span>
+                      </>
+                    )}
+                    {conversation.stats.totalCacheCreation > 0 && (
+                      <>
+                        <span className="text-muted-foreground">cache write</span>
+                        <span className="text-right tabular-nums text-amber-400">
+                          {formatTokenCount(conversation.stats.totalCacheCreation)}
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
+              </>
+            )}
 
           {/* Context window */}
-          {session.stats && session.stats.totalInputTokens > 0 && (
+          {conversation.stats && conversation.stats.totalInputTokens > 0 && (
             <>
               <div className="border-t border-border" />
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Context</span>
                 <span className="ml-auto text-foreground/80">
-                  {formatTokenCount(session.stats.totalInputTokens)} /{' '}
-                  {formatTokenCount(session.contextWindow ?? contextWindowSize(resolvedModel))}
+                  {formatTokenCount(conversation.stats.totalInputTokens)} /{' '}
+                  {formatTokenCount(conversation.contextWindow ?? contextWindowSize(resolvedModel))}
                 </span>
               </div>
             </>
           )}
 
           {/* Git branch */}
-          {session.gitBranch && (
+          {conversation.gitBranch && (
             <>
               <div className="border-t border-border" />
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Branch</span>
-                <span className="ml-auto text-sky-400 truncate max-w-[200px]">{session.gitBranch}</span>
+                <span className="ml-auto text-sky-400 truncate max-w-[200px]">{conversation.gitBranch}</span>
               </div>
             </>
           )}
 
           {/* Identity */}
-          {session.claudeAuth?.email && (
+          {conversation.claudeAuth?.email && (
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Auth</span>
               <span className="ml-auto text-foreground/80 truncate max-w-[200px]">
-                {session.claudeAuth.email}
-                {session.claudeAuth.orgName && (
-                  <span className="text-muted-foreground"> ({session.claudeAuth.orgName})</span>
+                {conversation.claudeAuth.email}
+                {conversation.claudeAuth.orgName && (
+                  <span className="text-muted-foreground"> ({conversation.claudeAuth.orgName})</span>
                 )}
               </span>
             </div>
           )}
 
           {/* Launch parameters */}
-          <LaunchParamsSection session={session} />
+          <LaunchParamsSection conversation={conversation} />
 
           {/* Ad-hoc result preview */}
-          {isAdHoc && session.resultText && (
+          {isAdHoc && conversation.resultText && (
             <>
               <div className="border-t border-border" />
               <div className="space-y-1">
                 <span className="text-muted-foreground text-[10px] uppercase tracking-wider">Result</span>
                 <div className="text-[10px] text-foreground/70 line-clamp-6 break-words">
-                  {truncate(session.resultText, 400)}
+                  {truncate(conversation.resultText, 400)}
                 </div>
               </div>
             </>
           )}
 
-          {/* Session ID */}
+          {/* Conversation ID */}
           <div className="border-t border-border/50" />
-          <div className="text-[9px] text-muted-foreground/50 select-all">{session.id}</div>
+          <div className="text-[9px] text-muted-foreground/50 select-all">{conversation.id}</div>
         </div>
       </DialogContent>
     </Dialog>
   )
 }
 
-function ConversationInfoButton({ session, visible }: { session: Session; visible: boolean }) {
+function ConversationInfoButton({ conversation, visible }: { conversation: Conversation; visible: boolean }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -421,17 +422,17 @@ function ConversationInfoButton({ session, visible }: { session: Session; visibl
       >
         {'\u24D8'}
       </span>
-      <ConversationInfoDialog session={session} open={open} onOpenChange={setOpen} />
+      <ConversationInfoDialog conversation={conversation} open={open} onOpenChange={setOpen} />
     </>
   )
 }
 
 // ─── Ad-hoc result text modal ─────────────────────────────────────
 
-function ResultTextModal({ session }: { session: Session }) {
+function ResultTextModal({ conversation }: { conversation: Conversation }) {
   const [open, setOpen] = useState(false)
 
-  if (!session.resultText) return null
+  if (!conversation.resultText) return null
 
   return (
     <>
@@ -462,12 +463,12 @@ function ResultTextModal({ session }: { session: Session }) {
             <div className="flex items-center gap-2">
               <span className="text-teal-400">{'\u26A1'}</span>
               <span>Ad-hoc Result</span>
-              <span className="text-[10px] text-muted-foreground/50 font-normal">{session.id.slice(0, 12)}</span>
+              <span className="text-[10px] text-muted-foreground/50 font-normal">{conversation.id.slice(0, 12)}</span>
               <button
                 type="button"
                 className="ml-auto mr-6 text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer px-2 py-1 border border-border hover:border-primary"
                 onClick={() => {
-                  navigator.clipboard.writeText(session.resultText || '')
+                  navigator.clipboard.writeText(conversation.resultText || '')
                   haptic('success')
                 }}
               >
@@ -476,7 +477,7 @@ function ResultTextModal({ session }: { session: Session }) {
             </div>
           </DialogTitle>
           <div className="overflow-y-auto max-h-[70vh] p-4">
-            <Markdown>{session.resultText}</Markdown>
+            <Markdown>{conversation.resultText}</Markdown>
           </div>
         </DialogContent>
       </Dialog>
@@ -510,11 +511,11 @@ function DismissButton({ conversationId }: { conversationId: string }) {
 
 // ─── Inline rename input ─────────────────────────────────────────────
 
-function InlineRename({ session }: { session: Session }) {
+function InlineRename({ conversation }: { conversation: Conversation }) {
   const renameConversation = useConversationsStore(s => s.renameConversation)
   const setRenamingConversationId = useConversationsStore(s => s.setRenamingConversationId)
   const inputRef = useRef<HTMLInputElement>(null)
-  const [value, setValue] = useState(session.title || '')
+  const [value, setValue] = useState(conversation.title || '')
 
   useEffect(() => {
     // Delay to let Radix context menu fully close and release focus
@@ -526,7 +527,7 @@ function InlineRename({ session }: { session: Session }) {
   }, [])
 
   function submit() {
-    renameConversation(session.id, value.trim())
+    renameConversation(conversation.id, value.trim())
     haptic('success')
   }
 
@@ -557,11 +558,11 @@ function InlineRename({ session }: { session: Session }) {
 
 // ─── Inline description input ───────────────────────────────────────
 
-function InlineDescription({ session }: { session: Session }) {
+function InlineDescription({ conversation }: { conversation: Conversation }) {
   const updateDescription = useConversationsStore(s => s.updateDescription)
   const setEditingDescriptionConversationId = useConversationsStore(s => s.setEditingDescriptionConversationId)
   const inputRef = useRef<HTMLInputElement>(null)
-  const [value, setValue] = useState(session.description || '')
+  const [value, setValue] = useState(conversation.description || '')
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -572,7 +573,7 @@ function InlineDescription({ session }: { session: Session }) {
   }, [])
 
   function submit() {
-    updateDescription(session.id, value.trim())
+    updateDescription(conversation.id, value.trim())
     haptic('success')
   }
 
@@ -601,17 +602,17 @@ function InlineDescription({ session }: { session: Session }) {
   )
 }
 
-// ─── Session card outer agent host (shared by Full + Compact) ────────
+// ─── Conversation card outer agent host (shared by Full + Compact) ────────
 
 function ConversationItemShell({
-  session,
+  conversation,
   isSelected,
   displayColor,
   variant,
   onClick,
   children,
 }: {
-  session: Session
+  conversation: Conversation
   isSelected: boolean
   displayColor: string | undefined
   variant: 'full' | 'compact'
@@ -620,7 +621,7 @@ function ConversationItemShell({
 }) {
   return (
     <div
-      data-session-id={session.id}
+      data-conversation-id={conversation.id}
       role="button"
       tabIndex={0}
       onClick={onClick}
@@ -630,23 +631,23 @@ function ConversationItemShell({
       className={cn(
         'w-full text-left border transition-colors group cursor-pointer',
         variant === 'compact' ? 'p-2 pl-4 text-[11px]' : 'p-3',
-        isSelected && session.planMode
+        isSelected && conversation.planMode
           ? 'border-blue-500 bg-blue-500/15 ring-1 ring-blue-500/50 shadow-[0_0_8px_rgba(59,130,246,0.2)]'
           : isSelected
             ? 'border-accent bg-accent/15 ring-1 ring-accent/50 shadow-[0_0_8px_rgba(122,162,247,0.15)]'
-            : session.planMode
+            : conversation.planMode
               ? 'border-blue-500/40 hover:border-blue-400/60'
               : displayColor
                 ? 'border-border hover:border-primary'
                 : 'border-border hover:border-primary hover:bg-card',
       )}
       style={
-        isSelected && session.planMode
+        isSelected && conversation.planMode
           ? {
               borderLeftColor: 'rgb(59 130 246)',
               borderLeftWidth: '3px',
             }
-          : !isSelected && session.planMode
+          : !isSelected && conversation.planMode
             ? {
                 borderLeftColor: 'rgb(59 130 246)',
                 borderLeftWidth: '3px',
@@ -665,38 +666,38 @@ function ConversationItemShell({
 // ─── Running tasks / subagents / teammates block (shared) ─────────
 
 function ConversationItemTasksBlock({
-  session,
+  conversation,
   selectedSubagentId,
 }: {
-  session: Session
+  conversation: Conversation
   selectedSubagentId: string | null
 }) {
   const hasContent =
-    session.activeTasks.length > 0 ||
-    session.pendingTasks.length > 0 ||
-    session.subagents.length > 0 ||
-    session.teammates.some(t => t.status === 'working')
+    conversation.activeTasks.length > 0 ||
+    conversation.pendingTasks.length > 0 ||
+    conversation.subagents.length > 0 ||
+    conversation.teammates.some(t => t.status === 'working')
   if (!hasContent) return null
 
-  const overflow = session.activeTasks.length + session.pendingTasks.length - 5
+  const overflow = conversation.activeTasks.length + conversation.pendingTasks.length - 5
   const now = Date.now()
 
   return (
     <div className="mt-1 space-y-0.5">
-      {session.activeTasks.slice(0, 5).map(task => (
+      {conversation.activeTasks.slice(0, 5).map(task => (
         <div key={task.id} className="text-[11px] text-active/80 font-mono truncate pl-1">
           <span className="text-active mr-1">{'\u25B8'}</span>
           {task.subject}
         </div>
       ))}
-      {session.pendingTasks.slice(0, Math.max(0, 5 - session.activeTasks.length)).map(task => (
+      {conversation.pendingTasks.slice(0, Math.max(0, 5 - conversation.activeTasks.length)).map(task => (
         <div key={task.id} className="text-[11px] text-amber-400/50 font-mono truncate pl-1">
           <span className="text-amber-400/40 mr-1">{'\u25CB'}</span>
           {task.subject}
         </div>
       ))}
       {overflow > 0 && <div className="text-[10px] text-muted-foreground pl-1 font-mono">..{overflow} more</div>}
-      {session.subagents
+      {conversation.subagents
         .filter(a => a.status === 'running')
         .map(a => (
           <div
@@ -710,7 +711,7 @@ function ConversationItemTasksBlock({
             {a.description || a.agentType} <span className="text-pink-400/50">{a.agentId.slice(0, 6)}</span>
           </div>
         ))}
-      {session.subagents
+      {conversation.subagents
         .filter(a => a.status === 'stopped' && a.stoppedAt && now - a.stoppedAt < 30 * 60 * 1000)
         .map(a => (
           <div
@@ -724,7 +725,7 @@ function ConversationItemTasksBlock({
             {a.description || a.agentType} <span className="text-pink-400/30">{a.agentId.slice(0, 6)}</span>
           </div>
         ))}
-      {session.teammates
+      {conversation.teammates
         .filter(t => t.status === 'working')
         .map(t => (
           <div key={t.name} className="text-[11px] text-purple-400/80 font-mono truncate pl-1">
@@ -737,49 +738,49 @@ function ConversationItemTasksBlock({
   )
 }
 
-// ─── Full-size session card ───────────────────────────────────────
+// ─── Full-size conversation card ───────────────────────────────────────
 
-const ConversationItemFull = memo(function SessionItemFull({ session }: { session: Session }) {
-  const isSelected = useConversationsStore(s => s.selectedConversationId === session.id)
+const ConversationItemFull = memo(function ConversationItemFull({ conversation }: { conversation: Conversation }) {
+  const isSelected = useConversationsStore(s => s.selectedConversationId === conversation.id)
   const selectedSubagentId = useConversationsStore(s =>
-    s.selectedConversationId === session.id ? s.selectedSubagentId : null,
+    s.selectedConversationId === conversation.id ? s.selectedSubagentId : null,
   )
   const selectConversation = useConversationsStore(s => s.selectConversation)
 
   const openTab = useConversationsStore(s => s.openTab)
-  const ps = useConversationsStore(s => s.projectSettings[session.project])
+  const ps = useConversationsStore(s => s.projectSettings[conversation.project])
   const showContextBar = useConversationsStore(s => s.controlPanelPrefs.showContextInList)
   const showCost = useConversationsStore(s => s.controlPanelPrefs.showCostInList)
   const showRecapDesc = useConversationsStore(s => s.controlPanelPrefs.showRecapDescInList)
-  const isRenaming = useConversationsStore(s => s.renamingConversationId === session.id)
-  const isEditingDescription = useConversationsStore(s => s.editingDescriptionConversationId === session.id)
+  const isRenaming = useConversationsStore(s => s.renamingConversationId === conversation.id)
+  const isEditingDescription = useConversationsStore(s => s.editingDescriptionConversationId === conversation.id)
   const hasPendingPermission = useConversationsStore(s =>
-    s.pendingPermissions.some(p => p.conversationId === session.id),
+    s.pendingPermissions.some(p => p.conversationId === conversation.id),
   )
   const hasPendingLink = useConversationsStore(s =>
-    s.pendingProjectLinks.some(r => r.fromConversation === session.id || r.toConversation === session.id),
+    s.pendingProjectLinks.some(r => r.fromConversation === conversation.id || r.toConversation === conversation.id),
   )
 
-  const projectName = projectDisplayName(projectPath(session.project), ps?.label)
-  const sessionName = session.title || session.agentName
+  const projectName = projectDisplayName(projectPath(conversation.project), ps?.label)
+  const conversationName = conversation.title || conversation.agentName
   const displayColor = ps?.color
 
   function handleClick() {
     haptic('tap')
-    selectConversation(session.id)
+    selectConversation(conversation.id)
   }
 
   return (
     <ConversationItemShell
-      session={session}
+      conversation={conversation}
       isSelected={isSelected}
       displayColor={displayColor}
       variant="full"
       onClick={handleClick}
     >
       <div className="flex items-center gap-1.5">
-        <StatusIndicator status={session.status} adHoc={session.capabilities?.includes('ad-hoc')} />
-        <BackendIcon backend={session.backend} />
+        <StatusIndicator status={conversation.status} adHoc={conversation.capabilities?.includes('ad-hoc')} />
+        <BackendIcon backend={conversation.backend} />
         {ps?.icon && (
           <span style={displayColor && !isSelected ? { color: displayColor } : undefined}>
             {renderProjectIcon(ps.icon)}
@@ -791,49 +792,53 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
         >
           {projectName}
         </span>
-        {session.planMode && (
+        {conversation.planMode && (
           <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-blue-500/20 text-blue-400 border border-blue-500/50">
             plan
           </span>
         )}
-        {session.compacting && (
+        {conversation.compacting && (
           <span className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-amber-400/20 text-amber-400 border border-amber-400/50 animate-pulse">
             compacting
           </span>
         )}
-        {session.lastError && (
+        {conversation.lastError && (
           <span
             className="px-1.5 py-0.5 text-[10px] uppercase font-bold bg-destructive/20 text-destructive border border-destructive/50"
-            title={session.lastError.errorMessage || session.lastError.errorType || 'API error'}
+            title={conversation.lastError.errorMessage || conversation.lastError.errorType || 'API error'}
           >
             error
           </span>
         )}
-        {session.rateLimit && !session.lastError && (
+        {conversation.rateLimit && !conversation.lastError && (
           <span
             className="px-1 py-0.5 text-amber-400 border border-amber-500/40 bg-amber-500/20"
-            title={`${session.rateLimit.message}${session.rateLimit.retryAfterMs ? ` (retry in ${Math.ceil(session.rateLimit.retryAfterMs / 1000)}s)` : ''}`}
+            title={`${conversation.rateLimit.message}${conversation.rateLimit.retryAfterMs ? ` (retry in ${Math.ceil(conversation.rateLimit.retryAfterMs / 1000)}s)` : ''}`}
           >
             <Clock size={12} />
           </span>
         )}
         {hasPendingLink && <span className="text-[9px] text-teal-400 font-bold animate-pulse">LINK</span>}
         {hasPendingPermission && <span className="text-[9px] text-amber-400 font-bold animate-pulse">PERM</span>}
-        {session.pendingAttention && <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>}
-        {session.hasNotification && <span className="text-[9px] text-teal-400 font-bold">NOTIFY</span>}
-        {session.hostSentinelAlias && session.hostSentinelAlias !== 'default' && (
+        {conversation.pendingAttention && (
+          <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>
+        )}
+        {conversation.hasNotification && <span className="text-[9px] text-teal-400 font-bold">NOTIFY</span>}
+        {conversation.hostSentinelAlias && conversation.hostSentinelAlias !== 'default' && (
           <span className="px-1 py-0.5 text-[8px] rounded bg-muted text-muted-foreground font-medium">
-            {session.hostSentinelAlias}
+            {conversation.hostSentinelAlias}
           </span>
         )}
-        <ConversationInfoButton session={session} visible={isSelected} />
-        <ShareIndicator conversationProject={session.project} conversationId={session.id} />
-        {session.resultText && session.capabilities?.includes('ad-hoc') && <ResultTextModal session={session} />}
-        {session.status === 'ended' && <DismissButton conversationId={session.id} />}
+        <ConversationInfoButton conversation={conversation} visible={isSelected} />
+        <ShareIndicator conversationProject={conversation.project} conversationId={conversation.id} />
+        {conversation.resultText && conversation.capabilities?.includes('ad-hoc') && (
+          <ResultTextModal conversation={conversation} />
+        )}
+        {conversation.status === 'ended' && <DismissButton conversationId={conversation.id} />}
         {showCost &&
-          session.stats &&
+          conversation.stats &&
           (() => {
-            const { cost, exact } = getConversationCost(session.stats, session.model)
+            const { cost, exact } = getConversationCost(conversation.stats, conversation.model)
             if (cost < 0.01) return null
             const level = getCostLevel(cost)
             return (
@@ -849,88 +854,91 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
             )
           })()}
       </div>
-      {(isRenaming || sessionName) && (
+      {(isRenaming || conversationName) && (
         <div className="mt-0.5 text-[10px] text-muted-foreground font-mono truncate pl-1">
-          {isRenaming ? <InlineRename session={session} /> : sessionName}
+          {isRenaming ? <InlineRename conversation={conversation} /> : conversationName}
         </div>
       )}
       {isEditingDescription ? (
         <div className="mt-0.5 pl-1">
-          <InlineDescription session={session} />
+          <InlineDescription conversation={conversation} />
         </div>
-      ) : session.description ? (
-        <div className="mt-0.5 text-[10px] text-muted-foreground/60 truncate pl-1 italic" title={session.description}>
-          {session.description}
+      ) : conversation.description ? (
+        <div
+          className="mt-0.5 text-[10px] text-muted-foreground/60 truncate pl-1 italic"
+          title={conversation.description}
+        >
+          {conversation.description}
         </div>
       ) : null}
-      {!isRenaming && session.recap?.title && (
-        <div className="mt-0.5 text-[10px] text-zinc-400/80 truncate pl-1">{session.recap.title}</div>
+      {!isRenaming && conversation.recap?.title && (
+        <div className="mt-0.5 text-[10px] text-zinc-400/80 truncate pl-1">{conversation.recap.title}</div>
       )}
-      {session.gitBranch && session.gitBranch !== 'main' && session.gitBranch !== 'master' && (
+      {conversation.gitBranch && conversation.gitBranch !== 'main' && conversation.gitBranch !== 'master' && (
         <div className="mt-0.5 pl-1 flex items-center gap-1">
           <span
             className={cn(
               'text-[9px] font-mono truncate',
-              session.adHocWorktree ? 'text-orange-400/70' : 'text-purple-400/60',
+              conversation.adHocWorktree ? 'text-orange-400/70' : 'text-purple-400/60',
             )}
           >
-            {session.adHocWorktree ? '\u2387 ' : '\u2325 '}
-            {session.gitBranch}
+            {conversation.adHocWorktree ? '\u2387 ' : '\u2325 '}
+            {conversation.gitBranch}
           </span>
         </div>
       )}
-      <ConversationItemTasksBlock session={session} selectedSubagentId={selectedSubagentId} />
-      {(session.runningBgTaskCount > 0 || session.team) && (
+      <ConversationItemTasksBlock conversation={conversation} selectedSubagentId={selectedSubagentId} />
+      {(conversation.runningBgTaskCount > 0 || conversation.team) && (
         <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
-          {session.runningBgTaskCount > 0 && (
+          {conversation.runningBgTaskCount > 0 && (
             <span
               role="button"
               tabIndex={0}
               className="px-1.5 py-0.5 bg-emerald-400/20 text-emerald-400 border border-emerald-400/50 text-[10px] font-bold cursor-pointer hover:bg-emerald-400/30"
               onClick={e => {
                 e.stopPropagation()
-                openTab(session.id, 'agents')
+                openTab(conversation.id, 'agents')
               }}
               onKeyDown={e => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.stopPropagation()
-                  openTab(session.id, 'agents')
+                  openTab(conversation.id, 'agents')
                 }
               }}
             >
-              [{session.runningBgTaskCount}] bg
+              [{conversation.runningBgTaskCount}] bg
             </span>
           )}
-          {session.team && (
+          {conversation.team && (
             <span className="px-1.5 py-0.5 bg-purple-400/20 text-purple-400 border border-purple-400/50 text-[10px] font-bold uppercase">
-              {session.team.role === 'lead' ? 'LEAD' : 'TEAM'} {session.team.teamName}
-              {session.teammates.length > 0 &&
-                ` (${session.teammates.filter(t => t.status !== 'stopped').length}/${session.teammates.length})`}
+              {conversation.team.role === 'lead' ? 'LEAD' : 'TEAM'} {conversation.team.teamName}
+              {conversation.teammates.length > 0 &&
+                ` (${conversation.teammates.filter(t => t.status !== 'stopped').length}/${conversation.teammates.length})`}
             </span>
           )}
         </div>
       )}
-      {session.summary && (
-        <div className="mt-1 text-[10px] text-muted-foreground truncate" title={session.summary}>
-          {session.summary}
+      {conversation.summary && (
+        <div className="mt-1 text-[10px] text-muted-foreground truncate" title={conversation.summary}>
+          {conversation.summary}
         </div>
       )}
-      {showRecapDesc && !session.summary && session.recap && (
+      {showRecapDesc && !conversation.summary && conversation.recap && (
         <div
           className={cn(
             'mt-1.5 text-[10px] whitespace-pre-wrap overflow-hidden transition-all duration-700',
-            session.recapFresh
+            conversation.recapFresh
               ? 'text-zinc-300/80 border-l-2 border-zinc-500/50 pl-2 py-0.5 bg-zinc-800/20 rounded-r'
               : 'text-muted-foreground/50 italic pl-1',
           )}
-          title={session.recap.content}
+          title={conversation.recap.content}
         >
-          {session.recap.content}
+          {conversation.recap.content}
         </div>
       )}
-      {session.prLinks && session.prLinks.length > 0 && (
+      {conversation.prLinks && conversation.prLinks.length > 0 && (
         <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-          {session.prLinks.map(pr => (
+          {conversation.prLinks.map(pr => (
             <a
               key={pr.prUrl}
               href={pr.prUrl}
@@ -945,20 +953,20 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
           ))}
         </div>
       )}
-      {session.linkedProjects && session.linkedProjects.length > 0 && (
+      {conversation.linkedProjects && conversation.linkedProjects.length > 0 && (
         <div className="mt-1 text-[10px] text-teal-400/50 font-mono truncate">
-          {'\u2194'} {session.linkedProjects.map(p => p.name).join(', ')}
+          {'\u2194'} {conversation.linkedProjects.map(p => p.name).join(', ')}
         </div>
       )}
       {showContextBar &&
-        session.tokenUsage &&
+        conversation.tokenUsage &&
         (() => {
-          const { input, cacheCreation, cacheRead } = session.tokenUsage
+          const { input, cacheCreation, cacheRead } = conversation.tokenUsage
           const total = input + cacheCreation + cacheRead
           if (total === 0) return null
-          const maxTokens = session.contextWindow ?? contextWindowSize(session.model)
+          const maxTokens = conversation.contextWindow ?? contextWindowSize(conversation.model)
           const pct = Math.min(100, Math.round((total / maxTokens) * 100))
-          const threshold = session.autocompactPct || 83
+          const threshold = conversation.autocompactPct || 83
           const warnAt = threshold - 5
           return (
             <div className="mt-1.5 flex items-center gap-1.5">
@@ -982,12 +990,17 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
             </div>
           )
         })()}
-      {session.status === 'idle' &&
+      {conversation.status === 'idle' &&
         (() => {
-          const ci = getCacheTimerInfo(session.lastTurnEndedAt, session.tokenUsage, session.model, session.cacheTtl)
+          const ci = getCacheTimerInfo(
+            conversation.lastTurnEndedAt,
+            conversation.tokenUsage,
+            conversation.model,
+            conversation.cacheTtl,
+          )
           if (!ci || ci.state === 'hot') return null
           if (ci.state === 'expired') {
-            const idleMin = Math.floor((Date.now() - (session.lastTurnEndedAt || 0)) / 60_000)
+            const idleMin = Math.floor((Date.now() - (conversation.lastTurnEndedAt || 0)) / 60_000)
             return (
               <div className="mt-1 text-[9px] font-mono text-amber-400/60 truncate">
                 cache expired ({idleMin}m idle) -- ~${ci.reCacheCost.toFixed(2)} re-cache
@@ -1000,48 +1013,52 @@ const ConversationItemFull = memo(function SessionItemFull({ session }: { sessio
   )
 })
 
-// ─── Compact session card (used inside CWD groups) ───────────────
+// ─── Compact conversation card (used inside CWD groups) ───────────────
 
-export const ConversationItemCompact = memo(function SessionItemCompact({ session }: { session: Session }) {
-  const isSelected = useConversationsStore(s => s.selectedConversationId === session.id)
+export const ConversationItemCompact = memo(function ConversationItemCompact({
+  conversation,
+}: {
+  conversation: Conversation
+}) {
+  const isSelected = useConversationsStore(s => s.selectedConversationId === conversation.id)
   const selectedSubagentId = useConversationsStore(s =>
-    s.selectedConversationId === session.id ? s.selectedSubagentId : null,
+    s.selectedConversationId === conversation.id ? s.selectedSubagentId : null,
   )
   const selectConversation = useConversationsStore(s => s.selectConversation)
 
-  const ps = useConversationsStore(s => s.projectSettings[session.project])
+  const ps = useConversationsStore(s => s.projectSettings[conversation.project])
   const showCost = useConversationsStore(s => s.controlPanelPrefs.showCostInList)
   const showContextBar = useConversationsStore(s => s.controlPanelPrefs.showContextInList)
-  const isRenaming = useConversationsStore(s => s.renamingConversationId === session.id)
-  const isEditingDescription = useConversationsStore(s => s.editingDescriptionConversationId === session.id)
+  const isRenaming = useConversationsStore(s => s.renamingConversationId === conversation.id)
+  const isEditingDescription = useConversationsStore(s => s.editingDescriptionConversationId === conversation.id)
   const hasPendingPermission = useConversationsStore(s =>
-    s.pendingPermissions.some(p => p.conversationId === session.id),
+    s.pendingPermissions.some(p => p.conversationId === conversation.id),
   )
   const hasPendingLink = useConversationsStore(s =>
-    s.pendingProjectLinks.some(r => r.fromConversation === session.id || r.toConversation === session.id),
+    s.pendingProjectLinks.some(r => r.fromConversation === conversation.id || r.toConversation === conversation.id),
   )
 
   const displayColor = ps?.color
 
   function handleClick() {
     haptic('tap')
-    selectConversation(session.id)
+    selectConversation(conversation.id)
   }
 
   return (
     <ConversationItemShell
-      session={session}
+      conversation={conversation}
       isSelected={isSelected}
       displayColor={displayColor}
       variant="compact"
       onClick={handleClick}
     >
       <div className="flex items-center gap-1.5">
-        <StatusIndicator status={session.status} adHoc={session.capabilities?.includes('ad-hoc')} />
-        <BackendIcon backend={session.backend} size={11} />
+        <StatusIndicator status={conversation.status} adHoc={conversation.capabilities?.includes('ad-hoc')} />
+        <BackendIcon backend={conversation.backend} size={11} />
         {isRenaming ? (
           <div className="flex-1 min-w-0">
-            <InlineRename session={session} />
+            <InlineRename conversation={conversation} />
           </div>
         ) : (
           <span
@@ -1050,21 +1067,21 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
               isSelected ? 'text-accent' : 'text-muted-foreground',
             )}
           >
-            {(session.title || session.agentName || '').slice(0, 24) || session.id.slice(0, 8)}
+            {(conversation.title || conversation.agentName || '').slice(0, 24) || conversation.id.slice(0, 8)}
           </span>
         )}
-        {session.compacting && <span className="text-[9px] text-amber-400 font-bold animate-pulse">COMPACT</span>}
-        {session.lastError && <span className="text-[9px] text-destructive font-bold">ERROR</span>}
-        {session.rateLimit && !session.lastError && (
+        {conversation.compacting && <span className="text-[9px] text-amber-400 font-bold animate-pulse">COMPACT</span>}
+        {conversation.lastError && <span className="text-[9px] text-destructive font-bold">ERROR</span>}
+        {conversation.rateLimit && !conversation.lastError && (
           <span
-            title={`Rate limited: ${session.rateLimit.message}${session.rateLimit.retryAfterMs ? ` (retry in ${Math.ceil(session.rateLimit.retryAfterMs / 1000)}s)` : ''}`}
+            title={`Rate limited: ${conversation.rateLimit.message}${conversation.rateLimit.retryAfterMs ? ` (retry in ${Math.ceil(conversation.rateLimit.retryAfterMs / 1000)}s)` : ''}`}
           >
             <Clock size={11} className="text-amber-400" />
           </span>
         )}
         {(() => {
-          const pm = formatPermissionMode(session.permissionMode)
-          if (!pm && session.planMode)
+          const pm = formatPermissionMode(conversation.permissionMode)
+          if (!pm && conversation.planMode)
             return (
               <span className="text-[9px] text-blue-400 font-bold" title="Plan mode -- requires plan approval">
                 P
@@ -1077,9 +1094,14 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
             </span>
           )
         })()}
-        {session.status === 'idle' &&
+        {conversation.status === 'idle' &&
           (() => {
-            const ci = getCacheTimerInfo(session.lastTurnEndedAt, session.tokenUsage, session.model, session.cacheTtl)
+            const ci = getCacheTimerInfo(
+              conversation.lastTurnEndedAt,
+              conversation.tokenUsage,
+              conversation.model,
+              conversation.cacheTtl,
+            )
             if (!ci) return null
             return ci.state === 'expired' ? (
               <span className="text-[9px] text-red-400/70 font-bold">EXPIRED</span>
@@ -1090,9 +1112,9 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
             ) : null
           })()}
         {showCost &&
-          session.stats &&
+          conversation.stats &&
           (() => {
-            const { cost, exact } = getConversationCost(session.stats, session.model)
+            const { cost, exact } = getConversationCost(conversation.stats, conversation.model)
             if (cost < 0.5) return null
             return (
               <span className={cn('text-[9px] font-bold font-mono', getCostBgColor(cost).split(' ')[1])}>
@@ -1100,58 +1122,60 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
               </span>
             )
           })()}
-        {session.adHocWorktree && <span className="text-[9px] text-orange-400 font-bold">WT</span>}
+        {conversation.adHocWorktree && <span className="text-[9px] text-orange-400 font-bold">WT</span>}
         {hasPendingLink && <span className="text-[9px] text-teal-400 font-bold animate-pulse">LINK</span>}
         {hasPendingPermission && <span className="text-[9px] text-amber-400 font-bold animate-pulse">PERM</span>}
-        {session.pendingAttention && <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>}
-        {session.hasNotification && <span className="text-[9px] text-teal-400 font-bold">NOTIFY</span>}
-        {session.hostSentinelAlias && session.hostSentinelAlias !== 'default' && (
+        {conversation.pendingAttention && (
+          <span className="text-[9px] text-amber-400 font-bold animate-pulse">WAITING</span>
+        )}
+        {conversation.hasNotification && <span className="text-[9px] text-teal-400 font-bold">NOTIFY</span>}
+        {conversation.hostSentinelAlias && conversation.hostSentinelAlias !== 'default' && (
           <span className="px-1 py-0.5 text-[8px] rounded bg-muted text-muted-foreground font-medium">
-            {session.hostSentinelAlias}
+            {conversation.hostSentinelAlias}
           </span>
         )}
-        <ConversationInfoButton session={session} visible={isSelected} />
-        {session.status === 'ended' && <DismissButton conversationId={session.id} />}
+        <ConversationInfoButton conversation={conversation} visible={isSelected} />
+        {conversation.status === 'ended' && <DismissButton conversationId={conversation.id} />}
       </div>
-      {session.gitBranch && session.gitBranch !== 'main' && session.gitBranch !== 'master' && (
+      {conversation.gitBranch && conversation.gitBranch !== 'main' && conversation.gitBranch !== 'master' && (
         <div className="pl-4 flex items-center gap-1">
           <span
             className={cn(
               'text-[9px] font-mono truncate',
-              session.adHocWorktree ? 'text-orange-400/70' : 'text-purple-400/60',
+              conversation.adHocWorktree ? 'text-orange-400/70' : 'text-purple-400/60',
             )}
           >
-            {session.adHocWorktree ? '⎇ ' : '⌥ '}
-            {session.gitBranch}
+            {conversation.adHocWorktree ? '⎇ ' : '⌥ '}
+            {conversation.gitBranch}
           </span>
         </div>
       )}
       {isEditingDescription ? (
         <div className="mt-0.5 pl-4">
-          <InlineDescription session={session} />
+          <InlineDescription conversation={conversation} />
         </div>
-      ) : session.description ? (
-        <div className="mt-0.5 pl-4 text-[9px] text-muted-foreground/70 truncate" title={session.description}>
-          {session.description}
+      ) : conversation.description ? (
+        <div className="mt-0.5 pl-4 text-[9px] text-muted-foreground/70 truncate" title={conversation.description}>
+          {conversation.description}
         </div>
       ) : null}
-      {session.summary && (
-        <div className="mt-0.5 pl-4 text-[9px] text-muted-foreground/50 truncate" title={session.summary}>
-          {session.summary}
+      {conversation.summary && (
+        <div className="mt-0.5 pl-4 text-[9px] text-muted-foreground/50 truncate" title={conversation.summary}>
+          {conversation.summary}
         </div>
       )}
-      {session.recap?.title && (
-        <div className="mt-0.5 pl-4 text-[9px] text-zinc-400/80 truncate">{session.recap.title}</div>
+      {conversation.recap?.title && (
+        <div className="mt-0.5 pl-4 text-[9px] text-zinc-400/80 truncate">{conversation.recap.title}</div>
       )}
       {showContextBar &&
-        session.tokenUsage &&
+        conversation.tokenUsage &&
         (() => {
-          const { input, cacheCreation, cacheRead } = session.tokenUsage
+          const { input, cacheCreation, cacheRead } = conversation.tokenUsage
           const total = input + cacheCreation + cacheRead
           if (total === 0) return null
-          const maxTokens = session.contextWindow ?? contextWindowSize(session.model)
+          const maxTokens = conversation.contextWindow ?? contextWindowSize(conversation.model)
           const pct = Math.min(100, Math.round((total / maxTokens) * 100))
-          const threshold = session.autocompactPct || 83
+          const threshold = conversation.autocompactPct || 83
           const warnAt = threshold - 5
           return (
             <div className="mt-0.5 pl-4 flex items-center gap-1.5">
@@ -1175,21 +1199,21 @@ export const ConversationItemCompact = memo(function SessionItemCompact({ sessio
             </div>
           )
         })()}
-      <ConversationItemTasksBlock session={session} selectedSubagentId={selectedSubagentId} />
+      <ConversationItemTasksBlock conversation={conversation} selectedSubagentId={selectedSubagentId} />
     </ConversationItemShell>
   )
 })
 
-// ─── Session card with settings button ─────────────────────────────
+// ─── Conversation card with settings button ─────────────────────────────
 
-export const ConversationCard = memo(function SessionCard({ session }: { session: Session }) {
+export const ConversationCard = memo(function ConversationCard({ conversation }: { conversation: Conversation }) {
   const [showSettings, setShowSettings] = useState(false)
-  const isSelected = useConversationsStore(s => s.selectedConversationId === session.id)
+  const isSelected = useConversationsStore(s => s.selectedConversationId === conversation.id)
   return (
-    <ConversationContextMenu session={session} onOpenSettings={() => setShowSettings(true)}>
+    <ConversationContextMenu conversation={conversation} onOpenSettings={() => setShowSettings(true)}>
       <div>
         <div className="relative group/card">
-          <ConversationItemFull session={session} />
+          <ConversationItemFull conversation={conversation} />
           <div
             className={cn(
               'absolute top-2 right-2 transition-opacity',
@@ -1204,14 +1228,16 @@ export const ConversationCard = memo(function SessionCard({ session }: { session
             />
           </div>
         </div>
-        {showSettings && <ProjectSettingsEditor project={session.project} onClose={() => setShowSettings(false)} />}
+        {showSettings && (
+          <ProjectSettingsEditor project={conversation.project} onClose={() => setShowSettings(false)} />
+        )}
       </div>
     </ConversationContextMenu>
   )
 })
 
-// ─── Compact peek (used for the "selected session" preview inside a
-// collapsed group). Subscribes to a single session by id so the peek
+// ─── Compact peek (used for the "selected conversation" preview inside a
+// collapsed group). Subscribes to a single conversation by id so the peek
 // re-renders independently of ProjectList. ──────────────────────────
 
 export const ConversationCompactPeek = memo(function ConversationCompactPeek({
@@ -1219,9 +1245,9 @@ export const ConversationCompactPeek = memo(function ConversationCompactPeek({
 }: {
   conversationId: string
 }) {
-  const session = useConversationsStore(s => s.sessionsById[conversationId])
-  if (!session) return null
-  return <ConversationItemCompact session={session} />
+  const conversation = useConversationsStore(s => s.conversationsById[conversationId])
+  if (!conversation) return null
+  return <ConversationItemCompact conversation={conversation} />
 })
 
 // ─── Inactive project item ────────────────────────────────────────
@@ -1230,20 +1256,21 @@ export const InactiveProjectItem = memo(
   function InactiveProjectItem({ conversationIds }: { conversationIds: string[] }) {
     const [showSettings, setShowSettings] = useState(false)
     const selectConversation = useConversationsStore(s => s.selectConversation)
-    const sessions = useConversationsStore(
-      useShallow(s => conversationIds.map(id => s.sessionsById[id]).filter(Boolean) as Session[]),
+    const conversations = useConversationsStore(
+      useShallow(s => conversationIds.map(id => s.conversationsById[id]).filter(Boolean) as Conversation[]),
     )
-    const latest = sessions.length > 0 ? sessions.reduce((a, b) => (a.lastActivity > b.lastActivity ? a : b)) : null
+    const latest =
+      conversations.length > 0 ? conversations.reduce((a, b) => (a.lastActivity > b.lastActivity ? a : b)) : null
     const ps = useConversationsStore(s => (latest ? s.projectSettings[latest.project] : undefined))
     if (!latest) return null
     const displayName = projectDisplayName(projectPath(latest.project), ps?.label)
     const displayColor = ps?.color
 
     return (
-      <ConversationContextMenu session={latest} onOpenSettings={() => setShowSettings(true)}>
+      <ConversationContextMenu conversation={latest} onOpenSettings={() => setShowSettings(true)}>
         <div>
           <div
-            data-session-id={latest.id}
+            data-conversation-id={latest.id}
             role="button"
             tabIndex={0}
             onClick={() => {
@@ -1258,7 +1285,7 @@ export const InactiveProjectItem = memo(
             }}
             className="w-full text-left border border-border hover:border-primary p-2 pl-3 transition-colors cursor-pointer"
             style={displayColor ? { borderLeftColor: displayColor, borderLeftWidth: '3px' } : undefined}
-            title={`${sessions.length} conversation${sessions.length > 1 ? 's' : ''}\n${projectPath(latest.project)}`}
+            title={`${conversations.length} conversation${conversations.length > 1 ? 's' : ''}\n${projectPath(latest.project)}`}
           >
             <div className="flex items-center gap-1.5">
               {ps?.icon && (

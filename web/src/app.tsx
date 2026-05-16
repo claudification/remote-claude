@@ -24,7 +24,7 @@ import { RenameModal } from '@/components/rename-modal'
 import { ReviveDialog } from '@/components/revive-dialog'
 import { ManageChatConnectionsDialog } from '@/components/settings/manage-chat-connections-dialog'
 import { ManageProjectLinksDialog } from '@/components/settings/manage-project-links-dialog'
-import { SharedSessionView } from '@/components/shared-conversation-view'
+import { SharedConversationView } from '@/components/shared-conversation-view'
 import { ShortcutHelp } from '@/components/shortcut-help'
 import { SpawnDialog } from '@/components/spawn-dialog'
 import { TaskBatchSelector } from '@/components/task-batch-selector'
@@ -361,7 +361,7 @@ function ShareGate({ token }: { token: string }) {
     )
   }
   detectShareMode()
-  return <SharedSessionView token={token} />
+  return <SharedConversationView token={token} />
 }
 
 export function App() {

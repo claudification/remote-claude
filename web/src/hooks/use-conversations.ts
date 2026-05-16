@@ -16,12 +16,12 @@ import { appendShareParam } from '@/lib/share-mode'
 import {
   type ClaudeEfficiencyUpdate,
   type ClaudeHealthUpdate,
+  type Conversation,
   flattenProjectOrderTree,
   type HookEvent,
   type ProjectOrder,
   type ProjectSettings,
   type ProjectSettingsMap,
-  type Session,
   type SubagentInfo,
   type TaskInfo,
   type TranscriptEntry,
@@ -90,16 +90,16 @@ export interface SentinelStatusInfo {
 }
 
 interface ConversationsState {
-  sessions: Session[]
-  /** O(1) lookup index maintained alongside sessions[] */
-  sessionsById: Record<string, Session>
+  conversations: Conversation[]
+  /** O(1) lookup index maintained alongside conversations[] */
+  conversationsById: Record<string, Conversation>
   selectedConversationId: string | null
   selectedProjectUri: string | null
   selectedSubagentId: string | null
-  sessionMru: string[]
+  conversationMru: string[]
   events: Record<string, HookEvent[]>
   transcripts: Record<string, TranscriptEntry[]>
-  /** Per-session highest transcript entry.seq we've applied to `transcripts`.
+  /** Per-conversation highest transcript entry.seq we've applied to `transcripts`.
    *  Sent back to the server in sync_check so the server can detect drift and
    *  reply with a delta (entries with seq > lastAppliedSeq) instead of a full
    *  refetch. Also used to dedup incremental transcript_entries broadcasts.
@@ -114,7 +114,7 @@ interface ConversationsState {
   lastAppliedTranscriptSeq: Record<string, number>
   streamingText: Record<string, string> // conversationId -> accumulating text from headless stream deltas
   streamingThinking: Record<string, string> // conversationId -> accumulating thinking from stream deltas
-  sessionInfo: Record<
+  conversationInfo: Record<
     string,
     {
       tools: string[]
@@ -132,8 +132,8 @@ interface ConversationsState {
   projectSettings: ProjectSettingsMap
   globalSettings: Record<string, unknown>
   permissions: ResolvedPermissions
-  /** Per-session resolved permissions (keyed by conversationId) */
-  sessionPermissions: Record<string, ResolvedPermissions>
+  /** Per-conversation resolved permissions (keyed by conversationId) */
+  conversationPermissions: Record<string, ResolvedPermissions>
   projectOrder: ProjectOrder
   serverCapabilities: { voice: boolean }
   setServerCapabilities: (caps: { voice: boolean }) => void
@@ -174,7 +174,7 @@ interface ConversationsState {
   respondToPermission: (conversationId: string, requestId: string, behavior: 'allow' | 'deny') => void
   sendPermissionRule: (conversationId: string, toolName: string, behavior: 'allow' | 'deny') => void
   /**
-   * Pending spawn approvals derived from sessions[].pendingSpawnApproval. The
+   * Pending spawn approvals derived from conversations[].pendingSpawnApproval. The
    * broker stores the prompt on the caller conversation and broadcasts it via
    * conversation_update; this slice is a flat materialized view for the UI.
    * Per the LOG-EVERYTHING covenant, the broker logs every transition; the
@@ -204,7 +204,7 @@ interface ConversationsState {
     annotations?: Record<string, { preview?: string; notes?: string }>,
     skip?: boolean,
   ) => void
-  // Dialog state (pending per session)
+  // Dialog state (pending per conversation)
   pendingDialogs: Record<
     string,
     {
@@ -237,7 +237,7 @@ interface ConversationsState {
     timestamp: number
   }>
   dismissNotification: (id: string) => void
-  clearSessionNotifications: (conversationId: string) => void
+  clearConversationNotifications: (conversationId: string) => void
   requestedTab: string | null
   requestedTabSeq: number
   pendingFilePath: string | null
@@ -252,7 +252,7 @@ interface ConversationsState {
   updateControlPanelPrefs: (patch: Partial<ControlPanelPrefs>) => void
   resolveToolDisplay: (tool: ToolDisplayKey) => ToolDisplayPrefs
 
-  setConversations: (sessions: Session[]) => void
+  setConversations: (conversations: Conversation[]) => void
   /** Select a conversation. Optional `reason` is logged to console for debugging navigation bugs. */
   selectConversation: (id: string | null, reason?: string) => void
   selectProject: (projectUri: string | null) => void
@@ -327,7 +327,7 @@ interface ConversationsState {
     }>,
   ) => void
 
-  getSelectedSession: () => Session | undefined
+  getSelectedConversation: () => Conversation | undefined
   getSelectedEvents: () => HookEvent[]
   getSelectedTranscript: () => TranscriptEntry[]
 }
@@ -348,8 +348,8 @@ export function applyHashRoute() {
   initUIState()
   processHash()
 
-  // Auto-select default session if no hash route matched
-  applyDefaultSession()
+  // Auto-select default conversation if no hash route matched
+  applyDefaultConversation()
 
   // Listen for hash changes from service worker navigation (push notification deep links)
   window.addEventListener('hashchange', () => processHash())
@@ -372,46 +372,55 @@ let defaultApplied = false
 
 const STATUS_PRIORITY: Record<string, number> = { active: 0, idle: 1, starting: 2, ended: 3 }
 
-function findBestSessionForProject(sessions: Session[], projectUri: string): Session | undefined {
-  return sessions
+function findBestConversationForProject(conversations: Conversation[], projectUri: string): Conversation | undefined {
+  return conversations
     .filter(s => s.project === projectUri)
     .sort(
       (a, b) => (STATUS_PRIORITY[a.status] ?? 9) - (STATUS_PRIORITY[b.status] ?? 9) || b.lastActivity - a.lastActivity,
     )[0]
 }
 
-function applyDefaultSession() {
+function applyDefaultConversation() {
   if (defaultApplied) return
   defaultApplied = true
   const store = useConversationsStore.getState()
   // Don't override if a conversation was already selected (hash route, deep link, etc.)
   if (store.selectedConversationId) return
 
-  // Try configured default session project
+  // Try configured default conversation project
   const defaultProject = store.controlPanelPrefs.defaultConversationCwd
   if (defaultProject) {
-    const best = findBestSessionForProject(store.sessions, defaultProject)
+    const best = findBestConversationForProject(store.conversations, defaultProject)
     if (best) {
-      store.selectConversation(best.id, 'default-session-project')
+      store.selectConversation(best.id, 'default-conversation-project')
       return
     }
   }
 
-  // Try last-viewed session from localStorage
+  // Try last-viewed conversation from localStorage
   const lastId = getLastConversationId()
-  if (lastId && store.sessionsById[lastId]) {
-    store.selectConversation(lastId, 'default-session-last-viewed')
+  if (lastId && store.conversationsById[lastId]) {
+    store.selectConversation(lastId, 'default-conversation-last-viewed')
     return
   }
 
   // Auto-select if only one non-ended conversations visible (common for restricted users)
-  const activeConversations = store.sessions.filter(s => s.status !== 'ended')
+  const activeConversations = store.conversations.filter(s => s.status !== 'ended')
   if (activeConversations.length === 1) {
-    store.selectConversation(activeConversations[0].id, 'default-session-only-active')
+    store.selectConversation(activeConversations[0].id, 'default-conversation-only-active')
   }
 }
 
-function processHash() {
+/**
+ * Parse `window.location.hash` and route to the matching store action.
+ * Exported for unit testing the hash router in isolation.
+ *   conversation/<id>  -> selectConversation (canonical)
+ *   session/<id>       -> selectConversation (legacy form, still accepted)
+ *   project/<uri>      -> selectProject
+ *   terminal/<id>      -> openTerminal
+ *   task/<id>          -> dispatches `open-project-task` CustomEvent
+ */
+export function processHash() {
   const hash = window.location.hash.slice(1)
   if (!hash) return
 
@@ -434,9 +443,9 @@ function processHash() {
 }
 
 /** Build an O(1) lookup index from a conversation array */
-export function buildConversationsById(sessions: Session[]): Record<string, Session> {
-  const map: Record<string, Session> = {}
-  for (const s of sessions) map[s.id] = s
+export function buildConversationsById(conversations: Conversation[]): Record<string, Conversation> {
+  const map: Record<string, Conversation> = {}
+  for (const s of conversations) map[s.id] = s
   return map
 }
 
@@ -448,12 +457,12 @@ export function buildConversationsById(sessions: Session[]): Record<string, Sess
 export type ConversationStructure = {
   id: string
   project: string
-  status: Session['status']
+  status: Conversation['status']
   capabilities?: string[]
   startedAt: number
 }
 
-function toStructure(s: Session): ConversationStructure {
+function toStructure(s: Conversation): ConversationStructure {
   return {
     id: s.id,
     project: s.project,
@@ -493,13 +502,13 @@ function structureArrayEqual(a: ConversationStructure[], b: ConversationStructur
 }
 
 // Caller subscribes to the structural shape only -- skips re-renders when
-// session updates touch fields outside ConversationStructure. Mirrors
+// conversation updates touch fields outside ConversationStructure. Mirrors
 // useShallow's pattern (component-scoped useRef cache, selector closes
 // over it) but with field-level equality instead of shallow.
 export function useConversationStructure(): ConversationStructure[] {
   const prevRef = useRef<ConversationStructure[] | null>(null)
   return useConversationsStore(s => {
-    const next = s.sessions.map(toStructure)
+    const next = s.conversations.map(toStructure)
     const prev = prevRef.current
     if (prev && structureArrayEqual(prev, next)) return prev
     prevRef.current = next
@@ -514,10 +523,10 @@ export function useConversationStructure(): ConversationStructure[] {
  * reject malformed input at the handler boundary; if anything slips through
  * we drop it here and warn loudly so the bug is visible.
  */
-function sanitizeConversations(sessions: Session[]): Session[] {
-  if (!Array.isArray(sessions)) return []
-  const out: Session[] = []
-  for (const s of sessions) {
+function sanitizeConversations(conversations: Conversation[]): Conversation[] {
+  if (!Array.isArray(conversations)) return []
+  const out: Conversation[] = []
+  for (const s of conversations) {
     if (!s || typeof s.id !== 'string' || s.id.length === 0) {
       console.warn('[bad-data] dropping conversation with invalid id from broker payload:', {
         id: s?.id,
@@ -533,24 +542,24 @@ function sanitizeConversations(sessions: Session[]): Session[] {
 }
 
 export const useConversationsStore = create<ConversationsState>((set, get) => ({
-  sessions: [],
-  sessionsById: {},
+  conversations: [],
+  conversationsById: {},
   selectedConversationId: null,
   selectedProjectUri: null,
   selectedSubagentId: null,
-  sessionMru: [],
+  conversationMru: [],
   events: {},
   transcripts: {},
   lastAppliedTranscriptSeq: {},
   streamingText: {},
   streamingThinking: {},
-  sessionInfo: {},
+  conversationInfo: {},
   subagentTranscripts: {},
   tasks: {},
   projectSettings: {},
   globalSettings: {},
   permissions: DEFAULT_PERMISSIONS,
-  sessionPermissions: {},
+  conversationPermissions: {},
   projectOrder: { tree: [] },
   serverCapabilities: { voice: false },
   setServerCapabilities: caps => set({ serverCapabilities: caps }),
@@ -599,12 +608,12 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     // Optimistic clear -- the broker also clears + broadcasts conversation_update,
     // but doing it here avoids a one-frame flicker on the banner.
     useConversationsStore.setState(state => {
-      const sess = state.sessionsById[conversationId]
+      const sess = state.conversationsById[conversationId]
       if (!sess?.pendingSpawnApproval) return state
-      const next: Session = { ...sess, pendingSpawnApproval: undefined }
+      const next: Conversation = { ...sess, pendingSpawnApproval: undefined }
       return {
-        sessions: state.sessions.map(s => (s.id === conversationId ? next : s)),
-        sessionsById: { ...state.sessionsById, [conversationId]: next },
+        conversations: state.conversations.map(s => (s.id === conversationId ? next : s)),
+        conversationsById: { ...state.conversationsById, [conversationId]: next },
       }
     })
   },
@@ -700,7 +709,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     useConversationsStore.setState(state => ({
       notifications: state.notifications.filter(n => n.id !== id),
     })),
-  clearSessionNotifications: conversationId =>
+  clearConversationNotifications: conversationId =>
     useConversationsStore.setState(state => ({
       notifications: state.notifications.filter(n => n.conversationId !== conversationId),
     })),
@@ -714,7 +723,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   renameConversation: (conversationId, name, description) => {
     wsSend('rename_conversation', { conversationId, name, ...(description !== undefined ? { description } : {}) })
     set(state => {
-      const sessions = state.sessions.map(s =>
+      const conversations = state.conversations.map(s =>
         s.id === conversationId
           ? {
               ...s,
@@ -723,20 +732,24 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
             }
           : s,
       )
-      return { renamingConversationId: null, sessions, sessionsById: buildConversationsById(sessions) }
+      return { renamingConversationId: null, conversations, conversationsById: buildConversationsById(conversations) }
     })
   },
   editingDescriptionConversationId: null,
   setEditingDescriptionConversationId: conversationId => set({ editingDescriptionConversationId: conversationId }),
   updateDescription: (conversationId, description) => {
-    const session = get().sessionsById[conversationId]
-    const name = session?.title || ''
+    const conversation = get().conversationsById[conversationId]
+    const name = conversation?.title || ''
     wsSend('rename_conversation', { conversationId, name, description })
     set(state => {
-      const sessions = state.sessions.map(s =>
+      const conversations = state.conversations.map(s =>
         s.id === conversationId ? { ...s, description: description || undefined } : s,
       )
-      return { editingDescriptionConversationId: null, sessions, sessionsById: buildConversationsById(sessions) }
+      return {
+        editingDescriptionConversationId: null,
+        conversations,
+        conversationsById: buildConversationsById(conversations),
+      }
     })
   },
   inputDrafts: {},
@@ -785,9 +798,9 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     }),
   resolveToolDisplay: (tool: ToolDisplayKey) => resolveToolDisplay(get().controlPanelPrefs, tool),
 
-  setConversations: sessions => {
-    const clean = sanitizeConversations(sessions)
-    set({ sessions: clean, sessionsById: buildConversationsById(clean) })
+  setConversations: conversations => {
+    const clean = sanitizeConversations(conversations)
+    set({ conversations: clean, conversationsById: buildConversationsById(clean) })
   },
   selectConversation: (id: string | null, reason?: string) => {
     const prev = get().selectedConversationId
@@ -800,14 +813,14 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     const defaultView = get().controlPanelPrefs.defaultView
     const rememberedTab = id ? getConversationTab(id) : null
     set(state => {
-      const mru = id ? [id, ...state.sessionMru.filter(s => s !== id)] : state.sessionMru
+      const mru = id ? [id, ...state.conversationMru.filter(s => s !== id)] : state.conversationMru
       const { sessionCacheSize } = state.controlPanelPrefs
 
-      // LIFO cache: keep data for the N most recently viewed sessions
+      // LIFO cache: keep data for the N most recently viewed conversations
       const cachedIds = new Set(mru.slice(0, Math.max(1, sessionCacheSize)))
       if (id) cachedIds.add(id)
 
-      // Only rebuild dicts if we actually need to evict sessions.
+      // Only rebuild dicts if we actually need to evict conversations.
       // Check if any currently cached keys are NOT in the new cachedIds set.
       let needsEviction = false
       for (const sid of Object.keys(state.events)) {
@@ -847,7 +860,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       }
 
       // Close terminal on conversation switch - PTY is tied to a conversationId,
-      // keeping it open would stream the old session's terminal
+      // keeping it open would stream the old conversation's terminal
       const closeTerminal = state.showTerminal ? { showTerminal: false, terminalWrapperId: null } : {}
       return {
         selectedConversationId: id,
@@ -855,7 +868,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
         selectedSubagentId: null,
         requestedTab: rememberedTab || (defaultView === 'tty' ? 'tty' : 'transcript'),
         requestedTabSeq: state.requestedTabSeq + 1,
-        sessionMru: mru,
+        conversationMru: mru,
         ...evictedData,
         ...closeTerminal,
       }
@@ -864,11 +877,11 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     setLastConversationId(id)
     // Clear notification badge + bell notifications when viewing a conversation
     if (id) {
-      const session = get().sessionsById[id]
-      if (session?.hasNotification) {
+      const conversation = get().conversationsById[id]
+      if (conversation?.hasNotification) {
         get().sendWsMessage({ type: 'conversation_viewed', conversationId: id })
       }
-      get().clearSessionNotifications(id)
+      get().clearConversationNotifications(id)
     }
   },
   selectProject: (projectUri: string | null) => {
@@ -907,7 +920,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   toggleDebugConsole: () => set(state => ({ showDebugConsole: !state.showDebugConsole })),
   openTerminal: conversationId => {
     // Find the conversation that owns this agent host so we can select it in the main panel too
-    const ownerConversation = get().sessions.find(s => s.connectionIds?.includes(conversationId))
+    const ownerConversation = get().conversations.find(s => s.connectionIds?.includes(conversationId))
     const prev = get().selectedConversationId
     const next = ownerConversation?.id ?? null
     if (next !== prev) {
@@ -995,13 +1008,13 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
   dismissConversation: conversationId => {
     wsSend('dismiss_conversation', { conversationId })
     set(state => {
-      const sessions = state.sessions.filter(s => s.id !== conversationId)
+      const conversations = state.conversations.filter(s => s.id !== conversationId)
       if (state.selectedConversationId === conversationId) {
         console.log(`[nav] dismissConversation: clearing selection (dismissed ${conversationId.slice(0, 8)})`)
       }
       return {
-        sessions,
-        sessionsById: buildConversationsById(sessions),
+        conversations,
+        conversationsById: buildConversationsById(conversations),
         selectedConversationId: state.selectedConversationId === conversationId ? null : state.selectedConversationId,
       }
     })
@@ -1013,9 +1026,9 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     wsSend('terminate_conversation', { conversationId, source })
   },
 
-  getSelectedSession: () => {
-    const { sessionsById, selectedConversationId } = get()
-    return selectedConversationId ? sessionsById[selectedConversationId] : undefined
+  getSelectedConversation: () => {
+    const { conversationsById, selectedConversationId } = get()
+    return selectedConversationId ? conversationsById[selectedConversationId] : undefined
   },
   getSelectedEvents: () => {
     const { events, selectedConversationId } = get()
@@ -1092,14 +1105,14 @@ export async function fetchSubagentTranscript(conversationId: string, agentId: s
   return res.json()
 }
 
-interface ReviveSessionOptions {
+interface ReviveConversationOptions {
   headless?: boolean
   jobId?: string
   model?: string
   effort?: string
 }
 
-export function reviveConversation(conversationId: string, options: ReviveSessionOptions = {}): boolean {
+export function reviveConversation(conversationId: string, options: ReviveConversationOptions = {}): boolean {
   const { headless, jobId, model, effort } = options
   return wsSend('revive_conversation', {
     conversationId,
@@ -1164,7 +1177,7 @@ export function sendInput(conversationId: string, input: string): boolean {
   }
   const crDelay = (useConversationsStore.getState().globalSettings.carriageReturnDelay as number) || 0
   const ok = wsSend('send_input', { conversationId, input, ...(crDelay > 0 && { crDelay }) })
-  // User messages for headless sessions are emitted by the agent host's
+  // User messages for headless conversations are emitted by the agent host's
   // sendUserMessage() directly to the broker, which persists + broadcasts.
   // No optimistic entry needed -- the broker round-trip is fast enough,
   // and a single source of truth avoids duplication + survives refresh.

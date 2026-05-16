@@ -59,7 +59,7 @@ export function GroupNode({
     if (editing && inputRef.current) inputRef.current.focus()
   }, [editing])
 
-  // Live-session count only rendered when collapsed -- skip the filter otherwise.
+  // Live-conversation count only rendered when collapsed -- skip the filter otherwise.
   const childCount = collapsed
     ? group.children.filter(c => {
         if (c.type === 'project') {

@@ -22,20 +22,20 @@ import { SettingsShell, type SettingsShellTab } from './settings/settings-shell'
 import { VoiceDevicePicker } from './settings/voice-device-picker'
 import { ThemeSelector } from './theme-selector'
 
-// --- Default session picker ---
-function DefaultSessionPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const sessions = useConversationsStore(s => s.sessions)
+// --- Default conversation picker ---
+function DefaultConversationPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const conversations = useConversationsStore(s => s.conversations)
   const projectSettings = useConversationsStore(s => s.projectSettings)
   // Unique projects by project URI
   const options = useMemo(() => {
     const seen = new Map<string, string>()
-    for (const s of sessions) {
+    for (const s of conversations) {
       if (s.project && !seen.has(s.project)) {
         seen.set(s.project, projectSettings[s.project]?.label || extractProjectLabel(s.project) || s.project)
       }
     }
     return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]))
-  }, [sessions, projectSettings])
+  }, [conversations, projectSettings])
 
   return (
     <select
@@ -195,7 +195,7 @@ const SETTINGS: SettingItem[] = [
     description: 'Auto-select this project when opening the dashboard (per-device)',
     keywords: 'startup auto select home',
     render: ctx => (
-      <DefaultSessionPicker
+      <DefaultConversationPicker
         value={ctx.prefs.defaultConversationCwd ?? ''}
         onChange={v => ctx.updatePrefs({ defaultConversationCwd: v })}
       />
@@ -916,7 +916,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
         </div>
       ))}
 
-      {/* Tool output -- pinned to Sessions tab; filter-matches override */}
+      {/* Tool output -- pinned to Conversations tab; filter-matches override */}
       {(isFiltering
         ? 'tool output verbose'.includes(lowerFilter) ||
           TOOL_DISPLAY_KEYS.some(t => t.toLowerCase().includes(lowerFilter))

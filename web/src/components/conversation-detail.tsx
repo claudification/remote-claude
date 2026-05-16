@@ -22,7 +22,7 @@ import { ShareBanner } from './share-panel'
 const EMPTY_EVENTS: HookEvent[] = []
 const EMPTY_TRANSCRIPT: TranscriptEntry[] = []
 
-export const ConversationDetail = memo(function SessionDetail() {
+export const ConversationDetail = memo(function ConversationDetail() {
   const showThinking = useConversationsStore(s => s.controlPanelPrefs.showThinking)
   const showDiag = useConversationsStore(s => s.controlPanelPrefs.showDiag)
   const showTerminal = useConversationsStore(state => state.showTerminal)
@@ -30,8 +30,8 @@ export const ConversationDetail = memo(function SessionDetail() {
   const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
   const expandAll = useConversationsStore(state => state.expandAll)
 
-  const session = useConversationsStore(state =>
-    state.selectedConversationId ? state.sessionsById[state.selectedConversationId] : undefined,
+  const conversation = useConversationsStore(state =>
+    state.selectedConversationId ? state.conversationsById[state.selectedConversationId] : undefined,
   )
 
   const {
@@ -45,11 +45,11 @@ export const ConversationDetail = memo(function SessionDetail() {
     setInfoExpanded,
     conversationTarget,
     setConversationTarget,
-  } = useConversationTab(selectedConversationId, session?.status)
+  } = useConversationTab(selectedConversationId, conversation?.status)
 
   const { canAdmin, canChat, canReadTerminal, canReadFiles, canFiles, canSpawn } = useConversationsStore(
     useShallow(s => {
-      const p = (s.selectedConversationId && s.sessionPermissions[s.selectedConversationId]) || s.permissions
+      const p = (s.selectedConversationId && s.conversationPermissions[s.selectedConversationId]) || s.permissions
       return {
         canAdmin: p.canAdmin,
         canChat: p.canChat,
@@ -76,7 +76,7 @@ export const ConversationDetail = memo(function SessionDetail() {
   })
   const sentinelConnected = useConversationsStore(state => state.sentinelConnected)
   const projectSettings = useConversationsStore(state =>
-    session?.project ? state.projectSettings[session.project] : undefined,
+    conversation?.project ? state.projectSettings[conversation.project] : undefined,
   )
 
   const { selectedSubagentId, selectSubagent, subagentTranscript, subagentLoading } =
@@ -84,25 +84,27 @@ export const ConversationDetail = memo(function SessionDetail() {
   const { taskEditorTask, runTaskFromEditor, updateTask, moveTask, setRunTaskFromEditor, setTaskEditorTask } =
     useTaskEditor(selectedConversationId ?? null)
 
-  const inPlanMode = session?.planMode ?? false
+  const inPlanMode = conversation?.planMode ?? false
 
   const selectedProjectUri = useConversationsStore(state => state.selectedProjectUri)
 
-  if (!session) {
+  if (!conversation) {
     if (selectedProjectUri) return <ProjectActionPanel projectUri={selectedProjectUri} />
     return <EmptyState />
   }
 
   const model = (events.find(e => e.hookEvent === 'SessionStart')?.data as { model?: string } | undefined)?.model
-  const canSendInput = session.status !== 'ended' && canChat
-  const hasTerminal = canTerminal(session)
-  const hasJsonStream = canJsonStream(session)
-  const canRevive = session.status === 'ended' && sentinelConnected && canSpawn
+  const canSendInput = conversation.status !== 'ended' && canChat
+  const hasTerminal = canTerminal(conversation)
+  const hasJsonStream = canJsonStream(conversation)
+  const canRevive = conversation.status === 'ended' && sentinelConnected && canSpawn
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
       <ClipboardBanners />
-      {canAdmin && session && <ShareBanner conversationProject={session.project} conversationId={session.id} />}
+      {canAdmin && conversation && (
+        <ShareBanner conversationProject={conversation.project} conversationId={conversation.id} />
+      )}
       {selectedConversationId && <DialogOverlay conversationId={selectedConversationId} />}
 
       {selectedConversationId && (
@@ -120,7 +122,7 @@ export const ConversationDetail = memo(function SessionDetail() {
       )}
 
       <ConversationHeader
-        session={session}
+        conversation={conversation}
         projectSettings={projectSettings}
         model={model}
         inPlanMode={inPlanMode}
@@ -131,7 +133,7 @@ export const ConversationDetail = memo(function SessionDetail() {
 
       {selectedSubagentId && (
         <SubagentDetailView
-          subagent={session.subagents.find(a => a.agentId === selectedSubagentId)}
+          subagent={conversation.subagents.find(a => a.agentId === selectedSubagentId)}
           subagentId={selectedSubagentId}
           transcript={subagentTranscript}
           loading={subagentLoading}
@@ -149,7 +151,7 @@ export const ConversationDetail = memo(function SessionDetail() {
       {!selectedSubagentId && (
         <>
           <ConversationTabs
-            session={session}
+            conversation={conversation}
             activeTab={activeTab}
             onSetActiveTab={setActiveTab}
             hasTerminal={hasTerminal}
@@ -162,7 +164,7 @@ export const ConversationDetail = memo(function SessionDetail() {
           />
 
           <TabContentPanels
-            session={session}
+            conversation={conversation}
             activeTab={activeTab}
             selectedConversationId={selectedConversationId!}
             transcript={transcript}
@@ -191,13 +193,13 @@ export const ConversationDetail = memo(function SessionDetail() {
 
       {showTerminal && terminalWrapperId && <TerminalOverlay conversationId={terminalWrapperId} />}
 
-      {session.status === 'ended' && canSpawn && (
+      {conversation.status === 'ended' && canSpawn && (
         <ReviveFooter
           conversationId={selectedConversationId!}
-          project={session.project}
+          project={conversation.project}
           sentinelConnected={sentinelConnected}
           canRevive={!!canRevive}
-          backend={session.backend}
+          backend={conversation.backend}
         />
       )}
     </div>

@@ -165,8 +165,8 @@ export function PermissionBanners() {
   const respond = useConversationsStore(s => s.respondToPermission)
   const sendRule = useConversationsStore(s => s.sendPermissionRule)
   const selectedConversation = useConversationsStore(s => s.selectedConversationId)
-  const sessionPath = useConversationsStore(s =>
-    s.selectedConversationId ? projectPath(s.sessionsById[s.selectedConversationId]?.project ?? '') : undefined,
+  const conversationPath = useConversationsStore(s =>
+    s.selectedConversationId ? projectPath(s.conversationsById[s.selectedConversationId]?.project ?? '') : undefined,
   )
   const relevant = permissions.filter(p => p.conversationId === selectedConversation)
   return (
@@ -210,7 +210,7 @@ export function PermissionBanners() {
           }
         >
           {perm.description && <div className="text-foreground/70 text-[11px]">{perm.description}</div>}
-          {perm.inputPreview && formatPermissionInput(perm.toolName, perm.inputPreview, sessionPath)}
+          {perm.inputPreview && formatPermissionInput(perm.toolName, perm.inputPreview, conversationPath)}
         </ConversationBanner>
       )}
     />
@@ -221,7 +221,7 @@ export function PermissionBanners() {
 // SpawnApprovalBanners -- in-panel prompt for spawn requests from non-benevolent
 // callers. Mirrors the Permission/AskQuestion family: same ConversationBanner
 // primitive, same haptic vocabulary. Pending state lives on the broker
-// (caller.pendingSpawnApproval, persisted) and is mirrored into each Session's
+// (caller.pendingSpawnApproval, persisted) and is mirrored into each Conversation's
 // pendingSpawnApproval field via conversation_update broadcasts -- reload and
 // broker restart both rehydrate the prompt for free.
 // ---------------------------------------------------------------------------
@@ -234,16 +234,16 @@ function relativizeCwd(cwd: unknown, root?: string): string {
 
 export function SpawnApprovalBanners() {
   const selectedConversation = useConversationsStore(s => s.selectedConversationId)
-  const session = useConversationsStore(s =>
-    s.selectedConversationId ? s.sessionsById[s.selectedConversationId] : undefined,
+  const conversation = useConversationsStore(s =>
+    s.selectedConversationId ? s.conversationsById[s.selectedConversationId] : undefined,
   )
   const respond = useConversationsStore(s => s.respondToSpawnApproval)
-  const sessionPath = useConversationsStore(s =>
-    s.selectedConversationId ? projectPath(s.sessionsById[s.selectedConversationId]?.project ?? '') : undefined,
+  const conversationPath = useConversationsStore(s =>
+    s.selectedConversationId ? projectPath(s.conversationsById[s.selectedConversationId]?.project ?? '') : undefined,
   )
   const [persistChecked, setPersistChecked] = useState(false)
 
-  const pending = session?.pendingSpawnApproval
+  const pending = conversation?.pendingSpawnApproval
   const items = useMemo(() => (pending && selectedConversation ? [pending] : []), [pending, selectedConversation])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: only react to id swap
@@ -258,7 +258,7 @@ export function SpawnApprovalBanners() {
       items={items}
       // fallow-ignore-next-line complexity
       render={req => {
-        const cwd = relativizeCwd(req.request.cwd, sessionPath)
+        const cwd = relativizeCwd(req.request.cwd, conversationPath)
         const prompt = typeof req.request.prompt === 'string' ? req.request.prompt : ''
         const host = typeof req.request.sentinel === 'string' ? req.request.sentinel : undefined
         const model = typeof req.request.model === 'string' ? req.request.model : undefined
@@ -456,7 +456,7 @@ function AskQuestionCard({
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [elapsed, setElapsed] = useState(0)
   const hasTty = useConversationsStore(s => {
-    const sess = s.sessionsById[request.conversationId]
+    const sess = s.conversationsById[request.conversationId]
     return sess ? canTerminal(sess) : false
   })
 

@@ -2,18 +2,18 @@ import type { ProjectSettings } from '@shared/protocol'
 import { CacheTimer } from '@/components/cache-timer'
 import { renderProjectIcon } from '@/components/project-settings-editor'
 import { formatCost, getConversationCost, getCostColor } from '@/lib/cost-utils'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import { cn, contextWindowSize, formatEffort, formatModel, formatPermissionMode } from '@/lib/utils'
 
 interface HeaderCollapsedBarProps {
-  session: Session
+  conversation: Conversation
   projectSettings: ProjectSettings | undefined
   model: string | undefined
   inPlanMode: boolean
 }
 
-export function HeaderCollapsedBar({ session, projectSettings: ps, model, inPlanMode }: HeaderCollapsedBarProps) {
+export function HeaderCollapsedBar({ conversation, projectSettings: ps, model, inPlanMode }: HeaderCollapsedBarProps) {
   return (
     <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
       <span className="inline-flex items-center gap-1.5 min-w-0">
@@ -23,24 +23,24 @@ export function HeaderCollapsedBar({ session, projectSettings: ps, model, inPlan
           </span>
         )}
         <span className="text-sm font-bold truncate" style={ps?.color ? { color: ps.color } : undefined}>
-          {ps?.label || projectPath(session.project).split('/').slice(-2).join('/')}
+          {ps?.label || projectPath(conversation.project).split('/').slice(-2).join('/')}
         </span>
       </span>
       <span className="inline-flex items-center gap-1 shrink-0 flex-wrap">
         <span className="whitespace-nowrap">
-          {formatModel(model || session.model)}
-          <EffortIndicator effortLevel={session.effortLevel} />
+          {formatModel(model || conversation.model)}
+          <EffortIndicator effortLevel={conversation.effortLevel} />
         </span>
-        <PermissionBadge permissionMode={session.permissionMode} inPlanMode={inPlanMode} />
-        <AdHocBadge session={session} />
-        <ContextUsageInline session={session} model={model} />
-        <CostInline session={session} model={model} />
+        <PermissionBadge permissionMode={conversation.permissionMode} inPlanMode={inPlanMode} />
+        <AdHocBadge conversation={conversation} />
+        <ContextUsageInline conversation={conversation} model={model} />
+        <CostInline conversation={conversation} model={model} />
         <CacheTimer
-          lastTurnEndedAt={session.lastTurnEndedAt}
-          tokenUsage={session.tokenUsage}
-          model={model || session.model}
-          cacheTtl={session.cacheTtl}
-          isIdle={session.status === 'idle'}
+          lastTurnEndedAt={conversation.lastTurnEndedAt}
+          tokenUsage={conversation.tokenUsage}
+          model={model || conversation.model}
+          cacheTtl={conversation.cacheTtl}
+          isIdle={conversation.status === 'idle'}
         />
       </span>
     </span>
@@ -78,12 +78,12 @@ function PermissionBadge({ permissionMode, inPlanMode }: { permissionMode: strin
   )
 }
 
-function AdHocBadge({ session }: { session: Session }) {
-  if (!session.capabilities?.includes('ad-hoc')) return null
+function AdHocBadge({ conversation }: { conversation: Conversation }) {
+  if (!conversation.capabilities?.includes('ad-hoc')) return null
 
   function openTask() {
-    if (session.adHocTaskId) {
-      window.dispatchEvent(new CustomEvent('open-project-task', { detail: { taskId: session.adHocTaskId } }))
+    if (conversation.adHocTaskId) {
+      window.dispatchEvent(new CustomEvent('open-project-task', { detail: { taskId: conversation.adHocTaskId } }))
     }
   }
 
@@ -96,21 +96,21 @@ function AdHocBadge({ session }: { session: Session }) {
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') openTask()
       }}
-      title={session.adHocTaskId ? `Task: ${session.adHocTaskId}` : 'Ad-hoc conversation'}
+      title={conversation.adHocTaskId ? `Task: ${conversation.adHocTaskId}` : 'Ad-hoc conversation'}
     >
-      &#x26A1; AD-HOC{session.adHocTaskId ? ` (${session.adHocTaskId})` : ''}
+      &#x26A1; AD-HOC{conversation.adHocTaskId ? ` (${conversation.adHocTaskId})` : ''}
     </span>
   )
 }
 
-function ContextUsageInline({ session, model }: { session: Session; model: string | undefined }) {
-  if (!session.tokenUsage) return null
-  const { input, cacheCreation, cacheRead } = session.tokenUsage
+function ContextUsageInline({ conversation, model }: { conversation: Conversation; model: string | undefined }) {
+  if (!conversation.tokenUsage) return null
+  const { input, cacheCreation, cacheRead } = conversation.tokenUsage
   const total = input + cacheCreation + cacheRead
-  const maxTokens = session.contextWindow ?? contextWindowSize(model || session.model)
+  const maxTokens = conversation.contextWindow ?? contextWindowSize(model || conversation.model)
   const pct = Math.min(100, Math.round((total / maxTokens) * 100))
   const totalK = Math.round(total / 1000)
-  const threshold = session.autocompactPct || 83
+  const threshold = conversation.autocompactPct || 83
   const warnAt = threshold - 5
   return (
     <span className="inline-flex items-center gap-1">
@@ -136,9 +136,9 @@ function ContextUsageInline({ session, model }: { session: Session; model: strin
   )
 }
 
-function CostInline({ session, model }: { session: Session; model: string | undefined }) {
-  if (!session.stats) return null
-  const { cost, exact } = getConversationCost(session.stats, model || session.model)
+function CostInline({ conversation, model }: { conversation: Conversation; model: string | undefined }) {
+  if (!conversation.stats) return null
+  const { cost, exact } = getConversationCost(conversation.stats, model || conversation.model)
   if (cost < 0.01) return null
   return (
     <span className="inline-flex items-center gap-1">

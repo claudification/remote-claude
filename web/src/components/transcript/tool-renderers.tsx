@@ -19,8 +19,8 @@ function useConversationPath(): string | undefined {
   return useConversationsStore(s => {
     if (s.controlPanelPrefs.sanitizePaths === false) return undefined
     const sid = s.selectedConversationId
-    const session = sid ? s.sessionsById[sid] : undefined
-    return session ? projectPath(session.project) : undefined
+    const conversation = sid ? s.conversationsById[sid] : undefined
+    return conversation ? projectPath(conversation.project) : undefined
   })
 }
 

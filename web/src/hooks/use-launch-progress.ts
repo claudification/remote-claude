@@ -1,13 +1,13 @@
 /**
  * useLaunchProgress - Shared hook for spawn/revive/task launch progress tracking.
  *
- * Encapsulates: launch channel subscription, session detection, elapsed timer,
+ * Encapsulates: launch channel subscription, conversation detection, elapsed timer,
  * timeout watchdog, auto-redirect countdown, amber-stuck step fix,
  * and optional auto-insertion of launch channel events as steps.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import { haptic } from '@/lib/utils'
 import { useConversationsStore } from './use-conversations'
 import { useLaunchChannel } from './use-launch-channel'
@@ -23,7 +23,7 @@ export type LaunchStep = {
 interface UseLaunchProgressOptions {
   /** Job ID for launch channel subscription */
   jobId: string | null
-  /** Agent Host ID for session detection in store */
+  /** Agent Host ID for conversation detection in store */
   conversationId: string | null
   /** Timeout in ms (default 30000) */
   timeoutMs?: number
@@ -83,13 +83,14 @@ export function useLaunchProgress({
     connectedRef.current = false
   }
 
-  // Track spawned session by conversationId
-  const spawnedConversation: Session | null = useConversationsStore(
+  // Track spawned conversation by conversationId
+  const spawnedConversation: Conversation | null = useConversationsStore(
     useCallback(
       state => {
         if (!effectiveWrapperId) return null
         return (
-          state.sessions.find(s => s.id === effectiveWrapperId || s.connectionIds?.includes(effectiveWrapperId)) || null
+          state.conversations.find(s => s.id === effectiveWrapperId || s.connectionIds?.includes(effectiveWrapperId)) ||
+          null
         )
       },
       [effectiveWrapperId],
@@ -110,7 +111,7 @@ export function useLaunchProgress({
     return () => clearInterval(timer)
   }, [enabled, startTime])
 
-  // Amber-stuck fix: when session connects, resolve all prior active steps to done.
+  // Amber-stuck fix: when conversation connects, resolve all prior active steps to done.
   // Uses connectedRef to fire exactly once.
   useEffect(() => {
     if (!isConnected || connectedRef.current) return
@@ -118,7 +119,7 @@ export function useLaunchProgress({
     setSteps(prev => prev.map(s => (s.status === 'active' ? { ...s, status: 'done' } : s)))
   }, [isConnected])
 
-  // Auto-insert launch channel events as steps (insert before "Waiting for session..." if present)
+  // Auto-insert launch channel events as steps (insert before "Waiting for conversation..." if present)
   useEffect(() => {
     if (!autoInsertEvents || launch.events.length === 0 || !enabled) return
     setSteps(prev => {
@@ -172,7 +173,7 @@ export function useLaunchProgress({
             s.status === 'active' ? { ...s, status: 'error' as const, detail: `Timed out (${sec}s)` } : s,
           ),
         )
-        setError(`Session failed to connect within ${sec}s`)
+        setError(`Conversation failed to connect within ${sec}s`)
         clearInterval(timer)
         onTimeoutRef.current?.()
       }
@@ -180,7 +181,7 @@ export function useLaunchProgress({
     return () => clearInterval(timer)
   }, [enabled, effectiveWrapperId, isConnected, hasError, timeoutMs, spawnedConversation, startTime])
 
-  // Auto-redirect countdown - starts when session connects
+  // Auto-redirect countdown - starts when conversation connects
   useEffect(() => {
     if (!isConnected || viewCountdown !== null || autoRedirectSec == null) return
     setViewCountdown(autoRedirectSec)

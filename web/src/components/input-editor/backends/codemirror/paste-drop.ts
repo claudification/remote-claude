@@ -42,7 +42,7 @@ function uploadFileIntoView(view: EditorView, file: File, conversationId?: strin
 }
 
 /** Intercept paste of clipboard images, upload them. Returns the cleanup function. */
-export function attachPasteUpload(view: EditorView, getSessionId: () => string | null): () => void {
+export function attachPasteUpload(view: EditorView, getConversationId: () => string | null): () => void {
   function handler(e: ClipboardEvent) {
     const items = e.clipboardData?.items
     if (!items) return
@@ -50,7 +50,7 @@ export function attachPasteUpload(view: EditorView, getSessionId: () => string |
       if (item.type.startsWith('image/')) {
         e.preventDefault()
         const file = item.getAsFile()
-        if (file) uploadFileIntoView(view, file, getSessionId() ?? undefined)
+        if (file) uploadFileIntoView(view, file, getConversationId() ?? undefined)
         return
       }
     }

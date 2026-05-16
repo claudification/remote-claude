@@ -1,5 +1,5 @@
 /**
- * BootTimeline - renders the pre-session boot phase as a compact timeline.
+ * BootTimeline - renders the pre-conversation boot phase as a compact timeline.
  * Each step has a status dot, timestamp, detail line, and an optional (i)
  * icon when a raw payload is available (click to expand full JSON).
  */

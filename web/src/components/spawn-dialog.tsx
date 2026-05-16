@@ -132,9 +132,9 @@ export function SpawnDialog() {
   const [savedFeedback, setSavedFeedback] = useState<string | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
   const [conversationId, setWrapperId] = useState<string | null>(null)
-  // Track which session was selected when spawn started -- don't yank the user
-  // back to the spawned session if they navigated away during the countdown
-  const sessionAtSpawnRef = useRef<string | null>(null)
+  // Track which conversation was selected when spawn started -- don't yank the user
+  // back to the spawned conversation if they navigated away during the countdown
+  const conversationAtSpawnRef = useRef<string | null>(null)
 
   const projectSettings = useConversationsStore((s: { projectSettings: ProjectSettingsMap }) => s.projectSettings)
   const globalSettings = useConversationsStore((s: { globalSettings: Record<string, unknown> }) => s.globalSettings)
@@ -247,7 +247,7 @@ export function SpawnDialog() {
         })
         .catch(() => setHermesGateways([]))
       // Drop any stale error/steps from a prior failed launch so reopening
-      // the dialog doesn't show the old "Session failed to connect" banner.
+      // the dialog doesn't show the old "Conversation failed to connect" banner.
       progressReset()
       setState({ open: true, options })
     }
@@ -256,7 +256,7 @@ export function SpawnDialog() {
     }
   }, [projectSettings, globalSettings, progressReset])
 
-  // Add "Session connected" step when session connects
+  // Add "Conversation connected" step when conversation connects
   const addedConnectedStepRef = useRef(false)
   useEffect(() => {
     if (!progress.isConnected || addedConnectedStepRef.current) return
@@ -275,7 +275,7 @@ export function SpawnDialog() {
   const handleClose = useCallback(() => {
     addedConnectedStepRef.current = false
     const currentId = useConversationsStore.getState().selectedConversationId
-    const userNavigatedAway = currentId !== sessionAtSpawnRef.current && currentId !== null
+    const userNavigatedAway = currentId !== conversationAtSpawnRef.current && currentId !== null
     const sid =
       progress.launch.conversationId ||
       (progress.spawnedConversation && progress.spawnedConversation.status !== 'ended'
@@ -300,10 +300,10 @@ export function SpawnDialog() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once when countdown hits 0, not on every handleClose recreation
   }, [progress.viewCountdown])
 
-  /** Explicitly navigate to the spawned session and close. */
+  /** Explicitly navigate to the spawned conversation and close. */
   const handleViewConversation = useCallback(() => {
     const sid = progress.launch.conversationId || progress.spawnedConversation?.id
-    if (sid) useConversationsStore.getState().selectConversation(sid, 'spawn-dialog-view-session')
+    if (sid) useConversationsStore.getState().selectConversation(sid, 'spawn-dialog-view-conversation')
     progress.setViewCountdown(null)
     setState({ open: false, options: null })
     setJobId(null)
@@ -322,7 +322,7 @@ export function SpawnDialog() {
     }
 
     setPhase('launching')
-    sessionAtSpawnRef.current = useConversationsStore.getState().selectedConversationId
+    conversationAtSpawnRef.current = useConversationsStore.getState().selectedConversationId
     haptic('tap')
 
     // Generate jobId and subscribe BEFORE making the HTTP request
@@ -404,7 +404,7 @@ export function SpawnDialog() {
     description.trim,
   ])
 
-  // Keyboard layer: Enter spawns (config) or views session (launching). Radix Dialog handles Escape.
+  // Keyboard layer: Enter spawns (config) or views conversation (launching). Radix Dialog handles Escape.
   // Config-only quick toggles: h/p = Headless/PTY, 1/2 = Basic/Advanced tab.
   // Single-letter/digit bindings are auto-skipped when a text input is focused
   // (see useKeyLayer: `if (inTextInput && !isModified && !isNonPrintable) return`).

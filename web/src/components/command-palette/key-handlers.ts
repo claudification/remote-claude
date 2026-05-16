@@ -2,9 +2,9 @@ import type React from 'react'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import type { FileInfo } from '@/hooks/use-file-editor'
 import { recordSwitch } from '@/lib/conversation-frequency'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import type { CommandModeState, RegistryCommand } from './use-command-mode'
-import type { SessionModeState } from './use-session-mode'
+import type { ConversationModeState } from './use-conversation-mode'
 import type { SpawnModeState } from './use-spawn-mode'
 import type { TaskModeState } from './use-task-mode'
 import type { ThemeModeState } from './use-theme-mode'
@@ -27,7 +27,7 @@ export interface KeyHandlerContext {
   isThemeMode: boolean
 
   command: CommandModeState
-  session: SessionModeState
+  conversation: ConversationModeState
   file: { filteredFiles: FileInfo[] }
   spawn: SpawnModeState
   task: TaskModeState
@@ -93,7 +93,7 @@ function handleEnter(e: React.KeyboardEvent, ctx: KeyHandlerContext, callbacks: 
   else if (ctx.isSpawnMode) submitSpawn(ctx)
   else if (ctx.isFileMode) submitFile(ctx, callbacks)
   else if (ctx.isTaskMode) submitTask(ctx)
-  else submitSession(ctx, callbacks)
+  else submitConversation(ctx, callbacks)
 }
 
 function submitTheme(ctx: KeyHandlerContext): void {
@@ -145,10 +145,10 @@ function submitTask(ctx: KeyHandlerContext): void {
   }
 }
 
-function submitSession(ctx: KeyHandlerContext, callbacks: KeyHandlerCallbacks): void {
-  const item = ctx.session.mergedItems[ctx.activeIndex]
-  if (item?.kind === 'session') {
-    selectConversationWithTracking(item.session, callbacks.onSelectConversation)
+function submitConversation(ctx: KeyHandlerContext, callbacks: KeyHandlerCallbacks): void {
+  const item = ctx.conversation.mergedItems[ctx.activeIndex]
+  if (item?.kind === 'conversation') {
+    selectConversationWithTracking(item.conversation, callbacks.onSelectConversation)
   } else if (item?.kind === 'command') {
     const cmd = item.command as RegistryCommand
     if (cmd.submenu) {
@@ -160,7 +160,7 @@ function submitSession(ctx: KeyHandlerContext, callbacks: KeyHandlerCallbacks): 
   }
 }
 
-function selectConversationWithTracking(session: Session, onSelectConversation: (id: string) => void): void {
-  recordSwitch(session.project)
-  onSelectConversation(session.id)
+function selectConversationWithTracking(conversation: Conversation, onSelectConversation: (id: string) => void): void {
+  recordSwitch(conversation.project)
+  onSelectConversation(conversation.id)
 }

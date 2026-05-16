@@ -84,12 +84,12 @@ function GroupView({
     'text-[10px]'
   const { chatBubbles, bubbleColor } = settings
 
-  const hasInterSessionContent = items.some(
+  const hasInterConversationContent = items.some(
     it => it.kind === 'channel' && (it.isInterConversation || it.isDialog || it.isSystem),
   )
   const hasProjectTask = items.some(it => it.kind === 'project-task')
 
-  if (chatBubbles && isUser && !hasInterSessionContent && !hasProjectTask) {
+  if (chatBubbles && isUser && !hasInterConversationContent && !hasProjectTask) {
     return (
       <ChatBubble
         items={items}

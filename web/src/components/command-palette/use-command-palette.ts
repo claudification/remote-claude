@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { recordSwitch } from '@/lib/conversation-frequency'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import { createKeyHandler, type KeyHandlerCallbacks } from './key-handlers'
 import { derivePaletteMode } from './mode-detect'
 import { useCommandMode } from './use-command-mode'
+import { useConversationMode } from './use-conversation-mode'
 import { useFileMode } from './use-file-mode'
-import { useSessionMode } from './use-session-mode'
 import { useSpawnMode } from './use-spawn-mode'
 import { useTaskMode } from './use-task-mode'
 import { useThemeMode } from './use-theme-mode'
 
 /**
  * Top-level command palette hook. Owns the search filter, active index, and
- * input ref. Each mode (session / command / file / spawn / task) is
+ * input ref. Each mode (conversation / command / file / spawn / task) is
  * implemented by a dedicated hook colocated in this folder; this orchestrator
  * stitches them together and produces the keyboard handler for the input.
  */
@@ -41,7 +41,7 @@ export function useCommandPalette(onClose: () => void) {
     derivePaletteMode(filter)
 
   const command = useCommandMode(filter, isCommandMode, onClose)
-  const session = useSessionMode(filter, isConversationMode, command.registryCommands)
+  const conversation = useConversationMode(filter, isConversationMode, command.registryCommands)
   const file = useFileMode(filter, isFileMode)
   const spawn = useSpawnMode({
     filter,
@@ -67,7 +67,7 @@ export function useCommandPalette(onClose: () => void) {
           ? file.filteredFiles.length
           : isTaskMode
             ? task.filteredTasks.length
-            : session.mergedItems.length
+            : conversation.mergedItems.length
 
   // Clamp activeIndex when the result count shrinks below it
   useEffect(() => {
@@ -94,7 +94,7 @@ export function useCommandPalette(onClose: () => void) {
         isTaskMode,
         isThemeMode,
         command,
-        session,
+        conversation,
         file: { filteredFiles: file.filteredFiles },
         spawn,
         task,
@@ -107,7 +107,7 @@ export function useCommandPalette(onClose: () => void) {
     dispatch(e)
   }
 
-  function selectConversationWithTracking(s: Session, onSelectConversation: (id: string) => void) {
+  function selectConversationWithTracking(s: Conversation, onSelectConversation: (id: string) => void) {
     recordSwitch(s.project)
     onSelectConversation(s.id)
   }
@@ -122,9 +122,9 @@ export function useCommandPalette(onClose: () => void) {
     mode,
 
     // Store data
-    sessions: session.filteredSessions,
-    mergedItems: session.mergedItems,
-    allConversations: session.allConversations,
+    conversations: conversation.filteredConversations,
+    mergedItems: conversation.mergedItems,
+    allConversations: conversation.allConversations,
     selectedConversationId,
     projectSettings,
     sentinelConnected,

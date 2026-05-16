@@ -1,25 +1,25 @@
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import { cn, formatEffort, formatModel, formatPermissionMode } from '@/lib/utils'
 
-export function StatusRow({ session, model }: { session: Session; model: string | undefined }) {
+export function StatusRow({ conversation, model }: { conversation: Conversation; model: string | undefined }) {
   return (
     <div className="flex items-center gap-3 flex-wrap">
       <span
         className={cn(
           'px-2 py-0.5 text-[10px] uppercase font-bold',
-          session.status === 'active' && 'bg-active text-background',
-          session.status === 'idle' && 'bg-idle text-background',
-          session.status === 'starting' && 'bg-idle/50 text-background animate-pulse',
-          session.status === 'ended' && 'bg-ended text-foreground',
+          conversation.status === 'active' && 'bg-active text-background',
+          conversation.status === 'idle' && 'bg-idle text-background',
+          conversation.status === 'starting' && 'bg-idle/50 text-background animate-pulse',
+          conversation.status === 'ended' && 'bg-ended text-foreground',
         )}
       >
-        {session.status}
+        {conversation.status}
       </span>
       <span className="text-foreground">
-        {formatModel(model || session.model)}
-        {session.effortLevel &&
+        {formatModel(model || conversation.model)}
+        {conversation.effortLevel &&
           (() => {
-            const effort = formatEffort(session.effortLevel)
+            const effort = formatEffort(conversation.effortLevel)
             return effort ? (
               <span className="text-muted-foreground ml-1">
                 {effort.symbol} {effort.label}
@@ -28,7 +28,7 @@ export function StatusRow({ session, model }: { session: Session; model: string 
           })()}
       </span>
       {(() => {
-        const pm = formatPermissionMode(session.permissionMode)
+        const pm = formatPermissionMode(conversation.permissionMode)
         if (!pm) return null
         return (
           <span className={cn('px-1.5 py-0.5 text-[9px] font-bold uppercase', pm.color, pm.bgColor)} title={pm.title}>
@@ -36,42 +36,44 @@ export function StatusRow({ session, model }: { session: Session; model: string 
           </span>
         )
       })()}
-      {session.claudeVersion && <span className="text-muted-foreground text-[10px]">cc/{session.claudeVersion}</span>}
-      {session.claudeAuth?.email && (
+      {conversation.claudeVersion && (
+        <span className="text-muted-foreground text-[10px]">cc/{conversation.claudeVersion}</span>
+      )}
+      {conversation.claudeAuth?.email && (
         <span className="text-cyan-400/70 text-[10px]">
-          {session.claudeAuth.email.split('@')[0]}
-          {session.claudeAuth.orgName ? ` / ${session.claudeAuth.orgName}` : ''}
-          {session.claudeAuth.subscriptionType ? (
-            <span className="text-muted-foreground ml-1">[{session.claudeAuth.subscriptionType}]</span>
+          {conversation.claudeAuth.email.split('@')[0]}
+          {conversation.claudeAuth.orgName ? ` / ${conversation.claudeAuth.orgName}` : ''}
+          {conversation.claudeAuth.subscriptionType ? (
+            <span className="text-muted-foreground ml-1">[{conversation.claudeAuth.subscriptionType}]</span>
           ) : null}
         </span>
       )}
-      {session.gitBranch && (
+      {conversation.gitBranch && (
         <span className="text-purple-400 text-[10px]">
-          <span className="text-muted-foreground">branch:</span> {session.gitBranch}
+          <span className="text-muted-foreground">branch:</span> {conversation.gitBranch}
         </span>
       )}
-      {session.adHocWorktree && (
+      {conversation.adHocWorktree && (
         <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-orange-400/20 text-orange-400">worktree</span>
       )}
-      {(session.title || session.agentName) && (
-        <span className="text-foreground text-[10px]">{session.title || session.agentName}</span>
+      {(conversation.title || conversation.agentName) && (
+        <span className="text-foreground text-[10px]">{conversation.title || conversation.agentName}</span>
       )}
-      {session.description && (
-        <span className="text-muted-foreground/70 text-[10px] italic">{session.description}</span>
+      {conversation.description && (
+        <span className="text-muted-foreground/70 text-[10px] italic">{conversation.description}</span>
       )}
       <span
         className="text-muted-foreground text-[10px]"
-        title={`conversation: ${session.id}\nconnections: ${session.connectionIds?.join(', ') || 'none'}`}
+        title={`conversation: ${conversation.id}\nconnections: ${conversation.connectionIds?.join(', ') || 'none'}`}
       >
-        {session.id.slice(0, 8)}
-        {session.connectionIds?.[0] && session.connectionIds[0] !== session.id && (
-          <span className="text-muted-foreground/50"> c:{session.connectionIds[0].slice(0, 6)}</span>
+        {conversation.id.slice(0, 8)}
+        {conversation.connectionIds?.[0] && conversation.connectionIds[0] !== conversation.id && (
+          <span className="text-muted-foreground/50"> c:{conversation.connectionIds[0].slice(0, 6)}</span>
         )}
       </span>
-      {session.capabilities &&
-        session.capabilities.length > 0 &&
-        session.capabilities.map(cap => (
+      {conversation.capabilities &&
+        conversation.capabilities.length > 0 &&
+        conversation.capabilities.map(cap => (
           <span
             key={cap}
             className={cn(

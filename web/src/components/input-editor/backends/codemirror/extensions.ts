@@ -265,7 +265,7 @@ interface InputExtensionOptions {
   shouldEnterSubmit?: () => boolean
   /**
    * Sub-command context provider for `/workon`-style completers that need
-   * access to React state (project tasks, selected session). Required when
+   * access to React state (project tasks, selected conversation). Required when
    * enableAutocomplete is true.
    */
   getSubCommandContext?: () => SubCommandContext

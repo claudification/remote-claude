@@ -1,18 +1,18 @@
 /**
- * CM6 autocomplete for slash commands, @ mentions, and : session refs.
+ * CM6 autocomplete for slash commands, @ mentions, and : conversation refs.
  *
  * Triggers:
  *   - `/` at start of doc OR after whitespace -> builtin commands + CC's slashCommands
  *   - `@` at start of doc OR after whitespace -> skills + agents
- *   - `:` at start of doc OR after whitespace -> session slugs (live sessions)
+ *   - `:` at start of doc OR after whitespace -> conversation slugs (live conversations)
  *
  * Source data is read live from the conversation store at completion time, so the
- * extension doesn't need rebuilding when sessionInfo changes.
+ * extension doesn't need rebuilding when conversationInfo changes.
  *
  * Also handles `/model <variant>` argument completion via a shared helper.
  * Other sub-command arg completers (e.g. /workon <task>) stay legacy-only
  * for now — they require React-scoped context (project tasks, selected
- * session) and side-effecting onSelect callbacks.
+ * conversation) and side-effecting onSelect callbacks.
  *
  * Colon trigger rules (parity with `text: prose` natural usage):
  *   - `:` + slug-chars -> popup active, narrows as you type
@@ -34,7 +34,7 @@ import { type Extension, Prec } from '@codemirror/state'
 import { type EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view'
 import { useConversationsStore } from '@/hooks/use-conversations'
 import { projectPath } from '@/lib/types'
-import { lastPathSegments, projectDisplayName, sessionAddressableSlug } from '@/lib/utils'
+import { conversationAddressableSlug, lastPathSegments, projectDisplayName } from '@/lib/utils'
 import { BUILTIN_COMMAND_NAMES, BUILTIN_SCORE_BOOST, fuzzyScore } from '../../autocomplete-shared'
 import { getSubCommand, type SubCommandContext, type SubCommandDef } from '../../sub-commands'
 import { composingField } from './composition'
@@ -50,7 +50,7 @@ const EMPTY_INFO: SourceInfo = { slashCommands: [], skills: [], agents: [] }
 function readSourceInfo(): SourceInfo {
   const state = useConversationsStore.getState()
   const sid = state.selectedConversationId
-  return (sid ? state.sessionInfo[sid] : null) ?? EMPTY_INFO
+  return (sid ? state.conversationInfo[sid] : null) ?? EMPTY_INFO
 }
 
 function isInsideCodeFence(text: string): boolean {
@@ -165,7 +165,7 @@ function applySubCommandSelection(
 }
 
 /**
- * Scan backwards for a `:` session trigger. Uses a stricter char class than
+ * Scan backwards for a `:` conversation trigger. Uses a stricter char class than
  * the /-and-@ scanner (no `:`, no `.`) so that `::` and `foo:bar` don't
  * accidentally activate the conversation popup — only `:slug` does.
  *
@@ -220,39 +220,43 @@ const colonDelayTracker = ViewPlugin.fromClass(
 )
 
 interface ConversationCompletion {
-  label: string // what gets inserted (the session id)
+  label: string // what gets inserted (the conversation id)
   displayLabel: string // what the user sees (project label or id)
-  detail: string // right-aligned: session name + status
+  detail: string // right-aligned: conversation name + status
   info: string // hover tooltip: filesystem path
 }
 
-function sessionCompletions(query: string): ConversationCompletion[] {
+function conversationCompletions(query: string): ConversationCompletion[] {
   const state = useConversationsStore.getState()
-  const { sessions, projectSettings } = state
+  const { conversations, projectSettings } = state
   const q = query.toLowerCase()
   const scored: Array<{ opt: ConversationCompletion; score: number }> = []
 
-  // Group sessions by project so the addressable-slug helper can disambiguate
+  // Group conversations by project so the addressable-slug helper can disambiguate
   // siblings with identical title slugs.
-  const projectGroups: Record<string, typeof sessions> = {}
-  for (const s of sessions) {
+  const projectGroups: Record<string, typeof conversations> = {}
+  for (const s of conversations) {
     if (s.status === 'ended') continue
     if (!projectGroups[s.project]) projectGroups[s.project] = []
     projectGroups[s.project].push(s)
   }
 
-  for (const session of sessions) {
-    if (session.status === 'ended') continue
+  for (const conversation of conversations) {
+    if (conversation.status === 'ended') continue
     // For un-labelled projects, fall back to the project label (same convention
-    // the sidebar + command-palette session rows use). session.id is a UUID,
+    // the sidebar + command-palette conversation rows use). conversation.id is a UUID,
     // so never display it as a name.
-    const displayLabel = projectDisplayName(session.project, projectSettings[session.project]?.label)
-    const name = session.title || session.agentName || ''
-    // The insertable slug -- always compound `project:session-slug` to mirror
+    const displayLabel = projectDisplayName(conversation.project, projectSettings[conversation.project]?.label)
+    const name = conversation.title || conversation.agentName || ''
+    // The insertable slug -- always compound `project:conversation-slug` to mirror
     // list_conversations and stay stable across spawn/end churn at the project.
-    const slug = sessionAddressableSlug(session, projectSettings, projectGroups[session.project] || [session])
+    const slug = conversationAddressableSlug(
+      conversation,
+      projectSettings,
+      projectGroups[conversation.project] || [conversation],
+    )
     // Match against display name, the slug, and agent/title so "ola",
-    // "OLA", "raccoon", and "arr:viral" all find the expected session.
+    // "OLA", "raccoon", and "arr:viral" all find the expected conversation.
     const haystack = `${displayLabel} ${slug} ${name}`
     const score = fuzzyScore(q, haystack)
     if (score <= 0) continue
@@ -260,8 +264,8 @@ function sessionCompletions(query: string): ConversationCompletion[] {
       opt: {
         label: slug,
         displayLabel,
-        detail: name ? `${name} · ${session.status}` : session.status,
-        info: lastPathSegments(projectPath(session.project), 3),
+        detail: name ? `${name} · ${conversation.status}` : conversation.status,
+        info: lastPathSegments(projectPath(conversation.project), 3),
       },
       score,
     })
@@ -270,7 +274,7 @@ function sessionCompletions(query: string): ConversationCompletion[] {
   return scored.slice(0, 12).map(s => s.opt)
 }
 
-function sessionArgCompletion(text: string, pos: number): CompletionResult | null {
+function conversationArgCompletion(text: string, pos: number): CompletionResult | null {
   const hit = scanColonTrigger(text, pos)
   if (!hit) return null
   if (isInsideCodeFence(text.slice(0, hit.start))) return null
@@ -279,7 +283,7 @@ function sessionArgCompletion(text: string, pos: number): CompletionResult | nul
   // longer empty and this gate is skipped; if nothing arrives, the view
   // plugin's timer re-triggers completion after the window.
   if (hit.query.length === 0 && Date.now() - lastColonInsertAt < COLON_DELAY_MS) return null
-  const options = sessionCompletions(hit.query)
+  const options = conversationCompletions(hit.query)
   if (options.length === 0) return null
   return {
     from: hit.start, // replace the leading `:` too — inserted text is the bare slug
@@ -304,9 +308,9 @@ function makeCompletionSource(getCtx: () => SubCommandContext) {
     const subResult = subCommandArgCompletion(text, doc.length, getCtx)
     if (subResult) return subResult
 
-    // `:` session trigger — independent scan (different char class).
-    const sessionResult = sessionArgCompletion(text, pos)
-    if (sessionResult) return sessionResult
+    // `:` conversation trigger — independent scan (different char class).
+    const conversationResult = conversationArgCompletion(text, pos)
+    if (conversationResult) return conversationResult
 
     // Scan backwards from cursor to find a word starting with / or @
     let start = pos - 1

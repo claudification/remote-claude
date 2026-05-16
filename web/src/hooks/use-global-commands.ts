@@ -93,9 +93,11 @@ export function useGlobalCommands(toggleSidebar: () => void) {
         store.setShowTerminal(false)
         if (store.selectedConversationId) store.openTab(store.selectedConversationId, 'transcript')
       } else {
-        const session = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
-        if (session && canTerminal(session) && session.connectionIds?.[0]) {
-          store.openTerminal(session.connectionIds[0])
+        const conversation = store.selectedConversationId
+          ? store.conversationsById[store.selectedConversationId]
+          : undefined
+        if (conversation && canTerminal(conversation) && conversation.connectionIds?.[0]) {
+          store.openTerminal(conversation.connectionIds[0])
         }
       }
     },
@@ -114,10 +116,12 @@ export function useGlobalCommands(toggleSidebar: () => void) {
     'launch-conversation',
     () => {
       const store = useConversationsStore.getState()
-      const session = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
-      const projectUri = session?.project ?? store.selectedProjectUri ?? undefined
-      const spawnPath = session
-        ? projectPath(session.project) || store.controlPanelPrefs.defaultConversationCwd
+      const conversation = store.selectedConversationId
+        ? store.conversationsById[store.selectedConversationId]
+        : undefined
+      const projectUri = conversation?.project ?? store.selectedProjectUri ?? undefined
+      const spawnPath = conversation
+        ? projectPath(conversation.project) || store.controlPanelPrefs.defaultConversationCwd
         : projectPath(store.selectedProjectUri ?? '') || store.controlPanelPrefs.defaultConversationCwd
       openSpawnDialog({ path: spawnPath || '~', projectUri })
     },
@@ -130,9 +134,9 @@ export function useGlobalCommands(toggleSidebar: () => void) {
       const store = useConversationsStore.getState()
       const sid = store.selectedConversationId
       if (!sid) return
-      const session = store.sessionsById[sid]
-      if (!session || session.status === 'ended') return
-      const name = session.title || session.agentName || null
+      const conversation = store.conversationsById[sid]
+      if (!conversation || conversation.status === 'ended') return
+      const name = conversation.title || conversation.agentName || null
       openTerminateConfirm(sid, name)
     },
     { label: 'Terminate conversation', key: 'x', group: 'Conversation' },
@@ -184,8 +188,8 @@ export function useGlobalCommands(toggleSidebar: () => void) {
       const store = useConversationsStore.getState()
       const sid = store.selectedConversationId
       if (!sid) return
-      const session = store.sessionsById[sid]
-      if (session && session.status !== 'ended') {
+      const conversation = store.conversationsById[sid]
+      if (conversation && conversation.status !== 'ended') {
         store.openTab(sid, 'project')
       }
     },
@@ -229,8 +233,8 @@ export function useGlobalCommands(toggleSidebar: () => void) {
       const store = useConversationsStore.getState()
       const sid = store.selectedConversationId
       if (!sid) return
-      const session = store.sessionsById[sid]
-      if (session && session.status !== 'ended') {
+      const conversation = store.conversationsById[sid]
+      if (conversation && conversation.status !== 'ended') {
         wsSend('send_interrupt', { conversationId: sid })
       }
     },
@@ -240,8 +244,8 @@ export function useGlobalCommands(toggleSidebar: () => void) {
   useCommand(
     'switch-conversation',
     () => {
-      const { sessionMru, sessions, selectConversation } = useConversationsStore.getState()
-      const prev = sessionMru.slice(1).find((id: string) => sessions.some((s: { id: string }) => s.id === id))
+      const { conversationMru, conversations, selectConversation } = useConversationsStore.getState()
+      const prev = conversationMru.slice(1).find((id: string) => conversations.some((s: { id: string }) => s.id === id))
       if (prev) selectConversation(prev, 'ctrl-tab')
     },
     { label: 'Switch to previous conversation', shortcut: 'ctrl+Tab', group: 'Navigation' },
@@ -316,8 +320,8 @@ export function useGlobalCommands(toggleSidebar: () => void) {
   // to '*' (cross-project) when no conversation is selected.
   function selectedProjectOrCross(): string {
     const sid = useConversationsStore.getState().selectedConversationId
-    const sessions = useConversationsStore.getState().sessions
-    const selected = sessions.find((s: { id: string; project?: string }) => s.id === sid)
+    const conversations = useConversationsStore.getState().conversations
+    const selected = conversations.find((s: { id: string; project?: string }) => s.id === sid)
     return selected?.project ?? '*'
   }
 
@@ -378,8 +382,8 @@ export function useGlobalCommands(toggleSidebar: () => void) {
     'manage-project-links',
     () => {
       const sid = useConversationsStore.getState().selectedConversationId
-      const sessions = useConversationsStore.getState().sessions
-      const selected = sessions.find((s: { id: string; project?: string }) => s.id === sid)
+      const conversations = useConversationsStore.getState().conversations
+      const selected = conversations.find((s: { id: string; project?: string }) => s.id === sid)
       openManageProjectLinks(selected?.project)
     },
     { label: 'Manage project links', group: 'System' },

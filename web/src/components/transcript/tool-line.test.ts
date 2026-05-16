@@ -50,10 +50,10 @@ describe('dispatchToolCase - Bash', () => {
     expect(r.details).not.toBeNull()
   })
 
-  it('strips sessionPath prefix from cd commands', () => {
+  it('strips conversationPath prefix from cd commands', () => {
     const r = dispatchToolCase(
       'Bash',
-      makeCtx({ input: { command: 'cd /home/user/proj && ls' }, sessionPath: '/home/user/proj' }),
+      makeCtx({ input: { command: 'cd /home/user/proj && ls' }, conversationPath: '/home/user/proj' }),
     )
     expect(r.summary).not.toContain('/home/user/proj')
   })
@@ -724,7 +724,7 @@ describe('dispatchToolCase - MCP rclaude tools', () => {
   it('mcp__rclaude__configure_conversation shows fields', () => {
     const r = dispatchToolCase(
       'mcp__rclaude__configure_conversation',
-      makeCtx({ input: { session_id: 'sess-1', label: 'My Session', color: 'blue' } }),
+      makeCtx({ input: { session_id: 'sess-1', label: 'My Conversation', color: 'blue' } }),
     )
     expect(hasSummary(r)).toBe(true)
   })

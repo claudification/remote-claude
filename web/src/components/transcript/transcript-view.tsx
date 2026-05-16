@@ -169,16 +169,16 @@ const VERBS = [
 /** Shows a fun random verb spinner while the conversation is active (between UserPromptSubmit and Stop) */
 const ThinkingSpinner = memo(function ThinkingSpinner({ conversationId }: { conversationId: string | null }) {
   const isActive = useConversationsStore(state =>
-    conversationId ? state.sessionsById[conversationId]?.status === 'active' : false,
+    conversationId ? state.conversationsById[conversationId]?.status === 'active' : false,
   )
   const totalOutput = useConversationsStore(state =>
-    conversationId ? (state.sessionsById[conversationId]?.stats?.totalOutputTokens ?? 0) : 0,
+    conversationId ? (state.conversationsById[conversationId]?.stats?.totalOutputTokens ?? 0) : 0,
   )
-  // Custom verbs: project settings override > session verbs (from CC settings) > defaults
+  // Custom verbs: project settings override > conversation verbs (from CC settings) > defaults
   const customVerbs = useConversationsStore(state => {
-    const session = conversationId ? state.sessionsById[conversationId] : undefined
-    const projectVerbs = session?.project ? state.projectSettings[session.project]?.verbs : undefined
-    return projectVerbs?.length ? projectVerbs : session?.spinnerVerbs
+    const conversation = conversationId ? state.conversationsById[conversationId] : undefined
+    const projectVerbs = conversation?.project ? state.projectSettings[conversation.project]?.verbs : undefined
+    return projectVerbs?.length ? projectVerbs : conversation?.spinnerVerbs
   })
   const verbList = customVerbs?.length ? customVerbs : VERBS
 
@@ -194,7 +194,7 @@ const ThinkingSpinner = memo(function ThinkingSpinner({ conversationId }: { conv
 
   const turnTokens = isActive ? Math.max(0, totalOutput - baselineRef.current) : 0
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: verbList intentionally omitted - stable for session duration, re-registering interval on every render unnecessary
+  // biome-ignore lint/correctness/useExhaustiveDependencies: verbList intentionally omitted - stable for conversation duration, re-registering interval on every render unnecessary
   useEffect(() => {
     if (!isActive) return
     const verbInterval = setInterval(() => {
@@ -338,20 +338,22 @@ export const TranscriptView = memo(function TranscriptView({
   // Return a primitive string so Zustand's Object.is check works - avoids re-renders
   // from session_update creating new array references with identical content
   const subagentsSummary = useConversationsStore(state => {
-    const session = state.selectedConversationId ? state.sessionsById[state.selectedConversationId] : undefined
-    if (!session?.subagents?.length) return ''
-    return session.subagents.map(a => `${a.agentId}:${a.status}:${a.description || ''}`).join('|')
+    const conversation = state.selectedConversationId
+      ? state.conversationsById[state.selectedConversationId]
+      : undefined
+    if (!conversation?.subagents?.length) return ''
+    return conversation.subagents.map(a => `${a.agentId}:${a.status}:${a.description || ''}`).join('|')
   })
   // biome-ignore lint/correctness/useExhaustiveDependencies: subagentsSummary is a serialized primitive dep key that triggers recompute when subagent state changes
   const subagents = useMemo(() => {
     const state = useConversationsStore.getState()
-    return state.selectedConversationId ? state.sessionsById[state.selectedConversationId]?.subagents : undefined
+    return state.selectedConversationId ? state.conversationsById[state.selectedConversationId]?.subagents : undefined
   }, [subagentsSummary])
 
   const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
   const perfEnabled = useConversationsStore(state => state.controlPanelPrefs.showPerfMonitor)
 
-  // Count pending permissions for the selected session. Used as a scroll-to-bottom
+  // Count pending permissions for the selected conversation. Used as a scroll-to-bottom
   // trigger so a newly-arrived permission pins into view when follow is active.
   const pendingPermissionCount = useConversationsStore(state =>
     state.selectedConversationId
@@ -473,12 +475,12 @@ export const TranscriptView = memo(function TranscriptView({
     requestAnimationFrame(settle)
   }, [mainGroups.length, virtualizer])
 
-  // Subscribe to selected session's transcript changes for scroll-to-bottom.
-  // IMPORTANT: track the transcript array REFERENCE for the selected session, not the global
-  // newDataSeq counter. newDataSeq increments for ANY session's data (events, transcripts),
+  // Subscribe to selected conversation's transcript changes for scroll-to-bottom.
+  // IMPORTANT: track the transcript array REFERENCE for the selected conversation, not the global
+  // newDataSeq counter. newDataSeq increments for ANY conversation's data (events, transcripts),
   // which caused scrollToBottom -> virtualizer.scrollToIndex -> TranscriptView re-render on
   // every store update from any conversation. By comparing the specific transcript reference,
-  // we only scroll when the viewed session's data actually changes.
+  // we only scroll when the viewed conversation's data actually changes.
   const followRef = useRef(follow)
   followRef.current = follow
   useEffect(() => {
@@ -516,7 +518,7 @@ export const TranscriptView = memo(function TranscriptView({
     return () => clearTimeout(timer)
   }, [follow, pendingPermissionCount, scrollToBottom])
 
-  // Same for link requests -- when another session asks to link, pin the
+  // Same for link requests -- when another conversation asks to link, pin the
   // inline approve/block card into view if follow is active.
   useEffect(() => {
     if (!follow) return
@@ -618,7 +620,7 @@ export const TranscriptView = memo(function TranscriptView({
       <MaybeProfiler enabled={perfEnabled} id="TranscriptStreaming">
         {/* Headless streaming text - isolated component so token updates don't re-render the virtualizer */}
         <StreamingBlock conversationId={selectedConversationId} />
-        {/* Fun verb spinner while session is working */}
+        {/* Fun verb spinner while conversation is working */}
         <ThinkingSpinner conversationId={selectedConversationId} />
         {/* Pending permission + link requests: rendered inline at the bottom as
             blocking UI gates. Both follow the same pattern -- structured wire

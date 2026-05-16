@@ -9,10 +9,10 @@ import type { PaletteMode } from './types'
  *   `s:`    spawn mode
  *   `@`     task mode (VSCode-style)
  *   `t:`    task mode (legacy)
- *   none    session mode (sessions + commands merged)
+ *   none    conversation mode (conversations + commands merged)
  *
  * Modes are mutually exclusive and resolved in priority order: command > file
- * > spawn > task > session. The boolean flags exposed alongside `mode` are
+ * > spawn > task > conversation. The boolean flags exposed alongside `mode` are
  * convenience accessors for downstream hooks that branch on a single mode.
  */
 export interface PaletteModeFlags {
@@ -44,7 +44,7 @@ export function derivePaletteMode(filter: string): PaletteModeFlags {
           ? 'file'
           : isTaskMode
             ? 'task'
-            : 'session'
+            : 'conversation'
 
   return { mode, isCommandMode, isFileMode, isSpawnMode, isTaskMode, isThemeMode, isConversationMode }
 }

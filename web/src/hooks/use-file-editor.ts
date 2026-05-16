@@ -283,7 +283,7 @@ export function useFileEditor(conversationId: string | null) {
     [conversationId],
   )
 
-  // Cleanup on session change
+  // Cleanup on conversation change
   // biome-ignore lint/correctness/useExhaustiveDependencies: conversationId is intentionally used as cleanup trigger even though not read in the effect body
   useEffect(() => {
     return () => {

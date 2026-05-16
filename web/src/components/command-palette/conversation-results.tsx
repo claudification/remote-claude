@@ -1,9 +1,9 @@
-import { canTerminal, projectPath, type Session } from '@/lib/types'
+import { type Conversation, canTerminal, projectPath } from '@/lib/types'
 import { cn, formatAge, formatModel, projectDisplayName } from '@/lib/utils'
 import { renderProjectIcon } from '../project-settings-editor'
 import type { ConversationResultsProps } from './types'
 
-function statusIndicator(s: Session, selectedConversationId: string | null) {
+function statusIndicator(s: Conversation, selectedConversationId: string | null) {
   if (canTerminal(s)) return '\u25B6' // ▶
   if (s.id === selectedConversationId) return '\u25C9' // ◉
   if (s.status === 'active') return '\u25CF' // ●
@@ -12,7 +12,7 @@ function statusIndicator(s: Session, selectedConversationId: string | null) {
   return '\u2716' // ✖
 }
 
-function statusColor(s: Session, selectedConversationId: string | null) {
+function statusColor(s: Conversation, selectedConversationId: string | null) {
   if (canTerminal(s)) return s.status === 'active' ? 'text-active' : 'text-accent'
   if (s.id === selectedConversationId) return 'text-primary'
   if (s.status === 'active') return 'text-active'
@@ -20,14 +20,14 @@ function statusColor(s: Session, selectedConversationId: string | null) {
   return 'text-comment'
 }
 
-function actionLabel(s: Session, selectedConversationId: string | null) {
+function actionLabel(s: Conversation, selectedConversationId: string | null) {
   if (canTerminal(s)) return s.id === selectedConversationId ? 'TTY (current)' : 'TTY'
   if (s.status === 'ended') return 'revive'
   return ''
 }
 
 interface ConversationRowProps {
-  session: Session
+  conversation: Conversation
   selectedConversationId: string | null
   projectSettings: ConversationResultsProps['projectSettings']
   active: boolean
@@ -36,7 +36,7 @@ interface ConversationRowProps {
 }
 
 export function ConversationRow({
-  session,
+  conversation,
   selectedConversationId,
   projectSettings,
   active,
@@ -53,48 +53,52 @@ export function ConversationRow({
         active ? 'bg-primary/20' : 'hover:bg-primary/10',
       )}
     >
-      <span className={cn('text-sm', statusColor(session, selectedConversationId))}>
-        {statusIndicator(session, selectedConversationId)}
+      <span className={cn('text-sm', statusColor(conversation, selectedConversationId))}>
+        {statusIndicator(conversation, selectedConversationId)}
       </span>
       <div className="flex-1 min-w-0">
         <div className="text-xs text-foreground truncate flex items-center gap-1.5">
-          {projectSettings[session.project]?.icon && (
+          {projectSettings[conversation.project]?.icon && (
             <span
               style={
-                projectSettings[session.project]?.color ? { color: projectSettings[session.project].color } : undefined
+                projectSettings[conversation.project]?.color
+                  ? { color: projectSettings[conversation.project].color }
+                  : undefined
               }
             >
-              {renderProjectIcon(projectSettings[session.project]?.icon || '', 'w-3 h-3 inline')}
+              {renderProjectIcon(projectSettings[conversation.project]?.icon || '', 'w-3 h-3 inline')}
             </span>
           )}
           <span
             style={
-              projectSettings[session.project]?.color ? { color: projectSettings[session.project].color } : undefined
+              projectSettings[conversation.project]?.color
+                ? { color: projectSettings[conversation.project].color }
+                : undefined
             }
           >
-            {projectDisplayName(projectPath(session.project), projectSettings[session.project]?.label)}
+            {projectDisplayName(projectPath(conversation.project), projectSettings[conversation.project]?.label)}
           </span>
-          {(session.title || session.agentName) && (
+          {(conversation.title || conversation.agentName) && (
             <>
               <span className="text-comment">·</span>
-              <span className="text-primary truncate">{session.title || session.agentName}</span>
+              <span className="text-primary truncate">{conversation.title || conversation.agentName}</span>
             </>
           )}
         </div>
         <div className="text-[10px] text-comment flex items-center gap-2">
-          <span>{session.id.slice(0, 8)}</span>
-          <span>{formatAge(session.lastActivity)}</span>
-          {session.model && <span>{formatModel(session.model)}</span>}
+          <span>{conversation.id.slice(0, 8)}</span>
+          <span>{formatAge(conversation.lastActivity)}</span>
+          {conversation.model && <span>{formatModel(conversation.model)}</span>}
         </div>
-        {session.recap?.title && (
-          <div className="mt-0.5 text-[10px] text-zinc-400/80 truncate" title={session.recap.title}>
-            {session.recap.title}
+        {conversation.recap?.title && (
+          <div className="mt-0.5 text-[10px] text-zinc-400/80 truncate" title={conversation.recap.title}>
+            {conversation.recap.title}
           </div>
         )}
       </div>
-      {actionLabel(session, selectedConversationId) && (
-        <span className={cn('text-[10px]', canTerminal(session) ? 'text-active' : 'text-comment')}>
-          {actionLabel(session, selectedConversationId)}
+      {actionLabel(conversation, selectedConversationId) && (
+        <span className={cn('text-[10px]', canTerminal(conversation) ? 'text-active' : 'text-comment')}>
+          {actionLabel(conversation, selectedConversationId)}
         </span>
       )}
     </button>

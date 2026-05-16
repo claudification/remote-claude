@@ -11,8 +11,8 @@ interface LinkItem {
   createdAt: number
   lastUsed: number
   online: boolean
-  sessionIdA?: string
-  sessionIdB?: string
+  conversationIdA?: string
+  conversationIdB?: string
 }
 
 function formatAge(ts: number): string {

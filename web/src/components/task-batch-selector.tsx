@@ -1,10 +1,10 @@
 /**
  * TaskBatchSelector - Modal for cherry-picking project tasks and submitting them
- * as a structured work list to the current session, or copying as markdown.
+ * as a structured work list to the current conversation, or copying as markdown.
  *
  * Entry points:
  * - Project board header button
- * - Session context menu ("Assign tasks...")
+ * - Conversation context menu ("Assign tasks...")
  * - Mobile FAB action
  * - Command palette
  *
@@ -298,18 +298,18 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
 
   // Get a conversation ID for useProject -- use the first active conversations's agent host
   const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
-  const sessions = useConversationsStore(s => s.sessions)
-  // Find a connected session to relay project requests through
-  const relaySessionId = useMemo(() => {
-    // Prefer selected session, fall back to any active conversations
+  const conversations = useConversationsStore(s => s.conversations)
+  // Find a connected conversation to relay project requests through
+  const relayConversationId = useMemo(() => {
+    // Prefer selected conversation, fall back to any active conversations
     if (selectedConversationId) {
-      const sess = sessions.find(s => s.id === selectedConversationId && s.status !== 'ended')
+      const sess = conversations.find(s => s.id === selectedConversationId && s.status !== 'ended')
       if (sess) return sess.id
     }
-    return sessions.find(s => s.status !== 'ended')?.id ?? null
-  }, [selectedConversationId, sessions])
+    return conversations.find(s => s.status !== 'ended')?.id ?? null
+  }, [selectedConversationId, conversations])
 
-  const { tasks, readTask } = useProject(relaySessionId)
+  const { tasks, readTask } = useProject(relayConversationId)
 
   // Hover preview state
   const [previewTask, setPreviewTask] = useState<ProjectTask | null>(null)
@@ -471,7 +471,7 @@ export const TaskBatchSelector = memo(function TaskBatchSelector() {
   )
 
   const hasActiveConversation =
-    !!selectedConversationId && sessions.some(s => s.id === selectedConversationId && s.status !== 'ended')
+    !!selectedConversationId && conversations.some(s => s.id === selectedConversationId && s.status !== 'ended')
 
   return (
     <Dialog open={open} onOpenChange={v => !v && handleClose()}>

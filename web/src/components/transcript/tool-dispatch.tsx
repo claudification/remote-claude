@@ -13,17 +13,17 @@ import {
   renderGmailSend,
 } from './tool-cases-gmail'
 import {
-  renderMcpConfigureSession,
-  renderMcpControlSession,
+  renderMcpConfigureConversation,
+  renderMcpControlConversation,
+  renderMcpConversationLifecycle,
   renderMcpDefault,
   renderMcpDialog,
   renderMcpListConversations,
   renderMcpNotify,
   renderMcpSendMessage,
-  renderMcpSessionLifecycle,
   renderPlanMode,
 } from './tool-cases-mcp'
-import { renderMcpSpawnSession } from './tool-cases-mcp-spawn'
+import { renderMcpSpawnConversation } from './tool-cases-mcp-spawn'
 import {
   renderCronCreate,
   renderCronDelete,
@@ -102,9 +102,9 @@ const toolHandlers: Record<string, ToolHandler> = {
   mcp__rclaude__send_message: renderMcpSendMessage,
   mcp__rclaude__list_conversations: renderMcpListConversations,
   mcp__rclaude__notify: renderMcpNotify,
-  mcp__rclaude__spawn_conversation: renderMcpSpawnSession,
-  mcp__rclaude__control_conversation: renderMcpControlSession,
-  mcp__rclaude__configure_conversation: renderMcpConfigureSession,
+  mcp__rclaude__spawn_conversation: renderMcpSpawnConversation,
+  mcp__rclaude__control_conversation: renderMcpControlConversation,
+  mcp__rclaude__configure_conversation: renderMcpConfigureConversation,
   mcp__rclaude__dialog: renderMcpDialog,
   mcp__gmail__search_emails: renderGmailSearchEmails,
   mcp__gmail__get_thread: renderGmailGetThread,
@@ -126,9 +126,9 @@ const namePassthroughHandlers: Record<string, ToolHandlerWithName> = {
   Agent: renderAgentTask,
   EnterPlanMode: renderPlanMode,
   ExitPlanMode: renderPlanMode,
-  mcp__rclaude__revive_conversation: renderMcpSessionLifecycle,
-  mcp__rclaude__terminate_conversation: renderMcpSessionLifecycle,
-  mcp__rclaude__exit_conversation: renderMcpSessionLifecycle,
+  mcp__rclaude__revive_conversation: renderMcpConversationLifecycle,
+  mcp__rclaude__terminate_conversation: renderMcpConversationLifecycle,
+  mcp__rclaude__exit_conversation: renderMcpConversationLifecycle,
   mcp__gmail__list_inbox_threads: renderGmailInbox,
   mcp__gmail__get_inbox_with_threads: renderGmailInbox,
 }

@@ -38,7 +38,9 @@ export class ErrorBoundary extends Component<Props, State> {
   reportCrash(error: Error, errorInfo: ErrorInfo) {
     try {
       const store = useConversationsStore.getState()
-      const session = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
+      const conversation = store.selectedConversationId
+        ? store.conversationsById[store.selectedConversationId]
+        : undefined
       fetch('/api/crash', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -53,8 +55,8 @@ export class ErrorBoundary extends Component<Props, State> {
           viewport: `${window.innerWidth}x${window.innerHeight}`,
           touch: navigator.maxTouchPoints > 0,
           conversationId: store.selectedConversationId,
-          sessionStatus: session?.status,
-          sessionProject: session?.project,
+          conversationStatus: conversation?.status,
+          conversationProject: conversation?.project,
         }),
       }).catch(() => {})
     } catch {}
@@ -77,28 +79,30 @@ export class ErrorBoundary extends Component<Props, State> {
   getAppState(): string {
     try {
       const store = useConversationsStore.getState()
-      const session = store.selectedConversationId ? store.sessionsById[store.selectedConversationId] : undefined
+      const conversation = store.selectedConversationId
+        ? store.conversationsById[store.selectedConversationId]
+        : undefined
       const transcriptEntries = store.selectedConversationId
         ? store.transcripts[store.selectedConversationId]
         : undefined
       const lines = [
         `  selectedConversation: ${store.selectedConversationId?.slice(0, 8) || '(none)'}`,
-        `  sessionCount: ${store.sessions.length}`,
+        `  conversationCount: ${store.conversations.length}`,
         `  expandAll: ${store.expandAll}`,
         `  showTerminal: ${store.showTerminal}`,
         `  wsConnected: ${store.isConnected}`,
         `  viewport: ${window.innerWidth}x${window.innerHeight} @${window.devicePixelRatio}x`,
         `  touch: ${navigator.maxTouchPoints > 0}`,
       ]
-      if (session) {
+      if (conversation) {
         lines.push(
-          `  session.status: ${session.status}`,
-          `  session.project: ${session.project}`,
-          `  session.eventCount: ${session.eventCount}`,
-          `  session.connectionIds: [${(session.connectionIds || []).map((w: string) => w.slice(0, 8)).join(', ')}]`,
+          `  conversation.status: ${conversation.status}`,
+          `  conversation.project: ${conversation.project}`,
+          `  conversation.eventCount: ${conversation.eventCount}`,
+          `  conversation.connectionIds: [${(conversation.connectionIds || []).map((w: string) => w.slice(0, 8)).join(', ')}]`,
           `  transcriptEntries: ${transcriptEntries?.length ?? 0}`,
-          `  subagentCount: ${session.subagents?.length ?? 0}`,
-          `  taskCount: ${session.taskCount ?? 0}`,
+          `  subagentCount: ${conversation.subagents?.length ?? 0}`,
+          `  taskCount: ${conversation.taskCount ?? 0}`,
         )
       }
       return lines.join('\n')

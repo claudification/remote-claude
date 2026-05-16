@@ -1,7 +1,7 @@
 import type { ProjectSettings } from '@shared/protocol'
 import { CostSparkline } from '@/components/cost-sparkline'
 import { formatCost, getBurnRate, getCacheEfficiency, getConversationCost, getCostColor } from '@/lib/cost-utils'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import { cn, contextWindowSize, formatAge, formatTime } from '@/lib/utils'
 import type { ConversationTarget } from './conversation-header'
 import { HeaderDescription } from './header-description'
@@ -18,33 +18,33 @@ import {
 import { StatusRow } from './header-status-row'
 
 interface HeaderExpandedPanelProps {
-  session: Session
+  conversation: Conversation
   projectSettings: ProjectSettings | undefined
   model: string | undefined
   onSetConversationTarget: (target: ConversationTarget | null) => void
 }
 
 export function HeaderExpandedPanel({
-  session,
+  conversation,
   projectSettings,
   model,
   onSetConversationTarget,
 }: HeaderExpandedPanelProps) {
-  const s = session.stats
-  const tu = session.tokenUsage
+  const s = conversation.stats
+  const tu = conversation.tokenUsage
   const contextTotal = tu ? tu.input + tu.cacheCreation + tu.cacheRead : 0
-  const ctxWindow = session.contextWindow ?? contextWindowSize(model || session.model)
+  const ctxWindow = conversation.contextWindow ?? contextWindowSize(model || conversation.model)
   const contextPct = tu ? Math.min(100, Math.round((contextTotal / ctxWindow) * 100)) : 0
-  const compactThreshold = session.autocompactPct || 83
+  const compactThreshold = conversation.autocompactPct || 83
   const compactWarnAt = compactThreshold - 5
 
-  const sessionCost = s ? getConversationCost(s, model || session.model) : { cost: 0, exact: false }
-  const burnRate = s ? getBurnRate(sessionCost.cost, session.startedAt, session.lastActivity) : null
+  const conversationCost = s ? getConversationCost(s, model || conversation.model) : { cost: 0, exact: false }
+  const burnRate = s ? getBurnRate(conversationCost.cost, conversation.startedAt, conversation.lastActivity) : null
   const cacheEff = s ? getCacheEfficiency(s.totalCacheRead, s.totalCacheCreation) : null
 
   return (
     <div className="px-3 sm:px-4 pb-3 sm:pb-4 text-xs font-mono space-y-3">
-      <StatusRow session={session} model={model} />
+      <StatusRow conversation={conversation} model={model} />
       <ContextBar
         tokenUsage={tu}
         contextPct={contextPct}
@@ -53,19 +53,21 @@ export function HeaderExpandedPanel({
         compactThreshold={compactThreshold}
         compactWarnAt={compactWarnAt}
       />
-      <TokenStats stats={s} sessionCost={sessionCost} burnRate={burnRate} cacheEff={cacheEff} />
-      {session.costTimeline && session.costTimeline.length >= 2 && <CostSparkline timeline={session.costTimeline} />}
-      <SessionStats session={session} stats={s} />
-      <ErrorBanner lastError={session.lastError} />
-      <RateLimitBanner rateLimit={session.rateLimit} />
-      <ProjectPathRow project={session.project} />
-      <HeaderDescription session={session} />
-      <SummaryRow summary={session.summary} />
-      <RecapRow recap={session.recap} recapFresh={session.recapFresh} />
-      <PrLinksRow prLinks={session.prLinks} />
+      <TokenStats stats={s} conversationCost={conversationCost} burnRate={burnRate} cacheEff={cacheEff} />
+      {conversation.costTimeline && conversation.costTimeline.length >= 2 && (
+        <CostSparkline timeline={conversation.costTimeline} />
+      )}
+      <ConversationStats conversation={conversation} stats={s} />
+      <ErrorBanner lastError={conversation.lastError} />
+      <RateLimitBanner rateLimit={conversation.rateLimit} />
+      <ProjectPathRow project={conversation.project} />
+      <HeaderDescription conversation={conversation} />
+      <SummaryRow summary={conversation.summary} />
+      <RecapRow recap={conversation.recap} recapFresh={conversation.recapFresh} />
+      <PrLinksRow prLinks={conversation.prLinks} />
       <TrustLevelBadge projectSettings={projectSettings} />
       <LinkedProjects
-        session={session}
+        conversation={conversation}
         projectSettings={projectSettings}
         onSetConversationTarget={onSetConversationTarget}
       />
@@ -74,7 +76,7 @@ export function HeaderExpandedPanel({
 }
 
 interface ContextBarProps {
-  tokenUsage: Session['tokenUsage']
+  tokenUsage: Conversation['tokenUsage']
   contextPct: number
   contextTotal: number
   ctxWindow: number
@@ -138,13 +140,13 @@ function ContextBar({
 }
 
 interface TokenStatsProps {
-  stats: Session['stats']
-  sessionCost: { cost: number; exact: boolean }
+  stats: Conversation['stats']
+  conversationCost: { cost: number; exact: boolean }
   burnRate: number | null
   cacheEff: { ratio: number; label: string; color: string } | null
 }
 
-function TokenStats({ stats: s, sessionCost, burnRate, cacheEff }: TokenStatsProps) {
+function TokenStats({ stats: s, conversationCost, burnRate, cacheEff }: TokenStatsProps) {
   if (!s) return null
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-[10px]">
@@ -172,7 +174,9 @@ function TokenStats({ stats: s, sessionCost, burnRate, cacheEff }: TokenStatsPro
       </div>
       <div>
         <span className="text-muted-foreground">cost </span>
-        <span className={getCostColor(sessionCost.cost)}>{formatCost(sessionCost.cost, sessionCost.exact)}</span>
+        <span className={getCostColor(conversationCost.cost)}>
+          {formatCost(conversationCost.cost, conversationCost.exact)}
+        </span>
         {burnRate != null && burnRate >= 0.1 && (
           <span className="text-muted-foreground ml-1">({burnRate.toFixed(1)}/hr)</span>
         )}
@@ -181,7 +185,7 @@ function TokenStats({ stats: s, sessionCost, burnRate, cacheEff }: TokenStatsPro
   )
 }
 
-function SessionStats({ session, stats: s }: { session: Session; stats: Session['stats'] }) {
+function ConversationStats({ conversation, stats: s }: { conversation: Conversation; stats: Conversation['stats'] }) {
   return (
     <div className="flex items-center gap-4 text-[10px] flex-wrap">
       {s && s.turnCount > 0 && (
@@ -196,10 +200,10 @@ function SessionStats({ session, stats: s }: { session: Session; stats: Session[
           <span className="text-foreground">{s.toolCallCount}</span>
         </span>
       )}
-      {session.totalSubagentCount > 0 && (
+      {conversation.totalSubagentCount > 0 && (
         <span>
           <span className="text-muted-foreground">agents </span>
-          <span className="text-foreground">{session.totalSubagentCount}</span>
+          <span className="text-foreground">{conversation.totalSubagentCount}</span>
         </span>
       )}
       {s && (s.linesAdded > 0 || s.linesRemoved > 0) && (
@@ -227,11 +231,11 @@ function SessionStats({ session, stats: s }: { session: Session; stats: Session[
       )}
       <span>
         <span className="text-muted-foreground">started </span>
-        <span className="text-foreground">{formatTime(session.startedAt)}</span>
+        <span className="text-foreground">{formatTime(conversation.startedAt)}</span>
       </span>
       <span>
         <span className="text-muted-foreground">last </span>
-        <span className="text-foreground">{formatAge(session.lastActivity)}</span>
+        <span className="text-foreground">{formatAge(conversation.lastActivity)}</span>
       </span>
     </div>
   )

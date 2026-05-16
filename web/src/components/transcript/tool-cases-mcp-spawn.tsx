@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { Collapsible, extractMcpText, shortPath } from './shared'
 import type { ToolCaseInput, ToolCaseResult } from './tool-case-types'
 
-export function renderMcpSpawnSession({ input, result, toolUseResult, isError }: ToolCaseInput): ToolCaseResult {
+export function renderMcpSpawnConversation({ input, result, toolUseResult, isError }: ToolCaseInput): ToolCaseResult {
   const inputCwd = input.cwd as string
   const mode = input.mode as string | undefined
   const shortCwd = shortPath(inputCwd) || inputCwd

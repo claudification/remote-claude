@@ -36,7 +36,7 @@ function describeSystemEntry(sub: string, entry: Record<string, unknown>, time: 
       let color = 'text-muted-foreground'
       if (stripped.startsWith('Unknown skill') || stripped.startsWith('Error') || stripped.startsWith('Failed'))
         color = 'text-red-400'
-      if (stripped.startsWith('Session renamed to:')) color = 'text-cyan-400/70'
+      if (stripped.startsWith('Conversation renamed to:')) color = 'text-cyan-400/70'
       return { kind: 'text', text: stripped, color }
     }
     case 'api_retry':

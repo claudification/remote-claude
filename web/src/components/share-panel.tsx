@@ -1,5 +1,5 @@
 /**
- * SharePanel - Session sharing management.
+ * SharePanel - Conversation sharing management.
  *
  * Shows active shares with viewer counts, create new shares,
  * revoke shares. Displayed as a banner in the conversation detail header.

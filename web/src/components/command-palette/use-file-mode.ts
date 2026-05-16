@@ -10,13 +10,13 @@ export interface FileModeState {
 
 /**
  * File-mode (`f:` prefix) derivations. Lazily fetches the project's file list
- * over WS the first time the user enters file mode for an active session,
+ * over WS the first time the user enters file mode for an active conversation,
  * caches it in component state, and exposes Fzf-filtered results. Resets the
  * cache when the user leaves file mode so a re-entry triggers a fresh fetch.
  */
 export function useFileMode(filter: string, isFileMode: boolean): FileModeState {
   const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
-  const sessionsById = useConversationsStore(state => state.sessionsById)
+  const conversationsById = useConversationsStore(state => state.conversationsById)
   const sendWsMessage = useConversationsStore(state => state.sendWsMessage)
 
   const fileFilter = isFileMode ? filter.slice(2).trim().toLowerCase() : ''
@@ -33,8 +33,8 @@ export function useFileMode(filter: string, isFileMode: boolean): FileModeState 
   useEffect(() => {
     if (!isFileMode || filesFetched.current) return
     if (!selectedConversationId) return
-    const session = sessionsById[selectedConversationId]
-    if (!session || (session.status !== 'active' && session.status !== 'idle')) return
+    const conversation = conversationsById[selectedConversationId]
+    if (!conversation || (conversation.status !== 'active' && conversation.status !== 'idle')) return
 
     filesFetched.current = true
     setFilesLoading(true)
@@ -64,7 +64,7 @@ export function useFileMode(filter: string, isFileMode: boolean): FileModeState 
       }
     }
     setFilesLoading(false)
-  }, [isFileMode, selectedConversationId, sessionsById, sendWsMessage])
+  }, [isFileMode, selectedConversationId, conversationsById, sendWsMessage])
 
   useEffect(() => {
     if (!isFileMode) {

@@ -2,7 +2,7 @@
  * Shared file upload with placeholder management.
  * Works with any editor (textarea, CodeMirror, etc.) via callbacks.
  *
- * @param conversationId - Optional session ID for CWD-scoped permission resolution.
+ * @param conversationId - Optional conversation ID for CWD-scoped permission resolution.
  *   Without this, the server checks 'files' against '*' which fails for
  *   non-admin users whose grants are scoped to a specific CWD.
  */

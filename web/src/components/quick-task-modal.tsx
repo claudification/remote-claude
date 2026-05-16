@@ -19,11 +19,11 @@ export function QuickTaskModal() {
   const [flash, setFlash] = useState(false)
 
   const selectedConversationId = useConversationsStore(state => state.selectedConversationId)
-  const session = useConversationsStore(state =>
-    state.selectedConversationId ? state.sessionsById[state.selectedConversationId] : undefined,
+  const conversation = useConversationsStore(state =>
+    state.selectedConversationId ? state.conversationsById[state.selectedConversationId] : undefined,
   )
-  const isActive = session != null && session.status !== 'ended'
-  const hasWrapper = (session?.connectionIds?.length ?? 0) > 0
+  const isActive = conversation != null && conversation.status !== 'ended'
+  const hasWrapper = (conversation?.connectionIds?.length ?? 0) > 0
 
   const { createTask } = useProject(selectedConversationId && isActive ? selectedConversationId : null)
 

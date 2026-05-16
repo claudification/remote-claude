@@ -43,13 +43,13 @@ export const InputBar = memo(function InputBar({ conversationId }: { conversatio
   const [showAttention, setShowAttention] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef(inputValue)
-  const sessionRef = useRef(conversationId)
+  const conversationRef = useRef(conversationId)
   const stashCount = useConversationsStore(s => s.messageStash[conversationId]?.length ?? 0)
 
   // Track pendingAttention with 15s delay before showing (PTY only - headless uses PermissionBanners)
-  const pendingAttention = useConversationsStore(s => s.sessionsById[conversationId]?.pendingAttention)
-  const sessionHasTerminal = useConversationsStore(s => {
-    const sess = s.sessionsById[conversationId]
+  const pendingAttention = useConversationsStore(s => s.conversationsById[conversationId]?.pendingAttention)
+  const conversationHasTerminal = useConversationsStore(s => {
+    const sess = s.conversationsById[conversationId]
     return sess ? canTerminal(sess) : false
   })
   useEffect(() => {
@@ -96,14 +96,14 @@ export const InputBar = memo(function InputBar({ conversationId }: { conversatio
     }
   }
 
-  // Session switch: save old draft, restore new, focus input (desktop only)
+  // Conversation switch: save old draft, restore new, focus input (desktop only)
   useEffect(() => {
-    if (sessionRef.current !== conversationId) {
-      useConversationsStore.getState().setInputDraft(sessionRef.current, inputRef.current)
+    if (conversationRef.current !== conversationId) {
+      useConversationsStore.getState().setInputDraft(conversationRef.current, inputRef.current)
       const restored = useConversationsStore.getState().inputDrafts[conversationId] ?? ''
       setLocalInput(restored)
       inputRef.current = restored
-      sessionRef.current = conversationId
+      conversationRef.current = conversationId
       if (!isMobileViewport()) {
         requestAnimationFrame(() => containerRef.current && focusInputEditor(containerRef.current))
       }
@@ -113,7 +113,7 @@ export const InputBar = memo(function InputBar({ conversationId }: { conversatio
   // Save draft on unmount
   useEffect(() => {
     return () => {
-      useConversationsStore.getState().setInputDraft(sessionRef.current, inputRef.current)
+      useConversationsStore.getState().setInputDraft(conversationRef.current, inputRef.current)
     }
   }, [])
 
@@ -137,7 +137,7 @@ export const InputBar = memo(function InputBar({ conversationId }: { conversatio
     setIsSending(false)
     if (!success) {
       haptic('error')
-      console.error('[input] sendInput failed for session', conversationId)
+      console.error('[input] sendInput failed for conversation', conversationId)
       // Restore on failure
       setInputValue(text)
       useConversationsStore.getState().setInputDraft(conversationId, text)
@@ -156,7 +156,7 @@ export const InputBar = memo(function InputBar({ conversationId }: { conversatio
       ref={containerRef}
       className={cn('shrink-0 p-3 border-t bg-background z-10 transition-colors duration-200', 'border-border')}
     >
-      {showAttention && pendingAttention && sessionHasTerminal && (
+      {showAttention && pendingAttention && conversationHasTerminal && (
         <div
           role="button"
           tabIndex={0}

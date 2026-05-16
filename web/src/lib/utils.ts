@@ -56,7 +56,7 @@ export function lastPathSegments(path: string, n = 3): string {
 /**
  * Display name for a project identified by URI or path. Uses the user-provided
  * label when present, otherwise falls back to the last 3 path segments. Same
- * convention the project list + session switcher use -- keep all name
+ * convention the project list + conversation switcher use -- keep all name
  * rendering going through this so un-labelled projects look consistent
  * everywhere. Pass `projectSettings[project]?.label` (or `undefined`) as the
  * label; caller handles the lookup so the helper stays map-shape-agnostic.
@@ -70,7 +70,7 @@ export function projectDisplayName(projectOrPath: string, label?: string): strin
 /**
  * Slug from an arbitrary display name. Lowercase, alphanumeric + hyphens,
  * capped at 24 chars. Mirrors `src/broker/address-book.ts` (server
- * side) and `components/transcript/session-tag.tsx` (client) so slugs
+ * side) and `components/transcript/conversation-tag.tsx` (client) so slugs
  * round-trip across the wire.
  */
 function slugify(name: string): string {
@@ -85,28 +85,29 @@ function slugify(name: string): string {
 
 /**
  * Mirror of the addressable ID produced by list_conversations. ALWAYS compound
- * `project:session-slug` so the inserted id stays stable when a second
- * session spawns at the same project later. Server logic + rationale live in
+ * `project:conversation-slug` so the inserted id stays stable when a second
+ * conversation spawns at the same project later. Server logic + rationale live in
  * `src/broker/handlers/channel-id.ts` (the canonical implementation
  * that round-trips through send_message).
  *
- * `siblingConversations` is the list of sessions at the same project (including
+ * `siblingConversations` is the list of conversations at the same project (including
  * this one) -- used purely to disambiguate identical title slugs with a
  * 6-char id suffix.
  */
-export function sessionAddressableSlug(
-  session: { id: string; project: string; title?: string; agentName?: string },
+export function conversationAddressableSlug(
+  conversation: { id: string; project: string; title?: string; agentName?: string },
   projectSettings: { [project: string]: { label?: string } },
   siblingConversations: ReadonlyArray<{ id: string; title?: string; agentName?: string }>,
 ): string {
-  const projectName = projectSettings[session.project]?.label || extractProjectLabel(session.project) || 'project'
+  const projectName =
+    projectSettings[conversation.project]?.label || extractProjectLabel(conversation.project) || 'project'
   const projectSlug = slugify(projectName)
   const titleFor = (s: { id: string; title?: string; agentName?: string }) =>
     slugify(s.title || s.agentName || s.id.slice(0, 8))
-  const baseSlug = titleFor(session)
-  const collides = siblingConversations.some(other => other.id !== session.id && titleFor(other) === baseSlug)
-  const sessionSlug = collides ? `${baseSlug}-${session.id.slice(0, 6)}` : baseSlug
-  return `${projectSlug}:${sessionSlug}`
+  const baseSlug = titleFor(conversation)
+  const collides = siblingConversations.some(other => other.id !== conversation.id && titleFor(other) === baseSlug)
+  const conversationSlug = collides ? `${baseSlug}-${conversation.id.slice(0, 6)}` : baseSlug
+  return `${projectSlug}:${conversationSlug}`
 }
 
 export function truncate(text: string, maxLen: number): string {

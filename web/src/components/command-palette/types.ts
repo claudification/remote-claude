@@ -1,5 +1,5 @@
 import type { FileInfo } from '@/hooks/use-file-editor'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import type { SentinelSuggestion } from './use-spawn-mode'
 
 export interface PaletteCommand {
@@ -10,11 +10,11 @@ export interface PaletteCommand {
   action: () => void
 }
 
-export type PaletteMode = 'session' | 'command' | 'file' | 'spawn' | 'task' | 'theme'
+export type PaletteMode = 'conversation' | 'command' | 'file' | 'spawn' | 'task' | 'theme'
 
-/** Merged result item for the no-prefix palette: sessions + commands fuzzy-matched together. */
+/** Merged result item for the no-prefix palette: conversations + commands fuzzy-matched together. */
 export type MergedItem =
-  | { kind: 'session'; session: Session; score: number; live: boolean }
+  | { kind: 'conversation'; conversation: Conversation; score: number; live: boolean }
   | { kind: 'command'; command: PaletteCommand; score: number; live: boolean }
 
 export interface CommandPaletteProps {
@@ -29,7 +29,7 @@ interface ResultListProps {
 }
 
 export interface ConversationResultsProps extends ResultListProps {
-  sessions: Session[]
+  conversations: Conversation[]
   selectedConversationId: string | null
   projectSettings: Record<string, { label?: string; icon?: string; color?: string; keyterms?: string[] }>
   onSelect: (conversationId: string) => void

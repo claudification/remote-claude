@@ -28,7 +28,7 @@ function getWsUrl() {
   return _wsUrl
 }
 const RECONNECT_DELAY_MS = 2000
-const SESSION_CHANNELS = [
+const CONVERSATION_CHANNELS = [
   'conversation:events',
   'conversation:transcript',
   'conversation:tasks',
@@ -40,9 +40,9 @@ let msgBuffer: DashboardMessage[] = []
 let rafScheduled = false
 
 // Module-level subscription tracking - must be clearable from onopen handler
-let _subscribedSessions = new Set<string>()
-function clearSubscribedSessions() {
-  _subscribedSessions = new Set<string>()
+let _subscribedConversations = new Set<string>()
+function clearSubscribedConversations() {
+  _subscribedConversations = new Set<string>()
 }
 
 /**
@@ -204,7 +204,7 @@ export function useWebSocket() {
         const { selectedConversationId, selectedSubagentId, transcripts, events, connectSeq } =
           useConversationsStore.getState()
 
-        // Evict stale conversations from LIFO cache (non-selected sessions may have missed WS entries)
+        // Evict stale conversations from LIFO cache (non-selected conversations may have missed WS entries)
         const evictedSids = Object.keys(transcripts).filter(sid => sid !== selectedConversationId)
         let newTranscripts = transcripts
         let newEvents = events
@@ -215,7 +215,7 @@ export function useWebSocket() {
             delete newTranscripts[sid]
             delete newEvents[sid]
           }
-          console.log(`[sync] reconnect: evicted ${evictedSids.length} stale sessions from LIFO cache`)
+          console.log(`[sync] reconnect: evicted ${evictedSids.length} stale conversations from LIFO cache`)
         }
 
         // ONE setState call instead of 5 separate ones
@@ -228,15 +228,15 @@ export function useWebSocket() {
           connectSeq: connectSeq + 1,
         })
 
-        // Reset subscription tracking - only current session
-        clearSubscribedSessions()
+        // Reset subscription tracking - only current conversation
+        clearSubscribedConversations()
 
-        // Subscribe current session immediately
+        // Subscribe current conversation immediately
         if (selectedConversationId) {
-          for (const ch of SESSION_CHANNELS) {
+          for (const ch of CONVERSATION_CHANNELS) {
             send({ type: 'channel_subscribe', channel: ch, conversationId: selectedConversationId })
           }
-          _subscribedSessions.add(selectedConversationId)
+          _subscribedConversations.add(selectedConversationId)
           if (selectedSubagentId) {
             send({
               type: 'channel_subscribe',
@@ -252,9 +252,9 @@ export function useWebSocket() {
         // that arrived while WS was down). Small delay lets server process the
         // channel subscriptions first so the sync_check response is accurate.
         setTimeout(() => {
-          // sync_check sends the last applied transcript seq per session, not
+          // sync_check sends the last applied transcript seq per conversation, not
           // entry counts. Server compares against its own lastAssignedSeq per
-          // session and replies with a delta list if we're behind.
+          // conversation and replies with a delta list if we're behind.
           const { syncEpoch, syncSeq, lastAppliedTranscriptSeq } = useConversationsStore.getState()
           const transcriptSeqs: Record<string, number> = {}
           for (const [sid, seq] of Object.entries(lastAppliedTranscriptSeq)) {
@@ -283,7 +283,7 @@ export function useWebSocket() {
             isConnected: false,
             ws: null,
             authExpired: true,
-            error: 'Session expired or unauthorized',
+            error: 'Conversation expired or unauthorized',
           })
           return
         }
@@ -358,7 +358,7 @@ export function useWebSocket() {
             return
           }
 
-          // JSON stream data -> direct handler callback (raw NDJSON for headless sessions)
+          // JSON stream data -> direct handler callback (raw NDJSON for headless conversations)
           if (msg.type === 'json_stream_data') {
             const handler = useConversationsStore.getState().jsonStreamHandler
             handler?.({
@@ -458,13 +458,13 @@ export function useWebSocket() {
   useEffect(() => {
     connect()
 
-    // Watch for session selection changes and manage channel subscriptions
-    // Diff-based: keep subscriptions alive for LIFO-cached sessions
+    // Watch for conversation selection changes and manage channel subscriptions
+    // Diff-based: keep subscriptions alive for LIFO-cached conversations
     // Uses selector-based subscribe to only fire when selectedConversationId or transcript keys change
-    _subscribedSessions = new Set<string>()
+    _subscribedConversations = new Set<string>()
     let _lastSelectedId: string | null = null
     let _lastTranscriptKeys: string = ''
-    const unsubSessionion = useConversationsStore.subscribe(state => {
+    const unsubConversation = useConversationsStore.subscribe(state => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
 
       // Quick check: bail if nothing subscription-relevant changed
@@ -480,23 +480,23 @@ export function useWebSocket() {
         if (state.transcripts[sid]?.length) desired.add(sid)
       }
 
-      // Unsubscribe sessions no longer in cache
-      for (const sid of _subscribedSessions) {
+      // Unsubscribe conversations no longer in cache
+      for (const sid of _subscribedConversations) {
         if (!desired.has(sid)) {
-          for (const ch of SESSION_CHANNELS) {
+          for (const ch of CONVERSATION_CHANNELS) {
             send({ type: 'channel_unsubscribe', channel: ch, conversationId: sid })
           }
         }
       }
       // Subscribe new conversation
       for (const sid of desired) {
-        if (!_subscribedSessions.has(sid)) {
-          for (const ch of SESSION_CHANNELS) {
+        if (!_subscribedConversations.has(sid)) {
+          for (const ch of CONVERSATION_CHANNELS) {
             send({ type: 'channel_subscribe', channel: ch, conversationId: sid })
           }
         }
       }
-      _subscribedSessions = desired
+      _subscribedConversations = desired
     })
 
     // Watch for subagent selection and subscribe to its transcript channel
@@ -548,7 +548,7 @@ export function useWebSocket() {
     }, 60_000)
 
     return () => {
-      unsubSessionion()
+      unsubConversation()
       unsubAgent()
       clearInterval(syncInterval)
       if (reconnectTimeoutRef.current) {

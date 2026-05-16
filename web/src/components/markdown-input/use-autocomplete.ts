@@ -40,10 +40,10 @@ export function useAutocomplete(
 
   const maybeAutocomplete = enableAutocomplete && (value.includes('/') || value.includes('@'))
 
-  const sessionInfoData = useConversationsStore(state => {
+  const conversationInfoData = useConversationsStore(state => {
     if (!maybeAutocomplete) return EMPTY_INFO
     const sid = state.selectedConversationId
-    return (sid ? state.sessionInfo[sid] : null) || EMPTY_INFO
+    return (sid ? state.conversationInfo[sid] : null) || EMPTY_INFO
   })
 
   const hasSubCommandWithTasks = enableAutocomplete && /^\/workon\s/i.test(value)
@@ -91,13 +91,13 @@ export function useAutocomplete(
           if (score > 0) scored.push({ item, score, builtin: true })
         }
       }
-      for (const item of sessionInfoData.slashCommands || []) {
+      for (const item of conversationInfoData.slashCommands || []) {
         if (BUILTIN_NAMES.includes(item)) continue
         const score = fuzzyScore(q, item)
         if (score > 0) scored.push({ item, score, builtin: false })
       }
     } else {
-      for (const item of [...(sessionInfoData.skills || []), ...(sessionInfoData.agents || [])]) {
+      for (const item of [...(conversationInfoData.skills || []), ...(conversationInfoData.agents || [])]) {
         const score = fuzzyScore(q, item)
         if (score > 0) scored.push({ item, score, builtin: false })
       }
@@ -105,7 +105,7 @@ export function useAutocomplete(
 
     scored.sort((a, b) => b.score - a.score)
     return scored.slice(0, 12).map(x => ({ item: x.item, builtin: x.builtin }))
-  }, [maybeAutocomplete, value, sessionInfoData, subCmdCtx, textareaRef])
+  }, [maybeAutocomplete, value, conversationInfoData, subCmdCtx, textareaRef])
 
   const acTrigger = useMemo(() => {
     if (!acItems.length) return null

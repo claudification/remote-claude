@@ -17,8 +17,8 @@ export function RenameModal() {
   const nameRef = useRef<HTMLInputElement>(null)
 
   const selectedConversationId = useConversationsStore(s => s.selectedConversationId)
-  const session = useConversationsStore(s =>
-    s.selectedConversationId ? s.sessionsById[s.selectedConversationId] : undefined,
+  const conversation = useConversationsStore(s =>
+    s.selectedConversationId ? s.conversationsById[s.selectedConversationId] : undefined,
   )
   const renameConversation = useConversationsStore(s => s.renameConversation)
 
@@ -26,7 +26,7 @@ export function RenameModal() {
     function handleOpen(e: Event) {
       if (!selectedConversationId) return
       const detail = (e as CustomEvent).detail
-      const sess = useConversationsStore.getState().sessionsById[selectedConversationId]
+      const sess = useConversationsStore.getState().conversationsById[selectedConversationId]
       if (detail?.name) {
         setName(detail.name)
       } else {
@@ -81,7 +81,7 @@ export function RenameModal() {
           <Pencil className="w-4 h-4 text-accent" />
           <DialogTitle className="text-xs">Rename conversation</DialogTitle>
           <span className="text-[10px] text-muted-foreground ml-1 truncate max-w-[200px]">
-            {session?.title || session?.agentName || selectedConversationId.slice(0, 12)}
+            {conversation?.title || conversation?.agentName || selectedConversationId.slice(0, 12)}
           </span>
         </div>
 

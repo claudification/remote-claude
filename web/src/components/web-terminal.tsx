@@ -27,7 +27,7 @@ export function WebTerminal({ conversationId, onClose, popout }: WebTerminalProp
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
-  const sessions = useConversationsStore(state => state.sessions)
+  const conversations = useConversationsStore(state => state.conversations)
   const sendWsMessage = useConversationsStore(state => state.sendWsMessage)
   const setTerminalHandler = useConversationsStore(state => state.setTerminalHandler)
   const isConnected = useConversationsStore(state => state.isConnected)
@@ -62,8 +62,8 @@ export function WebTerminal({ conversationId, onClose, popout }: WebTerminalProp
     }
   }
 
-  // Resolve the owning session for this agent host (for display purposes)
-  const ownerConversation = sessions.find(s => s.connectionIds?.includes(conversationId))
+  // Resolve the owning conversation for this agent host (for display purposes)
+  const ownerConversation = conversations.find(s => s.connectionIds?.includes(conversationId))
 
   // Set window title in popout mode
   const projectSettings = useConversationsStore(state => state.projectSettings)

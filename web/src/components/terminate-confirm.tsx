@@ -1,6 +1,6 @@
 /**
  * TerminateConfirmDialog - Confirmation dialog before terminating a conversation.
- * Imperative API: call openTerminateConfirm(conversationId, sessionName) from anywhere.
+ * Imperative API: call openTerminateConfirm(conversationId, conversationName) from anywhere.
  * Keyboard: Enter/Y = confirm, Escape/N = cancel.
  */
 
@@ -14,24 +14,28 @@ import { Kbd, KbdGroup } from './ui/kbd'
 interface TerminateConfirmState {
   open: boolean
   conversationId: string | null
-  sessionName: string | null
+  conversationName: string | null
 }
 
 // Module-level imperative opener (same pattern as SpawnDialog)
-let _open: ((conversationId: string, sessionName: string | null) => void) | null = null
+let _open: ((conversationId: string, conversationName: string | null) => void) | null = null
 
-export function openTerminateConfirm(conversationId: string, sessionName: string | null): void {
-  _open?.(conversationId, sessionName)
+export function openTerminateConfirm(conversationId: string, conversationName: string | null): void {
+  _open?.(conversationId, conversationName)
 }
 
 export function TerminateConfirmDialog() {
-  const [state, setState] = useState<TerminateConfirmState>({ open: false, conversationId: null, sessionName: null })
+  const [state, setState] = useState<TerminateConfirmState>({
+    open: false,
+    conversationId: null,
+    conversationName: null,
+  })
   const terminateConversation = useConversationsStore(s => s.terminateConversation)
 
   useEffect(() => {
-    _open = (conversationId, sessionName) => {
+    _open = (conversationId, conversationName) => {
       haptic('tap')
-      setState({ open: true, conversationId, sessionName })
+      setState({ open: true, conversationId, conversationName })
     }
     return () => {
       _open = null
@@ -41,12 +45,12 @@ export function TerminateConfirmDialog() {
   function confirm() {
     if (state.conversationId) terminateConversation(state.conversationId, 'dashboard-terminate-dialog')
     haptic('error')
-    setState({ open: false, conversationId: null, sessionName: null })
+    setState({ open: false, conversationId: null, conversationName: null })
   }
 
   function cancel() {
     haptic('tap')
-    setState({ open: false, conversationId: null, sessionName: null })
+    setState({ open: false, conversationId: null, conversationName: null })
   }
 
   useKeyLayer(
@@ -69,13 +73,13 @@ export function TerminateConfirmDialog() {
           <span className="text-muted-foreground text-xs">conversation</span>
         </div>
 
-        {/* Session name */}
+        {/* Conversation name */}
         <div className="px-4 py-3 text-sm">
           <div className="text-foreground truncate">
-            {state.sessionName ? (
+            {state.conversationName ? (
               <>
                 <span className="text-muted-foreground">conversation </span>
-                <span className="text-yellow-400 font-bold">{state.sessionName}</span>
+                <span className="text-yellow-400 font-bold">{state.conversationName}</span>
                 <span className="text-muted-foreground"> will be terminated.</span>
               </>
             ) : (

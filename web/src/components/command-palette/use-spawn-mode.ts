@@ -45,7 +45,7 @@ interface UseSpawnModeArgs {
  * still typing the `@sentinel` token (no space yet), the hook skips the dir
  * fetch and exposes a sentinel suggestion list with the default sentinel
  * first. `handleSpawn` defers to the spawn dialog -- this hook does not
- * actually launch sessions.
+ * actually launch conversations.
  */
 export function useSpawnMode({
   filter,

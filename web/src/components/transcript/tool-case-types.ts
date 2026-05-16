@@ -13,7 +13,7 @@ export interface ToolCaseInput {
   result?: string
   toolUseResult?: Record<string, unknown>
   isError?: boolean
-  sessionPath?: string
+  conversationPath?: string
   expandAll: boolean
   subagents?: Array<{
     agentId: string

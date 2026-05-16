@@ -1,10 +1,10 @@
 /**
- * SessionTag - Clickable session name badge with hover tooltip showing project/status.
+ * ConversationTag - Clickable conversation name badge with hover tooltip showing project/status.
  * Shared by send_message (tool-line) and received inter-conversation messages (group-view).
  */
 
 import { buildConversationsById, useConversationsStore } from '@/hooks/use-conversations'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import { extractProjectLabel, projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 
@@ -25,10 +25,10 @@ function stripProjectPrefix(slug: string): string {
 }
 
 /** Find a conversation matching an address book slug (best-effort client-side match). */
-function findSessionBySlug(slug: string) {
-  const { sessions, projectSettings } = useConversationsStore.getState()
+function findConversationBySlug(slug: string) {
+  const { conversations, projectSettings } = useConversationsStore.getState()
   const normalizedSlug = slug.toLowerCase()
-  for (const s of sessions) {
+  for (const s of conversations) {
     const ps = projectSettings[s.project]
     if (ps?.label && slugify(ps.label) === normalizedSlug) return s
     if (s.title && slugify(s.title) === normalizedSlug) return s
@@ -39,35 +39,35 @@ function findSessionBySlug(slug: string) {
 }
 
 /** Resolve a conversation by ID or slug and compute the display name. */
-function resolveSessionDisplay(idOrSlug: string, fallbackId?: string) {
-  const { sessionsById, projectSettings } = useConversationsStore.getState()
+function resolveConversationDisplay(idOrSlug: string, fallbackId?: string) {
+  const { conversationsById, projectSettings } = useConversationsStore.getState()
   const bare = stripProjectPrefix(idOrSlug)
-  const session =
-    sessionsById[idOrSlug] ||
-    sessionsById[bare] ||
-    (fallbackId ? sessionsById[fallbackId] : undefined) ||
-    findSessionBySlug(bare) ||
-    findSessionBySlug(idOrSlug)
-  const projLabel = session?.project ? projectSettings[session.project]?.label : undefined
-  const title = session?.title
+  const conversation =
+    conversationsById[idOrSlug] ||
+    conversationsById[bare] ||
+    (fallbackId ? conversationsById[fallbackId] : undefined) ||
+    findConversationBySlug(bare) ||
+    findConversationBySlug(idOrSlug)
+  const projLabel = conversation?.project ? projectSettings[conversation.project]?.label : undefined
+  const title = conversation?.title
   const displayName =
     projLabel && title
       ? `${projLabel} :: ${title}`
-      : title || projLabel || (session?.project ? extractProjectLabel(session.project) : '') || bare
-  return { session, projLabel, title, displayName }
+      : title || projLabel || (conversation?.project ? extractProjectLabel(conversation.project) : '') || bare
+  return { conversation, projLabel, title, displayName }
 }
 
 function showToast(title: string, body: string, variant = 'warning') {
   window.dispatchEvent(new CustomEvent('rclaude-toast', { detail: { title, body, variant } }))
 }
 
-/** Inject a fetched session overview into the Zustand store so it becomes navigable. */
-function injectSession(overview: Record<string, unknown>) {
-  const partial: Session = {
+/** Inject a fetched conversation overview into the Zustand store so it becomes navigable. */
+function injectConversation(overview: Record<string, unknown>) {
+  const partial: Conversation = {
     id: overview.id as string,
     project: overview.project as string,
     model: overview.model as string,
-    status: (overview.status as Session['status']) || 'ended',
+    status: (overview.status as Conversation['status']) || 'ended',
     connectionIds: (overview.connectionIds as string[]) || [],
     startedAt: overview.startedAt as number,
     lastActivity: overview.lastActivity as number,
@@ -91,15 +91,15 @@ function injectSession(overview: Record<string, unknown>) {
     agentName: overview.agentName as string | undefined,
   }
   useConversationsStore.setState(state => {
-    if (state.sessionsById[partial.id]) return state
-    const sessions = [...state.sessions, partial]
-    return { sessions, sessionsById: buildConversationsById(sessions) }
+    if (state.conversationsById[partial.id]) return state
+    const conversations = [...state.conversations, partial]
+    return { conversations, conversationsById: buildConversationsById(conversations) }
   })
   return partial.id
 }
 
 /** Try to fetch a conversation from the server by UUID or slug. Returns the conversation ID on success. */
-async function fetchAndInjectSession(resolvedId?: string, slug?: string): Promise<string | null> {
+async function fetchAndInjectConversation(resolvedId?: string, slug?: string): Promise<string | null> {
   const attempts: string[] = []
   if (resolvedId) attempts.push(`/conversations/${resolvedId}`)
   if (slug) attempts.push(`/conversations/by-slug/${slug}`)
@@ -109,7 +109,7 @@ async function fetchAndInjectSession(resolvedId?: string, slug?: string): Promis
       const res = await fetch(url)
       if (!res.ok) continue
       const data = await res.json()
-      if (data?.id) return injectSession(data)
+      if (data?.id) return injectConversation(data)
     } catch {
       /* network error, try next */
     }
@@ -118,29 +118,29 @@ async function fetchAndInjectSession(resolvedId?: string, slug?: string): Promis
 }
 
 interface ConversationTagProps {
-  /** Session ID or slug to resolve */
+  /** Conversation ID or slug to resolve */
   idOrSlug: string
-  /** Resolved session UUID (from tool result) -- used as fallback when slug doesn't match */
+  /** Resolved conversation UUID (from tool result) -- used as fallback when slug doesn't match */
   resolvedId?: string
   /** Text size class, defaults to text-xs */
   className?: string
 }
 
 export function ConversationTag({ idOrSlug, resolvedId, className }: ConversationTagProps) {
-  const { session, displayName } = resolveSessionDisplay(idOrSlug, resolvedId)
-  const resolvedPath = session?.project ? projectPath(session.project) : undefined
-  const status = session?.status
+  const { conversation, displayName } = resolveConversationDisplay(idOrSlug, resolvedId)
+  const resolvedPath = conversation?.project ? projectPath(conversation.project) : undefined
+  const status = conversation?.status
   const isEnded = status === 'ended'
 
   const handleClick = () => {
-    if (session) {
+    if (conversation) {
       haptic('tap')
-      useConversationsStore.getState().selectConversation(session.id)
+      useConversationsStore.getState().selectConversation(conversation.id)
       return
     }
     haptic('tap')
     const bare = stripProjectPrefix(idOrSlug)
-    fetchAndInjectSession(resolvedId, bare).then(id => {
+    fetchAndInjectConversation(resolvedId, bare).then(id => {
       if (id) {
         useConversationsStore.getState().selectConversation(id)
       } else {
@@ -156,9 +156,9 @@ export function ConversationTag({ idOrSlug, resolvedId, className }: Conversatio
         type="button"
         className={cn(
           'font-bold hover:underline',
-          session ? 'cursor-pointer' : 'cursor-help',
+          conversation ? 'cursor-pointer' : 'cursor-help',
           isEnded ? 'text-teal-400/50 hover:text-teal-400/70' : 'text-teal-400 hover:text-teal-300',
-          !session && 'text-teal-400/40 hover:text-teal-400/60',
+          !conversation && 'text-teal-400/40 hover:text-teal-400/60',
           className,
         )}
         onClick={handleClick}
@@ -177,12 +177,12 @@ export function ConversationTag({ idOrSlug, resolvedId, className }: Conversatio
       >
         {resolvedPath && <span className="text-zinc-300">{resolvedPath}</span>}
         <span className={cn('text-zinc-500', isEnded && 'text-zinc-600')}>{status ?? 'unknown'}</span>
-        {(session?.id ?? idOrSlug) && (
+        {(conversation?.id ?? idOrSlug) && (
           <span className="text-zinc-600">
-            <span className="text-zinc-700">@</span> {session?.id ?? idOrSlug}
+            <span className="text-zinc-700">@</span> {conversation?.id ?? idOrSlug}
           </span>
         )}
-        {!session && <span className="text-amber-500/80">click to search server</span>}
+        {!conversation && <span className="text-amber-500/80">click to search server</span>}
       </span>
     </span>
   )

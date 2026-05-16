@@ -1,6 +1,6 @@
 /**
  * File Editor - CodeMirror-based markdown file editor
- * Shows in the "Files" tab of session detail
+ * Shows in the "Files" tab of conversation detail
  */
 
 import {

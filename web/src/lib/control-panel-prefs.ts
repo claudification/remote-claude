@@ -34,7 +34,7 @@ const DEFAULT_TOOL_DISPLAY: Record<ToolDisplayKey, ToolDisplayPrefs> = {
 }
 
 export interface ControlPanelPrefs {
-  showEndedConversations: boolean // show [ENDED] sessions within CWD groups (organized + unorganized)
+  showEndedConversations: boolean // show [ENDED] conversations within CWD groups (organized + unorganized)
   showInactiveByDefault: boolean
   compactMode: boolean
   showVoiceInput: boolean
@@ -45,8 +45,8 @@ export interface ControlPanelPrefs {
   showCostInList: boolean
   showRecapDescInList: boolean
   chatBubbles: boolean
-  sessionCacheSize: number // LIFO cache: 0 = disabled, N = keep N recent sessions in memory
-  sessionCacheTimeout: number // minutes before cached non-selected sessions are evicted (0 = never)
+  sessionCacheSize: number // LIFO cache: 0 = disabled, N = keep N recent conversations in memory
+  sessionCacheTimeout: number // minutes before cached non-selected conversations are evicted (0 = never)
   defaultView: 'transcript' | 'tty'
   voiceHoldKey: string | null // KeyboardEvent.code for push-to-talk (e.g. 'F13', 'ScrollLock')
   keepMicOpen: boolean // keep mic stream alive permanently (eliminates cold-start latency)

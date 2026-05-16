@@ -222,7 +222,7 @@ function ToolSection({
 
 export function PermissionRulesEditor({ project }: PermissionRulesEditorProps) {
   const hasConfigRw = useConversationsStore(s =>
-    s.sessions.some(sess => sess.project === project && sess.capabilities?.includes('config_rw')),
+    s.conversations.some(sess => sess.project === project && sess.capabilities?.includes('config_rw')),
   )
   const [rules, setRules] = useState<Record<Tool, string[]>>({ Write: [], Edit: [], Read: [] })
   const [allowAll, setAllowAll] = useState(false)

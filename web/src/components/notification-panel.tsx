@@ -18,7 +18,7 @@ interface GroupedItem {
 }
 
 export function NotificationPanel({ onClose }: NotificationPanelProps) {
-  const sessions = useConversationsStore(s => s.sessionsById)
+  const conversations = useConversationsStore(s => s.conversationsById)
   const projectSettings = useConversationsStore(s => s.projectSettings)
   const selectConversation = useConversationsStore(s => s.selectConversation)
 
@@ -212,14 +212,14 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     })
   }
 
-  // Group by session, sort by most recent first
+  // Group by conversation, sort by most recent first
   const grouped = new Map<string, GroupedItem[]>()
   for (const item of items) {
     const list = grouped.get(item.conversationId) || []
     list.push(item)
     grouped.set(item.conversationId, list)
   }
-  const sessionGroups = [...grouped.entries()].sort((a, b) => {
+  const conversationGroups = [...grouped.entries()].sort((a, b) => {
     const aMax = Math.max(...a[1].map(i => i.timestamp))
     const bMax = Math.max(...b[1].map(i => i.timestamp))
     return bMax - aMax
@@ -237,12 +237,12 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
 
   return (
     <div className="divide-y divide-border/50">
-      {sessionGroups.map(([conversationId, groupItems]) => {
-        const session = sessions[conversationId]
-        const ps = session ? projectSettings[session.project] : undefined
+      {conversationGroups.map(([conversationId, groupItems]) => {
+        const conversation = conversations[conversationId]
+        const ps = conversation ? projectSettings[conversation.project] : undefined
         const displayColor = ps?.color
-        const sessionName = session?.title || session?.agentName || conversationId.slice(0, 8)
-        const projectName = session ? projectDisplayName(projectPath(session.project), ps?.label) : ''
+        const conversationName = conversation?.title || conversation?.agentName || conversationId.slice(0, 8)
+        const projectName = conversation ? projectDisplayName(projectPath(conversation.project), ps?.label) : ''
 
         return (
           <div key={conversationId} className="p-2 space-y-1.5">
@@ -264,7 +264,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                   {projectName}
                 </span>
               )}
-              <span className="text-[9px] text-muted-foreground/50 truncate ml-auto">{sessionName}</span>
+              <span className="text-[9px] text-muted-foreground/50 truncate ml-auto">{conversationName}</span>
             </button>
             {groupItems
               .sort((a, b) => b.timestamp - a.timestamp)

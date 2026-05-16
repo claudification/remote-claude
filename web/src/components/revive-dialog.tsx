@@ -45,13 +45,13 @@ export function ReviveDialog() {
   const [phase, setPhase] = useState<'config' | 'launching'>('config')
   const [jobId, setJobId] = useState<string | null>(null)
   const [conversationId, setConversationId] = useState<string | null>(null)
-  const sessionAtReviveRef = useRef<string | null>(null)
+  const conversationAtReviveRef = useRef<string | null>(null)
 
-  const sessionsById = useConversationsStore(s => s.sessionsById)
+  const conversationsById = useConversationsStore(s => s.conversationsById)
   const projectSettings = useConversationsStore(s => s.projectSettings)
   const globalSettings = useConversationsStore(s => s.globalSettings)
 
-  const session = state.options ? sessionsById[state.options.conversationId] : undefined
+  const conversation = state.options ? conversationsById[state.options.conversationId] : undefined
 
   const progress = useLaunchProgress({
     jobId,
@@ -68,7 +68,7 @@ export function ReviveDialog() {
   const progressReset = progress.reset
   useEffect(() => {
     _openDialog = (options: ReviveDialogOptions) => {
-      const sess = useConversationsStore.getState().sessionsById[options.conversationId]
+      const sess = useConversationsStore.getState().conversationsById[options.conversationId]
       const ps = sess ? projectSettings[sess.project] : undefined
       const gs = globalSettings as Record<string, unknown>
       const lc = sess?.launchConfig
@@ -95,7 +95,7 @@ export function ReviveDialog() {
     }
   }, [projectSettings, globalSettings, progressReset])
 
-  // Add "Session connected" step when session connects
+  // Add "Conversation connected" step when conversation connects
   const addedConnectedStepRef = useRef(false)
   useEffect(() => {
     if (!progress.isConnected || addedConnectedStepRef.current) return
@@ -114,7 +114,7 @@ export function ReviveDialog() {
   const handleClose = useCallback(() => {
     addedConnectedStepRef.current = false
     const currentId = useConversationsStore.getState().selectedConversationId
-    const userNavigatedAway = currentId !== sessionAtReviveRef.current && currentId !== null
+    const userNavigatedAway = currentId !== conversationAtReviveRef.current && currentId !== null
     const sid =
       progress.launch.conversationId ||
       (progress.spawnedConversation && progress.spawnedConversation.status !== 'ended'
@@ -162,23 +162,23 @@ export function ReviveDialog() {
         { label: 'Sentinel processing...', status: 'active', ts: Date.now() },
       ])
     }
-    window.addEventListener('revive-session-result', handleAck)
-    return () => window.removeEventListener('revive-session-result', handleAck)
+    window.addEventListener('revive-conversation-result', handleAck)
+    return () => window.removeEventListener('revive-conversation-result', handleAck)
   }, [progress.setError, progress.setSteps])
 
   const handleViewConversation = useCallback(() => {
     const sid = progress.launch.conversationId || progress.spawnedConversation?.id
-    if (sid) useConversationsStore.getState().selectConversation(sid, 'revive-dialog-view-session')
+    if (sid) useConversationsStore.getState().selectConversation(sid, 'revive-dialog-view-conversation')
     progress.setViewCountdown(null)
     setState({ open: false, options: null })
     setJobId(null)
   }, [progress.launch.conversationId, progress.spawnedConversation, progress.setViewCountdown])
 
   const handleRevive = useCallback(() => {
-    if (!state.options || phase !== 'config' || !session) return
+    if (!state.options || phase !== 'config' || !conversation) return
 
     setPhase('launching')
-    sessionAtReviveRef.current = useConversationsStore.getState().selectedConversationId
+    conversationAtReviveRef.current = useConversationsStore.getState().selectedConversationId
     haptic('tap')
 
     const newJobId = crypto.randomUUID()
@@ -199,9 +199,9 @@ export function ReviveDialog() {
       )
       haptic('error')
     }
-  }, [state.options, phase, session, headless, model, effort, progress])
+  }, [state.options, phase, conversation, headless, model, effort, progress])
 
-  // Keyboard layer: Enter revives (config) or views session (launching).
+  // Keyboard layer: Enter revives (config) or views conversation (launching).
   // h/p = Headless/PTY (config only).
   useKeyLayer(
     {
@@ -232,8 +232,8 @@ export function ReviveDialog() {
     const log = [
       '=== rclaude revive log ===',
       `Time: ${new Date().toISOString()}`,
-      `Session: ${state.options?.conversationId ?? 'n/a'}${session?.title ? ` (${session.title})` : ''}`,
-      `Project: ${session?.project ?? 'n/a'}`,
+      `Conversation: ${state.options?.conversationId ?? 'n/a'}${conversation?.title ? ` (${conversation.title})` : ''}`,
+      `Project: ${conversation?.project ?? 'n/a'}`,
       `Wrapper: ${conversationId || 'n/a'}`,
       `Job: ${jobId || 'n/a'}`,
       `Headless: ${headless}`,
@@ -253,9 +253,9 @@ export function ReviveDialog() {
     progress.copyToClipboard(log)
   }
 
-  const shortPath = (session ? projectPath(session.project) : '').replace(/^\/Users\/[^/]+/, '~')
+  const shortPath = (conversation ? projectPath(conversation.project) : '').replace(/^\/Users\/[^/]+/, '~')
   const displayError = progress.error || progress.launch.error
-  const titleLabel = session?.title || session?.agentName || shortPath
+  const titleLabel = conversation?.title || conversation?.agentName || shortPath
 
   const fieldsValue: LaunchFieldsValue = { model, effort }
 
@@ -279,7 +279,7 @@ export function ReviveDialog() {
             )}
           </div>
 
-          {/* Session display */}
+          {/* Conversation display */}
           <div className="shrink-0 space-y-0.5">
             {titleLabel && <div className="text-[11px] font-mono text-foreground truncate">{titleLabel}</div>}
             <div className="text-[10px] font-mono text-muted-foreground/60 truncate">{shortPath}</div>

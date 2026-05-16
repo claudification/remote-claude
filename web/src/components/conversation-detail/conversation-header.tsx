@@ -2,7 +2,7 @@ import type { ProjectSettings } from '@shared/protocol'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { CacheExpiredBanner } from '@/components/cache-timer'
-import type { Session } from '@/lib/types'
+import type { Conversation } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { HeaderCollapsedBar } from './header-collapsed-bar'
 import { HeaderExpandedPanel } from './header-expanded-panel'
@@ -15,7 +15,7 @@ export interface ConversationTarget {
 }
 
 interface ConversationHeaderProps {
-  session: Session
+  conversation: Conversation
   projectSettings: ProjectSettings | undefined
   model: string | undefined
   inPlanMode: boolean
@@ -25,7 +25,7 @@ interface ConversationHeaderProps {
 }
 
 export function ConversationHeader({
-  session,
+  conversation,
   projectSettings,
   model,
   inPlanMode,
@@ -50,24 +50,26 @@ export function ConversationHeader({
         )}
         {!infoExpanded && (
           <HeaderCollapsedBar
-            session={session}
+            conversation={conversation}
             projectSettings={projectSettings}
             model={model}
             inPlanMode={inPlanMode}
           />
         )}
       </button>
-      {!infoExpanded && (session.recap || session.description) && <RecapPreview session={session} />}
+      {!infoExpanded && (conversation.recap || conversation.description) && (
+        <RecapPreview conversation={conversation} />
+      )}
       <CacheExpiredBanner
-        lastTurnEndedAt={session.lastTurnEndedAt}
-        tokenUsage={session.tokenUsage}
-        model={model || session.model}
-        cacheTtl={session.cacheTtl}
-        isIdle={session.status === 'idle'}
+        lastTurnEndedAt={conversation.lastTurnEndedAt}
+        tokenUsage={conversation.tokenUsage}
+        model={model || conversation.model}
+        cacheTtl={conversation.cacheTtl}
+        isIdle={conversation.status === 'idle'}
       />
       {infoExpanded && (
         <HeaderExpandedPanel
-          session={session}
+          conversation={conversation}
           projectSettings={projectSettings}
           model={model}
           onSetConversationTarget={onSetConversationTarget}
@@ -77,9 +79,9 @@ export function ConversationHeader({
   )
 }
 
-function RecapPreview({ session }: { session: Session }) {
+function RecapPreview({ conversation }: { conversation: Conversation }) {
   const [expanded, setExpanded] = useState(false)
-  const text = session.recap?.content || session.description
+  const text = conversation.recap?.content || conversation.description
   if (!text) return null
 
   return (
@@ -93,27 +95,29 @@ function RecapPreview({ session }: { session: Session }) {
     >
       {expanded ? (
         <div className="space-y-0.5 pb-0.5">
-          {session.description && session.recap && (
-            <div className="text-[10px] text-muted-foreground/70 italic truncate">{session.description}</div>
+          {conversation.description && conversation.recap && (
+            <div className="text-[10px] text-muted-foreground/70 italic truncate">{conversation.description}</div>
           )}
           <div
             className={cn(
               'text-[10px] whitespace-pre-wrap',
-              session.recap && session.recapFresh
+              conversation.recap && conversation.recapFresh
                 ? 'text-zinc-300 border-l-2 border-zinc-500/60 pl-2 bg-zinc-800/20 rounded-r py-1'
-                : session.recap
+                : conversation.recap
                   ? 'text-zinc-400'
                   : 'text-muted-foreground/70 italic',
             )}
           >
-            {session.recap?.title && <span className="font-medium text-zinc-300/90">{session.recap.title}: </span>}
+            {conversation.recap?.title && (
+              <span className="font-medium text-zinc-300/90">{conversation.recap.title}: </span>
+            )}
             {text}
           </div>
         </div>
       ) : (
         <div className="text-[10px] text-muted-foreground/50 truncate">
-          {session.recap?.title
-            ? `${session.recap.title}...`
+          {conversation.recap?.title
+            ? `${conversation.recap.title}...`
             : text.slice(0, 60).trim() + (text.length > 60 ? '...' : '')}
         </div>
       )}

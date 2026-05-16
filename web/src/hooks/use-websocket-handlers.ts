@@ -25,8 +25,8 @@ import { handleLaunchProfilesUpdatedMessage } from '@/components/launch-profiles
 import type {
   ClaudeEfficiencyUpdate,
   ClaudeHealthUpdate,
+  Conversation,
   ProjectOrder,
-  Session,
   TaskInfo,
   TranscriptEntry,
 } from '@/lib/types'
@@ -53,7 +53,7 @@ export interface DashboardMessage {
   [key: string]: any
 }
 
-function toSession(summary: ConversationSummary): Session {
+function toConversation(summary: ConversationSummary): Conversation {
   return {
     id: summary.id,
     project: summary.project,
@@ -158,7 +158,7 @@ function handleSyncStale(msg: DashboardMessage) {
 
 function handleConversationsList(msg: DashboardMessage) {
   if (msg.conversations) {
-    useConversationsStore.getState().setConversations(msg.conversations.map(toSession))
+    useConversationsStore.getState().setConversations(msg.conversations.map(toConversation))
     applyHashRoute()
   }
   // Version mismatch detection removed -- SW lifecycle handles update detection.
@@ -167,52 +167,52 @@ function handleConversationsList(msg: DashboardMessage) {
 
 function handleConversationCreated(msg: DashboardMessage) {
   if (!msg.conversation) return
-  const newConversation = toSession(msg.conversation)
+  const newConversation = toConversation(msg.conversation)
   useConversationsStore.setState(state => {
-    let sessions: Session[]
-    if (state.sessions.some(s => s.id === newConversation.id)) {
-      sessions = state.sessions.map(s => (s.id === newConversation.id ? { ...s, ...newConversation } : s))
+    let conversations: Conversation[]
+    if (state.conversations.some(s => s.id === newConversation.id)) {
+      conversations = state.conversations.map(s => (s.id === newConversation.id ? { ...s, ...newConversation } : s))
     } else {
-      sessions = [...state.sessions, newConversation]
+      conversations = [...state.conversations, newConversation]
     }
-    return { sessions, sessionsById: buildConversationsById(sessions) }
+    return { conversations, conversationsById: buildConversationsById(conversations) }
   })
 }
 
 function handleConversationUpdate(msg: DashboardMessage) {
   if (!(msg.conversation && msg.conversationId)) return
   const conversationId = msg.conversationId
-  const session = msg.conversation
+  const conversation = msg.conversation
   const prevId = msg.previousConversationId
   const matchId = prevId || conversationId
   useConversationsStore.setState(state => {
-    const updated = toSession(session)
+    const updated = toConversation(conversation)
     // Rekey collision: if two booting placeholders (different conversationIds)
-    // both get rekeyed to the same real session id, the map-replace leaves
+    // both get rekeyed to the same real conversation id, the map-replace leaves
     // two entries in the array with identical `updated.id`. Dedupe by id
     // (merge any duplicates into the first occurrence) so the sidebar
     // doesn't render ghost rows. Without dedupe, a double-spawn shows as
-    // two identical session rows sharing a short-id.
-    const replaced = state.sessions.map(s => (s.id === matchId ? { ...s, ...updated } : s))
+    // two identical conversation rows sharing a short-id.
+    const replaced = state.conversations.map(s => (s.id === matchId ? { ...s, ...updated } : s))
     const seen = new Set<string>()
-    const sessions: Session[] = []
+    const conversations: Conversation[] = []
     for (const s of replaced) {
       if (seen.has(s.id)) continue
       seen.add(s.id)
-      sessions.push(s)
+      conversations.push(s)
     }
     const newState: Partial<typeof state> = {
-      sessions,
-      sessionsById: buildConversationsById(sessions),
+      conversations,
+      conversationsById: buildConversationsById(conversations),
     }
-    // Clear stale streaming text when session goes idle or ends
+    // Clear stale streaming text when conversation goes idle or ends
     if ((updated.status === 'idle' || updated.status === 'ended') && state.streamingText[conversationId]) {
       const { [conversationId]: _, ...rest } = state.streamingText
       newState.streamingText = rest
     }
     if (prevId && state.selectedConversationId === prevId) {
       console.log(
-        `[nav] session rekey: ${prevId.slice(0, 8)} -> ${conversationId.slice(0, 8)} (selected session rekeyed)`,
+        `[nav] conversation rekey: ${prevId.slice(0, 8)} -> ${conversationId.slice(0, 8)} (selected conversation rekeyed)`,
       )
       newState.selectedConversationId = conversationId
       const oldEvents = state.events[prevId]
@@ -236,7 +236,7 @@ function handleConversationUpdate(msg: DashboardMessage) {
   // missed channel entries under new-id while backgrounded. Re-fetch.
   if (prevId) {
     console.log(
-      `[sync] session_update: REKEY ${prevId.slice(0, 8)} -> ${conversationId.slice(0, 8)} status=${session.status}`,
+      `[sync] session_update: REKEY ${prevId.slice(0, 8)} -> ${conversationId.slice(0, 8)} status=${conversation.status}`,
     )
     // Delay: broker processes rekey and re-receives transcript from rclaude.
     // 500ms gives the transcript watcher time to stream initial entries to the new ID.
@@ -248,7 +248,7 @@ function handleConversationUpdate(msg: DashboardMessage) {
         if (transcript) useConversationsStore.getState().setTranscript(conversationId, transcript.entries)
       })
     }, 500)
-  } else if (session.status === 'starting') {
+  } else if (conversation.status === 'starting') {
     const state = useConversationsStore.getState()
     const cached = state.transcripts[conversationId]?.length ?? 0
     const isSelected = state.selectedConversationId === conversationId
@@ -383,12 +383,12 @@ function handleTranscriptEntries(msg: DashboardMessage) {
 }
 
 function handleConversationInfo(msg: DashboardMessage) {
-  // Session metadata from headless init - store for autocomplete
+  // Conversation metadata from headless init - store for autocomplete
   const sid = msg.conversationId as string
   if (!sid) return
   useConversationsStore.setState(state => ({
-    sessionInfo: {
-      ...state.sessionInfo,
+    conversationInfo: {
+      ...state.conversationInfo,
       [sid]: {
         tools: (msg.tools as string[]) || [],
         slashCommands: (msg.slashCommands as string[]) || [],
@@ -636,7 +636,7 @@ function handlePermissionAutoApproved(msg: DashboardMessage) {
 }
 
 // Broker tells us a permission request was resolved (by this or another
-// session). Drop it from the pending list so the prompt clears everywhere.
+// conversation). Drop it from the pending list so the prompt clears everywhere.
 function handlePermissionDismiss(msg: DashboardMessage) {
   const permRid = msg.requestId as string | undefined
   if (!(msg.conversationId && permRid)) return
@@ -675,9 +675,9 @@ function handleAskQuestion(msg: DashboardMessage) {
   })
 }
 
-// Broker tells us an AskUserQuestion was resolved (by this or another session,
+// Broker tells us an AskUserQuestion was resolved (by this or another conversation,
 // or agent-host side). Drop it from the pending list so the card clears
-// everywhere -- not just on the session that answered.
+// everywhere -- not just on the conversation that answered.
 function handleAskDismiss(msg: DashboardMessage) {
   const askTuid = msg.toolUseId as string | undefined
   if (!(msg.conversationId && askTuid)) return
@@ -804,13 +804,13 @@ function handleClipboardCapture(msg: DashboardMessage) {
 function handleConversationDismissed(msg: DashboardMessage) {
   if (!msg.conversationId) return
   useConversationsStore.setState(state => {
-    const sessions = state.sessions.filter(s => s.id !== msg.conversationId)
+    const conversations = state.conversations.filter(s => s.id !== msg.conversationId)
     if (state.selectedConversationId === msg.conversationId) {
       console.log(`[nav] session_dismissed: clearing selection (WS dismissed ${msg.conversationId.slice(0, 8)})`)
     }
     return {
-      sessions,
-      sessionsById: buildConversationsById(sessions),
+      conversations,
+      conversationsById: buildConversationsById(conversations),
       selectedConversationId: state.selectedConversationId === msg.conversationId ? null : state.selectedConversationId,
     }
   })
@@ -821,8 +821,11 @@ function handlePermissions(msg: DashboardMessage) {
   const update: Record<string, unknown> = {}
   if (msg.global) update.permissions = msg.global
   if (msg.conversations) {
-    // Merge into existing sessionPermissions (incremental updates for new conversation)
-    update.sessionPermissions = { ...useConversationsStore.getState().sessionPermissions, ...msg.conversations }
+    // Merge into existing conversationPermissions (incremental updates for new conversation)
+    update.conversationPermissions = {
+      ...useConversationsStore.getState().conversationPermissions,
+      ...msg.conversations,
+    }
   }
   if (Object.keys(update).length > 0) useConversationsStore.setState(update)
 }
@@ -856,7 +859,7 @@ function handleActionResult(msg: DashboardMessage) {
       }),
     )
   }
-  window.dispatchEvent(new CustomEvent('revive-session-result', { detail: msg }))
+  window.dispatchEvent(new CustomEvent('revive-conversation-result', { detail: msg }))
 }
 
 function handleReviveResult(msg: DashboardMessage) {

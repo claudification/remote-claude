@@ -1,7 +1,7 @@
 import { ContextMenu } from 'radix-ui'
 import type { ReactNode } from 'react'
 import { saveProjectOrder, updateProjectSettings, useConversationsStore, wsSend } from '@/hooks/use-conversations'
-import type { ProjectOrder, ProjectOrderGroup, Session } from '@/lib/types'
+import type { Conversation, ProjectOrder, ProjectOrderGroup } from '@/lib/types'
 import { projectPath } from '@/lib/types'
 import { cn, haptic } from '@/lib/utils'
 import { RecapSubmenu } from '../recap-jobs/recap-submenu'
@@ -9,12 +9,12 @@ import { openReviveDialog } from '../revive-dialog'
 import { openManageProjectLinks } from '../settings/manage-project-links-dialog'
 import { openSpawnDialog } from '../spawn-dialog'
 
-// ─── Session context menu (right-click) ─────────────────────────────
+// ─── Conversation context menu (right-click) ─────────────────────────────
 
 const menuItemClass =
   'flex items-center px-3 py-1.5 text-[11px] font-mono cursor-pointer outline-none data-[highlighted]:bg-accent/20 data-[highlighted]:text-accent'
 
-// Grouping actions that operate on a project key (shared by session + project menus).
+// Grouping actions that operate on a project key (shared by conversation + project menus).
 function useProjectGroupingActions(project: string) {
   const rawProjectOrder = useConversationsStore(s => s.projectOrder) as ProjectOrder | null
   const projectOrder = rawProjectOrder?.tree ? rawProjectOrder : { tree: [] }
@@ -110,29 +110,29 @@ function GroupingMenuItems({ project }: { project: string }) {
 }
 
 export function ConversationContextMenu({
-  session,
+  conversation,
   onOpenSettings,
   children,
 }: {
-  session: Session
+  conversation: Conversation
   onOpenSettings?: () => void
   children: ReactNode
 }) {
   const dismissConversation = useConversationsStore(s => s.dismissConversation)
   const selectConversation = useConversationsStore(s => s.selectConversation)
-  const ps = useConversationsStore(s => s.projectSettings[session.project])
+  const ps = useConversationsStore(s => s.projectSettings[conversation.project])
 
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content className="min-w-[180px] bg-popover border border-border rounded-md shadow-lg py-1 z-50">
-          <GroupingMenuItems project={session.project} />
+          <GroupingMenuItems project={conversation.project} />
           <ContextMenu.Item
             className={menuItemClass}
             onSelect={() => {
               haptic('tap')
-              useConversationsStore.getState().setRenamingConversationId(session.id)
+              useConversationsStore.getState().setRenamingConversationId(conversation.id)
             }}
           >
             Rename...
@@ -141,7 +141,7 @@ export function ConversationContextMenu({
             className={menuItemClass}
             onSelect={() => {
               haptic('tap')
-              useConversationsStore.getState().setEditingDescriptionConversationId(session.id)
+              useConversationsStore.getState().setEditingDescriptionConversationId(conversation.id)
             }}
           >
             Edit description...
@@ -153,23 +153,23 @@ export function ConversationContextMenu({
             className={menuItemClass}
             onSelect={() => {
               haptic('tap')
-              wsSend('recap_request', { conversationId: session.id })
+              wsSend('recap_request', { conversationId: conversation.id })
             }}
           >
             Quick recap (this conversation)
           </ContextMenu.Item>
-          <RecapSubmenu projectUri={session.project} label="Recap project" />
-          {session.pendingTaskCount > 0 && (
+          <RecapSubmenu projectUri={conversation.project} label="Recap project" />
+          {conversation.pendingTaskCount > 0 && (
             <ContextMenu.Item
               className={menuItemClass}
               onSelect={() => {
                 haptic('tap')
                 if (
                   confirm(
-                    `Mark ${session.pendingTaskCount} pending task(s) as done?\n\nThis only updates the dashboard view. If the conversation reconnects, the agent host's task list will overwrite this.`,
+                    `Mark ${conversation.pendingTaskCount} pending task(s) as done?\n\nThis only updates the dashboard view. If the conversation reconnects, the agent host's task list will overwrite this.`,
                   )
                 ) {
-                  wsSend('mark_all_tasks_done', { conversationId: session.id })
+                  wsSend('mark_all_tasks_done', { conversationId: conversation.id })
                 }
               }}
             >
@@ -191,7 +191,7 @@ export function ConversationContextMenu({
             className={cn(menuItemClass, 'text-cyan-400')}
             onSelect={() => {
               haptic('tap')
-              openSpawnDialog({ path: projectPath(session.project), projectUri: session.project })
+              openSpawnDialog({ path: projectPath(conversation.project), projectUri: conversation.project })
             }}
           >
             Launch new...
@@ -200,7 +200,7 @@ export function ConversationContextMenu({
             className={cn(menuItemClass, 'text-info')}
             onSelect={() => {
               haptic('tap')
-              selectConversation(session.id)
+              selectConversation(conversation.id)
               window.dispatchEvent(new Event('open-batch-selector'))
             }}
           >
@@ -210,7 +210,7 @@ export function ConversationContextMenu({
             className={menuItemClass}
             onSelect={() => {
               haptic('tap')
-              openManageProjectLinks(session.project)
+              openManageProjectLinks(conversation.project)
             }}
           >
             Manage links...
@@ -219,31 +219,31 @@ export function ConversationContextMenu({
             className={menuItemClass}
             onSelect={() => {
               haptic('tap')
-              updateProjectSettings(session.project, { pinned: !ps?.pinned })
+              updateProjectSettings(conversation.project, { pinned: !ps?.pinned })
             }}
           >
             {ps?.pinned ? 'Unpin project' : 'Pin project'}
           </ContextMenu.Item>
           <ContextMenu.Separator className="h-px bg-border my-1" />
-          {session.status !== 'ended' && (
+          {conversation.status !== 'ended' && (
             <ContextMenu.Item
               className={cn(menuItemClass, 'text-destructive')}
               onSelect={() => {
                 haptic('error')
-                useConversationsStore.getState().terminateConversation(session.id, 'dashboard-context-menu')
+                useConversationsStore.getState().terminateConversation(conversation.id, 'dashboard-context-menu')
               }}
             >
               Terminate conversation
             </ContextMenu.Item>
           )}
-          {session.status === 'ended' && (
+          {conversation.status === 'ended' && (
             <>
               <ContextMenu.Item
                 className={cn(menuItemClass, 'text-emerald-400')}
                 onSelect={() => {
                   haptic('tap')
-                  selectConversation(session.id)
-                  openReviveDialog({ conversationId: session.id })
+                  selectConversation(conversation.id)
+                  openReviveDialog({ conversationId: conversation.id })
                 }}
               >
                 Revive...
@@ -252,7 +252,7 @@ export function ConversationContextMenu({
                 className={cn(menuItemClass, 'text-destructive')}
                 onSelect={() => {
                   haptic('tap')
-                  dismissConversation(session.id)
+                  dismissConversation(conversation.id)
                 }}
               >
                 Dismiss
@@ -335,17 +335,17 @@ export function PinnedProjectContextMenu({
 
 export function ProjectContextMenu({
   project,
-  sessions,
+  conversations,
   onOpenSettings,
   children,
 }: {
   project: string
-  sessions: Session[]
+  conversations: Conversation[]
   onOpenSettings: () => void
   children: ReactNode
 }) {
   const dismissConversation = useConversationsStore(s => s.dismissConversation)
-  const ended = sessions.filter(s => s.status === 'ended')
+  const ended = conversations.filter(s => s.status === 'ended')
 
   return (
     <ContextMenu.Root>

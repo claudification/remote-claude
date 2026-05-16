@@ -1,5 +1,5 @@
 /**
- * Session frequency tracker - persisted in localStorage.
+ * Conversation frequency tracker - persisted in localStorage.
  *
  * Tracks how often each project (by project URI) is switched to via the command palette.
  * Used to sort the switcher list by frequency + recency (alt-tab style).

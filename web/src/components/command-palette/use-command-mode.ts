@@ -23,7 +23,7 @@ export interface CommandModeState {
 /**
  * Command-mode (`>` prefix) derivations. Owns the deduplicated registry view
  * and the filtered subset matching the current search. Also exposes
- * `registryCommands` because session-mode mixes commands into the merged
+ * `registryCommands` because conversation-mode mixes commands into the merged
  * fuzzy-search results.
  */
 export function useCommandMode(filter: string, isCommandMode: boolean, onClose: () => void): CommandModeState {

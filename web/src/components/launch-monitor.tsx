@@ -6,7 +6,7 @@
  * Exports:
  *   LaunchStepList      - Step rendering with status icons
  *   LaunchErrorBanner   - Error display with copy button
- *   LaunchFooterActions - View Session + Close buttons
+ *   LaunchFooterActions - View Conversation + Close buttons
  *   LaunchDialogBottom  - Composed launching steps + error + footer (used by both dialogs)
  */
 
@@ -95,7 +95,7 @@ export function LaunchErrorBanner({
   )
 }
 
-/** View Session / Background / Close action buttons */
+/** View Conversation / Background / Close action buttons */
 export function LaunchFooterActions({
   isConnected,
   isComplete,
