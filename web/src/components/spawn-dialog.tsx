@@ -997,7 +997,7 @@ function ResumeSessionField({
       .then(r => r.json())
       .then(data => {
         if (data.error) setError(data.error)
-        else setSessions(data.sessions || [])
+        else setSessions(data.ccSessions || [])
       })
       .catch(err => setError(String(err)))
       .finally(() => setLoading(false))
