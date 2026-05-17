@@ -123,8 +123,12 @@ export function useIncrementalGroups(entries: TranscriptEntry[], cacheKey?: stri
       cache.pendingSkillName = undefined
     }
 
-    // Nothing new - return stable references
+    // Nothing new - return stable references. Record an explicit cache-hit
+    // sample so a warm switch-back is visible in the perf tab -- otherwise the
+    // absence of any incrementalGroup entry is ambiguous (did grouping skip,
+    // or did the module cache miss and re-group cold?).
     if (entries.length === cache.len) {
+      record('grouping', 'incrementalGroup', performance.now() - t0, `cache hit, ${cache.groups.length} groups, 0 new`)
       return cache.groups
     }
 
@@ -184,7 +188,12 @@ export function useIncrementalGroups(entries: TranscriptEntry[], cacheKey?: stri
     cache.groups = newGroups
     cache.lastGroup = lastGroup
     const elapsed = performance.now() - t0
-    record('grouping', 'incrementalGroup', elapsed, `${newEntries.length} entries -> ${newGroups.length} groups`)
+    record(
+      'grouping',
+      'incrementalGroup',
+      elapsed,
+      `${newEntries.length} entries -> ${newGroups.length} groups${isReset ? ' (RESET cold re-group)' : ''}`,
+    )
     if (elapsed > 5 || newEntries.length > 10) {
       console.log(`[grouping] ${newEntries.length} new entries -> ${newGroups.length} groups (${elapsed.toFixed(1)}ms)`)
     }

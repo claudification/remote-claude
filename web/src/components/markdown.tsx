@@ -1,5 +1,6 @@
 import { Marked } from 'marked'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef } from 'react'
+import { record } from '@/lib/perf-metrics'
 import { CopyMenu } from './copy-menu'
 import { filenameFromUrl, type MediaKind, openMediaLightbox } from './media-lightbox'
 import { ensureLang, getHighlighter, normalizeLang } from './transcript/syntax'
@@ -303,6 +304,7 @@ function renderShikiBlocks(container: HTMLElement) {
           const cacheKey = `${lang}\n${text}`
           let html = hlCacheGet(cacheKey)
           if (html === undefined) {
+            const t0 = performance.now()
             try {
               const tokens = hl.codeToTokens(text, { lang, theme: 'tokyo-night' })
               html = tokens.tokens
@@ -311,6 +313,7 @@ function renderShikiBlocks(container: HTMLElement) {
                 )
                 .join('\n')
               hlCacheSet(cacheKey, html)
+              record('other', 'shikiHighlight', performance.now() - t0, `${lang} ${text.length}c`)
             } catch {
               html = undefined
             }
@@ -412,8 +415,13 @@ export const Markdown = memo(function Markdown({ children, inline, copyable }: M
     const cacheKey = `${inline ? 'i' : 'b'}\n${deferred}`
     const cached = parseCacheGet(cacheKey)
     if (cached !== undefined) return cached
+    // Cache miss -- time the synchronous marked parse. Hits are not recorded
+    // (they are ~free and would flood the 500-entry ring); the absence of a
+    // markdownParse entry after a switch means the parse cache stayed warm.
+    const t0 = performance.now()
     const out = inline ? (marked.parseInline(deferred) as string) : (marked.parse(deferred) as string)
     parseCacheSet(cacheKey, out)
+    record('other', 'markdownParse', performance.now() - t0, `miss ${inline ? 'inline ' : ''}${deferred.length}c`)
     return out
   }, [deferred, inline])
 

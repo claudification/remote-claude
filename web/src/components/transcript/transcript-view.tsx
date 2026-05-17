@@ -12,6 +12,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -271,6 +272,26 @@ const onRenderProfile: ProfilerOnRenderCallback = (id, phase, actualDuration, ba
   )
 }
 
+/** Records the gap between React's commit and the next browser paint -- where
+ *  layout, style recompute and compositing happen. Profiler.actualDuration only
+ *  covers the JS commit; on a conversation switch the visible jank is mostly
+ *  this post-commit paint, so it needs its own metric. Mirrors the shared
+ *  perf-profiler.tsx probe but stays local because the transcript Profiler
+ *  carries the extra visible=N/M detail (see onRenderProfile above). */
+function CommitPaintProbe({ id, children }: { id: string; children: ReactNode }) {
+  const mountedRef = useRef(false)
+  useLayoutEffect(() => {
+    const phase = mountedRef.current ? 'update' : 'mount'
+    mountedRef.current = true
+    const t0 = performance.now()
+    const handle = requestAnimationFrame(() => {
+      record('render', `${id}.commit->paint`, performance.now() - t0, phase)
+    })
+    return () => cancelAnimationFrame(handle)
+  })
+  return <Fragment>{children}</Fragment>
+}
+
 /** Profiler wraps its children in an extra fiber and runs React's measurement code
  *  on every commit -- meaningful overhead if left on for every user. Only enable it
  *  when the perf monitor is toggled on (controlPanelPrefs.showPerfMonitor). */
@@ -278,7 +299,7 @@ function MaybeProfiler({ enabled, id, children }: { enabled: boolean; id: string
   if (!enabled) return <Fragment>{children}</Fragment>
   return (
     <Profiler id={id} onRender={onRenderProfile}>
-      {children}
+      <CommitPaintProbe id={id}>{children}</CommitPaintProbe>
     </Profiler>
   )
 }
@@ -496,6 +517,7 @@ export const TranscriptView = memo(function TranscriptView({
   // then a short settle pass for dynamic heights that expand after render.
   const scrollToBottom = useCallback(() => {
     if (followKilledRef.current) return
+    const t0 = performance.now()
     const count = mainGroups.length
     if (count > 0) {
       virtualizer.scrollToIndex(count - 1, { align: 'end' })
@@ -512,7 +534,18 @@ export const TranscriptView = memo(function TranscriptView({
         el.scrollTop = el.scrollHeight
         retries++
         requestAnimationFrame(settle)
+        return
       }
+      // Settled (height stable) or hit the retry cap. Retry count is a proxy
+      // for measured-height-cache warmth: 0 means estimateSize landed
+      // accurately first pass; 3 means the cache was cold and the viewport
+      // dragged through re-measuring rows -- the switch-lag cascade.
+      record(
+        'scroll',
+        'scrollSettle',
+        performance.now() - t0,
+        `${retries} retries, ${retries >= 3 ? 'hit cap' : 'stable'}`,
+      )
     }
     requestAnimationFrame(settle)
   }, [mainGroups.length, virtualizer])
