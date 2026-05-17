@@ -487,9 +487,33 @@ export const TranscriptView = memo(function TranscriptView({
     measuredSizes.set(String(item.key), item.size)
   }
 
+  // Total virtualized height. Also the dependency that drives the pin-to-bottom
+  // layout effect below -- it changes only when the virtualizer re-measures
+  // rows, i.e. on a real measurement delta.
+  const totalSize = virtualizer.getTotalSize()
+
   useEffect(() => {
     if (follow) followKilledRef.current = false
   }, [follow])
+
+  // Pin-to-bottom on dynamic measurement. When the virtualizer re-measures rows
+  // after first paint and totalSize changes, re-pin in ONE write -- and only if
+  // actually drifted from the bottom. Replaces the old scrollToBottom rAF poll
+  // loop (3 blind scrollTop writes per call, scrollHeight polled every frame)
+  // that pumped a scroll-event feedback loop into the virtualizer and cost
+  // 200-1100ms per switch. See .claude/docs/plan-transcript-switch-perf.md.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: totalSize is an intentional trigger dep -- the effect re-pins when the virtualizer's measured total changes; it is not read in the body
+  useLayoutEffect(() => {
+    if (!follow || followKilledRef.current) return
+    const el = parentRef.current
+    if (!el) return
+    const t0 = performance.now()
+    const drift = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (drift > 4) {
+      el.scrollTop = el.scrollHeight
+      record('scroll', 'scrollRepin', performance.now() - t0, `drift ${drift.toFixed(0)}px`)
+    }
+  }, [totalSize, follow])
 
   const killFollow = useCallback(
     (e: React.WheelEvent | React.TouchEvent) => {
@@ -513,42 +537,20 @@ export const TranscriptView = memo(function TranscriptView({
     return () => el.removeEventListener('scroll', handleScroll)
   }, [follow, onReachedBottom])
 
-  // Scroll to bottom: use virtualizer.scrollToIndex first (measurement-aware),
-  // then a short settle pass for dynamic heights that expand after render.
+  // Scroll to bottom: a single write. The dynamic-measurement settle (rows
+  // measuring taller than estimated after first paint) is handled by the
+  // totalSize-keyed layout effect above -- NOT by an rAF poll loop. scrollTop
+  // is set against scrollHeight (the whole scroll container, including the
+  // streaming + banner region below the virtualizer), so the true bottom is
+  // pinned, not just the last virtualized row.
   const scrollToBottom = useCallback(() => {
     if (followKilledRef.current) return
-    const t0 = performance.now()
-    const count = mainGroups.length
-    if (count > 0) {
-      virtualizer.scrollToIndex(count - 1, { align: 'end' })
-    }
     const el = parentRef.current
     if (!el) return
-    // Two-frame settle: items may measure larger than estimated after first paint
-    let lastHeight = -1
-    let retries = 0
-    function settle() {
-      if (!el || followKilledRef.current) return
-      if (el.scrollHeight !== lastHeight && retries < 3) {
-        lastHeight = el.scrollHeight
-        el.scrollTop = el.scrollHeight
-        retries++
-        requestAnimationFrame(settle)
-        return
-      }
-      // Settled (height stable) or hit the retry cap. Retry count is a proxy
-      // for measured-height-cache warmth: 0 means estimateSize landed
-      // accurately first pass; 3 means the cache was cold and the viewport
-      // dragged through re-measuring rows -- the switch-lag cascade.
-      record(
-        'scroll',
-        'scrollSettle',
-        performance.now() - t0,
-        `${retries} retries, ${retries >= 3 ? 'hit cap' : 'stable'}`,
-      )
-    }
-    requestAnimationFrame(settle)
-  }, [mainGroups.length, virtualizer])
+    const t0 = performance.now()
+    el.scrollTop = el.scrollHeight
+    record('scroll', 'scrollToBottom', performance.now() - t0, 'single write')
+  }, [])
 
   // Subscribe to selected conversation's transcript changes for scroll-to-bottom.
   // IMPORTANT: track the transcript array REFERENCE for the selected conversation, not the global
@@ -635,7 +637,7 @@ export const TranscriptView = memo(function TranscriptView({
     >
       <div
         style={{
-          height: `${virtualizer.getTotalSize()}px`,
+          height: `${totalSize}px`,
           width: '100%',
           position: 'relative',
         }}
