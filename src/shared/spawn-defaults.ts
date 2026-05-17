@@ -53,7 +53,10 @@ export function resolveSpawnConfig(
   ) as SpawnRequest['permissionMode'] | undefined
 
   const launchMode = profile?.defaultLaunchMode || project?.defaultLaunchMode || global?.defaultLaunchMode
-  const headless = partial.adHoc ? true : partial.headless !== undefined ? partial.headless : launchMode !== 'pty'
+  // Default to PTY. PTY conversations bill against the Anthropic subscription;
+  // headless (--print) bills at API rate from 2026-06-15. adHoc spawns, an
+  // explicit `headless` flag, and defaultLaunchMode='headless' still opt back in.
+  const headless = partial.adHoc ? true : partial.headless !== undefined ? partial.headless : launchMode === 'headless'
 
   const autocompactPct = pickNumber(
     partial.autocompactPct,

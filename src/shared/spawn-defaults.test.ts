@@ -105,8 +105,12 @@ describe('resolveSpawnConfig', () => {
       expect(resolveSpawnConfig({}, { defaultLaunchMode: 'pty' }, null).headless).toBe(false)
     })
 
-    it('defaults to headless=true when nothing set', () => {
-      expect(resolveSpawnConfig({}, null, null).headless).toBe(true)
+    it('defaults to headless=false (PTY) when nothing set', () => {
+      expect(resolveSpawnConfig({}, null, null).headless).toBe(false)
+    })
+
+    it('global defaultLaunchMode=headless opts back into headless', () => {
+      expect(resolveSpawnConfig({}, null, { defaultLaunchMode: 'headless' }).headless).toBe(true)
     })
   })
 
