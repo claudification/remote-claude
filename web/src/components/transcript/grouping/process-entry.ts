@@ -172,11 +172,13 @@ function handleUser(entry: TranscriptEntry, state: GroupingState): boolean {
             .join('')
         : ''
 
-  // CC injects blocked-hook feedback (a Stop/SubagentStop hook's `reason`) as
-  // an isMeta user entry with string content "<Event> hook feedback:\n<reason>".
-  // It is hook machinery, not a user turn -- route it to a system line instead
-  // of letting it fall through and render as a user bubble.
-  if (userEntry.isMeta && typeof content === 'string' && /^[A-Za-z]+ hook feedback:/.test(content.trimStart())) {
+  // CC injects blocked-hook feedback (a Stop/SubagentStop hook's `reason`) as a
+  // plain user entry whose first text block is "<Event> hook feedback:\n
+  // <reason>". It is NOT flagged isMeta, and the content arrives as a text-block
+  // array, not a string -- so match the extracted textContent. The trailing \n
+  // anchor keeps a real user message that merely opens with the phrase (no
+  // newline) from being caught. Hook machinery, not a user turn -> system line.
+  if (/^[A-Za-z]+ hook feedback:\n/.test(textContent.trimStart())) {
     state.current = null
     state.groups.push({
       type: 'system',

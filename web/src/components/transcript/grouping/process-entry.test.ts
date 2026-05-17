@@ -9,29 +9,39 @@ function group(entries: TranscriptEntry[]): GroupingState {
   return state
 }
 
-function userEntry(content: string, opts: { isMeta?: boolean } = {}): TranscriptEntry {
+// CC delivers Stop/SubagentStop hook feedback as a plain user entry (NOT
+// isMeta) whose message.content is a text-block array. `userEntry` accepts a
+// bare string too, to cover the legacy/string-content shape.
+function userEntry(content: string | { type: 'text'; text: string }[]): TranscriptEntry {
   return {
     type: 'user',
     timestamp: '2026-05-16T21:20:00.000Z',
     message: { role: 'user', content },
-    ...(opts.isMeta ? { isMeta: true } : {}),
   } as unknown as TranscriptEntry
 }
 
+function textBlocks(text: string): { type: 'text'; text: string }[] {
+  return [{ type: 'text', text }]
+}
+
 describe('processEntry - Stop hook feedback', () => {
-  it('routes a Stop hook feedback meta entry to a system group, not a user bubble', () => {
+  it('routes Stop hook feedback (array content, the real CC shape) to a system group', () => {
     const { groups } = group([
-      userEntry('Stop hook feedback:\nIt looks like you have uncommitted work in this git repository:\n\n M a.ts', {
-        isMeta: true,
-      }),
+      userEntry(textBlocks('Stop hook feedback:\nIt looks like you have uncommitted work:\n\n M a.ts')),
     ])
     expect(groups).toHaveLength(1)
     expect(groups[0].type).toBe('system')
     expect(groups[0].systemSubtype).toBe('hook_feedback')
   })
 
+  it('also routes Stop hook feedback delivered as a bare string', () => {
+    const { groups } = group([userEntry('Stop hook feedback:\nsome reason')])
+    expect(groups[0]?.type).toBe('system')
+    expect(groups[0]?.systemSubtype).toBe('hook_feedback')
+  })
+
   it('also catches SubagentStop hook feedback', () => {
-    const { groups } = group([userEntry('SubagentStop hook feedback:\nFinish the task first.', { isMeta: true })])
+    const { groups } = group([userEntry(textBlocks('SubagentStop hook feedback:\nFinish the task first.'))])
     expect(groups[0]?.type).toBe('system')
     expect(groups[0]?.systemSubtype).toBe('hook_feedback')
   })
@@ -41,8 +51,8 @@ describe('processEntry - Stop hook feedback', () => {
     expect(groups[0]?.type).toBe('user')
   })
 
-  it('does not reclassify a non-meta entry even if the text matches', () => {
-    const { groups } = group([userEntry('Stop hook feedback:\nsome reason')])
+  it('does not reclassify a message that opens with the phrase but lacks the newline', () => {
+    const { groups } = group([userEntry('Stop hook feedback: inline mention, no newline after the colon')])
     expect(groups[0]?.type).toBe('user')
   })
 })

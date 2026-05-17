@@ -120,12 +120,18 @@ function describeSystemEntry(sub: string, entry: Record<string, unknown>, time: 
         color: 'text-amber-400/70',
       }
     case 'hook_feedback': {
-      // Entry is a CC isMeta user entry (text at message.content), not a
-      // real system entry -- content[] is empty for these. Summarize the
-      // "<Event> hook feedback:\n<reason>" payload onto one line; the (i)
-      // JsonInspector carries the full text.
+      // Entry is a CC user entry carrying the hook reason at message.content
+      // (a text-block array, occasionally a bare string) -- not a real system
+      // entry, so the system `content` field is empty. Summarize the "<Event>
+      // hook feedback:\n<reason>" payload onto one line; the (i) JsonInspector
+      // carries the full text.
       const msg = (entry.message as { content?: unknown } | undefined)?.content
-      const raw = typeof msg === 'string' ? msg : content
+      const raw =
+        typeof msg === 'string'
+          ? msg
+          : Array.isArray(msg)
+            ? msg.map(b => (b as { text?: string })?.text ?? '').join('')
+            : content
       const lines = raw
         .split('\n')
         .map(l => l.trim())
